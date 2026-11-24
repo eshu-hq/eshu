@@ -1,133 +1,126 @@
+import { collectorCategories, collectors, readinessLegend } from "./siteContentCollectors";
+import { commandDemos, demoTrace, heroTraces, quickstartTabs } from "./siteContentDemos";
 import {
-  cleanupModes,
-  commandDemos,
-  demoTrace,
-  terminalCommands
-} from "./siteContentDemos";
-import {
+  architectureDocHref,
+  demoDocHref,
+  deployHref,
   docsHref,
+  firstRunDocHref,
   githubHref,
-  lightweightAuditHref,
-  personaMatrixHref,
+  licenseHref,
+  mcpDocHref,
+  orgHref,
+  readinessDocHref,
   replatformingDemoHref,
-  supplyChainDemoHref
+  repositoriesHref,
+  securityHref,
+  supplyChainDemoHref,
 } from "./siteContentLinks";
-import { personaDemos, proofPoints, rolePrompts } from "./siteContentOrg";
-import {
-  capabilities,
-  coverage,
-  pipeline,
-  surfaces,
-  useCases
-} from "./siteContentProduct";
-import type { NavItem } from "./siteContentTypes";
-import { whatsNew } from "./siteContentWhatsNew";
+import { capabilityTabs, metrics, pipeline, principles, surfaces } from "./siteContentProduct";
+import { opsFacts, roleScenarios, rolloutPhases } from "./siteContentRoles";
+import type { FooterGroup, NavItem } from "./siteContentTypes";
 
 export type {
-  Capability,
-  CleanupMode,
+  CapabilityHighlight,
+  CapabilityTab,
+  CollectorCategory,
+  CollectorItem,
+  CollectorReadiness,
   CommandDemo,
   DemoNode,
-  PersonaDemo,
+  FooterGroup,
+  HeroTrace,
+  MetricStat,
+  NavItem,
+  OpsFact,
   PipelineStep,
-  ProofPoint,
-  RolePrompt,
-  Surface,
-  UseCase,
-  WhatsNewItem
+  PrincipleItem,
+  QuickstartTab,
+  ReadinessLegendItem,
+  RoleScenario,
+  RolloutPhase,
+  SurfaceItem,
 } from "./siteContentTypes";
 
-/** Public launch-page content assembled from focused content modules. */
+/** Complete, machine-aligned launch content assembled from focused modules. */
 export const siteContent = {
   nav: [
-    { label: "Product", href: "#product" },
-    { label: "What's new", href: "#whats-new" },
-    { label: "How it works", href: "#how-it-works" },
-    { label: "Personas", href: "#personas" },
+    { label: "By role", href: "#roles" },
+    { label: "Capabilities", href: "#capabilities" },
+    { label: "Collectors", href: "#collectors" },
+    { label: "Deploy", href: "#deploy" },
+    { label: "Workbench", href: "#workbench" },
     { label: "Try it", href: "#try-it" },
-    { label: "Use cases", href: "#use-cases" },
-    { label: "Docs", href: docsHref }
+    { label: "Docs", href: docsHref },
   ] satisfies readonly NavItem[],
+  links: {
+    github: githubHref,
+    org: orgHref,
+    deploy: deployHref,
+    docs: docsHref,
+    repositories: repositoriesHref,
+    readiness: readinessDocHref,
+  },
   hero: {
-    coreLine: "One Graph. Every Layer. Every Role.",
-    heading: "The institutional knowledge layer now has an agentic answer surface.",
+    eyebrow: "MIT-licensed · Self-hosted · Zero vendor telemetry",
+    heading: "Your living organizational knowledge base — backed by evidence.",
     description:
-      "Eshu connects code, dependencies, supply chain, infrastructure, and runtime into one evidence-backed graph. Ask Eshu turns that graph into a self-hosted answer surface with streaming responses, read-only query tools, and evidence packets when the answer needs proof. When evidence is missing, Eshu says so.",
+      "Eshu continuously connects your repositories, dependencies, container images, SBOMs, Terraform, cloud posture, incidents, and docs into one self-hosted evidence graph. Engineers, SecOps, SRE, support, leadership, and AI assistants all query the same source of truth — and when evidence is missing, Eshu says so.",
+    copyCommand: "eshu demo up",
     primaryCta: { label: "Try it locally", href: "#try-it" },
-    secondaryCta: { label: "Read the docs", href: docsHref }
+    secondaryCta: { label: "Read the docs", href: docsHref },
+    footnote:
+      "Useful on Day 1 with Git repos alone · Works with Claude Code, Cursor, VS Code, Codex & any MCP client",
   },
-  whatsNew,
-  capabilities,
-  pipeline,
-  terminalCommands,
+  metrics,
   demoTrace,
+  heroTraces,
+  roleScenarios,
+  capabilityTabs,
+  collectorCategories,
+  readinessLegend,
+  collectors,
+  rolloutPhases,
+  opsFacts,
+  pipeline,
   commandDemos,
-  personaDemos,
-  cleanupModes,
   surfaces,
-  coverage,
-  proofPoints,
-  rolePrompts,
-  useCases,
-  tryIt: {
-    heading: "Try it in under a minute.",
-    steps: [
-      "git clone https://github.com/eshu-hq/eshu",
-      "cd eshu",
-      "docker compose up --build",
-      "eshu mcp setup    # prints the client snippet for Claude Code, Codex, Cursor, or VS Code",
-      "eshu mcp start   # boots the local MCP server",
-      "POST /api/v0/ask # HTTP Ask Eshu endpoint for app integrations"
-    ],
-    firstQuestion:
-      "Then in your MCP client or POST /api/v0/ask: \"which services are affected by CVE-2024-3094?\"",
-    ctaLabel: "View on GitHub",
-    ctaHref: githubHref
-  },
-  difference: {
-    heading: "What makes Eshu different.",
-    points: [
-      {
-        target: "Snyk",
-        claim: "Returns findings from KEV + EPSS alone. Eshu refuses unless owned evidence proves the path."
-      },
-      {
-        target: "Wiz",
-        claim: "Knows cloud security. Eshu knows cloud security, the code, and the package chain that produced the deploy."
-      },
-      {
-        target: "Sourcegraph",
-        claim: "Finds code. Eshu finds code, the deployment chain, the blast radius, and the supply-chain risk."
-      },
-      {
-        target: "Firefly / Morpheus",
-        claim: "Do cloud governance. Eshu does cloud governance, the re-platforming plan, and the institutional knowledge layer."
-      },
-      {
-        target: "Firehydrant / incident.io",
-        claim: "Do incident response. Eshu does incident response, supply-chain context, and deployment evidence."
-      },
-      {
-        target: "Parity gate",
-        claim:
-          "Eshu parity is CI-verified, not marketing-verified: `eshu competitive-parity validate` scores report, proof-bundle, and capability surfaces against named competitors."
-      },
-      {
-        target: "The unification",
-        claim:
-          "No competitor ships all of this in one graph, behind one MCP server, with one set of truth envelopes, MIT-licensed and self-hosted."
-      }
-    ]
-  },
-  references: {
-    fullPersonaMatrix: personaMatrixHref,
-    supplyChainDemo: supplyChainDemoHref,
-    replatformingDemo: replatformingDemoHref,
-    lightweightAudit: lightweightAuditHref
-  },
+  principles,
+  quickstartTabs,
   closing: {
-    heading: "Stop losing institutional knowledge to tenure.",
+    heading: "Run your org's evidence graph on your own infrastructure.",
     description:
-      "Eshu is the answer: a queryable, evidence-backed knowledge layer that builds itself from your actual artifacts. New hires ramp in days. Engineers switch teams without losing context. Customer-facing teams answer questions from the same source of truth as your engineers. Security, platform, and SRE work from the same data."
-  }
+      "Start with a zero-credential demo or Git repos alone on Day 1, connect coding assistants over MCP, and opt into read-only security, cloud, and operations collectors at your own pace.",
+  },
+  footer: [
+    {
+      heading: "Documentation",
+      links: [
+        { label: "Public Docs", href: docsHref },
+        { label: "Demo Mode", href: demoDocHref },
+        { label: "First Successful Run", href: firstRunDocHref },
+        { label: "Connect MCP", href: mcpDocHref },
+        { label: "Architecture", href: architectureDocHref },
+      ],
+    },
+    {
+      heading: "Runbooks & Proof",
+      links: [
+        { label: "Collector & Reducer Readiness", href: readinessDocHref },
+        { label: "Supply-Chain Demo Runbook", href: supplyChainDemoHref },
+        { label: "AWS → Azure Re-Platforming Demo", href: replatformingDemoHref },
+        { label: "Deployment (eshu-deploy)", href: deployHref },
+      ],
+    },
+    {
+      heading: "Open Source",
+      links: [
+        { label: "eshu-hq/eshu", href: githubHref },
+        { label: "All 31 Repositories", href: repositoriesHref },
+        { label: "GitHub Organization", href: orgHref },
+        { label: "Security Policy", href: securityHref },
+        { label: "MIT License", href: licenseHref },
+      ],
+    },
+  ] satisfies readonly FooterGroup[],
 } as const;

@@ -80,10 +80,11 @@ The Go code coverage badge links to an advisory package report. It is one signal
 
 | I want to... | Start here |
 | --- | --- |
+| Try Eshu with zero credentials (seeded synthetic org) | [Demo mode](docs/public/getting-started/demo-mode.md) |
 | Get one successful local run and first answer | [First successful run](docs/public/getting-started/first-successful-run.md) |
-| Try the full API and MCP service stack on my laptop | [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) |
+| Try the full API, Console, and MCP service stack on my laptop | [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md) |
 | Develop Eshu or run one local workspace service | [Local binaries](docs/public/run-locally/local-binaries.md) |
-| Connect Codex, Claude, Cursor, or VS Code | [Connect MCP](docs/public/mcp/index.md) |
+| Connect Claude Code, Cursor, VS Code, or Codex | [Connect MCP](docs/public/mcp/index.md) |
 | Deploy Eshu as a shared team service | [Kubernetes deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
 | Deploy on EKS | [EKS deployment](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) |
 | Monitor, debug, or tune a deployment | [Operate Eshu](docs/public/operate/index.md) |
@@ -93,19 +94,35 @@ The Go code coverage badge links to an advisory package report. It is one signal
 
 ## Quickstart
 
-Start with [First successful run](docs/public/getting-started/first-successful-run.md). It
-gets you to one indexed repo and one useful answer. To build from this checkout, run:
+For the fastest evaluation with **zero credentials**, install the CLI and boot the
+seeded synthetic organization ([Demo mode](docs/public/getting-started/demo-mode.md)):
 
 ```bash
 ./scripts/install-local-binaries.sh
 export PATH="$(go env GOPATH)/bin:$PATH"
-eshu mcp setup --platform codex
+eshu demo up
 ```
 
-Paste in the client config it prints, open your repo as the workspace, and restart your
-client. Then ask it to list the indexed repositories. If yours shows up, you're in. Want
-the full stack with the HTTP API? Take the Compose path above. A healthy process alone
-doesn't mean you're done. The index needs to be ready and a query needs to come back.
+`eshu demo up` waits until health, indexing, and reducer queue drain all complete, then
+prints your first truth-labeled answer. Run `eshu demo down` when finished to clean up
+containers and volumes.
+
+To connect an AI assistant to your own local repository over stdio MCP (requires Go 1.26+;
+no Docker needed — `eshu mcp start` auto-indexes your open workspace with embedded local
+storage), print a config snippet for your client (`claude`, `cursor`, `vscode`, or `codex`):
+
+```bash
+eshu mcp setup --platform claude
+```
+
+Paste in the config it prints, open your repo as the workspace, and restart your client.
+Then ask it to list the indexed repositories. Want the full API, 42-page Console (with
+built-in OIDC/SAML/GitHub SSO, RBAC, and audit logs), and hosted MCP stack? Pull prebuilt
+GHCR images via Docker Compose or Helm in [eshu-deploy](https://github.com/eshu-hq/eshu-deploy)
+(start on Day 1 with Git repos alone — no cloud credentials required), or follow
+[First successful run](docs/public/getting-started/first-successful-run.md).
+A healthy process alone doesn't mean you're done: the index needs to be ready and a
+bounded query needs to come back.
 
 ## How It Works
 
@@ -227,7 +244,7 @@ The docs live in eight buckets. Here's where each one really lives:
 | Local Eshu service from checkout | Supported for development and workspace-local use |
 | MCP server | Supported |
 | Kubernetes deployment | Supported through Helm |
-| Graph backend | Deployment-dependent; your deployment selects it. See [Architecture](docs/public/architecture.md). |
+| Graph backend | Neo4j is the supported canonical backend for deployments (decision #7331); local workspace binaries run an embedded local store for single-repo development. See [Architecture](docs/public/architecture.md). |
 | Optional collectors | Varies by collector; see [Collector And Reducer Readiness](docs/public/reference/collector-reducer-readiness.md) |
 
 ## Project

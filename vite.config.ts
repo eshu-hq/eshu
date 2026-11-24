@@ -8,7 +8,14 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
-    exclude: ["apps/console/**", "node_modules/**", "tests/fixtures/**"],
+    exclude: [
+      ".git/**",
+      ".opencode/**",
+      ".worktrees/**",
+      "apps/console/**",
+      "node_modules/**",
+      "tests/fixtures/**"
+    ],
     globals: true,
     setupFiles: "./src/test/setup.ts"
   }

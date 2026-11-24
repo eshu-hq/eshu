@@ -1,0 +1,406 @@
+/* Command workbench */
+.demo-workbench {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(260px, 0.36fr) minmax(0, 0.64fr);
+}
+
+.demo-workbench > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.command-rail {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.command-button {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 11px 14px;
+  text-align: left;
+  transition: border-color 140ms ease, color 140ms ease;
+  width: 100%;
+}
+
+.command-button:hover {
+  border-color: var(--line-strong);
+  color: var(--fg);
+}
+
+.command-button.is-active {
+  background: var(--teal-soft);
+  border-color: var(--teal-border);
+  color: var(--fg);
+}
+
+.command-surface-badge {
+  color: var(--teal);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.command-text {
+  align-items: center;
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 0.79rem;
+  gap: 7px;
+  overflow-wrap: anywhere;
+}
+
+.command-text svg {
+  color: var(--ember);
+  flex-shrink: 0;
+  height: 14px;
+  width: 14px;
+}
+
+.terminal-card {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 12px;
+  color: var(--code-fg);
+  padding: 20px;
+}
+
+.terminal-head {
+  align-items: center;
+  border-bottom: 1px solid var(--code-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+}
+
+.terminal-title {
+  align-items: center;
+  color: #5eead4;
+  display: inline-flex;
+  font-size: 0.84rem;
+  gap: 8px;
+}
+
+.terminal-title svg {
+  height: 15px;
+  width: 15px;
+}
+
+.copy-mini-button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: var(--code-fg);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.copy-mini-button:hover {
+  border-color: rgba(20, 184, 166, 0.6);
+}
+
+.copy-mini-button svg {
+  height: 13px;
+  width: 13px;
+}
+
+.terminal-summary {
+  color: var(--code-muted);
+  font-size: 0.89rem;
+  line-height: 1.55;
+  margin: 0 0 14px;
+}
+
+.terminal-output {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #e6dfd2;
+  font-size: 0.81rem;
+  line-height: 1.64;
+  margin: 0;
+  overflow-x: auto;
+  padding: 15px;
+}
+
+/* Asymmetric 12-column Bento Surfaces Grid (zero empty slot) */
+.surface-bento {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.surface-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+}
+
+.surface-card--mcp {
+  grid-column: span 7;
+}
+
+.surface-card--console {
+  grid-column: span 5;
+}
+
+.surface-card--compact {
+  grid-column: span 4;
+}
+
+.surface-card-top {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.surface-card-top svg {
+  color: var(--teal);
+  height: 19px;
+  width: 19px;
+}
+
+.surface-metric {
+  color: var(--ember);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.surface-card p {
+  color: var(--muted);
+  font-size: 0.89rem;
+  line-height: 1.56;
+  margin: 7px 0 14px;
+}
+
+.surface-bullets {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.82rem;
+  gap: 6px;
+  line-height: 1.48;
+  margin: auto 0 0;
+  padding-left: 16px;
+}
+
+/* MCP Router visual inside Bento card */
+.bento-mini-visual {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 9px;
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.router-row {
+  align-items: center;
+  color: var(--code-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  gap: 9px;
+}
+
+.router-row--highlight {
+  color: #f3ebdd;
+}
+
+.router-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #cbd5e1;
+  font-family: var(--font-mono);
+  font-size: 0.69rem;
+  font-weight: 700;
+  min-width: 78px;
+  padding: 3px 7px;
+  text-align: center;
+}
+
+.router-pill--teal {
+  background: rgba(20, 184, 166, 0.18);
+  border: 1px solid rgba(20, 184, 166, 0.5);
+  color: #5eead4;
+}
+
+/* Mini Console UI frame inside Bento card */
+.console-mini-frame {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 9px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.console-mini-bar {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--code-border);
+  display: flex;
+  gap: 5px;
+  padding: 7px 10px;
+}
+
+.console-mini-bar span {
+  background: rgba(243, 235, 221, 0.22);
+  border-radius: 999px;
+  height: 7px;
+  width: 7px;
+}
+
+.console-mini-bar code {
+  color: var(--code-muted);
+  font-size: 0.68rem;
+  margin-left: 6px;
+}
+
+.console-mini-body {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  padding: 10px;
+}
+
+.console-mini-nav {
+  display: grid;
+  gap: 4px;
+}
+
+.console-mini-nav span {
+  border-radius: 4px;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 3px 6px;
+}
+
+.console-mini-nav span.is-active {
+  background: rgba(20, 184, 166, 0.16);
+  color: #5eead4;
+}
+
+.console-mini-badges {
+  align-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.console-mini-badges span {
+  background: rgba(255, 138, 0, 0.12);
+  border: 1px solid rgba(255, 138, 0, 0.32);
+  border-radius: 999px;
+  color: #ffb866;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  padding: 2px 7px;
+}
+
+/* Borderless 4-column editorial Engineering Guarantees strip */
+.principles-strip {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 56px;
+}
+
+.principles-head {
+  margin-bottom: 26px;
+}
+
+.principles-editorial {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.principle-col {
+  border-top: 1px solid var(--line-strong);
+  padding-top: 16px;
+}
+
+.principle-index {
+  color: var(--ember);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.principle-col p {
+  color: var(--muted);
+  font-size: 0.87rem;
+  line-height: 1.58;
+  margin: 8px 0 0;
+}
+
+/* Quickstart */
+.quickstart-card {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 14px;
+  color: var(--code-fg);
+  padding: 24px;
+}
+
+.quickstart-head {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.quickstart-meta-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.quickstart-prereq {
+  color: #5eead4;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
+.quickstart-desc {
+  color: var(--code-muted);
+  font-size: 0.91rem;
+  line-height: 1.55;
+  margin: 10px 0 0;
+  max-width: 68ch;
+}
+
+.quickstart-note {
+  color: var(--code-muted);
+  font-size: 0.81rem;
+  margin: 14px 0 0;
+}
