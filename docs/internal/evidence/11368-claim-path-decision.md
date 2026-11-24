@@ -97,9 +97,11 @@ the manifest row belongs to it, and this note becomes the pointer.
 ## Outstanding
 
 - `arbiter-eshu` verdict: obtained 2026-11-24 — ADOPT, high
-  confidence. Rationale: Odù asserts order-independent terminal
-  graph truth, so any claim order over the same cassette converges
-  green and cannot fail on ordering regression.
+  confidence, recorded as the verifiable ruling artifact
+  [11368-claim-path-ruling-2026-11-24.md](../arbiter/11368-claim-path-ruling-2026-11-24.md).
+  Rationale: Odù asserts order-independent terminal graph truth, so
+  any claim order over the same cassette converges green and cannot
+  fail on ordering regression.
 - Owner agreement + posting the decision text on #11368 and the
   #11350 link: coordinator to post; issue stays open until the
   owner acks.
