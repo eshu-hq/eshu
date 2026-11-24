@@ -50,13 +50,14 @@ func scopedLiveWrite(
 
 // diffLiveRows reads the active finding rows of one generation as payloads
 // with the pass and scope identity redacted: the two halves run on different
-// scopes, so scope_id, generation_id, intent_id, cause, and the digest that
-// covers them differ by construction. The differential compares everything
-// else: the finding's asserted truth.
+// scopes, so scope_id, generation_id, intent_id, cause, and the digests that
+// cover pass/scope identity (provenance.content_digest and
+// provenance.identity_digest) differ by construction. The differential
+// compares everything else: the finding's asserted truth.
 func diffLiveRows(t *testing.T, ctx context.Context, db *sql.DB, scope, generation string) map[string]string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `
-SELECT payload->>'cve_id', ((payload - 'intent_id' - 'cause' - 'scope_id' - 'generation_id') #- '{provenance,content_digest}')::text
+SELECT payload->>'cve_id', ((payload - 'intent_id' - 'cause' - 'scope_id' - 'generation_id') #- '{provenance,content_digest}' #- '{provenance,identity_digest}')::text
 FROM fact_records
 WHERE fact_kind = '`+facts.ReducerSupplyChainImpactFindingFactKind+`'
   AND scope_id = $1 AND generation_id = $2 AND is_tombstone = FALSE
