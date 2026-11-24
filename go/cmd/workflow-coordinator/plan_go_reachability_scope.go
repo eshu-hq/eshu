@@ -165,3 +165,13 @@ func runOperatorPlanWithSignals(args []string, stdout, stderr io.Writer) int {
 	defer stop()
 	return runPlanGoReachabilityScope(ctx, args, stdout, stderr)
 }
+
+// runOperatorCommand routes argv to the one-shot operator entry point without
+// starting the reconciler. It reports whether it handled the invocation along
+// with the one-shot's exit code; main exits with that code when handled.
+func runOperatorCommand(args []string, stdout, stderr io.Writer) (int, bool) {
+	if len(args) > 0 && args[0] == "plan-go-reachability-scope" {
+		return runOperatorPlanWithSignals(args[1:], stdout, stderr), true
+	}
+	return 0, false
+}
