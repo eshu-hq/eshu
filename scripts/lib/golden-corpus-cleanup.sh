@@ -16,9 +16,26 @@
 # retain_live_gate_lock/release_live_gate_lock functions from
 # scripts/lib/live-gate-lock.sh (sourced separately; this chunk only calls
 # them, it does not source the lock lib itself).
+#
+# shellcheck source=scripts/lib/golden-corpus-failure-diagnostics.sh
+source "$(dirname "${BASH_SOURCE[0]}")/golden-corpus-failure-diagnostics.sh"
 
 cleanup() {
 	local status=$?
+	local diag_status
+	# #11382: on failure, stage the diagnostics bundle BEFORE the teardown
+	# and work-dir removal below (the reducer-domain queries need the
+	# database; the file bundle needs work_dir). Staging is best-effort
+	# here: its own loud failure is reported, and teardown continues with
+	# the original exit status. On success nothing is staged, so the
+	# success path stays byte-identical.
+	if [[ "${status}" -ne 0 ]]; then
+		diag_status=0
+		stage_failure_diagnostics "${GATE_COMPOSE_PROJECT:-local}" || diag_status=$?
+		if [[ "${diag_status}" -ne 0 ]]; then
+			printf 'cleanup: failure-diagnostics staging failed (exit %s); continuing teardown\n' "${diag_status}" >&2
+		fi
+	fi
 	# On failure, dump every host-binary log to stdout BEFORE the work dir is
 	# removed, so a CI failure (which captures this script's stdout) preserves the
 	# api/collector/projector/reducer logs that explain the break — not just the

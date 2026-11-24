@@ -15,6 +15,7 @@ workflows:
   - specs/ci-images.v1.json
   - scripts/lib/stage-differential-capture.sh
   - scripts/test-stage-differential-capture.sh
+  - scripts/test-stage-failure-diagnostics.sh
   - scripts/lib/golden-corpus-capture-leg-cases.sh
   - go/internal/collector/**
   - go/internal/parser/**

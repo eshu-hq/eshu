@@ -51,6 +51,8 @@ jobs:
         run: bash scripts/test-verify-golden-corpus-gate.sh
       - name: Validate differential capture staging
         run: bash scripts/test-stage-differential-capture.sh
+      - name: Validate failure diagnostics staging
+        run: bash scripts/test-stage-failure-diagnostics.sh
   corpus-gate:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'corpus-gate') }}
     name: corpus-gate (${{ matrix.graph_backend }})
@@ -130,6 +132,22 @@ jobs:
       - name: Tear down Docker services
         if: ${{ always() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" -- down -v || true
+
+      # #11382: the ONE failure-diagnostics bundle for this job. The gate
+      # script stages it pre-teardown on the failure path; this step only
+      # uploads it (warn, never error: a leg that died before staging
+      # anything has nothing to upload, and the original failure is the
+      # signal). No capture dir exists here, so this bundle holds the
+      # work_dir files plus reducer-domain.json; full capture stays off.
+      - name: Upload failure diagnostics bundle
+        if: ${{ !cancelled() && failure() }}
+        uses: ./.github/actions/retry-upload-artifact
+        with:
+          name: failure-diagnostics-${{ github.run_id }}-corpus-${{ matrix.graph_backend }}
+          path: ${{ runner.temp }}/golden-corpus-failure/eshu-golden-corpus-${{ matrix.graph_backend }}
+          if-no-files-found: warn
+          retention-days: 7
+          overwrite: 'true'
 
   # Four independent B-7 recordings run on separate hosted runners. Every
   # backend/pairing retains its own capture; a failed leg or upload blocks the
@@ -219,6 +237,21 @@ jobs:
       - name: Tear down Docker services
         if: ${{ always() }}
         run: bash scripts/ci/compose.sh -p "${GATE_COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" -- down -v || true
+
+      # #11382: the ONE failure-diagnostics bundle for this leg: the leg's
+      # capture recordings plus the work_dir files plus reducer-domain.json,
+      # staged pre-teardown by the gate script on the failure path. Warn,
+      # never error: a leg that died before staging has nothing to upload,
+      # and the original failure is the signal. Green legs upload nothing.
+      - name: Upload failure diagnostics bundle
+        if: ${{ !cancelled() && failure() }}
+        uses: ./.github/actions/retry-upload-artifact
+        with:
+          name: failure-diagnostics-${{ github.run_id }}-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
+          path: ${{ runner.temp }}/golden-corpus-failure/eshu-differential-pair${{ matrix.pair }}-${{ matrix.graph_backend }}
+          if-no-files-found: warn
+          retention-days: 7
+          overwrite: 'true'
 
   differential:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential')) && (always()) }}
