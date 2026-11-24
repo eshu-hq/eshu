@@ -65,6 +65,17 @@ operator-facing signals, scaling guidance, and runtime invariants for the
   backend saturation or unsafe overlap.
 - Worker leases renew at `LeaseDuration / 2`; a retry delay shorter than
   the lease TTL causes claims to churn.
+- No-Regression Evidence (#11306): the stale-reader startup retry is
+  startup-only and adds no steady-state cost. The resweep tick SQL, cadence,
+  and maintainer path are byte-identical before and after; only the process
+  entry opens differently (wait up to 5 minutes at a 250 ms pace, about 1200
+  dial attempts worst case, each closing its pools on failure). Past the
+  bound the process exits with the same loud prefixed error as the old
+  fail-fast, so the failure mode is unchanged, only delayed.
+  Observability Evidence: each wait logs `winners stale access waiting for
+  reader` with attempt, delay, and redacted reason, and `/readyz` reports
+  not-ready on the `winners_stale_access` probe; no new metric or stage.
+  Focused reducer tests pass, including under `-race`.
 - The projector drain gate (ESHU_QUERY_PROFILE=local-authoritative +
   ESHU_GRAPH_BACKEND=nornicdb) delays semantic-entity claims until
   source-local projectors have finished.

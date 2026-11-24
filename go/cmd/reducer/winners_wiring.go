@@ -5,13 +5,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -68,15 +72,216 @@ func openWinnersStaleAccessIfEnabled(
 	if err != nil {
 		return nil, nil, fmt.Errorf("supply chain impact winners stale access: %w", err)
 	}
-	access, err = pgaccess.Open(ctx, poolCfg, observer)
+	// The open retries a briefly unreachable reader with a bounded backoff
+	// (#11306) instead of failing the startup fast: the wrapper already
+	// carries the stale-access prefix on every error path, so its error
+	// returns unwrapped to avoid doubling the prefix.
+	access, err = openWinnersStaleAccessWithRetry(ctx, poolCfg, observer, pgaccess.Open, logger)
 	if err != nil {
-		return nil, nil, fmt.Errorf("supply chain impact winners stale access: %w", err)
+		return nil, nil, err
 	}
 	return access, func() {
 		if err := access.Close(); err != nil && logger != nil {
 			logger.Warn("winners stale access close failed", "error", err)
 		}
 	}, nil
+}
+
+// winnersStaleAccessOpenBackoff paces stale-reader open retries. It matches
+// the shared Postgres ping retry (postgresPingBackoff in
+// internal/runtime/data_stores.go): a single dial is fragile against a
+// Postgres that passed pg_isready but is still finishing startup, and a retry
+// a few hundred milliseconds later clears it.
+const winnersStaleAccessOpenBackoff = 250 * time.Millisecond
+
+// winnersStaleAccessOpenBudget bounds the deferred stale-reader open
+// (#11306). A replica restart observed in the field needed about 40s before
+// the reader was reachable again; the budget covers that with margin while
+// still failing loudly when the reader stays unreachable past it.
+const winnersStaleAccessOpenBudget = 5 * time.Minute
+
+// winnersStaleAccessOpenFunc opens the Postgres reader access. pgaccess.Open
+// is the production implementation; tests inject a stub that fails with the
+// reader-unavailable sentinel before succeeding.
+type winnersStaleAccessOpenFunc func(context.Context, pgaccess.Config, pgaccess.Observer) (*pgaccess.Access, error)
+
+// openWinnersStaleAccessWithRetry opens the reader access, retrying while the
+// failure reports a reader that is not yet reachable (errors.Is(err,
+// db.ErrReaderUnavailable)) until ctx expires. Any other failure returns
+// immediately: a dead writer, a bad config, or a wrong topology is not a
+// transient reader outage and must keep failing fast. Past the bound the last
+// error returns wrapped with the stale-access prefix, so the process still
+// exits loudly on the same error instead of silently falling back to the
+// writer. Every wait logs its attempt and reason, so the startup wait and
+// its cause are visible while the status server reports not-ready.
+func openWinnersStaleAccessWithRetry(
+	ctx context.Context,
+	cfg pgaccess.Config,
+	observer pgaccess.Observer,
+	open winnersStaleAccessOpenFunc,
+	logger *slog.Logger,
+) (*pgaccess.Access, error) {
+	for attempt := 1; ; attempt++ {
+		access, err := open(ctx, cfg, observer)
+		if err == nil {
+			return access, nil
+		}
+		if !errors.Is(err, db.ErrReaderUnavailable) {
+			return nil, fmt.Errorf("supply chain impact winners stale access: %w", err)
+		}
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("supply chain impact winners stale access: %w", err)
+		}
+		if logger != nil {
+			logger.Info("winners stale access waiting for reader",
+				slog.Int("attempt", attempt),
+				slog.Duration("retry_in", winnersStaleAccessOpenBackoff),
+				slog.String("reason", pgaccess.OpenFailureSummary(err)),
+			)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("supply chain impact winners stale access: %w", err)
+		case <-time.After(winnersStaleAccessOpenBackoff):
+		}
+	}
+}
+
+// classifyWinnersStaleRouting maps the ESHU_POSTGRES_READ_ROUTING value to
+// the stale-access path: off stays writer-backed, the two admitted modes
+// wait for the reader, and anything else is bogus. An unknown mode must fail
+// startup, never silently run as off.
+func classifyWinnersStaleRouting(raw string) (admitted, known bool) {
+	switch strings.TrimSpace(raw) {
+	case "", string(pgaccess.ReadRoutingOff):
+		return false, true
+	case string(pgaccess.ReadRoutingStaleAudits), string(pgaccess.ReadRoutingStagedAudits):
+		return true, true
+	default:
+		return false, false
+	}
+}
+
+// winnersStaleAccessAdmitted reports whether routing admits the stale audit
+// scans. Only the two admitted modes wait for the reader; anything else
+// either stays writer-backed (off) or fails startup as bogus when opened.
+func winnersStaleAccessAdmitted(getenv func(string) string) bool {
+	admitted, _ := classifyWinnersStaleRouting(getenv(supplyChainImpactWinnersReadRoutingEnv))
+	return admitted
+}
+
+// winnersStaleAccessRoutingError rejects a bogus routing mode at build time
+// with the same error the open path reports: the deferred gate never sees
+// the value, so an unknown mode cannot slip through as writer-backed.
+func winnersStaleAccessRoutingError(getenv func(string) string) error {
+	raw := strings.TrimSpace(getenv(supplyChainImpactWinnersReadRoutingEnv))
+	if _, known := classifyWinnersStaleRouting(raw); !known {
+		return fmt.Errorf("supply chain impact winners stale access: ESHU_POSTGRES_READ_ROUTING must be off, stale-audits, or staged-audits, got %q", raw)
+	}
+	return nil
+}
+
+// winnersRunner is the long-running behavior the stale-access gate wraps:
+// the same Run contract the hosted application serves.
+type winnersRunner interface {
+	Run(context.Context) error
+}
+
+// winnersStaleAccessDeferred is the stale-reader open moved out of the
+// buildObservedReducerService fail-fast path (#11306). The build returns
+// quickly with the writer-backed Auditor it always built; the open, with its
+// bounded retry, runs in the Runner below after the status server starts, so
+// /readyz reports not-ready while the reducer waits for the reader instead
+// of the process exiting before the status server listens. Past the bound
+// the Runner returns the same wrapped error, so a persistently unreachable
+// reader still exits loudly, never falling back to the primary.
+type winnersStaleAccessDeferred struct {
+	admitted bool
+	ready    atomic.Bool
+	open     func(ctx context.Context) (*pgaccess.Access, func(), error)
+	attach   func(access *pgaccess.Access) error
+}
+
+// newWinnersStaleAccessDeferred builds the deferred stale-reader gate. When
+// routing does not admit stale audits there is nothing to wait for, so the
+// gate starts ready and the Runner passes straight through.
+func newWinnersStaleAccessDeferred(
+	admitted bool,
+	open func(ctx context.Context) (*pgaccess.Access, func(), error),
+	attach func(access *pgaccess.Access) error,
+) *winnersStaleAccessDeferred {
+	gate := &winnersStaleAccessDeferred{admitted: admitted, open: open, attach: attach}
+	if !admitted {
+		gate.ready.Store(true)
+	}
+	return gate
+}
+
+// readinessProbe reports the stale-reader gate to /readyz: not-ready while
+// the deferred open is still waiting for the reader, ready once the access
+// is attached (or when routing never admitted the stale scans).
+func (gate *winnersStaleAccessDeferred) readinessProbe() runtimecfg.ReadinessProbe {
+	return runtimecfg.ReadinessProbe{
+		Name: "winners_stale_access",
+		Check: func(context.Context) error {
+			if !gate.admitted || gate.ready.Load() {
+				return nil
+			}
+			return errors.New("winners stale reader access not yet established")
+		},
+	}
+}
+
+// wrapRunner returns a Runner that establishes the stale access before the
+// inner service runs. Routing off passes straight through with no I/O; a
+// nil access (only possible when off) skips the attach; any open or attach
+// failure returns the loud wrapped error so the process exits instead of
+// serving winners it cannot prove current.
+func (gate *winnersStaleAccessDeferred) wrapRunner(inner winnersRunner, logger *slog.Logger) winnersRunner {
+	return &winnersStaleAccessRunner{gate: gate, inner: inner, logger: logger}
+}
+
+// winnersStaleAccessRunner establishes the deferred stale access, then runs
+// the inner service. The status server is already listening while it waits,
+// so the wait surfaces as not-ready; the access closes when the inner run
+// returns, matching the previous shutdown order.
+type winnersStaleAccessRunner struct {
+	gate   *winnersStaleAccessDeferred
+	inner  winnersRunner
+	logger *slog.Logger
+}
+
+// Run establishes the stale reader access with a bounded retry and then runs
+// the inner service.
+func (r *winnersStaleAccessRunner) Run(ctx context.Context) error {
+	if !r.gate.admitted {
+		return r.inner.Run(ctx)
+	}
+	openCtx, cancel := context.WithTimeout(ctx, winnersStaleAccessOpenBudget)
+	defer cancel()
+	access, cleanup, err := r.gate.open(openCtx)
+	if err != nil {
+		if ctx.Err() != nil {
+			if r.logger != nil {
+				r.logger.Info("winners stale access wait canceled by shutdown",
+					slog.String("reason", pgaccess.OpenFailureSummary(err)),
+				)
+			}
+			return nil
+		}
+		return err
+	}
+	defer cleanup()
+	if access != nil {
+		if err := r.gate.attach(access); err != nil {
+			return err
+		}
+		if r.logger != nil {
+			r.logger.Info("winners stale access established")
+		}
+	}
+	r.gate.ready.Store(true)
+	return r.inner.Run(ctx)
 }
 
 // loadSupplyChainImpactWinnersAuditInterval reads the audit cadence. An unset or
