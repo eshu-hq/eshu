@@ -129,7 +129,8 @@ func supportsExec(t *testing.T, ctx context.Context, db *sql.DB, query string, a
 // TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive proves the supports-backed
 // stored read returns the rows, columns and keys the fact read returned (the fencing
 // token aside, which is the constant 0), including a NULL support key with a twin, with
-// no twin, with an empty twin key, and a filled support key that differs from its twin.
+// no twin, with an empty twin key, and a filled support key that differs from its twin,
+// and for the previous generation's rows, the only rows a generation's first pass reads.
 func TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive(t *testing.T) {
 	sum := sha256.Sum256([]byte(supportsLegacyStoredRead))
 	if got := hex.EncodeToString(sum[:]); got != supportsLegacyStoredReadDigest {
@@ -195,6 +196,53 @@ func TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive(t *testing.T) {
 	}
 	if len(supports) != len(ids) {
 		t.Errorf("supports read returned %d rows, want %d", len(supports), len(ids))
+	}
+
+	// The prior-generation leg: the read also returns the scope's previous generation,
+	// which is all a generation's first pass has to diff against. Findings written by
+	// the real writer into the superseded generation must read the same from both
+	// sources, under that generation's id.
+	prior := replaceSetLiveGeneration + ":prior"
+	before := map[string]bool{}
+	for _, id := range ids {
+		before[id] = true
+	}
+	priorFindings := []supplychaincore.SupplyChainImpactFinding{}
+	for i := 20; i < 23; i++ {
+		f := replaceSetFinding(fmt.Sprintf("repository:r_c1_read_prior_%d", i))
+		f.CVEID = fmt.Sprintf("CVE-2026-93%03d", i)
+		priorFindings = append(priorFindings, f)
+	}
+	priorWrite := replaceSetWrite("intent:c1:stored-read-prior", priorFindings...)
+	priorWrite.GenerationID = prior
+	if _, err := replaceSetWriter(db).WriteSupplyChainImpactFindings(ctx, priorWrite); err != nil {
+		t.Fatalf("write the prior generation: %v", err)
+	}
+	var priorIDs []string
+	for _, id := range c1ReadLiveFactIDs(t, ctx, db, replaceSetLiveScope) {
+		if !before[id] {
+			priorIDs = append(priorIDs, id)
+		}
+	}
+	if len(priorIDs) != len(priorFindings) {
+		t.Fatalf("the prior-generation write left %d new findings, want %d", len(priorIDs), len(priorFindings))
+	}
+	legacy = scanStoredRead(t, ctx, db, supportsLegacyStoredRead, replaceSetLiveScope, replaceSetLiveGeneration)
+	supports = scanStoredRead(t, ctx, db, supplychaincore.ProofStoredFindingsQuery(), replaceSetLiveScope, replaceSetLiveGeneration)
+	for _, id := range priorIDs {
+		l, inLegacy := legacy[id]
+		s, inSupports := supports[id]
+		if !inLegacy || !inSupports {
+			t.Errorf("prior-generation fact %s: in legacy %v, in supports %v; want both", id, inLegacy, inSupports)
+			continue
+		}
+		if s.GenerationID != prior || s.Key == "" {
+			t.Errorf("prior-generation fact %s: supports generation %q key %q, want %q and a filled key", id, s.GenerationID, s.Key, prior)
+		}
+		l.Token, s.Token = 0, 0
+		if !reflect.DeepEqual(l, s) {
+			t.Errorf("prior-generation fact %s: supports read %+v != legacy read %+v", id, s, l)
+		}
 	}
 }
 

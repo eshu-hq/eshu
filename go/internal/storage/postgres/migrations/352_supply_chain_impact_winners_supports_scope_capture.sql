@@ -14,10 +14,11 @@
 --
 -- Order: the trigger is BEFORE DELETE on ingestion_scopes, so it fires before the
 -- foreign key cascade removes the scope's generations and their supports; the
--- supports are still there when it reads them. That order is a reading of the
--- trigger and cascade rules, proved by the live scope-delete capture test, which
--- has not run for this migration. A NEW migration file per issue #7002: never edit
--- an applied migration.
+-- supports are still there when it reads them. The live test
+-- TestSupplyChainImpactSupportsScopeDeleteCaptureStagesTheFactSetLive proves that
+-- order for this migration, for a scope deleted with its generations and for a
+-- retired generation deleted before its scope. A NEW migration file per issue
+-- #7002: never edit an applied migration.
 SELECT set_config('eshu.prev_search_path', current_setting('search_path'), true);
 
 CREATE OR REPLACE FUNCTION supply_chain_impact_winners_capture_scope_delete()

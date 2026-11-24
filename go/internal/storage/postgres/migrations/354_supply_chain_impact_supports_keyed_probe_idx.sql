@@ -17,8 +17,10 @@
 -- TestKeyedSupportsIndexCoversTheKeyedProbe derives both from the shipped
 -- statements. No predicate: a support exists only for a live finding fact.
 --
--- Build time on the QA table is not measured; a lab build at 8M rows precedes the
--- roll that applies this index, and it is not applied inside W1b.
+-- A lab build (TestSupplyChainImpactSupportsKeyedProbeIndexBuildLabLive, 300,000
+-- rows with 9,000-byte compressible payloads) leaves the index valid and ready in
+-- about a second; the QA build, which detoasts every payload, is not measured
+-- here. It is not applied inside W1b.
 --
 -- CONCURRENTLY, so the build does not block impact writers. Single statement: a
 -- concurrent build cannot run inside a transaction block. A failed build leaves an

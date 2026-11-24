@@ -19,10 +19,10 @@ import (
 // cannot drift from what the audit runs.
 //
 // The audit and the staged audit scan keep the legacy statements: they are the
-// oracle the supports-derived winners are compared with. The probe's index
-// (fact_records_supply_chain_impact_winners_keyed_idx) has no counterpart on the
-// supports table yet; the index set for the keyed probe is measured separately, so
-// this file changes the row source only.
+// oracle the supports-derived winners are compared with. The probe's index on the
+// supports table is migration 354 (supply_chain_impact_finding_supports_keyed_probe_idx),
+// which mirrors fact_records_supply_chain_impact_winners_keyed_idx; this file
+// changes the row source only.
 
 // winnersSupportsInputSwap is one legacy fragment and the supports fragment that
 // replaces it.

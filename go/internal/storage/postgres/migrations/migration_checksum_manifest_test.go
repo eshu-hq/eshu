@@ -535,9 +535,9 @@ var migrationShippedChecksums = map[string]string{
 	// tombstoned fact rows.
 	// #10880 PR-C1 e: the winners dirty-capture functions that read finding facts
 	// now read the supports table (352 the scope delete, 353 the scanner pair).
-	// DRAFT index set g (#10880 PR-C1): the keyed probe index on the supports table.
-	"354_supply_chain_impact_supports_keyed_probe_idx.sql":         "9f1d5d880249a9737252eb6cbe06464544dbef65e8eeea0fcedcb06bc6feb6c9",
-	"352_supply_chain_impact_winners_supports_scope_capture.sql":   "ea2807e70453c071c2f734134423fc5ddc75e58aae5ba198bcc1043a019b092a",
+	// #10880 PR-C1 g: the keyed probe index on the supports table.
+	"354_supply_chain_impact_supports_keyed_probe_idx.sql":         "4246408e80e74397f912c3af7d32f6300d4882431e45d2e2809c1f03dbb5c80f",
+	"352_supply_chain_impact_winners_supports_scope_capture.sql":   "f23383da86bfe3a234aa6b07bb10ad9c63c0475230aae46ac963121b4e242ba6",
 	"353_supply_chain_impact_winners_supports_scanner_capture.sql": "4b4237a659e753e35d4e13b6d1b2c813a4d96c548598ef7ffa8676d307b26549",
 	"351_supply_chain_impact_retracted_finding_keys.sql":           "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
 }

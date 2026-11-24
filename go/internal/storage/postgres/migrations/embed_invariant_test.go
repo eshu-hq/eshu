@@ -387,8 +387,12 @@ import (
 // holder read (numbered 347/349, 348 held by main's verify cursor). Count 375
 // is main's 373 plus the pair; the digest is this test's own derivation on
 // the merged tree.
+// 350 to 354 (#10880 PR-C1) add the supports stable key, the retracted-keys table,
+// the supports-reading capture functions and the keyed probe index. Count 380 is
+// 375 plus those five; the digest is this test's own derivation, re-derived when
+// the header comments of 352 and 354 were corrected before the release.
 const (
-	goldenBootstrapDefinitionsDigest = "0bb3ef75e7f3cf83a4a3d79073212ce1dcb89ab46d4fc6862daee5d64feb1b93"
+	goldenBootstrapDefinitionsDigest = "104c2090a3256cfd1c076770a2339395880efb0860e97fd386218ab4e3690068"
 	goldenBootstrapDefinitionsCount  = 380
 )
 

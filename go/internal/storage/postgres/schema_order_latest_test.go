@@ -208,7 +208,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// functions that read finding facts with supports-reading ones.
 	"supply_chain_impact_winners_supports_scope_capture",
 	"supply_chain_impact_winners_supports_scanner_capture",
-	// Migration 354 (#10880 PR-C1 index set g, DRAFT) adds the keyed probe btree on
+	// Migration 354 (#10880 PR-C1 index set g) adds the keyed probe btree on
 	// the supports table.
 	"supply_chain_impact_supports_keyed_probe_idx",
 }
