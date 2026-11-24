@@ -17,6 +17,8 @@ gates:
       - "scripts/verify-queue-contract-coverage.sh"
       - "scripts/lib/verify-queue-contract-coverage.py"
       - "scripts/test-verify-queue-contract-coverage.sh"
+      - "specs/live-tests.d/**"
+      - "scripts/lib/reducer_contention_inventory.json"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"

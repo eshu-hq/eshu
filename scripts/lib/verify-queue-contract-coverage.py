@@ -15,7 +15,6 @@ from pathlib import Path
 CLASSES = ("live", "env_gated", "fake", "missing")
 RUNNERS = (
     "live-postgres-readiness",
-    "live-postgres-migrations",
     "postgres-scheduled",
     "reducer-contention",
     "manual-dsn",
@@ -24,7 +23,6 @@ RUNNERS = (
 )
 LIVE_RUNNERS = (
     "live-postgres-readiness",
-    "live-postgres-migrations",
     "postgres-scheduled",
     "reducer-contention",
 )

@@ -540,3 +540,5 @@ queuecontract:
   - 'scripts/verify-queue-contract-coverage.sh'
   - 'scripts/lib/verify-queue-contract-coverage.py'
   - 'scripts/test-verify-queue-contract-coverage.sh'
+  - 'specs/live-tests.d/**'
+  - 'scripts/lib/reducer_contention_inventory.json'

@@ -113,7 +113,7 @@ results are derived from the inputs rather than written by hand. See
 - `code-coverage-floors` (blocking): Blocks coverage regression on changed Go packages via per-package floors; the scheduled whole-module floor rises toward 90% with a published ranking (#10983).
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (62 gates)
+### Contract: Do declared or generated artifacts match the code? (63 gates)
 
 - `slim-collector-entrypoints` (blocking): Fails the queue entry when the generated collector entrypoints file drifts from the collector fact contract spec.
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
@@ -177,6 +177,7 @@ results are derived from the inputs rather than written by hand. See
 - `collector-cutover-rollback` (blocking): Checks the collector cutover rollback script keeps its step order, refusal gates, and idempotence against stubbed eshu, kubectl, helm, and psql.
 - `product-claim-ledger` (blocking): Runs the capability-inventory tool to verify the product-claims ledger still matches the capability catalog and code.
 - `ci-gate-registry` (blocking): Verifies the CI gate registry itself has no drift against the workflows, scripts, and docs it describes.
+- `queue-contract-coverage` (blocking): Fails when a queue/claim/lease invariant loses its proving test, a covered SQL symbol leaves the code, or a live row runs without a live-Postgres runner.
 
 ### Replay: Do recorded inputs through real components give the same result every time? (6 gates)
 
@@ -384,6 +385,7 @@ results are derived from the inputs rather than written by hand. See
 | `ghcr-buildcache-prune` | GHCR build cache prune self-test | hygiene | pre-pr | true | `bash scripts/ci/test-prune-ghcr-buildcache.sh` | static-contract-gates.yml / Verify GHCR build cache prune gate | 6 path(s): .github/workflows/ghcr-buildcache-prune.yml, scripts/ci/prune-ghcr-buildcache.sh, scripts/ci/test-prune-ghcr-buildcache.sh, … |
 | `ghcr-buildcache-prune-run` | GHCR build cache prune (daily) | hygiene | ci-heavy | false | — (CI-only: scheduled delete against the live GHCR package with packages: write; the blocking ghcr-buildcache-prune row runs its hermetic self-test) | ghcr-buildcache-prune.yml / GHCR build cache prune | 2 path(s): .github/workflows/ghcr-buildcache-prune.yml, scripts/ci/prune-ghcr-buildcache.sh |
 | `template-collector-caller` | Collector template thin-caller contract | hygiene | pre-pr | true | `bash scripts/ci/test-template-collector-caller.sh` | static-contract-gates.yml / Verify template-collector-caller gate | 6 path(s): templates/collector/.github/workflows/ci.yml, scripts/ci/test-template-collector-caller.sh, .github/workflows/static-contract-gates.yml, … |
+| `queue-contract-coverage` | Queue-contract coverage ledger | exactness | pre-pr | true | `bash scripts/verify-queue-contract-coverage.sh`<br>then self-test: `bash scripts/test-verify-queue-contract-coverage.sh` | static-contract-gates.yml / Verify queue-contract coverage gate | 15 path(s): go/internal/storage/postgres/reducer_queue*, go/internal/storage/postgres/projector_queue*, go/internal/storage/postgres/workflow_control*, … |
 | `codex-spawn-guard` | *(alias — pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI)* | — | — | — | — | — | — |
 | `goal-role-routing` | *(alias — pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow)* | — | — | — | — | — | — |
 | `no-ai-attribution-message` | *(alias — commit-msg-stage variant of the no-ai-attribution gate (same check, different stage))* | — | — | — | — | — | — |

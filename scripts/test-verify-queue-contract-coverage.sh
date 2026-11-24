@@ -178,4 +178,84 @@ if ! REPO_ROOT="${fixture}" LEDGER_PATH="${fixture}/ledger.yaml" "${script}" >/d
 	fail "validator failed on the intact-marker fixture tree"
 fi
 
+# ── RED: a fake row whose proving file touches live Postgres fails ───────
+# A fake proof must never open live Postgres: `sql.Open(` or the readiness
+# marker in its file is a planted violation the validator must reject.
+fixture2="$(mktemp -d)"
+trap 'rm -rf "${probe}" "${fixture}" "${fixture2}"' EXIT
+mkdir -p "${fixture2}/go/q"
+printf '%s\n' \
+	'package q' \
+	'' \
+	'// sql.Open( would dial live Postgres: this fake proof is not isolated.' \
+	'' \
+	'func TestFakeQueueProofIsolatesLiveCalls() {}' \
+	>"${fixture2}/go/q/fake_live_test.go"
+printf '%s\n' \
+	'const fixtureFakeProofQueryA = `SELECT 1`' \
+	>"${fixture2}/go/q/symbols.go"
+printf '%s\n' \
+	'version: queue-contract-coverage/v1' \
+	'updated_at: 2026-11-24' \
+	'issue: 11354' \
+	'owners:' \
+	'  - storage' \
+	'purpose: fixture' \
+	'design: fixture' \
+	'rows:' \
+	'  - contract_ref: fake:proof-isolation' \
+	'    surface: fixture fake proof isolation' \
+	'    class: fake' \
+	'    runners: [unit]' \
+	'    blocking: true' \
+	'    tag: ~' \
+	'    reason: "fixture fake row with live touch"' \
+	'    proving_tests:' \
+	'      - file: go/q/fake_live_test.go' \
+	'        tests: [TestFakeQueueProofIsolatesLiveCalls]' \
+	'symbols:' \
+	'  fixtureFakeProofQueryA: fake:proof-isolation' \
+	>"${fixture2}/ledger-a.yaml"
+if REPO_ROOT="${fixture2}" LEDGER_PATH="${fixture2}/ledger-a.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator passed a fake row whose file touches live Postgres"
+fi
+
+# ── RED: an env_gated row whose file has no DSN skip fails ───────────────
+# An env_gated proof must skip without an operator DSN; a file with neither
+# t.Skip( nor DSN would run live SQL unconditionally. The fake row above is
+# dropped from this ledger so each RED case names exactly one violation.
+printf '%s\n' \
+	'package q' \
+	'' \
+	'func TestEnvGatedQueueProofRequiresSkip() {}' \
+	>"${fixture2}/go/q/env_gated_test.go"
+printf '%s\n' \
+	'const fixtureFakeProofQueryB = `SELECT 2`' \
+	>>"${fixture2}/go/q/symbols.go"
+printf '%s\n' \
+	'version: queue-contract-coverage/v1' \
+	'updated_at: 2026-11-24' \
+	'issue: 11354' \
+	'owners:' \
+	'  - storage' \
+	'purpose: fixture' \
+	'design: fixture' \
+	'rows:' \
+	'  - contract_ref: gated:proof-skip' \
+	'    surface: fixture env_gated proof skip' \
+	'    class: env_gated' \
+	'    runners: [manual-dsn]' \
+	'    blocking: true' \
+	'    tag: ~' \
+	'    reason: "fixture env_gated row with no skip"' \
+	'    proving_tests:' \
+	'      - file: go/q/env_gated_test.go' \
+	'        tests: [TestEnvGatedQueueProofRequiresSkip]' \
+	'symbols:' \
+	'  fixtureFakeProofQueryB: gated:proof-skip' \
+	>"${fixture2}/ledger-b.yaml"
+if REPO_ROOT="${fixture2}" LEDGER_PATH="${fixture2}/ledger-b.yaml" "${script}" >/dev/null 2>&1; then
+	fail "validator passed an env_gated row whose file has no DSN skip"
+fi
+
 printf 'test-verify-queue-contract-coverage: RED/GREEN pair passed\n'

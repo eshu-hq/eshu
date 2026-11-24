@@ -21,7 +21,7 @@ purpose: >
 design: >
   One row per invariant. class is live (a proving test executes real SQL on
   live Postgres under an enrolled runner: live-postgres-readiness,
-  live-postgres-migrations, postgres-scheduled or reducer-contention),
+  postgres-scheduled or reducer-contention),
   env_gated (proving tests execute real SQL only with an operator-set DSN
   and no enrolled runner selects them, so CI skips them), fake (proving
   tests run in plain go test against fakes or static query text, never
