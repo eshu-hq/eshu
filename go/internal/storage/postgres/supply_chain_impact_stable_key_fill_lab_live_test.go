@@ -109,7 +109,12 @@ func TestSupplyChainImpactSupportsStableKeyFillLabLive(t *testing.T) {
 		}
 		fillSeedRows(t, ctx, db, scope, generation, fmt.Sprintf("lab%06d:", i), n) // fact ids are unique across pairs
 	}
-	supportsExec(t, ctx, db, `VACUUM (ANALYZE) supply_chain_impact_finding_supports`)
+	// The supports are the writer's derivation of the facts, keys cleared; a rewrite
+	// then packs the table the way a long-lived one is packed (no dead tuples or free
+	// space from the clearing), so the HOT share below is not skewed by the seed.
+	fillSeedSupports(t, ctx, db, "lab")
+	supportsExec(t, ctx, db, `VACUUM FULL supply_chain_impact_finding_supports`)
+	supportsExec(t, ctx, db, `ANALYZE supply_chain_impact_finding_supports`)
 	supportsExec(t, ctx, db, `ANALYZE fact_records`)
 	supportsExec(t, ctx, db, `CHECKPOINT`)
 	seeded := fillCount(t, ctx, db, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE stable_fact_key IS NULL AND fact_id LIKE 'lab%'`)
@@ -183,6 +188,7 @@ func TestSupplyChainImpactSupportsLazyStoredReadPlanLive(t *testing.T) {
 		labScopeGeneration(t, h.ctx, h.db, p[0], p[1])
 		fillSeedRows(t, h.ctx, h.db, p[0], p[1], "plan:"+p[0]+":", rows) // fact ids are unique across pairs
 	}
+	fillSeedSupports(t, h.ctx, h.db, "plan:")
 	// The filled pair: every support carries the twin's key.
 	supportsExec(t, h.ctx, h.db, `
 UPDATE supply_chain_impact_finding_supports AS s SET stable_fact_key = f.stable_fact_key

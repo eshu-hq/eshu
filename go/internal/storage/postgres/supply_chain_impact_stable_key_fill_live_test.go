@@ -20,8 +20,8 @@ import (
 // after a clean verification. The seed is written with SQL (a fact and a keyless
 // support per row) so a pair can hold more than one chunk.
 
-// fillSeedRows inserts n finding facts and one keyless support each into the pair
-// (scope, generation), with fact ids prefix+8 digits and twin keys "key:"+fact id.
+// fillSeedRows inserts n finding facts into the pair (scope, generation); fillSeedSupports
+// then derives their supports, with fact ids prefix+8 digits and twin keys "key:"+fact id.
 func fillSeedRows(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, prefix string, n int) {
 	t.Helper()
 	supportsExec(t, ctx, db, `
@@ -34,13 +34,19 @@ SELECT $3::text || lpad(i::text, 8, '0'), $1, $2, 'reducer_supply_chain_impact_f
                           'package_id', 'pkg:npm/p' || (i % 50), 'repository_id', 'repository:r' || (i % 100),
                           'provenance', jsonb_build_object('content_digest', md5(i::text)))
 FROM generate_series(1, $4::int) AS i`, scope, generation, prefix, n)
-	supportsExec(t, ctx, db, `
-INSERT INTO supply_chain_impact_finding_supports (fact_id, canonical_key, scope_id, generation_id, finding_id,
-  has_payload_finding_id, priority_score, source_confidence, suppression_state, payload)
-SELECT fact_id, 'ck:' || fact_id, scope_id, generation_id, 'finding:' || fact_id, 1, 0, 'observed', 'active', payload
-FROM fact_records
-WHERE scope_id = $1 AND generation_id = $2 AND fact_id LIKE $3::text || '%'
-  AND fact_kind = 'reducer_supply_chain_impact_finding'`, scope, generation, prefix)
+}
+
+// fillSeedSupports gives every finding fact its support the way the impact writer does, with
+// the writer's own statements (ProofSyncSupportsFromFacts), then clears the key of the
+// supports whose fact id starts with likePrefix: the state of a support written before
+// migration 350 or never rewritten since, which is what the fill exists for. Every other
+// column is the writer's derivation, not a hand-built subset.
+func fillSeedSupports(t *testing.T, ctx context.Context, db *sql.DB, likePrefix string) {
+	t.Helper()
+	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("derive supports from facts: %v", err)
+	}
+	supportsExec(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = NULL WHERE fact_id LIKE $1::text || '%'`, likePrefix)
 }
 
 func fillMarkerState(t *testing.T, ctx context.Context, db *sql.DB, name string) (present, complete bool, cursorFact string, contractVersion int) {
@@ -83,6 +89,7 @@ WHERE s.scope_id = $1 AND s.fact_id LIKE $2::text || '%'
 func fillShapeSeed(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, prefix string, n int) (fillable int) {
 	t.Helper()
 	fillSeedRows(t, ctx, db, scope, generation, prefix, n)
+	fillSeedSupports(t, ctx, db, prefix)
 	supportsExec(t, ctx, db, `UPDATE fact_records SET stable_fact_key = '' WHERE scope_id = $1 AND fact_id LIKE $2::text || '%' AND right(fact_id, 1) = '3'`, scope, prefix)
 	supportsExec(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = 'kept-' || fact_id WHERE scope_id = $1 AND fact_id LIKE $2::text || '%' AND right(fact_id, 1) = '7'`, scope, prefix)
 	return fillCount(t, ctx, db, `
