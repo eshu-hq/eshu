@@ -29,6 +29,15 @@ import (
 //	ESHU_LAB_FILL_PAIR_ROWS  supports per scope generation (default 2000)
 //	ESHU_LAB_FILL_REPORT     path to write the JSON report to (optional)
 //	ESHU_LAB_PLAN_DIR        directory to write the EXPLAIN plan texts to (optional)
+//
+// The lab host has about 36 GB of free disk and a supports row with its fact is roughly 9 KB, so the
+// lab scale is capped at 300,000 rows: a larger ESHU_LAB_FILL_ROWS fails unless
+// ESHU_LAB_FILL_ALLOW_LARGE=1 is set. The test deadline scales with the row count (5 minutes plus one
+// second per 1,000 rows); the go test -timeout stays the caller's. The seed is set-based: one INSERT
+// per pair for the facts, then one derivation of the supports.
+
+// labMaxRows is the lab scale cap (see the file comment).
+const labMaxRows = 300000
 
 func labInt(t *testing.T, name string, def int) int {
 	t.Helper()
@@ -94,8 +103,12 @@ SELECT pg_relation_size('supply_chain_impact_finding_supports'), pg_indexes_size
 func TestSupplyChainImpactSupportsStableKeyFillLabLive(t *testing.T) {
 	rows := labInt(t, "ESHU_LAB_FILL_ROWS", 5000)
 	pairRows := labInt(t, "ESHU_LAB_FILL_PAIR_ROWS", 2000)
-	ctx, db := openReplaceSetLiveDB(t)
-	ctx, cancel := context.WithTimeout(ctx, 4*time.Hour)
+	if rows > labMaxRows && labEnv("ESHU_LAB_FILL_ALLOW_LARGE") != "1" {
+		t.Fatalf("ESHU_LAB_FILL_ROWS=%d is over the %d-row lab cap (about 9 KB a row on a host with 36 GB free); set ESHU_LAB_FILL_ALLOW_LARGE=1 to override", rows, labMaxRows)
+	}
+	_, db := openReplaceSetLiveDB(t)
+	// openReplaceSetLiveDB's context is a fixed 60 s; the seed and the fill scale with the rows.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute+time.Duration(rows)*time.Millisecond)
 	defer cancel()
 
 	pairs := (rows + pairRows - 1) / pairRows
