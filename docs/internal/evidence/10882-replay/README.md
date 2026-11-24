@@ -10,6 +10,8 @@ This record is rendered from the replay results directories (`render_evidence.py
 | Supplementary quiet T1 `results-3980a07cad-T1q` | same binaries and driver | 3 (T1-q1..q3) | launched after matrix reps 2 and 3 were seen; labelled supplementary |
 | Rerun and in-flight `results-fixbuild-9e63e08c11` | `9e63e08c11` = replay + cherry-pick of `3271cbf01b`; the fix is #11322 at `9322d85022` (merged as `5429946c0d`); non-test Go delta between them is comment text only | 9 (C2, T2, T2TTL x3), then 12 (IFC, IF, IWC, IW x3) | `git diff 487a0c53bd 9e63e08c11 -- go` lists the six fix files; sha256 of `eshu-ingester`, `eshu-projector`, `eshu-bootstrap-data-plane` and `eshu-collector-synth-zero` equal the matrix build's; only `eshu-collector-component-extension` differs |
 
+The SHAs in this record and in the results directories are the ones the runs used. Eleven lane commits were later re-authored (author and committer only; patch-ids and trees unchanged), which changed their SHAs, among them the evidence commit `487a0c53bd` (now `8df469074a`) and the matrix build commit `3980a07cad` (now `fb400eaa24`); `commit-map.txt` maps every one.
+
 A matrix start at 2026-11-23T01:19Z was aborted before its first arm finished and discarded (`results-f7f5c72361-ABORTED-not-evidence`); no result from it was judged.
 
 ## Host load, matrix
@@ -84,15 +86,16 @@ Consult figures are read from the engaged scrape of the product binaries' /metri
 ## T1 enablement gate: the quiet reps
 
 ```text
-run | le0.1 count / n | share | p50 ms | p95 ms | start load1 (manifest) | run load1 min/median/max
+# Start load1: the q reps cite ONE source, the launcher log supp.log (3.08, 4.11, 1.51, read at launch). The manifests of the q reps record 3.63, 4.11 and 1.63,
+# read at a later moment, when the driver started the run; those manifest values are NOT used. The matrix reps have no launcher log, so their start load1 is the manifest value.
+run | le0.1 count / n | share | p50 ms | p95 ms | start load1 | run load1 min/median/max (run sampler)
 T1-rep1 (matrix, quiet) | 143 / 277 | 0.516 | 99.2 | 148.4 | 2.25 | 1.9 / 5.2 / 6.2
-T1-q1 (supplementary) | 157 / 277 | 0.567 | 97.1 | 151.1 | 3.63 | 2.9 / 4.1 / 5.2
+T1-q1 (supplementary) | 157 / 277 | 0.567 | 97.1 | 151.1 | 3.08 | 2.9 / 4.1 / 5.2
 T1-q2 (supplementary) | 133 / 277 | 0.480 | 101.9 | 145.8 | 4.11 | 1.6 / 2.9 / 5.2
-T1-q3 (supplementary) | 143 / 277 | 0.516 | 99.2 | 145.5 | 1.63 | 1.0 / 1.3 / 1.7
+T1-q3 (supplementary) | 143 / 277 | 0.516 | 99.2 | 145.5 | 1.51 | 1.0 / 1.3 / 1.7
 T1-rep2 (matrix, loaded start) | 126 / 276 | 0.457 | 104.6 | 177.4 | 16.07 | 3.6 / 6.3 / 18.5
 T1-rep3 (matrix, loaded start) | 102 / 276 | 0.370 | 110.8 | 148.3 | 23.84 | 2.2 / 5.4 / 23.8
 pooled quiet rule S over the first four rows = 576/1108 = 0.5199
-start loads of the three q reps in the launcher log supp.log: 3.08, 4.11, 1.51
 ```
 
 The rule that fixed the reading (before the q reps ran): S = sum of le=0.1 counts over the quiet reps divided by their n; all three q >= 0.5 is met at the limit; a mix with S >= 0.5 and at least 2 of 3 q >= 0.5 is met with the count below; otherwise not met. S = 0.5199, 2 of 3 q reps at or above 0.5: met at the limit, p50 about 99 to 100 ms, no margin, one quiet rep (q2 0.480) below 0.5.
@@ -102,12 +105,23 @@ The rule that fixed the reading (before the q reps ran): S = sum of le=0.1 count
 The full checker output is in `matrix-report.txt`, `rerun-report.txt` and `inflight-report.txt`.
 
 - Every treatment and control rep passes the AC4 checks: build identity, graph readings, queue settled, vacuity guards, latch engaged and released once, zero A writes while engaged with positive controls, zero dead letters and admission timeouts, attempt_count - source_paced_waits = 1, A items within the bound (maximum 89.1 s against 991 s), and final state by shape against C or CF (fact sets, intents, sha chain, graph and relationship counts, content identity, 144 = 144 content rows, committed generations).
-- AC5 queue wait is INCONCLUSIVE (tolerance above 50% of the control mean) in every git-side arm: a measurement-design limit (1 s poll, 1 s feed). `per-item-b-wait.txt` is the per-item table the arbiter substituted: 12 hosted-B treatment runs 1,800 items max 1.91 s 11 above 1 s; 6 control runs 900 items max 1.90 s 7 above 1 s; per-run p50 mean 0.354 against 0.344 s, p95 0.829 against 0.808 s. The 10% clause was not demonstrated.
+- AC5 queue wait is INCONCLUSIVE (tolerance above 50% of the control mean) in every git-side arm: a measurement-design limit (1 s poll, 1 s feed). The mechanism behind the sawtooth: one worker phase-locks to the 1 s feed while the others sit in their idle backoff (1, 2, 4, 5 s), so a run's p50 is one draw of that phase; the C2 burst waits are the poll phase only. `per-item-b-wait.txt` is the per-item table the arbiter substituted: 12 hosted-B treatment runs 1,800 items max 1.91 s 11 above 1 s; 6 control runs 900 items max 1.90 s 7 above 1 s; per-run p50 mean 0.354 against 0.344 s, p95 0.829 against 0.808 s. The 10% clause was not demonstrated.
 - T1 consult share within 100 ms: rep1 0.516 (quiet), reps 2 and 3 0.457 and 0.370 (loaded starts, reported not judged); see the gate above.
 - T2 in the matrix: the fleet-summed engaged counter read 0.0 in all three reps (no process emitted the claim-pacing or `collector_kind` consult series). The fix (#11322) wires `Instruments`; the rerun passes counter 1.0, gauge series present and 0, claim-grant consult n 176 to 178 (p50 0.6 to 0.7 ms, p95 91.8 to 106.1 ms, kind `synth_zero_fact`).
 - AC5 p95 in the rerun: T2 rep2 2.276 s and rep3 1.219 s FAIL, T2TTL rep1 1.457 s FAIL (C2 mean 0.963 s, tolerance 0.209 s); T2TTL reps 2 and 3 pass (0.919, 1.155). The registered prediction that T2TTL passes was not met. `per-worker-timeline.txt`, `per-item-b-wait.txt` (burst section) and `neo4j-plan-discards.txt` carry the mechanism: M1 one awake worker, M2 the paced wave sorts first, M3 a slow first graph write that coincides with Neo4j discarding about 100 cached plans (trigger by the pacing arms not shown).
 - T3: consult p50 172, 296 and 220 ms at TTL 0 with 6,500 parked rows; `t3-explain-bounded-probe.txt` is the plan (162 to 163 ms, index-bounded by source, 13,192 candidate rows, planner estimate 167, four readiness subplans = about 52 ms).
 - In-flight and warm-delta arms: 12 of 12 runs pass every check (`inflight-report.txt`).
+
+## #11187 acceptance criteria and their artifacts
+
+| Criterion | Artifact |
+| --- | --- |
+| Count claimable-but-not-takeable rows by class on the replay fixture | `census-t3.txt`: at engagement every T3 and T3TTL rep reads 6,500 `parked_wait_unwoken`, 6,500 `readiness_gated`, 48 takeable and 96 to 144 `stale_generation_fenced` |
+| A live-Postgres test: a source whose aged rows are all fenced or readiness-blocked, intake paced, never engages or releases | `TestSourceBackpressureTakeableSignal` (a blocked source never engages, a parked-only source never engages), `live-test-takeable-signal.txt`: PASS, exit 0, Postgres 18.6, revision and date in the file. This is a lane run; no coordinator run of it is recorded in this directory |
+| If a predicate is added, the bounded probe returns the grouped query's rows and the cost is re-measured | `TestSourceBackpressureProbeMatchesGroupedAndVerdicts` and `TestSourceBackpressureParkedProbeIsGuardedByRetrying` in the same file (PASS); cost: `t3-explain-bounded-probe.txt` (161.9 to 163.1 ms) |
+| One arm of the two-source replay uses this shape | T3 and T3TTL: the pass lines (no latch row, zero pre-write releases and A deferrals, census equals the seed) are in `matrix-report.txt` |
+
+The coordinator decides whether the lane run is enough for criterion 2; this record does not claim the issue is closable on it.
 
 ## Files
 
@@ -120,6 +134,9 @@ The full checker output is in `matrix-report.txt`, `rerun-report.txt` and `infli
 | `t3-explain-bounded-probe.txt` | `explain_probe.sh` at the T3 shape (three warm runs) |
 | `t1-quiet-reps.txt` | The pooled quiet rule over rep1 and the three q reps |
 | `loadavg-*.tsv` | One host load sample a minute per slot |
+| `census-t3.txt` | The not-takeable census at engagement and at the end of every T3 and T3TTL rep (#11187 criterion 1) |
+| `live-test-takeable-signal.txt` | A lane run of the live-Postgres tests of #11187 criteria 2 and 3 (exit 0), with revision and date |
+| `commit-map.txt` | Old and new SHA of every lane commit after the author rewrite; the results directories name builds by the old SHA |
 
 ## What the replay does not exercise
 

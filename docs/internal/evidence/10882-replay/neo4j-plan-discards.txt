@@ -1,3 +1,4 @@
+# results root: results-fixbuild-9e63e08c11
 run          which          first write s  discards inside  reasons
 C2-rep1      engaged           not logged                -  no canonical_write line within 10 s of the push
 C2-rep1      after_release          0.063                1  {'IndexSelectivity': 1}
@@ -17,6 +18,8 @@ T2TTL-rep2   engaged                0.097               16  {'NodesAllCardinalit
 T2TTL-rep2   after_release     not logged                -  no canonical_write line within 10 s of the push
 T2TTL-rep3   engaged           not logged                -  no canonical_write line within 10 s of the push
 T2TTL-rep3   after_release          0.564              102  {'IndexSelectivity': 2, 'NodesAllCardinality': 99, 'NodesWithLabelCardinality': 1}
+# results root: results-3980a07cad
+run          which          first write s  discards inside  reasons
 C2-rep1      engaged                0.028                0  {}
 C2-rep1      after_release          0.056                1  {'NodesWithLabelCardinality': 1}
 C2-rep2      engaged           not logged                -  no canonical_write line within 10 s of the push

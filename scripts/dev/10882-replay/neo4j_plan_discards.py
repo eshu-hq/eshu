@@ -74,8 +74,9 @@ def main(argv: list[str]) -> int:
     print(__doc__)
     return 2
   times, reasons = read_discards(argv[1])
-  print("run          which          first write s  discards inside  reasons")
   for root in argv[2:]:
+    print("# results root: %s" % os.path.basename(os.path.normpath(root)))
+    print("run          which          first write s  discards inside  reasons")
     for run in sorted(glob.glob(os.path.join(root, "*-rep*"))):
       arm = os.path.basename(run).split("-rep")[0]
       if arm not in ARMS:
