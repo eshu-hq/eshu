@@ -396,7 +396,8 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 
 // countWinnersKeyedScannedCopies counts the pre-filter copies the identifier
 // probe scanned, before the active-generation join discards the retired and
-// superseded ones (#11308).
+// superseded ones (#11308). It reads the persisted narrow table, which holds
+// the supports probe output under #10880 PR-C1, so it reads no fact_records.
 func countWinnersKeyedScannedCopies(ctx context.Context, tx db.Transaction) (int64, error) {
 	return scanWinnersInt64(ctx, tx, countWinnersKeyedScannedCopiesSQL, "count scanned winner copies")
 }

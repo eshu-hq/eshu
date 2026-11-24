@@ -87,6 +87,11 @@ finding the five-tuple probe matched before the active-generation join
 discarded the retired and superseded ones, so the tick log alone attributes a
 tick's build cost to cost-per-copy (`build_active_facts` seconds per scanned
 copy, when scanned is greater than zero) against kept-rows-per-identifier.
+Since #10880 PR-C1 the count reads the narrow temp table persisting the
+supports probe the keyed build runs. A support is keyed by `fact_id` for every
+live finding fact of every generation, so it counts the same copies. The QA
+figures below are for the fact-table probe; the supports probe (migration
+354's index) is unmeasured.
 
 No-Regression Evidence: the scanned-copies probe was measured read-only on
 the QA replica (PostgreSQL 18.6, 86,765 canonical winners) with 30

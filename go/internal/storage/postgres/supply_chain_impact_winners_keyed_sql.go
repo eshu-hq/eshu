@@ -372,7 +372,9 @@ SELECT count(*) FROM ` + winnersKeyedActiveFactsTable
 // narrow temp table the build persisted instead of re-running the probe, so a
 // keyed tick probes once: the build and this count read the same rows from
 // the same transaction and snapshot, and the tick writes no fact_records
-// between them, so the count is exact. It is deliberately not part of the
+// between them, so the count is exact. Under #10880 PR-C1 the narrow table
+// holds the supports probe output, so the count reads no fact_records either.
+// It is deliberately not part of the
 // contract pin: it reads nothing the resweep writes.
 const countWinnersKeyedScannedCopiesSQL = `
 SELECT count(*) FROM ` + winnersKeyedNarrowTable + `

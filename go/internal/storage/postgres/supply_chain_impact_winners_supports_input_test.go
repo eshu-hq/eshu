@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"strings"
@@ -40,6 +41,7 @@ func TestWinnersMaintainerStatementsReadNoFactRecords(t *testing.T) {
 		"scope idents":   buildWinnersKeyedScopeIdentsFromSupportsSQL,
 		"keyed active":   buildWinnersKeyedActiveFactsFromSupportsSQL,
 		"keyed operator": addWinnersKeyedOperatorFactsFromSupportsSQL,
+		"keyed narrow":   buildWinnersKeyedNarrowFromSupportsSQL,
 	} {
 		if !strings.Contains(stmt, "supply_chain_impact_finding_supports AS ") {
 			t.Errorf("%s statement does not read the supports table", name)
@@ -87,6 +89,7 @@ func TestWinnersSupportsInputsDeriveFromTheLegacyStatements(t *testing.T) {
 		"scope idents":      {buildWinnersKeyedScopeIdentsFromSupportsSQL, buildWinnersKeyedScopeIdentsSQL},
 		"keyed active":      {buildWinnersKeyedActiveFactsFromSupportsSQL, buildWinnersKeyedActiveFactsSQL},
 		"keyed operator":    {addWinnersKeyedOperatorFactsFromSupportsSQL, addWinnersKeyedOperatorFactsSQL},
+		"keyed narrow":      {buildWinnersKeyedNarrowFromSupportsSQL, buildWinnersKeyedNarrowSQL},
 	} {
 		if c.derived == c.legacy {
 			t.Errorf("%s: the supports statement equals the legacy one", name)
@@ -148,5 +151,62 @@ func TestWinnersContractRepinnedForSupportsInputs(t *testing.T) {
 	}
 	if got := supplyChainImpactWinnersContractHashOf(shipped); got == winnersLegacyContractPin {
 		t.Fatal("the shipped contract statements still hash to the previous pin: the maintainer did not move")
+	}
+}
+
+// TestWinnersKeyedTickReadsNoFactRecords runs one keyed tick against the phase
+// fake and proves no statement it executes names fact_records or the finding
+// fact kind. The contract statements are pinned above; this pins the reads the
+// contract deliberately leaves out, such as the #11308 scanned-copies count,
+// which must probe the same table the build probes or the cost-per-copy it
+// attributes is measured on a table the tick never built from.
+func TestWinnersKeyedTickReadsNoFactRecords(t *testing.T) {
+	t.Parallel()
+
+	tx := &phaseFakeTx{claimed: true, consumed: 3, identifier: 3, stored: 100, scanned: 187}
+	store, _ := newPhaseStore(t, tx)
+	res, err := store.ResweepWinnersKeyed(context.Background())
+	if err != nil {
+		t.Fatalf("ResweepWinnersKeyed() error = %v", err)
+	}
+	if res.ChunkScannedCopies != 187 {
+		t.Errorf("ChunkScannedCopies = %d, want 187: the count must still reach the tick result", res.ChunkScannedCopies)
+	}
+	for i, query := range tx.queries {
+		if strings.Contains(query, "fact_records") {
+			t.Errorf("keyed tick statement %d names fact_records:\n%s", i, query)
+		}
+		if strings.Contains(query, "reducer_supply_chain_impact_finding") {
+			t.Errorf("keyed tick statement %d names the finding fact kind:\n%s", i, query)
+		}
+	}
+}
+
+// TestWinnersSupportsNarrowProbeMatchesTheSupportsBuild pins that the supports
+// narrow probe probes what the supports keyed build probed before the
+// watermark-stall split: the five index equalities read byte-identical in the
+// narrow twin, and neither keeps the kind or tombstone filters the supports
+// table makes implicit. The scanned-copies count needs no twin: it reads the
+// persisted narrow table (TestWinnersScannedCopiesProbeMatchesActiveFactsProbe
+// pins that shape on the legacy statements).
+func TestWinnersSupportsNarrowProbeMatchesTheSupportsBuild(t *testing.T) {
+	t.Parallel()
+
+	for _, frag := range []string{
+		"FROM supply_chain_impact_finding_supports AS f",
+		"(f.payload->>'package_id') = ident.package_id",
+		"(f.payload->>'repository_id') = ident.repository_id",
+		"(f.payload->>'subject_digest') = ident.subject_digest",
+		"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
+		"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
+	} {
+		if !strings.Contains(buildWinnersKeyedNarrowFromSupportsSQL, frag) {
+			t.Errorf("supports narrow probe lost the probe fragment %q", frag)
+		}
+	}
+	for _, gone := range []string{"f.fact_kind", "f.is_tombstone"} {
+		if strings.Contains(buildWinnersKeyedNarrowFromSupportsSQL, gone) {
+			t.Errorf("supports narrow probe still filters %s", gone)
+		}
 	}
 }
