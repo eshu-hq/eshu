@@ -46,7 +46,8 @@ of 92 ms) is inside the ceiling; the 10x seed (1,857 rows, about 9.3 ms, about
 
 Because K can grow after a one-time replay, a consult-duration instrument is a
 precondition of enablement (none exists today). The enablement record must name
-a consult p95 alert at 100 ms. A post-enablement p95 above 100 ms, or a replay K
+a consult p95 alert at 100 ms (superseded by arbiter ruling 2, decision 5: no
+p95-above-100-ms alert ships and thresholds stay unset). A post-enablement p95 above 100 ms, or a replay K
 above the ceiling above (K x 5 microseconds over 10% of that source's consult
 p50, that is K > 20 x the p50 in ms), returns the question to the arbiter; the
 candidate redesign is a

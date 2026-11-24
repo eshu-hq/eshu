@@ -1,0 +1,39 @@
+run T2TTL-rep1: push at t=0; 6 burst items
+-- burst items (seconds after the push)
+8b13b71f enqueue +0.51 claim +1.11 wait 0.60 s worker 3 | before its claim (push..claim): 12 A paced releases, 4 B stages
+28dfe9df enqueue +0.52 claim +2.01 wait 1.49 s worker 3 | before its claim (push..claim): 24 A paced releases, 6 B stages
+f72430bc enqueue +0.52 claim +2.10 wait 1.58 s worker 3 | before its claim (push..claim): 25 A paced releases, 8 B stages
+e8f65308 enqueue +0.53 claim +2.22 wait 1.70 s worker 3 | before its claim (push..claim): 27 A paced releases, 10 B stages
+4f8f9419 enqueue +0.53 claim +2.34 wait 1.81 s worker 3 | before its claim (push..claim): 31 A paced releases, 12 B stages
+d6de3306 enqueue +0.54 claim +2.40 wait 1.86 s worker 3 | before its claim (push..claim): 31 A paced releases, 14 B stages
+-- A paced releases per worker, per second after the push (until the last burst claim +2 s)
+worker 1: t+2:1
+worker 2: t+2:4
+worker 3: t+0:8 t+1:15 t+2:8 t+3:8
+A paced releases in the window: 44
+
+run T2-rep2: push at t=0; 6 burst items
+-- burst items (seconds after the push)
+28dfe9df enqueue +0.61 claim +3.28 wait 2.67 s worker ? | before its claim (push..claim): 0 A paced releases, 0 B stages
+f72430bc enqueue +0.61 claim +4.03 wait 3.42 s worker ? | before its claim (push..claim): 0 A paced releases, 0 B stages
+d6de3306 enqueue +0.62 claim +4.12 wait 3.51 s worker ? | before its claim (push..claim): 0 A paced releases, 0 B stages
+e8f65308 enqueue +0.62 claim +4.22 wait 3.60 s worker ? | before its claim (push..claim): 0 A paced releases, 0 B stages
+4f8f9419 enqueue +0.63 claim +4.31 wait 3.68 s worker ? | before its claim (push..claim): 0 A paced releases, 0 B stages
+8b13b71f enqueue +0.63 claim +4.33 wait 3.70 s worker ? | before its claim (push..claim): 0 A paced releases, 0 B stages
+-- A paced releases per worker, per second after the push (until the last burst claim +2 s)
+worker 0: t+3:3 t+4:6
+worker 1: t+4:2 t+5:1
+worker 2: t+4:2
+worker 3: t+4:2
+A paced releases in the window: 16
+
+run C2-rep2: push at t=0; 6 burst items
+-- burst items (seconds after the push)
+4f8f9419 enqueue +1.05 claim +1.90 wait 0.85 s worker 2 | before its claim (push..claim): 0 A paced releases, 6 B stages
+8b13b71f enqueue +1.05 claim +1.96 wait 0.90 s worker 2 | before its claim (push..claim): 0 A paced releases, 8 B stages
+e8f65308 enqueue +1.06 claim +2.01 wait 0.95 s worker 2 | before its claim (push..claim): 0 A paced releases, 10 B stages
+28dfe9df enqueue +1.07 claim +2.07 wait 1.00 s worker 2 | before its claim (push..claim): 0 A paced releases, 12 B stages
+f72430bc enqueue +1.07 claim +2.12 wait 1.05 s worker 2 | before its claim (push..claim): 0 A paced releases, 14 B stages
+d6de3306 enqueue +1.08 claim +2.17 wait 1.09 s worker 2 | before its claim (push..claim): 0 A paced releases, 16 B stages
+-- A paced releases per worker, per second after the push (until the last burst claim +2 s)
+A paced releases in the window: 0

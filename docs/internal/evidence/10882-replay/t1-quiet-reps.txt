@@ -1,0 +1,10 @@
+# Start load1: the q reps cite ONE source, the launcher log supp.log (3.08, 4.11, 1.51, read at launch). The manifests of the q reps record 3.63, 4.11 and 1.63,
+# read at a later moment, when the driver started the run; those manifest values are NOT used. The matrix reps have no launcher log, so their start load1 is the manifest value.
+run | le0.1 count / n | share | p50 ms | p95 ms | start load1 | run load1 min/median/max (run sampler)
+T1-rep1 (matrix, quiet) | 143 / 277 | 0.516 | 99.2 | 148.4 | 2.25 | 1.9 / 5.2 / 6.2
+T1-q1 (supplementary) | 157 / 277 | 0.567 | 97.1 | 151.1 | 3.08 | 2.9 / 4.1 / 5.2
+T1-q2 (supplementary) | 133 / 277 | 0.480 | 101.9 | 145.8 | 4.11 | 1.6 / 2.9 / 5.2
+T1-q3 (supplementary) | 143 / 277 | 0.516 | 99.2 | 145.5 | 1.51 | 1.0 / 1.3 / 1.7
+T1-rep2 (matrix, loaded start) | 126 / 276 | 0.457 | 104.6 | 177.4 | 16.07 | 3.6 / 6.3 / 18.5
+T1-rep3 (matrix, loaded start) | 102 / 276 | 0.370 | 110.8 | 148.3 | 23.84 | 2.2 / 5.4 / 23.8
+pooled quiet rule S over the first four rows = 576/1108 = 0.5199

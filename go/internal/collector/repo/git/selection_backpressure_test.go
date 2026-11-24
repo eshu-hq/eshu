@@ -211,7 +211,7 @@ func fullBackpressureEnv() map[string]string {
 func TestWireSelectionBackpressureArmsConsult(t *testing.T) {
 	t.Parallel()
 
-	selector := &NativeRepositorySelector{}
+	selector := &NativeRepositorySelector{Config: RepoSyncConfig{SourceMode: "githubOrg"}}
 	store := &scriptedSlowedStore{slowed: true}
 	if err := selector.WireSelectionBackpressure(store, func(string) string { return "" }); err != nil {
 		t.Fatalf("WireSelectionBackpressure() error = %v, want nil", err)
@@ -220,7 +220,7 @@ func TestWireSelectionBackpressureArmsConsult(t *testing.T) {
 		t.Fatal("disabled wire armed the leg, want untouched selector")
 	}
 
-	selector = &NativeRepositorySelector{}
+	selector = &NativeRepositorySelector{Config: RepoSyncConfig{SourceMode: "githubOrg"}}
 	env := fullBackpressureEnv()
 	if err := selector.WireSelectionBackpressure(store, func(name string) string { return env[name] }); err != nil {
 		t.Fatalf("WireSelectionBackpressure() error = %v, want nil", err)
@@ -246,7 +246,7 @@ func TestWireSelectionBackpressureArmsConsult(t *testing.T) {
 func TestWireSelectionBackpressureRefusesStretchWithoutVerdict(t *testing.T) {
 	t.Parallel()
 
-	selector := &NativeRepositorySelector{}
+	selector := &NativeRepositorySelector{Config: RepoSyncConfig{SourceMode: "githubOrg"}}
 	env := map[string]string{GitSelectionMinResyncIntervalEnv: "1h"}
 	if err := selector.WireSelectionBackpressure(&scriptedSlowedStore{}, func(name string) string { return env[name] }); err == nil {
 		t.Fatal("stretch without verdict thresholds wired, want startup error")

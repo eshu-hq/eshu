@@ -1,0 +1,36 @@
+# Commit identity rewrite (2026-11-24): the 11 lane commits that carried a placeholder author were re-authored; the other 22 keep their SHA.
+# old sha -> new sha, subject, patch-id (old=new) and tree equality for every one of the 33 commits ahead of the pre-merge origin/main.
+# The raw results directories name builds by the OLD sha: evidence commit 487a0c53bd is 8df469074a, matrix build 3980a07cad is fb400eaa24 (identical trees).
+f8023d900b -> f8023d900b  Time the per-source backpressure consult on a duration histo  patch-id de8337bd7740=de8337bd7740 tree equal
+555cd64a70 -> 555cd64a70  Add the #11187 not-takeable census with a seeded RED/GREEN p  patch-id 782781066119=782781066119 tree equal
+cf69f6ce0d -> cf69f6ce0d  Describe the replay driver: arms, manifest, signals, forks  patch-id 151eed4687e9=151eed4687e9 tree equal
+8eec04ad7b -> 8eec04ad7b  Add the build-tagged replay seeder  patch-id 3957fe8bbc7a=3957fe8bbc7a tree equal
+42e030f058 -> 42e030f058  Add the replay pass/fail checker with a seeded RED/GREEN pro  patch-id 195f06b01a92=195f06b01a92 tree equal
+bee277c3b0 -> bee277c3b0  Add the replay driver: build, venue, arms, sampler, collecti  patch-id 2e62886ffba6=2e62886ffba6 tree equal
+ef93184270 -> ef93184270  Run the replay ingester in explicit mode and add the T2 host  patch-id fbe9fe3fc95c=fbe9fe3fc95c tree equal
+c30e27fcb9 -> c30e27fcb9  Merge origin/main into drive/10882-replay  patch-id (merge)=(merge) tree equal
+1842595478 -> 1842595478  Wire the T2 hosted-family arm into the replay driver  patch-id e064622f185a=e064622f185a tree equal
+14f98651a4 -> 14f98651a4  Pin the git selection stretch drop in filesystem mode (red)  patch-id 34e6fe900d0b=34e6fe900d0b tree equal
+04ef5ec2b5 -> 04ef5ec2b5  Refuse the git selection stretch in filesystem mode  patch-id 68b83cdc2884=68b83cdc2884 tree equal
+2ba7c70349 -> 2ba7c70349  Make the replay seed failures fatal and compare content iden  patch-id 8a88612d710f=8a88612d710f tree equal
+96935c2589 -> 96935c2589  Compare real fixture facts with a documented run-variant nor  patch-id 4f2ea604813d=4f2ea604813d tree equal
+8dd199fb79 -> 8dd199fb79  Add the C2 control for the hosted-family arm  patch-id d6f43e7e1946=d6f43e7e1946 tree equal
+d8237978a6 -> d8237978a6  Update the replay driver record: arms, rulings, what it does  patch-id 1449ba0acde3=1449ba0acde3 tree equal
+ae621e5d04 -> ae621e5d04  Fold the source-mode predicate into the selection backpressu  patch-id 6945ce9ad940=6945ce9ad940 tree equal
+97901a5726 -> 97901a5726  Say that the smoke figures in the replay record are not evid  patch-id 810b42146f35=810b42146f35 tree equal
+eecb35e8af -> eecb35e8af  Fix the replay driver measures the arbiter ruled mis-measure  patch-id 15e2c67fd703=15e2c67fd703 tree equal
+2724fa9cfc -> 2724fa9cfc  Merge origin/main into drive/10882-replay  patch-id (merge)=(merge) tree equal
+f7f5c72361 -> f7f5c72361  Judge effective fact sets and read re-engagement from the la  patch-id 2e6ed5cf5a9f=2e6ed5cf5a9f tree equal
+804d88e36b -> 804d88e36b  Judge the final state by shape against C and a CF reference,  patch-id e480f65042dc=e480f65042dc tree equal
+0bbd92d884 -> 0bbd92d884  Add the warm-source paced-delta arm pair (IW, IWC) and the i  patch-id 822890210bd1=822890210bd1 tree equal
+487a0c53bd -> 8df469074a  Merge origin/main into drive/10882-replay  patch-id (merge)=(merge) tree equal
+50ffabb7ee -> 4b083908fa  Record host load during the replay and gate the start on a q  patch-id fa91378942b6=fa91378942b6 tree equal
+0347894479 -> 739094061d  Render the replay evidence record from the results directory  patch-id 2eb4abb9154c=2eb4abb9154c tree equal
+3980a07cad -> fb400eaa24  Keep the replay scratch directory off the RAM-backed /tmp (R  patch-id 7f61dcbc4036=7f61dcbc4036 tree equal
+de09aa7466 -> bab872a103  Fail the replay checker on an absent claim-pacing series and  patch-id 324afdc5e9bc=324afdc5e9bc tree equal
+2b15411f7b -> 6f6cbd4207  Add the per-item queue wait table for the healthy source (Re  patch-id e410cc402151=e410cc402151 tree equal
+2aa097d5fb -> bfea21230d  Add the T2TTL arm: T2 at the candidate TTL on every process   patch-id 4457105ef29d=4457105ef29d tree equal
+6b6aaaf9ff -> 3c54ba990c  Name the T2TTL arm, the claim-grant check and the per-item t  patch-id 216a76fefa29=216a76fefa29 tree equal
+c40f2ff5a6 -> 56b247a157  Add the bounded-probe EXPLAIN script for a saved replay data  patch-id dcf1cdd5c26e=dcf1cdd5c26e tree equal
+aac04d71cb -> 298ade8462  Add the per-worker timeline of the burst items for the repla  patch-id 11834020bbe1=11834020bbe1 tree equal
+ecc34a43f0 -> 69c543e841  Record the replay results, the rerun on the fix build and th  patch-id d36cb82da5c8=d36cb82da5c8 tree equal

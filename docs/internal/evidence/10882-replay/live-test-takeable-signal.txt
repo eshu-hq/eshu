@@ -1,0 +1,31 @@
+# TestSourceBackpressureTakeableSignal, live Postgres 18.6 (Debian 18.6-1.pgdg13+2), lane run
+# commit 69c543e841 (tree = the replay branch), 2026-11-24T04:53:49Z
+$ go test -count=1 -v -run ^TestSourceBackpressureTakeableSignal$ ./internal/storage/postgres/
+=== RUN   TestSourceBackpressureTakeableSignal
+    source_backpressure_takeable_test.go:254: takeable census: source=blocked readiness_blocked=30 fenced=0 takeable=0
+    source_backpressure_takeable_test.go:254: takeable census: source=ready readiness_blocked=0 fenced=0 takeable=30
+    source_backpressure_takeable_test.go:254: takeable census: source=fenced readiness_blocked=0 fenced=30 takeable=0
+    source_backpressure_takeable_test.go:254: takeable census: source=parked readiness_blocked=0 fenced=0 takeable=0
+    source_backpressure_takeable_test.go:254: takeable census: source=wokenold readiness_blocked=0 fenced=0 takeable=30
+    source_backpressure_takeable_test.go:254: takeable census: source=wokenfresh readiness_blocked=0 fenced=0 takeable=30
+    source_backpressure_takeable_test.go:254: takeable census: source=dangling readiness_blocked=0 fenced=0 takeable=0
+    source_backpressure_takeable_test.go:254: takeable census: source=stale readiness_blocked=0 fenced=0 takeable=0
+--- PASS: TestSourceBackpressureTakeableSignal (0.44s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	0.481s
+exit=0
+
+$ go test -count=1 -v -run ^(TestSourceBackpressureProbeMatchesGroupedAndVerdicts|TestSourceBackpressureParkedProbeIsGuardedByRetrying)$ ./internal/storage/postgres/
+=== RUN   TestSourceBackpressureProbeMatchesGroupedAndVerdicts
+    source_backpressure_s0_verdict_test.go:91: S0 verdict seed: source=vuln-intel depth=30 age=720h0m0.340143s past_engage=30 past_release=30
+    source_backpressure_s0_verdict_test.go:91: S0 verdict seed: source=git depth=30 age=30m0.340143s past_engage=0 past_release=30
+    source_backpressure_s0_verdict_test.go:91: S0 verdict seed: source=npm depth=30 age=720h0m0.340143s past_engage=30 past_release=30
+    source_backpressure_s0_verdict_test.go:91: S0 verdict seed: source=poison depth=1 age=720h0m0.340143s past_engage=1 past_release=1
+    source_backpressure_s0_verdict_test.go:91: S0 verdict seed: source=busy depth=201 age=72h0m0.340143s past_engage=1 past_release=1
+    source_backpressure_s0_verdict_test.go:187: S0 family census: 3 families resolved in 350.342µs
+--- PASS: TestSourceBackpressureProbeMatchesGroupedAndVerdicts (0.41s)
+=== RUN   TestSourceBackpressureParkedProbeIsGuardedByRetrying
+--- PASS: TestSourceBackpressureParkedProbeIsGuardedByRetrying (0.15s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	0.595s
+exit=0

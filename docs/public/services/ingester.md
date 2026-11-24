@@ -122,3 +122,11 @@ source is paced at selection as well as at intent enqueue. Deferred
 repos stay pending and are visited once the interval elapses or the
 latch releases; forced reindex runs and webhook-triggered selection
 bypass the stretch. Unset (the default) keeps every-cycle selection.
+
+The stretch applies only in `ESHU_REPO_SOURCE_MODE` `explicit`, `githubOrg` and
+`gitlabGroup`, where a skipped repository keeps durable per-repository state and
+is found again. `filesystem` mode compares one whole-root fingerprint and would
+never select a deferred repository again, so setting
+`ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL` with it stops startup with an error that
+names both variables. Filesystem mode keeps the admission and pre-write pacing
+legs.
