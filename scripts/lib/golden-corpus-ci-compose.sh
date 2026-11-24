@@ -10,6 +10,14 @@
 # environment), so a prepared overlay would refuse the first call that follows.
 # shellcheck disable=SC2154  # The sourced library reads gate-owned globals.
 
+# #11392 (interim, until the default-on decision): run the #7635
+# producer-activation consumer in the corpus gate so config-anchor moves
+# reopen drift through the producer-activation settle. This lib is sourced
+# into the gate shell, so the export below joins the gate's runtime
+# environment inherited by every host binary (including eshu-reducer). The
+# production default stays off (loadBoolOrDefault(..., false)).
+export ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED=true
+
 golden_corpus_preflight_ci_overlay() {
 	[[ "${use_compose}" -eq 1 ]] || return 0
 	# The same variable prefix as the first up call, so the render sees one env.
