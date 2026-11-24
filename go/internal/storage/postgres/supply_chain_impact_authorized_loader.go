@@ -293,11 +293,12 @@ func staticEnvelopeNeedsScanReceipt(envelope facts.Envelope) bool {
 	return !goReachabilityScanWarning(envelope)
 }
 
-// goReachabilityScanWarning reports whether envelope is a go_reachability
+// goReachabilityScanWarning reports whether envelope is a live go_reachability
 // scanner warning stored in a go-reachability scope with a canonical repository
-// id.
+// id. A tombstoned warning is not: the static reads never return one, and a
+// retracted warning must not be accepted as evidence.
 func goReachabilityScanWarning(envelope facts.Envelope) bool {
-	if envelope.FactKind != facts.ScannerWorkerWarningFactKind {
+	if envelope.FactKind != facts.ScannerWorkerWarningFactKind || envelope.IsTombstone {
 		return false
 	}
 	repositoryID, ok := strings.CutPrefix(envelope.ScopeID, goReachabilityScopePrefix)

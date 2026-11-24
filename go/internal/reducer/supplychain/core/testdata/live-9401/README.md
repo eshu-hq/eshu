@@ -15,3 +15,17 @@ by kind, keep the advisories in the pass's own scope and serve the Go scan facts
 through that stage, so they pin the production shape. Only the columns the
 reducer reads are kept. Every name is synthetic (`acme`, `orders-api`,
 `legacy-lib`).
+
+## What this fixture proves, and what it does not
+
+The tests split this file the way production stores it and prove the join: with
+the Go scan facts served by the cross-scope Go stage, the three Go verdicts come
+out (9229 symbol reachable, 9301 not called, 9401 analysis_failed with the scoped
+`toolchain_unsupported` gap). They also pin that the Go stage's repository filter
+is derived from the pass's own package-consumption evidence.
+
+They do not prove that the live corpus pass resolves `repository:r_ea78e8bb`
+once the Go rows leave the vulnerability-intelligence scope: the live fact store
+and the corpus drain order are not modeled here. That claim rests on the plain
+Golden Corpus Gate run on this change, whose 9229, 9301 and 9401 rows go in the
+PR body.
