@@ -18,6 +18,13 @@ var WinnerBodySQLForTest = supplyChainImpactWinnerBodySQL
 // test can assert the once-per-identifier probe on the keyed winners index.
 const WinnersKeyedActiveFactsSQLForTest = buildWinnersKeyedActiveFactsSQL
 
+// WinnersKeyedScannedCopiesSQLForTest exposes the pre-filter scanned-copies
+// COUNT(*) over the same identifier temp table, so a plan test can assert it
+// takes the same keyed-index path instead of scanning fact_records (#11343).
+// The export derives from the shipped constant, so the explained statement is
+// the statement the tick runs.
+const WinnersKeyedScannedCopiesSQLForTest = countWinnersKeyedScannedCopiesSQL
+
 // WinnersKeyedActiveFactsTableForTest names the temp table that statement
 // creates, so a test can drop it between two explains on one connection.
 const WinnersKeyedActiveFactsTableForTest = winnersKeyedActiveFactsTable

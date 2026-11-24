@@ -293,6 +293,59 @@ FROM generate_series(1, 3000) AS g`)
 			t.Errorf("%s: the live generation set is not a materialized CTE node (it would recompute per row):\n%s", state, analyzed)
 		}
 	}
+
+	// #11343: the scanned-copies COUNT(*) is the same five-tuple probe as the
+	// build above, narrowed to SELECT 1. Substring containment of the shipped
+	// text passes on reworded-but-plan-breaking variants, so only an EXPLAIN
+	// proves it takes the same keyed-index path. EXPLAIN (ANALYZE, BUFFERS)
+	// also closes the F2 perf half at fixture scale: it reports the buffer
+	// and timing cost of the extra lateral probe per tick on the fixture
+	// corpus, not a production per-tick cost (see the QA-replica evidence on
+	// #11343 for the QA-shaped measurement).
+	var countPlanJSON []byte
+	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countPlanJSON); err != nil {
+		t.Fatalf("explain scanned-copies count: %v", err)
+	}
+	countPlan := string(countPlanJSON)
+	var parsedCount any
+	if err := json.Unmarshal(countPlanJSON, &parsedCount); err != nil {
+		t.Fatalf("scanned-copies count plan is not JSON: %v", err)
+	}
+	if !strings.Contains(countPlan, "fact_records_supply_chain_impact_winners_keyed_idx") {
+		t.Errorf("the scanned-copies count does not use the keyed winners index:\n%s", countPlan)
+	}
+	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(countPlan) {
+		t.Errorf("the scanned-copies count seq-scans fact_records:\n%s", countPlan)
+	}
+
+	var countAnalyzed []byte
+	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countAnalyzed); err != nil {
+		t.Fatalf("explain analyze scanned-copies count: %v", err)
+	}
+	var countAnalyzedPlan any
+	if err := json.Unmarshal(countAnalyzed, &countAnalyzedPlan); err != nil {
+		t.Fatalf("analyzed scanned-copies count plan is not JSON: %v", err)
+	}
+	loops, rows, found := keyedIndexScanStats(countAnalyzedPlan)
+	if !found {
+		t.Fatalf("the analyzed scanned-copies count plan has no scan of the keyed winners index:\n%s", countAnalyzed)
+	}
+	if loops != 50 {
+		t.Errorf("the scanned-copies count searched the keyed winners index %v times, want 50 (once per identifier):\n%s", loops, countAnalyzed)
+	}
+	if rows != 50 {
+		t.Errorf("the scanned-copies count scanned %v copies, want 50 (one per identifier, not the hot triple's 3,000 candidates):\n%s", rows, countAnalyzed)
+	}
+	hits, reads, execMs, planningMs := keyedPlanBufferStats(countAnalyzedPlan)
+	t.Logf("scanned-copies count (fixture-scale): %v copies, %.3f ms execution (%.3f ms planning), %v shared hits + %v reads", rows, execMs, planningMs, hits, reads)
+
+	var copies int64
+	if err := conn.QueryRowContext(h.ctx, postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&copies); err != nil {
+		t.Fatalf("run scanned-copies count: %v", err)
+	}
+	if copies != 50 {
+		t.Errorf("scanned-copies count = %d, want 50 (one copy per identifier)", copies)
+	}
 }
 
 // keyedIndexExists reports whether the named index exists in the harness
@@ -335,4 +388,48 @@ func keyedIndexScanStats(node any) (loops, rows float64, found bool) {
 		}
 	}
 	return 0, 0, false
+}
+
+// keyedPlanBufferStats sums Shared Hit/Read Blocks over every node of an
+// EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) document and reports the top-level
+// execution and planning times, so a plan proof can log the buffer and timing
+// cost of the statement it pins (#11343 F2).
+func keyedPlanBufferStats(node any) (hits, reads, execMs, planningMs float64) {
+	switch v := node.(type) {
+	case []any:
+		for _, item := range v {
+			h, r, e, p := keyedPlanBufferStats(item)
+			hits += h
+			reads += r
+			if e > execMs {
+				execMs = e
+			}
+			if p > planningMs {
+				planningMs = p
+			}
+		}
+	case map[string]any:
+		for key, child := range v {
+			switch key {
+			case "Shared Hit Blocks":
+				hits += asFloat(child)
+			case "Shared Read Blocks":
+				reads += asFloat(child)
+			case "Execution Time":
+				execMs = asFloat(child)
+			case "Planning Time":
+				planningMs = asFloat(child)
+			default:
+				h, r, _, _ := keyedPlanBufferStats(child)
+				hits += h
+				reads += r
+			}
+		}
+	}
+	return hits, reads, execMs, planningMs
+}
+
+func asFloat(v any) float64 {
+	f, _ := v.(float64)
+	return f
 }
