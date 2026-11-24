@@ -11,7 +11,8 @@
     "group": "readiness",
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [
-      "TestReducerQueueClaimCarriesFailureEvidenceLive"
+      "TestReducerQueueClaimCarriesFailureEvidenceLive",
+      "TestWinnersStaleWaitParksWakesAndDrainsLive"
     ]
   },
   "go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go": {
