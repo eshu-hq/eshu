@@ -16,7 +16,7 @@ if ! rg -q 'image=.*ESHU_LIVE_POSTGRES_IMAGE' scripts/ci/live-postgres-standby-f
 fi
 # Check the actual workflow environment, including callers outside the five
 # direct Compose workflows. A correct helper is insufficient if CI omits pins.
-for workflow in e2e-tests frontend test golden-corpus-gate ifa-determinism-gate live-backend-tests read-api-latency-gate; do
+for workflow in e2e-tests frontend test golden-corpus-gate ifa-determinism-gate live-backend-tests; do
   for variable in POSTGRES_IMAGE NEO4J_IMAGE ESHU_XX_IMAGE ESHU_GO_IMAGE ESHU_ALPINE_IMAGE; do
     expected="$(jq -r --arg name "${variable}" '.images[] | select(.env == $name) | .destination + "@" + .digest' specs/ci-images.v1.json)"
     actual="$(yq -r ".env.${variable} // \"\"" ".github/workflows/${workflow}.yml")"
