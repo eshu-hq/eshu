@@ -125,7 +125,8 @@ func TestFenceCommitsWithZeroHoldersWhenReady(t *testing.T) {
 }
 
 // TestSupportsReadinessFailsClosedWhenUnbound pins the binding guard: a fence with no
-// predicate text or no observer would run a holder read it cannot classify.
+// predicate text, no observer, or the wrong number of parameters would run a holder
+// read it cannot classify.
 func TestSupportsReadinessFailsClosedWhenUnbound(t *testing.T) {
 	t.Parallel()
 

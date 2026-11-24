@@ -138,12 +138,12 @@ returning with both W1b windows and writer transaction p95 and max.
 Every read answers only from a ready supports table: the backfill marker for the
 binary's contract version complete, no marker for a newer version, and an empty
 old-writer fence (`supplyChainImpactSupportsReadySQL`, contract-pinned). For the
-repeatable-read reads the check is the shared B2c commit's
-`RequireSupplyChainImpactSupportsReady`; it runs as the first statement of the
-transaction of each such read (the key-range read, the mass probe, the holder statement
-and the repository holder read), in the snapshot of the read, so a table that goes
-not-ready cannot be read half-way. The
-go-modules fence runs at READ COMMITTED, one snapshot per statement, so its holder
+repeatable-read reads the check is the shared B2c commit's helper (the in-package
+reads call the unexported `requireSupplyChainImpactSupportsReady`, the same predicate
+as its exported form); it runs as the first statement of the transaction of each such
+read (the key-range read, the mass probe, the holder statement and the repository
+holder read), in the snapshot of the read, so a table that goes not-ready cannot be
+read half-way. The go-modules fence runs at READ COMMITTED, one snapshot per statement, so its holder
 statement carries the readiness predicate as its first FROM item (the constant embedded
 byte-for-byte, holder parameters $3 and $4) and the verdict and the holders are read in
 one snapshot (#11197). The fence still runs the predicate on its own once, before the
@@ -474,7 +474,7 @@ All on disposable PostgreSQL 18.6 (512 MB, one test at a time, nice 19).
   (`TestFenceRollsBackWhenTheHolderStatementIsNotReadyEvenWithHolders`); a readiness
   check re-added after the holder read
   (`TestFenceHolderStatementIsTheOnlyOneCarryingReadinessAfterTheDetach`). The new live
-  tests run in the readiness runner, not the contention filter (nothing added to its 1200 s half).
+  tests run in the readiness runner, not the contention filter (nothing added to the supply-chain half's 1200 s cap).
 
 No-Regression Evidence: baseline is the retired separate holder statement at
 `b3085189ad`; after is the one-statement form, both on PostgreSQL 18.6 (512 MB
