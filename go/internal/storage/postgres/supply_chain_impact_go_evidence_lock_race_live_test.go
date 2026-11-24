@@ -10,6 +10,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -151,10 +152,15 @@ func retryFence(ctx context.Context, t *testing.T, db *sql.DB, scope, generation
 	t.Errorf("fence of %s never committed in 40 attempts", scope)
 }
 
-// TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive is ruling 4.3: the pass's own
-// scope is already a holder (it has supports from an earlier pass) and the fence reopens
-// that scope's work item while the pass is in flight and holding the shared lock. 40
-// rounds, zero 40P01, and every fence commits.
+// TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive is ruling 4.3 for the
+// lock-last position (the amendment's gate 2): the pass's own scope is already a holder
+// (it has supports from an earlier pass, and its owed marker updates its own work item,
+// the row the fence's reopen updates) while the fence reopens that scope's work item. Three
+// interleavings, 40 rounds in all: the fence started right before the pass requests the lock
+// and awaited, started and not awaited (the pass may wait on a fence that holds the
+// exclusive lock), and started while the pass is paused holding the lock. Zero deadlocks
+// (40P01), every fence commits, and every pass either commits or is refused with the typed
+// class.
 func TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
 	for round := 0; round < 40; round++ {
@@ -164,22 +170,40 @@ func TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive(t *testing.T) {
 		c.rerun(seed.holder)
 
 		var wg sync.WaitGroup
-		c.handler.Writer = supplychaincore.PostgresSupplyChainImpactWriter{
-			DB: recheckHookBeginner{
-				inner: postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: c.db}},
-				hook: func(ctx context.Context) {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-						retryFence(c.ctx, c.t, c.db, seed.goScopes[0], seed.generations[0])
-					}()
-					waitForAdvisoryWaiter(ctx, c.t, c.db, 1)
-				},
+		launch := func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				retryFence(c.ctx, c.t, c.db, seed.goScopes[0], seed.generations[0])
+			}()
+		}
+		beginner := recheckHookBeginner{inner: postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: c.db}}}
+		switch round % 3 {
+		case 0:
+			beginner.beforeLock = func(context.Context) { launch(); wg.Wait() }
+		case 1:
+			beginner.beforeLock = func(context.Context) { launch() }
+		default:
+			beginner.hook = func(ctx context.Context) { launch(); waitForAdvisoryWaiter(ctx, c.t, c.db, 1) }
+		}
+		var passErr error
+		c.handler.Writer = hookingWriter{
+			inner: supplychaincore.PostgresSupplyChainImpactWriter{DB: beginner},
+			after: func(write supplychaincore.SupplyChainImpactWrite, err error) {
+				if write.ScopeID == seed.holder && err != nil {
+					passErr = err
+				}
 			},
 		}
 		c.drain() // the in-flight pass.
 		wg.Wait()
 		c.drain() // the reopened holder.
+		if passErr != nil {
+			var changed *supplychaincore.SupplyChainImpactGoEvidenceChangedError
+			if !errors.As(passErr, &changed) {
+				t.Fatalf("round %d: the pass failed with %v, want it committed or refused with the typed class (a deadlock reads 40P01 here)", round, passErr)
+			}
+		}
 		if t.Failed() {
 			t.Fatalf("round %d failed (deadlock or fence error above)", round)
 		}

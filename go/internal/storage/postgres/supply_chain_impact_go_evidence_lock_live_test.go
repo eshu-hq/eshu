@@ -4,7 +4,7 @@
 package postgres_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #11327 real PostgreSQL proof that a supply-chain impact pass and the Go-modules fence cannot both commit around the same go scope: a fence between the Go evidence load and the pass write aborts the pass with the non-counting class, a pass holding the shared go-evidence lock makes the fence wait and then see it, a lock wait past the fence's 2 s timeout detaches nothing, and no support derived from a retracted generation survives without a reopened holder
+//eshu:readiness:reason #11327 real PostgreSQL proof that a supply-chain impact pass, which takes the shared go-evidence lock as the last statements before its commit, and the Go-modules fence cannot both commit around the same go scope: a fence between the Go evidence load and the pass write aborts the pass with the non-counting class, a pass that spends 3 s in its writes loses to a fence that takes its lock at once, a fence behind a pass paused between recheck and commit waits then reopens it, and a second pass queues behind a waiting fence
 //eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
@@ -20,7 +20,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/gomodules"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -89,13 +88,16 @@ func (w hookingWriter) WriteSupplyChainImpactFindings(ctx context.Context, write
 	return result, err
 }
 
-// recheckHookBeginner wraps the production beginner so a hook runs once per transaction
-// right after the go-evidence recheck returned: the pass then holds the shared lock and
-// has not written anything. It forwards the whole optional surface (winners capture and
+// recheckHookBeginner wraps the production beginner with two test seams, each run once
+// per transaction. beforeLock runs right before the pass takes the shared go-evidence
+// lock: every write of the pass is done and the lock is not yet requested. hook runs
+// right after the recheck returned: the pass holds the shared lock and has only its owed
+// marker and the commit left. It forwards the whole optional surface (winners capture and
 // the supports maintainer), so the pass commits exactly what the plain transaction would.
 type recheckHookBeginner struct {
-	inner supplychaincore.SupplyChainImpactBeginner
-	hook  func(ctx context.Context)
+	inner      supplychaincore.SupplyChainImpactBeginner
+	beforeLock func(ctx context.Context)
+	hook       func(ctx context.Context)
 }
 
 func (b recheckHookBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supplychaincore.SupplyChainImpactTx, error) {
@@ -103,16 +105,24 @@ func (b recheckHookBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supp
 	if err != nil {
 		return nil, err
 	}
-	return &recheckHookTx{tx: tx, hook: b.hook}, nil
+	return &recheckHookTx{tx: tx, beforeLock: b.beforeLock, hook: b.hook}, nil
 }
 
 type recheckHookTx struct {
-	tx    supplychaincore.SupplyChainImpactTx
-	hook  func(ctx context.Context)
-	fired bool
+	tx            supplychaincore.SupplyChainImpactTx
+	beforeLock    func(ctx context.Context)
+	hook          func(ctx context.Context)
+	fired         bool
+	lockedAlready bool
 }
 
 func (t *recheckHookTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	if query == supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery && !t.lockedAlready {
+		t.lockedAlready = true
+		if t.beforeLock != nil {
+			t.beforeLock(ctx)
+		}
+	}
 	return t.tx.ExecContext(ctx, query, args...)
 }
 
@@ -211,7 +221,8 @@ func readItemStatus(ctx context.Context, t *testing.T, db *sql.DB, item string) 
 // generation and nothing schedules a pass to correct it, so the final winners still read
 // not_called: this test is RED there. With the lock and recheck the pass aborts with the
 // non-counting class and writes nothing, the retry reloads (no Go evidence now) and the
-// winners read unknown.
+// winners read unknown. The pass does all its writes first and aborts at its closing
+// lock and recheck, so the proof is that its rolled-back transaction left nothing.
 func TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
 	_, generationID := seedGoFenceChain(c)
@@ -296,24 +307,18 @@ func TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive(t *testing.T) {
 	assertGoFenceWinnerVerdict(c, goFenceAdvisory, "package_manifest", "unknown")
 }
 
-// TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive is ruling 4.5: a pass
-// holds the shared lock for 3 s, longer than the fence's 2 s lock timeout. The fence
-// returns the lock timeout with the pointer still set and the generation still active
-// and the timeout counted; a second pass that arrives while the fence waits queues
-// behind it and proceeds without error; once the long pass has committed, the next
-// fence attempt fences and reopens the long pass's scope.
-func TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive(t *testing.T) {
+// TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive is ruling 4.5 as
+// amended (lock last): the pass spends 3 s in its writes, a fence runs meanwhile, takes
+// its lock at once (the pass holds no lock yet) and commits. The pass then takes its lock,
+// fails the recheck, writes nothing and returns the typed non-counting class. The fence's
+// wait is milliseconds, not the pass's 3 s, and it does not time out.
+func TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
 	_, generationID := seedGoFenceChain(c)
-	second := "scope:11327:second-pass"
-	fanOutSeedScope(c.t, c.ctx, c.db, second, "g1")
-	secondGeneration := fanOutGen(second, "g1")
 
-	var wg sync.WaitGroup
-	var fenceErr, secondErr error
 	var mu sync.Mutex
-	var timeouts int
 	var waits []time.Duration
+	var timeouts int
 	observe := func(_ context.Context, wait time.Duration, timedOut bool) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -322,6 +327,65 @@ func TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive(t *testing
 			timeouts++
 		}
 	}
+	var fenced scannercomponent.StaleEvidenceFenceResult
+	var fenceErr, firstErr error
+	var leftBehind int
+	spent := false
+	c.handler.Writer = hookingWriter{
+		inner: supplychaincore.PostgresSupplyChainImpactWriter{DB: recheckHookBeginner{
+			inner: postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: c.db}},
+			beforeLock: func(context.Context) {
+				if spent {
+					return
+				}
+				spent = true
+				time.Sleep(3 * time.Second) // the pass's writes took 3 s
+				fenced, fenceErr = goEvidenceFence(c.ctx, c.db, goFenceScope, generationID, observe)
+			},
+		}},
+		after: func(write supplychaincore.SupplyChainImpactWrite, err error) {
+			if write.ScopeID == goFenceHolder && firstErr == nil && err != nil {
+				firstErr = err
+				leftBehind = rowsWrittenFor(c.ctx, c.t, c.db, goFenceHolder)
+			}
+		},
+	}
+	c.drain()
+
+	if fenceErr != nil || fenced.Fenced != 1 {
+		t.Fatalf("fence result = %+v, err = %v, want 1 fenced", fenced, fenceErr)
+	}
+	mu.Lock()
+	gotTimeouts, gotWaits := timeouts, append([]time.Duration(nil), waits...)
+	mu.Unlock()
+	if gotTimeouts != 0 || len(gotWaits) != 1 || gotWaits[0] > time.Second {
+		t.Fatalf("fence lock timeouts = %d waits = %v, want one granted wait far below the pass's 3 s", gotTimeouts, gotWaits)
+	}
+	var changed *supplychaincore.SupplyChainImpactGoEvidenceChangedError
+	if !errors.As(firstErr, &changed) || changed.Cause != supplychaincore.GoEvidenceCauseGenerationChanged {
+		t.Fatalf("first write error = %v, want the typed go-evidence refusal (generation_changed)", firstErr)
+	}
+	if leftBehind != 0 {
+		t.Fatalf("the aborted pass left %d rows after 3 s of writes, want none", leftBehind)
+	}
+	assertGoFenceWinnerVerdict(c, goFenceAdvisory, "package_manifest", "unknown")
+}
+
+// TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive is the fairness case: a pass is
+// paused between its recheck and its commit, a fence queues for the exclusive lock, and a
+// second pass that loaded the same Go evidence arrives. The second pass queues behind the
+// waiting fence (it does not jump the queue), so after the first pass commits and the fence
+// commits it takes its lock, fails the recheck and gets the typed class, not a stale write.
+func TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive(t *testing.T) {
+	c := newGoEvidenceConvergence(t)
+	_, generationID := seedGoFenceChain(c)
+	second := "scope:11327:second-pass"
+	fanOutSeedScope(c.t, c.ctx, c.db, second, "g1")
+	secondGeneration := fanOutGen(second, "g1")
+
+	var wg sync.WaitGroup
+	var fenceErr, secondErr error
+	var fenced scannercomponent.StaleEvidenceFenceResult
 	c.handler.Writer = supplychaincore.PostgresSupplyChainImpactWriter{
 		DB: recheckHookBeginner{
 			inner: postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: c.db}},
@@ -329,7 +393,7 @@ func TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive(t *testing
 				wg.Add(2)
 				go func() {
 					defer wg.Done()
-					_, fenceErr = goEvidenceFence(c.ctx, c.db, goFenceScope, generationID, observe)
+					fenced, fenceErr = goEvidenceFence(c.ctx, c.db, goFenceScope, generationID, nil)
 				}()
 				waitForAdvisoryWaiter(ctx, c.t, c.db, 1)
 				go func() {
@@ -342,39 +406,20 @@ func TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive(t *testing
 					}.WriteSupplyChainImpactFindings(c.ctx, write)
 				}()
 				waitForAdvisoryWaiter(ctx, c.t, c.db, 2)
-				time.Sleep(3 * time.Second)
 			},
 		},
 	}
 	c.drain()
 	wg.Wait()
 
-	if !coordination.IsLockNotAvailable(fenceErr) {
-		t.Fatalf("fence error = %v, want the lock timeout (55P03) behind the 3 s pass", fenceErr)
+	if fenceErr != nil || fenced.Fenced != 1 {
+		t.Fatalf("fence result = %+v, err = %v, want it to wait for the paused pass and then fence", fenced, fenceErr)
 	}
-	var pointer sql.NullString
-	var status string
-	if err := c.db.QueryRowContext(c.ctx, `
-SELECT scope.active_generation_id, generation.status FROM ingestion_scopes scope
-JOIN scope_generations generation ON generation.scope_id = scope.scope_id AND generation.generation_id = $2
-WHERE scope.scope_id = $1`, goFenceScope, generationID).Scan(&pointer, &status); err != nil {
-		t.Fatalf("read scope state: %v", err)
+	var changed *supplychaincore.SupplyChainImpactGoEvidenceChangedError
+	if !errors.As(secondErr, &changed) {
+		t.Fatalf("second pass error = %v, want the typed refusal: it queued behind the fence and saw its commit", secondErr)
 	}
-	if pointer.String != generationID || status != "active" {
-		t.Fatalf("after the timeout pointer = %q status = %q, want the generation still active", pointer.String, status)
-	}
-	mu.Lock()
-	gotTimeouts, gotWaits := timeouts, append([]time.Duration(nil), waits...)
-	mu.Unlock()
-	if gotTimeouts != 1 || len(gotWaits) != 1 || gotWaits[0] < 1500*time.Millisecond {
-		t.Fatalf("observed timeouts = %d waits = %v, want one timed-out wait near the 2 s lock timeout", gotTimeouts, gotWaits)
-	}
-	if secondErr != nil {
-		t.Fatalf("the second pass that queued behind the fence failed: %v", secondErr)
-	}
-
-	fenced, err := goEvidenceFence(c.ctx, c.db, goFenceScope, generationID, nil)
-	if err != nil || fenced.Fenced != 1 || fenced.HoldersReopened < 1 {
-		t.Fatalf("next attempt = %+v, err = %v, want it to fence and reopen the long pass's scope", fenced, err)
+	if rows := rowsWrittenFor(c.ctx, t, c.db, second); rows != 0 {
+		t.Fatalf("the refused second pass left %d rows", rows)
 	}
 }

@@ -52,10 +52,12 @@ func runSupplyChainImpactTx(
 	}
 	outcome, err := commitSupplyChainImpactRows(ctx, tx, write, rows, meta, protected, hasProtected, now)
 	if err != nil {
+		// Only the lock-wait observation survives a failed pass: it is a duration, not a result.
+		failed := supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait}
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			return supplyChainImpactTxOutcome{}, fmt.Errorf("%w; rollback: %v", err, rbErr)
+			return failed, fmt.Errorf("%w; rollback: %v", err, rbErr)
 		}
-		return supplyChainImpactTxOutcome{}, err
+		return failed, err
 	}
 	if err := tx.Commit(); err != nil {
 		return supplyChainImpactTxOutcome{}, fmt.Errorf("commit supply chain impact transaction: %w", err)
@@ -89,6 +91,11 @@ type supplyChainImpactTxOutcome struct {
 	// staleCopyRepairs counts the stored copies whose retraction state this
 	// pass flipped (#10765); the handler counts them after the commit.
 	staleCopyRepairs StaleCopyRepairs
+	// goEvidenceLocked reports that the pass took the shared go-evidence lock, and
+	// goEvidenceLockWait how long its lock statements took (#11327); the writer
+	// records them on the lock-wait histogram. They are set on a failed recheck too.
+	goEvidenceLocked   bool
+	goEvidenceLockWait time.Duration
 }
 
 // commitSupplyChainImpactRows runs one pass's statements inside tx and returns
@@ -103,14 +110,6 @@ func commitSupplyChainImpactRows(
 	hasProtected bool,
 	now time.Time,
 ) (supplyChainImpactTxOutcome, error) {
-	// The go-evidence lock and recheck come first, before the protected-scan
-	// authorization and the conflict-domain lock (#11327): the shared lock must be the
-	// first lock this transaction takes, so a fence's exclusive wait can never form a
-	// cycle with a lock the pass already holds, and the recheck must read after the
-	// lock is granted. A pass with no resolved Go scope issues neither statement.
-	if err := lockAndRecheckGoEvidence(ctx, tx, write.GoEvidence); err != nil {
-		return supplyChainImpactTxOutcome{}, err
-	}
 	var publisher ProtectedScanImpactPublisher
 	var authorizer ProtectedScanImpactAuthorizer
 	if hasProtected {
@@ -238,11 +237,10 @@ func commitSupplyChainImpactRows(
 	// pass whose only changes are CVE-less (group keys live in advisory_id)
 	// has empty changedCVEs but still owes its touched groups a
 	// projection, so the crash-recovery rerun must re-drive it too.
-	if write.Owed != nil && (len(outcome.changedCVEs) > 0 || len(outcome.touchedGroups) > 0) {
-		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {
-			return supplyChainImpactTxOutcome{}, fmt.Errorf("record supply chain impact fan-out owed: %w", err)
-		}
-	}
+	// The marker updates this pass's own fact_work_items row, the row a fence's holder
+	// reopen updates, so it is recorded after the go-evidence lock below: holding it while
+	// waiting for the lock would close a cycle with a fence holding the exclusive lock.
+	owed := write.Owed != nil && (len(outcome.changedCVEs) > 0 || len(outcome.touchedGroups) > 0)
 	if !write.PartialEvidence {
 		keep := make([]string, 0, len(rows))
 		for _, row := range rows {
@@ -292,6 +290,21 @@ func commitSupplyChainImpactRows(
 	outcome.passStateSkipped, err = recordSupplyChainImpactScopePassState(ctx, tx, write, now)
 	if err != nil {
 		return supplyChainImpactTxOutcome{}, err
+	}
+	// The go-evidence lock and recheck are the last statements before the commit
+	// (#11327), apart from the owed marker: the shared lock is held for a recheck and a
+	// commit, so a fence waits milliseconds. Nothing above names fact_work_items or writes
+	// or locks ingestion_scopes or scope_generations (the census guard in storage/postgres
+	// pins it), so this wait cannot close a cycle with a fence holding the exclusive lock.
+	locked, wait, err := lockAndRecheckGoEvidence(ctx, tx, write.GoEvidence)
+	outcome.goEvidenceLocked, outcome.goEvidenceLockWait = locked, wait
+	if err != nil {
+		return supplyChainImpactTxOutcome{goEvidenceLocked: locked, goEvidenceLockWait: wait}, err
+	}
+	if owed {
+		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("record supply chain impact fan-out owed: %w", err)
+		}
 	}
 	return outcome, nil
 }

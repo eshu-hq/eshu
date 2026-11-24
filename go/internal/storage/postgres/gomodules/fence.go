@@ -19,15 +19,17 @@ import (
 // successor activated after that read makes the fence a no-op.
 //
 // Lock order, in one transaction: the exclusive go-evidence advisory lock of the
-// derived scope (#11327; the supply-chain impact pass holds the shared form from the
-// first lock of its write transaction until it commits, so the fence waits for an
-// in-flight pass and a pass that starts later waits for the fence), then the derived
+// derived scope (#11327; the supply-chain impact pass takes the shared form as the
+// closing statements of its write transaction and holds it until it commits, so the fence
+// waits for at most a recheck and a commit, and a pass that reaches its lock later waits
+// for the fence and then fails its recheck), then the derived
 // scope's ingestion_scopes row, then the fenced generation's scope_generations row,
 // then each holder's fact_work_items rows, holders in scope_id order. Every blocking
 // path takes the scope row first (#7389, see ProjectorQueue.Ack): the ack, the failure
 // path, the ingestion commit, and the repository-retirement fence; none of them takes
-// the advisory lock, and the pass takes it before any other lock, so it cannot hold a
-// row the fence wants while it waits. A fence that took the generation first could
+// the advisory lock, and the pass holds no row the fence wants (no fact_work_items,
+// no write or lock on a scope or generation row) when it waits for the lock; its one
+// fact_work_items update, the owed marker, runs after the lock is granted. A fence that took the generation first could
 // deadlock against an ack holding the scope row and wanting that generation. The fence
 // never takes a holder's scope row, a repository scope row, or any row of the
 // successor's work.

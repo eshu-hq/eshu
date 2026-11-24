@@ -42,7 +42,12 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#11327 real PostgreSQL proof that a supply-chain impact pass and the Go-modules fence cannot both commit around the same go scope: a fence between the Go evidence load and the pass write aborts the pass with the non-counting class, a pass holding the shared go-evidence lock makes the fence wait and then see it, a lock wait past the fence's 2 s timeout detaches nothing, and no support derived from a retracted generation survives without a reopened holder"
+    reason: "#11327 real PostgreSQL proof that a supply-chain impact pass, which takes the shared go-evidence lock as the last statements before its commit, and the Go-modules fence cannot both commit around the same go scope: a fence between the Go evidence load and the pass write aborts the pass with the non-counting class, a pass that spends 3 s in its writes loses to a fence that takes its lock at once, a fence behind a pass paused between recheck and commit waits then reopens it, and a second pass queues behind a waiting fence"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_protected_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof, through the least-privilege runtime-writer login and the protected-scan authorization and publication, that a pass taking the shared go-evidence lock last and a Go-modules fence reopening that pass's own work item never deadlock in 40 rounds"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_race_live_test.go
     tag: ~

@@ -47,7 +47,9 @@ without a dashboard.
 ## Refused fact writes
 | `eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total` | counter | `reason` | Impact passes aborted before their write because the Go evidence they loaded no longer names its go scope's active generation (`generation_changed`: a Go-modules fence retracted it or a successor activated) or the shared go-evidence lock timed out behind a fence (`lock_timeout`). Each retries without spending an attempt (class `supply_chain_impact_go_evidence_changed`) and the retry reloads the evidence. A sustained rate means fences and passes keep colliding on one repository. |
 | `eshu_dp_go_fence_advisory_lock_timeouts_total` | counter | none | Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight impact pass. Nothing was detached; the coordinator retries the page next tick. Three consecutive ticks timing out on the same scope returns to the owner of #11327. |
-| `eshu_dp_go_fence_advisory_lock_wait_seconds` | histogram | none | How long the fence waited for the exclusive go-evidence lock, granted or timed out. The tail is the longest impact pass write transaction that held the shared lock; the lock timeout is 2 s. |
+| `eshu_dp_go_fence_advisory_lock_wait_seconds` | histogram | none | How long the fence waited for the exclusive go-evidence lock, granted or timed out. A pass holds the shared lock only for its recheck, its owed marker and its commit, so the expected wait is milliseconds; a tail means a pass stalled between its recheck and its commit. The lock timeout is 2 s. |
+| `eshu_dp_supply_chain_impact_write_tx_duration_seconds` | histogram | `outcome` (`committed`, `rolled_back`, `recheck_aborted`) | Wall time of one impact write transaction, begin to commit or rollback. `recheck_aborted` is a pass whose Go evidence went stale during its writes: the whole transaction was spent for nothing, so the abort cost is this histogram's `recheck_aborted` series. Buckets reach 300 s. Use the `committed` p99 to size how long a fence can wait behind a pass. |
+| `eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds` | histogram | none | How long a pass spent taking its shared go-evidence locks at the end of its write transaction, granted or refused. A tail means passes queue behind a fence. Passes with no resolved Go scope record nothing. |
 
 After the finding-fact write stop (#10880 PR-C), the database refuses every INSERT and UPDATE of a
 `reducer_supply_chain_impact_finding` row in `fact_records` with SQLSTATE 55000 and the constraint name
@@ -126,6 +128,13 @@ findings:
   `supply_chain_impact_finding_supports_backfill`, the marker and cursor table.
 - `SELECT` and `DELETE` on `supply_chain_impact_finding_supports_dirty`, which
   the backfill drain reads and clears.
+
+A pass that loaded Go evidence also rechecks, at the end of its write transaction,
+that each go scope it read is still active (#11327). That recheck is a plain `SELECT`
+on `ingestion_scopes` and `scope_generations`, which the reducer login already needs
+for every claim; a login that lacks either fails the recheck with `permission denied`
+(SQLSTATE 42501), and the pass rolls back and retries. The advisory lock functions
+need no grant (PUBLIC execute).
 
 None of the three tables has a sequence. Until the first grant exists, the new
 reducer's impact writes fail with `permission denied for table

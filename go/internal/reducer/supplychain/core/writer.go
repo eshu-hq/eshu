@@ -16,6 +16,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -53,6 +54,9 @@ func filterSupplyChainImpactFindingsForScope(write SupplyChainImpactWrite) []Sup
 type PostgresSupplyChainImpactWriter struct {
 	DB  SupplyChainImpactBeginner
 	Now func() time.Time
+	// Instruments, when set, records the write transaction's wall time by outcome and
+	// the wait on the shared go-evidence lock (#11327). Nil records nothing.
+	Instruments *telemetry.Instruments
 }
 
 // WriteSupplyChainImpactFindings persists every impact status so callers can
@@ -113,7 +117,9 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	if err != nil {
 		return SupplyChainImpactWriteResult{}, fmt.Errorf("prepare protected scan impact publication: %w", err)
 	}
+	txStarted := time.Now()
 	outcome, err := runSupplyChainImpactTx(ctx, w.DB, write, rows, meta, protected, hasProtected, now)
+	w.Instruments.RecordSupplyChainImpactWriteTx(ctx, writeTxOutcomeLabel(err), time.Since(txStarted), outcome.goEvidenceLocked, outcome.goEvidenceLockWait)
 	if err != nil {
 		return SupplyChainImpactWriteResult{}, err
 	}

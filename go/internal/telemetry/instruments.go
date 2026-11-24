@@ -1565,6 +1565,10 @@ type Instruments struct {
 	SupplyChainImpactGoEvidenceRecheckAborts metric.Int64Counter
 	GoFenceAdvisoryLockTimeouts              metric.Int64Counter
 	GoFenceAdvisoryLockWait                  metric.Float64Histogram
+	// The pass-side duration signals of #11327: wall time of the impact write
+	// transaction by outcome, and the pass's wait on the shared go-evidence lock.
+	SupplyChainImpactWriteTxDuration    metric.Float64Histogram
+	SupplyChainImpactGoEvidenceLockWait metric.Float64Histogram
 
 	// The per-support table signals of #10880 PR-B1, registered by
 	// registerSupplyChainImpactSupportsInstruments.

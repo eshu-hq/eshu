@@ -21,10 +21,20 @@ schedules one. #11325 narrowed the drain part of the window; this closes the res
   The loader returns them from the same snapshot as the facts
   (`FactStore.ListActiveGoReachabilityEvidence`); a pair is a named scope whose pointer
   names an `active` generation, the same condition the recheck applies.
-- The write transaction's first lock-taking statements, before the protected-scan
-  authorization and the conflict-domain lock: one `pg_advisory_xact_lock_shared` per
+- The write transaction's closing statements, after the pass-state write and just before
+  the commit (the arbiter's amendment, lock LAST): one `pg_advisory_xact_lock_shared` per
   distinct go scope in sorted order, then one plain recheck SELECT over every pair
-  (`core/go_evidence_lock.go`). A pass with no resolved pair issues neither.
+  (`core/go_evidence_lock.go`), then only the owed marker. A pass with no resolved pair
+  issues neither lock nor recheck. A stale pair rolls the whole transaction back, so an
+  abort costs the pass's writes (`recheck_aborted` on the write-tx histogram shows how much).
+- The owed marker moved. `RecordFanOutOwed` (`core/writer_retract.go`, query
+  `markSupplyChainImpactFanOutOwedQuery`, `storage/postgres/supply_chain_impact_fanout_inflight.go`)
+  updates the pass's own `fact_work_items` row, the row a fence's holder reopen updates. With
+  the lock last and the marker before it, the pass would hold that row while waiting for the
+  shared lock and the fence would hold the exclusive lock while waiting for the row: a
+  deadlock, and the census guard read RED on it. The marker now runs after the lock, from the
+  same in-memory change set, so its value is unchanged. This is one statement outside the
+  ruling's "last statements" wording and is called out for the arbiter.
 - The fence takes `pg_advisory_xact_lock` on the same key right after its timeouts and
   before the readiness check, the scope row, the generation and the holders
   (`gomodules/fence_goevidence.go`); the lock-order comment in `gomodules/fence.go` is
@@ -35,6 +45,33 @@ schedules one. #11325 narrowed the drain part of the window; this closes the res
   `supply_chain_impact_supports_not_ready` (`reducer_queue_readiness_sql.go`), not parked
   (`reducer_waiting.go`), tolerated by the golden-corpus drain decision, and counted in
   the stale-gate guard digests (batch and single re-pinned; the funnel is unchanged).
+
+## Why the lock goes last, and what makes that safe
+
+With the lock first it would be held for the whole write transaction (seconds on a loaded
+database), and the fence would wait that long and time out at 2 s. Last, it is held for a
+recheck, one marker update and a commit. That is deadlock-free only if the transaction holds
+nothing the fence needs while it waits: the fence, holding the exclusive lock, reopens holder
+work items (`fact_work_items`) and detaches the go scope (`ingestion_scopes`,
+`scope_generations`). Two guards pin it:
+
+1. `TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock` runs the real writer over
+   the real storage transaction (protected-scan authorization and publication, fact upsert,
+   supports, winners capture, retraction, pass state, owed marker, Go evidence) and fails if any
+   statement before the lock names `fact_work_items` or writes or row-locks `ingestion_scopes`
+   or `scope_generations`. Plain reads are allowed: they take no row lock.
+   `TestCensusViolationNamesTheSeededStatements` is its seeded RED/GREEN pair, and
+   `TestProtectedPublicationFunctionsTouchNoFenceRows` applies the same rule to the SQL bodies of
+   `authorize_impact_publication_v1` and `publish_impact_publication_v1` (migrations 268, 269),
+   which the statement text cannot show. Mutation proof: moving the owed marker ahead of the lock
+   fails both this test and `TestWriteLocksGoEvidenceThenRechecksLastBeforeCommit` (run at this
+   commit, then reverted).
+2. `TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive` and
+   `TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive`: 40 rounds each, the pass's own
+   scope already a holder, the fence reopening that scope's work item while the pass waits. The
+   protected-scan round runs as the least-privilege worker login. These are written, not run:
+   the coordinator's slot runs them. If either fails, the arbiter's fallback applies (lock first,
+   the fence's advisory wait bounded at 10 s, the 2,000 ms timeout restored before the detach).
 
 ## Why B and not a row lock
 
@@ -85,21 +122,38 @@ From source: the coordinator runs the fence only for a collector instance that e
 which is operator configuration. Whether any environment enables it is NOT_CHECKED from this
 repository.
 
+## The other pointer writers (source, origin/main 9fa8f6049a plus this branch)
+
+None of them takes the advisory lock and none is changed. For a go scope's pointer:
+
+| Writer | Can it change a go scope's pointer | How holders get re-derived |
+| --- | --- | --- |
+| Ack (`projector_queue_ack.go:74,141`) | Yes: sets the successor, supersedes the old generation. | The successor generation raises its own impact pass (`projector/supply/chain/impact/intents.go`, #10077), whose `ChangedCVEIDs` fan-out reads holders by supports plus the in-flight arm, read first (`reducer/supplychain/core/HOLDER_FANOUT.md:45-52`). A pass in flight is named by the in-flight arm and a pass that committed is named by its supports, so a late first-finding commit is covered by reading. NOT verified live. The recheck also aborts a pass whose loaded pair the ack changed before the lock. |
+| Ingestion upsert (`ingestion_queries.go:83,121`) | Yes, when the incoming generation arrives with status active (`activeGenerationID`); otherwise it keeps the pointer. | The same projector item and impact intent as the ack. The enqueue path of a directly active generation was not read beyond the `INSERT INTO fact_work_items` assertion in `ingestion_test.go:114`; NOT_CHECKED. |
+| Retirement fence (`repository_retirements_fence_sql.go:69`, `fenceNullActivePointerQuery`) | Yes: NULLs the pointer and supersedes every generation of the repository's own scopes and its derived `go-reachability://` scope. | It does not re-derive holders and reads none. `retirementScopesOfReposSQL` (`repository_retirements_derived.go:34`) selects scopes by `partition_key` or the derived scope id of the repository, the scopes the repository owns. It does not select holder scopes (scopes of other kinds whose findings carry that repository id in supports). So retirement leaves a holder that already committed a Go verdict from the retired generation as it was; nothing reopens it. A pass still in flight is refused by the recheck. This is a pre-existing gap, not a holder read that a late commit can miss, and it is not widened here; flagged for the goal ledger and the arbiter. |
+| Reconcile (`projector_queue_sql.go:241`, `scope_update`) | Yes: NULLs the pointer when the active generation is the one it fails. | Nothing re-derives holders: the generation failed, no successor exists. Same shape as retirement for a holder that already committed; an in-flight pass is refused by the recheck. |
+
 ## The 2 s question
 
 The fence's exclusive wait is bounded by its own `lock_timeout` of 2000 ms
-(`gomodules/fence.go`, `fenceTimeoutsQuery`). A pass write transaction that holds the
-shared lock longer makes that fence attempt return 55P03 with nothing detached; the
-coordinator retries the page next tick, and a pass that arrives while the fence waits queues
-behind it (fair lock queue) and proceeds without error once the fence times out
-(`TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive`). No metric records the
-pass write-transaction length today. Evidence in hand: the lab real writer ran 0.4 to 0.7 s
-per 3,000 findings on an idle database; the QA 10643j window showed a 7.64 s mean per fact
-insert batch on a saturated database (`.claude/qa-accounting-10643j-2026-11-22.md`), which is
-only the insert and not specific to one repository. The threshold at D3a: a fence that times
-out on the advisory lock for the same scope on three consecutive ticks returns to the arbiter.
-`eshu_dp_go_fence_advisory_lock_wait_seconds` and
-`eshu_dp_go_fence_advisory_lock_timeouts_total` show it.
+(`gomodules/fence.go`, `fenceTimeoutsQuery`). With the lock last, the pass holds the shared
+lock for a recheck, one marker update and a commit, so the expected wait is milliseconds. A
+pass that spends 3 s in its writes does not block the fence at all: the fence takes its lock at
+once and commits, and the pass then fails its recheck and rolls back with the typed class
+(`TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive`). A pass paused between its
+recheck and its commit makes the fence wait, then reopen that pass's scope
+(`TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive`), and a second pass arriving behind
+the waiting fence queues behind it
+(`TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive`). The cost moved to the pass: a pass
+that loses to a fence has done all its writes for nothing. Two histograms size it:
+`eshu_dp_supply_chain_impact_write_tx_duration_seconds{outcome}` (the `recheck_aborted` series is
+the wasted work; `committed` p99 is how long a fence could wait if a pass stalled) and
+`eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds` (the pass's wait behind a fence).
+Evidence in hand before them: the lab real writer ran 0.4 to 0.7 s per 3,000 findings on an
+idle database; the QA 10643j window showed a 7.64 s mean per fact insert batch on a saturated
+database (`.claude/qa-accounting-10643j-2026-11-22.md`). The D3a threshold: a fence that times
+out on the advisory lock for the same scope on three consecutive ticks returns to the arbiter
+(`eshu_dp_go_fence_advisory_lock_timeouts_total`).
 
 ## Isolation
 
@@ -119,8 +173,10 @@ has no `lock_timeout` of its own; the connection's applies, and a 55P03 maps to 
 | Claim | Test |
 | --- | --- |
 | The key is its own derivation | `TestGoEvidenceLockKeyDiffersFromTheConflictDomainKey` |
-| Lock, then recheck, before everything else; no pair means neither | `TestWriteLocksGoEvidenceThenRechecksBeforeAnythingElse`, `TestWriteWithNoResolvedGoEvidenceIssuesNeitherStatement` |
-| A rewrite cannot move them off the front unnoticed (seeded violations) | `TestGoEvidencePrologueViolationNamesTheSeededShapes` |
+| Lock, then recheck, then only the owed marker, last before the commit; no pair means neither | `TestWriteLocksGoEvidenceThenRechecksLastBeforeCommit`, `TestWriteWithNoResolvedGoEvidenceIssuesNeitherStatement` |
+| A rewrite cannot move them off the end unnoticed (seeded violations) | `TestGoEvidenceEpilogueViolationNamesTheSeededShapes` |
+| Census guard: nothing before the lock names fact_work_items or writes or locks a scope row | `TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock`, `TestCensusViolationNamesTheSeededStatements`, `TestProtectedPublicationFunctionsTouchNoFenceRows` |
+| The write-tx and lock-wait histograms record by outcome | `TestGoEvidenceLockSignalsRecordWithClosedLabels` |
 | A changed generation aborts with the typed class and writes nothing | `TestWriteAbortsWithTheTypedClassWhenTheRecheckFindsAChangedGeneration` |
 | N aborts spend no attempt; a genuine failure still counts | `TestReducerQueueGoEvidenceChangedNeverSpendsAnAttempt`, `TestReducerQueueClaimDoesNotCountGoEvidenceChanged` |
 | 55P03 maps only on the shared-lock statement | `TestClassifyGoEvidenceLockTimeoutMapsOnlyTheSharedLockStatement` |
@@ -128,9 +184,11 @@ has no `lock_timeout` of its own; the connection's applies, and a 55P03 maps to 
 | Fence order and timeout detach nothing | `TestFenceTakesTheExclusiveGoEvidenceLockBeforeAnythingElse`, `TestFenceLockTimeoutDetachesNothingAndIsObserved` |
 | Isolation guard | `TestWriteFailsLoudWhenTheWriteTransactionIsNotReadCommitted` |
 | AC1: the miss is red on main, aborted now | `TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive` |
-| Pass first, fence waits and reopens | `TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive` |
-| 3 s pass: fence timeout, nothing detached, second pass queues | `TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive` |
+| Pass paused between recheck and commit: the fence waits, then reopens | `TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive` |
+| A pass spending 3 s in its writes loses to a fence; nothing written, typed class | `TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive` |
+| A second pass queues behind a waiting fence | `TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive` |
 | 40 rounds, in-flight holder reopened, zero deadlocks | `TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive` |
+| 40 rounds through the protected-scan path as the least-privilege login | `TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive` |
 | Ack commits during a 3 s pass; ends on the successor | `TestGoEvidenceAckCommitsWhilePassHoldsTheSharedLockLive` |
 | Two go scopes, two fences, one pass | `TestGoEvidenceMultiRepositoryPassWithParallelFencesLive` |
 | AC3: 40 free-interleaving rounds | `TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive` |
@@ -144,24 +202,38 @@ RED on main, is the coordinator's slot.
 ## No-Regression Evidence
 
 No-Regression Evidence: baseline is `origin/main` 9fa8f6049a; after is this branch. A pass that
-resolves no go scope issues no new statement. A pass that resolves N distinct go scopes
-issues N advisory lock statements and one recheck SELECT (the hermetic order test shows the
-exact statements); the fence issues one advisory lock statement. Advisory locks write no WAL
-and touch no heap (shim: 339 and 338 WAL bytes per transaction against 345 and 338 without
-the lock; the row-lock alternative cost about 190 bytes). The lock is transaction-scoped and
-shared passes do not wait on each other. Conflict domain: the go scope id; the fence waits
-only for in-flight passes that loaded that scope. Lock order: pass takes the shared go-evidence
-lock first, then the conflict-domain lock and its rows; the fence takes the exclusive lock first,
-then the scope row, the generation and the holders. The real-writer measurement of pass
-write-transaction duration and WAL per pass with and without the change (ruling 4.9) is NOT RUN
-here: it needs a coordinator slot on the real writer path, and the toy shim is not that proof.
+resolves no go scope issues no new statement. A pass that resolves N distinct go scopes issues N
+advisory lock statements and one recheck SELECT at the end of its write transaction (the
+hermetic order test shows the exact statements); the fence issues one advisory lock statement.
+Advisory locks write no WAL and touch no heap (shim: 339 and 338 WAL bytes per transaction against
+345 and 338 without the lock; the row-lock alternative cost about 190 bytes). The lock is
+transaction-scoped and shared passes do not wait on each other. Conflict domain: the go scope id.
+Lock order: the pass takes the conflict-domain lock and its rows first, then the shared go-evidence
+locks at the end, then updates its own work item; the fence takes the exclusive lock first, then
+the scope row, the generation and the holders. The census guard pins that nothing the pass holds
+before the lock is a row the fence needs. The cost of the lock-last position is the pass's rolled
+back writes when a fence lands during its transaction; the `recheck_aborted` series of the write-tx
+histogram measures it. The real-writer measurement of write-tx duration and WAL per pass with and
+without the change (ruling 4.9) is NOT RUN here: it needs a coordinator slot on the real writer
+path, and the toy shim is not that proof.
 
 Observability Evidence: `eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total{reason}`
 counts passes aborted by the recheck or the shared lock timeout,
 `eshu_dp_go_fence_advisory_lock_timeouts_total` counts fence attempts that hit the lock timeout,
-and `eshu_dp_go_fence_advisory_lock_wait_seconds` records the fence's wait, granted or timed out.
-Documented in `docs/public/reference/telemetry/supply-chain-impact-supports.md` and the reducer
-coverage row. At 3 AM, a rising abort rate or timeout count means fences and passes keep colliding
-on one repository; the retrying intents appear under failure class
-`supply_chain_impact_go_evidence_changed` on the queue's failure-class series and the service
-reports them as deferred.
+`eshu_dp_go_fence_advisory_lock_wait_seconds` records the fence's wait,
+`eshu_dp_supply_chain_impact_write_tx_duration_seconds{outcome}` records each impact write
+transaction by outcome with buckets to 300 s, and
+`eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds` records the pass's wait for the shared
+lock. Documented in `docs/public/reference/telemetry/supply-chain-impact-supports.md` and the
+reducer coverage row. At 3 AM, a rising abort rate or `recheck_aborted` share means fences and
+passes keep colliding on one repository; the retrying intents appear under failure class
+`supply_chain_impact_go_evidence_changed` and the service reports them as deferred.
+
+## Least-privilege logins
+
+The recheck is a plain SELECT on `ingestion_scopes` and `scope_generations` in the write
+transaction. The reducer login already reads both for every claim; a login that lacks either
+fails the recheck with SQLSTATE 42501 and the pass rolls back. The protected-publish proof now
+grants `SELECT ON ingestion_scopes` in `grantImpactWriterPregrants`, and the least-privilege
+section of `supply-chain-impact-supports.md` names the requirement. The advisory lock functions
+need no grant.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
@@ -52,11 +53,24 @@ func TestGoEvidenceLockKeyDiffersFromTheConflictDomainKey(t *testing.T) {
 	}
 }
 
-// TestWriteLocksGoEvidenceThenRechecksBeforeAnythingElse pins the #11327 pass
-// prologue: the shared locks in sorted scope order, then one recheck SELECT, then the
-// conflict-domain lock and the rest. The existing order test covers the pass with no
-// resolved pair, which issues neither statement.
-func TestWriteLocksGoEvidenceThenRechecksBeforeAnythingElse(t *testing.T) {
+// goEvidenceOwedMarker is a stand-in for the production owed-marker statement (it
+// updates the pass's own fact_work_items row): it runs one statement on the pass
+// transaction, so the order tests see where the writer places it.
+type goEvidenceOwedMarker struct{}
+
+const goEvidenceOwedMarkerQuery = "UPDATE fact_work_items SET payload = owed"
+
+func (goEvidenceOwedMarker) RecordFanOutOwed(ctx context.Context, exec factwrite.Execer) error {
+	_, err := exec.ExecContext(ctx, goEvidenceOwedMarkerQuery)
+	return err
+}
+
+// TestWriteLocksGoEvidenceThenRechecksLastBeforeCommit pins the #11327 pass epilogue:
+// every other statement of the write transaction runs first, then the shared locks in
+// sorted scope order, then one recheck SELECT, then only the owed marker (which updates
+// the pass's own work item and so must follow the lock), then the commit. The existing
+// order test covers the pass with no resolved pair, which issues neither statement.
+func TestWriteLocksGoEvidenceThenRechecksLastBeforeCommit(t *testing.T) {
 	t.Parallel()
 
 	inserts := &testutil.FakeExecer{}
@@ -66,35 +80,44 @@ func TestWriteLocksGoEvidenceThenRechecksBeforeAnythingElse(t *testing.T) {
 		GoEvidenceGeneration{ScopeID: "go-reachability://repository:r_a", GenerationID: "gen-a"},
 		GoEvidenceGeneration{ScopeID: "go-reachability://repository:r_a", GenerationID: "gen-a"},
 	)
+	write.Owed = goEvidenceOwedMarker{}
 	beginner.state.goEvidenceCurrent = 2
 	if _, err := (PostgresSupplyChainImpactWriter{DB: beginner}).WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 	}
 	all := beginner.state.all
-	if len(all) < 4 {
-		t.Fatalf("statements = %d, want the prologue plus the pass", len(all))
+	n := len(all)
+	if n < 5 {
+		t.Fatalf("statements = %d, want the pass then the closing lock, recheck and marker", n)
 	}
 	wantKeys := []string{
 		SupplyChainImpactGoEvidenceLockKey("go-reachability://repository:r_a"),
 		SupplyChainImpactGoEvidenceLockKey("go-reachability://repository:r_b"),
 	}
 	for i, key := range wantKeys {
-		if all[i].Query != SupplyChainImpactGoEvidenceSharedLockQuery || all[i].Args[0] != key {
-			t.Fatalf("statement %d = %q %v, want the shared lock of %q (sorted, de-duplicated)", i, all[i].Query, all[i].Args, key)
+		got := all[n-4+i]
+		if got.Query != SupplyChainImpactGoEvidenceSharedLockQuery || got.Args[0] != key {
+			t.Fatalf("statement %d from the end = %q %v, want the shared lock of %q (sorted, de-duplicated)", 4-i, got.Query, got.Args, key)
 		}
 	}
-	if all[2].Query != supplyChainImpactGoEvidenceRecheckQuery {
-		t.Fatalf("statement 2 = %q, want the recheck", all[2].Query)
+	recheck := all[n-2]
+	if recheck.Query != supplyChainImpactGoEvidenceRecheckQuery {
+		t.Fatalf("second to last statement = %q, want the recheck", recheck.Query)
 	}
-	if !slices.Equal(all[2].Args[0].([]string), []string{"go-reachability://repository:r_a", "go-reachability://repository:r_b"}) ||
-		!slices.Equal(all[2].Args[1].([]string), []string{"gen-a", "gen-b"}) {
-		t.Fatalf("recheck args = %v, want the two resolved pairs", all[2].Args)
+	if !slices.Equal(recheck.Args[0].([]string), []string{"go-reachability://repository:r_a", "go-reachability://repository:r_b"}) ||
+		!slices.Equal(recheck.Args[1].([]string), []string{"gen-a", "gen-b"}) {
+		t.Fatalf("recheck args = %v, want the two resolved pairs", recheck.Args)
 	}
-	if all[3].Query != lockSupplyChainImpactConflictDomainQuery {
-		t.Fatalf("statement 3 = %q, want the conflict-domain lock right after the recheck", all[3].Query)
+	if all[n-1].Query != goEvidenceOwedMarkerQuery {
+		t.Fatalf("last statement = %q, want the owed marker after the recheck", all[n-1].Query)
 	}
-	if violation := goEvidencePrologueViolation(queriesOf(all)); violation != "" {
-		t.Fatalf("clean prologue reported as a violation: %s", violation)
+	if violation := goEvidenceEpilogueViolation(queriesOf(all), goEvidenceOwedMarkerQuery); violation != "" {
+		t.Fatalf("clean epilogue reported as a violation: %s", violation)
+	}
+	for i, call := range all[:n-4] {
+		if call.Query == SupplyChainImpactGoEvidenceSharedLockQuery || call.Query == supplyChainImpactGoEvidenceRecheckQuery {
+			t.Fatalf("statement %d is a go-evidence statement before the closing run", i)
+		}
 	}
 }
 
@@ -106,29 +129,32 @@ func queriesOf(calls []testutil.ExecCall) []string {
 	return out
 }
 
-// TestGoEvidencePrologueViolationNamesTheSeededShapes is the seeded RED half of the
-// statement-order guard (#11327 ruling 3.2): a rewrite of the writer prologue that
-// moves the shared lock or the recheck behind another lock-taking statement, drops
-// the recheck, or issues one without the lock, is reported.
-func TestGoEvidencePrologueViolationNamesTheSeededShapes(t *testing.T) {
+// TestGoEvidenceEpilogueViolationNamesTheSeededShapes is the seeded RED half of the
+// statement-order guard (#11327 ruling 3.2 and the amendment): a rewrite of the writer
+// that moves the shared lock or the recheck earlier, puts another statement after the
+// recheck, drops the recheck, or issues one without the lock, is reported.
+func TestGoEvidenceEpilogueViolationNamesTheSeededShapes(t *testing.T) {
 	t.Parallel()
 
-	lock, recheck, domain, admit := SupplyChainImpactGoEvidenceSharedLockQuery, supplyChainImpactGoEvidenceRecheckQuery,
-		lockSupplyChainImpactConflictDomainQuery, supplyChainImpactAdmissionQuery
+	lock, recheck, domain, admit, marker := SupplyChainImpactGoEvidenceSharedLockQuery, supplyChainImpactGoEvidenceRecheckQuery,
+		lockSupplyChainImpactConflictDomainQuery, supplyChainImpactAdmissionQuery, goEvidenceOwedMarkerQuery
 	for name, tc := range map[string]struct {
 		statements []string
 		want       bool
 	}{
-		"lock, recheck, domain lock":          {[]string{lock, recheck, domain, admit}, false},
-		"no go evidence at all":               {[]string{domain, admit}, false},
-		"two locks then recheck":              {[]string{lock, lock, recheck, domain}, false},
-		"domain lock before the shared lock":  {[]string{domain, lock, recheck, admit}, true},
-		"admission before the recheck":        {[]string{lock, admit, recheck, domain}, true},
-		"recheck missing":                     {[]string{lock, domain, admit}, true},
-		"recheck without a lock":              {[]string{recheck, domain, admit}, true},
-		"recheck before the last shared lock": {[]string{lock, recheck, lock, domain}, true},
+		"closing lock, recheck, marker":     {[]string{domain, admit, lock, recheck, marker}, false},
+		"closing locks, recheck, no marker": {[]string{domain, admit, lock, lock, recheck}, false},
+		"no go evidence at all":             {[]string{domain, admit, marker}, false},
+		"lock first (the old position)":     {[]string{lock, recheck, domain, admit}, true},
+		"admission after the recheck":       {[]string{domain, lock, recheck, admit}, true},
+		"marker before the lock":            {[]string{domain, marker, lock, recheck}, true},
+		"two statements after the recheck":  {[]string{domain, lock, recheck, marker, marker}, true},
+		"recheck missing":                   {[]string{domain, lock, admit}, true},
+		"recheck without a lock":            {[]string{domain, admit, recheck}, true},
+		"lock after the recheck":            {[]string{domain, lock, recheck, lock}, true},
+		"locks split by another statement":  {[]string{lock, admit, lock, recheck}, true},
 	} {
-		got := goEvidencePrologueViolation(tc.statements) != ""
+		got := goEvidenceEpilogueViolation(tc.statements, marker) != ""
 		if got != tc.want {
 			t.Errorf("%s: violation = %v, want %v", name, got, tc.want)
 		}
@@ -137,8 +163,8 @@ func TestGoEvidencePrologueViolationNamesTheSeededShapes(t *testing.T) {
 
 // TestWriteAbortsWithTheTypedClassWhenTheRecheckFindsAChangedGeneration pins the
 // retry class (#11327 ruling 2): a recheck that finds fewer current pairs than the
-// pass loaded returns the typed non-counting error, issues no later statement, and
-// rolls back.
+// pass loaded returns the typed non-counting error and rolls back: the recheck is the
+// last statement, the owed marker never runs, and nothing commits.
 func TestWriteAbortsWithTheTypedClassWhenTheRecheckFindsAChangedGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -148,6 +174,7 @@ func TestWriteAbortsWithTheTypedClassWhenTheRecheckFindsAChangedGeneration(t *te
 		GoEvidenceGeneration{ScopeID: "go-reachability://repository:r_a", GenerationID: "gen-a"},
 		GoEvidenceGeneration{ScopeID: "go-reachability://repository:r_b", GenerationID: "gen-b"},
 	)
+	write.Owed = goEvidenceOwedMarker{}
 	beginner.state.goEvidenceCurrent = 1
 	_, err := (PostgresSupplyChainImpactWriter{DB: beginner}).WriteSupplyChainImpactFindings(context.Background(), write)
 	var changed *SupplyChainImpactGoEvidenceChangedError
@@ -157,12 +184,17 @@ func TestWriteAbortsWithTheTypedClassWhenTheRecheckFindsAChangedGeneration(t *te
 	if !changed.Retryable() || changed.FailureClass() != SupplyChainImpactGoEvidenceChangedFailureClass {
 		t.Fatalf("retryable = %v class = %q, want a retryable error of class %q", changed.Retryable(), changed.FailureClass(), SupplyChainImpactGoEvidenceChangedFailureClass)
 	}
-	if got := len(beginner.state.all); got != 3 {
-		t.Fatalf("statements = %d (%v), want 2 locks and the recheck only", got, queriesOf(beginner.state.all))
+	all := beginner.state.all
+	if last := all[len(all)-1].Query; last != supplyChainImpactGoEvidenceRecheckQuery {
+		t.Fatalf("last statement = %q, want the failed recheck", last)
 	}
-	if beginner.state.commits != 0 || beginner.state.rollbacks != 1 || len(inserts.Execs) != 0 {
-		t.Fatalf("commits = %d rollbacks = %d inserts = %d, want a rollback with nothing written",
-			beginner.state.commits, beginner.state.rollbacks, len(inserts.Execs))
+	for _, call := range all {
+		if call.Query == goEvidenceOwedMarkerQuery {
+			t.Fatal("the owed marker ran after a failed recheck")
+		}
+	}
+	if beginner.state.commits != 0 || beginner.state.rollbacks != 1 {
+		t.Fatalf("commits = %d rollbacks = %d, want a rollback and no commit", beginner.state.commits, beginner.state.rollbacks)
 	}
 }
 

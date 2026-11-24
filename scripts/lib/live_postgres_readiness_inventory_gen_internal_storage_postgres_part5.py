@@ -49,7 +49,11 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_live_test.go": (
             "TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive",
             "TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive",
-            "TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive",
+            "TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive",
+            "TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_protected_live_test.go": (
+            "TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_race_live_test.go": (
             "TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive",

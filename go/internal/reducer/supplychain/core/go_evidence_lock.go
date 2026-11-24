@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 )
 
 // The go-evidence lock (#11327). A pass loads Go reachability evidence from each
@@ -19,8 +20,13 @@ import (
 // would schedule a pass to correct it.
 //
 // The pass therefore takes a shared transaction-scoped advisory lock keyed by each
-// go scope it loaded, as the first lock of its write transaction, and rechecks that
-// every (scope, generation) it loaded is still the scope's active generation. The
+// go scope it loaded, as the last statements of its write transaction before the
+// commit (apart from its owed marker), and rechecks that every (scope, generation) it
+// loaded is still the scope's active generation. The lock is held for the recheck and
+// the commit, not the whole write, so a fence waits milliseconds, not seconds. That
+// position is safe only while the transaction holds nothing the fence needs before the
+// lock: the census guard in storage/postgres pins it, and the owed marker, the one
+// statement that updates a fact_work_items row, runs after the lock. The
 // fence takes the exclusive form of the same lock before it detaches anything. A
 // fence that starts first commits before the pass proceeds, and the recheck then
 // aborts the pass; a pass that starts first commits before the fence continues, and
@@ -89,7 +95,7 @@ type GoEvidenceGeneration struct {
 }
 
 // SupplyChainImpactGoEvidenceSharedLockQuery is the shared advisory lock a pass takes
-// for one go scope, as the first lock of its write transaction. The postgres
+// for one go scope, as the closing statements of its write transaction. The postgres
 // transaction wrapper recognises this text to map a lock timeout (55P03) to
 // SupplyChainImpactGoEvidenceChangedError.
 const SupplyChainImpactGoEvidenceSharedLockQuery = `SELECT pg_advisory_xact_lock_shared(hashtextextended($1, 0))`
@@ -150,66 +156,78 @@ func sortedGoEvidencePairs(pairs []GoEvidenceGeneration) []GoEvidenceGeneration 
 	return out
 }
 
-// lockAndRecheckGoEvidence runs the pass prologue of #11327: one shared lock per
+// lockAndRecheckGoEvidence runs the closing statements of #11327: one shared lock per
 // distinct go scope in sorted order, then one recheck SELECT over every pair. It
-// issues neither statement when the pass resolved no pair. A recheck that finds fewer
-// current pairs than the pass loaded returns SupplyChainImpactGoEvidenceChangedError.
-func lockAndRecheckGoEvidence(ctx context.Context, tx SupplyChainImpactTx, pairs []GoEvidenceGeneration) error {
+// issues neither statement when the pass resolved no pair (locked false). It reports
+// the time its lock statements took, whether they were granted or refused. A recheck
+// that finds fewer current pairs than the pass loaded returns
+// SupplyChainImpactGoEvidenceChangedError.
+func lockAndRecheckGoEvidence(ctx context.Context, tx SupplyChainImpactTx, pairs []GoEvidenceGeneration) (locked bool, wait time.Duration, err error) {
 	pairs = sortedGoEvidencePairs(pairs)
 	if len(pairs) == 0 {
-		return nil
+		return false, 0, nil
 	}
-	locked := ""
+	lastLocked := ""
 	scopeIDs := make([]string, 0, len(pairs))
 	generationIDs := make([]string, 0, len(pairs))
+	started := time.Now()
 	for _, pair := range pairs {
 		scopeIDs = append(scopeIDs, pair.ScopeID)
 		generationIDs = append(generationIDs, pair.GenerationID)
-		if pair.ScopeID == locked {
+		if pair.ScopeID == lastLocked {
 			continue
 		}
-		locked = pair.ScopeID
+		lastLocked = pair.ScopeID
 		if _, err := tx.ExecContext(ctx, SupplyChainImpactGoEvidenceSharedLockQuery, SupplyChainImpactGoEvidenceLockKey(pair.ScopeID)); err != nil {
-			return fmt.Errorf("lock supply chain impact go evidence: %w", err)
+			return true, time.Since(started), fmt.Errorf("lock supply chain impact go evidence: %w", err)
 		}
 	}
+	wait = time.Since(started)
 	rows, err := tx.QueryContext(ctx, supplyChainImpactGoEvidenceRecheckQuery, scopeIDs, generationIDs)
 	if err != nil {
-		return fmt.Errorf("recheck supply chain impact go evidence: %w", err)
+		return true, wait, fmt.Errorf("recheck supply chain impact go evidence: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	current := 0
 	for rows.Next() {
 		var scopeID, isolation string
 		if err := rows.Scan(&scopeID, &isolation); err != nil {
-			return fmt.Errorf("scan supply chain impact go evidence recheck: %w", err)
+			return true, wait, fmt.Errorf("scan supply chain impact go evidence recheck: %w", err)
 		}
 		if isolation != "read committed" {
-			return fmt.Errorf("supply chain impact go evidence recheck needs a READ COMMITTED write transaction, got %q", isolation)
+			return true, wait, fmt.Errorf("supply chain impact go evidence recheck needs a READ COMMITTED write transaction, got %q", isolation)
 		}
 		current++
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("recheck supply chain impact go evidence: %w", err)
+		return true, wait, fmt.Errorf("recheck supply chain impact go evidence: %w", err)
 	}
 	if current != len(pairs) {
-		return &SupplyChainImpactGoEvidenceChangedError{Cause: GoEvidenceCauseGenerationChanged}
+		return true, wait, &SupplyChainImpactGoEvidenceChangedError{Cause: GoEvidenceCauseGenerationChanged}
 	}
-	return nil
+	return true, wait, nil
 }
 
-// goEvidencePrologueViolation reports a statement order that breaks the #11327
+// goEvidenceEpilogueViolation reports a statement order that breaks the #11327
 // contract, or "" for a clean one. Clean is either no go-evidence statement at all, or
-// the shared locks as the first statements, the recheck as the statement right after
-// them, and neither appearing again. It is the checker behind the seeded-violation
-// test, so a rewrite of the writer prologue cannot move the lock and the recheck off
-// the front unnoticed.
-func goEvidencePrologueViolation(statements []string) string {
-	locks, rechecks := 0, 0
-	for _, statement := range statements {
+// the shared locks, then the one recheck right after them, then at most the owed-marker
+// statement (the pass's own work item, which must follow the lock) and nothing else
+// before the commit. It is the checker behind the seeded-violation test, so a rewrite
+// of the writer cannot move the lock and the recheck off the end unnoticed.
+// markerStatement is the owed-marker query text, or "" when the pass records none.
+func goEvidenceEpilogueViolation(statements []string, markerStatement string) string {
+	locks, rechecks, markerEarly := 0, 0, false
+	first := -1
+	for i, statement := range statements {
+		if markerStatement != "" && statement == markerStatement && first < 0 {
+			markerEarly = true
+		}
 		switch statement {
 		case SupplyChainImpactGoEvidenceSharedLockQuery:
 			locks++
+			if first < 0 {
+				first = i
+			}
 		case supplyChainImpactGoEvidenceRecheckQuery:
 			rechecks++
 		}
@@ -217,19 +235,30 @@ func goEvidencePrologueViolation(statements []string) string {
 	if locks == 0 && rechecks == 0 {
 		return ""
 	}
-	prefix := 0
-	for prefix < len(statements) && statements[prefix] == SupplyChainImpactGoEvidenceSharedLockQuery {
-		prefix++
+	if locks == 0 || rechecks != 1 {
+		return "the shared locks or the single recheck are missing or repeated"
 	}
+	if markerEarly {
+		return "the owed marker updates the pass's work item before the lock: it can deadlock with a fence"
+	}
+	end := first
+	for end < len(statements) && statements[end] == SupplyChainImpactGoEvidenceSharedLockQuery {
+		end++
+	}
+	if end-first != locks {
+		return "a shared go-evidence lock is not in the closing run of locks"
+	}
+	if end >= len(statements) || statements[end] != supplyChainImpactGoEvidenceRecheckQuery {
+		return "the recheck is not right after the locks"
+	}
+	rest := statements[end+1:]
 	switch {
-	case prefix == 0:
-		return "the shared go-evidence lock is not the first statement"
-	case prefix != locks:
-		return "a shared go-evidence lock follows another statement"
-	case rechecks != 1 || prefix >= len(statements) || statements[prefix] != supplyChainImpactGoEvidenceRecheckQuery:
-		return "the recheck is missing, repeated or not right after the locks"
+	case len(rest) == 0:
+		return ""
+	case len(rest) == 1 && markerStatement != "" && rest[0] == markerStatement:
+		return ""
 	}
-	return ""
+	return "a statement other than the owed marker follows the recheck"
 }
 
 // countGoEvidenceRecheckAbort counts a write the go-evidence recheck or its shared
@@ -238,5 +267,20 @@ func (h SupplyChainImpactHandler) countGoEvidenceRecheckAbort(ctx context.Contex
 	var changed *SupplyChainImpactGoEvidenceChangedError
 	if errors.As(err, &changed) {
 		h.Instruments.RecordSupplyChainImpactGoEvidenceRecheckAbort(ctx, changed.Cause)
+	}
+}
+
+// writeTxOutcomeLabel names the outcome of one impact write transaction for the
+// duration histogram: committed, recheck_aborted (the go-evidence recheck or its lock
+// refused the pass) or rolled_back (any other failure, begin and commit included).
+func writeTxOutcomeLabel(err error) string {
+	var changed *SupplyChainImpactGoEvidenceChangedError
+	switch {
+	case err == nil:
+		return "committed"
+	case errors.As(err, &changed):
+		return "recheck_aborted"
+	default:
+		return "rolled_back"
 	}
 }

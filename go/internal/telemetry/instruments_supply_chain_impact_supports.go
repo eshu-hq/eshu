@@ -154,6 +154,16 @@ var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0
 // the last finite bucket.
 var goFenceAdvisoryLockWaitBuckets = []float64{0.0005, 0.001, 0.005, 0.025, 0.1, 0.25, 0.5, 1, 1.5, 2, 2.5, 5}
 
+// supplyChainImpactWriteTxBuckets spans an impact write transaction from a few
+// milliseconds (an unchanged replay) to past the minute a pass takes on a loaded
+// database, so the tail that decides the fence's wait and the abort cost is visible.
+var supplyChainImpactWriteTxBuckets = []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300}
+
+// supplyChainImpactGoEvidenceLockWaitBuckets spans a pass's wait for the shared
+// go-evidence lock from an uncontended grant to a wait behind a fence and a few of
+// the passes that queued ahead of it.
+var supplyChainImpactGoEvidenceLockWaitBuckets = []float64{0.0005, 0.001, 0.005, 0.025, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60}
+
 // registerSupplyChainImpactSupportsInstruments registers the per-support table
 // signals of #10880 PR-B1 on inst.
 //
@@ -235,6 +245,22 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 		metric.WithExplicitBucketBoundaries(goFenceAdvisoryLockWaitBuckets...),
 	); err != nil {
 		return fmt.Errorf("register GoFenceAdvisoryLockWait histogram: %w", err)
+	}
+	if inst.SupplyChainImpactWriteTxDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_write_tx_duration_seconds",
+		metric.WithDescription("Wall time of one supply-chain impact write transaction, begin to commit or rollback, by outcome: committed, rolled_back (any failure) or recheck_aborted (the go-evidence recheck refused it, so the whole transaction was spent for nothing). The tail is how long a Go-modules fence can wait behind a pass and how much work an abort throws away."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactWriteTxBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWriteTxDuration histogram: %w", err)
+	}
+	if inst.SupplyChainImpactGoEvidenceLockWait, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds",
+		metric.WithDescription("Wall time a supply-chain impact pass spent taking the shared go-evidence advisory locks at the end of its write transaction, granted or refused. A tail means passes queue behind a Go-modules fence. Passes with no resolved Go scope record nothing. No labels."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactGoEvidenceLockWaitBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactGoEvidenceLockWait histogram: %w", err)
 	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
@@ -350,6 +376,22 @@ func (i *Instruments) RecordGoFenceAdvisoryLockWait(ctx context.Context, wait ti
 	}
 	if timedOut && i.GoFenceAdvisoryLockTimeouts != nil {
 		i.GoFenceAdvisoryLockTimeouts.Add(ctx, 1)
+	}
+}
+
+// RecordSupplyChainImpactWriteTx records the wall time of one impact write
+// transaction by outcome (committed, rolled_back, recheck_aborted) and, when the pass
+// took the shared go-evidence lock, how long taking it waited. It is safe on a nil
+// receiver and on an Instruments that did not register the instruments.
+func (i *Instruments) RecordSupplyChainImpactWriteTx(ctx context.Context, outcome string, duration time.Duration, lockTaken bool, lockWait time.Duration) {
+	if i == nil {
+		return
+	}
+	if i.SupplyChainImpactWriteTxDuration != nil {
+		i.SupplyChainImpactWriteTxDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(AttrOutcome(outcome)))
+	}
+	if lockTaken && i.SupplyChainImpactGoEvidenceLockWait != nil {
+		i.SupplyChainImpactGoEvidenceLockWait.Record(ctx, lockWait.Seconds())
 	}
 }
 

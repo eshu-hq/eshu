@@ -31,10 +31,14 @@ func TestGoEvidenceLockSignalsRecordWithClosedLabels(t *testing.T) {
 	inst.RecordSupplyChainImpactGoEvidenceRecheckAbort(ctx, "lock_timeout")
 	inst.RecordGoFenceAdvisoryLockWait(ctx, 3*time.Millisecond, false)
 	inst.RecordGoFenceAdvisoryLockWait(ctx, 2*time.Second, true)
+	inst.RecordSupplyChainImpactWriteTx(ctx, "committed", 40*time.Millisecond, false, 0)
+	inst.RecordSupplyChainImpactWriteTx(ctx, "recheck_aborted", 70*time.Second, true, 5*time.Millisecond)
 
 	var nilInst *Instruments
 	nilInst.RecordSupplyChainImpactGoEvidenceRecheckAbort(ctx, "lock_timeout")
 	nilInst.RecordGoFenceAdvisoryLockWait(ctx, time.Second, true)
+	nilInst.RecordSupplyChainImpactWriteTx(ctx, "committed", time.Second, true, time.Second)
+	(&Instruments{}).RecordSupplyChainImpactWriteTx(ctx, "committed", time.Second, true, time.Second)
 	(&Instruments{}).RecordSupplyChainImpactGoEvidenceRecheckAbort(ctx, "lock_timeout")
 	(&Instruments{}).RecordGoFenceAdvisoryLockWait(ctx, time.Second, true)
 
@@ -43,7 +47,9 @@ func TestGoEvidenceLockSignalsRecordWithClosedLabels(t *testing.T) {
 		t.Fatalf("collect: %v", err)
 	}
 	aborts := map[string]int64{}
-	var timeouts, waits int64
+	var timeouts, waits, lockWaits int64
+	txByOutcome := map[string]uint64{}
+	var txOverMinute uint64
 	var attributes int
 	for _, scope := range rm.ScopeMetrics {
 		for _, m := range scope.Metrics {
@@ -61,6 +67,25 @@ func TestGoEvidenceLockSignalsRecordWithClosedLabels(t *testing.T) {
 					timeouts += point.Value
 					attributes += point.Attributes.Len()
 				}
+			case "eshu_dp_supply_chain_impact_write_tx_duration_seconds":
+				for _, point := range m.Data.(metricdata.Histogram[float64]).DataPoints {
+					outcome, _ := point.Attributes.Value("outcome")
+					txByOutcome[outcome.AsString()] += point.Count
+					if point.Attributes.Len() != 1 {
+						t.Fatalf("write-tx histogram has %d attributes, want only outcome", point.Attributes.Len())
+					}
+					if max, ok := point.Max.Value(); ok && max > 60 {
+						txOverMinute += point.Count
+					}
+					if len(point.Bounds) == 0 || point.Bounds[len(point.Bounds)-1] < 60 {
+						t.Fatalf("write-tx buckets %v do not reach 60 s", point.Bounds)
+					}
+				}
+			case "eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds":
+				for _, point := range m.Data.(metricdata.Histogram[float64]).DataPoints {
+					lockWaits += int64(point.Count)
+					attributes += point.Attributes.Len()
+				}
 			case "eshu_dp_go_fence_advisory_lock_wait_seconds":
 				for _, point := range m.Data.(metricdata.Histogram[float64]).DataPoints {
 					waits += int64(point.Count)
@@ -71,6 +96,9 @@ func TestGoEvidenceLockSignalsRecordWithClosedLabels(t *testing.T) {
 	}
 	if aborts["generation_changed"] != 2 || aborts["lock_timeout"] != 1 {
 		t.Fatalf("aborts = %v, want generation_changed 2 and lock_timeout 1", aborts)
+	}
+	if txByOutcome["committed"] != 1 || txByOutcome["recheck_aborted"] != 1 || lockWaits != 1 || txOverMinute != 1 {
+		t.Fatalf("write-tx by outcome = %v lock waits = %d over a minute = %d, want one committed, one recheck_aborted, one lock wait (only the pass that took the lock) and the 70 s pass over a minute", txByOutcome, lockWaits, txOverMinute)
 	}
 	if timeouts != 1 || waits != 2 || attributes != 0 {
 		t.Fatalf("timeouts = %d waits = %d attributes = %d, want 1, 2 and no labels", timeouts, waits, attributes)
