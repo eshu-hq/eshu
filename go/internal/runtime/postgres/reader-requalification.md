@@ -29,6 +29,10 @@ production it is observed through the log line below plus
 `eshu_dp_postgres_reader_member_attempts_total` returning to `ok` and
 `/readyz` returning 200 after the next reader restart.
 
+Scope: requalification covers fenced borrows through runFleet. The
+stale-reader path (runStaleFleet) still excludes memberLocalTopology
+members permanently; that behavior is unchanged, not a regression.
+
 Observability Evidence: a successful refresh logs
 `event_name=postgres.reader.member_requalified` with `member_ordinal`,
 `member_id`, and the new incarnation. Requalification failures stay silent
