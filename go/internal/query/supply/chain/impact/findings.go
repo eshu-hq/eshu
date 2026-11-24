@@ -261,7 +261,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	defer timeRoute(ctx, s.Instruments, route)()
 	query := ListFindingsQuery
 	switch route {
-	case RouteLegacy, RouteSupportsFindingID:
+	case RouteLegacy, RouteSupportsFindingID, RouteSupportsSelector:
 		// the legacy fact read stays the default statement (gate off); the
 		// finding-id route is an explain label no list or aggregate takes
 	case RouteSupportsGrant:

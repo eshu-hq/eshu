@@ -48,6 +48,16 @@ func TestExplainRoutesByGrantAndLookup(t *testing.T) {
 		return strings.Contains(q, "FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($12::text[])")
 	}
 	legacy := func(q string) bool { return strings.Contains(q, "FROM fact_records AS fact") }
+	// ungranted is the whole-table supports read of an ungranted selector or
+	// identity lookup (#10880 PR-C1 f): the supports table as the source, no grant
+	// arms, no image fence, and no read of the finding facts. (The runtime filter's
+	// legs read other fact kinds from fact_records on every route, so the check is
+	// the legacy candidate source, not the table name.)
+	ungranted := func(q string) bool {
+		return strings.Contains(q, "FROM supply_chain_impact_finding_supports AS fact") &&
+			!strings.Contains(q, "image_supports") && !strings.Contains(q, "SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id") &&
+			!strings.Contains(q, "FROM fact_records AS fact")
+	}
 	probe := func(q string) bool { return strings.Contains(q, "supply_chain_impact_finding_supports_backfill") }
 	imageSource := func(q string) bool {
 		return strings.Contains(q, "image_supports AS MATERIALIZED") && strings.Contains(q, "image_ref = $10 AND image_ref <> ''") &&
@@ -69,15 +79,15 @@ func TestExplainRoutesByGrantAndLookup(t *testing.T) {
 			packet.ExplanationFilter{FindingID: "finding:a", AllowedScopeIDs: granted},
 			[]func(string) bool{probe, supportsPublicID, supportsGrantArms},
 		},
-		"ungranted public id then legacy identity fallback": {
+		"ungranted public id then supports identity fallback": {
 			true,
 			packet.ExplanationFilter{FindingID: "finding:a"},
-			[]func(string) bool{probe, supportsPublicID, legacy},
+			[]func(string) bool{probe, supportsPublicID, ungranted},
 		},
-		"ungranted selector stays legacy": {
+		"ungranted selector reads supports": {
 			true,
 			packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"},
-			[]func(string) bool{legacy},
+			[]func(string) bool{probe, ungranted},
 		},
 		"ungranted image selector reads the image index": {
 			true,

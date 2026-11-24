@@ -215,7 +215,9 @@ func TestNilInstrumentsDoNotPanic(t *testing.T) {
 // statements are counted and timed by route, and the reads that stay on the fact
 // table (the ungranted selector without an image, the identity fallback of a
 // public-id miss, and everything with the gate off) show up as legacy, so the
-// metric reports how much explain traffic still takes the legacy read.
+// metric reports how much explain traffic still takes the legacy read. With the
+// gate on, an ungranted selector or identity lookup counts supports_selector
+// (#10880 PR-C1 f).
 func TestExplainCountsEachStatementByRoute(t *testing.T) {
 	t.Parallel()
 	granted := []string{"scope:a"}
@@ -226,7 +228,7 @@ func TestExplainCountsEachStatementByRoute(t *testing.T) {
 	}{
 		"gate off public id miss": {false, packet.ExplanationFilter{FindingID: "finding:a"}, map[string]int64{"legacy": 2}},
 		"ungranted public id miss then identity fallback": {
-			true, packet.ExplanationFilter{FindingID: "finding:a"}, map[string]int64{"supports_finding_id": 1, "legacy": 1},
+			true, packet.ExplanationFilter{FindingID: "finding:a"}, map[string]int64{"supports_finding_id": 1, "supports_selector": 1},
 		},
 		"ungranted public id miss with an image reference": {
 			true,
@@ -234,7 +236,7 @@ func TestExplainCountsEachStatementByRoute(t *testing.T) {
 			map[string]int64{"supports_finding_id": 1, "supports_image": 1},
 		},
 		"ungranted selector": {
-			true, packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"}, map[string]int64{"legacy": 1},
+			true, packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"}, map[string]int64{"supports_selector": 1},
 		},
 		"ungranted image selector": {
 			true, packet.ExplanationFilter{CVEID: "CVE-2026-1", ImageRef: "registry.example/a:1"}, map[string]int64{"supports_image": 1},
