@@ -38,6 +38,15 @@ func ExplainWinnersKeyedForTest(ctx context.Context, database *sql.DB, materiali
 			return "", "", fmt.Errorf("build identifiers for explain: %w", err)
 		}
 	}
+	// The tick persists the probe to the narrow table before the
+	// active-facts build reads it; mirror runKeyedOrFull or the EXPLAIN
+	// below errors on the missing relation.
+	if _, err := tx.ExecContext(ctx, buildWinnersKeyedNarrowSQL); err != nil {
+		return "", "", fmt.Errorf("build narrow probe for explain: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedNarrowSQL); err != nil {
+		return "", "", fmt.Errorf("analyze narrow probe for explain: %w", err)
+	}
 	explain := func(stmt string, args ...any) (string, error) {
 		rows, err := tx.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+stmt, args...)
 		if err != nil {
