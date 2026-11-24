@@ -24,6 +24,14 @@ import (
 // then derives their supports, with fact ids prefix+8 digits and twin keys "key:"+fact id.
 func fillSeedRows(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, prefix string, n int) {
 	t.Helper()
+	fillSeedRowsPadded(t, ctx, db, scope, generation, prefix, n, 0)
+}
+
+// fillSeedRowsPadded is fillSeedRows with the fact payload padded to about padBytes (a
+// hex pattern, so it compresses like repetitive JSON, not like random bytes); the supports
+// derived from the facts carry the same payload.
+func fillSeedRowsPadded(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, prefix string, n, padBytes int) {
+	t.Helper()
 	supportsExec(t, ctx, db, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
   fencing_token, source_confidence, source_system, source_fact_key, observed_at, ingested_at, payload)
@@ -33,7 +41,10 @@ SELECT $3::text || lpad(i::text, 8, '0'), $1, $2, 'reducer_supply_chain_impact_f
        jsonb_build_object('finding_id', 'finding:' || i, 'cve_id', 'CVE-2026-' || i,
                           'package_id', 'pkg:npm/p' || (i % 50), 'repository_id', 'repository:r' || (i % 100),
                           'provenance', jsonb_build_object('content_digest', md5(i::text)))
-FROM generate_series(1, $4::int) AS i`, scope, generation, prefix, n)
+       || CASE WHEN $5::int > 0
+               THEN jsonb_build_object('padding', substr(repeat(md5(i::text) || md5(i::text || 'a') || md5(i::text || 'b') || md5(i::text || 'c'), ($5::int / 128) + 1), 1, $5::int))
+               ELSE '{}'::jsonb END
+FROM generate_series(1, $4::int) AS i`, scope, generation, prefix, n, padBytes)
 }
 
 // fillSeedSupports gives every finding fact its support the way the impact writer does, with

@@ -34,9 +34,15 @@ const (
 	stableKeyFillPausedPoll       = time.Minute
 	stableKeyFillCompletePoll     = 5 * time.Minute
 	defaultStableKeyFillBytesHour = int64(8_000_000_000)
-	defaultStableKeyFillBytesRow  = int64(1024)
-	defaultStableKeyFillMinDisk   = int64(100_000_000_000)
-	defaultStableKeyFillMaxLag    = 60 * time.Second
+	// defaultStableKeyFillBytesRow is the estimated WAL one filled support writes. T6
+	// measured 3,068 B/row (pg_stat_wal) and 3,095 B/row (log position delta) filling 80,000
+	// supports on a quiet lab server with small payloads (1,955 to 2,488 B/row at 20,000 rows:
+	// the figure grows with size), see docs/internal/evidence/10880-prc-c1k-stable-key-fill.md.
+	// QA payloads are about 9 KB, so WAL per row there may be higher: calibrate again at the
+	// first QA step.
+	defaultStableKeyFillBytesRow = int64(3100)
+	defaultStableKeyFillMinDisk  = int64(100_000_000_000)
+	defaultStableKeyFillMaxLag   = 60 * time.Second
 )
 
 // stableKeyFillConfig is the fill's operator configuration.

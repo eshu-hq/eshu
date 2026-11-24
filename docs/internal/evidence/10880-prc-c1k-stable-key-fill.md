@@ -42,8 +42,8 @@ is the supports backfill's twin:
   `rows filled x ESHU_..._WAL_BYTES_PER_ROW / budget`. The figure is an estimate, not a
   log-position delta: `pg_current_wal_lsn()` moves with every writer on a primary that
   already writes tens of GB an hour, so a delta around the fill's own transaction would
-  throttle it for work it did not do. The per-row estimate (default 1,024 bytes) is what
-  the lab run calibrates. At the defaults a 500-row chunk waits about 230 ms.
+  throttle it for work it did not do. The per-row estimate defaults to 3,100 bytes, the
+  T6 lab figure (below); at the defaults a 500-row chunk waits about 0.7 s.
 - **Pauses**, checked before every step: replica replay lag over 60 s
   (`pg_stat_replication`, which needs the `pg_monitor` role), free disk under 100 GB, and any
   index build (`pg_stat_progress_create_index` not empty). A condition that cannot be read
@@ -71,10 +71,14 @@ and completing on a non-last slice.
 
 ## Owed to a lab or QA slot
 
-Performance Evidence: PENDING. T6 of the ruling (fill 8M supports in the lab; report WAL bytes
-per row, HOT share, duration, dead tuples) has not run, so the 1,024-byte per-row default and the
-8 GB an hour pace are unmeasured. The QA projection above 100 GB of WAL returns to the arbiter
-before any QA run. The live proof that the real statements run (the update, the verify slice, the
+Performance Evidence: PARTIAL. T6 of the ruling ran at lab scale (disposable Postgres 18.6, QA-matching
+WAL settings, quiet server, small payloads), not at 8M rows. 80,000 rows in 8 pairs of 10,000: WAL 3,068
+bytes per row (`pg_stat_wal`) and 3,095 (log position delta), 1,137,300 WAL records, 13,171 full-page
+images, HOT share 0.73% (583 of 80,000 updates), 165 steps averaging 40.8 ms with a maximum of 70 ms per
+500-row chunk (the pair lock is held that long), 6.7 s wall, 22,906 dead tuples. At 20,000 rows the figure
+read 1,955 to 2,488 bytes per row, so it grows with size; the default is the larger-scale figure. QA payloads
+are about 9 KB, so QA WAL per row may be higher: calibrate again at the first QA step. The QA projection above
+100 GB of WAL returns to the arbiter before any QA run. The live proof that the real statements run (the update, the verify slice, the
 probe reads) and the real-row equality of a filled key with the twin's are owed to a slot.
 No-Regression Evidence: nothing in the writer, the stored read or any reader changes; the
 fill is off by default; one chunk holds one pair's lock for at most 500 rows. Observability
@@ -106,3 +110,9 @@ Written, not yet run. Environment, for a disposable server only: `ESHU_POSTGRES_
 - `TestSupplyChainImpactSupportsLazyStoredReadPlanLive`: `EXPLAIN (ANALYZE, BUFFERS)` of the stored read: for a keyed pair the twin
   SubPlan is never executed and `fact_records_pkey` is not probed; for a keyless pair it is probed once per row; both answers equal
   the fact read. `ESHU_LAB_PLAN_DIR=<dir>` writes the two plans.
+- `TestSupplyChainImpactSupportsKeyedProbeIndexBuildLabLive` (migration 354 build, ruling 2.2): seeds
+  `ESHU_LAB_FILL_ROWS` supports, payload padded to `ESHU_LAB_PAYLOAD_BYTES` (QA is about 9,000 a row), drops the index if
+  present, runs the embedded migration's `CREATE INDEX CONCURRENTLY` text, and reports build seconds, WAL (log position
+  delta), temp bytes, index size, `indisvalid` and `indisready` (`ESHU_LAB_BUILD_REPORT=<path>` writes the JSON). Lab runs refuse
+  above 300,000 rows, or an estimated 25 GB (`rows x (2 x payload + 6 KB) x 1.5`), unless `ESHU_LAB_ALLOW_BIG=1`.
+  `ESHU_PROOF_KEEP_DB=1` leaves the seeded clone database in place (named in the log) for a later measurement; drop it by hand.

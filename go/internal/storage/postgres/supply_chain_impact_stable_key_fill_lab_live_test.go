@@ -18,6 +18,7 @@ import (
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
 )
 
 // Lab proofs for the C1k fill and the lazy stored read (#10880, arbiter ruling 1.3 and
@@ -29,6 +30,16 @@ import (
 //	ESHU_LAB_FILL_PAIR_ROWS  supports per scope generation (default 2000)
 //	ESHU_LAB_FILL_REPORT     path to write the JSON report to (optional)
 //	ESHU_LAB_PLAN_DIR        directory to write the EXPLAIN plan texts to (optional)
+//	ESHU_LAB_PAYLOAD_BYTES   pad each fact payload (and so each support's) to about this many
+//	                         bytes (default 0; QA is about 9,000 per supports row)
+//	ESHU_LAB_BUILD_REPORT    path to write the index build report to (optional)
+//	ESHU_LAB_KEEP_DB=1       keep the seeded database (also ESHU_PROOF_KEEP_DB=1, which the
+//	                         clone helper reads); its name is printed
+//	ESHU_LAB_ALLOW_BIG=1     run above the disk estimate cap (below)
+//
+// Disk estimate: rows x (2 x payload + 6 KB of row, index and TOAST overhead) x 1.5 for WAL and index
+// build temp space. At 300,000 rows and a 9,000-byte payload that is about 11 GB; a run whose estimate
+// is above 25 GB refuses unless ESHU_LAB_ALLOW_BIG=1.
 //
 // The lab host has about 36 GB of free disk and a supports row with its fact is roughly 9 KB, so the
 // lab scale is capped at 300,000 rows: a larger ESHU_LAB_FILL_ROWS fails unless
@@ -39,6 +50,33 @@ import (
 // labMaxRows is the lab scale cap (see the file comment).
 const labMaxRows = 300000
 
+// labDiskCapBytes is the estimated disk a lab run may use without ESHU_LAB_ALLOW_BIG=1.
+const labDiskCapBytes = 25 << 30
+
+// labDiskGuard refuses a run whose disk estimate (see the file comment) is above the cap.
+func labDiskGuard(t *testing.T, rows, payloadBytes int) {
+	t.Helper()
+	estimate := float64(rows) * float64(2*payloadBytes+6*1024) * 1.5
+	t.Logf("lab disk estimate: %.1f GB for %d rows at a %d-byte payload", estimate/(1<<30), rows, payloadBytes)
+	if estimate > labDiskCapBytes && labEnv("ESHU_LAB_ALLOW_BIG") != "1" {
+		t.Fatalf("estimated %.1f GB is over the %d GB lab cap; set ESHU_LAB_ALLOW_BIG=1 to run anyway", estimate/(1<<30), labDiskCapBytes>>30)
+	}
+}
+
+// labKeepDB reports whether the seeded database is kept, and prints its name. The keep itself is
+// the clone helper's (ESHU_PROOF_KEEP_DB=1); ESHU_LAB_KEEP_DB=1 is the lab spelling.
+func labKeepDB(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	var name string
+	if err := db.QueryRowContext(ctx, `SELECT current_database()`).Scan(&name); err != nil {
+		t.Fatalf("read the database name: %v", err)
+	}
+	t.Logf("lab database: %s", name)
+	if labEnv("ESHU_LAB_KEEP_DB") == "1" && labEnv("ESHU_PROOF_KEEP_DB") != "1" {
+		t.Logf("ESHU_LAB_KEEP_DB=1 only keeps the database when ESHU_PROOF_KEEP_DB=1 is also set (the clone helper reads that one); this run drops %s", name)
+	}
+}
+
 func labInt(t *testing.T, name string, def int) int {
 	t.Helper()
 	raw := labEnv(name)
@@ -48,6 +86,20 @@ func labInt(t *testing.T, name string, def int) int {
 	v, err := strconv.Atoi(raw)
 	if err != nil || v <= 0 {
 		t.Fatalf("%s=%q, want a positive integer", name, raw)
+	}
+	return v
+}
+
+// labInt0 is labInt with a default of 0, which the variable may also be set to.
+func labInt0(t *testing.T, name string) int {
+	t.Helper()
+	raw := labEnv(name)
+	if raw == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 0 {
+		t.Fatalf("%s=%q, want a non-negative integer", name, raw)
 	}
 	return v
 }
@@ -106,10 +158,13 @@ func TestSupplyChainImpactSupportsStableKeyFillLabLive(t *testing.T) {
 	if rows > labMaxRows && labEnv("ESHU_LAB_FILL_ALLOW_LARGE") != "1" {
 		t.Fatalf("ESHU_LAB_FILL_ROWS=%d is over the %d-row lab cap (about 9 KB a row on a host with 36 GB free); set ESHU_LAB_FILL_ALLOW_LARGE=1 to override", rows, labMaxRows)
 	}
+	payload := labInt0(t, "ESHU_LAB_PAYLOAD_BYTES")
+	labDiskGuard(t, rows, payload)
 	_, db := openReplaceSetLiveDB(t)
 	// openReplaceSetLiveDB's context is a fixed 60 s; the seed and the fill scale with the rows.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute+time.Duration(rows)*time.Millisecond)
 	defer cancel()
+	labKeepDB(t, ctx, db)
 
 	pairs := (rows + pairRows - 1) / pairRows
 	for i := 0; i < pairs; i++ {
@@ -120,7 +175,7 @@ func TestSupplyChainImpactSupportsStableKeyFillLabLive(t *testing.T) {
 		if i == pairs-1 {
 			n = rows - pairRows*(pairs-1)
 		}
-		fillSeedRows(t, ctx, db, scope, generation, fmt.Sprintf("lab%06d:", i), n) // fact ids are unique across pairs
+		fillSeedRowsPadded(t, ctx, db, scope, generation, fmt.Sprintf("lab%06d:", i), n, payload) // fact ids are unique across pairs
 	}
 	// The supports are the writer's derivation of the facts, keys cleared; a rewrite
 	// then packs the table the way a long-lived one is packed (no dead tuples or free
@@ -246,6 +301,100 @@ FROM fact_records AS f WHERE f.fact_id = s.fact_id AND s.scope_id = $1`, filledS
 			if l != s {
 				t.Fatalf("pair %s fact %s: supports read %+v != legacy read %+v", p[0], id, s, l)
 			}
+		}
+	}
+}
+
+// indexBuildSQL returns the exact statement of migration 354 from the embedded migrations,
+// not a copy, so the build the proof times is the build the roll runs.
+func indexBuildSQL(t *testing.T) string {
+	t.Helper()
+	for _, def := range migrations.BootstrapDefinitions() {
+		if strings.HasSuffix(def.Path, "354_supply_chain_impact_supports_keyed_probe_idx.sql") {
+			return def.SQL
+		}
+	}
+	t.Fatal("migration 354 is not among the embedded migrations")
+	return ""
+}
+
+// TestSupplyChainImpactSupportsKeyedProbeIndexBuildLabLive is the lab build proof of migration 354
+// (ruling 2.2): it seeds ESHU_LAB_FILL_ROWS supports (payload padded to ESHU_LAB_PAYLOAD_BYTES), drops
+// the index if the bootstrap built it, runs the migration's CREATE INDEX CONCURRENTLY text, and
+// reports the build seconds, the WAL written (log position delta, so run it on a quiet server), the
+// temp bytes (pg_stat_database delta), the index size and whether the index is valid and ready.
+// ESHU_LAB_BUILD_REPORT writes the JSON.
+func TestSupplyChainImpactSupportsKeyedProbeIndexBuildLabLive(t *testing.T) {
+	rows := labInt(t, "ESHU_LAB_FILL_ROWS", 5000)
+	pairRows := labInt(t, "ESHU_LAB_FILL_PAIR_ROWS", 2000)
+	payload := labInt0(t, "ESHU_LAB_PAYLOAD_BYTES")
+	if rows > labMaxRows && labEnv("ESHU_LAB_ALLOW_BIG") != "1" {
+		t.Fatalf("ESHU_LAB_FILL_ROWS=%d is over the %d-row lab cap; set ESHU_LAB_ALLOW_BIG=1 to override", rows, labMaxRows)
+	}
+	labDiskGuard(t, rows, payload)
+	_, db := openReplaceSetLiveDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute+time.Duration(rows)*2*time.Millisecond)
+	defer cancel()
+	labKeepDB(t, ctx, db)
+
+	pairs := (rows + pairRows - 1) / pairRows
+	for i := 0; i < pairs; i++ {
+		scope := fmt.Sprintf("scope:c1k:build:%06d", i)
+		generation := scope + ":g1"
+		labScopeGeneration(t, ctx, db, scope, generation)
+		n := pairRows
+		if i == pairs-1 {
+			n = rows - pairRows*(pairs-1)
+		}
+		fillSeedRowsPadded(t, ctx, db, scope, generation, fmt.Sprintf("bld%06d:", i), n, payload)
+	}
+	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("derive supports from facts: %v", err)
+	}
+	supportsExec(t, ctx, db, `DROP INDEX IF EXISTS supply_chain_impact_finding_supports_keyed_probe_idx`)
+	supportsExec(t, ctx, db, `VACUUM (ANALYZE) supply_chain_impact_finding_supports`)
+	supportsExec(t, ctx, db, `CHECKPOINT`)
+
+	statement := indexBuildSQL(t)
+	before := labRead(t, ctx, db)
+	var tempBefore int64
+	if err := db.QueryRowContext(ctx, `SELECT temp_bytes FROM pg_stat_database WHERE datname = current_database()`).Scan(&tempBefore); err != nil {
+		t.Fatalf("read temp bytes: %v", err)
+	}
+	started := time.Now()
+	supportsExec(t, ctx, db, statement)
+	build := time.Since(started)
+	after := labRead(t, ctx, db)
+	var tempAfter, indexBytes int64
+	var valid, ready bool
+	if err := db.QueryRowContext(ctx, `SELECT temp_bytes FROM pg_stat_database WHERE datname = current_database()`).Scan(&tempAfter); err != nil {
+		t.Fatalf("read temp bytes: %v", err)
+	}
+	if err := db.QueryRowContext(ctx, `
+SELECT pg_relation_size(c.oid), i.indisvalid, i.indisready
+FROM pg_class AS c JOIN pg_index AS i ON i.indexrelid = c.oid
+WHERE c.relname = 'supply_chain_impact_finding_supports_keyed_probe_idx'`).Scan(&indexBytes, &valid, &ready); err != nil {
+		t.Fatalf("read the built index: %v", err)
+	}
+	var walBytes float64
+	if err := db.QueryRowContext(ctx, `SELECT pg_wal_lsn_diff($1::pg_lsn, $2::pg_lsn)::float8`, after.WALLSN, before.WALLSN).Scan(&walBytes); err != nil {
+		t.Fatalf("diff the WAL positions: %v", err)
+	}
+	if !valid || !ready {
+		t.Fatalf("the built index is valid=%v ready=%v, want both", valid, ready)
+	}
+	report := map[string]any{
+		"rows": rows, "pair_rows": pairRows, "payload_bytes": payload, "build_seconds": build.Seconds(),
+		"wal_lsn_bytes": walBytes, "temp_bytes": tempAfter - tempBefore, "index_bytes": indexBytes,
+		"table_bytes": after.TableBytes, "indisvalid": valid, "indisready": ready,
+		"statement": "the embedded migration 354, one CREATE INDEX CONCURRENTLY",
+		"note":      "WAL delta includes every writer on the server: run on a quiet disposable database",
+	}
+	encoded, _ := json.MarshalIndent(report, "", "  ")
+	t.Logf("migration 354 build report:\n%s", encoded)
+	if path := labEnv("ESHU_LAB_BUILD_REPORT"); path != "" {
+		if err := os.WriteFile(path, append(encoded, '\n'), 0o644); err != nil {
+			t.Fatalf("write the report: %v", err)
 		}
 	}
 }

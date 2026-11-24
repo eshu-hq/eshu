@@ -194,3 +194,10 @@ go test ./internal/testutil/postgresproof -count=1
   status surface touched; reports via `t.Errorf` test output only.
   Baseline: unmerged tip `ccac709983`; rebased onto `87d4e7cab` with no
   content change. See Telemetry above.
+
+## Keeping a clone for a lab run
+
+`ESHU_PROOF_KEEP_DB=1` makes `OpenBootstrapTemplateClone` leave the clone database in place at the end of the test: the handle
+is closed, the drop and its verification are skipped, and the clone's name is written to the test log (use `-v`). Drop it by
+hand when finished. Unset, every clone is dropped and verified as before. It is for lab measurements against a seeded database,
+never for CI.

@@ -24,6 +24,9 @@ func TestStableKeyFillConfigDefaultsAreOffAndWithinTheRulingLimits(t *testing.T)
 	if cfg.Enabled {
 		t.Fatal("the fill is enabled by default: it must not run inside a counted window or before the lab run")
 	}
+	if cfg.Pace.BytesPerRow != 3100 {
+		t.Fatalf("default WAL estimate = %d bytes a row, want the T6 lab figure 3100", cfg.Pace.BytesPerRow)
+	}
 	if cfg.Pace.BytesPerHour > 8_000_000_000 || cfg.Pace.BytesPerHour <= 0 {
 		t.Fatalf("default WAL budget = %d bytes an hour, want at most the ruling's 8 GB", cfg.Pace.BytesPerHour)
 	}
