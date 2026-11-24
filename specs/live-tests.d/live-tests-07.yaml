@@ -405,6 +405,31 @@ tests:
     class: dedicated_ci
     reason: "#10972 D4b: reducer-contention enrolled 2 named Go test(s) in scripts/lib/reducer_contention_inventory.json, selected by the TestFindInFlight prefix of the -run filter in .github/workflows/reducer-contention-gate.yml; the set A and set B claim reads against disposable PostgreSQL"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_ack_replay_trigger_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 reality audit: reducer-contention enrolled 1 named Go test(s) in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_flag_contract_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 reality audit: reducer-contention enrolled 2 named Go test(s) in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_drain_bound_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 reality audit: reducer-contention enrolled 1 named Go test(s) in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_repend_cause_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 reality audit: reducer-contention enrolled 1 named Go test(s) in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_d2_multi_cve_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 reality audit: reducer-contention enrolled 1 named Go test(s) in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go
     tag: ~
     class: dedicated_ci

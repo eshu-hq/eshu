@@ -45,11 +45,11 @@ rules, the outcomes, and the open residual are in
 - Holders come from chunked indexed reads, 5 lookup ids per chunk (#10564 H3;
   the stamp cap stays one 200-id CVE chunk)
   (`supply_chain_impact_finding_supports_cve_idx` since #11197), the asking scope excluded,
-  the operator scope included, plus the scopes whose item at their active
-  generation is claimed or running (`fact_work_items_stage_domain_status_idx`),
-  read first: a pass in flight may have loaded evidence before this pass's facts
-  were visible, and a new generation with no finding rows is invisible to the
-  row read. In this order a holder that acknowledges between the reads has
+  the operator scope included, plus the in-flight scopes whose claim was already
+  held when this pass's evidence load ended (#10972 D4b, `HOLDER_FANOUT_INFLIGHT.md`),
+  read first: such a pass may have loaded evidence before this pass's facts were
+  visible, and a new generation with no finding rows is invisible to the row
+  read. A row holder is reopened whatever its claim time. In this order a holder that acknowledges between the reads has
   committed its rows. Each chunk splits further by measured per-id row mass
   (#10643): one mass-probe statement per chunk, then one holder-read statement
   per hot id alone (over 10k rows) and one per cold group (at most 5 ids and
