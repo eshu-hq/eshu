@@ -326,8 +326,15 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		}
 		// The probe is the shipped per-identifier build over the 291
 		// five-tuple keyed index, restricted to the chunk by the
-		// identifier table above: no per-triple statements, no second
-		// probe path.
+		// identifier table above: no per-triple statements, and the
+		// scanned-copies count reads the persisted narrow table instead
+		// of re-running the probe, so the probe runs once per tick.
+		if _, err := tx.ExecContext(ctx, buildWinnersKeyedNarrowSQL); err != nil {
+			return fmt.Errorf("build supply chain impact winners keyed narrow probe: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedNarrowSQL); err != nil {
+			return fmt.Errorf("analyze supply chain impact winners keyed narrow probe: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, buildWinnersKeyedActiveFactsSQL); err != nil {
 			return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
 		}
@@ -335,8 +342,8 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 			return err
 		}
 		// The pre-filter scan count (#11308) rides the same phase: it
-		// revisits the probe's index and heap tuples without detoasting,
-		// so the build's phase sample keeps covering both reads.
+		// counts the persisted narrow rows, so the build's phase sample
+		// keeps covering both reads while the probe runs once.
 		if scanned, err = countWinnersKeyedScannedCopies(ctx, tx); err != nil {
 			return err
 		}

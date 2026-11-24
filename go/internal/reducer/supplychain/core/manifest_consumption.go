@@ -29,21 +29,237 @@ func addManifestDependencySupplyChainConsumption(
 	if len(affectedPackages) == 0 {
 		return
 	}
+	// The join below used to append one row per matching (dependency,
+	// affected package) pair with no bound: a batch-scale intent holds
+	// hundreds of dependencies times hundreds of advisories naming the same
+	// package, so one package retained tens of thousands of rows (observed
+	// 2026-11-24: 42,000 rows for one package, 14GB engine-wide in the
+	// heap profile) and OOMKilled the engine at its memory limit. Every
+	// downstream reader keeps only
+	// the representative row per (repository, observed version) —
+	// firstConsumption — plus the repository set, so the join streams those
+	// best rows instead of the pairs. Findings are unchanged by
+	// construction: same pairs probed in the same order, same representative
+	// rule per group (compareConsumptionRows), same versionless rule (first
+	// preferred else first), same blank-repository drop.
+	join := newManifestConsumptionJoin(affectedPackages)
+	for pkg, rows := range index.consumption {
+		join.seed(pkg, rows)
+	}
 	for _, dependency := range dependencies {
-		dependencyKeys := manifestDependencyKeySet(dependency)
-		if len(dependencyKeys) == 0 {
-			continue
+		join.addDependency(dependency)
+	}
+	index.consumption = join.materialize(index.consumption)
+}
+
+// manifestConsumptionJoin streams the manifest-dependency consumption join
+// into one best row per (package, repository, observed version). It replaces
+// the unbounded pair-per-match append it fronted: same probed pairs in the
+// same dependency-major, affected-minor order, but only the row each
+// downstream group would elect is retained.
+//
+// Group keys reuse consumptionObservedVersion, the same rule the finding's
+// observed_version reads, so a split group and the finding it yields name
+// the same version. Rows with no version keep the one-group rule only when
+// no versioned row names the repository (splitRepositoryConsumptionByVersion);
+// a versionless row beside versioned ones is dropped, never ranked. Blank
+// repository rows are dropped outright, matching groupConsumptionRowsByRepository
+// and firstConsumption, which both skip them. Packages with seeded rows but
+// no affected package pass through verbatim: no downstream group ever reads
+// them, and the tracker has no ecosystem to key their versions by.
+type manifestConsumptionJoin struct {
+	affected []manifestAffectedPackageMatch
+	byKey    map[string][]int
+	// ecosystem names the affected ecosystem per package, the same
+	// representativeAffectedPackage(pkg).Ecosystem the split reads.
+	ecosystem map[string]string
+	best      map[manifestConsumptionGroup]supplychainmodel.PackageConsumption
+	// versionless keeps the first preferred row in arrival order per
+	// (package, repository), else the first row, mirroring what
+	// firstConsumption reads from an unsorted versionless group.
+	versionless map[manifestConsumptionRepo]supplychainmodel.PackageConsumption
+	// versioned marks the (package, repository) pairs a versioned best
+	// already covers, so a versionless row beside versioned ones is dropped.
+	versioned map[manifestConsumptionRepo]bool
+	// passthrough holds packages with seeded rows but no affected package:
+	// their rows are preserved verbatim and never tracked.
+	passthrough map[string]bool
+}
+
+// manifestConsumptionGroup names one downstream group: the package whose
+// findings read it, the repository it classifies, and the observed version
+// it classifies (empty for the versionless group).
+type manifestConsumptionGroup struct {
+	pkg        string
+	repository string
+	version    string
+}
+
+// manifestConsumptionRepo names the versionless scope: one group per
+// (package, repository) when no versioned row names the repository.
+type manifestConsumptionRepo struct {
+	pkg        string
+	repository string
+}
+
+// newManifestConsumptionJoin indexes the affected packages by consumption
+// key once, so each dependency probes keys instead of scanning every
+// affected package. Keyless affected packages never match and stay out of
+// the index, exactly as the match loop skipped them.
+func newManifestConsumptionJoin(affected []manifestAffectedPackageMatch) *manifestConsumptionJoin {
+	join := &manifestConsumptionJoin{
+		affected:    affected,
+		byKey:       make(map[string][]int),
+		ecosystem:   make(map[string]string),
+		best:        make(map[manifestConsumptionGroup]supplychainmodel.PackageConsumption),
+		versionless: make(map[manifestConsumptionRepo]supplychainmodel.PackageConsumption),
+		versioned:   make(map[manifestConsumptionRepo]bool),
+		passthrough: make(map[string]bool),
+	}
+	// byKey lists stay in affected order: indexes append in slice order, so
+	// each key's list is already sorted and probes need no second sort.
+	for i, match := range affected {
+		if _, known := join.ecosystem[match.pkg.PackageID]; !known {
+			join.ecosystem[match.pkg.PackageID] = match.pkg.Ecosystem
 		}
-		for _, affected := range affectedPackages {
-			if !manifestDependencyMatchesAffectedPackage(dependencyKeys, affected.keys) {
-				continue
-			}
-			index.consumption[affected.pkg.PackageID] = append(
-				index.consumption[affected.pkg.PackageID],
-				supplyChainConsumptionFromManifestDependency(dependency, affected.pkg),
-			)
+		for _, key := range match.keys {
+			join.byKey[key] = append(join.byKey[key], i)
 		}
 	}
+	return join
+}
+
+// seed folds rows the index already holds (envelope-derived consumption the
+// build appended before the join) into the best tracking, in order, so the
+// versionless first-preferred-else-first rule reads the same arrival order
+// the unbounded append produced. A seeded package with no affected package
+// passes through verbatim instead: no group reads it, and there is no
+// ecosystem to key its versions by.
+func (join *manifestConsumptionJoin) seed(pkg string, rows []supplychainmodel.PackageConsumption) {
+	if _, known := join.ecosystem[pkg]; !known {
+		join.passthrough[pkg] = true
+		return
+	}
+	for _, row := range rows {
+		join.consider(pkg, row)
+	}
+}
+
+// addDependency probes the affected index with one dependency's keys and
+// folds every newly matched pair into the best tracking, in the original
+// affected order. A pair reachable through two keys folds once, the way the
+// match loop's first-key win appended it once.
+func (join *manifestConsumptionJoin) addDependency(dependency correlation.PackageManifestDependency) {
+	dependencyKeys := manifestDependencyKeySet(dependency)
+	if len(dependencyKeys) == 0 {
+		return
+	}
+	var matched []int
+	for key := range dependencyKeys {
+		matched = append(matched, join.byKey[key]...)
+	}
+	if len(matched) == 0 {
+		return
+	}
+	// Matched indexes arrive grouped by probed key; restoring ascending
+	// order replays the match loop's affected visit order, and adjacent
+	// dedupe folds a multi-key pair once.
+	slices.Sort(matched)
+	for i, idx := range matched {
+		if i > 0 && matched[i-1] == idx {
+			continue
+		}
+		match := join.affected[idx]
+		join.consider(match.pkg.PackageID, supplyChainConsumptionFromManifestDependency(dependency, match.pkg))
+	}
+}
+
+// consider folds one candidate row into the best tracking of its package:
+// the versioned argmin per (repository, version), or the versionless
+// first-preferred-else-first per (repository). Blank-repository rows are
+// dropped: every downstream reader skips them.
+func (join *manifestConsumptionJoin) consider(pkg string, row supplychainmodel.PackageConsumption) {
+	repository := strings.TrimSpace(row.RepositoryID)
+	if repository == "" {
+		return
+	}
+	version := consumptionObservedVersion(join.ecosystem[pkg], row)
+	if version == "" {
+		scope := manifestConsumptionRepo{pkg: pkg, repository: repository}
+		if join.versioned[scope] {
+			return
+		}
+		kept, ok := join.versionless[scope]
+		if !ok || (!consumptionRowPreferred(kept) && consumptionRowPreferred(row)) {
+			join.versionless[scope] = row
+		}
+		return
+	}
+	scope := manifestConsumptionRepo{pkg: pkg, repository: repository}
+	join.versioned[scope] = true
+	key := manifestConsumptionGroup{pkg: pkg, repository: repository, version: version}
+	// The best row is the version group's minimum under the downstream
+	// sort (compareConsumptionRows): a preferred row first, then by fact ID.
+	if kept, ok := join.best[key]; !ok || compareConsumptionRows(row, kept) < 0 {
+		join.best[key] = row
+	}
+}
+
+// materialize renders the tracked best rows back into the per-package lists
+// the downstream grouping reads, preserving the representative contract:
+// one row per (repository, version), the versionless row only when no
+// versioned row names the repository, no blank-repository rows. Passthrough
+// packages keep their seeded rows verbatim. Rows read back sorted by
+// repository then version for determinism; no reader depends on the order
+// (groups re-sort versions, repositories sort explicitly, direct readers
+// take representatives and sets).
+func (join *manifestConsumptionJoin) materialize(into map[string][]supplychainmodel.PackageConsumption) map[string][]supplychainmodel.PackageConsumption {
+	out := make(map[string][]supplychainmodel.PackageConsumption, len(into))
+	ordered := make([]manifestConsumptionGroup, 0, len(join.best))
+	for key := range join.best {
+		ordered = append(ordered, key)
+	}
+	slices.SortFunc(ordered, func(a, b manifestConsumptionGroup) int {
+		return cmp.Or(
+			strings.Compare(a.pkg, b.pkg),
+			strings.Compare(a.repository, b.repository),
+			strings.Compare(a.version, b.version),
+		)
+	})
+	byPackage := make(map[string][]supplychainmodel.PackageConsumption)
+	for _, key := range ordered {
+		byPackage[key.pkg] = append(byPackage[key.pkg], join.best[key])
+	}
+	versionlessScopes := make([]manifestConsumptionRepo, 0, len(join.versionless))
+	for scope := range join.versionless {
+		versionlessScopes = append(versionlessScopes, scope)
+	}
+	slices.SortFunc(versionlessScopes, func(a, b manifestConsumptionRepo) int {
+		return cmp.Or(
+			strings.Compare(a.pkg, b.pkg),
+			strings.Compare(a.repository, b.repository),
+		)
+	})
+	for _, scope := range versionlessScopes {
+		if join.versioned[scope] {
+			continue
+		}
+		byPackage[scope.pkg] = append(byPackage[scope.pkg], join.versionless[scope])
+	}
+	// Tracked packages render whether or not they were already keys: the
+	// unbounded append created keys on match, and so does this. A package
+	// the input holds but tracking dropped (only blank-repository rows, or
+	// no rows at all) stays dropped: every reader skips blank rows and
+	// treats a missing key like an empty list.
+	for pkg, tracked := range byPackage {
+		out[pkg] = tracked
+	}
+	for pkg, rows := range into {
+		if join.passthrough[pkg] {
+			out[pkg] = rows
+		}
+	}
+	return out
 }
 
 // manifestDependencyKeySet is the one place a manifest dependency becomes the

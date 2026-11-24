@@ -174,6 +174,7 @@ func (s SupplyChainImpactWinnersStore) VerifyStagedCandidates(
 		return supplychaincore.SupplyChainImpactWinnersAudit{Skipped: true, ReadDuration: read}, nil
 	}
 	for _, stmt := range []string{
+		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
 		buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditPendingSQL,
 	} {

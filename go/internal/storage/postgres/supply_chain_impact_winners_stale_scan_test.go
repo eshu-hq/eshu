@@ -232,6 +232,8 @@ func TestWinnersAuditLegacyStatementsUnchanged(t *testing.T) {
 		createWinnersAuditCandidatesSQL,
 		seedWinnersAuditIdentsSQL,
 		analyzeWinnersKeyedIdentsSQL,
+		buildWinnersKeyedNarrowSQL,
+		analyzeWinnersKeyedNarrowSQL,
 		buildWinnersKeyedActiveFactsSQL,
 		addWinnersKeyedOperatorFactsSQL,
 		analyzeWinnersKeyedActiveFactsSQL,

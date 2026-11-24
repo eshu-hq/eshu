@@ -283,8 +283,17 @@ var winnersKeyedBuildIdentsStmts = []string{
 // QA replica, ~1% of the 15 s bar; buffer-resident warm expected). Re-open
 // tick-scoping if the warm floor intercept ever exceeds 500 ms p95 or live
 // scopes pass 100k (#10839 keeps the post-deploy intercept).
-const buildWinnersKeyedActiveFactsSQL = `
-CREATE TEMP TABLE winners_keyed_active_facts ON COMMIT DROP AS
+// winnersKeyedNarrowTable is the transaction-scoped probe output one keyed
+// tick or audit range builds before the keyed active_facts, so the
+// scanned-copies count reads rows instead of re-running the probe.
+const winnersKeyedNarrowTable = "winners_keyed_narrow"
+
+// buildWinnersKeyedNarrowSQL persists the identifier probe: one row per
+// pre-filter copy. The MATERIALIZED marker and OFFSET 0 guard are
+// load-bearing (an unguarded single-reference CTE inlines and flattens);
+// analyzeWinnersKeyedNarrowSQL plans the final fetch on real statistics.
+const buildWinnersKeyedNarrowSQL = `
+CREATE TEMP TABLE winners_keyed_narrow ON COMMIT DROP AS
 WITH narrow AS MATERIALIZED (
     SELECT fact.fact_id, fact.scope_id, fact.generation_id
     FROM ` + winnersKeyedIdentsTable + ` AS ident
@@ -300,8 +309,16 @@ WITH narrow AS MATERIALIZED (
           AND f.is_tombstone = FALSE
         OFFSET 0
     ) AS fact
-),
-live_gens AS MATERIALIZED (
+)
+SELECT fact_id, scope_id, generation_id FROM narrow
+`
+
+// analyzeWinnersKeyedNarrowSQL gives the planner the real probe output size.
+const analyzeWinnersKeyedNarrowSQL = `ANALYZE ` + winnersKeyedNarrowTable
+
+const buildWinnersKeyedActiveFactsSQL = `
+CREATE TEMP TABLE winners_keyed_active_facts ON COMMIT DROP AS
+WITH live_gens AS MATERIALIZED (
     SELECT s.scope_id, s.active_generation_id AS generation_id
     FROM ingestion_scopes AS s
     JOIN scope_generations AS generation
@@ -311,7 +328,7 @@ live_gens AS MATERIALIZED (
 )
 SELECT fact.*
 FROM fact_records AS fact
-JOIN narrow AS n ON n.fact_id = fact.fact_id
+JOIN ` + winnersKeyedNarrowTable + ` AS n ON n.fact_id = fact.fact_id
 JOIN live_gens AS g
   ON g.scope_id = n.scope_id
  AND g.generation_id = n.generation_id
@@ -350,31 +367,15 @@ const countWinnersKeyedActiveFactsSQL = `
 SELECT count(*) FROM ` + winnersKeyedActiveFactsTable
 
 // countWinnersKeyedScannedCopiesSQL counts the pre-filter copies the
-// identifier probe scans: every finding the five-tuple probe matches, before
-// the live-generation semi-join keeps the live ones (#11308). It mirrors the
-// narrow probe of
-// buildWinnersKeyedActiveFactsSQL without the live_gens join, and stays narrow
-// (SELECT 1) so it avoids materializing wide rows: it is index-only-scan
-// eligible and detoasts only on heap visits. The build already paid the
-// TOAST reads, and this count only revisits the index and heap tuples. It runs
-// after the build in the same transaction; a fact committed between the two
-// statements shifts the count by those rows, a same-tick approximation that
-// washes out over ticks. It is deliberately not part of the contract pin:
-// it reads nothing the resweep writes.
+// identifier probe scanned: every finding the five-tuple probe matches, before
+// the live-generation semi-join keeps the live ones (#11308). It reads the
+// narrow temp table the build persisted instead of re-running the probe, so a
+// keyed tick probes once: the build and this count read the same rows from
+// the same transaction and snapshot, and the tick writes no fact_records
+// between them, so the count is exact. It is deliberately not part of the
+// contract pin: it reads nothing the resweep writes.
 const countWinnersKeyedScannedCopiesSQL = `
-SELECT count(*) FROM ` + winnersKeyedIdentsTable + ` AS ident
-CROSS JOIN LATERAL (
-    SELECT 1
-    FROM fact_records AS f
-    WHERE (f.payload->>'package_id') = ident.package_id
-      AND (f.payload->>'repository_id') = ident.repository_id
-      AND (f.payload->>'subject_digest') = ident.subject_digest
-      AND COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0
-      AND COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id
-      AND f.fact_kind = 'reducer_supply_chain_impact_finding'
-      AND f.is_tombstone = FALSE
-    OFFSET 0
-) AS fact
+SELECT count(*) FROM ` + winnersKeyedNarrowTable + `
 `
 
 // winnersKeyedSelectSQL is the shipped winner select body over the keyed

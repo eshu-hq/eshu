@@ -396,6 +396,7 @@ func (s SupplyChainImpactWinnersStore) verifyWinnersAuditRangeCandidates(
 	}
 	for _, stmt := range []string{
 		analyzeWinnersKeyedIdentsSQL,
+		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
 		buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditRangeStalePendingSQL,
 	} {
