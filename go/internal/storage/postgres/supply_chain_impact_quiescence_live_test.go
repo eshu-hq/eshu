@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 
@@ -404,7 +405,10 @@ func TestSupplyChainImpactQuiescesAfterOneChangeLive(t *testing.T) {
 // TestSupplyChainImpactSteadyArrivalsConvergeLive is test B: changed commits
 // arrive one tick apart for 30 ticks while an unrelated holder's full pass
 // lasts 10 ticks. The holder runs at most twice: its genuine pass, then one
-// rerun that is not a full re-derivation and so is not flagged again.
+// rerun. Both run full. What keeps it at two is the stamp: flags that land
+// during the rerun find the stamp already naming the change, so the flagged
+// row is not rewritten, and the rerun then clears its own flag because its
+// derived CVEs are disjoint from the stamp (#9740).
 func TestSupplyChainImpactSteadyArrivalsConvergeLive(t *testing.T) {
 	for _, v := range runSteadyArrivals(t, false) {
 		t.Errorf("requeue budget: %s", v)
@@ -418,8 +422,19 @@ func TestSupplyChainImpactSteadyArrivalsConvergeLive(t *testing.T) {
 // gate is proven able to fail. A's must come from A-now (the execution bound
 // and the late passes), never only from the logged D3 half.
 func TestSupplyChainImpactRequeueBudgetCatchesTheStatusOnlyInFlightFlagLive(t *testing.T) {
-	if v := runQuiesceAfterOneChange(t, true).now; len(v) == 0 {
-		t.Fatal("test A-now reported no violation under the status-only in-flight flag: the execution bound cannot fail")
+	// Each A-now check must fire on its own, so a lost check cannot hide
+	// behind the other.
+	v := runQuiesceAfterOneChange(t, true).now
+	for _, want := range []string{"executions = ", "passes claimed after the source's evidence load were flagged and reran"} {
+		found := false
+		for _, line := range v {
+			if strings.Contains(line, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("test A-now under the status-only in-flight flag did not report %q (violations %v): that check cannot fail", want, v)
+		}
 	}
 	if v := runSteadyArrivals(t, true); len(v) == 0 {
 		t.Fatal("test B reported no violation under the status-only in-flight flag: the budget cannot fail")

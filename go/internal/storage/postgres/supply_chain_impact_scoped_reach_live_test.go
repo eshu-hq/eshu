@@ -72,9 +72,17 @@ func (c *convergence) addSourceAdvisory(advisoryID, cveID string, packages ...st
 // rewrite of an identical finding.
 func (c *convergence) findingRows(scope string) map[string]string {
 	c.t.Helper()
-	return c.queryStringPairs(`
+	rows := c.queryStringPairs(`
 SELECT fact_id, is_tombstone::text || ':' || COALESCE(payload #>> '{provenance,content_digest}', '')
 FROM fact_records WHERE scope_id = $1 AND fact_kind = $2`, scope, facts.ReducerSupplyChainImpactFindingFactKind)
+	for id, value := range rows {
+		// A row with no stored digest would compare equal to any other
+		// digest-less row, so the guard would be blind to it.
+		if strings.HasSuffix(value, ":") {
+			c.t.Fatalf("finding row %s in %s carries no provenance.content_digest: the content comparison cannot judge it", id, scope)
+		}
+	}
+	return rows
 }
 
 // activeFinding reports whether a scope holds an active row for an id.

@@ -370,12 +370,12 @@ decides per finding.
   rules (changed rows, holders, one hop, the owed marker, failures), the #9874 git manifest marker branch (`manifest_trigger.go`, `manifest_change.go`: reopens the in-flight non-marker impact scopes and the scopes holding affected-package or repository-alert evidence for the changed packages (#10061: alert scopes are found by the changed keys' repository), in-flight read first, writes no findings, `cause="manifest_dependency"`), the #10019 suppression-only diff (the writer diffs the pass's suppression facts against the newest admitted older generation with cleared debt and unions the changed CVEs into the fan-out set, `cause="suppression"`), the #9740 stamp (the reopen stamps the sorted de-duplicated capped changed-CVE set on `fanout_origin`, `*` above the cap; a stamped pass whose derived CVEs are disjoint from the stamp clears its replay flag under a lease-and-stamp fence instead of rerunning, and a lease loss stays an error), and the #9779 scoped re-derivation (a one-hop pass whose stamp names a bounded set loads and publishes that set only: evidence filters derive from the stamped envelopes plus the finding-row seeds, the writer upserts and retracts inside the stamp, the sentinel, a set-less stamp, and an owed retry run full; passes count `mode` in `eshu_dp_supply_chain_impact_pass_total`), and the known limits are in `HOLDER_FANOUT.md`. Holders already pending or retrying whose queued pass covers the change are dropped before the 256 cap by one set read, and the reopen widens the stamp of a queued or flagged holder that is not covered (`fanout_prefilter.go`, `HOLDER_FANOUT_PREFILTER.md`, #10972). A capped continuation whose generation is superseded before its next claim still drains: the claim sweep spares fan-out debt and the runtime generation guard follows `IntentCarriesFanOutDebt` (#10060).
 - **In-flight cost.** During a burst of N changed passes about every pass claimed before the
   committing pass's load ended is flagged (#10972 D4b, `HOLDER_FANOUT_INFLIGHT.md`), so the burst costs about 2N passes and drains in
-  about twice the time; under steady changed arrivals an unrelated holder whose
-  full pass spans ten arrivals runs at most twice (gate `supply-chain-requeue-budget`,
-  `HOLDER_FANOUT_INFLIGHT.md`); an idle scope and an unchanged rescan cost nothing. Measured (N=24, W=4, 400 ms
+  about twice the time; continuous changed arrivals above roughly a third of
+  the domain's worker capacity (W=4) are not kept up with until they stop. In the gate's fixture (one unrelated holder whose full pass spans 10 arrivals, one arrival per tick; gate `supply-chain-requeue-budget`, `HOLDER_FANOUT_INFLIGHT.md`) that holder runs at most twice.
+  An idle scope and an unchanged rescan cost nothing. Measured (N=24, W=4, 400 ms
   pass): 50 passes in 5.67 s, against 24 in 2.80 s with the read off; the
-  capacity ceiling is a model. One scope can rerun back to back (14 reruns in 6 s
-  at 150 ms arrivals); no cascade. At 3 AM compare `replay_flagged` with
+  capacity ceiling is a model. One scope could rerun back to back (14 reruns in 6 s
+  at 150 ms arrivals, measured 2026-11-01 under #9695, before the #9740 stamp, the stamp merge and D4b); no cascade. At 3 AM compare `replay_flagged` with
   `reopened`, `pending_noop`, `prefiltered_pending`, and `stamp_widened` on `eshu_dp_supply_chain_impact_fanout_total`,
   the domain's `eshu_dp_reducer_executions_total` rate, and
   `eshu_runtime_domain_oldest_age_seconds`: a storm has `replay_flagged` near
