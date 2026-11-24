@@ -252,8 +252,9 @@ gates:
   # #10972 gate E (arbiter re-run contract): the supply-chain requeue budget.
   # Tests A and B assert a fixpoint, not an event: one change with passes in
   # flight drains within one source pass plus one pass per holder and per pass
-  # in flight, no unrelated scope reruns in full, and steady arrivals rerun a
-  # long unrelated holder at most once. The seeded self-test in the same file
+  # in flight before the source's load, no pass claimed after the load reruns,
+  # and steady arrivals rerun a long unrelated holder at most once. The D3 half
+  # of A (no unrelated full rerun) is logged and lands with D3. The seeded self-test in the same file
   # runs both scenarios with a status-only in-flight flag (its own status-only
   # set B, a failing load-end set A, reopens that name no change) and fails unless the budget reports a
   # violation, so every run of the job also proves the gate can fail. All three
@@ -262,7 +263,7 @@ gates:
     name: Supply-chain requeue budget (real Postgres)
     category: race
     layer: performance
-    purpose: "Fails when a supply-chain change overruns its requeue budget: no drain within 1 + holders + in-flight passes, or unrelated scopes rerun in full (#10972)."
+    purpose: "Fails when a supply-chain change overruns its requeue budget: no drain within 1 + holders + in-flight passes, or late-claimed passes rerun (#10972)."
     tier: pre-pr
     blocking: true
     triggers:

@@ -202,7 +202,7 @@ results are derived from the inputs rather than written by hand. See
 - `query-plan-regression` (blocking): Runs a live Neo4j PROFILE proof plus manifest-binding tests to catch query-plan regressions and index misses.
 - `reducer-contention` (blocking): Runs real-Postgres concurrency tests proving reducer claim locking, lease expiry, and latency budgets hold under contention.
 - `reducer-contention-supply-chain` (blocking): Runs the supply-chain, holder fan-out and stress half of the real-Postgres contention suite as a parallel job inside its time cap.
-- `supply-chain-requeue-budget` (blocking): Fails when a supply-chain change overruns its requeue budget: no drain within 1 + holders + in-flight passes, or unrelated scopes rerun in full (#10972).
+- `supply-chain-requeue-budget` (blocking): Fails when a supply-chain change overruns its requeue budget: no drain within 1 + holders + in-flight passes, or late-claimed passes rerun (#10972).
 - `live-postgres-readiness` (advisory): Runs the PostgreSQL proofs listed in live_postgres_readiness_results.py with explicit pass-event accounting; skips and missing tests fail.
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.

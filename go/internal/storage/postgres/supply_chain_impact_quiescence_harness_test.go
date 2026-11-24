@@ -350,3 +350,21 @@ func (p *statusOnlyInFlightFanOut) ReopenHolderDetailed(ctx context.Context, hol
 	}
 	return p.SupplyChainImpactFanOut.ReopenHolderDetailed(ctx, holder, origin)
 }
+
+// quiesceLoadEndHookFanOut runs hook once, right after the given scope's load-end
+// in-flight read (set A of #10972 D4b) returns and before its fan-out reads
+// set B, so a test can claim passes in exactly the window D4b narrows.
+type quiesceLoadEndHookFanOut struct {
+	supplychaincore.SupplyChainImpactFanOut
+	scope string
+	hook  func()
+	once  sync.Once
+}
+
+func (p *quiesceLoadEndHookFanOut) SnapshotInFlightNonMarkerClaims(ctx context.Context, own string) ([]supplychaincore.InFlightClaim, error) {
+	claims, err := p.SupplyChainImpactFanOut.SnapshotInFlightNonMarkerClaims(ctx, own)
+	if own == p.scope {
+		p.once.Do(p.hook)
+	}
+	return claims, err
+}

@@ -140,17 +140,42 @@ The tests above pin events. The requeue budget pins the fixpoint
 (`storage/postgres/supply_chain_impact_quiescence_live_test.go`, arbiter
 re-run contract tests A, B and E):
 
-- `TestSupplyChainImpactQuiescesAfterOneChangeLive`: 30 holders of one CVE, 10
-  unrelated multi-CVE scopes, 6 of them with a genuine pass in flight, one
-  source change. The queue drains within 1 + 30 + 6 executions; no unrelated
-  scope reruns in full; unrelated finding rows keep their xmin; an identical
+- `TestSupplyChainImpactQuiescesAfterOneChangeLive` (A-now): 30 holders of one
+  CVE, 10 unrelated multi-CVE scopes, 6 of them with a genuine pass in flight
+  from before the source's load, and 3 more claimed after the load ended and
+  before the fan-out. One source change. The queue drains within 1 + 30 + 6
+  executions, none of the 3 late passes reruns (D4b set A), and an identical
   rescan then runs the source pass only, changes no `reopened_at`, and stages
-  no winners dirty fact mark.
-- `TestSupplyChainImpactSteadyArrivalsConvergeLive`: one changed source commit
-  per tick for 30 ticks while an unrelated holder's full pass lasts 10 ticks.
-  The holder runs at most twice: its genuine pass and one rerun that is not a
-  full re-derivation and so is not flagged again.
-- `TestSupplyChainImpactRequeueBudgetCatchesTheStatusOnlyInFlightFlagLive`: the
-  seeded violation. A port whose set B is its own status-only read, whose set A
-  read always fails (so every claim in B is flagged), and whose reopens name no
-  changed id must make both scenarios report a violation.
+  at most one winners dirty fact mark per row of the rescanned generation.
+  The rescan's first pass writes the same findings under new fact ids, and
+  the dirty capture compares within one generation (`winners_keyed.go:198`),
+  so each row re-points its winner once.
+- A-D3, logged by the same run and asserted by the D3 work: no unrelated scope
+  reruns in full, and unrelated finding rows keep their xmin. Today the
+  flagged unrelated reruns reach nothing and run full (`scoped_seed.go:63-65`).
+- `TestSupplyChainImpactSteadyArrivalsConvergeLive` (B): one changed source
+  commit per tick for 30 ticks while an unrelated holder's full pass lasts 10
+  ticks. The holder runs at most twice.
+- `TestSupplyChainImpactRequeueBudgetCatchesTheStatusOnlyInFlightFlagLive` (E,
+  seeded violation): a port whose set B is its own status-only read, whose set
+  A read always fails (so every claim in B is flagged), and whose reopens name
+  no changed id must make A-now and B each report a violation. The late passes
+  are what A-now catches: the seed reruns them past the execution bound.
+
+## Write amplification (today's contract)
+
+A pass rewrites every finding row it derives, whether or not the row changed.
+The finding upsert (`factwrite.BatchInsertVersionedQuery`,
+`reducer/factwrite/batch_insert_versioned.go:130-146`) is `ON CONFLICT DO
+UPDATE` guarded only by the fencing token and the scope, with no
+content-equality condition. So an unchanged full rerun costs one row rewrite
+(a new xmin and its WAL) per finding row. The stored payload also carries the
+pass's `intent_id` and `cause`, which the content digest strips
+(`writer_changed.go:41-54`), so the raw payload differs on every rewrite while
+the digest does not. Only the winners dirty capture is gated by the digest,
+so an unchanged rerun stages no dirty mark. This is write amplification by
+design today. The planned bound is D3: a rerun the stamp cannot reach ends
+inert and writes nothing. `TestSupplyChainImpactWriterRewritesEveryRowOfAnUnchangedFullRerunLive`
+pins the contract: an unchanged full rerun keeps every row's content digest,
+stages 0 dirty marks, and gives every row a new xmin. Change it only together
+with this note.

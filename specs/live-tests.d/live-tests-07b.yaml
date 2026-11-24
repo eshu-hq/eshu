@@ -135,3 +135,8 @@ tests:
     class: dedicated_ci
     reason: "#10972 D3 guard cases (arbiter D3/D2 ruling): a link after the full pass, a closure over its cap, and a D2-due marker; reducer-contention selects the TestScopedReachDifferential*Live tests through the supply-chain filter"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_writer_rewrite_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 write-amplification pin: an unchanged full rerun keeps every row's content digest, stages 0 winners dirty marks, and rewrites every row (new xmin), because the finding upsert has no content-equality guard; reducer-contention selects TestSupplyChainImpactWriterRewritesEveryRowOfAnUnchangedFullRerunLive through the TestSupplyChainImpact(Writer...)[A-Za-z]*Live alternative of the supply-chain filter"
+    runner: reducer-contention
