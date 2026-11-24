@@ -283,6 +283,7 @@ evidence load, so the two can differ by the failed passes.
 | --- | --- | --- |
 | `domain` | `supply_chain_impact` | Reducer domain. |
 | `mode` | `full`, `scoped`, `scoped_fallback_sentinel`, `scoped_fallback_out_of_stamp` | How the pass ran, as on `pass_total`. |
+| `pass_reason` | `scoped`, `no_stamp`, `sentinel`, `no_seed`, `out_of_stamp`, `engaged_protection` | Why the pass ran scoped or full. |
 | `repend_cause` | `first`, `retry`, `drain`, `fanout_rerun`, `other_repend`, `unknown` | Why the pass was claimed. |
 | `changed` | `changed`, `unchanged` | `changed` when the commit changed or retracted a finding row, changed a suppression, or touched an advisory group. |
 | `change_class` | `none`, `unknown` | `none` on an unchanged pass; `unknown` on a changed one. |
@@ -311,6 +312,22 @@ row's fields, and the writer's digest read returns only the digest. Reading the
 fields would add to the hot path, so the split is left for a change that
 measures that cost.
 
+`pass_reason` splits the `full` mode that `pass_total` lumps together. The
+checks run in this order:
+
+1. `scoped`: the load scoped to the stamp.
+2. `out_of_stamp`: the pass qualified to scope but the holder carries active
+   finding rows outside the stamp (#10415), so it ran full.
+3. `sentinel`: a one-hop stamp that names an unbounded change.
+4. `no_stamp`: nothing bounded to scope by: a genuine pass, an unstamped or
+   empty stamp, or a retry.
+5. `engaged_protection`: a bounded stamp, but the protected or static-only
+   evidence path never scopes. The QA environment does not run it; other
+   stores may.
+6. `no_seed`: a bounded stamp that nothing seeded: no finding row and no local
+   stamped advisory, a loader without the seed seam, or a failed seed read
+   (that case also logs `supply chain impact scoped seed read failed`).
+
 The same fields ride on one INFO line per pass, `supply chain impact pass
 complete`, with `scope_id`, `generation_id`, `intent_id`, `attempt_count` and
 the pass `mode`, and as attributes `repend_cause`, `changed` and `change_class`
@@ -321,3 +338,24 @@ Read it as a rate. The share of `changed="unchanged"` among
 `repend_cause="fanout_rerun"` is the useless re-run share of the fan-out loop;
 the same share among `drain` shows how much of the self-drain feeds it. Query
 the 3-hour QA window, not a single reading.
+
+## Fan-out time by site
+
+`eshu_dp_supply_chain_impact_fanout_site_duration_seconds` (#10972) records,
+for each holder fan-out pass, the total time spent in each of four sites, one
+histogram sample per site the pass entered. Labels are `domain` and
+`fanout_site`; no scope, holder or CVE id is a label.
+
+| `fanout_site` | What it times |
+| --- | --- |
+| `inflight_read` | The claimed-or-running queue read that finds the holders to flag. |
+| `holder_reads` | Every holder lookup statement of the pass, summed. The per-statement view stays on `eshu_dp_supply_chain_impact_fanout_read_duration_seconds`. |
+| `reopen_loop` | The per-holder reopen or replay-flag writes, summed. |
+| `state_update` | The replay-flag clear and the calling item's fan-out state write. |
+
+The same totals ride on the `supply_chain_impact.fanout` span as
+`inflight_read_seconds`, `holder_reads_seconds`, `reopen_loop_seconds` and
+`state_update_seconds`. A pass that fails inside a site still reports the time
+it spent there, so a timed-out read shows up. A pass with nothing to fan out
+enters no site and reports nothing. The sites do not cover the writer commit or
+the advisory-group enqueue, which run before the fan-out.

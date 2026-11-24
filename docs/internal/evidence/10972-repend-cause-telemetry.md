@@ -60,7 +60,33 @@ The reference is "Re-pend cause and pass outcome" in
 No-Regression Evidence: the table above, plus the unchanged reducer-root and
 core package suites.
 
+## Pass reason and fan-out site timing
+
+`pass_reason` reads the loaded evidence, the stamp and two handler fields; it
+adds no read. The fan-out site timing wraps four existing calls (the in-flight
+read, each holder-read chunk, each holder reopen, and the state writes) with
+two `time.Now` calls each, and adds one histogram sample and one span
+attribute per site entered. The fan-out pass holds at most 256 holder reopens,
+so the worst case is a few hundred `time.Now` calls, which is tens of
+microseconds against a fan-out whose every site is a database round trip. This
+cost is reasoned, not benchmarked: the benchmark above covers the handler
+without a fan-out port, and the host load made a second paired run poor
+evidence. `TestFanOutReportsTimeBySite` and `TestFanOutSkipsSitesItDoesNotEnter`
+pin what is reported, and the existing fan-out suites pass unchanged
+(`go test ./internal/reducer/supplychain/core/ ./internal/reducer/`).
+
+Observability Evidence (additions): `pass_reason` on the counter, the
+pass-complete log line and the pass span
+(`TestPassReasonOfSplitsTheFullMode`,
+`TestPassOutcomeCarriesTheScopedAndNoSeedReasons`);
+`eshu_dp_supply_chain_impact_fanout_site_duration_seconds` and the
+`<site>_seconds` span attributes on `supply_chain_impact.fanout`.
+
 ## Limits
+
+- `engaged_protection` is not seen in the QA environment; it is kept for other
+  stores. There is no `unknown` pass reason: every pass lands in exactly one of
+  the six checks.
 
 - `repend_cause="fanout_rerun"` covers both a reopen of a succeeded item and
   the replay of an item that was in flight when the stamp landed. Their
