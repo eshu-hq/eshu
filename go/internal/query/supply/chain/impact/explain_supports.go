@@ -25,8 +25,8 @@ import (
 //   - Any other granted lookup drives from the grant, as two index arms, so a
 //     selector over a large grant never scans the table.
 //
-// An ungranted selector or identity lookup without an image reference reads the
-// whole table through the same builder (ExplainFindingUngrantedFromSupportsQuery).
+// An ungranted selector or identity lookup without an image reference has no
+// supports read yet (the table has no selector index) and stays on the legacy read.
 
 // supportsExplainOverrideLateral is the operator override probe of the explain
 // reads. Unlike the list's, it returns the override payload, which the explain
@@ -173,16 +173,6 @@ var ExplainFindingByPublicIDFromSupportsQuery = mustBuildExplainFromSupportsQuer
 var ExplainFindingFromSupportsQuery = mustBuildExplainFromSupportsQuery(
 	supportsExplainGrantArms, "", "", supportsExplainIdentityPredicate)
 
-// ExplainFindingUngrantedFromSupportsQuery is the ungranted selector or identity
-// explain (#10880 PR-C1 f): the whole supports table as the source, with the same
-// authorization, selector and identity predicates the granted read applies. The
-// grant predicate is vacuous without a grant, so the selector columns
-// (cve_id, advisory_id, package_id, repository_id, subject_digest) drive the
-// read through their btrees; a fact-id, finding-id or canonical-key lookup has no
-// dedicated supports index yet and is measured with the C1 index set.
-var ExplainFindingUngrantedFromSupportsQuery = mustBuildExplainFromSupportsQuery(
-	"supply_chain_impact_finding_supports", "", "", supportsExplainIdentityPredicate)
-
 // supportsExplainImageFence is the ungranted selector lookup with an image
 // reference: the candidates come from the image partial index through a
 // MATERIALIZED fetch, the same fence the list read pins, so the planner cannot
@@ -221,17 +211,18 @@ type explainRoute struct {
 //     pick across scopes and cannot answer a grant, and a finding id a granted
 //     list returned must explain with the same payload;
 //   - an ungranted public-id lookup probes supports by finding id; a miss
-//     falls back to the supports identity read, or to the image read when the call
-//     names an image reference (the identity read of an ungranted fact id or
-//     canonical key has no dedicated index yet; it is measured with the C1 index
-//     set, #10880 PR-C1 f);
+//     falls back to the legacy identity read, or to the image read when the call
+//     names an image reference, because supports has no index for an ungranted
+//     fact-id or canonical-key lookup (the identity read moves to supports in
+//     PR-C on its own measured index);
 //   - an ungranted selector lookup with an image reference reads supports through
 //     the image partial index, filter then pick;
-//   - an ungranted selector lookup without one reads the whole supports table
-//     through the cve, advisory, package and repository btrees (contract S of the
-//     arbiter, now that PR-B2b's indexes exist); the winners table cannot name
-//     its candidates (a mixed cve_id key, a second key that matches only on a lower
-//     copy, and a replaced winning support each give a wrong answer).
+//   - an ungranted selector lookup without one keeps the legacy read. The
+//     arbiter's contract S reads it from supports through the cve and advisory
+//     indexes of PR-B2b, so it lands after those migrations; the winners table
+//     cannot name its candidates (a mixed cve_id key, a second key that matches
+//     only on a lower copy, and a replaced winning support each give a wrong
+//     answer).
 func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) explainRoute {
 	legacy := explainRoute{
 		publicID: ExplainFindingByPublicIDQuery, selector: ExplainFindingQuery,
@@ -247,9 +238,9 @@ func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) expl
 		}
 	}
 	route := explainRoute{
-		supports: true,
-		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingUngrantedFromSupportsQuery,
-		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteSupportsSelector,
+		supports: filter.FindingID != "" || filter.ImageRef != "",
+		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingQuery,
+		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteLegacy,
 	}
 	// One exception to "the identity lookup stays legacy": a finding id that misses
 	// the public-id probe on a call that also names an image reference runs the image
@@ -259,6 +250,9 @@ func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) expl
 	// supports_image; legacy counts only statements that read the fact table.
 	if filter.ImageRef != "" {
 		route.selector, route.selectorRoute = ExplainFindingFromImageQuery, RouteSupportsImage
+	}
+	if filter.FindingID == "" && filter.ImageRef == "" {
+		return legacy
 	}
 	return route
 }

@@ -31,11 +31,6 @@ const (
 	// caller: the per-support table probed by its finding id index. Only explain
 	// calls take it.
 	RouteSupportsFindingID ReadRoute = "supports_finding_id"
-	// RouteSupportsSelector is the explain selector or identity lookup of an
-	// ungranted caller without an image reference: the per-support table read whole,
-	// driven by the selector columns' btrees (#10880 PR-C1 f). Only explain calls
-	// take it.
-	RouteSupportsSelector ReadRoute = "supports_selector"
 )
 
 // routeFor decides the read model of one call. With the winners gate on, no call

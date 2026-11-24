@@ -185,28 +185,18 @@ condition applies: if the capture reads no supports after the cascade removed th
 this returns to the arbiter. The existing live scope-delete capture test covers it
 and has not been run for this migration.
 
-## C1 f: the ungranted explain reads move to supports
+## C1 f: not in C1
 
-With the winners gate on, two explain lookups still read the finding facts: an
-ungranted selector lookup (cve, advisory, package, repository or subject digest)
-without an image reference, and the identity fallback of an ungranted public-id miss.
-`ExplainFindingUngrantedFromSupportsQuery` is the same builder the granted and image
-reads use, with the whole supports table as the source and the identity predicate as
-the source-candidate predicate; the route function sends both lookups to it under a
-new route label, `supports_selector`. With the gate off every call keeps the legacy
-read. The route and read-duration metrics, their instrument descriptions, the metrics
-catalog and the telemetry README name the new label.
-
-Hermetic proof: `TestExplainRoutesByGrantAndLookup` (ungranted selector reads
-supports, the public-id miss falls back to the supports identity read, nothing reads
-the finding facts as a candidate source; the runtime filter's legs read other fact
-kinds on every route, as before) and `TestExplainCountsEachStatementByRoute`.
-
-Not measured: the statement drives from the cve, advisory, package and repository
-btrees for a selector lookup, but a lookup by fact id or canonical key has no
-dedicated supports index. That lookup, and the explain plans at the QA shape, are
-the ruling's T2 and belong to the C1 index set (g), which waits for a coordinator
-Postgres slot. Until then the new statement is correct and its plan is unmeasured.
+The two ungranted explain routes (an ungranted selector lookup, and the identity
+fallback of an ungranted public-id miss) are NOT supports-backed in C1. Both keep the
+legacy read of the finding facts exactly as on main today, which is correct under dual
+write. The first version of this item read the whole supports table from a
+`NOT MATERIALIZED` CTE joined to the active scopes and measured too slow on the QA
+replica (scope-first plan, 18 of 22 replica shapes timed out), so it came out of C1
+(arbiter ruling of 2026-11-24, `arbiter-c1-item-f-2026-11-24.md`). It becomes its own
+PR: key-first `MATERIALIZED` candidate legs, proved against the section 7 plan-shape,
+work and time criteria of that ruling. Until it lands, C2's route coverage counts six
+route labels, not seven.
 
 ## C1 g: the keyed probe index on supports
 
@@ -361,10 +351,9 @@ return to the arbiter with the keys. The audit does not write facts-derived winn
 
 **Proofs added by the ruling.** The proof seams that write live in a `_test.go` file
 (`supply_chain_impact_supports_proof_export_test.go`); `TestProofSeamsHaveNoNonTestCallers` fails on any non-test
-caller of a seam, with a seeded pair. `TestRenderUngrantedExplainShapes` (set `ESHU_RENDER_EXPLAIN_DIR`) renders the
-ungranted explain shapes (cve, advisory, package, repository, subject digest, cve plus package, identity by fact id,
-finding id and canonical key, the public-id probe and its miss) as psql files, each plain and under
-`plan_cache_mode = force_generic_plan`, for the read-only replica run after the B-series roll puts the cve, advisory,
-package and repository indexes on QA: the pass condition is no Seq Scan on supports in any plan. The live family must be
+caller of a seam, with a seeded pair. The render test for the ungranted explain shapes
+(`TestRenderUngrantedExplainShapes`) moves with item f: its statements become key-first, and the
+replica proofs (plan shape, work and time criteria of the item f ruling, each plain and under
+`plan_cache_mode = force_generic_plan`) belong to the f PR, not to C1. The live family must be
 recorded at the heads that will be pushed, one run on the C1 head and one on the C1k head, each stating both DSN
 variables and zero skips, with the log path; those runs are the coordinator's and are added here when they exist.
