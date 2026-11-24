@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -311,6 +312,11 @@ func goReachabilityScanWarning(envelope facts.Envelope) bool {
 	if !ok || !canonicalGoRepositoryIDPattern.MatchString(repositoryID) {
 		return false
 	}
-	analyzer, _ := envelope.Payload["analyzer"].(string)
-	return analyzer == goReachabilityWarningAnalyzer
+	// A warning that does not decode (a missing required field) is not trusted
+	// evidence: it fails closed and needs a scan receipt like any other.
+	warning, err := schemadecode.DecodeScannerWorkerWarning(envelope)
+	if err != nil {
+		return false
+	}
+	return warning.Analyzer == goReachabilityWarningAnalyzer
 }

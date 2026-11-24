@@ -13,7 +13,10 @@ passed. The screen now decides by analyzer and scope for that one warning.
 call inside the loader's existing loop over the static envelopes. For a
 target-only kind it reads the tombstone flag, trims the scope id's
 `go-reachability://` prefix, matches the rest against the canonical repository
-id pattern, and compares the `analyzer` payload value with `go_reachability`.
+id pattern, decodes the warning through the typed `schemadecode.DecodeScannerWorkerWarning`
+seam (the raw-payload ratchet in `payloadusage` refuses a direct payload read),
+and compares the decoded analyzer with `go_reachability`. A warning that does
+not decode (a missing required field) fails closed like any other.
 Only a `scanner_worker.warning` reaches those checks; every other kind returns
 at the first switch, as before.
 
@@ -56,13 +59,15 @@ itself unless exactly 100 envelopes fail closed.
 
 | | baseline | after |
 | --- | --- | --- |
-| ns/op per 1,000 envelopes, median of 10 (round 1 / round 2) | 3,978 / 3,984 | 18,358 / 18,332 |
-| ns/op per 1,000 envelopes, minimum of 10 (round 1 / round 2) | 3,976 / 3,980 | 18,285 / 18,303 |
-| B/op, allocs/op | 0, 0 | 0, 0 |
+| ns/op per 1,000 envelopes, median of 5 (round 1 / round 2) | 3,982 / 3,983 | 63,963 / 64,295 |
+| ns/op per 1,000 envelopes, minimum of 5 (round 1 / round 2) | 3,977 / 3,978 | 63,037 / 63,965 |
+| B/op, allocs/op | 0, 0 | 19,303, 200 |
 
-The screen adds about 14 microseconds per 1,000 envelopes, about 14 nanoseconds
-per envelope, and no allocation. The cost sits almost entirely in the pattern
-match for the 100 Go-scope warnings in this input, so it is an upper bound: a
+The screen adds about 60 microseconds per 1,000 envelopes, about 60 nanoseconds
+per envelope, and two allocations per decoded warning (200 in this input, 19,303
+bytes). The cost sits almost entirely in the typed decode and pattern match for
+the 100 Go-scope warnings in this input, about 600 nanoseconds each, so it is an
+upper bound: a
 real authorized load carries a handful of warnings among many thousands of
 facts. The load itself is a repeatable-read snapshot of database reads that take
 milliseconds to seconds, so the added work is not measurable beside it.
@@ -72,12 +77,14 @@ fails closed on 200 of 1,000 (every warning); the after tree fails closed on 100
 (the image-analyzer warnings), which is the intended change. A twin table test
 (`TestStaticEnvelopeNeedsScanReceiptKeepsGoEvidenceStatic`) pins each edge: an
 empty, padded or upper-case analyzer, no payload, a scope with a path suffix, a
-non-canonical scope id, an image scope, and a tombstoned warning all still fail
-closed.
+non-canonical scope id, an image scope, a warning missing its required fields,
+and a tombstoned warning all still fail closed.
 
-No-Regression Evidence: the table above. The predicate adds about 14 ns per
-envelope with zero allocations over a loop the loader already ran, and adds no
-read or write to the load.
+No-Regression Evidence: the table above. The predicate adds about 60 ns per
+envelope and two allocations per decoded Go-scope warning over a loop the loader
+already ran, and adds no read or write to the load. An earlier revision read the
+payload key directly (about 14 ns per envelope, no allocation); the
+`payloadusage` ratchet refused that read, so the typed decode replaced it.
 
 ## Observability
 

@@ -301,6 +301,8 @@ func TestAuthorizedLoaderEngagedKeepsAGoReachabilityWarningStaticLive(t *testing
 			Payload: map[string]any{
 				"analyzer": "go_reachability", "analysis_status": "not_scanned", "reason": "toolchain_unsupported",
 				"repository_id": "repository:r_ea78e8bb", "relative_path": "legacy/go.mod",
+				"target_kind": "repository", "target_locator_hash": "sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776",
+				"warning_class": "scanner_worker_warning", "coverage_status": "unsupported",
 			},
 		},
 	}
@@ -410,7 +412,7 @@ func TestAuthorizedHandleEngagedLoadsAGoReachabilityWarningThroughTheGoStageLive
 		  "root_go_version":"1.99","root_module_path":"github.com/acme/orders-legacy","source":"go_module_manifest","indirect":false,"line_number":5}`)
 	seedActiveFact(t, ctx, admin, goScope, goGen, "go-toolchain-warning", "scanner_worker.warning",
 		`{"analyzer":"go_reachability","analysis_status":"not_scanned","coverage_status":"unsupported","reason":"toolchain_unsupported",
-		  "repository_id":"`+repository+`","relative_path":"`+relativeMod+`","target_kind":"repository","warning_class":"scanner_worker_warning"}`)
+		  "repository_id":"`+repository+`","relative_path":"`+relativeMod+`","target_kind":"repository","target_locator_hash":"sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776","warning_class":"scanner_worker_warning"}`)
 
 	writer := &captureOnlyImpactWriter{}
 	handler := supplychaincore.SupplyChainImpactHandler{

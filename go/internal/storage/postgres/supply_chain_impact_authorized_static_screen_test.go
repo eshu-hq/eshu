@@ -22,7 +22,16 @@ func TestStaticEnvelopeNeedsScanReceiptKeepsGoEvidenceStatic(t *testing.T) {
 			FactID:   "warning-" + scopeID,
 			ScopeID:  scopeID,
 			FactKind: facts.ScannerWorkerWarningFactKind,
-			Payload:  map[string]any{"analyzer": analyzer, "repository_id": "repository:r_ea78e8bb"},
+			Payload: map[string]any{
+				"analyzer":            analyzer,
+				"repository_id":       "repository:r_ea78e8bb",
+				"target_kind":         "repository",
+				"target_locator_hash": "sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776",
+				"reason":              "toolchain_unsupported",
+				"warning_class":       "scanner_worker_warning",
+				"analysis_status":     "not_scanned",
+				"coverage_status":     "unsupported",
+			},
 		}
 	}
 	tombstoned := func(envelope facts.Envelope) facts.Envelope {
@@ -42,6 +51,7 @@ func TestStaticEnvelopeNeedsScanReceiptKeepsGoEvidenceStatic(t *testing.T) {
 		{"go_reachability warning with an empty analyzer", warning("go-reachability://repository:r_ea78e8bb", ""), true},
 		{"go_reachability warning with a padded analyzer", warning("go-reachability://repository:r_ea78e8bb", " go_reachability"), true},
 		{"go_reachability warning with an upper-case analyzer", warning("go-reachability://repository:r_ea78e8bb", "GO_REACHABILITY"), true},
+		{"go_reachability warning missing its required fields", facts.Envelope{FactID: "malformed", ScopeID: "go-reachability://repository:r_ea78e8bb", FactKind: facts.ScannerWorkerWarningFactKind, Payload: map[string]any{"analyzer": "go_reachability", "repository_id": "repository:r_ea78e8bb"}}, true},
 		{"go_reachability warning with no payload", facts.Envelope{FactID: "no-payload", ScopeID: "go-reachability://repository:r_ea78e8bb", FactKind: facts.ScannerWorkerWarningFactKind}, true},
 		{"go_reachability warning in a scope with a path suffix", warning("go-reachability://repository:r_ea78e8bb/x", "go_reachability"), true},
 		{"tombstoned go_reachability warning", tombstoned(warning("go-reachability://repository:r_ea78e8bb", "go_reachability")), true},

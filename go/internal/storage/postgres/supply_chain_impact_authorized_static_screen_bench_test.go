@@ -20,12 +20,12 @@ func staticScreenBenchEnvelopes() []facts.Envelope {
 		case 0:
 			out = append(out, facts.Envelope{
 				FactID: fmt.Sprintf("warn-go-%d", i), FactKind: facts.ScannerWorkerWarningFactKind,
-				ScopeID: "go-reachability://repository:r_ea78e8bb", Payload: map[string]any{"analyzer": "go_reachability"},
+				ScopeID: "go-reachability://repository:r_ea78e8bb", Payload: map[string]any{"analyzer": "go_reachability", "target_kind": "repository", "target_locator_hash": "sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776", "reason": "toolchain_unsupported", "warning_class": "scanner_worker_warning", "analysis_status": "not_scanned", "coverage_status": "unsupported"},
 			})
 		case 1:
 			out = append(out, facts.Envelope{
 				FactID: fmt.Sprintf("warn-img-%d", i), FactKind: facts.ScannerWorkerWarningFactKind,
-				ScopeID: "scanner-worker://repository/repo-123", Payload: map[string]any{"analyzer": "trivy"},
+				ScopeID: "scanner-worker://repository/repo-123", Payload: map[string]any{"analyzer": "trivy", "target_kind": "repository", "target_locator_hash": "sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776", "reason": "toolchain_unsupported", "warning_class": "scanner_worker_warning", "analysis_status": "not_scanned", "coverage_status": "unsupported"},
 			})
 		case 2:
 			out = append(out, facts.Envelope{
