@@ -124,6 +124,17 @@ has become a fault.
   (the impact writer's lock) for one chunk of at most 500 supports, so a writer
   waits for at most one chunk.
 
+## What the stored `intent_id` and `cause` mean
+
+The stored payload of a support is the impact finding's payload, which every reducer pass stamps with
+its own `intent_id` and `cause`. The write-on-change guard compares the payload without those two
+keys, so a pass that confirms a finding without changing it leaves the support untouched. After that,
+the stored `intent_id` and `cause` of a support name the pass that last changed the row, not the pass
+that last confirmed it. The pass that last confirmed it is the work item: the reducer uses the
+intent's id as the work item id, and its time is `last_pass_at` on the scope's pass-state row. The
+API and MCP never serve either key. A replay that changes nothing shows up as the `unchanged` action
+of the supports rows counter instead of `updated`.
+
 ## Least-privilege logins
 
 Migration 338 creates the tables and grants nothing. A database that uses

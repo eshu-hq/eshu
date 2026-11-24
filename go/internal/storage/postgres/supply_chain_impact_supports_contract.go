@@ -45,7 +45,14 @@ var supplyChainImpactSupportsContractPins = map[int]string{
 	// Re-pinned, not bumped, when #10880 PR-C1 a added the fill-only stable_fact_key
 	// column: TestStableFactKeyDoesNotChangeTheVersion1Statements proves the covered
 	// statements differ from the previous pin only by that column.
-	1: "691ac3c4f55c30599005a87ae4db68165228f7f9a3da3ba9e49f87534dde8eca",
+	//
+	// Re-pinned again, not bumped, when #10880 B3a made the write-on-change guard
+	// ignore the per-pass payload keys intent_id and cause on both sides of its
+	// payload compare: TestSupportsGuardDoesNotChangeTheVersion1Statements proves the
+	// covered statements differ from the C1 pin only by that two-key strip, and the
+	// stored payload and every derived column are unchanged, so no support row changes
+	// and no backfill is owed.
+	1: "6b89c4b096c58c65a649ff24e4dd90201b34d9ad9da00c585189c891eca10713",
 }
 
 // supplyChainImpactSupportsContractStatements returns, in a fixed order, the
