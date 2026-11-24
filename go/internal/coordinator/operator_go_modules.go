@@ -58,7 +58,10 @@ type OperatorPlanRequest struct {
 
 // OperatorPlanResult reports one operator plan attempt. Reason carries the
 // not_eligible skip, the already_open holder, or the dry-run verdict;
-// WouldPlan says whether a real fire would admit work.
+// WouldPlan says whether Plan yields items a real fire could admit
+// (plannable). Dry-run never consults open-target admission: a true
+// WouldPlan with an already-open run still reports plannable on re-fire
+// (the re-fire itself is the exact no-op), it does not promise admission.
 type OperatorPlanResult struct {
 	Outcome   OperatorPlanOutcome
 	PlanKey   string

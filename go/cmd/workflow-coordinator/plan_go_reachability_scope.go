@@ -37,7 +37,7 @@ func runPlanGoReachabilityScope(ctx context.Context, args []string, stdout, stde
 	flags := flag.NewFlagSet("plan-go-reachability-scope", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	instanceID := flags.String("instance-id", "", "durable collector instance id to plan for (required)")
-	repositoryID := flags.String("repository-id", "", "repository source_key to plan, for example r_efdfb126 with its repository: prefix (required)")
+	repositoryID := flags.String("repository-id", "", "repository source_key in literal repository:<id> form, for example repository:r_efdfb126 (required)")
 	requestID := flags.String("request-id", "", "operator-chosen idempotency token, for example 10032-fixture-20261123 (required)")
 	requestedBy := flags.String("requested-by", "", "who fired this plan (required, audit only)")
 	reason := flags.String("reason", "", "why this plan fires out of rotation (required, audit only)")

@@ -27,7 +27,9 @@ the steady-state rotation stays armed and remains the default path.
 All of `--instance-id`, `--repository-id`, `--request-id`, `--requested-by`,
 and `--reason` are required; a missing flag usage-errors before any connection
 opens. `--dry-run` evaluates eligibility and the fence decision, prints the
-would-plan verdict, and writes nothing.
+would-plan verdict (plannable-by-Plan; dry-run never consults open-target
+admission, so it does not promise a real fire would admit), and writes
+nothing.
 
 | Flag | Meaning |
 | --- | --- |

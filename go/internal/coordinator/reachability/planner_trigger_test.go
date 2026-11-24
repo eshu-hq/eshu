@@ -5,7 +5,9 @@ package reachability
 
 import (
 	"testing"
+	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -84,5 +86,57 @@ func TestPlanRefusesNonOperatorExplicitTriggerKinds(t *testing.T) {
 		if _, _, _, err := Plan(request); err == nil {
 			t.Errorf("Plan(TriggerKind=%q) = nil, want refusal", kind)
 		}
+	}
+}
+
+// TestPlanZeroTriggerKindIsByteIdenticalInBootstrapMode pins the ruling
+// invariant for bootstrap instances: omitting TriggerKind derives exactly
+// today's bootstrap RunID, trigger, and item identity, so bootstrap runs do
+// not move either.
+func TestPlanZeroTriggerKindIsByteIdenticalInBootstrapMode(t *testing.T) {
+	t.Parallel()
+
+	repository := goRepository("00000001", "eshu-hq", commitA)
+	now := time.Date(2026, time.November, 4, 12, 0, 0, 0, time.UTC)
+
+	bootstrapInstance := testInstance()
+	bootstrapInstance.Bootstrap = true
+	bootstrapInstance.CreatedAt = now
+	bootstrapInstance.UpdatedAt = now
+	bootstrapInstance.LastObservedAt = now
+	zeroRequest := PlanRequest{
+		Instance:     bootstrapInstance,
+		ObservedAt:   now,
+		PlanKey:      "go-modules-scheduled-20261104T120000Z",
+		Repositories: []scannercomponent.GoModuleRepository{repository},
+	}
+
+	zeroRun, zeroItems, _, err := Plan(zeroRequest)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	wantRunID := "scanner_worker:scanner-go-reachability:bootstrap:derived:go-modules-scheduled-20261104T120000Z"
+	if zeroRun.RunID != wantRunID {
+		t.Fatalf("zero-trigger RunID = %q, want %q", zeroRun.RunID, wantRunID)
+	}
+	if zeroRun.TriggerKind != workflow.TriggerKindBootstrap {
+		t.Fatalf("zero-trigger TriggerKind = %q, want %q", zeroRun.TriggerKind, workflow.TriggerKindBootstrap)
+	}
+	if len(zeroItems) != 1 {
+		t.Fatalf("len(zeroItems) = %d, want 1", len(zeroItems))
+	}
+
+	derived := zeroRequest
+	derived.TriggerKind = workflow.TriggerKindBootstrap
+	derivedRun, derivedItems, _, err := Plan(derived)
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if derivedRun.RunID != zeroRun.RunID || derivedRun.TriggerKind != zeroRun.TriggerKind {
+		t.Fatalf("derived run = %+v, want %+v", derivedRun, zeroRun)
+	}
+	if derivedItems[0].WorkItemID != zeroItems[0].WorkItemID ||
+		derivedItems[0].GenerationID != zeroItems[0].GenerationID {
+		t.Fatalf("derived item = %+v, want %+v", derivedItems[0], zeroItems[0])
 	}
 }
