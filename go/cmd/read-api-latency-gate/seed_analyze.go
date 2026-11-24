@@ -51,5 +51,7 @@ func analyzedSeededTables() []string {
 		"ingestion_scopes", "scope_generations", "fact_work_items", "fact_records",
 		"shared_projection_intents", "content_entities", "content_files",
 		"infra_resource_entities", "supply_chain_impact_canonical_winners",
+		// The finding corpus the winners leg sweeps (#10880 PR-C2 o).
+		"supply_chain_impact_finding_supports",
 	}
 }

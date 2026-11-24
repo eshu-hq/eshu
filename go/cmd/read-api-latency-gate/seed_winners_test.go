@@ -103,19 +103,19 @@ func TestBuildWinnersFindingFactsRejectsEmptyAnchors(t *testing.T) {
 	}
 }
 
-// TestWinnersFindingFactRowsShape pins the COPY row contract: the same
-// column order as the other fact_records seeds, the winners fact kind on
-// every row, and a payload carrying every field the canonical-key SQL and
-// the winner body select read.
-func TestWinnersFindingFactRowsShape(t *testing.T) {
+// TestWinnersFindingVersionedRowsShape pins the row contract of the supports seed
+// (#10880 PR-C2 o): the rows are the VersionedRow the impact writer hands its
+// supports step, the finding kind and the seed's anchor on every row, and a payload
+// carrying every field the canonical-key SQL and the winner body select read.
+func TestWinnersFindingVersionedRowsShape(t *testing.T) {
 	facts := BuildWinnersFindingFacts(testWinnersAnchors(), 10, 5)
 	now := time.Now().UTC().Truncate(time.Second)
-	rows, err := winnersFindingFactRows(facts, now)
+	rows, err := winnersFindingVersionedRows(facts, now)
 	if err != nil {
-		t.Fatalf("winnersFindingFactRows: %v", err)
+		t.Fatalf("winnersFindingVersionedRows: %v", err)
 	}
 	if len(rows) != len(facts) {
-		t.Fatalf("winnersFindingFactRows returned %d rows for %d facts", len(rows), len(facts))
+		t.Fatalf("winnersFindingVersionedRows returned %d rows for %d facts", len(rows), len(facts))
 	}
 	requiredPayloadKeys := []string{
 		"finding_id", "cve_id", "advisory_id", "package_id", "purl",
@@ -125,21 +125,17 @@ func TestWinnersFindingFactRowsShape(t *testing.T) {
 		"service_ids", "workload_ids", "environments",
 	}
 	for i, row := range rows {
-		if len(row) != len(iacFactColumns) {
-			t.Fatalf("row %d has %d columns, want %d (%v)", i, len(row), len(iacFactColumns), iacFactColumns)
+		if row.FactKind != winnersSeedFactKind || row.IsTombstone {
+			t.Fatalf("row %d fact_kind %q tombstone %v, want a live %q row", i, row.FactKind, row.IsTombstone, winnersSeedFactKind)
 		}
-		if row[3] != winnersSeedFactKind {
-			t.Fatalf("row %d fact_kind %v, want %q", i, row[3], winnersSeedFactKind)
+		if row.FactID != facts[i].FactID || row.ScopeID != facts[i].ScopeID || row.GenerationID != facts[i].GenerationID {
+			t.Fatalf("row %d anchor (%s,%s,%s), want (%s,%s,%s)", i, row.FactID, row.ScopeID, row.GenerationID, facts[i].FactID, facts[i].ScopeID, facts[i].GenerationID)
 		}
-		if row[1] != facts[i].ScopeID || row[2] != facts[i].GenerationID {
-			t.Fatalf("row %d anchor (%v,%v), want (%s,%s)", i, row[1], row[2], facts[i].ScopeID, facts[i].GenerationID)
-		}
-		raw, ok := row[9].([]byte)
-		if !ok {
-			t.Fatalf("row %d payload is %T, want []byte JSON", i, row[9])
+		if row.StableFactKey == "" || row.SourceConfidence == "" {
+			t.Fatalf("row %d carries no stable key or source confidence", i)
 		}
 		var payload map[string]any
-		if err := json.Unmarshal(raw, &payload); err != nil {
+		if err := json.Unmarshal([]byte(row.Payload), &payload); err != nil {
 			t.Fatalf("row %d payload is not JSON: %v", i, err)
 		}
 		for _, key := range requiredPayloadKeys {

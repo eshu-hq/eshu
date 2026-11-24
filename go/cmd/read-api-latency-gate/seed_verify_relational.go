@@ -70,6 +70,9 @@ var seededRelationalTables = map[string]bool{
 	"fact_work_items":           true,
 	"fact_records":              true,
 	"shared_projection_intents": true,
+	// The finding corpus lives in the supports table since #10880 PR-C2 (the finding kind is
+	// no longer written to fact_records).
+	"supply_chain_impact_finding_supports": true,
 }
 
 // VerifyRelationalCounts reads back the row counts of the seeded Postgres tables
