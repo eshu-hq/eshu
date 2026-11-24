@@ -269,10 +269,41 @@ func targetOnlyImpactFactKind(kind string) bool {
 	}
 }
 
+// goReachabilityWarningAnalyzer is the analyzer value of a scanner warning that
+// speaks for a govulncheck scan (core.goReachabilityWarningAnalyzer). The warning
+// kind is shared with the image analyzers, whose output is target-only.
+const goReachabilityWarningAnalyzer = "go_reachability"
+
 // staticEnvelopeNeedsScanReceipt reports whether a fact the static impact load
 // returned is target-only evidence: the engaged loader fails the pass closed on
 // it, because only a scan result receipt can authenticate it. The caller has
 // already trusted the public advisory facts.
+//
+// A go_reachability warning in a go-reachability scope is the exception: it comes
+// from the same scanner as the module evidence and call reachability that pass as
+// static non-advisory evidence, and it says that scan did not finish. Failing the
+// pass on it while accepting the scan's call verdicts is incoherent, and dropping
+// it would let a not_called verdict stand for a failed scan. The scope and
+// analyzer decide, not the kind alone, so an image-analyzer warning, or a Go
+// warning outside a go-reachability scope, still fails closed.
 func staticEnvelopeNeedsScanReceipt(envelope facts.Envelope) bool {
-	return targetOnlyImpactFactKind(envelope.FactKind)
+	if !targetOnlyImpactFactKind(envelope.FactKind) {
+		return false
+	}
+	return !goReachabilityScanWarning(envelope)
+}
+
+// goReachabilityScanWarning reports whether envelope is a go_reachability
+// scanner warning stored in a go-reachability scope with a canonical repository
+// id.
+func goReachabilityScanWarning(envelope facts.Envelope) bool {
+	if envelope.FactKind != facts.ScannerWorkerWarningFactKind {
+		return false
+	}
+	repositoryID, ok := strings.CutPrefix(envelope.ScopeID, goReachabilityScopePrefix)
+	if !ok || !canonicalGoRepositoryIDPattern.MatchString(repositoryID) {
+		return false
+	}
+	analyzer, _ := envelope.Payload["analyzer"].(string)
+	return analyzer == goReachabilityWarningAnalyzer
 }
