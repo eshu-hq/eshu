@@ -35,7 +35,7 @@ func TestNVDBaselineCheckpointReaderMapsStoredRows(t *testing.T) {
 		sql.NullString{String: "gen-2002", Valid: true},
 		sql.NullInt64{Int64: 10, Valid: true},
 		sql.NullInt64{Int64: 100, Valid: true},
-	}}}}}
+	}}}, {Data: [][]any{}}}}
 	got, err := nvdBaselineCheckpointReader{database: database}.
 		ReadNVDBaselineCheckpoints(context.Background(), "run-1")
 	if err != nil {

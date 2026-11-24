@@ -10,9 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -47,6 +44,13 @@ type NVDBaselineStoredCheckpoint struct {
 	// carry them: the year probes nothing and holds as drain_unloaded.
 	LastScopeID      string
 	LastGenerationID string
+	// UndrainedGenerations names the year's older undrained windows from
+	// the shared undrained-generation set (eshu-hq/eshu#11380): live
+	// generations in the year's baseline family beside the last chunk.
+	// The drain loader probes them beside the last chunk and folds to one
+	// state per year. Empty means the year has no older windows and probes
+	// exactly its last chunk, as before.
+	UndrainedGenerations []vulnerability.NVDBaselineDrainKey
 }
 
 // NVDBaselinePlanReader is the coordinator's port for the per-year plan rows
@@ -391,47 +395,6 @@ func (s Service) recordNVDBaselineTripSample(ctx context.Context, sample NVDBase
 	if !observation.Before.ReEnableEligible && observation.After.ReEnableEligible {
 		inst.RecordNVDBaselineTripTransition(ctx, telemetry.NVDBaselineTripEligible)
 	}
-}
-
-// loadNVDBaselineDrainForPlan probes the last committed chunk of each
-// incomplete checkpointed year and returns the per-year map for the request.
-// Blank keys probe nothing: the year stays out of the map and holds as
-// drain_unloaded. The load runs under a span (the duration signal) and the
-// tick's own deadline; a joined error warns once with the probe/read counts
-// and the timeouts it carried count apart from broken queries.
-func (s Service) loadNVDBaselineDrainForPlan(ctx context.Context, stored map[int]NVDBaselineStoredCheckpoint) map[int]vulnerability.NVDBaselineDrainState {
-	states := make(map[int]vulnerability.NVDBaselineDrainState, len(stored))
-	keys := make(map[int]vulnerability.NVDBaselineDrainKey, len(stored))
-	for year, row := range stored {
-		if row.Checkpoint.Complete {
-			continue
-		}
-		if strings.TrimSpace(row.LastScopeID) == "" || strings.TrimSpace(row.LastGenerationID) == "" {
-			continue
-		}
-		keys[year] = vulnerability.NVDBaselineDrainKey{ScopeID: row.LastScopeID, GenerationID: row.LastGenerationID}
-	}
-	if len(keys) == 0 {
-		return states
-	}
-	ctx, span := otel.Tracer(telemetry.DefaultSignalName).Start(ctx, nvdBaselineDrainLoadSpan)
-	defer span.End()
-	loaded, err := vulnerability.LoadNVDBaselineDrain(ctx, s.NVDBaselineDrainStore, keys)
-	span.SetAttributes(
-		attribute.Int("nvd_baseline_drain_years_probed", len(keys)),
-		attribute.Int("nvd_baseline_drain_years_loaded", len(loaded)),
-	)
-	if err != nil {
-		span.RecordError(err)
-		// The joined error names years (ints) only: stages and database
-		// causes carry no scope id, so the line is safe to log whole.
-		s.warnNVDBaseline(ctx, "workflow coordinator NVD baseline drain probe failed, affected years held",
-			"years_probed", len(keys), "years_loaded", len(loaded),
-			"timeouts", vulnerability.NVDBaselineDrainTimeouts(err),
-			"error", err.Error())
-		s.NVDBaselineInstruments.RecordNVDBaselineDrainProbeTimeouts(ctx, vulnerability.NVDBaselineDrainTimeouts(err))
-	}
-	return loaded
 }
 
 // recordNVDBaselineRunSignals records the run-level signals the loader owns:

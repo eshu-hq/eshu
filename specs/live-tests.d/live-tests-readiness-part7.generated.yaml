@@ -239,6 +239,11 @@ tests:
     class: postgres_ci
     reason: "#10767 disposable PostgreSQL proof that the NVD baseline trip sampler reads hourly inflow of the winners dirty log, not the rows the maintainer left behind: a writer appends CVE-keyed, GHSA-keyed, and scope rows while the real keyed maintainer drains the log with DELETE, and the sampled rate stays exactly the committed NVD-proxy rows"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_undrained_generations_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "eshu-hq/eshu#11380 disposable PostgreSQL proof that the shared undrained-generation set lists every older live window of an incomplete baseline year and nothing else: the orphaned window whose checkpoint moved on is listed, ordinary rows, terminal windows, completed years, and other runs are not; disposable PostgreSQL through postgresproof with the production checkpoint and queue tables"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_window_cursor_live_test.go
     tag: ~
     class: postgres_ci
