@@ -124,11 +124,23 @@ findings:
   `supply_chain_impact_finding_supports_backfill`, the marker and cursor table.
 - `SELECT` and `DELETE` on `supply_chain_impact_finding_supports_dirty`, which
   the backfill drain reads and clears.
+- `SELECT` and `INSERT` on `supply_chain_impact_retracted_finding_keys`
+  (migration 351), which the writer's two retraction statements read for the keys
+  they already recorded and insert into, and the recovery reads select from. Rows
+  leave it through the generation foreign key cascade, which the owner runs, so the
+  login needs neither `UPDATE` nor `DELETE`.
 
-None of the three tables has a sequence. Until the first grant exists, the new
+None of the four tables has a sequence. Until the first grant exists, the new
 reducer's impact writes fail with `permission denied for table
 supply_chain_impact_finding_supports` (SQLSTATE 42501), and each pass rolls back
 and retries.
+
+The scope-delete and scanner capture functions (migrations 352 and 353) run as their
+owner (`SECURITY DEFINER`, a pinned search_path, PUBLIC execute revoked), like the
+fence trigger below: they read the supports table as the owner and the login needs no
+grant for them. Without the new table's grant the writer's retraction fails with
+`permission denied for table supply_chain_impact_retracted_finding_keys` (SQLSTATE
+42501).
 
 The old-writer fence trigger needs no grant for any login. Its function runs as
 its owner (`SECURITY DEFINER`, with a search_path pinned to `pg_catalog`, its own
