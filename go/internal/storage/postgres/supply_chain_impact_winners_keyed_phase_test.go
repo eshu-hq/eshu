@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,6 +87,7 @@ type phaseFakeTx struct {
 	consumed   int64
 	identifier int64
 	stored     int64
+	scanned    int64
 	delay      map[string]time.Duration
 	failOn     string
 	commitErr  error
@@ -142,6 +144,8 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{"pkg:npm/fake", "repo-fake", "", "CVE-2026-1", ""}}, nil
 	case countWinnersKeyedActiveFactsSQL:
 		return &phaseFakeRows{row: []any{int64(1)}}, nil
+	case countWinnersKeyedScannedCopiesSQL:
+		return &phaseFakeRows{row: []any{tx.scanned}}, nil
 	case deleteWinnersKeyedAppliedDirtySQL, deleteWinnersKeyedAllDirtySQL:
 		return &phaseFakeRows{row: []any{telemetry.SupplyChainImpactWinnersSourceActivation, tx.consumed}}, nil
 	case countWinnersKeyedRemainingSQL:
@@ -310,6 +314,54 @@ func TestResweepWinnersKeyedRecordsOneSamplePerPhase(t *testing.T) {
 	}
 }
 
+// TestResweepWinnersKeyedRecordsScannedCopies pins #11308: a keyed tick
+// records how many pre-filter copies the identifier probe scanned, beside the
+// kept rows, so the tick log alone attributes cost-per-copy against
+// kept-rows-per-identifier.
+func TestResweepWinnersKeyedRecordsScannedCopies(t *testing.T) {
+	t.Parallel()
+
+	tx := &phaseFakeTx{claimed: true, consumed: 3, identifier: 3, stored: 100, scanned: 187}
+	store, _ := newPhaseStore(t, tx)
+	res, err := store.ResweepWinnersKeyed(context.Background())
+	if err != nil {
+		t.Fatalf("ResweepWinnersKeyed() error = %v", err)
+	}
+	if res.ChunkScannedCopies != 187 {
+		t.Errorf("ChunkScannedCopies = %d, want 187 pre-filter copies the probe scanned", res.ChunkScannedCopies)
+	}
+	if res.ChunkKeptRows != 1 {
+		t.Errorf("ChunkKeptRows = %d, want 1: recording the scan must not change the kept count", res.ChunkKeptRows)
+	}
+}
+
+// TestWinnersScannedCopiesProbeMatchesActiveFactsProbe pins that the
+// pre-filter scan count probes the same copies as the keyed active-facts
+// build (#11308): the five index equalities plus the finding-kind and
+// tombstone filters must read byte-identical in both statements, so a later
+// edit to the probe cannot silently split what the tick builds from what it
+// attributes.
+func TestWinnersScannedCopiesProbeMatchesActiveFactsProbe(t *testing.T) {
+	t.Parallel()
+
+	for _, frag := range []string{
+		"(f.payload->>'package_id') = ident.package_id",
+		"(f.payload->>'repository_id') = ident.repository_id",
+		"(f.payload->>'subject_digest') = ident.subject_digest",
+		"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
+		"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
+		"f.fact_kind = 'reducer_supply_chain_impact_finding'",
+		"f.is_tombstone = FALSE",
+	} {
+		if !strings.Contains(buildWinnersKeyedActiveFactsSQL, frag) {
+			t.Errorf("active-facts build lost the probe fragment %q", frag)
+		}
+		if !strings.Contains(countWinnersKeyedScannedCopiesSQL, frag) {
+			t.Errorf("scanned-copies count lost the probe fragment %q", frag)
+		}
+	}
+}
+
 // TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase pins that a statement
 // that fails still leaves its phase sample, with the time it spent, and that
 // no later phase records anything. A tick that dies in the apply is the slow
@@ -333,6 +385,7 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 		{"consume", admitWinnersKeyedWindowSQL, "consume", []string{"claim", "collapse", "consume"}, false, false},
 		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "collapse", "consume", "build_idents"}, false, false},
 		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},
+		{"scanned copies count", countWinnersKeyedScannedCopiesSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},
 		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts", "apply"}, false, false},
 		{"stamp", stampWinnersWatermarkSQL, "stamp", []string{"claim", "collapse", "consume", "stamp"}, true, false},
 		{"full_rebuild", rebuildSupplyChainImpactWinnersSQL, "full_rebuild", []string{"claim", "collapse", "consume", "build_idents", "full_rebuild"}, false, true},

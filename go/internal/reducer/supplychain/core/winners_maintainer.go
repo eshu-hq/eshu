@@ -113,10 +113,12 @@ type SupplyChainImpactWinnersResweep struct {
 	// rows still queued. A bounded tick commits the chunk it recomputed and
 	// stamps the horizon over the rows it leaves queued (#10706), so the
 	// gauge still advances on it. Remaining is the dirty-log depth the tick
-	// left; ChunkIdentifiers the post-expansion identifiers this tick probed
-	// and ChunkKeptRows the kept facts the probe built for them. All four
-	// are zero on the full path, except Remaining, which a full resweep sets
-	// to the marks that committed after its drain (#11117).
+	// left; ChunkIdentifiers the post-expansion identifiers this tick probed,
+	// ChunkKeptRows the kept facts the probe built for them, and
+	// ChunkScannedCopies the pre-filter copies the probe scanned before the
+	// active-generation filter discarded the retired and superseded ones
+	// (#11308). All five are zero on the full path, except Remaining, which
+	// a full resweep sets to the marks that committed after its drain (#11117).
 	// RemainingUpperBound is true when Remaining is an upper bound: its
 	// staging part passed the exact-count cap and is the visible seq span
 	// (#11129). Bounded and the stamp never depend on it.
@@ -125,6 +127,7 @@ type SupplyChainImpactWinnersResweep struct {
 	RemainingUpperBound bool
 	ChunkIdentifiers    int64
 	ChunkKeptRows       int64
+	ChunkScannedCopies  int64
 	// ScopeRemainderConverted is the dirty-log fact rows a keyed tick wrote
 	// when it converted the unapplied remainder of a partly applied scope
 	// row (#11145). Each keeps the scope row's capture time, so the
@@ -430,6 +433,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		attribute.Bool("remaining_upper_bound", r.RemainingUpperBound),
 		attribute.Int64("chunk_identifiers", r.ChunkIdentifiers),
 		attribute.Int64("chunk_kept_rows", r.ChunkKeptRows),
+		attribute.Int64("chunk_scanned_copies", r.ChunkScannedCopies),
 	)
 	// watermarkAge is -1 when the table had never been swept: there was no
 	// watermark to age.
@@ -478,6 +482,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		slog.Bool("remaining_upper_bound", r.RemainingUpperBound),
 		slog.Int64("chunk_identifiers", r.ChunkIdentifiers),
 		slog.Int64("chunk_kept_rows", r.ChunkKeptRows),
+		slog.Int64("chunk_scanned_copies", r.ChunkScannedCopies),
 		slog.Int64("remainder_rows_converted", r.ScopeRemainderConverted),
 	)
 }

@@ -80,8 +80,31 @@ queued, stamps the horizon over them, and counts
 `eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, so a backlog drains
 as short spaced ticks, never one long transaction, and the watermark advances on
 every tick. The span and the commit log
-line carry `bounded`, `remaining`, `remaining_upper_bound`, `chunk_identifiers`
-and `chunk_kept_rows` for the chunk the tick probed and kept. No staging
+line carry `bounded`, `remaining`, `remaining_upper_bound`, `chunk_identifiers`,
+`chunk_kept_rows`, and `chunk_scanned_copies` for the chunk the tick probed,
+kept, and scanned pre-filter (#11308): `chunk_scanned_copies` counts every
+finding the five-tuple probe matched before the active-generation join
+discarded the retired and superseded ones, so the tick log alone attributes a
+tick's build cost to cost-per-copy (`build_active_facts` seconds per scanned
+copy, when scanned is greater than zero) against kept-rows-per-identifier.
+
+No-Regression Evidence: the scanned-copies probe was measured read-only on
+the QA replica (PostgreSQL 18.6, 86,765 canonical winners) with 30
+identifiers sampled in canonical-key order. `EXPLAIN (ANALYZE, BUFFERS)`
+shows an Index Scan on `fact_records_supply_chain_impact_winners_keyed_idx`
+with no sequential scan: 314 copies in 93.9 ms total (about 3.1 ms per
+identifier, 277 shared hits plus 195 reads). The statement text matches the
+shipped probe's five equalities; a VALUES list stood in for the tick's temp
+idents table, which only feeds those same equalities. At 3 ms per identifier
+against a 17.1 s p95 build on 200 identifiers, the extra COUNT is noise, and
+the kept-row contract is unchanged (the phase test pins kept rows while the
+count varies). The replica read ran during primary migration load, so the
+timing is conservative.
+
+Observability Evidence: `chunk_scanned_copies` rides the existing resweep
+span attribute and tick log line beside `chunk_kept_rows`; the
+`build_active_facts` phase histogram covers the added read with no new
+metric or stage. No staging
 statement in a tick reads more of the staging queue than one collapse budget
 (#11129): the collapse reads its bound from at most 50,001 seq-index entries
 and folds only the seq range it saw, and the residual read counts the queue

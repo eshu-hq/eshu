@@ -332,6 +332,34 @@ const analyzeWinnersKeyedActiveFactsSQL = `ANALYZE ` + winnersKeyedActiveFactsTa
 const countWinnersKeyedActiveFactsSQL = `
 SELECT count(*) FROM ` + winnersKeyedActiveFactsTable
 
+// countWinnersKeyedScannedCopiesSQL counts the pre-filter copies the
+// identifier probe scans: every finding the five-tuple probe matches, before
+// the active-generation join discards the retired and superseded ones
+// (#11308). It mirrors the ident_facts probe of
+// buildWinnersKeyedActiveFactsSQL without the scope join, and stays narrow
+// (SELECT 1) so it avoids materializing wide rows: it is index-only-scan
+// eligible and detoasts only on heap visits. The build already paid the
+// TOAST reads, and this count only revisits the index and heap tuples. It runs
+// after the build in the same transaction; a fact committed between the two
+// statements shifts the count by those rows, a same-tick approximation that
+// washes out over ticks. It is deliberately not part of the contract pin:
+// it reads nothing the resweep writes.
+const countWinnersKeyedScannedCopiesSQL = `
+SELECT count(*) FROM ` + winnersKeyedIdentsTable + ` AS ident
+CROSS JOIN LATERAL (
+    SELECT 1
+    FROM fact_records AS f
+    WHERE (f.payload->>'package_id') = ident.package_id
+      AND (f.payload->>'repository_id') = ident.repository_id
+      AND (f.payload->>'subject_digest') = ident.subject_digest
+      AND COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0
+      AND COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id
+      AND f.fact_kind = 'reducer_supply_chain_impact_finding'
+      AND f.is_tombstone = FALSE
+    OFFSET 0
+) AS fact
+`
+
 // winnersKeyedSelectSQL is the shipped winner select body over the keyed
 // active_facts temp table. The body is byte-identical to the full path's.
 var winnersKeyedSelectSQL = `WITH active_facts AS (SELECT * FROM ` + winnersKeyedActiveFactsTable + `)` +
