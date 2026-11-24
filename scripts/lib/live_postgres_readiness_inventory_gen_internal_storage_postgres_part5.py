@@ -12,6 +12,9 @@ TABLE = {
         ),
         "go/internal/storage/postgres/supply_chain_impact_authorized_loader_engaged_live_test.go": (
             "TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive",
+            "TestAuthorizedLoaderEngagedKeepsAGoReachabilityWarningStaticLive",
+            "TestAuthorizedLoaderEngagedRefusesAnImageAnalyzerWarningWithoutReceiptLive",
+            "TestAuthorizedHandleEngagedLoadsAGoReachabilityWarningThroughTheGoStageLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_cve_chunks_live_test.go": (
             "TestSupplyChainImpactCVEChunksMatchTheWholeStatementLive",

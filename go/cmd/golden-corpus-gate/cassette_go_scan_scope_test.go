@@ -102,8 +102,51 @@ func TestGoScanScopeGuardFlagsASeededViolation(t *testing.T) {
 	}
 }
 
+// cassetteGuardProblems returns what is wrong with one JSON file under
+// testdata/cassettes: it does not decode, holds no scopes, or records a Go scan
+// fact outside a go-reachability scope. A file the guard cannot read is a
+// problem, never a silent pass.
+func cassetteGuardProblems(raw []byte) []string {
+	var doc goScanScopeDoc
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return []string{"not a cassette document: " + err.Error()}
+	}
+	if len(doc.Scopes) == 0 {
+		return []string{"cassette has no scopes, so the guard checked nothing in it"}
+	}
+	var problems []string
+	for _, violation := range goScanScopeViolations(doc) {
+		problems = append(problems, "Go scan fact outside a go-reachability scope: "+violation)
+	}
+	return problems
+}
+
+// TestCassetteGuardReportsAFileItCannotRead proves an undecodable file and a
+// file with no scopes are problems, not silent passes.
+func TestCassetteGuardReportsAFileItCannotRead(t *testing.T) {
+	t.Parallel()
+
+	if got := cassetteGuardProblems([]byte(`{not json`)); len(got) != 1 {
+		t.Fatalf("problems for malformed JSON = %v, want 1", got)
+	}
+	if got := cassetteGuardProblems([]byte(`{"scopes":[]}`)); len(got) != 1 {
+		t.Fatalf("problems for a document with no scopes = %v, want 1", got)
+	}
+	if got := cassetteGuardProblems([]byte(`{"scopes":[{"scope_id":"go-reachability://repository:r_ea78e8bb","facts":[]}]}`)); len(got) != 0 {
+		t.Fatalf("problems for a clean cassette = %v, want none", got)
+	}
+}
+
+// nonCassetteSuffixes names the only JSON files under testdata/cassettes that
+// are not cassette documents: the replay cost budgets that sit beside the
+// replayoffline cassettes. They are skipped by this explicit list, never by a
+// decode failure.
+var nonCassetteSuffixes = []string{".cost-budget.json"}
+
 // TestCassettesHoldGoScanFactsInGoReachabilityScopes walks every committed
-// cassette and fails on a Go scan fact outside a go-reachability scope.
+// cassette and fails on a Go scan fact outside a go-reachability scope. A .json
+// file that does not decode, or holds no scopes, fails too: nothing under
+// testdata/cassettes is skipped by silence.
 func TestCassettesHoldGoScanFactsInGoReachabilityScopes(t *testing.T) {
 	t.Parallel()
 
@@ -113,17 +156,21 @@ func TestCassettesHoldGoScanFactsInGoReachabilityScopes(t *testing.T) {
 		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".json") {
 			return err
 		}
+		for _, suffix := range nonCassetteSuffixes {
+			if strings.HasSuffix(path, suffix) {
+				return nil
+			}
+		}
 		raw, readErr := os.ReadFile(path)
 		if readErr != nil {
 			return readErr
 		}
-		var doc goScanScopeDoc
-		if json.Unmarshal(raw, &doc) != nil || len(doc.Scopes) == 0 {
-			return nil
+		problems := cassetteGuardProblems(raw)
+		if len(problems) == 0 {
+			checked++
 		}
-		checked++
-		for _, violation := range goScanScopeViolations(doc) {
-			t.Errorf("%s: Go scan fact outside a go-reachability scope: %s", path, violation)
+		for _, problem := range problems {
+			t.Errorf("%s: %s", path, problem)
 		}
 		return nil
 	})

@@ -337,3 +337,101 @@ func TestAuthorizedLoaderEngagedRefusesAnImageAnalyzerWarningWithoutReceiptLive(
 		t.Fatalf("complete=%v reason=%q, want an incomplete load with policy_unavailable for a receipt-less image-analyzer warning", loaded.Complete, loaded.CoverageReason)
 	}
 }
+
+// seedActiveScope inserts one scope with an active generation.
+func seedActiveScope(t *testing.T, ctx context.Context, admin *sql.DB, scopeID, generationID, scopeKind, system string) {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Second)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
+		partition_key, observed_at, ingested_at, status, payload)
+		VALUES ($1,$2,$3,$1,$3,$1,$4,$4,'active','{}'::jsonb)`, scopeID, scopeKind, system, now)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at,
+		status, activated_at, payload) VALUES ($1,$2,'synthetic',$3,$3,'active',$3,'{}'::jsonb)`, generationID, scopeID, now)
+	mustExecProofRow(t, ctx, admin, `UPDATE ingestion_scopes SET active_generation_id=$1 WHERE scope_id=$2`, generationID, scopeID)
+}
+
+// seedActiveFact inserts one live fact into an active scope generation.
+func seedActiveFact(t *testing.T, ctx context.Context, admin *sql.DB, scopeID, generationID, factID, kind, payload string) {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Second)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+		source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload, fencing_token)
+		VALUES ($1,$2,$3,$4,$1,'synthetic',$1,$5,$5,FALSE,$6::jsonb,0)`, factID, scopeID, generationID, kind, now, payload)
+}
+
+// captureOnlyImpactWriter records the write the handler hands it. The test
+// needs the handler's verdict, not the protected publication machinery.
+type captureOnlyImpactWriter struct {
+	write supplychaincore.SupplyChainImpactWrite
+	calls int
+}
+
+func (w *captureOnlyImpactWriter) WriteSupplyChainImpactFindings(
+	_ context.Context, write supplychaincore.SupplyChainImpactWrite,
+) (supplychaincore.SupplyChainImpactWriteResult, error) {
+	w.calls++
+	w.write = write
+	return supplychaincore.SupplyChainImpactWriteResult{}, nil
+}
+
+// TestAuthorizedHandleEngagedLoadsAGoReachabilityWarningThroughTheGoStageLive
+// runs the real handler over an ENGAGED store: the real authorized loader, the
+// real static snapshot reads (protectedImpactStaticFactSQL), and the real
+// cross-scope Go stage reading a go-reachability://repository:r_ea78e8bb scope
+// that holds module evidence and an unfinished-scan warning. The pass must
+// complete and the Go stage must return both Go facts. Expected on main before
+// the screen change (#10030): Handle returns the authorized impact coverage
+// incomplete error, because the warning trips policy_unavailable.
+//
+// The finding verdict (analysis_failed) is not asserted here: an engaged store
+// builds findings only from registered public advisory authority (registrations,
+// an active approved generation, a published receipt pinned to the role policy
+// and database identity, and per-fact payload hashes), which this proof does not
+// seed. The verdict for the same facts is pinned hermetically in
+// TestGoScanFactsFromTheGoReachabilityScopeJoinThroughTheGoStage.
+func TestAuthorizedHandleEngagedLoadsAGoReachabilityWarningThroughTheGoStageLive(t *testing.T) {
+	ctx, admin := engagedLoaderProof(t)
+	const (
+		orders      = "vulnerability_intelligence:orders-api:go-alias"
+		ordersGen   = "go-warning-handle-gen"
+		goScope     = "go-reachability://repository:r_ea78e8bb"
+		goGen       = "go-warning-handle-go-gen"
+		repository  = "repository:r_ea78e8bb"
+		modulePath  = "github.com/acme/legacy-lib"
+		relativeMod = "legacy/go.mod"
+	)
+	seedActiveScope(t, ctx, admin, orders, ordersGen, "vulnerability_intelligence", "synthetic")
+	seedActiveFact(t, ctx, admin, orders, ordersGen, "orders-consumption", "reducer_package_consumption_correlation",
+		`{"package_id":"gomod://proxy.golang.org/`+modulePath+`","relationship_kind":"consumption","repository_id":"`+repository+`",
+		  "dependency_range":"v0.1.0","canonical_writes":1,"evidence_fact_ids":["manifest-lock-1"]}`)
+	seedActiveScope(t, ctx, admin, goScope, goGen, "scanner_worker", "scanner_worker")
+	seedActiveFact(t, ctx, admin, goScope, goGen, "go-module-evidence", "vulnerability.go_module_evidence",
+		`{"repository_id":"`+repository+`","module_path":"`+modulePath+`","relative_path":"`+relativeMod+`","required_version":"v0.1.0",
+		  "root_go_version":"1.99","root_module_path":"github.com/acme/orders-legacy","source":"go_module_manifest","indirect":false,"line_number":5}`)
+	seedActiveFact(t, ctx, admin, goScope, goGen, "go-toolchain-warning", "scanner_worker.warning",
+		`{"analyzer":"go_reachability","analysis_status":"not_scanned","coverage_status":"unsupported","reason":"toolchain_unsupported",
+		  "repository_id":"`+repository+`","relative_path":"`+relativeMod+`","target_kind":"repository","warning_class":"scanner_worker_warning"}`)
+
+	writer := &captureOnlyImpactWriter{}
+	handler := supplychaincore.SupplyChainImpactHandler{
+		FencingTokenIssuer:              PostgresSupplyChainImpactFencingTokenIssuer{DB: SQLDB{DB: admin}},
+		FactLoader:                      NewFactStore(SQLDB{DB: admin}),
+		AuthorizedEvidenceLoader:        NewAuthorizedSupplyChainImpactEvidenceLoader(SQLDB{DB: admin}),
+		RequireAuthorizedEvidenceLoader: true,
+		Writer:                          writer,
+	}
+	result, err := handler.Handle(ctx, reducercontract.Intent{
+		IntentID: "intent:go-warning-engaged", ScopeID: orders, GenerationID: ordersGen,
+		SourceSystem: "vulnerability_intelligence", Domain: reducercontract.DomainSupplyChainImpact,
+		Cause: "synthetic #10030 engaged Go warning proof",
+	})
+	if err != nil {
+		t.Fatalf("Handle() over an engaged store: %v (a go_reachability warning from a go-reachability scope must not fail the pass closed)", err)
+	}
+	if got := result.SubSignals["go_reachability_facts"]; got != 2 {
+		t.Fatalf("go_reachability_facts = %v, want 2 (module evidence and the warning from the go-reachability scope)", got)
+	}
+	if writer.calls != 1 {
+		t.Fatalf("writer calls = %d, want the pass to reach its write", writer.calls)
+	}
+}

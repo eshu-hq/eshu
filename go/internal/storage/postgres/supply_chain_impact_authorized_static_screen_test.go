@@ -25,6 +25,10 @@ func TestStaticEnvelopeNeedsScanReceiptKeepsGoEvidenceStatic(t *testing.T) {
 			Payload:  map[string]any{"analyzer": analyzer, "repository_id": "repository:r_ea78e8bb"},
 		}
 	}
+	tombstoned := func(envelope facts.Envelope) facts.Envelope {
+		envelope.IsTombstone = true
+		return envelope
+	}
 	cases := []struct {
 		name     string
 		envelope facts.Envelope
@@ -35,6 +39,12 @@ func TestStaticEnvelopeNeedsScanReceiptKeepsGoEvidenceStatic(t *testing.T) {
 		{"go_reachability warning in an image scope", warning("scanner-worker://repository/repo-123", "go_reachability"), true},
 		{"image analyzer warning in a go-reachability scope", warning("go-reachability://repository:r_ea78e8bb", "trivy"), true},
 		{"image analyzer warning in its scan scope", warning("scanner-worker://repository/repo-123", "trivy"), true},
+		{"go_reachability warning with an empty analyzer", warning("go-reachability://repository:r_ea78e8bb", ""), true},
+		{"go_reachability warning with a padded analyzer", warning("go-reachability://repository:r_ea78e8bb", " go_reachability"), true},
+		{"go_reachability warning with an upper-case analyzer", warning("go-reachability://repository:r_ea78e8bb", "GO_REACHABILITY"), true},
+		{"go_reachability warning with no payload", facts.Envelope{FactID: "no-payload", ScopeID: "go-reachability://repository:r_ea78e8bb", FactKind: facts.ScannerWorkerWarningFactKind}, true},
+		{"go_reachability warning in a scope with a path suffix", warning("go-reachability://repository:r_ea78e8bb/x", "go_reachability"), true},
+		{"tombstoned go_reachability warning", tombstoned(warning("go-reachability://repository:r_ea78e8bb", "go_reachability")), true},
 		{"scanner analysis fact", facts.Envelope{FactKind: facts.ScannerWorkerAnalysisFactKind, ScopeID: "go-reachability://repository:r_ea78e8bb"}, true},
 		{"os package fact", facts.Envelope{FactKind: "vulnerability.os_package"}, true},
 		{"go module evidence is not target-only", facts.Envelope{FactKind: "vulnerability.go_module_evidence", ScopeID: "go-reachability://repository:r_ea78e8bb"}, false},
