@@ -185,44 +185,15 @@ const (
 	explainKeyPackage    explainDrivingKey = "package"
 )
 
-// supportsExplainKeyFences is the key-first source of an ungranted selector
-// explain (#10880 PR-C1 f, arbiter ruling 2026-11-24): the supports that match the
-// route's own key, read through that key's partial btree into a MATERIALIZED fetch,
-// the fence the image route uses so the planner cannot flatten the read into a
-// join driven from the active scopes. The not-empty literal repeats each partial
-// index's predicate so a generic plan can still prove the index applies. The
-// advisory-or-CVE argument ($3) is two index arms, the second excluding the rows the
-// first covers. Every other selector, the grant, the identity predicate and the
-// active-scope join apply to these candidates afterwards.
-var supportsExplainKeyFences = map[explainDrivingKey]string{
-	explainKeyCVE: `key_supports AS MATERIALIZED (
-  SELECT * FROM supply_chain_impact_finding_supports
-  WHERE cve_id = $4 AND cve_id <> ''
-)`,
-	explainKeyAdvisory: `key_supports AS MATERIALIZED (
-  SELECT * FROM supply_chain_impact_finding_supports
-  WHERE advisory_id = $3 AND advisory_id <> ''
-  UNION ALL
-  SELECT * FROM supply_chain_impact_finding_supports
-  WHERE cve_id = $3 AND cve_id <> '' AND advisory_id <> $3
-)`,
-	explainKeyRepository: `key_supports AS MATERIALIZED (
-  SELECT * FROM supply_chain_impact_finding_supports
-  WHERE repository_id = $6 AND repository_id <> ''
-)`,
-	explainKeyPackage: `key_supports AS MATERIALIZED (
-  SELECT * FROM supply_chain_impact_finding_supports
-  WHERE package_id = $5 AND package_id <> ''
-)`,
-}
-
-// ExplainFindingUngrantedByKeyQuery is the ungranted selector or identity explain
-// driven from key: same builder, same predicates, with the key-first fence as the
-// source. A key without an entry has no index to drive from.
+// ExplainFindingUngrantedByKeyQuery is the ungranted selector or identity explain driven from
+// key and decided before any winner is computed (see explain_decide_first.go): the key's own
+// partial btree feeds a narrow MATERIALIZED fetch, canonical keys qualify through an EXISTS over
+// their authorized copies, and the winner and its payload are computed only for the (at most two)
+// qualified keys. A key without an entry has no index to drive from.
 var ExplainFindingUngrantedByKeyQuery = func() map[explainDrivingKey]string {
-	queries := make(map[explainDrivingKey]string, len(supportsExplainKeyFences))
-	for key, fence := range supportsExplainKeyFences {
-		queries[key] = mustBuildExplainFromSupportsQuery("key_supports", fence, "", supportsExplainIdentityPredicate)
+	queries := make(map[explainDrivingKey]string, len(explainKeyLegs))
+	for key := range explainKeyLegs {
+		queries[key] = mustBuildExplainDecideFirstQuery(key)
 	}
 	return queries
 }()

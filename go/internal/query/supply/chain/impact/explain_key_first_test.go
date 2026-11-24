@@ -193,36 +193,69 @@ func TestPlanShapeCheckerRejectsSeqScanAndFilterOnlyKey(t *testing.T) {
 
 func TestUngrantedExplainStatementsDriveFromTheirKey(t *testing.T) {
 	t.Parallel()
-	want := map[explainDrivingKey][]string{
-		explainKeyCVE:        {"WHERE cve_id = $4 AND cve_id <> ''"},
-		explainKeyAdvisory:   {"WHERE advisory_id = $3 AND advisory_id <> ''", "WHERE cve_id = $3 AND cve_id <> '' AND advisory_id <> $3"},
-		explainKeyRepository: {"WHERE repository_id = $6 AND repository_id <> ''"},
-		explainKeyPackage:    {"WHERE package_id = $5 AND package_id <> ''"},
+	if len(ExplainFindingUngrantedByKeyQuery) != len(explainKeyLegs) || len(explainKeyLegs) != 4 {
+		t.Fatalf("%d decide-first statements for %d key legs, want one per indexed selector (4)", len(ExplainFindingUngrantedByKeyQuery), len(explainKeyLegs))
 	}
-	if len(ExplainFindingUngrantedByKeyQuery) != len(want) {
-		t.Fatalf("%d key-first statements, want %d (one per indexed selector)", len(ExplainFindingUngrantedByKeyQuery), len(want))
-	}
-	for key, legs := range want {
+	for key, arms := range explainKeyLegs {
 		query := ExplainFindingUngrantedByKeyQuery[key]
-		if !strings.Contains(query, "key_supports AS MATERIALIZED (") {
-			t.Fatalf("%s: the key leg is not a MATERIALIZED fence:\n%s", key, query)
+		fenceStart := strings.Index(query, "key_supports AS MATERIALIZED (")
+		fenceEnd := strings.Index(query, "identity_keys AS (")
+		if fenceStart < 0 || fenceEnd < fenceStart {
+			t.Fatalf("%s: the key leg is not a MATERIALIZED fence before the identity keys:\n%s", key, query)
 		}
-		for _, leg := range legs {
-			if !strings.Contains(query, leg) {
-				t.Fatalf("%s: missing index leg %q", key, leg)
+		fence := query[fenceStart:fenceEnd]
+		for _, arm := range arms {
+			if !strings.Contains(fence, "AND "+arm+"\n") {
+				t.Fatalf("%s: missing index leg %q in the fence", key, arm)
 			}
 		}
-		if !strings.Contains(query, "FROM key_supports AS fact") {
-			t.Fatalf("%s: the candidates do not read the key fence", key)
+		if got := strings.Count(fence, "FROM supply_chain_impact_finding_supports AS fact"); got != len(arms) {
+			t.Fatalf("%s: the fence reads supports %d times, want one per leg (%d)", key, got, len(arms))
 		}
-		// Supports are read only inside the fence (key legs) and by the operator-override probe.
-		if strings.Count(query, "FROM supply_chain_impact_finding_supports AS fact") != 0 {
-			t.Fatalf("%s: an unfenced supports source remains", key)
+		// Stage 1 is narrow: no payload and no source confidence cross the fence.
+		if strings.Contains(fence, "fact.payload") || strings.Contains(fence, "source_confidence") {
+			t.Fatalf("%s: the key fence carries the payload: it must stay a narrow tuple", key)
 		}
-		// The selector, grant, identity and active-scope predicates stay on the candidates.
-		for _, kept := range []string{"fact.subject_digest = $7", "JOIN ingestion_scopes AS scope", "generation.status = 'active'"} {
+		// Decide first, streaming: the first hit and the second hit are LIMIT 1 reads of the
+		// lazy fence, the second one compares the canonical key before its authority probe,
+		// and nothing between the fence and the second hit blocks (no sort, aggregate or
+		// distinct), so the scan can stop at two canonical keys.
+		for _, want := range []string{
+			"first_hit AS MATERIALIZED (",
+			"second_hit AS MATERIALIZED (",
+			"WHERE fact.canonical_key <> (SELECT first_key.canonical_key FROM first_hit AS first_key)",
+			"WHERE NOT EXISTS (SELECT 1 FROM second_hit)",
+			"ranked_copies AS MATERIALIZED (",
+			"best_copy AS MATERIALIZED (",
+			"ORDER BY fact.priority_score DESC, fact.has_payload_finding_id DESC, fact.fact_id ASC",
+		} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("%s: the statement lost %q", key, want)
+			}
+		}
+		streamStart := strings.Index(query, "key_supports AS MATERIALIZED (")
+		streamEnd := strings.Index(query, "ambiguous_rows AS (")
+		stream := query[streamStart:streamEnd]
+		for _, blocking := range []string{"ORDER BY", "GROUP BY", "DISTINCT", "array_agg", "count(", "unnest("} {
+			if strings.Contains(stream, blocking) {
+				t.Fatalf("%s: %q between the fence and the second hit blocks the early exit", key, blocking)
+			}
+		}
+		if got := strings.Count(query, "LIMIT 1\n  ) AS authority"); got != 4 {
+			t.Fatalf("%s: %d LIMITed authority probes, want 4 (identity keys, first hit, second hit, best ranked copy)", key, got)
+		}
+		// The probe runs after the cheap compare: it is a lateral subquery, never a plain join the
+		// planner could order from a row estimate, and the fence itself applies none.
+		if strings.Contains(fence, "ingestion_scopes") || strings.Contains(fence, "scanner_image_result_fact") {
+			t.Fatalf("%s: the key fence applies the per-candidate authority probes", key)
+		}
+		if strings.Contains(query, "JOIN ingestion_scopes AS scope\n    ON scope.scope_id = fact.scope_id") {
+			t.Fatalf("%s: a plain join of the active scopes is back: the probe must stay a LIMITed lateral", key)
+		}
+		// The selector, grant and identity predicates the legacy statement applies stay.
+		for _, kept := range []string{"fact.subject_digest = $7", "generation.status = 'active'", "finding_association.finding_fact_id IS NULL", "fact.finding_id = $2", "fact.scope_id NOT LIKE 'image://derived/%'"} {
 			if !strings.Contains(query, kept) {
-				t.Fatalf("%s: lost %q on the candidates", key, kept)
+				t.Fatalf("%s: lost %q", key, kept)
 			}
 		}
 	}

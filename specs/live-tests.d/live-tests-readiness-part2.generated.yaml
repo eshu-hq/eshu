@@ -44,6 +44,11 @@ tests:
     class: postgres_ci
     reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the literal repository_id <> '' on every supports read driven by a repository: a finding with a blank repository id is seeded, and for grants that name a blank repository id (alone, beside a real repository, beside a scope) the granted list, count, grouped inventory and explain on supports equal the legacy read, which matches no blank-repository finding through the repository grant; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/explain_decide_first_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-C1 f disposable PostgreSQL 18 proof that the decide-first ungranted selector explain answers exactly what the legacy explain answers: zero, one and several canonical keys, a key whose only copies are unauthorized, a key whose best-ranked copy is unauthorized, a scanner-associated copy, a derived-image scope, an operator-suppressed finding and a retracted scanner classification; and that statements with the authority probe or the identity predicate removed diverge on the same corpus"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/explain_supports_live_test.go
     tag: ~
     class: postgres_ci
