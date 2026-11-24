@@ -120,6 +120,11 @@ const (
 	// SupplyChainImpactSupportsReaderGoModulesFence is the Go-modules fence's
 	// holder read.
 	SupplyChainImpactSupportsReaderGoModulesFence = "go_modules_fence"
+	// SupplyChainImpactSupportsReaderFactWriteStop is the writer's entry check that the
+	// finding-fact reject trigger is enabled (#10880 PR-C2 k): a pass defers, non-counting,
+	// while it is not, because a supports-only write must never run before the stop it
+	// replaces the fact write with exists.
+	SupplyChainImpactSupportsReaderFactWriteStop = "fact_write_stop"
 )
 
 // Outcomes of a reducer read of the per-support table. They are the closed set
@@ -277,6 +282,12 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsBackfillStepDuration histogram: %w", err)
 	}
+	if inst.SupplyChainImpactFactWriteStopArmed, err = meter.Int64Gauge(
+		"eshu_dp_supply_chain_impact_fact_write_stop_armed",
+		metric.WithDescription("1 while the finding-fact reject trigger on fact_records is enabled, 0 while it is disabled or missing, as the reducer last read it from pg_trigger. The supports-only impact writer defers non-counting while it reads 0: a 0 after the roll means the trigger was disabled (the rollback switch) or never applied."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactFactWriteStopArmed gauge: %w", err)
+	}
 	if inst.SupplyChainImpactSupportsDirtyScopes, err = meter.Int64Gauge(
 		"eshu_dp_supply_chain_impact_supports_dirty_scopes",
 		metric.WithDescription("Scopes the old-writer fence marked dirty and the backfill has not drained yet, capped at 1000. Non-zero holds the table not ready; a count that never falls means writers without the maintainer are still running."),
@@ -417,6 +428,20 @@ func (i *Instruments) RecordSupplyChainImpactSupportsBackfillStepResult(ctx cont
 	if i.SupplyChainImpactSupportsBackfillLastSuccess != nil {
 		i.SupplyChainImpactSupportsBackfillLastSuccess.Record(ctx, time.Now().Unix())
 	}
+}
+
+// RecordSupplyChainImpactFactWriteStopArmed sets eshu_dp_supply_chain_impact_fact_write_stop_armed
+// to 1 when the finding-fact reject trigger reads enabled and 0 otherwise. It is safe on a nil
+// receiver and on an Instruments that did not register the gauge.
+func (i *Instruments) RecordSupplyChainImpactFactWriteStopArmed(ctx context.Context, armed bool) {
+	if i == nil || i.SupplyChainImpactFactWriteStopArmed == nil {
+		return
+	}
+	var value int64
+	if armed {
+		value = 1
+	}
+	i.SupplyChainImpactFactWriteStopArmed.Record(ctx, value)
 }
 
 // RecordSupplyChainImpactSupportsBackfillReady sets the readiness gauge. It is

@@ -22,6 +22,7 @@ reads probe before each call, and how the reducer-side readers used it.
 | `eshu_dp_supply_chain_impact_supports_rows_total` | counter | `action`, `source` | Support rows written. `action` is `inserted`, `updated`, `unchanged` (the write-on-change guard left a replayed finding alone) or `deleted` (the row followed a retracted fact). `source` is `writer` (counted after the writer's transaction commits, so a rollback adds nothing) or `backfill`. The backfill reports one count for supports it inserted or changed, so `source=backfill` counts both under `inserted` and never emits `updated`. A `writer` series with `inserted` and `updated` flat while findings are written is a maintainer that stopped. |
 | `eshu_dp_supply_chain_impact_supports_reads_total` | counter | `source`, `outcome` | Reducer reads of the supports table, one series per reader. `source` is one of `security_alert_reconciliation`, `service_vulnerability_advisory`, `fanout_holders`, `fanout_holders_key_range`, `fanout_holder_mass`, `repository_holders`, `scoped_packages`, `out_of_stamp` or `go_modules_fence`. `outcome` is `served` (the read ran), `not_ready` (the reader refused because the table was not ready) or `failed` (the readiness probe failed, or, for `security_alert_reconciliation` and `service_vulnerability_advisory`, the supports read failed; a probe failure keeps its own classification and never takes the not-ready class; for `go_modules_fence` the predicate runs inside the fence's holder statement, so a holder-statement error, a lock or statement timeout included, also counts `failed`). For the impact fan-out sources (`fanout_holders`, `fanout_holders_key_range`, `fanout_holder_mass`, `repository_holders`) a statement error or timeout after a ready probe records nothing here. For `fanout_holders`, `fanout_holders_key_range` and `fanout_holder_mass` it shows on the fan-out read histogram (`eshu_dp_supply_chain_impact_fanout_read_duration_seconds`, outcome `read_timeout` or `read_error`); for `repository_holders` it shows on `eshu_dp_supply_chain_impact_fanout_total` (site `repository`, outcome `read_timeout` or `read_error`), because that read is not a histogram kind. Both end as the dead-letter class `supply_chain_impact_fanout_failed`. A lookup with an empty id list runs no read and records nothing, and the holder, key-range and mass reads drop blank ids first, so an all-blank mass lookup also records nothing. A rising `not_ready` count means reducer work is waiting on the backfill; it stops when `eshu_dp_supply_chain_impact_supports_backfill_ready` reads 1. |
 | `eshu_dp_supply_chain_impact_stored_key_missing_total` | counter | none | Stored findings the impact writer read with no `stable_fact_key` on the support and none on its fact row. The writer reads its stored baseline from the supports table and links a finding across generations by that key; a row with neither key is treated as a changed finding for that pass. Counted when the writer transaction commits. It should be 0 once the supports written before migration 350 have been rewritten or their facts still exist; a steady non-zero rate means a writer that does not fill the key, or supports whose fact rows are gone. |
+| `eshu_dp_supply_chain_impact_fact_write_stop_armed` | gauge | none | 1 while the finding-fact reject trigger on `fact_records` reads enabled, 0 while it is disabled or missing, as the reducer last read it from `pg_trigger` (at start and every 30 seconds). The supports-only impact writer defers, non-counting, while it reads 0 (counted as `not_ready` under reader `fact_write_stop`). A 0 after the roll means the trigger was disabled (the rollback switch) or never applied. |
 | `eshu_dp_supply_chain_impact_supports_drain_raw_rows` | histogram | `source` | Raw supports rows one drain read (one whole call for the service-catalog reader; every row the ordered key scans returned, active or not, and the rows a failed drain read before it stopped), by reader (`source`, the same closed set as the reads counter). Raw rows far above the active rows mean the key sits mostly in superseded generations. A drain in the hundred thousands is a hot key. |
 | `eshu_dp_supply_chain_impact_supports_drain_duration_seconds` | histogram | `source` | Wall time of one drain of the supports table (one whole call for the service-catalog reader), by reader. A drain near half the domain's handler timeout means a hot key is paging too slowly; the raw-rows histogram above says how large the key was. |
 | `eshu_dp_supply_chain_impact_fact_write_rejected_total` | counter | none | Impact-finding fact writes the PR-C reject trigger refused (SQLSTATE 55000, constraint `fact_records_reject_supply_chain_impact_finding`), one per refused statement. It carries no label. It stays 0 until the trigger exists; after that, a rising count means a reducer pod runs an image older than the schema. The intent retries without spending an attempt (class `supply_chain_impact_fact_write_stopped`). |
@@ -94,6 +95,29 @@ runs an image older than this class still dead-letters the intent, so roll old p
 trigger is armed. A different
 55000, or the trigger's constraint under another code, keeps its ordinary terminal classification.
 Until the trigger exists nothing raises this error and the counter stays at 0.
+
+## The reject trigger and its roll (#10880 PR-C2 k)
+
+Migration 355 installs `BEFORE INSERT OR UPDATE ON fact_records FOR EACH ROW WHEN (NEW.fact_kind =
+'reducer_supply_chain_impact_finding')`, which raises with SQLSTATE 55000, constraint
+`fact_records_reject_supply_chain_impact_finding` and table `fact_records`. It is unconditional (no
+setting bypasses it) and does not cover DELETE, so retention still removes frozen rows with their
+generation. The migration takes the next free number above the C1 migrations. The runner applies any
+migration whose path is missing from its ledger, so the order of numbers never blocks an apply.
+
+`CREATE TRIGGER` takes `SHARE ROW EXCLUSIVE` on `fact_records` for the catalog write only: it waits
+behind open writer transactions, blocks new ones while it is granted and held, and is bounded per attempt
+by the runner's lock timeout. `SELECT` is not blocked. A re-apply takes no lock and keeps a disabled trigger
+disabled (the `pg_trigger` guard). Check `pg_locks` and `pg_stat_progress_vacuum` for a running vacuum on
+`fact_records` before the roll, as for any `SHARE ROW EXCLUSIVE` migration. Migration 338 took the same
+lock for its fence triggers; the duration at the QA scale is not measured in this change.
+
+Roll order: every reducer pod on the PR-C0 image or newer (it classifies the refusal), then the image that
+carries this migration and the supports-only writer, with the migration applied in PreSync before the first
+supports-only write. The writer defers, non-counting, while the trigger reads disabled, so a pod that
+starts before the migration applies waits instead of writing. Rollback: `ALTER TABLE fact_records DISABLE
+TRIGGER fact_records_reject_supply_chain_impact_finding` (the same lock level), only after every reducer
+pod is on the old image; the armed gauge then reads 0 on a new pod and its passes defer.
 
 ## Not-ready refusals
 

@@ -168,3 +168,51 @@ func TestRecordSupplyChainImpactStoredKeyMissing(t *testing.T) {
 		t.Fatalf("stored key missing counter = %d with %d attributes, want 5 with none", total, attributes)
 	}
 }
+
+// TestRecordSupplyChainImpactFactWriteStopArmed pins the armed gauge: 1 while the trigger reads
+// enabled, 0 after it reads disabled, no attributes (so no scope or generation id can reach it), and
+// safe on a nil receiver and an Instruments that did not register it.
+func TestRecordSupplyChainImpactFactWriteStopArmed(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
+	inst := &Instruments{}
+	if err := registerSupplyChainImpactSupportsInstruments(meter, inst); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	ctx := context.Background()
+	var nilInst *Instruments
+	nilInst.RecordSupplyChainImpactFactWriteStopArmed(ctx, true)
+	(&Instruments{}).RecordSupplyChainImpactFactWriteStopArmed(ctx, true)
+
+	read := func() (value int64, attributes int) {
+		var rm metricdata.ResourceMetrics
+		if err := reader.Collect(ctx, &rm); err != nil {
+			t.Fatalf("collect: %v", err)
+		}
+		found := false
+		for _, scope := range rm.ScopeMetrics {
+			for _, m := range scope.Metrics {
+				if m.Name != "eshu_dp_supply_chain_impact_fact_write_stop_armed" {
+					continue
+				}
+				found = true
+				for _, point := range m.Data.(metricdata.Gauge[int64]).DataPoints {
+					value, attributes = point.Value, point.Attributes.Len()
+				}
+			}
+		}
+		if !found {
+			t.Fatal("eshu_dp_supply_chain_impact_fact_write_stop_armed was not recorded")
+		}
+		return value, attributes
+	}
+	inst.RecordSupplyChainImpactFactWriteStopArmed(ctx, true)
+	if value, attributes := read(); value != 1 || attributes != 0 {
+		t.Fatalf("armed gauge = %d with %d attributes, want 1 with none", value, attributes)
+	}
+	inst.RecordSupplyChainImpactFactWriteStopArmed(ctx, false)
+	if value, _ := read(); value != 0 {
+		t.Fatalf("armed gauge = %d after the trigger read disabled, want 0", value)
+	}
+}

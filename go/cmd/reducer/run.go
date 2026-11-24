@@ -159,6 +159,9 @@ func run(parent context.Context) error {
 	waitSupportsBackfill := startSupplyChainImpactSupportsBackfill(ctx, func(runCtx context.Context) error {
 		return runSupplyChainImpactSupportsBackfill(runCtx, db, instruments, logger)
 	}, logger)
+	// The finding-fact write stop's armed check (#10880 PR-C2 k): read the reject trigger at start
+	// and on a 30 s poll, export the armed gauge, and let the impact entry gate defer while it is off.
+	waitFactWriteStop := startFactWriteStopPoll(ctx, factWriteStopWatchFor(postgres.SQLDB{DB: db}, instruments), logger)
 	// The stable-key fill (#10880 PR-C1k) is off unless an operator enables it: it
 	// must not run inside a counted window or before the lab run.
 	stableKeyFillConfig := loadStableKeyFillConfig(os.Getenv)
@@ -187,6 +190,7 @@ func run(parent context.Context) error {
 		waitPackageManifestBackfill()
 		waitStableKeyFill()
 		waitSupportsBackfill()
+		waitFactWriteStop()
 		waitGraphRefresher()
 		waitPostgresRefresher()
 	}()
