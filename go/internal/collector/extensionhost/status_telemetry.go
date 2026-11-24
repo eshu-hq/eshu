@@ -82,7 +82,7 @@ func (t *StatusTelemetry) log(ctx context.Context, record ResultRecord) {
 	if !t.logger.Enabled(ctx, level) {
 		return
 	}
-	attrs := make([]slog.Attr, 0, 14)
+	attrs := make([]slog.Attr, 0, 17)
 	attrs = append(attrs,
 		slog.String(telemetry.LogKeyCollectorKind, record.CollectorKind),
 		slog.String(telemetry.LogKeyFailureClass, record.FailureClass),
@@ -103,6 +103,15 @@ func (t *StatusTelemetry) log(ctx context.Context, record ResultRecord) {
 			slog.Int64(contract.LogKeyExtensionStatusInflatedBytes, figures.InflatedBytes),
 			slog.Int64(contract.LogKeyExtensionStatusBudgetBytes, figures.BudgetBytes),
 			slog.Int64(contract.LogKeyExtensionStatusCompressedBytes, figures.CompressedBytes),
+		)
+	}
+	// The satellite's allowlisted seed figures ride on this one line, so a
+	// served window adds no extra log volume (#11387).
+	if seed := record.Seed; seed != nil {
+		attrs = append(attrs,
+			slog.Int64(contract.LogKeyExtensionStatusSeedReadMS, seed.ReadMS),
+			slog.Int64(contract.LogKeyExtensionStatusSeedBuckets, seed.Buckets),
+			slog.Int64(contract.LogKeyExtensionStatusSeedBytes, seed.Bytes),
 		)
 	}
 	t.logger.LogAttrs(ctx, level, "component extension result", attrs...)

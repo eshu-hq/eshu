@@ -113,6 +113,11 @@ type ResultRecord struct {
 	// printed on stderr for an input_limit_exceeded claim; nil otherwise and
 	// always nil for a host verdict (#9823). Numbers only.
 	InputLimit *InputLimitFigures
+	// Seed is the allowlisted NVD seed figures an SDK result's satellite
+	// printed on stderr for a served window; nil otherwise and always nil
+	// for a host verdict (#11387). Numbers only. It is the operator face of
+	// the Bar1 recorded pair the ruling in eshu-hq/eshu#11386 tracks.
+	Seed *SeedFigures
 }
 
 // Config configures a Source for one component instance.

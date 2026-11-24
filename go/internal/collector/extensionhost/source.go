@@ -132,7 +132,7 @@ func (s *Source) NextClaimed(
 	s.pendingNVD.drop(item)
 	collected, ok, result, origin, err := s.nextClaimed(ctx, item, &relay)
 	collected, ok, origin, err = s.recordClaimOutcome(ctx, item, attemptedAt, collected, ok, result, origin, err)
-	s.recordResult(ctx, item, result, origin, err, relay.inputLimit)
+	s.recordResult(ctx, item, result, origin, err, relay.inputLimit, relay.seed)
 	s.observeNVDWindowClaim(ctx, item, attemptedAt, collected, result, ok, err)
 	return collected, ok, err
 }

@@ -76,3 +76,71 @@ proven by `TestFailedClaimRelaysAllowlistedFiguresFromSatelliteStderr`.
 The `component extension result` log line's `extension_status.inflated_bytes`,
 `extension_status.budget_bytes`, and `extension_status.compressed_bytes` keys,
 next to `failure_class`.
+
+## Seed timing relay (#11387)
+
+A satellite that serves an NVD window prints its seed read on the same
+stderr channel as one JSON line carrying exactly three integer keys,
+`nvd_seed_read_ms`, `nvd_seed_buckets`, and `nvd_seed_bytes`. The host relays
+them onto the same `component extension result` line as
+`extension_status.nvd_seed_read_ms`, `extension_status.nvd_seed_buckets`, and
+`extension_status.nvd_seed_bytes`. The parse reuses every bound above (three
+integer keys, no strings, 4 KiB line cap, 64 KiB scan cap, last complete line
+wins, hostile lines dropped whole), and the gate is the mirror image: only a
+complete FINAL assembled state relays, so a failed, partial, or unchanged
+claim never logs seed figures.
+
+### Decision (why log keys, not a metric or status row)
+
+The issue named three candidate surfaces: host log keys, a metric, or a
+status row. The relay uses host log keys because it is the only surface that
+meets the existing bounds without new machinery: the pinned SDK Result in
+`collector@v0.2.0-rc.4` carries no `Log` field, so a satellite diagnostic
+Log has no host path and stderr is the only production channel; the
+package rule is never to relay a satellite string or add a log line, which a
+metric (new instrument and label review) and a status row (recorder and store
+change) would both reopen. Integers on the existing line preserve the privacy
+bound (the host never holds or logs a satellite string) and add no log volume.
+The `nvd_seed_read_ms` / `nvd_seed_bytes` pair is the Bar1 recorded pair
+tracked by eshu-hq/eshu#11386: those key names and this surface are its
+contract and must stay stable and visible.
+
+## Evidence
+
+No-Regression Evidence: before this change the host parsed no seed record
+on the complete path. The full package suite stays green after it
+(`cd go && go test ./internal/collector/extensionhost/ -count=1`), including
+the pins that the input-limit relay still fires only on non-complete FINAL
+state (`TestFailedClaimRelaysAllowlistedFiguresFromSatelliteStderr`,
+`TestCompleteAndUnchangedClaimsDoNotRelaySatelliteStderr`) and the new
+failing-first seed pins (`TestCompleteClaimRelaysAllowlistedSeedFiguresFromSatelliteStderr`,
+`TestNonCompleteClaimsDoNotRelaySeedFigures`,
+`TestParseSeedFiguresDropsHostileLines`).
+
+Performance Evidence: the seed parse runs once per complete call, next to a
+process or container launch that the same call already paid. Baseline: a
+complete call previously cost one result-state compare and no parse.
+After, measured on Apple M5 Max, darwin/arm64, no backend
+(`cd go && go test ./internal/collector/extensionhost -run '^$' -bench
+'ParseSeedFigures' -benchtime=100000x -count=3`):
+
+| Case | ns/op (3 runs) | B/op | allocs/op |
+| --- | --- | --- | --- |
+| `complete_typical` (one-line seed record) | 526-566 | 72 | 5 |
+| `complete_full_buffer_no_match` (64 KiB of lines the `nvd_seed_read_ms` prefilter skips) | 101916-112160 | 0 | 0 |
+| `complete_full_buffer_bad_json_short_lines` (64 KiB of `{"nvd_seed_read_ms":"x"}` lines, one failed decode each) | 751941-1046241 | about 840000 | 20969 |
+
+The shape matches the #9823 input-limit evidence: a non-matching buffer is
+the cheapest full scan (zero allocs), and the worst case is bounded by the
+same 64 KiB scan limit and 4 KiB line cap. Non-complete calls keep paying
+only the state compare (`attachSeedFigures` returns before any parse), so
+the failure path is byte-identical in cost to before.
+
+Observability Evidence: the three keys land on the existing
+`component extension result` line, proven by
+`TestCompleteClaimRelaysAllowlistedSeedFiguresFromSatelliteStderr` (exact
+integer values on the line, no sentinel content) and pinned in the
+`telemetry.LogKeys()` contract test. No new metric, span, worker, queue
+domain, or log line: the existing
+`eshu_dp_component_extension_results_total` still counts the served claim,
+and the seed pair is read off the result log line.

@@ -48,9 +48,35 @@ type stderrFiguresRecord struct {
 // never share it.
 type claimRelay struct {
 	inputLimit *InputLimitFigures
+	seed       *SeedFigures
+}
+
+// SeedFigures are the NVD seed timing a satellite prints on its stderr record
+// when it serves a window (eshu-hq/eshu#11387). They are numbers only: the
+// host relays an allowlist of three int64 keys and never a satellite string,
+// a raw line, or any other key. They are the operator face of the Bar1
+// recorded pair the ruling in eshu-hq/eshu#11386 tracks.
+type SeedFigures struct {
+	// ReadMS is the wall-clock milliseconds spent reading the seed.
+	ReadMS int64
+	// Buckets is the number of seed buckets read.
+	Buckets int64
+	// Bytes is the seed bytes read.
+	Bytes int64
+}
+
+// stderrSeedRecord is the allowlist. encoding/json drops every key not named
+// here, and a value that is not a JSON integer fitting int64 fails the whole
+// line, so the host holds no string from the satellite.
+type stderrSeedRecord struct {
+	ReadMS  *int64 `json:"nvd_seed_read_ms"`
+	Buckets *int64 `json:"nvd_seed_buckets"`
+	Bytes   *int64 `json:"nvd_seed_bytes"`
 }
 
 var inflatedBytesKey = []byte(`"inflated_bytes"`)
+
+var seedReadMSKey = []byte(`"nvd_seed_read_ms"`)
 
 // parseInputLimitFigures extracts the allowlisted figures from satellite
 // stderr: the last line, within the first maxScannedStderrBytes, that is one
@@ -103,6 +129,58 @@ func attachStderrFigures(call CallResult, stderr []byte) CallResult {
 	return call
 }
 
+// parseSeedFigures extracts the allowlisted seed figures from satellite
+// stderr: the last line, within the first maxScannedStderrBytes, that is one
+// JSON object carrying all three figures as non-negative integers. It returns
+// nil when there is none. Lines over maxStderrRecordBytes, non-JSON lines,
+// and records with a missing, null, negative, fractional, overflowing, or
+// string figure are skipped whole, never partially relayed.
+func parseSeedFigures(stderr []byte) *SeedFigures {
+	if len(stderr) > maxScannedStderrBytes {
+		stderr = stderr[:maxScannedStderrBytes]
+	}
+	var found *SeedFigures
+	for len(stderr) > 0 {
+		line := stderr
+		if end := bytes.IndexByte(stderr, '\n'); end >= 0 {
+			line, stderr = stderr[:end], stderr[end+1:]
+		} else {
+			stderr = nil
+		}
+		if len(line) > maxStderrRecordBytes || !bytes.Contains(line, seedReadMSKey) {
+			continue
+		}
+		var record stderrSeedRecord
+		if err := json.Unmarshal(line, &record); err != nil {
+			continue
+		}
+		if record.ReadMS == nil || record.Buckets == nil || record.Bytes == nil {
+			continue
+		}
+		if *record.ReadMS < 0 || *record.Buckets < 0 || *record.Bytes < 0 {
+			continue
+		}
+		found = &SeedFigures{
+			ReadMS:  *record.ReadMS,
+			Buckets: *record.Buckets,
+			Bytes:   *record.Bytes,
+		}
+	}
+	return found
+}
+
+// attachSeedFigures sets call.Seed from the satellite's stderr when the
+// call's result is complete. Only a served window performed a seed read: a
+// failed, partial, or unchanged call never relays, so stale or unserved
+// figures cannot ride its line.
+func attachSeedFigures(call CallResult, stderr []byte) CallResult {
+	if state := call.Result.State; state != sdkcollector.ResultComplete {
+		return call
+	}
+	call.Seed = parseSeedFigures(stderr)
+	return call
+}
+
 // decodeCallWithStderr decodes one paged satellite call and attaches the
 // allowlisted stderr figures. Both runners share it so they relay identically.
 func decodeCallWithStderr(stdout, stderr []byte) (CallResult, error) {
@@ -110,5 +188,6 @@ func decodeCallWithStderr(stdout, stderr []byte) (CallResult, error) {
 	if err != nil {
 		return CallResult{}, err
 	}
-	return attachStderrFigures(call, stderr), nil
+	call = attachStderrFigures(call, stderr)
+	return attachSeedFigures(call, stderr), nil
 }
