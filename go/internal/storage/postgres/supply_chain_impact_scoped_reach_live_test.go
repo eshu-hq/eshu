@@ -63,11 +63,17 @@ func (c *convergence) addSourceAdvisory(advisoryID, cveID string, packages ...st
 	c.upsert(c.reachAdvisory(convergenceSource, advisoryID, cveID, packages...)...)
 }
 
-// findingRows snapshots a scope's finding rows: tombstone, content and xmin.
+// findingRows snapshots a scope's finding rows by what a pass asserts: the
+// tombstone state and the writer's own content digest
+// (provenance.content_digest, core/writer_changed.go:41-54). Not xmin and not
+// the raw payload: the writer upserts every row a pass derives
+// (factwrite.BatchInsertVersionedQuery has no content-equality guard), and
+// the payload carries the pass's intent id and cause, so both move on every
+// rewrite of an identical finding.
 func (c *convergence) findingRows(scope string) map[string]string {
 	c.t.Helper()
 	return c.queryStringPairs(`
-SELECT fact_id, is_tombstone::text || ':' || md5(payload::text) || ':' || xmin::text
+SELECT fact_id, is_tombstone::text || ':' || COALESCE(payload #>> '{provenance,content_digest}', '')
 FROM fact_records WHERE scope_id = $1 AND fact_kind = $2`, scope, facts.ReducerSupplyChainImpactFindingFactKind)
 }
 
@@ -132,7 +138,7 @@ func newReach(t *testing.T, seed func(c *convergence)) (*convergence, quiescePas
 func wantNoFullPassChange(t *testing.T, c *convergence, meter quiescePassMeter, scope string) {
 	t.Helper()
 	if changed := c.fullRerunChanges(meter, scope); len(changed) > 0 {
-		t.Errorf("a full pass after the stamped rerun still changed %v: the rerun derived less than a full pass for the stamp", changed)
+		t.Errorf("a full pass after the stamped rerun still changed %v (tombstone or content digest): the rerun derived less than a full pass for the stamp", changed)
 	}
 }
 
@@ -190,7 +196,8 @@ func TestScopedReachDifferentialLoopReachedRunsFullLive(t *testing.T) {
 
 // TestScopedReachDifferentialRetractsInsideTheStampOnlyLive is case 5: the
 // stamped id is no longer derivable and is retracted; rows outside the stamp
-// keep their xmin, a stale one included. It pins D2: under a fresh
+// keep their state and content, a stale one included (the byte-identical xmin
+// half is TestUpdateFanOutStateMarkerKeepsRowsOutsideTheStampLive). It pins D2: under a fresh
 // full-pass marker the rerun stays scoped, where the #10415 fallback used to
 // run it full and reap the stale row too.
 func TestScopedReachDifferentialRetractsInsideTheStampOnlyLive(t *testing.T) {
@@ -223,7 +230,7 @@ WHERE scope_id = $1 AND fact_kind = $2 AND payload->>'cve_id' = ANY($3)`, conver
 	after := c.findingRows(holder)
 	for row, was := range outside {
 		if after[row] != was {
-			t.Errorf("rerun (mode %s) rewrote %s outside the stamp (%s -> %s): rows outside the stamp must keep their xmin", pass.mode, row, was, after[row])
+			t.Errorf("rerun (mode %s) changed %s outside the stamp (%s -> %s): a row outside the stamp must keep its state and content", pass.mode, row, was, after[row])
 		}
 	}
 	changed := c.fullRerunChanges(meter, holder)

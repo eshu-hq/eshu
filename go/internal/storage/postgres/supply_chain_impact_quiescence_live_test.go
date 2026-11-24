@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
@@ -161,8 +162,18 @@ func runQuiesceAfterOneChange(t *testing.T, seeded bool) []string {
 		sort.Strings(reopenedAgain)
 		violations = append(violations, fmt.Sprintf("identical rescan changed reopened_at on %v", reopenedAgain))
 	}
-	if staged := c.stagedFactMarks(watermark); staged != 0 {
-		violations = append(violations, fmt.Sprintf("identical rescan staged %d winners dirty fact marks, want 0", staged))
+	// The rescan's first pass writes the same findings under new fact ids, so
+	// each of its own rows re-points its winner and is marked once
+	// (dirtyIdentifiersToCapture compares within a generation only). Anything
+	// beyond that came from a pass the rescan should not have caused.
+	var ownRows int
+	if err := c.db.QueryRowContext(c.ctx, `SELECT count(*) FROM fact_records
+WHERE scope_id = $1 AND generation_id = $2 AND fact_kind = $3 AND NOT is_tombstone`,
+		convergenceSource, fanOutGen(convergenceSource, "g2"), facts.ReducerSupplyChainImpactFindingFactKind).Scan(&ownRows); err != nil {
+		t.Fatalf("count rescanned rows: %v", err)
+	}
+	if staged := c.stagedFactMarks(watermark); staged > ownRows {
+		violations = append(violations, fmt.Sprintf("identical rescan staged %d winners dirty fact marks, want at most %d (one re-point per row of the rescanned generation)", staged, ownRows))
 	}
 	t.Logf("QUIESCE seeded=%v executions=%d per_scope=%v rescan=%v violations=%d", seeded, len(executions), quiescePassCounts(executions), rescan, len(violations))
 	return violations
