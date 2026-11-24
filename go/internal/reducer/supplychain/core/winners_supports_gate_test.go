@@ -36,6 +36,11 @@ type durableWinners struct {
 	fulls       int
 	keyed       int
 	writes      int
+	// newerUnderLock models a newer binary's full committing between this
+	// maintainer's decision read and its resweep lock: the stored contract is
+	// above this binary's by the time the full re-reads it under the lock.
+	newerUnderLock bool
+	standDowns     int
 }
 
 func (d *durableWinners) WinnersSupportsGate(context.Context) (SupplyChainImpactWinnersSupportsGate, error) {
@@ -76,6 +81,21 @@ func (d *durableWinners) WinnersContract(context.Context) (SupplyChainImpactWinn
 
 func (d *durableWinners) ResweepWinnersUnlessCurrent(ctx context.Context) (SupplyChainImpactWinnersResweep, error) {
 	return SupplyChainImpactWinnersResweep{Skipped: true, ContractCurrent: true}, nil
+}
+
+// ResweepWinnersUnlessNewer stands down, writing nothing, when the contract
+// read under the lock is newer than the binary's; otherwise it is the full.
+func (d *durableWinners) ResweepWinnersUnlessNewer(ctx context.Context) (SupplyChainImpactWinnersResweep, error) {
+	d.mu.Lock()
+	newer := d.newerUnderLock
+	if newer {
+		d.standDowns++
+	}
+	d.mu.Unlock()
+	if newer {
+		return SupplyChainImpactWinnersResweep{Skipped: true, StoodDown: true}, nil
+	}
+	return d.ResweepWinners(ctx)
 }
 
 func (d *durableWinners) state() (fulls, keyed, writes, watermark int) {
@@ -264,5 +284,39 @@ func TestWinnersAuditWaitsForSupportsAndAProbeErrorWritesNothing(t *testing.T) {
 	}
 	if fulls, keyed, writes, _ := d.state(); fulls != 0 || keyed != 0 || writes != 0 {
 		t.Fatalf("a probe error ran fulls=%d keyed=%d writes=%d", fulls, keyed, writes)
+	}
+}
+
+// TestWinnersSupportsReadyFullStandsDownUnderANewerContract: the supports-ready
+// full is decided from a contract read taken before the resweep lock. A newer
+// binary's full can commit in between; the supports-ready full must then stand
+// down under the lock, as the keyed tick does, and not rebuild with this
+// binary's statements or stamp this binary's older contract over the newer one.
+func TestWinnersSupportsReadyFullStandsDownUnderANewerContract(t *testing.T) {
+	t.Parallel()
+
+	d := &durableWinners{ready: true, markerStamp: 5, watermark: 3, newerUnderLock: true}
+	m := gatedMaintainer(d, &fakeWinnersLeaseManager{claim: true}, nil)
+	res, _, _, err := m.runContractTick(context.Background())
+	if err != nil {
+		t.Fatalf("supports-ready tick error = %v", err)
+	}
+	fulls, keyed, writes, watermark := d.state()
+	if fulls != 0 || keyed != 0 || writes != 0 || watermark != 3 {
+		t.Fatalf("supports-ready tick under a newer contract ran fulls=%d keyed=%d writes=%d, watermark=%d; want nothing written and watermark 3", fulls, keyed, writes, watermark)
+	}
+	if !res.StoodDown || d.standDowns != 1 {
+		t.Fatalf("result %+v, stand-downs %d: want the guarded supports-ready full to stand down once", res, d.standDowns)
+	}
+
+	// Without the newer contract the same state runs the one full.
+	d.mu.Lock()
+	d.newerUnderLock = false
+	d.mu.Unlock()
+	if _, _, _, err := m.runContractTick(context.Background()); err != nil {
+		t.Fatalf("supports-ready tick error = %v", err)
+	}
+	if fulls, _, _, _ := d.state(); fulls != 1 {
+		t.Fatalf("fulls = %d, want the supports-ready full to run once the contract is not newer", fulls)
 	}
 }

@@ -204,7 +204,48 @@ func stampWinnersContract(ctx context.Context, tx db.Transaction) error {
 // per-tick decision read can be stale, this read cannot. Then it writes
 // nothing and returns Skipped with ContractCurrent.
 func (s SupplyChainImpactWinnersStore) ResweepWinnersUnlessCurrent(ctx context.Context) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
-	return s.resweepFull(ctx, true)
+	return s.resweepFull(ctx, winnersFullUnlessCurrent)
+}
+
+// ResweepWinnersUnlessNewer runs the full resweep of ResweepWinners unless the
+// stored contract version, read in the same transaction after the resweep lock
+// is held, is above this binary's. Then it writes nothing and returns Skipped
+// with StoodDown, as the keyed tick does. A current contract still runs: this is
+// the supports-ready full (#10880 PR-C1), which rebuilds the current contract
+// from the supports table, and it must not stamp this binary's older contract
+// over a newer binary's that committed after the maintainer's decision read.
+func (s SupplyChainImpactWinnersStore) ResweepWinnersUnlessNewer(ctx context.Context) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
+	return s.resweepFull(ctx, winnersFullUnlessNewer)
+}
+
+// winnersFullGuard is what the full's contract re-read under the resweep lock
+// stops on.
+type winnersFullGuard int
+
+const (
+	// winnersFullUnguarded reads no contract (ResweepWinners).
+	winnersFullUnguarded winnersFullGuard = iota
+	// winnersFullUnlessCurrent stops on a stored version at or above the
+	// binary's (ResweepWinnersUnlessCurrent, #11117).
+	winnersFullUnlessCurrent
+	// winnersFullUnlessNewer stops on a stored version above the binary's
+	// (ResweepWinnersUnlessNewer, #10880 PR-C1).
+	winnersFullUnlessNewer
+)
+
+// stopsOn reports the result the full returns without writing, and true, when
+// the stored contract stops it under this guard.
+func (g winnersFullGuard) stopsOn(stored supplychaincore.SupplyChainImpactWinnersContract) (supplychaincore.SupplyChainImpactWinnersResweep, bool) {
+	if !stored.HasVersion {
+		return supplychaincore.SupplyChainImpactWinnersResweep{}, false
+	}
+	switch {
+	case g == winnersFullUnlessCurrent && stored.StoredVersion >= stored.BinaryVersion:
+		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true, ContractCurrent: true}, true
+	case g == winnersFullUnlessNewer && stored.StoredVersion > stored.BinaryVersion:
+		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true, StoodDown: true}, true
+	}
+	return supplychaincore.SupplyChainImpactWinnersResweep{}, false
 }
 
 var _ supplychaincore.SupplyChainImpactWinnersContractStore = SupplyChainImpactWinnersStore{}

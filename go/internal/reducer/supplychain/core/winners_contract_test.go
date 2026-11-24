@@ -80,6 +80,16 @@ func (f *fakeContractWinners) ResweepWinnersUnlessCurrent(context.Context) (Supp
 	return f.full(true), nil
 }
 
+func (f *fakeContractWinners) ResweepWinnersUnlessNewer(context.Context) (SupplyChainImpactWinnersResweep, error) {
+	f.mu.Lock()
+	newer := f.contract.HasVersion && f.contract.StoredVersion > f.contract.BinaryVersion
+	f.mu.Unlock()
+	if newer {
+		return SupplyChainImpactWinnersResweep{Skipped: true, StoodDown: true}, nil
+	}
+	return f.full(false), nil
+}
+
 func (f *fakeContractWinners) ResweepWinnersKeyed(context.Context) (SupplyChainImpactWinnersResweep, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -442,6 +452,11 @@ func (f *fakeFullContract) WinnersContract(context.Context) (SupplyChainImpactWi
 		c.Present, c.HasVersion, c.StoredVersion, c.StoredHash = true, true, 1, "h1"
 	}
 	return c, nil
+}
+
+// ResweepWinnersUnlessNewer is the full: this fake never stores a newer contract.
+func (f *fakeFullContract) ResweepWinnersUnlessNewer(ctx context.Context) (SupplyChainImpactWinnersResweep, error) {
+	return f.full.ResweepWinners(ctx)
 }
 
 func (f *fakeFullContract) ResweepWinnersUnlessCurrent(ctx context.Context) (SupplyChainImpactWinnersResweep, error) {

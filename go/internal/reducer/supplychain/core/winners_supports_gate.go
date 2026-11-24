@@ -77,9 +77,12 @@ func (m SupplyChainImpactWinnersMaintainer) supportsReadyForAudit(ctx context.Co
 
 // runContractTick is one maintainer tick: the supports gate first, then the
 // contract decision (runDecidedContractTick). A ready table whose marker completed
-// after the last committed resweep runs one unguarded full here when the contract
-// would otherwise run keyed: the guarded full skips a current contract, and the
-// contract is current. A stand-down or a contract-driven full takes its own path.
+// after the last committed resweep runs one supports-ready full here when the
+// contract would otherwise run keyed. The contract-guarded full would skip, the
+// contract being current, so this full re-reads the contract under the resweep
+// lock and stands down only when a newer binary's contract committed after the
+// decision read, as the keyed tick does. A contract-driven stand-down or full
+// takes its own path.
 func (m SupplyChainImpactWinnersMaintainer) runContractTick(ctx context.Context) (
 	result SupplyChainImpactWinnersResweep, contract SupplyChainImpactWinnersContract, standDown bool, err error,
 ) {
@@ -102,7 +105,10 @@ func (m SupplyChainImpactWinnersMaintainer) runContractTick(ctx context.Context)
 		}
 		if action, _ := decideWinnersContract(contract); action == winnersContractRunKeyed {
 			var committed bool
-			result, committed, err = m.runTick(ctx, winnersTickFull)
+			result, committed, err = m.runTick(ctx, winnersTickSupportsReadyFull)
+			if err == nil && result.StoodDown {
+				m.Instruments.RecordSupplyChainImpactWinnersStandDown(ctx)
+			}
 			if err == nil && committed {
 				m.Instruments.RecordSupplyChainImpactWinnersFullResweep(ctx, telemetry.SupplyChainImpactWinnersFullReasonSupportsReady)
 				if m.Logger != nil {

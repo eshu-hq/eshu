@@ -190,6 +190,18 @@ var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0
 //     slices is how far the verification got; the duration tail is the longest
 //     snapshot the verification holds.
 //
+//   - eshu_dp_supply_chain_impact_stored_key_missing_total (#10880 PR-C1 b): stored
+//     rows the writer's supports-backed read found with no stable key on the support
+//     or its fact twin, counted at commit. Each one reads as changed, so a steady
+//     rate means supports written before migration 350 have not been filled.
+//
+//   - eshu_dp_supply_chain_impact_winners_supports_not_ready_total{path} (#10880
+//     PR-C1 R2): winners maintainer and audit ticks refused because the supports
+//     table is not ready, by path (full, keyed, audit). A refused tick writes nothing.
+//
+//   - eshu_dp_supply_chain_impact_fact_write_rejected_total: finding fact writes the
+//     PR-C reject trigger refused; above zero means an old reducer image still runs.
+//
 // No label carries a scope, repository, canonical key or CVE.
 func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error

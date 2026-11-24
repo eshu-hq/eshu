@@ -86,10 +86,10 @@ type SupplyChainImpactWinnersResweep struct {
 	// resweep lock, a stored contract version at or above this binary's
 	// (#11117): another instance already committed the full this one wanted.
 	ContractCurrent bool
-	// StoodDown is true on a Skipped keyed tick that found, under the resweep
-	// lock, a stored contract version above this binary's (#11117): a newer
-	// binary's full committed after this tick's decision read, so it wrote
-	// nothing.
+	// StoodDown is true on a Skipped keyed tick or supports-ready full that
+	// found, under the resweep lock, a stored contract version above this
+	// binary's (#11117, #10880 PR-C1): a newer binary's full committed after
+	// this tick's decision read, so it wrote nothing.
 	StoodDown bool
 	// SupportsNotReady is true when the tick ran nothing because the supports
 	// table the maintainer reads is not ready (#10880 PR-C1): no lease claim, no

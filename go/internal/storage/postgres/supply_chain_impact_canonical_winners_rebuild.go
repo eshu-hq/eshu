@@ -229,19 +229,19 @@ func (s SupplyChainImpactWinnersStore) WithInstruments(in *telemetry.Instruments
 // an error the result is the zero value and nothing was written.
 //
 // The full records this binary's winners contract in the same transaction
-// (#11117); ResweepWinnersUnlessCurrent is the guarded variant the maintainer
-// runs.
+// (#11117); ResweepWinnersUnlessCurrent and ResweepWinnersUnlessNewer are the
+// guarded variants the maintainer runs.
 func (s SupplyChainImpactWinnersStore) ResweepWinners(
 	ctx context.Context,
 ) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
-	return s.resweepFull(ctx, false)
+	return s.resweepFull(ctx, winnersFullUnguarded)
 }
 
-// resweepFull is the full resweep behind ResweepWinners and, with guarded,
-// ResweepWinnersUnlessCurrent.
+// resweepFull is the full resweep behind ResweepWinners and its guarded
+// variants; guard decides what the contract re-read under the lock stops.
 func (s SupplyChainImpactWinnersStore) resweepFull(
 	ctx context.Context,
-	guarded bool,
+	guard winnersFullGuard,
 ) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
 	var none supplychaincore.SupplyChainImpactWinnersResweep
 	if s.DB == nil {
@@ -271,13 +271,13 @@ func (s SupplyChainImpactWinnersStore) resweepFull(
 	if !claimed {
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
-	if guarded {
+	if guard != winnersFullUnguarded {
 		stored, err := readWinnersContract(ctx, tx)
 		if err != nil {
 			return none, err
 		}
-		if stored.HasVersion && stored.StoredVersion >= stored.BinaryVersion {
-			return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true, ContractCurrent: true}, nil
+		if stop, ok := guard.stopsOn(stored); ok {
+			return stop, nil
 		}
 	}
 	stamp, err := scanWinnersTime(ctx, tx, selectWinnersKeyedTickClockSQL, "read supply chain impact winners full resweep clock")

@@ -42,6 +42,9 @@ const (
 	winnersTickGuardedFull
 	// winnersTickKeyed is the keyed tick (#9805).
 	winnersTickKeyed
+	// winnersTickSupportsReadyFull is the supports-ready full (#10880 PR-C1):
+	// it runs on a current contract but stands down under a newer one.
+	winnersTickSupportsReadyFull
 )
 
 // runTick is the leased resweep RunOnce, the guarded full and runKeyedTick
@@ -84,6 +87,10 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, tick wi
 		end := m.Instruments.BeginSupplyChainImpactWinnersResweep(telemetry.SupplyChainImpactWinnersPathFull)
 		result, rbErr = m.Contract.ResweepWinnersUnlessCurrent(ctx)
 		end()
+	case winnersTickSupportsReadyFull:
+		end := m.Instruments.BeginSupplyChainImpactWinnersResweep(telemetry.SupplyChainImpactWinnersPathFull)
+		result, rbErr = m.Contract.ResweepWinnersUnlessNewer(ctx)
+		end()
 	default:
 		end := m.Instruments.BeginSupplyChainImpactWinnersResweep(telemetry.SupplyChainImpactWinnersPathFull)
 		result, rbErr = m.Rebuilder.ResweepWinners(ctx)
@@ -99,7 +106,8 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, tick wi
 	if result.StoodDown {
 		span.SetAttributes(attribute.Bool("stood_down", true))
 		if m.Logger != nil {
-			m.Logger.WarnContext(ctx, "supply chain impact winners keyed tick stood down under the lock: a newer winners contract committed after the decision read")
+			m.Logger.WarnContext(ctx, "supply chain impact winners tick stood down under the lock: a newer winners contract committed after the decision read",
+				"path", tick.path())
 		}
 		span.End()
 		return result, false, nil
