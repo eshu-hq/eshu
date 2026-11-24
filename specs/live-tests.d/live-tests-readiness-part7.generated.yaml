@@ -59,6 +59,11 @@ tests:
     class: postgres_ci
     reason: "#11327 real PostgreSQL race proofs of the go-evidence lock: 40 rounds of the fence reopening the work item of a pass already in flight (zero deadlocks), a successor ack that commits while a pass holds the shared lock for 3 s and ends on the successor, a multi-repository pass with fences on two of its go scopes in parallel, the recheck covering exactly the pairs the loader resolved, and 40 free-interleaving rounds whose invariant is that no support derived from a retracted generation survives without a reopened holder"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_suppression_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof for the suppression family before the go-evidence lock: 40 rounds of a pass whose suppression diff really runs racing a fence that reopens its work item with zero deadlocks and a clean recorded footprint, and the production suppression candidate read returning under a 1 s lock_timeout while a side transaction holds LOCK TABLE fact_work_items IN EXCLUSIVE MODE"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go
     tag: ~
     class: postgres_ci

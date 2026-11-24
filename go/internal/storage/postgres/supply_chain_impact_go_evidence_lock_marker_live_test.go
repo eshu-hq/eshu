@@ -11,7 +11,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -24,11 +23,6 @@ import (
 	dbpkg "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-var (
-	footprintScopeWrite = regexp.MustCompile(`(?i)\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(public\.)?(ingestion_scopes|scope_generations)\b`)
-	footprintRowLock    = regexp.MustCompile(`(?i)\bFOR\s+(NO\s+KEY\s+UPDATE|UPDATE|SHARE|KEY\s+SHARE)\b`)
-)
-
 // isOwedMarker reports whether a statement is the pass's owed marker: the update of its
 // own fact_work_items row that sets the fan-out owed flag.
 func isOwedMarker(statement string) bool {
@@ -37,8 +31,8 @@ func isOwedMarker(statement string) bool {
 
 // footprintViolation judges the recorded statements of one committed pass: from the first
 // shared go-evidence lock on, only the locks, the recheck and at most the owed marker may
-// run; before it nothing may name fact_work_items or write or row-lock a scope or
-// generation row. It returns "" for a clean footprint.
+// run; before it the pre-lock classifier (core, plain reads allowed) must be clean. It
+// returns "" for a clean footprint.
 func footprintViolation(statements []string) string {
 	lockAt := -1
 	for i, statement := range statements {
@@ -51,12 +45,8 @@ func footprintViolation(statements []string) string {
 		return "no shared go-evidence lock"
 	}
 	for i, statement := range statements[:lockAt] {
-		switch {
-		case strings.Contains(statement, "fact_work_items"):
-			return fmt.Sprintf("statement %d before the lock names fact_work_items", i)
-		case footprintScopeWrite.MatchString(statement),
-			(strings.Contains(statement, "ingestion_scopes") || strings.Contains(statement, "scope_generations")) && footprintRowLock.MatchString(statement):
-			return fmt.Sprintf("statement %d before the lock writes or locks a scope or generation row", i)
+		if why := supplychaincore.SupplyChainImpactPreLockStatementViolation(statement); why != "" {
+			return fmt.Sprintf("statement %d before the lock %s", i, why)
 		}
 	}
 	rest := statements[lockAt:]
@@ -88,7 +78,9 @@ func TestFootprintViolationNamesTheSeededFootprints(t *testing.T) {
 		"writes, lock, recheck, marker":      {[]string{"INSERT INTO fact_records (x)", lock, recheck, marker}, false},
 		"writes, lock, recheck":              {[]string{"INSERT INTO fact_records (x)", lock, recheck}, false},
 		"marker before the lock":             {[]string{"INSERT INTO fact_records (x)", marker, lock, recheck}, true},
-		"queue read before the lock":         {[]string{"SELECT 1 FROM fact_work_items", lock, recheck, marker}, true},
+		"plain queue read before the lock":   {[]string{"SELECT 1 FROM fact_work_items", lock, recheck, marker}, false},
+		"queue read FOR UPDATE before lock":  {[]string{"SELECT 1 FROM fact_work_items FOR UPDATE", lock, recheck, marker}, true},
+		"queue table lock before the lock":   {[]string{"LOCK TABLE fact_work_items IN EXCLUSIVE MODE", lock, recheck, marker}, true},
 		"scope row written before the lock":  {[]string{"UPDATE ingestion_scopes SET status = 'x'", lock, recheck}, true},
 		"generation locked before the lock":  {[]string{"SELECT 1 FROM scope_generations FOR UPDATE", lock, recheck}, true},
 		"a second statement after recheck":   {[]string{"INSERT INTO fact_records (x)", lock, recheck, marker, "UPDATE supply_chain_impact_scope_pass_state SET x = 1"}, true},

@@ -27,9 +27,14 @@ import (
 // then each holder's fact_work_items rows, holders in scope_id order. Every blocking
 // path takes the scope row first (#7389, see ProjectorQueue.Ack): the ack, the failure
 // path, the ingestion commit, and the repository-retirement fence; none of them takes
-// the advisory lock, and the pass holds no row the fence wants (no fact_work_items,
-// no write or lock on a scope or generation row) when it waits for the lock; its one
-// fact_work_items update, the owed marker, runs after the lock is granted. A fence that took the generation first could
+// the advisory lock, and the pass holds no row the fence wants when it waits for the lock:
+// before it no statement writes to, row-locks or table-locks fact_work_items, or writes to or
+// explicitly row-locks a scope or generation row (a wholly read-only statement may read any of
+// them, and the suppression diff's candidate read does); its one fact_work_items update, the
+// owed marker, runs after the lock is granted. The implicit FOR KEY SHARE a fact insert takes on
+// its scope and generation rows is compatible with this fence: its updates touch non-key
+// columns (the unique indexes on active_generation_id and status are partial), so they take
+// NO KEY UPDATE. A fence that took the generation first could
 // deadlock against an ack holding the scope row and wanting that generation. The fence
 // never takes a holder's scope row, a repository scope row, or any row of the
 // successor's work.

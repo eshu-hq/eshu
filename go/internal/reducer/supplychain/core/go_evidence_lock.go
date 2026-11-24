@@ -7,8 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -26,8 +26,11 @@ import (
 // loaded is still the scope's active generation. The lock is held for the recheck and
 // the commit, not the whole write, so a fence waits milliseconds, not seconds. That
 // position is safe only while the transaction holds nothing the fence needs before the
-// lock: the census guard in storage/postgres pins it, and the owed marker, the one
-// statement that updates a fact_work_items row, runs after the lock. The
+// lock: no statement before it may write to, row-lock or table-lock fact_work_items, or
+// write to or explicitly row-lock ingestion_scopes or scope_generations (a wholly read-only
+// statement may name any of them: it takes no lock a fence waits for). The census guard in
+// storage/postgres pins it with SupplyChainImpactPreLockStatementViolation, and the owed
+// marker, the one statement that updates a fact_work_items row, runs after the lock. The
 // fence takes the exclusive form of the same lock before it detaches anything. A
 // fence that starts first commits before the pass proceeds, and the recheck then
 // aborts the pass; a pass that starts first commits before the fence continues, and
@@ -211,6 +214,42 @@ func lockAndRecheckGoEvidence(ctx context.Context, tx SupplyChainImpactTx, pairs
 	return true, wait, nil
 }
 
+// The pre-lock rule of #11327 (arbiter ruling of 2026-11-24, plain reads). Before the first
+// shared go-evidence lock no statement on the pass write transaction may (a) write to
+// fact_work_items or take a row lock or an explicit table lock on it: a statement that
+// names fact_work_items must be wholly read-only, with no INSERT, UPDATE, DELETE, MERGE,
+// TRUNCATE or LOCK keyword and no FOR [NO KEY] UPDATE or FOR [KEY] SHARE clause anywhere in
+// its text; and (b) write to, or take an explicit row lock on, ingestion_scopes or
+// scope_generations. A plain read of any of the three is allowed: it takes ACCESS SHARE only
+// and no row lock, so it can neither wait on a fence's reopen nor on a retirement fence's
+// table lock in a cycle. The implicit FOR KEY SHARE a fact insert takes on its scope and
+// generation rows is compatible with the fence: its updates touch non-key columns and take
+// NO KEY UPDATE. Function and trigger bodies read as file text keep the stricter form and
+// may not name fact_work_items at all.
+var (
+	preLockQueueName   = regexp.MustCompile(`(?i)\bfact_work_items\b`)
+	preLockQueueWrite  = regexp.MustCompile(`(?i)\b(INSERT|UPDATE|DELETE|MERGE|TRUNCATE|LOCK)\b`)
+	preLockRowLock     = regexp.MustCompile(`(?i)\bFOR\s+(NO\s+KEY\s+UPDATE|UPDATE|SHARE|KEY\s+SHARE)\b`)
+	preLockScopeTables = regexp.MustCompile(`(?i)\b(ingestion_scopes|scope_generations)\b`)
+	preLockScopeWrite  = regexp.MustCompile(`(?i)\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|MERGE\s+INTO|TRUNCATE)\s+(TABLE\s+)?(public\.)?(ingestion_scopes|scope_generations)\b`)
+)
+
+// SupplyChainImpactPreLockStatementViolation reports why one statement may not run on the
+// pass write transaction before the shared go-evidence lock, or "" when it may. It is the
+// one classifier behind the epilogue checker, the core order tests, the storage census and
+// the live footprint check.
+func SupplyChainImpactPreLockStatementViolation(statement string) string {
+	switch {
+	case preLockQueueName.MatchString(statement) &&
+		(preLockQueueWrite.MatchString(statement) || preLockRowLock.MatchString(statement)):
+		return "writes, row-locks or table-locks fact_work_items"
+	case preLockScopeWrite.MatchString(statement),
+		preLockScopeTables.MatchString(statement) && preLockRowLock.MatchString(statement):
+		return "writes or row-locks ingestion_scopes or scope_generations"
+	}
+	return ""
+}
+
 // recordOwedAfterGoEvidenceLock records the pass's owed marker, the one statement that
 // follows the lock and updates the pass's own fact_work_items row. When the pass holds
 // the shared lock the marker's duration, including any wait on that row, is added to
@@ -236,12 +275,16 @@ func recordOwedAfterGoEvidenceLock(ctx context.Context, tx SupplyChainImpactTx, 
 // of the writer cannot move the lock and the recheck off the end unnoticed.
 // markerStatement is the owed-marker query text, or "" when the pass records none.
 func SupplyChainImpactGoEvidenceEpilogueViolation(statements []string, markerStatement string) string {
-	locks, rechecks, markerEarly, queueEarly := 0, 0, false, false
+	locks, rechecks, markerEarly, preLock := 0, 0, false, ""
 	first := -1
 	for i, statement := range statements {
-		if first < 0 && strings.Contains(statement, "fact_work_items") {
-			queueEarly = true
-			markerEarly = markerEarly || (markerStatement != "" && statement == markerStatement)
+		if first < 0 && statement != SupplyChainImpactGoEvidenceSharedLockQuery {
+			if markerStatement != "" && statement == markerStatement {
+				markerEarly = true
+			}
+			if why := SupplyChainImpactPreLockStatementViolation(statement); why != "" && preLock == "" {
+				preLock = fmt.Sprintf("statement %d before the lock %s", i, why)
+			}
 		}
 		switch statement {
 		case SupplyChainImpactGoEvidenceSharedLockQuery:
@@ -262,8 +305,8 @@ func SupplyChainImpactGoEvidenceEpilogueViolation(statements []string, markerSta
 	if markerEarly {
 		return "the owed marker updates the pass's work item before the lock: it can deadlock with a fence"
 	}
-	if queueEarly {
-		return "a statement before the lock names fact_work_items, a row the fence reopens"
+	if preLock != "" {
+		return preLock + ": a row the fence needs"
 	}
 	end := first
 	for end < len(statements) && statements[end] == SupplyChainImpactGoEvidenceSharedLockQuery {

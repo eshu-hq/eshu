@@ -150,6 +150,12 @@ func TestGoEvidenceEpilogueViolationNamesTheSeededShapes(t *testing.T) {
 		"admission after the recheck":       {[]string{domain, lock, recheck, admit}, true},
 		"marker before the lock":            {[]string{domain, marker, lock, recheck}, true},
 		"two statements after the recheck":  {[]string{domain, lock, recheck, marker, marker}, true},
+		"other statement after the marker":  {[]string{domain, lock, recheck, marker, admit}, true},
+		"plain queue read before the locks": {[]string{domain, "SELECT 1 FROM fact_work_items WHERE stage = 'reducer'", lock, recheck, marker}, false},
+		"candidate read before the locks":   {[]string{domain, selectSuppressionCandidatesQuery, lock, recheck, marker}, false},
+		"candidate read FOR UPDATE before":  {[]string{domain, selectSuppressionCandidatesQuery + " FOR UPDATE", lock, recheck, marker}, true},
+		"queue table lock before the locks": {[]string{domain, "LOCK TABLE fact_work_items IN EXCLUSIVE MODE", lock, recheck, marker}, true},
+		"queue write before the locks":      {[]string{domain, "UPDATE fact_work_items SET status = 'x'", lock, recheck, marker}, true},
 		"recheck missing":                   {[]string{domain, lock, admit}, true},
 		"recheck without a lock":            {[]string{domain, admit, recheck}, true},
 		"lock after the recheck":            {[]string{domain, lock, recheck, lock}, true},
@@ -453,6 +459,45 @@ func TestGenuineFailureOfTheClosingStatementsIsNotTheTypedClass(t *testing.T) {
 		}
 		if got := writeTxOutcomeLabel(err); got != "rolled_back" {
 			t.Fatalf("%s failure outcome = %q, want rolled_back", name, got)
+		}
+	}
+}
+
+// TestPreLockStatementViolationSeededTable is the seeded RED/GREEN table of the one pre-lock
+// classifier (arbiter ruling of 2026-11-24, plain reads). GREEN variants are the production
+// suppression candidate read and plain reads; RED variants are derived from that production
+// constant by appending each locking clause, plus writes, table locks and the scope-table
+// cases.
+func TestPreLockStatementViolationSeededTable(t *testing.T) {
+	t.Parallel()
+
+	candidates := selectSuppressionCandidatesQuery
+	for name, tc := range map[string]struct {
+		statement string
+		want      bool
+	}{
+		"production candidate read":         {candidates, false},
+		"plain queue read":                  {"SELECT 1 FROM fact_work_items WHERE stage = 'reducer'", false},
+		"scope pointer read":                {"SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1", false},
+		"scope generation join read":        {"SELECT 1 FROM scope_generations AS g JOIN ingestion_scopes AS s ON s.scope_id = g.scope_id", false},
+		"fact insert":                       {"INSERT INTO fact_records (fact_id) VALUES ($1)", false},
+		"candidates FOR UPDATE":             {candidates + " FOR UPDATE", true},
+		"candidates FOR NO KEY UPDATE OF w": {candidates + " FOR NO KEY UPDATE OF w", true},
+		"candidates FOR SHARE":              {candidates + " FOR SHARE", true},
+		"candidates FOR KEY SHARE":          {candidates + " FOR KEY SHARE", true},
+		"candidates FOR UPDATE SKIP LOCKED": {candidates + " FOR UPDATE SKIP LOCKED", true},
+		"data-modifying CTE over the queue": {"WITH m AS (UPDATE fact_work_items SET status = 'x' RETURNING 1) SELECT 1 FROM m", true},
+		"insert into the queue":             {"INSERT INTO fact_work_items (work_item_id) VALUES ($1)", true},
+		"delete from the queue":             {"DELETE FROM fact_work_items WHERE work_item_id = $1", true},
+		"queue table lock":                  {"LOCK TABLE fact_work_items IN EXCLUSIVE MODE", true},
+		"scope row update":                  {"UPDATE ingestion_scopes SET status = 'x' WHERE scope_id = $1", true},
+		"generation insert":                 {"INSERT INTO scope_generations (generation_id) VALUES ($1)", true},
+		"generation row lock":               {"SELECT 1 FROM scope_generations WHERE scope_id = $1 FOR UPDATE", true},
+		"scope row share lock":              {"SELECT 1 FROM ingestion_scopes WHERE scope_id = $1 FOR SHARE", true},
+		"scope row delete":                  {"DELETE FROM ingestion_scopes WHERE scope_id = $1", true},
+	} {
+		if got := SupplyChainImpactPreLockStatementViolation(tc.statement) != ""; got != tc.want {
+			t.Errorf("%s: violation = %v, want %v", name, got, tc.want)
 		}
 	}
 }

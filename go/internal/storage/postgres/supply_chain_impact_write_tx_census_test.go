@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"os"
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -23,29 +22,18 @@ import (
 // last statements of its write transaction, which is deadlock-free only if the
 // transaction holds nothing the Go-modules fence needs while it waits for that lock.
 // The fence, holding the exclusive lock, reopens holder work items (fact_work_items) and
-// detaches the go scope (ingestion_scopes, scope_generations). So no statement before
-// the lock may name fact_work_items, or write or row-lock ingestion_scopes or
-// scope_generations. A plain read of those tables takes no row lock and is allowed.
-
-var (
-	censusForbiddenTable = regexp.MustCompile(`(?i)\bfact_work_items\b`)
-	censusScopeTables    = regexp.MustCompile(`(?i)\b(ingestion_scopes|scope_generations)\b`)
-	censusScopeWrite     = regexp.MustCompile(`(?i)\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(public\.)?(ingestion_scopes|scope_generations)\b`)
-	censusRowLock        = regexp.MustCompile(`(?i)\bFOR\s+(NO\s+KEY\s+UPDATE|UPDATE|SHARE|KEY\s+SHARE)\b`)
-)
+// detaches the go scope (ingestion_scopes, scope_generations). So before the lock no
+// statement may write to, row-lock or table-lock fact_work_items, or write to or
+// explicitly row-lock ingestion_scopes or scope_generations; a wholly read-only statement
+// may name any of them (arbiter ruling of 2026-11-24, plain reads). The rule lives in one
+// place, supplychaincore.SupplyChainImpactPreLockStatementViolation, called here.
+// The implicit FOR KEY SHARE a fact insert takes on its scope and generation rows is out of
+// reach of statement text and is compatible with the fence (see the evidence note).
 
 // censusViolation reports why one statement may not run before the go-evidence lock,
-// or "" when it may. A statement that names a scope table is judged on whether it
-// writes or locks; a statement naming fact_work_items never may.
+// or "" when it may.
 func censusViolation(statement string) string {
-	switch {
-	case censusForbiddenTable.MatchString(statement):
-		return "names fact_work_items"
-	case censusScopeWrite.MatchString(statement),
-		censusScopeTables.MatchString(statement) && censusRowLock.MatchString(statement):
-		return "writes or row-locks ingestion_scopes or scope_generations"
-	}
-	return ""
+	return supplychaincore.SupplyChainImpactPreLockStatementViolation(statement)
 }
 
 // censusRecorder is a transaction that records every statement and answers just enough
@@ -56,6 +44,9 @@ type censusRecorder struct {
 	// recheckCurrent makes the Go-evidence recheck find its pair still active, so the
 	// pass runs to its commit instead of ending at the typed refusal.
 	recheckCurrent bool
+	// candidateCurrent answers the suppression candidate read with the pass's own active
+	// generation, so the suppression diff runs instead of skipping.
+	candidateCurrent bool
 }
 
 func (r *censusRecorder) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
@@ -70,6 +61,8 @@ func (r *censusRecorder) QueryContext(_ context.Context, query string, _ ...any)
 		return &censusRows{rows: [][]any{{int64(7), "database-identity"}}}, nil
 	case strings.Contains(query, "supply_chain_impact_scope_pass_state"):
 		return &censusRows{rows: [][]any{{false, int64(1)}}}, nil
+	case strings.Contains(query, "(g.activated_at IS NOT NULL)") && r.candidateCurrent:
+		return &censusRows{rows: [][]any{{"gen:census", "active", true, time.Date(2026, 11, 24, 11, 0, 0, 0, time.UTC), false, false}}}, nil
 	case strings.Contains(query, "AS pair(scope_id, generation_id)") && r.recheckCurrent:
 		return &censusRows{rows: [][]any{{"go-reachability://repository:r_census", "read committed"}}}, nil
 	case strings.Contains(query, "WITH retracted AS"):
@@ -223,28 +216,118 @@ func TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock(t *testing
 	}
 }
 
+// censusCandidateRead runs the suppression-family pass and returns the production
+// candidate read it captured, so the seeded variants are derived from a real statement.
+func censusCandidateRead(t *testing.T) string {
+	t.Helper()
+	for _, statement := range runSuppressionCensusPass(t) {
+		if strings.Contains(statement, "(g.activated_at IS NOT NULL)") {
+			return statement
+		}
+	}
+	t.Fatal("the suppression pass never ran its candidate read")
+	return ""
+}
+
 // TestCensusViolationNamesTheSeededStatements is the seeded RED/GREEN half of the guard.
+// The variants of the production candidate read are captured from a real pass.
 func TestCensusViolationNamesTheSeededStatements(t *testing.T) {
 	t.Parallel()
 
+	candidates := censusCandidateRead(t)
+	reopen := reopenSupplyChainImpactHolderQuery
 	for name, tc := range map[string]struct {
 		statement string
 		want      bool
 	}{
-		"owed marker (fact_work_items)":     {markSupplyChainImpactFanOutOwedQuery, true},
-		"select from fact_work_items":       {"SELECT 1 FROM fact_work_items WHERE stage = 'reducer'", true},
-		"update the scope row":              {"UPDATE ingestion_scopes SET status = 'active' WHERE scope_id = $1", true},
-		"insert a generation":               {"INSERT INTO scope_generations (generation_id) VALUES ($1)", true},
-		"lock the generation row":           {"SELECT 1 FROM scope_generations WHERE scope_id = $1 FOR UPDATE", true},
-		"share-lock the scope row":          {"SELECT 1 FROM ingestion_scopes WHERE scope_id = $1 FOR SHARE", true},
+		"production candidate read":         {candidates, false},
+		"plain queue read":                  {"SELECT 1 FROM fact_work_items WHERE stage = 'reducer'", false},
 		"plain read of the scope pointer":   {"SELECT active_generation_id FROM ingestion_scopes WHERE scope_id = $1", false},
 		"plain read joining the generation": {"SELECT 1 FROM scope_generations AS g JOIN ingestion_scopes AS s ON s.scope_id = g.scope_id", false},
 		"fact insert":                       {"INSERT INTO fact_records (fact_id) VALUES ($1)", false},
 		"supports upsert":                   {"INSERT INTO supply_chain_impact_finding_supports (fact_id) VALUES ($1)", false},
+		"candidates FOR UPDATE":             {candidates + " FOR UPDATE", true},
+		"candidates FOR NO KEY UPDATE OF w": {candidates + " FOR NO KEY UPDATE OF w", true},
+		"candidates FOR SHARE":              {candidates + " FOR SHARE", true},
+		"candidates FOR KEY SHARE":          {candidates + " FOR KEY SHARE", true},
+		"candidates FOR UPDATE SKIP LOCKED": {candidates + " FOR UPDATE SKIP LOCKED", true},
+		"owed marker":                       {markSupplyChainImpactFanOutOwedQuery, true},
+		"holder reopen":                     {reopen, true},
+		"data-modifying CTE over the queue": {"WITH m AS (UPDATE fact_work_items SET status = 'x' RETURNING 1) SELECT 1 FROM m", true},
+		"insert into the queue":             {"INSERT INTO fact_work_items (work_item_id) VALUES ($1)", true},
+		"delete from the queue":             {"DELETE FROM fact_work_items WHERE work_item_id = $1", true},
+		"queue table lock":                  {"LOCK TABLE fact_work_items IN EXCLUSIVE MODE", true},
+		"update the scope row":              {"UPDATE ingestion_scopes SET status = 'active' WHERE scope_id = $1", true},
+		"insert a generation":               {"INSERT INTO scope_generations (generation_id) VALUES ($1)", true},
+		"lock the generation row":           {"SELECT 1 FROM scope_generations WHERE scope_id = $1 FOR UPDATE", true},
+		"share-lock the scope row":          {"SELECT 1 FROM ingestion_scopes WHERE scope_id = $1 FOR SHARE", true},
 	} {
 		if got := censusViolation(tc.statement) != ""; got != tc.want {
 			t.Errorf("%s: violation = %v, want %v", name, got, tc.want)
 		}
+	}
+}
+
+// runSuppressionCensusPass records a pass whose scope fact kinds include a suppression and
+// whose candidate read is answered with the pass's own active generation, so the
+// suppression diff runs for real.
+func runSuppressionCensusPass(t *testing.T) []string {
+	t.Helper()
+	write := censusWrite()
+	write.ScopeFactKinds = []string{chain.VulnerabilitySuppressionFactKind}
+	return runCensusWriteWith(t, &censusRecorder{candidateCurrent: true}, write)
+}
+
+// TestImpactWriteTransactionSuppressionFamilyCensus runs the suppression diff inside the
+// pass transaction and applies the census. The diff's candidate read has an EXISTS over
+// fact_work_items; it is wholly read-only, so it passes, and it must be the only pre-lock
+// statement that names fact_work_items. The vacuity checks prove the diff ran: the
+// candidate read, the statement-timeout set, a diff read and the RESET all precede the lock.
+func TestImpactWriteTransactionSuppressionFamilyCensus(t *testing.T) {
+	t.Parallel()
+
+	statements := runSuppressionCensusPass(t)
+	lockAt := -1
+	for i, statement := range statements {
+		if statement == supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery {
+			lockAt = i
+			break
+		}
+	}
+	if lockAt < 0 {
+		t.Fatalf("no shared go-evidence lock among %d statements", len(statements))
+	}
+	before := statements[:lockAt]
+	for i, statement := range before {
+		if why := censusViolation(statement); why != "" {
+			t.Errorf("statement %d before the lock %s:\n%s", i, why, statement)
+		}
+	}
+	for family, needle := range map[string]string{
+		"candidate read": "(g.activated_at IS NOT NULL)",
+		"timeout set":    "set_config('statement_timeout'",
+		"diff read":      "'" + chain.VulnerabilitySuppressionFactKind + "'",
+		"timeout reset":  "RESET statement_timeout",
+	} {
+		found := false
+		for _, statement := range before {
+			found = found || strings.Contains(statement, needle)
+		}
+		if !found {
+			t.Errorf("the suppression pass never ran its %s before the lock: the census would pass vacuously", family)
+		}
+	}
+	naming := 0
+	for _, statement := range before {
+		if strings.Contains(statement, "fact_work_items") {
+			naming++
+			if !strings.Contains(statement, "(g.activated_at IS NOT NULL)") {
+				t.Errorf("a pre-lock statement other than the candidate read names fact_work_items:\n%s", statement)
+			}
+		}
+	}
+	if naming != 1 {
+		t.Fatalf("pre-lock statements naming fact_work_items = %d, want exactly the candidate read", naming)
 	}
 }
 
@@ -259,6 +342,10 @@ func TestProtectedPublicationFunctionsTouchNoFenceRows(t *testing.T) {
 		body, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
+		}
+		// Function bodies keep the strict form: they may not name fact_work_items at all.
+		if strings.Contains(strings.ToLower(string(body)), "fact_work_items") {
+			t.Errorf("%s names fact_work_items: the protected publication functions would touch the fence's rows while the pass waits for the lock", file)
 		}
 		if why := censusViolation(string(body)); why != "" {
 			t.Errorf("%s %s: the protected publication functions would hold fence rows while the pass waits for the lock", file, why)
@@ -306,47 +393,5 @@ func TestImpactWritePassFootprintEndsWithLockRecheckMarker(t *testing.T) {
 	moved = append(moved, statements[n-1], statements[n-3], statements[n-2])
 	if supplychaincore.SupplyChainImpactGoEvidenceEpilogueViolation(moved, markSupplyChainImpactFanOutOwedQuery) == "" {
 		t.Fatal("the core checker accepted the marker moved before the lock")
-	}
-}
-
-// TestImpactWriteTransactionSuppressionDiffReadsTheQueueBeforeTheLock records the pass of
-// a scope whose fact kinds include a suppression, which runs the suppression diff inside
-// the write transaction before the go-evidence lock. The diff's candidate read is a plain
-// SELECT with an EXISTS over fact_work_items (core/suppression_fanout_wire.go,
-// selectSuppressionCandidatesQuery): it names fact_work_items, so the strict census rule
-// flags it. A plain SELECT takes only ACCESS SHARE on the table and no row lock, so it
-// cannot wait on the fence's reopen or close a cycle with it, but the ruling text says no
-// statement before the lock names fact_work_items. OPEN for the arbiter: this test pins
-// that the only flagged statement is that read and that it takes no lock, so the exception
-// is visible and cannot grow unnoticed. The vacuity check proves the read ran.
-func TestImpactWriteTransactionSuppressionDiffReadsTheQueueBeforeTheLock(t *testing.T) {
-	t.Parallel()
-
-	write := censusWrite()
-	write.ScopeFactKinds = []string{chain.VulnerabilitySuppressionFactKind}
-	statements := runCensusWriteWith(t, &censusRecorder{}, write)
-	lockAt := -1
-	for i, statement := range statements {
-		if statement == supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery {
-			lockAt = i
-			break
-		}
-	}
-	if lockAt < 0 {
-		t.Fatalf("no shared go-evidence lock among %d statements", len(statements))
-	}
-	var flagged []string
-	for _, statement := range statements[:lockAt] {
-		if censusViolation(statement) != "" {
-			flagged = append(flagged, statement)
-		}
-	}
-	if len(flagged) != 1 {
-		t.Fatalf("flagged statements before the lock = %d, want exactly the suppression candidate read: the diff did not run or another statement joined it", len(flagged))
-	}
-	read := flagged[0]
-	if !strings.Contains(read, "fact_work_items") || censusScopeWrite.MatchString(read) || censusRowLock.MatchString(read) ||
-		regexp.MustCompile(`(?i)\b(UPDATE|INSERT|DELETE)\b`).MatchString(read) {
-		t.Fatalf("the flagged statement is not a plain read of fact_work_items:\n%s", read)
 	}
 }

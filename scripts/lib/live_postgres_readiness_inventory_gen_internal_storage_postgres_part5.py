@@ -70,6 +70,10 @@ TABLE = {
             "TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive",
             "TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_suppression_live_test.go": (
+            "TestGoEvidenceSuppressionPassAndFenceNeverDeadlockLive",
+            "TestGoEvidenceSuppressionCandidateReadIgnoresATableLockLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go": (
             "TestSupplyChainImpactProtectedStaticPublishLive",
             "TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive",

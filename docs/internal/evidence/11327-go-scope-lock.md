@@ -58,8 +58,9 @@ work items (`fact_work_items`) and detaches the go scope (`ingestion_scopes`,
 1. `TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock` runs the real writer over
    the real storage transaction (protected-scan authorization and publication, fact upsert,
    supports, winners capture, retraction, pass state, owed marker, Go evidence) and fails if any
-   statement before the lock names `fact_work_items` or writes or row-locks `ingestion_scopes`
-   or `scope_generations`. Plain reads are allowed: they take no row lock.
+   statement before the lock writes to, row-locks or table-locks `fact_work_items`, or writes to or
+   explicitly row-locks `ingestion_scopes` or `scope_generations`. Plain reads are allowed: they take
+   no row lock (see "The pre-lock rule").
    `TestCensusViolationNamesTheSeededStatements` is its seeded RED/GREEN pair, and
    `TestProtectedPublicationFunctionsTouchNoFenceRows` applies the same rule to the SQL bodies of
    `authorize_impact_publication_v1` and `publish_impact_publication_v1` (migrations 268, 269),
@@ -99,7 +100,8 @@ scope row, each taking it first: the ingestion upsert (`ingestion_queries.go:83`
 repository-retirement fence (`repository_retirements_fence_sql.go:69`, after a
 `LOCK TABLE fact_work_items`), the reconcile update (`projector_queue_sql.go:241`) and the
 fence detach (`gomodules/fence.go`). None of them takes the advisory lock. The pass write
-transaction takes no row of them before its lock (the census guard pins it) and, after the lock,
+transaction writes to or locks none of them before its lock, apart from the implicit key shares
+below (the census guard pins it) and, after the lock,
 only its own `fact_work_items` row for the owed marker, which the ack of a go scope does not hold
 (it updates the acked scope's projector item and other scopes' waiting reducer rows), so no
 cycle exists.
@@ -222,16 +224,44 @@ skip count (must be 0) with both DSN variables (`ESHU_POSTGRES_DSN`, `ESHU_POSTG
 `ESHU_LIVE_REQUIRE_DSN=1` once it exists), the seconds of each live test, and the real-writer
 write-transaction duration and WAL numbers (ruling 4.9). Results: owed: coordinator slot.
 
-## Open for the arbiter: the suppression diff's queue read
+## The pre-lock rule (arbiter ruling of 2026-11-24, plain reads)
 
-For a scope whose fact kinds include a suppression, the suppression diff runs in the write
-transaction before the lock, and its candidate read (`selectSuppressionCandidatesQuery`,
-`core/suppression_fanout_wire.go:59-74`) has an `EXISTS` over `fact_work_items`. It is a plain
-SELECT: ACCESS SHARE on the table, no row lock, so it cannot wait on the fence's reopen and does not
-conflict with the retirement fence's `LOCK TABLE ... EXCLUSIVE`. It does name `fact_work_items`, so
-the strict census rule flags it; the test above pins that it is the only flagged statement and that
-it is a plain read, so the exception cannot grow unnoticed. The rule text stays as ruled until the
-arbiter decides.
+Before the first shared go-evidence lock, no statement on the pass write transaction, storage-side
+ones included, may (a) write to `fact_work_items` or take a row lock or an explicit table lock on
+it: a statement that names `fact_work_items` must be wholly read-only, with no INSERT, UPDATE,
+DELETE, MERGE, TRUNCATE or LOCK keyword and no `FOR [NO KEY] UPDATE` or `FOR [KEY] SHARE` clause;
+or (b) write to, or take an explicit row lock on, `ingestion_scopes` or `scope_generations`. A plain
+read of any of the three is allowed. After the recheck at most one statement, the owed marker,
+pinned by its text; then commit. Function and trigger bodies read as file text keep the strict
+form: they may not name `fact_work_items` at all.
+
+Why a plain read is safe: the suppression diff's candidate read (`selectSuppressionCandidatesQuery`,
+`core/suppression_fanout_wire.go:59-74`) is one SELECT with two `EXISTS` subqueries, no `FOR`
+clause, no `SKIP LOCKED`. It takes ACCESS SHARE only, which conflicts with ACCESS EXCLUSIVE only.
+The fence's reopen takes ROW SHARE, ROW EXCLUSIVE and row locks, and the retirement fence takes
+`LOCK TABLE fact_work_items IN EXCLUSIVE MODE`; neither conflicts. Moving the read after the
+recheck was refused: it would put up to K+1 diff statements between the recheck and the commit
+with the shared lock held.
+
+One classifier, `SupplyChainImpactPreLockStatementViolation` (`core/go_evidence_lock.go`), is
+called by the epilogue checker, the core table tests, the storage census and the live footprint
+check. Its seeded table derives the RED variants from the production candidate read (appended
+`FOR UPDATE`, `FOR NO KEY UPDATE OF w`, `FOR SHARE`, `FOR KEY SHARE`, `FOR UPDATE SKIP LOCKED`),
+the owed marker, the holder reopen, a data-modifying CTE, INSERT and DELETE on the queue, and
+`LOCK TABLE`. `TestImpactWriteTransactionSuppressionFamilyCensus` records a pass whose suppression
+diff really runs (the recorder answers the candidate read with the pass's own generation) and
+asserts the candidate read, the statement-timeout set, a diff read and the RESET all precede the
+lock, with the candidate read the only pre-lock statement naming `fact_work_items`. The live proofs
+(a suppression pass through the real handler, 40 rounds; the production candidate read returning
+under a 1 s `lock_timeout` while a side transaction holds `LOCK TABLE fact_work_items IN EXCLUSIVE
+MODE`) are owed to the coordinator's slot.
+
+Residuals: the candidate read has no statement bound of its own (the bound is set after it) and
+predates this branch. A migration queuing ACCESS EXCLUSIVE on `fact_work_items` behind a suppression
+pass's ACCESS SHARE makes the fence's reopen queue behind the migration while the pass waits on
+the lock; the worst case is the fence's 2,000 ms typed timeout, to be checked at D3a. The two
+foreign-key facts above (partial unique indexes, `NO KEY UPDATE` fences) have no guard; return to
+the arbiter if a fence gains `FOR UPDATE` or DELETE on a scope or generation row.
 
 ## Claims table
 
@@ -266,7 +296,9 @@ skip count (must be 0) with both DSN variables. `ESHU_LIVE_REQUIRE_DSN=1` does n
 | The lock-wait histogram includes the owed marker's time | `TestLockWaitHistogramIncludesTheOwedMarker` | a marker that takes 60 ms must show at least 60 ms | hermetic | 1 |
 | A genuine database error from the lock or the recheck (a 42501 included) is not the typed class and still counts | `TestGenuineFailureOfTheClosingStatementsIsNotTheTypedClass`, `TestClassifyGoEvidenceLockTimeoutMapsOnlyTheSharedLockStatement`, `TestReducerQueueGoEvidenceChangedNeverSpendsAnAttempt` | a 42501 error is the seeded case | hermetic | 1 |
 | The live-test wrapper tolerates unset seams (one proof cannot panic the live binary) | `TestRecheckHookTxToleratesUnsetSeams` | the footprint and 3 s proofs build the wrapper with one seam | hermetic | 1 |
-| The suppression diff's queue read before the lock is the one flagged statement and a plain read | `TestImpactWriteTransactionSuppressionDiffReadsTheQueueBeforeTheLock` | OPEN for the arbiter (see below) | hermetic | 1 |
+| The suppression diff runs before the lock and its queue read is the only pre-lock statement naming `fact_work_items`, a plain read | `TestImpactWriteTransactionSuppressionFamilyCensus` | derived from the production candidate read, see the pre-lock rule | hermetic | 1 |
+| A suppression pass whose diff runs before the lock races a fence without deadlock; the fence reopens its item; the recorded footprint is clean with the read present | `TestGoEvidenceSuppressionPassAndFenceNeverDeadlockLive` | the vacuity check (candidate read and RESET present) fails a pass whose diff did not run | owner | 40 |
+| The production candidate read returns under a held `LOCK TABLE fact_work_items IN EXCLUSIVE MODE` | `TestGoEvidenceSuppressionCandidateReadIgnoresATableLockLive` | n/a | owner | 1 |
 | A loader that cannot name the resolved go scopes fails the pass closed | `TestGoEvidenceFactsOnlyLoaderFailsClosed` | the facts-only loader is the seeded case | hermetic | 1 |
 | The recheck's SELECT is granted to the writer login | `grantImpactWriterPregrants` now grants `SELECT ON ingestion_scopes`; `TestSupplyChainImpactProtectedStaticPublishLive` runs as the worker | the worker lacks it without the grant | worker | 1 |
 
@@ -281,7 +313,7 @@ writer and the real storage transaction, not the handler.
 | The key is its own derivation | `TestGoEvidenceLockKeyDiffersFromTheConflictDomainKey` |
 | Lock, then recheck, then only the owed marker, last before the commit; no pair means neither | `TestWriteLocksGoEvidenceThenRechecksLastBeforeCommit`, `TestWriteWithNoResolvedGoEvidenceIssuesNeitherStatement` |
 | A rewrite cannot move them off the end unnoticed (seeded violations) | `TestGoEvidenceEpilogueViolationNamesTheSeededShapes` |
-| Census guard: nothing before the lock names fact_work_items or writes or locks a scope row | `TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock`, `TestCensusViolationNamesTheSeededStatements`, `TestProtectedPublicationFunctionsTouchNoFenceRows` |
+| Census guard: nothing before the lock writes to or locks fact_work_items, or writes to or explicitly row-locks a scope row (plain reads allowed) | `TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock`, `TestCensusViolationNamesTheSeededStatements`, `TestProtectedPublicationFunctionsTouchNoFenceRows` |
 | The write-tx and lock-wait histograms record by outcome | `TestGoEvidenceLockSignalsRecordWithClosedLabels` |
 | A changed generation aborts with the typed class and writes nothing | `TestWriteAbortsWithTheTypedClassWhenTheRecheckFindsAChangedGeneration` |
 | N aborts spend no attempt; a genuine failure still counts | `TestReducerQueueGoEvidenceChangedNeverSpendsAnAttempt`, `TestReducerQueueClaimDoesNotCountGoEvidenceChanged` |

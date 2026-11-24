@@ -294,9 +294,10 @@ func commitSupplyChainImpactRows(
 	}
 	// The go-evidence lock and recheck are the last statements before the commit
 	// (#11327), apart from the owed marker: the shared lock is held for a recheck and a
-	// commit, so a fence waits milliseconds. Nothing above names fact_work_items or writes
-	// or locks ingestion_scopes or scope_generations (the census guard in storage/postgres
-	// pins it), so this wait cannot close a cycle with a fence holding the exclusive lock.
+	// commit, so a fence waits milliseconds. No statement above writes, row-locks or
+	// table-locks fact_work_items or writes or row-locks ingestion_scopes or scope_generations
+	// (SupplyChainImpactPreLockStatementViolation; the storage census pins it; plain reads are
+	// allowed), so this wait cannot close a cycle with a fence holding the exclusive lock.
 	locked, wait, err := lockAndRecheckGoEvidence(ctx, tx, write.GoEvidence)
 	if err == nil && owed {
 		wait, err = recordOwedAfterGoEvidenceLock(ctx, tx, write, locked, wait)
