@@ -249,6 +249,37 @@ gates:
       - go
     ci_only_reason: ""
 
+  # #10972 gate E (arbiter re-run contract): the supply-chain requeue budget.
+  # Tests A and B assert a fixpoint, not an event: one change with passes in
+  # flight drains within one source pass plus one pass per holder and per pass
+  # in flight, no unrelated scope reruns in full, and steady arrivals rerun a
+  # long unrelated holder at most once. The seeded self-test in the same file
+  # runs both scenarios with a status-only in-flight flag (its own status-only
+  # set B, a failing load-end set A, reopens that name no change) and fails unless the budget reports a
+  # violation, so every run of the job also proves the gate can fail. All three
+  # need real Postgres and run in the contention gate's supply-chain job.
+  - id: supply-chain-requeue-budget
+    name: Supply-chain requeue budget (real Postgres)
+    category: race
+    layer: performance
+    purpose: "Fails when a supply-chain change overruns its requeue budget: no drain within 1 + holders + in-flight passes, or unrelated scopes rerun in full (#10972)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/reducer/supplychain/core/**"
+      - "go/internal/storage/postgres/supply_chain_impact_*.go"
+      - "go/internal/storage/postgres/reducer_queue*.go"
+      - "go/internal/storage/postgres/supply_chain_impact_quiescence_harness_test.go"
+      - "go/internal/storage/postgres/supply_chain_impact_quiescence_live_test.go"
+      - ".github/workflows/reducer-contention-gate.yml"
+    ci:
+      workflow: reducer-contention-gate.yml
+      job: "reducer contention gate (supply-chain proofs)"
+    requirements:
+      - go
+      - postgres
+    ci_only_reason: "needs Postgres service container (GitHub Actions); TestSupplyChainImpactQuiescesAfterOneChangeLive, TestSupplyChainImpactSteadyArrivalsConvergeLive and the seeded TestSupplyChainImpactRequeueBudgetCatchesTheStatusOnlyInFlightFlagLive run in the supply-chain filter"
+
   # ─── DOCS ──────────────────────────────────────────────────────────────────
 
 

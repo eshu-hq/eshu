@@ -133,3 +133,24 @@ off.
   again is not flagged; a failed set A read flags the holder; a no-row holder
   in set A is flagged and converges; both claim reads time out under a locked
   table.
+
+## Requeue budget (gate `supply-chain-requeue-budget`)
+
+The tests above pin events. The requeue budget pins the fixpoint
+(`storage/postgres/supply_chain_impact_quiescence_live_test.go`, arbiter
+re-run contract tests A, B and E):
+
+- `TestSupplyChainImpactQuiescesAfterOneChangeLive`: 30 holders of one CVE, 10
+  unrelated multi-CVE scopes, 6 of them with a genuine pass in flight, one
+  source change. The queue drains within 1 + 30 + 6 executions; no unrelated
+  scope reruns in full; unrelated finding rows keep their xmin; an identical
+  rescan then runs the source pass only, changes no `reopened_at`, and stages
+  no winners dirty fact mark.
+- `TestSupplyChainImpactSteadyArrivalsConvergeLive`: one changed source commit
+  per tick for 30 ticks while an unrelated holder's full pass lasts 10 ticks.
+  The holder runs at most twice: its genuine pass and one rerun that is not a
+  full re-derivation and so is not flagged again.
+- `TestSupplyChainImpactRequeueBudgetCatchesTheStatusOnlyInFlightFlagLive`: the
+  seeded violation. A port whose set B is its own status-only read, whose set A
+  read always fails (so every claim in B is flagged), and whose reopens name no
+  changed id must make both scenarios report a violation.

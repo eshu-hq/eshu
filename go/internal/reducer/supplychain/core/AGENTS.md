@@ -278,7 +278,9 @@ docs/public/reference/telemetry/supply-chain-impact-winners.md. #11111 reuses
 the existing closed `result="denied"` label on the alias-group counter. No new
 metric, label, span, or setting.
 
-No-Regression Evidence (#10972 markers out of the CVE fan-out): the findings
+No-Regression Evidence (#10972 markers out of the CVE fan-out; the findings
+fan-out has since moved to the D4b claim reads below, and the manifest marker
+path keeps this statement): the findings
 fan-out's in-flight read now runs `findInFlightNonMarkerScopesQuery`, the
 shipped in-flight statement plus one residual `payload->>'trigger'` predicate on
 the rows the same `(stage, domain, status)` index scan already returns; the
