@@ -107,7 +107,7 @@ func TestSupplyChainImpactSupportsStableKeyFillLabLive(t *testing.T) {
 		if i == pairs-1 {
 			n = rows - pairRows*(pairs-1)
 		}
-		fillSeedRows(t, ctx, db, scope, generation, "lab", n)
+		fillSeedRows(t, ctx, db, scope, generation, fmt.Sprintf("lab%06d:", i), n) // fact ids are unique across pairs
 	}
 	supportsExec(t, ctx, db, `VACUUM (ANALYZE) supply_chain_impact_finding_supports`)
 	supportsExec(t, ctx, db, `ANALYZE fact_records`)
@@ -181,7 +181,7 @@ func TestSupplyChainImpactSupportsLazyStoredReadPlanLive(t *testing.T) {
 	const nullScope, nullGen = "scope:c1:plan:null", "scope:c1:plan:null:g1"
 	for _, p := range [][2]string{{filledScope, filledGen}, {nullScope, nullGen}} {
 		labScopeGeneration(t, h.ctx, h.db, p[0], p[1])
-		fillSeedRows(t, h.ctx, h.db, p[0], p[1], "pl", rows)
+		fillSeedRows(t, h.ctx, h.db, p[0], p[1], "plan:"+p[0]+":", rows) // fact ids are unique across pairs
 	}
 	// The filled pair: every support carries the twin's key.
 	supportsExec(t, h.ctx, h.db, `
