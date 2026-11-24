@@ -31,6 +31,7 @@ SELECT fact_id,
        generation_id,
        stable_fact_key,
        COALESCE(payload #>> '{provenance,content_digest}', ''),
+       COALESCE(payload #>> '{provenance,identity_digest}', ''),
        COALESCE(payload ->> 'cve_id', ''),
        COALESCE(payload ->> 'advisory_id', ''),
        fencing_token,
@@ -52,13 +53,13 @@ WHERE fact_kind = 'reducer_supply_chain_impact_finding'
 ))
 `
 
-const supportsLegacyStoredReadDigest = "00d9ad56e624ab3f780d8da4c4af8e6f72906ed47c00530ef83f4bc06a91622e"
+const supportsLegacyStoredReadDigest = "d631e62575e7340a712ba4636b4d3fbb717a4c342c0c4c4f608b702b2d1efb3d"
 
 // storedReadRow is one row of the stored read.
 type storedReadRow struct {
-	FactID, GenerationID, Key, Digest, CVE, Advisory string
-	Token                                            int64
-	Members, Suppression, Evidence                   string
+	FactID, GenerationID, Key, Digest, Identity, CVE, Advisory string
+	Token                                                      int64
+	Members, Suppression, Evidence                             string
 }
 
 func scanStoredRead(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) map[string]storedReadRow {
@@ -71,7 +72,7 @@ func scanStoredRead(t *testing.T, ctx context.Context, db *sql.DB, query string,
 	out := map[string]storedReadRow{}
 	for rows.Next() {
 		var r storedReadRow
-		if err := rows.Scan(&r.FactID, &r.GenerationID, &r.Key, &r.Digest, &r.CVE, &r.Advisory, &r.Token, &r.Members, &r.Suppression, &r.Evidence); err != nil {
+		if err := rows.Scan(&r.FactID, &r.GenerationID, &r.Key, &r.Digest, &r.Identity, &r.CVE, &r.Advisory, &r.Token, &r.Members, &r.Suppression, &r.Evidence); err != nil {
 			t.Fatalf("scan stored read: %v", err)
 		}
 		out[r.FactID] = r

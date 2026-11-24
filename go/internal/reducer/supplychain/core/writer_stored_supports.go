@@ -17,6 +17,9 @@ import (
 // Every payload-derived column is the legacy expression over the support's
 // payload, which is the fact payload verbatim; cve_id and advisory_id are the
 // support's derived columns, the same COALESCE over the same payload keys.
+// The identity digest (provenance.identity_digest, D7) rides alongside the
+// content digest so the fan-out origin gate judges identity change; a support
+// written before it existed reads empty and fails closed, as the fact read does.
 // Supports hold only live rows (a retraction deletes the support with the fact's
 // tombstone), so the tombstone predicate has no counterpart.
 //
@@ -36,6 +39,7 @@ SELECT s.fact_id,
        s.generation_id,
        COALESCE(s.stable_fact_key, (SELECT twin.stable_fact_key FROM fact_records AS twin WHERE twin.fact_id = s.fact_id), ''),
        COALESCE(s.payload #>> '{provenance,content_digest}', ''),
+       COALESCE(s.payload #>> '{provenance,identity_digest}', ''),
        s.cve_id,
        s.advisory_id,
        0::bigint,
@@ -81,7 +85,7 @@ func readStoredSupplyChainImpactFindings(
 	for rows.Next() {
 		var row storedFinding
 		var membersRaw, evidenceRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
+		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
 			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
 		}
 		if row.stableKey == "" {

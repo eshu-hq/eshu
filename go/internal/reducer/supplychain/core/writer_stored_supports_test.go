@@ -21,6 +21,7 @@ SELECT fact_id,
        generation_id,
        stable_fact_key,
        COALESCE(payload #>> '{provenance,content_digest}', ''),
+       COALESCE(payload #>> '{provenance,identity_digest}', ''),
        COALESCE(payload ->> 'cve_id', ''),
        COALESCE(payload ->> 'advisory_id', ''),
        fencing_token,
@@ -42,9 +43,10 @@ WHERE fact_kind = 'reducer_supply_chain_impact_finding'
 ))
 `
 
-// legacyStoredFindingsQueryDigest is the sha256 of the query at origin/main
-// f1f45ddad3, before C1 b. The frozen text above must still hash to it.
-const legacyStoredFindingsQueryDigest = "00d9ad56e624ab3f780d8da4c4af8e6f72906ed47c00530ef83f4bc06a91622e"
+// legacyStoredFindingsQueryDigest is the sha256 of the frozen text above: the
+// pre-supports fact read at the D7 base (identity digest column included). The
+// frozen text must still hash to it.
+const legacyStoredFindingsQueryDigest = "d631e62575e7340a712ba4636b4d3fbb717a4c342c0c4c4f608b702b2d1efb3d"
 
 func TestLegacyStoredFindingsQueryStaysFrozen(t *testing.T) {
 	t.Parallel()
@@ -62,6 +64,7 @@ func legacyPayloadExpressions(t *testing.T) map[string]string {
 	out := map[string]string{}
 	for name, needle := range map[string]string{
 		"digest":     "content_digest",
+		"identity":   "identity_digest",
 		"cve":        "'cve_id'",
 		"advisory":   "'advisory_id'",
 		"members":    "advisory_group_members",
@@ -130,7 +133,7 @@ func TestStoredFindingsSupportsQueryDerivesFromTheLegacyExpressions(t *testing.T
 
 	q := listStoredSupplyChainImpactFindingsQuery
 	expr := legacyPayloadExpressions(t)
-	for _, name := range []string{"digest", "members", "suppressed", "evidence"} {
+	for _, name := range []string{"digest", "identity", "members", "suppressed", "evidence"} {
 		want := strings.Replace(expr[name], "payload", "s.payload", 1)
 		if !strings.Contains(q, want) {
 			t.Errorf("the supports read does not carry the legacy %s expression over s.payload: want %q", name, want)
