@@ -688,6 +688,11 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-C1 R5: reducer-contention proof that the supports-backed stored read and the three-leg recovery read equal their frozen fact statements on one seed (a NULL key with a twin, with no twin, with an empty twin key, and a support key that differs from its twin; a committed retraction still named without the fact leg), and that the scope-delete capture stages the fact set whatever the delete order"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_supports_fence_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1 Q7: reducer-contention proof that a finding written without the supports writer setting (an old writer) marks its scope dirty, a scanner classification retracting it lands while the scope is dirty, and after the backfill drain and one keyed tick the stored winners equal the winners select over the finding facts"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_supports_live_test.go
     tag: ~
     class: dedicated_ci

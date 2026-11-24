@@ -13,6 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+// Proof seams (#10880 PR-C1) for the live proofs in this package's external test
+// package. They live in a _test.go file so no binary carries them: a write-capable
+// function outside the test build would be a way to bypass the writer.
+
 // supplyChainImpactSupportsProofPairsSQL lists every (scope, generation) that holds
 // a finding fact or a support.
 const supplyChainImpactSupportsProofPairsSQL = `
@@ -23,15 +27,15 @@ SELECT scope_id, generation_id FROM supply_chain_impact_finding_supports
 ORDER BY 1, 2`
 
 // ProofSyncSupportsFromFacts brings the supports table to what the writer's
-// maintainer would hold for the finding facts as they are now (#10880 PR-C1). In
-// production the impact writer changes the facts and the supports in one transaction.
-// A live proof that seeds or mutates finding facts with raw SQL, as the winners proofs
-// do to simulate a change no capture saw, calls this afterwards so the supports follow
-// the facts exactly as the writer would have left them. It runs the writer's own
+// maintainer would hold for the finding facts as they are now. In production the
+// impact writer changes the facts and the supports in one transaction. A live proof
+// that seeds or mutates finding facts with raw SQL, as the winners proofs do to
+// simulate a change no capture saw, calls this afterwards so the supports follow the
+// facts exactly as the writer would have left them. It runs the writer's own
 // statements, not a copy: per (scope, generation), under the pair's conflict-domain
 // lock, the retraction delete of the supports of tombstoned facts, then the support
 // upsert of every live finding fact in chunks of 500. It stages no winners capture and
-// moves no marker. Product code never calls it.
+// moves no marker.
 func ProofSyncSupportsFromFacts(ctx context.Context, database db.ExecQueryer) error {
 	beginner, ok := database.(db.Beginner)
 	if !ok {
@@ -97,3 +101,27 @@ func proofSyncPair(ctx context.Context, beginner db.Beginner, scope, generation 
 	}
 	return nil
 }
+
+// WinnersProofSelects returns the winners select over the finding facts (the audit's
+// statement) and the same select over the supports table (the maintainer's), both
+// with no arguments.
+func WinnersProofSelects() (fromFacts, fromSupports string) {
+	return supplyChainImpactWinnerSelectSQL, supplyChainImpactWinnerSelectFromSupportsSQL
+}
+
+// WinnersProofDataColumns returns the winners table's data columns in order, the
+// columns after canonical_key that the select produces.
+func WinnersProofDataColumns() []string {
+	return append([]string(nil), supplyChainImpactWinnerDataColumns...)
+}
+
+// WinnersProofStagingTable returns the winners dirty-capture staging table name.
+func WinnersProofStagingTable() string { return winnersStagingTable }
+
+// WinnersProofKeyedProbeSQL returns the keyed active_facts probe statement the winners
+// maintainer runs over the supports table.
+func WinnersProofKeyedProbeSQL() string { return buildWinnersKeyedActiveFactsFromSupportsSQL }
+
+// WinnersProofKeyedIdentsTable returns the session table the keyed probe reads its
+// identifiers from.
+func WinnersProofKeyedIdentsTable() string { return winnersKeyedIdentsTable }

@@ -301,9 +301,10 @@ Written, not yet run. Environment, for a disposable server only:
 - `TestSupplyChainImpactWinnersResweepSupportsDifferentialLive`: the winners select over the facts against the
   supports, `EXCEPT ALL` both ways, and the supports-driven winners table against the facts select.
 
-The statements come from the writer's package through two small proof seams
-(`core.ProofStoredFindingsQuery` and the recovery equivalents, `postgres.WinnersProofSelects`), so the proof runs
-the statements the writer and the maintainer run. The ledger and the reducer-contention inventory name both files.
+The statements come from the writer's package through proof seams: `core.ProofStoredFindingsQuery` and the
+recovery equivalents (statement text only, shipped, with a census test that fails on any non-test caller), and
+`postgres.WinnersProofSelects` with `postgres.ProofSyncSupportsFromFacts` (in a `_test.go` file of the storage
+package, so no binary carries a write-capable seam). The proof runs the statements the writer and the maintainer run. The ledger and the reducer-contention inventory name both files.
 
 ### Raw-fact winners proofs now sync supports
 
@@ -326,3 +327,44 @@ between the facts and the supports (a writer bug, since the two change in one tr
 re-queue the same key on every pass, because the keyed tick recomputes the winner from the supports and the
 audit compares it with the facts. After C2 l moves the audit to the supports the audit compares the winners
 with the supports only, so the audit sweep run at D3a is the last independent oracle.
+
+## Pre-open ruling items (C1)
+
+The arbiter's pre-open ruling on C1 (2026-11-24) adds the following, recorded here because the PR cites it.
+
+**The extra full (Q6).** `full_needed = ready AND marker.completed_at > winners.materialized_at`
+(`selectSupplyChainImpactWinnersSupportsGateSQL`) stands as built. It is not bounded by "a not-ready tick was
+counted": that is process memory, and it would miss the case where captures 352 and 353 staged nothing while the
+reducer was down. The cost is bounded: the full and the keyed tick both advance `materialized_at`, `completed_at` is
+set once per marker, and the full's own stamp clears the condition. QA handling: before the D3a roll read both
+timestamps with one SELECT, say in the roll note whether the full will run, and if it will, it runs before the soak
+clock and outside every counted window; report its duration and WAL by statement text. Accepted under-read: on a
+direct jump from an image older than migration 338, an old ungated maintainer can stamp a watermark after the marker
+completes; the audit on facts is the backstop in C1. **For the upgrade note:** the supported path is to reach
+supports-ready on a B-series image before the C1 image.
+
+**The dirty fence only (Q7).** No full is needed. The old writer's fence row is written by an AFTER trigger in the
+old writer's own transaction, with its winner mark; ticks refuse while a dirty row exists; a scanner row lands either
+before the drain, covered by the unconsumed writer mark, or after it, where capture 353 works.
+`TestSupplyChainImpactWinnersResweepSupportsDirtyFenceScannerLive` proves it: an old-writer write marks the scope
+dirty, a scanner classification retracting that finding lands while it is dirty (and capture 353 stages nothing, as the
+premise says), and after the backfill drain and one keyed tick the stored winners equal the facts select, `EXCEPT ALL`
+both ways. Residual accepted for C1 only: the gate read and the tick's consume are separate statements, and the drain
+stages no winner mark, so an old writer that commits between them can have its mark consumed against stale supports;
+the winner is stale until the next audit pass re-queues it, so it converges. It cannot occur in C2, where the reject
+trigger stops old writers.
+
+**The audit and the soak (item 18).** The audit stays on facts until C2 l: a divergence in C1 is a writer defect, and a
+key the audit re-queues every pass is the oracle refusing to hide it. The D3a soak exit is two consecutive complete
+audit sweeps with zero stale keys, not one. Any key re-queued on two passes during the soak stops C2 from merging;
+return to the arbiter with the keys. The audit does not write facts-derived winners in C1.
+
+**Proofs added by the ruling.** The proof seams that write live in a `_test.go` file
+(`supply_chain_impact_supports_proof_export_test.go`); `TestProofSeamsHaveNoNonTestCallers` fails on any non-test
+caller of a seam, with a seeded pair. `TestRenderUngrantedExplainShapes` (set `ESHU_RENDER_EXPLAIN_DIR`) renders the
+ungranted explain shapes (cve, advisory, package, repository, subject digest, cve plus package, identity by fact id,
+finding id and canonical key, the public-id probe and its miss) as psql files, each plain and under
+`plan_cache_mode = force_generic_plan`, for the read-only replica run after the B-series roll puts the cve, advisory,
+package and repository indexes on QA: the pass condition is no Seq Scan on supports in any plan. The live family must be
+recorded at the heads that will be pushed, one run on the C1 head and one on the C1k head, each stating both DSN
+variables and zero skips, with the log path; those runs are the coordinator's and are added here when they exist.
