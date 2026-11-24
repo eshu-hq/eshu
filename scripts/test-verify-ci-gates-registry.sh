@@ -417,21 +417,9 @@ printf '%s\n' "${selection}" |
 	rg '^SELECTED[[:space:]]+frontend-site[[:space:]]' >/dev/null ||
 	fail "public asset did not select frontend-site (${public_asset})"
 
-# The exact-source auth CLI helper is shared by both fresh-stack auth gates.
-# CI-heavy gates are never selected in the local lane (select.go enforces that
-# before trigger matching), so prove parity directly in both sources of truth;
-# the live validate --drift below proves the resulting registry is valid.
-auth_mcp_gate="$(
-	sed -n '/^  - id: auth-mcp-e2e$/,/^  - id:/p' "${registry}"
-)"
-for auth_cli_path in \
-	'scripts/lib/auth_e2e_cli.sh' \
-	'scripts/test-auth-e2e-cli.sh'; do
-	require_path_line "${auth_mcp_gate}" "${auth_cli_path}" \
-		"auth-mcp-e2e registry triggers omit the auth CLI helper"
-	require_inventory_path_line "${frontend_pull_request_paths}" "${auth_cli_path}" \
-		"frontend pull_request paths omit the auth CLI helper"
-done
+# D13: the fresh-stack auth gates (and their registry entries) left with
+# the deleted in-tree API surface; serving proof moves to the cutover
+# lane. The CLI helper parity block above left with them.
 
 # Every gate must declare a tier. Spot-check the enumerated tiers.
 require "pre-commit tier"  "tier: pre-commit" "${registry}"
