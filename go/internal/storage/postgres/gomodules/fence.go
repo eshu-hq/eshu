@@ -37,7 +37,10 @@ import (
 // retracted generation for the keyed winners tick, which re-picks among stored findings and
 // re-derives nothing. Each holder must re-derive its own copy, so holders are reopened here.
 // No pass reads Go evidence across scopes until eshu-hq/eshu#10095 lands, so today the reopen
-// changes no verdict. It is here so the verdict cannot go stale once that loader merges.
+// changes no verdict. It is here so the verdict cannot go stale once that loader merges. The
+// reopen is not free before then: since #10972 it widens a pending or retrying holder whose
+// stamp names a bounded CVE set to the fence's set-less stamp, so that holder's next pass runs
+// full instead of scoped, which costs extra full passes and changes no verdict until #10095.
 const (
 	// fenceTimeoutsQuery bounds the waits, so a scope or work item held by another
 	// transaction cannot stall the reconcile loop, and a regressed holder read cannot

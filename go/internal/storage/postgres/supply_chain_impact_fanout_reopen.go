@@ -18,6 +18,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+// reopenSupplyChainImpactMatchedStatuses is the status set the reopen reads for
+// a holder: every state it classifies. A row in any other state (failed,
+// superseded) is not matched, and a holder with no matched row is enqueued. The
+// queued-holder prefilter (findQueuedSupplyChainImpactHoldersQuery) reads the
+// same set, so the two cannot disagree on which rows exist.
+const reopenSupplyChainImpactMatchedStatuses = `('succeeded', 'claimed', 'running', 'pending', 'retrying', 'dead_letter')`
+
 // reopenSupplyChainImpactDeadLetter is true for a dead letter the fan-out may
 // reopen (#11147): its failure class is not in the admin unsafe-replay set
 // ($4, from recovery.UnsafeReplayFailureClasses, the one source of that set).
@@ -28,6 +35,22 @@ const reopenSupplyChainImpactDeadLetter = `(work.status = 'dead_letter' AND NOT 
 // pending: a succeeded row, or a dead letter the fan-out may reopen.
 const reopenSupplyChainImpactToPending = `(work.status = 'succeeded' OR ` + reopenSupplyChainImpactDeadLetter + `)`
 
+// reopenSupplyChainImpactWidenQueued is true for a pending or retrying row
+// whose next pass does not cover the incoming change (#10972): the reopen
+// merges the change into its stamp and writes nothing else.
+var reopenSupplyChainImpactWidenQueued = `(work.status IN ('pending', 'retrying') AND NOT ` +
+	fanOutQueuedRowCoversSQL("$5::jsonb", "$6::boolean") + `)`
+
+// reopenSupplyChainImpactWidenFlagged is true for a claimed or running row
+// whose replay flag is already on and whose stamp set does not name the
+// incoming change (#10972): its one rerun must derive the union.
+var reopenSupplyChainImpactWidenFlagged = `(work.status IN ('claimed', 'running') AND work.cross_scope_replay_required AND NOT ` +
+	fanOutStampCoversSQL(fanOutStampSQL, "$5::jsonb", "$6::boolean") + `)`
+
+// reopenSupplyChainImpactSetsFlag is true for a claimed or running row the
+// reopen flags for one rerun.
+const reopenSupplyChainImpactSetsFlag = `(work.status IN ('claimed', 'running') AND NOT work.cross_scope_replay_required)`
+
 // reopenSupplyChainImpactHolderQuery reopens one holder's supply_chain_impact
 // item at the scope's CURRENT active generation, in one autocommit statement
 // that holds at most one row lock. The CTE locks the row in work_item_id order;
@@ -35,10 +58,22 @@ const reopenSupplyChainImpactToPending = `(work.status = 'succeeded' OR ` + reop
 // succeeded while the statement waited is reopened rather than lost, and a dead
 // letter another session reopened while it waited reads as pending. The SET
 // list matches scheduleCrossScopeMaterializationReplayQuery, including the
-// container-image-identity authorization columns the claim path reads. A
-// pending or retrying row is classified and left untouched, so a queued holder
-// costs no row version; a claimed or running row gets the durable replay bit the
-// migration 093 trigger turns into one rerun. A dead letter whose class is not
+// container-image-identity authorization columns the claim path reads.
+//
+// Per state: a succeeded row returns to pending, stamped with the incoming
+// origin. A claimed or running row gets the durable replay bit the migration
+// 093 trigger turns into one rerun, and its stamp is MERGED with the incoming
+// one (fanOutMergedStampSQL), so a set the running pass was told about is
+// never dropped. A pending or retrying row whose next pass covers the change
+// (fanOutQueuedRowCoversSQL) is classified and left untouched, so it costs no
+// row version; one that does not is widened (#10972): only payload.fanout_origin
+// is written, never status, attempts, lease, failure fields, visible_at, or
+// updated_at, because the claim orders by updated_at and a bump would push a
+// busy holder to the back on every fan-out. A claimed or running row whose flag
+// is already on is widened the same way when its stamp does not name the
+// change, and left untouched when it does or when it has no stamp object (a
+// flag set by something other than a fan-out: its rerun is a genuine full
+// pass, which a stamp would narrow). A dead letter whose class is not
 // unsafe to replay (#11147) returns to pending as a full genuine pass: attempts
 // zeroed, lease, retry, and failure fields cleared, the identity authorization
 // columns set the way the admin replay sets them, the replay bit off, and the
@@ -46,10 +81,10 @@ const reopenSupplyChainImpactToPending = `(work.status = 'succeeded' OR ` + reop
 // runs as a CVE-scoped one hop and would hide the unfinished genuine pass. Its
 // fanout_owed marker and fanout_remaining list stay, so the reopened pass still
 // fans out what it owes. A dead letter in an unsafe class is locked and
-// classified but not written. The origin stamp is overwritten on every other
-// row the statement writes. Arguments: $1 holder scope id, $2 now, $3 stamp
-// JSON, $4 the unsafe-replay failure classes.
-const reopenSupplyChainImpactHolderQuery = `
+// classified but not written. Arguments: $1 holder scope id, $2 now, $3 stamp
+// JSON, $4 the unsafe-replay failure classes, $5 the stamp ids as a jsonb
+// array and $6 whether they are bounded (fanOutChangeArgs).
+var reopenSupplyChainImpactHolderQuery = `
 WITH target AS MATERIALIZED (
     SELECT work.work_item_id,
            work.status AS prior_status,
@@ -62,7 +97,7 @@ WITH target AS MATERIALIZED (
     WHERE work.scope_id = $1
       AND work.stage = 'reducer'
       AND work.domain = 'supply_chain_impact'
-      AND work.status IN ('succeeded', 'claimed', 'running', 'pending', 'retrying', 'dead_letter')
+      AND work.status IN ` + reopenSupplyChainImpactMatchedStatuses + `
     ORDER BY work.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF work
 ), moved AS (
@@ -85,7 +120,10 @@ WITH target AS MATERIALIZED (
         claim_until = CASE WHEN ` + reopenSupplyChainImpactToPending + ` THEN NULL ELSE work.claim_until END,
         visible_at = CASE WHEN ` + reopenSupplyChainImpactToPending + ` THEN $2 ELSE work.visible_at END,
         next_attempt_at = CASE WHEN ` + reopenSupplyChainImpactToPending + ` THEN NULL ELSE work.next_attempt_at END,
-        updated_at = $2,
+        updated_at = CASE
+            WHEN ` + reopenSupplyChainImpactToPending + ` OR ` + reopenSupplyChainImpactSetsFlag + ` THEN $2
+            ELSE work.updated_at
+        END,
         reopened_at = CASE WHEN ` + reopenSupplyChainImpactToPending + ` THEN $2 ELSE work.reopened_at END,
         cross_scope_replay_required = CASE
             WHEN work.status IN ('claimed', 'running') THEN TRUE
@@ -97,16 +135,21 @@ WITH target AS MATERIALIZED (
         failure_details = CASE WHEN ` + reopenSupplyChainImpactToPending + ` THEN NULL ELSE work.failure_details END,
         payload = CASE
             WHEN ` + reopenSupplyChainImpactDeadLetter + ` THEN work.payload - '` + supplychaincore.PayloadKeyFanOutOrigin + `'
-            ELSE jsonb_set(work.payload, '{` + supplychaincore.PayloadKeyFanOutOrigin + `}', $3::jsonb, TRUE)
+            WHEN work.status = 'succeeded' THEN jsonb_set(work.payload, '{` + supplychaincore.PayloadKeyFanOutOrigin + `}', $3::jsonb, TRUE)
+            ELSE jsonb_set(work.payload, '{` + supplychaincore.PayloadKeyFanOutOrigin + `}',
+                COALESCE(` + fanOutMergedStampSQL("$3::jsonb", "$5::jsonb", "$6::boolean") + `, $3::jsonb), TRUE)
         END
     FROM target
     WHERE work.work_item_id = target.work_item_id
       AND (` + reopenSupplyChainImpactToPending + `
-           OR (work.status IN ('claimed', 'running') AND NOT work.cross_scope_replay_required))
+           OR ` + reopenSupplyChainImpactSetsFlag + `
+           OR ` + reopenSupplyChainImpactWidenQueued + `
+           OR ` + reopenSupplyChainImpactWidenFlagged + `)
     RETURNING work.work_item_id
 )
 SELECT target.prior_status,
        EXISTS (SELECT 1 FROM moved WHERE moved.work_item_id = target.work_item_id) AS rewritten,
+       target.prior_flag,
        target.prior_failure_class
 FROM target
 ORDER BY target.work_item_id COLLATE "C"
@@ -140,9 +183,13 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 	if err != nil {
 		return supplychaincore.FanOutReopen{}, fmt.Errorf("marshal supply chain impact fan-out stamp: %w", err)
 	}
+	cves, bounded, err := fanOutChangeArgs(canonical.CVEIDs)
+	if err != nil {
+		return supplychaincore.FanOutReopen{}, err
+	}
 	now := s.now()
 	rows, err := s.DB.QueryContext(ctx, reopenSupplyChainImpactHolderQuery,
-		holderScopeID, now, string(stamp), recovery.UnsafeReplayFailureClasses())
+		holderScopeID, now, string(stamp), recovery.UnsafeReplayFailureClasses(), cves, bounded)
 	if err != nil {
 		return supplychaincore.FanOutReopen{}, fmt.Errorf("reopen supply chain impact holder: %w", err)
 	}
@@ -152,15 +199,15 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 	)
 	for rows.Next() {
 		var (
-			prior, priorClass string
-			rewritten         bool
+			prior, priorClass    string
+			rewritten, priorFlag bool
 		)
-		if err := rows.Scan(&prior, &rewritten, &priorClass); err != nil {
+		if err := rows.Scan(&prior, &rewritten, &priorFlag, &priorClass); err != nil {
 			_ = rows.Close()
 			return supplychaincore.FanOutReopen{}, fmt.Errorf("scan supply chain impact holder reopen: %w", err)
 		}
 		matched++
-		if next := classifyHolderReopen(prior, rewritten, priorClass); reopenRank(next.Outcome) > reopenRank(result.Outcome) {
+		if next := classifyHolderReopen(prior, rewritten, priorFlag, priorClass); reopenRank(next.Outcome) > reopenRank(result.Outcome) {
 			result = next
 		}
 	}
@@ -181,8 +228,10 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 // classifyHolderReopen names what the reopen statement did to one row. A dead
 // letter with no failure class reports supplyChainImpactDeadLetterUnclassified,
 // the label the dead-letter gauge uses, so the counter, the log line, and the
-// gauge name a NULL class the same way.
-func classifyHolderReopen(prior string, rewritten bool, priorClass string) supplychaincore.FanOutReopen {
+// gauge name a NULL class the same way. A rewritten pending or retrying row, or
+// a rewritten claimed or running row whose flag was already on, had only its
+// stamp widened (#10972).
+func classifyHolderReopen(prior string, rewritten, priorFlag bool, priorClass string) supplychaincore.FanOutReopen {
 	if prior == "dead_letter" && priorClass == "" {
 		priorClass = supplyChainImpactDeadLetterUnclassified
 	}
@@ -193,24 +242,30 @@ func classifyHolderReopen(prior string, rewritten bool, priorClass string) suppl
 		return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutDeadLetterReopened, PriorFailureClass: priorClass}
 	case prior == "dead_letter":
 		return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutDeadLetterSkipped, PriorFailureClass: priorClass}
-	case (prior == "claimed" || prior == "running") && rewritten:
+	case (prior == "claimed" || prior == "running") && rewritten && !priorFlag:
 		return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutReplayFlagged}
+	case rewritten && prior != "succeeded":
+		return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutStampWidened}
 	}
 	return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutPendingNoop}
 }
 
 // reopenRank orders the per-row outcomes when a scope's active generation has
 // more than one item, so the holder reports the strongest thing the statement
-// did: a reopen beats a flag, and either beats a skipped dead letter or a no-op.
+// did: a reopen beats a flag, either beats a skipped dead letter, and a skipped
+// dead letter, which an operator must act on, beats a stamp widen, which still
+// beats a no-op: a widened row wrote a row version and is not a no-op (#10972).
 func reopenRank(outcome supplychaincore.FanOutOutcome) int {
 	switch outcome {
 	case supplychaincore.FanOutReopened:
-		return 4
+		return 5
 	case supplychaincore.FanOutDeadLetterReopened:
-		return 3
+		return 4
 	case supplychaincore.FanOutReplayFlagged:
-		return 2
+		return 3
 	case supplychaincore.FanOutDeadLetterSkipped:
+		return 2
+	case supplychaincore.FanOutStampWidened:
 		return 1
 	case supplychaincore.FanOutPendingNoop, supplychaincore.FanOutEnqueued, supplychaincore.FanOutNoActiveGeneration:
 		// The statement never classifies a row as enqueued or as having no

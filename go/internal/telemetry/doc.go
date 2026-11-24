@@ -140,7 +140,8 @@
 // in_flight, manifest_generation, package, repository — the read that
 // failed, #10564),
 // so an operator can see whether a source retraction reached the scopes
-// that hold stale copies (reopened, replay_flagged, pending_noop, enqueued,
+// that hold stale copies (reopened, replay_flagged, pending_noop,
+// prefiltered_pending and stamp_widened from #10972, enqueued,
 // dead_letter_reopened, dead_letter_skipped, no_active_generation, deferred;
 // the two dead-letter outcomes also carry failure_class, #11147) and whether a pass fanned out only because a retry showed an earlier
 // attempt may have died first (crash_recovery) or failed to read its holders

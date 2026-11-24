@@ -26,6 +26,7 @@ func TestFanOutReadTimeoutCarriesReadSite(t *testing.T) {
 	}{
 		{"holders", &stubFanOut{findErr: ErrFanOutReadTimeout}, telemetry.FanOutReadSiteHolders},
 		{"in-flight", &stubFanOut{inFlightErr: ErrFanOutReadTimeout}, telemetry.FanOutReadSiteInFlight},
+		{"holder-prefilter", &stubFanOut{holders: []string{"holder-a"}, queuedErr: ErrFanOutReadTimeout}, telemetry.FanOutReadSiteHolderPrefilter},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
