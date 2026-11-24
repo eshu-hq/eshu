@@ -125,27 +125,44 @@ func (s Service) recordIdleWake(ctx context.Context, workerID int) {
 // the last maxProjectorPollInterval the pool is active, every worker keeps polling at
 // the base interval, and only a process with no claim for that long runs the 1, 2, 4,
 // 5 s sequence. The timestamp is one atomic word shared by all workers.
+//
+// The word holds the time since base, so a wall-clock step does not reach it: base
+// keeps the monotonic reading time.Now carries, and Sub uses it. A clock that still
+// reads earlier than the last claim (an injected clock, or a platform without a
+// monotonic reading) is treated as idle, never as active: base-interval polling is
+// the costly side, and an idle reading only restores #10869's own sequence.
 type processActivity struct {
-	lastClaim atomic.Int64 // unix nanoseconds of the last claim; 0 = none yet
+	lastClaim atomic.Int64 // 1 + nanoseconds since base of the last claim; 0 = none yet
+	base      time.Time
 	now       func() time.Time
 }
 
 func newProcessActivity(now func() time.Time) *processActivity {
-	return &processActivity{now: now}
+	return &processActivity{base: now(), now: now}
+}
+
+// since returns the stored form of the current time: 1 + nanoseconds since base.
+func (a *processActivity) since() int64 {
+	return int64(a.now().Sub(a.base)) + 1
+}
+
+// recent reports whether a claim stamped at last is within the cap of now. A last of
+// zero (no claim yet) and a clock reading earlier than last are not recent.
+func recent(last, now int64) bool {
+	age := time.Duration(now - last)
+	return last != 0 && age >= 0 && age < maxProjectorPollInterval
 }
 
 // noteClaim records a claim and reports whether the process had been idle: no claim
 // before it, or none within the last maxProjectorPollInterval.
 func (a *processActivity) noteClaim() (wasIdle bool) {
-	now := a.now().UnixNano()
-	prev := a.lastClaim.Swap(now)
-	return prev == 0 || time.Duration(now-prev) >= maxProjectorPollInterval
+	now := a.since()
+	return !recent(a.lastClaim.Swap(now), now)
 }
 
 // active reports whether any worker claimed within the last maxProjectorPollInterval.
 func (a *processActivity) active() bool {
-	last := a.lastClaim.Load()
-	return last != 0 && time.Duration(a.now().UnixNano()-last) < maxProjectorPollInterval
+	return recent(a.lastClaim.Load(), a.since())
 }
 
 // now returns the service clock.
