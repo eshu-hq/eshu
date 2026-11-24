@@ -28,15 +28,15 @@ type SupplyChainImpactSupportsWrite struct {
 // the marker-gated backfill and the drift audit repair a missed write in
 // production.
 //
-// Both calls run in the transaction that writes the finding facts, under the
-// conflict-domain lock the writer already holds, so a support row is never
-// visible without its fact and never outlives its retraction. Each derives its
-// rows from fact_records, never from the in-memory findings, so the fact payload
-// stays the one source of truth for the canonical key and the filter columns.
+// The upsert runs in the transaction that writes the finding facts, under the
+// conflict-domain lock the writer already holds, so a support row is never visible
+// without its pass and never outlives its retraction. It derives the rows from the
+// writer's own in-memory rows (#10880 PR-C2 h), with the same column expressions
+// the fact-derived backfill uses, so the support is the fact payload verbatim.
 type SupplyChainImpactSupportsMaintainer interface {
-	// UpsertImpactSupports writes one support row per live (non-tombstoned) fact
-	// id, in fact id order, rewriting a row only when a derived column changed.
-	UpsertImpactSupports(ctx context.Context, factIDs []string) (SupplyChainImpactSupportsWrite, error)
+	// UpsertImpactSupportRows writes one support row per distinct fact id in rows,
+	// in fact id order, rewriting a row only when a derived column changed.
+	UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (SupplyChainImpactSupportsWrite, error)
 	// DeleteRetractedImpactSupports removes the supports of the (scope,
 	// generation) whose fact the retraction tombstoned, and returns the rows
 	// removed.
@@ -76,13 +76,9 @@ func WriteSupplyChainImpactFindingRows(ctx context.Context, tx SupplyChainImpact
 	if !hasSupports || len(rows) == 0 {
 		return nil
 	}
-	factIDs := make([]string, 0, len(rows))
-	for _, row := range rows {
-		factIDs = append(factIDs, row.FactID)
-	}
 	supportsStarted := time.Now()
-	_, err := supports.UpsertImpactSupports(ctx, factIDs)
-	timings.add(supplyChainImpactTxStmtSupportsUpsert, time.Since(supportsStarted), int64(len(factIDs)))
+	_, err := supports.UpsertImpactSupportRows(ctx, rows)
+	timings.add(supplyChainImpactTxStmtSupportsUpsert, time.Since(supportsStarted), int64(len(rows)))
 	if err != nil {
 		return fmt.Errorf("write supply chain impact supports: %w", err)
 	}

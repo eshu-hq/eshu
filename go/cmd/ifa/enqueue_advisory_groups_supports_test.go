@@ -55,13 +55,15 @@ func (t *recordingImpactTx) Rollback() error {
 	return nil
 }
 
-func (t *recordingImpactTx) UpsertImpactSupports(_ context.Context, factIDs []string) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
+func (t *recordingImpactTx) UpsertImpactSupportRows(_ context.Context, rows []factwrite.VersionedRow) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
 	t.events = append(t.events, "upsert supports")
-	t.supportFactIDs = append(t.supportFactIDs, factIDs...)
+	for _, row := range rows {
+		t.supportFactIDs = append(t.supportFactIDs, row.FactID)
+	}
 	if t.supportsErr != nil {
 		return supplychaincore.SupplyChainImpactSupportsWrite{}, t.supportsErr
 	}
-	return supplychaincore.SupplyChainImpactSupportsWrite{Inserted: int64(len(factIDs))}, nil
+	return supplychaincore.SupplyChainImpactSupportsWrite{Inserted: int64(len(rows))}, nil
 }
 
 func (t *recordingImpactTx) DeleteRetractedImpactSupports(context.Context, string, string) (int64, error) {

@@ -58,13 +58,17 @@ func (t supportsRecordingTx) QueryContext(ctx context.Context, query string, arg
 	return t.SupplyChainImpactTx.QueryContext(ctx, query, args...)
 }
 
-func (t supportsRecordingTx) UpsertImpactSupports(_ context.Context, factIDs []string) (SupplyChainImpactSupportsWrite, error) {
+func (t supportsRecordingTx) UpsertImpactSupportRows(_ context.Context, rows []factwrite.VersionedRow) (SupplyChainImpactSupportsWrite, error) {
 	*t.events = append(*t.events, "supports-upsert")
-	*t.factIDs = append(*t.factIDs, append([]string(nil), factIDs...))
+	factIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		factIDs = append(factIDs, row.FactID)
+	}
+	*t.factIDs = append(*t.factIDs, factIDs)
 	if t.upsertErr != nil {
 		return SupplyChainImpactSupportsWrite{}, t.upsertErr
 	}
-	return SupplyChainImpactSupportsWrite{Inserted: int64(len(factIDs))}, nil
+	return SupplyChainImpactSupportsWrite{Inserted: int64(len(rows))}, nil
 }
 
 func (t supportsRecordingTx) DeleteRetractedImpactSupports(_ context.Context, scopeID, generationID string) (int64, error) {
@@ -82,7 +86,7 @@ func supportsWriter(upsertErr error) (PostgresSupplyChainImpactWriter, *[]string
 
 // TestWriteMaintainsSupportsInTheFactTransaction pins the maintainer placement:
 // the supports upsert runs after the fact insert and before the retraction, over
-// exactly the fact ids the pass wrote, and the supports delete runs after the
+// exactly the rows the pass wrote, and the supports delete runs after the
 // retraction for the pass's (scope, generation). A partial-evidence pass skips
 // the retraction, so it skips the delete too.
 func TestWriteMaintainsSupportsInTheFactTransaction(t *testing.T) {

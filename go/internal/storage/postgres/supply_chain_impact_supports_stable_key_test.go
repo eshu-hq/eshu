@@ -119,6 +119,10 @@ func TestSupportsStableFactKeyMigrationIsAdditiveAndNullable(t *testing.T) {
 	}
 }
 
+// supportsContractBaseStatementCount is how many statements the version-1 contract
+// covered before #10880 PR-C2 h appended the writer's in-memory upsert.
+const supportsContractBaseStatementCount = 6
+
 // supportsContractVersion1BasePin is the version-1 contract hash before C1 a
 // added the fill-only column (the pin at origin/main f1f45ddad3).
 const supportsContractVersion1BasePin = "3f720ba20fc6f6ef850cd00b72d36992bd7357291b1f4c6b77cfa442865a6184"
@@ -139,11 +143,35 @@ func TestStableFactKeyDoesNotChangeTheVersion1Statements(t *testing.T) {
 	if statements[0] == baseUpsert {
 		t.Fatal("the shipped upsert equals the no-fill render: the fill-only column is not in it")
 	}
-	base := append([]string{baseUpsert}, statements[1:]...)
+	// The statements the version-1 pin covered before PR-C2 h appended the in-memory upsert.
+	base := append([]string{baseUpsert}, statements[1:supportsContractBaseStatementCount]...)
 	if got := supplyChainImpactSupportsContractHashOf(base); got != supportsContractVersion1BasePin {
 		t.Fatalf("the no-fill render hashes to %s, want the base version-1 pin %s: the statements differ from the base by more than the fill-only column", got, supportsContractVersion1BasePin)
 	}
 	if got := supplyChainImpactSupportsContractHashOf(statements); got == supportsContractVersion1BasePin {
 		t.Fatal("the shipped statements still hash to the base pin: the pin was not re-derived")
+	}
+	if len(statements) <= supportsContractBaseStatementCount {
+		t.Fatalf("the contract covers %d statements, want more than the %d the base pin hashed", len(statements), supportsContractBaseStatementCount)
+	}
+}
+
+// supportsContractBeforeRowsUpsertPin is the version-1 pin after PR-C1 a and before
+// PR-C2 h appended the writer's in-memory upsert.
+const supportsContractBeforeRowsUpsertPin = "691ac3c4f55c30599005a87ae4db68165228f7f9a3da3ba9e49f87534dde8eca"
+
+// TestRowsUpsertOnlyAppendsToTheVersion1Contract proves the PR-C2 h re-pin is an
+// append: the statements the contract covered before still hash to the previous pin,
+// so no existing statement changed and the version stays 1 (a bump would re-run the
+// supports backfill and answer 503 on every supports read until it finished).
+func TestRowsUpsertOnlyAppendsToTheVersion1Contract(t *testing.T) {
+	t.Parallel()
+
+	statements := supplyChainImpactSupportsContractStatements()
+	if got := supplyChainImpactSupportsContractHashOf(statements[:supportsContractBaseStatementCount]); got != supportsContractBeforeRowsUpsertPin {
+		t.Fatalf("the first %d statements hash to %s, want the previous pin %s: an existing statement changed", supportsContractBaseStatementCount, got, supportsContractBeforeRowsUpsertPin)
+	}
+	if statements[len(statements)-1] != upsertSupplyChainImpactSupportRowsSQL {
+		t.Fatal("the appended statement is not the writer's in-memory upsert")
 	}
 }

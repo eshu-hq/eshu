@@ -6,9 +6,11 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -88,6 +90,20 @@ func supplyChainImpactSupportsSelectSQL(predicate string) string {
 // none to prove the shipped statements differ from the version-1 pin only by the
 // fill-only columns.
 func supplyChainImpactSupportsSelectSQLWith(predicate string, fillOnly []supplyChainImpactSupportColumn) string {
+	return supplyChainImpactSupportsProjectionSQL(fillOnly) + `
+FROM fact_records AS fact
+WHERE fact.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+  AND fact.is_tombstone = FALSE
+  AND ` + predicate + `
+ORDER BY fact.fact_id`
+}
+
+// supplyChainImpactSupportsProjectionSQL renders the SELECT list that derives a
+// support row from a relation aliased "fact": the fact id, every derived column,
+// then the fill-only columns. Every statement that derives support rows renders
+// it, so the fact-derived reads and the in-memory upsert cannot disagree on a
+// column expression.
+func supplyChainImpactSupportsProjectionSQL(fillOnly []supplyChainImpactSupportColumn) string {
 	var exprs []string
 	for _, column := range supplyChainImpactSupportColumns {
 		exprs = append(exprs, "    "+column.expr+" AS "+column.name)
@@ -96,12 +112,7 @@ func supplyChainImpactSupportsSelectSQLWith(predicate string, fillOnly []supplyC
 		exprs = append(exprs, "    "+column.expr+" AS "+column.name)
 	}
 	return `SELECT fact.fact_id,
-` + strings.Join(exprs, ",\n") + `
-FROM fact_records AS fact
-WHERE fact.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-  AND fact.is_tombstone = FALSE
-  AND ` + predicate + `
-ORDER BY fact.fact_id`
+` + strings.Join(exprs, ",\n")
 }
 
 // supplyChainImpactSupportsColumnNamesWith returns fact_id, every derived column,
@@ -196,6 +207,33 @@ WHERE (` + strings.Join(existing, ", ") + `)
 RETURNING (xmax = 0) AS inserted`
 }
 
+// supplyChainImpactSupportRowsSelectSQL derives support rows from the writer's
+// in-memory rows instead of from fact_records (#10880 PR-C2 h): the same
+// projection over the same alias, with the relation an unnest of the six values
+// a fact row contributes. The payload crosses as text and is cast to jsonb here,
+// as the versioned fact insert casts it, so the stored bytes match what the
+// fact-derived statement reads back from a fact row.
+func supplyChainImpactSupportRowsSelectSQL() string {
+	return supplyChainImpactSupportsProjectionSQL(supplyChainImpactSupportFillOnlyColumns) + `
+FROM (
+    SELECT t.fact_id, t.scope_id, t.generation_id, t.source_confidence, t.stable_fact_key,
+           t.payload::jsonb AS payload
+    FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[])
+        AS t(fact_id, scope_id, generation_id, source_confidence, stable_fact_key, payload)
+) AS fact
+ORDER BY fact.fact_id`
+}
+
+// upsertSupplyChainImpactSupportRowsSQL is the writer's supports upsert: the
+// shared upsert statement over the in-memory select, so the SET list and the
+// write-on-change guard are the same ones the backfill's fact-derived upsert
+// carries. Arguments: $1 fact ids, $2 scope ids, $3 generation ids, $4 source
+// confidences, $5 stable fact keys, $6 payloads (JSON text), each one array
+// element per row.
+var upsertSupplyChainImpactSupportRowsSQL = supplyChainImpactUpsertSupportsStatement(
+	supplyChainImpactSupportRowsSelectSQL(),
+)
+
 // deleteRetractedSupplyChainImpactSupportsSQL removes the supports of one
 // (scope, generation) whose fact a retraction tombstoned. It reads the fact's
 // state, not the retraction's keep set, so it follows exactly what the fenced
@@ -210,8 +248,10 @@ WHERE supports.scope_id = $1
 
 var _ supplychaincore.SupplyChainImpactSupportsMaintainer = (*supplyChainImpactTx)(nil)
 
-// UpsertImpactSupports writes the support rows of the live facts in factIDs
-// inside the writer transaction (see SupplyChainImpactSupportsMaintainer).
+// UpsertImpactSupports writes the support rows of the live facts in factIDs,
+// derived from fact_records. The writer no longer calls it (it writes the rows it
+// holds through UpsertImpactSupportRows); the backfill, which reads the frozen
+// facts, still does.
 func (t *supplyChainImpactTx) UpsertImpactSupports(
 	ctx context.Context,
 	factIDs []string,
@@ -220,30 +260,83 @@ func (t *supplyChainImpactTx) UpsertImpactSupports(
 	if len(factIDs) == 0 {
 		return result, nil
 	}
-	rows, err := t.tx.QueryContext(ctx, upsertSupplyChainImpactSupportsSQL, array.Of(factIDs))
+	inserted, updated, err := t.runSupportsUpsert(ctx, upsertSupplyChainImpactSupportsSQL, array.Of(factIDs))
 	if err != nil {
-		return result, fmt.Errorf("upsert supply chain impact supports: %w", err)
+		return result, err
 	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var inserted bool
-		if err := rows.Scan(&inserted); err != nil {
-			return result, fmt.Errorf("scan supply chain impact support upsert: %w", err)
-		}
-		if inserted {
-			result.Inserted++
-		} else {
-			result.Updated++
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return result, fmt.Errorf("upsert supply chain impact supports: %w", err)
-	}
+	result.Inserted, result.Updated = inserted, updated
 	result.Unchanged = int64(len(factIDs)) - result.Inserted - result.Updated
 	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionInserted, result.Inserted)
 	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUpdated, result.Updated)
 	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUnchanged, result.Unchanged)
 	return result, nil
+}
+
+// UpsertImpactSupportRows writes the support rows of the writer's in-memory
+// finding rows inside the writer transaction (#10880 PR-C2 h): rows sharing a
+// fact id collapse to the last one (as the fact insert collapsed them), and the
+// rest go in fact id order in chunks of factwrite.BatchSize, each chunk one
+// statement. A replay whose derived columns match writes no row version.
+func (t *supplyChainImpactTx) UpsertImpactSupportRows(
+	ctx context.Context,
+	rows []factwrite.VersionedRow,
+) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
+	var result supplychaincore.SupplyChainImpactSupportsWrite
+	rows = factwrite.DedupeRowsByFactID(rows, func(r factwrite.VersionedRow) string { return r.FactID })
+	if len(rows) == 0 {
+		return result, nil
+	}
+	ordered := append([]factwrite.VersionedRow(nil), rows...)
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].FactID < ordered[j].FactID })
+	for start := 0; start < len(ordered); start += factwrite.BatchSize {
+		end := min(start+factwrite.BatchSize, len(ordered))
+		chunk := ordered[start:end]
+		n := len(chunk)
+		factIDs, scopeIDs, generationIDs := make([]string, n), make([]string, n), make([]string, n)
+		confidences, stableKeys, payloads := make([]string, n), make([]string, n), make([]string, n)
+		for i, row := range chunk {
+			factIDs[i], scopeIDs[i], generationIDs[i] = row.FactID, row.ScopeID, row.GenerationID
+			confidences[i], stableKeys[i], payloads[i] = row.SourceConfidence, row.StableFactKey, row.Payload
+		}
+		inserted, updated, err := t.runSupportsUpsert(ctx, upsertSupplyChainImpactSupportRowsSQL,
+			array.Of(factIDs), array.Of(scopeIDs), array.Of(generationIDs),
+			array.Of(confidences), array.Of(stableKeys), array.Of(payloads))
+		if err != nil {
+			return result, err
+		}
+		result.Inserted += inserted
+		result.Updated += updated
+	}
+	result.Unchanged = int64(len(ordered)) - result.Inserted - result.Updated
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionInserted, result.Inserted)
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUpdated, result.Updated)
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUnchanged, result.Unchanged)
+	return result, nil
+}
+
+// runSupportsUpsert runs one support upsert statement and counts its inserted
+// and updated rows from the RETURNING (xmax = 0) flag.
+func (t *supplyChainImpactTx) runSupportsUpsert(ctx context.Context, query string, args ...any) (inserted, updated int64, err error) {
+	rows, err := t.tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert supply chain impact supports: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var wasInserted bool
+		if err := rows.Scan(&wasInserted); err != nil {
+			return 0, 0, fmt.Errorf("scan supply chain impact support upsert: %w", err)
+		}
+		if wasInserted {
+			inserted++
+		} else {
+			updated++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, 0, fmt.Errorf("upsert supply chain impact supports: %w", err)
+	}
+	return inserted, updated, nil
 }
 
 // DeleteRetractedImpactSupports removes the supports of the (scope, generation)
