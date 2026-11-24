@@ -445,4 +445,14 @@
 // with it, mapped by the scope id built from the repository id, and a commit to a
 // derived scope refuses while its parent has an open tombstone. See
 // derived-scope-retirement.md (#10054).
+//
+// SupplyChainImpactSupportsBackfill fills supply_chain_impact_finding_supports
+// and sets the readiness marker only after a verification found no live finding
+// without a support and no support of a tombstoned fact. The verification is
+// resumable (#10880 decision 6): each RunStep checks one key interval of at most
+// VerifySliceSize supports and live findings in one snapshot, and stores the end
+// of the last clean interval in the marker row with the sweep it belongs to. A
+// missing support restarts the sweep, an orphan is removed under its pair's
+// conflict-domain lock and its slice runs again, and the last clean slice runs
+// the completion statement with its old-writer fence recheck.
 package postgres

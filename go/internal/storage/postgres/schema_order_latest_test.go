@@ -180,4 +180,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// unscoped existence-filter reads of that table.
 	"supply_chain_impact_finding_supports_precise_key_ordered_idx",
 	"supply_chain_impact_finding_supports_image_ref_idx",
+	// Migration 348 (#10880 decision 6) adds the resumable verification cursor
+	// to the supports backfill marker.
+	"supply_chain_impact_finding_supports_backfill_verify_cursor",
 }

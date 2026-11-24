@@ -644,6 +644,11 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the per-support table follows the real writer and survives racing writers"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_verify_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 decision 6: reducer-contention proof of the ranged supports verification against the real slice statement: a planted orphan and a planted missing support in a late slice are each caught (control runs see neither) while a real writer retracts and inserts between slices, a restart resumes from the stored cursor, and an old writer between slices keeps the marker unset until its scope is drained"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_verify_scale_live_test.go
     tag: ~
     class: dedicated_ci
