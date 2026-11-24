@@ -76,13 +76,21 @@ type CICDRunCorrelationWrite struct {
 	SourceSystem string
 	Cause        string
 	Decisions    []CICDRunCorrelationDecision
+	// ClaimedAt is the pass's claim identity (last_attempt_at). The writer's
+	// completion-owed marker fences on it like the ack (#10972 PR-4).
+	ClaimedAt time.Time
 }
 
 // CICDRunCorrelationWriteResult summarizes durable CI/CD correlation writes.
 type CICDRunCorrelationWriteResult struct {
-	CanonicalWrites int
-	FactsWritten    int
-	EvidenceSummary string
+	// CompletionChanged is the changed verdict of the write (#10972 PR-4):
+	// true when it inserted or changed a row supply_chain_impact reads,
+	// false when it rewrote the same consumer truth, nil when the writer has
+	// no transaction to compute it (the ack then emits).
+	CompletionChanged *bool
+	CanonicalWrites   int
+	FactsWritten      int
+	EvidenceSummary   string
 }
 
 // CICDRunCorrelationWriter persists reducer-owned CI/CD run correlations.
@@ -206,6 +214,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent reducercon
 		SourceSystem: intent.SourceSystem,
 		Cause:        intent.Cause,
 		Decisions:    decisions,
+		ClaimedAt:    claimedAtOf(intent),
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write ci/cd run correlations: %w", err)
@@ -223,7 +232,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent reducercon
 		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: cicdRunCorrelationSummary(evaluatedCount, preservedCount, counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubSignals:      factdecode.InputInvalidSubSignals(quarantinedCount),
+		SubSignals:      h.completionSubSignals(ctx, writeResult, factdecode.InputInvalidSubSignals(quarantinedCount)),
 		SubDurations: map[string]float64{
 			"workflow_image_bridge_load": workflowBridgeLoadDuration.Seconds(),
 		},

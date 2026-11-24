@@ -102,7 +102,7 @@ func eligibleEPQAckQuery(now time.Time, owner string, intent reducercontract.Int
 	case reducer.DomainCICDRunCorrelation:
 		// Repeated input must still ACK the updated tuple and emit one producer
 		// item. Exercise SQL deduplication together with the real heartbeat race.
-		return ackCICDRunCorrelationReducerWorkBatchQuery(now, owner, []reducercontract.Intent{intent, intent})
+		return ackCICDRunCorrelationReducerWorkBatchQuery(now, owner, []reducercontract.Intent{intent, intent}, []string{intent.IntentID})
 	default:
 		return ackReducerWorkBatchQuery(), []any{now, owner, []string{intent.IntentID}, []time.Time{claimedAtValue(intent)}}
 	}

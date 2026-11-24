@@ -14,6 +14,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -29,8 +30,17 @@ const CICDRunCorrelationFactKind = "reducer_ci_cd_run_correlation"
 // PostgresCICDRunCorrelationWriter stores reducer-owned CI/CD correlation
 // decisions in the shared fact store.
 type PostgresCICDRunCorrelationWriter struct {
-	DB  factwrite.Execer
-	Now func() time.Time
+	DB factwrite.Execer
+	// Beginner, when set, runs the write in one transaction that also reads
+	// the rows it overwrites for the changed verdict and records the
+	// completion-owed marker (#10972 PR-4, completion_write.go). Nil keeps
+	// the autocommit write and reports no verdict, so the ack emits.
+	Beginner db.Beginner
+	// CompletionOwed, when set with Beginner, records the completion-owed
+	// marker on the pass's own item in the transaction that commits changed
+	// rows, so a pass that dies before its ack still emits on its retry.
+	CompletionOwed CompletionOwedMarker
+	Now            func() time.Time
 }
 
 // WriteCICDRunCorrelations persists exact, derived, ambiguous, unresolved, and
@@ -68,14 +78,22 @@ func (w PostgresCICDRunCorrelationWriter) WriteCICDRunCorrelations(
 	// Bounded chunked bulk insert: all decisions for the scope are upserted in
 	// O(N/batchSize) round-trips instead of one ExecContext per decision, so a
 	// large generation cannot monopolise a reducer worker with serial inserts.
-	if err := factwrite.BatchInsertFacts(ctx, w.DB, rows); err != nil {
+	var changed *bool
+	if w.Beginner != nil {
+		verdict, err := w.writeWithVerdict(ctx, write, rows)
+		if err != nil {
+			return CICDRunCorrelationWriteResult{}, err
+		}
+		changed = &verdict
+	} else if err := factwrite.BatchInsertFacts(ctx, w.DB, rows); err != nil {
 		return CICDRunCorrelationWriteResult{}, fmt.Errorf("write ci/cd run correlation fact: %w", err)
 	}
 	canonicalWrites := cicdRunCorrelationCanonicalWrites(write.Decisions)
 	return CICDRunCorrelationWriteResult{
-		CanonicalWrites: canonicalWrites,
-		FactsWritten:    len(write.Decisions),
-		EvidenceSummary: fmt.Sprintf("wrote ci/cd run correlations=%d canonical_writes=%d", len(write.Decisions), canonicalWrites),
+		CompletionChanged: changed,
+		CanonicalWrites:   canonicalWrites,
+		FactsWritten:      len(write.Decisions),
+		EvidenceSummary:   fmt.Sprintf("wrote ci/cd run correlations=%d canonical_writes=%d", len(write.Decisions), canonicalWrites),
 	}, nil
 }
 

@@ -434,6 +434,16 @@ tests:
     class: dedicated_ci
     reason: "#10972 reality audit: reducer-contention enrolled 1 named Go test(s) in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_cicd_completion_bound_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 PR-4: reducer-contention enrolled the ci_cd completion change-gate proofs in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_cicd_completion_gate_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 PR-4: reducer-contention enrolled the ci_cd completion change-gate proofs in scripts/lib/reducer_contention_inventory.json and the supply-chain -run filter of .github/workflows/reducer-contention-gate.yml; run against disposable PostgreSQL by the coordinator"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go
     tag: ~
     class: dedicated_ci
