@@ -266,3 +266,58 @@ Read the line in this order:
 The diagnostic changes nothing the pass does. A test runs a seeded pass cut at
 round 8 with and without the diagnostic read and compares the writer input
 byte for byte against what the code wrote before the diagnostic existed.
+
+## Re-pend cause and pass outcome
+
+`eshu_dp_supply_chain_impact_pass_outcome_total` (#10972) counts each findings
+pass that committed its write, with the reason the pass ran and whether it
+changed anything. It exists to answer one question in the QA environment: of
+the passes the queue re-runs, how many ran again for nothing?
+
+It fires after the writer commit and before the holder fan-out, because whether
+a pass changed output is known only then. A pass whose write fails records
+nothing here; `eshu_dp_supply_chain_impact_pass_total` still counts it at its
+evidence load, so the two can differ by the failed passes.
+
+| Label | Values | Meaning |
+| --- | --- | --- |
+| `domain` | `supply_chain_impact` | Reducer domain. |
+| `mode` | `full`, `scoped`, `scoped_fallback_sentinel`, `scoped_fallback_out_of_stamp` | How the pass ran, as on `pass_total`. |
+| `repend_cause` | `first`, `retry`, `drain`, `fanout_rerun`, `other_repend`, `unknown` | Why the pass was claimed. |
+| `changed` | `changed`, `unchanged` | `changed` when the commit changed or retracted a finding row, changed a suppression, or touched an advisory group. |
+| `change_class` | `none`, `unknown` | `none` on an unchanged pass; `unknown` on a changed one. |
+
+The pass derives `repend_cause` from what the claim already loaded, with no new
+query. The checks run in this order:
+
+1. `retry`: the attempt count is above one.
+2. `drain`: the item carries a `fanout_remaining` holder list.
+3. `fanout_rerun`: the item carries a `fanout_origin` stamp, the attempt count
+   is one, and no owed marker is set. A reopen of a succeeded item and the
+   replay of an item that was in flight when the stamp landed leave identical
+   payloads, so this value covers both. Splitting them needs the reopen
+   statement to record the prior status, which is a separate change.
+4. `other_repend`: the item's cycle start is later than its enqueue time, so
+   something re-pended it without a stamp (a completion fan-out, an operator
+   replay, or a re-pend of a pass that carried an owed marker).
+5. `first`: the cycle start equals the enqueue time.
+6. `unknown`: the claim carried no usable timestamps.
+
+`change_class` stays `unknown` for every changed pass. Separating a change that
+touched only the EPSS and KEV derived fields (`epss_probability`,
+`epss_percentile`, `priority_contributions`,
+`provenance.selected_epss_score_date`) from any other change needs the stored
+row's fields, and the writer's digest read returns only the digest. Reading the
+fields would add to the hot path, so the split is left for a change that
+measures that cost.
+
+The same fields ride on one INFO line per pass, `supply chain impact pass
+complete`, with `scope_id`, `generation_id`, `intent_id`, `attempt_count` and
+the pass `mode`, and as attributes `repend_cause`, `changed` and `change_class`
+on the span that wraps the pass (`reducer.run`). Ids are log fields only; no id
+is a metric label, and the series count is at most 4 modes x 6 causes x 2 x 2.
+
+Read it as a rate. The share of `changed="unchanged"` among
+`repend_cause="fanout_rerun"` is the useless re-run share of the fan-out loop;
+the same share among `drain` shows how much of the self-drain feeds it. Query
+the 3-hour QA window, not a single reading.
