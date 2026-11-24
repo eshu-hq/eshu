@@ -272,6 +272,7 @@ type fanOutResult struct {
 	// flagged change and its replay flag was cleared (#9740), so the ack
 	// succeeds instead of rerunning it.
 	replayCleared bool
+	inFlight      inFlightNarrowing // the #10972 D4b in-flight arm
 }
 
 // fanOutHolders runs the holder fan-out for one committed pass. It returns an
@@ -283,6 +284,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	intent reducercontract.Intent,
 	write SupplyChainImpactWriteResult,
 	cause string,
+	early inFlightAtLoadEnd,
 ) (fanOutResult, error) {
 	if h.FanOut == nil {
 		return fanOutResult{cause: cause}, nil
@@ -346,7 +348,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 
 	ctx, span := h.startFanOutSpan(ctx, intent)
 	defer span.End()
-	ordered, split, err := h.collectFanOutHolders(ctx, span, cause, intent, lookupIDs, remaining)
+	ordered, split, inFlight, err := h.collectFanOutHolders(ctx, span, cause, intent, early, lookupIDs, remaining)
 	if err != nil {
 		return fanOutResult{cause: cause}, err
 	}
@@ -373,6 +375,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		maxIDMassRows:      split.maxMass,
 		keyRangedIDs:       split.keyRangedIDs,
 		keyRangeStatements: split.keyRangeStatements,
+		inFlight:           inFlight,
 	}
 	if len(remaining) == 0 {
 		result.newlyDeferred = len(rest)

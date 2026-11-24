@@ -137,8 +137,10 @@
 // outcome, and cause (epss, kev, advisory, suppression, package_evidence,
 // mixed, other — the committing generation's evidence family, #9878); the
 // read outcomes (read_error, read_timeout) also carry site (holders,
-// in_flight, manifest_generation, package, repository — the read that
-// failed, #10564),
+// in_flight, in_flight_early, manifest_generation, package, repository — the
+// read that failed, #10564); the in-flight narrowing outcomes in_flight_kept,
+// in_flight_narrowed, in_flight_early_read_failed, and
+// in_flight_early_read_skipped count one point per in-flight claim (#10972),
 // so an operator can see whether a source retraction reached the scopes
 // that hold stale copies (reopened, replay_flagged, pending_noop,
 // prefiltered_pending and stamp_widened from #10972, enqueued,

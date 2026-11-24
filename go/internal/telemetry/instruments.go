@@ -1412,8 +1412,13 @@ type Instruments struct {
 	// evidence family of the committing pass's own generation; enrichment
 	// generations are single-source, so epss and kev name an enrichment
 	// re-trigger exactly). The read outcomes (read_error, read_timeout) also
-	// carry site (#10564: holders, in_flight, manifest_generation, package,
-	// repository), naming the read that failed. The dead-letter outcomes
+	// carry site (#10564: holders, in_flight, in_flight_early,
+	// manifest_generation, package, repository), naming the read that failed.
+	// The in-flight narrowing outcomes (#10972 D4b) count one point per
+	// in-flight claim the fan-out read: in_flight_kept (flagged, in both
+	// reads), in_flight_narrowed (claimed after the pass's evidence load, not
+	// flagged), in_flight_early_read_failed and in_flight_early_read_skipped
+	// (flagged because the load-end read failed or was not taken). The dead-letter outcomes
 	// (dead_letter_reopened, dead_letter_skipped) also carry failure_class
 	// (#11147), the dead letter's prior class. reopened, replay_flagged,
 	// pending_noop (a queued or already-flagged holder), enqueued,

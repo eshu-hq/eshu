@@ -37,7 +37,7 @@ type fleetNoInFlight struct {
 	supplychaincore.SupplyChainImpactFanOut
 }
 
-func (fleetNoInFlight) FindInFlightNonMarkerScopes(context.Context, string) ([]string, error) {
+func (fleetNoInFlight) FindInFlightNonMarkerClaims(context.Context, string) ([]supplychaincore.InFlightClaim, error) {
 	return nil, nil
 }
 

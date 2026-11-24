@@ -396,7 +396,7 @@ func TestSuppressionDiffOneHopStillFansOutSuppressionIDs(t *testing.T) {
 	}
 	if _, err := handler.fanOutHolders(context.Background(), intent, SupplyChainImpactWriteResult{
 		SuppressionCVEIDs: []string{"CVE-2023-38039"},
-	}, fanOutCauseSuppression); err != nil {
+	}, fanOutCauseSuppression, inFlightAtLoadEnd{}); err != nil {
 		t.Fatalf("fanOutHolders() error = %v", err)
 	}
 	if !reflect.DeepEqual(port.reopened, []string{"scope:10019:os-holder"}) {
@@ -419,7 +419,7 @@ func TestSuppressionDiffRetryAfterCrashFansOutTheRecoverySet(t *testing.T) {
 	intent := fanOutIntent(2, map[string]any{PayloadKeyFanOutOwed: true})
 	if _, err := handler.fanOutHolders(context.Background(), intent, SupplyChainImpactWriteResult{
 		RecoveryCVEIDs: []string{"CVE-2023-38039"},
-	}, fanOutCauseSuppression); err != nil {
+	}, fanOutCauseSuppression, inFlightAtLoadEnd{}); err != nil {
 		t.Fatalf("fanOutHolders() error = %v", err)
 	}
 	if !reflect.DeepEqual(port.reopened, []string{"scope:10019:os-holder"}) {

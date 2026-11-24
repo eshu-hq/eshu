@@ -5,18 +5,17 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	"go.opentelemetry.io/otel/trace"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // collectFanOutHolders gathers the holders one fan-out claim owes: the stored
-// continuation list, the in-flight scopes, and the row-read holders of the
-// lookup ids, minus the asking scope, sorted. Split out of fanOutHolders to
+// continuation list, the in-flight claims set A does not prove new
+// (addInFlightHolders, #10972 D4b), and the row-read holders of the lookup ids,
+// minus the asking scope, sorted. It also returns what the in-flight arm did. Split out of fanOutHolders to
 // keep that function under the repo's length limit. A failed read is recorded
 // on the span and returned as a retryable fan-out error.
 func (h SupplyChainImpactHandler) collectFanOutHolders(
@@ -24,29 +23,21 @@ func (h SupplyChainImpactHandler) collectFanOutHolders(
 	span trace.Span,
 	cause string,
 	intent reducercontract.Intent,
+	early inFlightAtLoadEnd,
 	lookupIDs, remaining []string,
-) ([]string, fanOutSplitStats, error) {
+) ([]string, fanOutSplitStats, inFlightNarrowing, error) {
 	var split fanOutSplitStats
+	inFlight := newInFlightNarrowing(early)
 	holders := make(map[string]struct{}, len(remaining))
 	for _, id := range remaining {
 		holders[id] = struct{}{}
 	}
-	// The in-flight read comes FIRST, then the row read. A holder still claimed or
-	// running at the in-flight read is flagged. One that acknowledged before it has
-	// committed its rows (a pass commits before it acknowledges), so the row read
-	// that follows sees them. The other order leaves a gap: a holder with no rows
-	// at the first read that commits and acknowledges before the second is missed
-	// by both. A pass claimed after the in-flight read loads its evidence after the
-	// source's facts became visible, so it needs no flag.
+	// The in-flight read comes FIRST, then the row read; addInFlightHolders says
+	// why, and which in-flight claims it flags (#10972 D4b).
 	if len(lookupIDs) > 0 {
-		inFlight, err := h.FanOut.FindInFlightNonMarkerScopes(ctx, intent.ScopeID)
-		if err != nil {
-			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteInFlight)
-			span.RecordError(err)
-			return nil, split, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
-		}
-		for _, id := range inFlight {
-			holders[id] = struct{}{}
+		var err error
+		if inFlight, err = h.addInFlightHolders(ctx, intent, cause, early, holders, span); err != nil {
+			return nil, split, inFlight, err
 		}
 	}
 	for _, chunk := range chunkStrings(lookupIDs, fanOutHolderReadChunk) {
@@ -54,7 +45,7 @@ func (h SupplyChainImpactHandler) collectFanOutHolders(
 		split.add(stats)
 		if err != nil {
 			span.RecordError(err)
-			return nil, split, err
+			return nil, split, inFlight, err
 		}
 		for id := range found {
 			holders[id] = struct{}{}
@@ -66,5 +57,5 @@ func (h SupplyChainImpactHandler) collectFanOutHolders(
 		ordered = append(ordered, id)
 	}
 	sort.Strings(ordered)
-	return ordered, split, nil
+	return ordered, split, inFlight, nil
 }

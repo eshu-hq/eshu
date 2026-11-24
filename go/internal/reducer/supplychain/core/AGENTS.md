@@ -37,8 +37,9 @@ changing anything here.
   must also implement `FindPackageHolderCandidates`, and the production port
   must implement `ManifestDependencyGenerationReader` (generation read plus the
   lease-fenced `RecordManifestTriggerCompleted` stamp, plus the marker-free
-  `FindInFlightNonMarkerScopes` in-flight read, which the findings fan-out
-  reads too: nothing reopens or flags an in-flight marker, #10972). Stamp only when no
+  `FindInFlightNonMarkerScopes` in-flight read; the findings fan-out reads the
+  same marker-free rows with their claim identity through `InFlightClaimReader`:
+  nothing reopens or flags an in-flight marker, #10972). Stamp only when no
   holder is left on the continuation list or nothing changed; the next marker
   pass of the scope diffs from the newest stamped generation.
 - The holder fan-out drops a holder only when every active-generation item it
@@ -323,3 +324,41 @@ own fenced `UpdateFanOutState` (`FanOutState.FullPassMarker`); do not add a
 second statement for it. A missing or malformed marker must stay "reap due".
 Change N (`fullPassReapMaxScopedReruns`) or T (`fullPassReapMaxAge`) only with
 a measured rerun rate.
+
+## Two-read in-flight narrowing (#10972 D4b)
+
+A genuine findings pass reads the in-flight claims once right after
+`loadSupplyChainImpactEvidence` returns (set A, `readInFlightAtLoadEnd`) and
+again at fan-out (set B, `addInFlightHolders`), and flags only the claims in
+both with the same `last_attempt_at`. Keep the set A call between the evidence
+load and the writer: moving it after the writer, or before the load ends, either
+loses the saving or breaks the proof. A failed set A read must never fail the
+pass, and its zero value must flag every claim. The rule, its soundness argument,
+the reads after set A, and the one-primary precondition are in
+`HOLDER_FANOUT_INFLIGHT.md`; the precondition is pinned by
+`TestSupplyChainImpactLoadsClaimsAndFanOutShareOneHandle` in `cmd/reducer`.
+Do not narrow the row read the same way here: that arm is unchanged by D4b.
+
+No-Regression Evidence (#10972 D4b): the fan-out's in-flight statement is now
+`findInFlightNonMarkerClaimsQuery`, the shipped marker-free statement with
+`last_attempt_at` added to the select list and ORDER BY, so it scans the same
+`(stage, domain, status)` index rows and returns the same row count. The new set A
+statement is the same text without the active-generation join arm, one read per
+genuine pass over the passes in flight at once; a one-hop rerun takes none. No
+lock, lease, claim, ordering, or schema change; the intersection is an in-memory
+map lookup per claim. Fewer in-flight scopes reach the reopen loop, so the
+fan-out runs fewer reopen statements. Core tests in
+`fanout_inflight_narrow_test.go` were red on the base sources and are green now;
+the live proofs in `storage/postgres` run in the coordinator's slot. A plan
+measurement of set A on QA-sized data is not taken here (NOT_CHECKED in this
+change; the coordinator owns the live slot).
+
+Observability Evidence (#10972 D4b): `eshu_dp_supply_chain_impact_fanout_total`
+gains the closed outcomes `in_flight_kept`, `in_flight_narrowed`,
+`in_flight_early_read_failed`, and `in_flight_early_read_skipped` (one point per
+claim in set B); a failed set A read counts `read_error` or `read_timeout` with
+`site=in_flight_early` and writes the warn log
+`supply chain impact in-flight load-end read failed`; the read-duration histogram
+gains `kind=in_flight_early`; the fan-out span and summary log line carry
+`in_flight_early_read`, `in_flight_kept`, and `in_flight_narrowed`, and the log
+line `in_flight_early_read_seconds`.

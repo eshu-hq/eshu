@@ -267,6 +267,8 @@ func TestKeyRangeReadRecordsDurationByKind(t *testing.T) {
 		telemetry.FanOutReadKindHoldersKeyRangeRead + "/ok": 1,
 		// The #10972 queued-holder prefilter runs once per claim with holders.
 		telemetry.FanOutReadKindHolderPrefilter + "/ok": 1,
+		// The genuine pass's load-end in-flight claim read (#10972 D4b).
+		telemetry.FanOutReadKindInFlightEarly + "/ok": 1,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("read-duration samples = %v, want %v", got, want)
