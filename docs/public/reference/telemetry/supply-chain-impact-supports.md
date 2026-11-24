@@ -76,6 +76,14 @@ passes, security-alert reconciliation, service-catalog correlation and the Go-mo
 until the backfill completes. On QA the window is zero because the deploy waits for the
 supports marker.
 
+The supported upgrade path is to reach supports-ready
+(`eshu_dp_supply_chain_impact_supports_backfill_ready` reads 1) on a #10880 PR-B image before
+rolling to the PR-C1 image, whose winners maintainer reads the supports table. On a direct
+jump from an image older than migration 338, an old reducer's winners maintainer does not
+wait for the marker and can stamp the winners watermark after the marker completes; the
+winners audit on facts re-queues the keys it left stale, so the result converges, but only
+on a later audit pass.
+
 Alert on `eshu_dp_supply_chain_impact_supports_backfill_ready == 0` while
 `eshu_dp_supply_chain_impact_supports_backfill_last_success_timestamp_seconds` is more than 30
 minutes old: the backfill stopped, and every deferred intent is waiting on it. There is no
@@ -91,6 +99,8 @@ has become a fault.
   facts without the maintainer. Each such write marks its scope dirty (the dirty
   gauge rises) and the table reads not ready; the backfill drains the marks
   (`drain` steps) and the gauge returns to 1 once the old reducers are gone.
+  Roll from a PR-B image that already reads ready, not straight from an image
+  older than migration 338 (see the upgrade path above).
 - The marker is set only after a verification found no live finding fact
   without a support and no support of a tombstoned fact. The verification is
   resumable: each step checks one bounded slice, and the end of the last clean
