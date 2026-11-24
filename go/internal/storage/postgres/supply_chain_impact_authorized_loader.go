@@ -75,6 +75,12 @@ func isAuthorityLayoutAbsent(err error) bool {
 
 // AuthorizedSupplyChainImpactEvidenceLoader reads static and target-local
 // evidence in one authority-filtered read-only repeatable-read snapshot.
+//
+// A live engaged-verdict test with seeded public-advisory authority is required
+// before engaged protection is enabled on any store. Today the engaged verdict
+// is proven through a fake authorized loader (core) and a live engaged load of
+// the Go warning (this package); no live test builds an engaged finding from
+// registered public advisory authority.
 type AuthorizedSupplyChainImpactEvidenceLoader struct {
 	database    db.ExecQueryer
 	instruments *telemetry.Instruments
