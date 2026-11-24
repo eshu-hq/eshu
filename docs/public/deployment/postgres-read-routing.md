@@ -237,6 +237,20 @@ the API/MCP deliberately. The log event `postgres.writer.lineage` reports
 standby listed in `ESHU_POSTGRES_READ_MEMBERS` stays ineligible until the
 process restarts; that is a known limitation.
 
+## Reducer stale-reader startup retry
+
+The reducer (#11306) defers opening the supply-chain-impact winners
+stale-reader access until after its status server listens. A reader that is
+not yet reachable at startup does not exit the process: the gate paces
+open attempts about 250ms apart for up to 5 minutes, and `/readyz`
+reports not-ready on the `winners_stale_access` probe while the gate waits.
+Each attempt logs `winners stale access waiting for reader` with the attempt
+count, the retry delay, and the redacted failure reason. Past the bound the
+runner returns the same wrapped `supply chain impact winners stale access`
+error, so a persistently unreachable reader still exits loudly. The retry
+never falls back to the primary for the stale-access check, and any error
+other than reader-unavailable fails fast on the first attempt.
+
 ## Shared-snapshot export qualification
 
 Code-topic investigation (and the change-planning routes that read code-topic

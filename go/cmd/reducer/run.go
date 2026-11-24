@@ -93,11 +93,10 @@ func run(parent context.Context) error {
 	}
 	defer func() { _ = neo4jCloser.Close() }()
 
-	serviceRunner, graphRefresher, postgresRefresher, closeStaleAccess, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
+	serviceRunner, graphRefresher, postgresRefresher, staleGate, err := buildObservedReducerService(parent, db, neo4jExecutor, cypherExecutor, neo4jReader, graphReader, os.Getenv, tracer, instruments, meter, logger)
 	if err != nil {
 		return err
 	}
-	defer closeStaleAccess()
 	retryPolicy, err := loadReducerQueueConfig(os.Getenv)
 	if err != nil {
 		return err
@@ -123,12 +122,19 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
+	// The stale-reader open runs inside the Runner, after the status server
+	// starts, so a reader that is not yet reachable reports not-ready on
+	// /readyz while the gate retries instead of exiting before the status
+	// server listens (#11306). The gate closes the access when the run
+	// returns. Past the retry bound the Runner returns the same wrapped
+	// error, so a persistently unreachable reader still exits loudly.
 	service, err := app.NewHostedWithStatusServer(
 		"reducer",
-		serviceRunner,
+		staleGate.wrapRunner(serviceRunner, logger),
 		statusReader,
 		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),
 		runtimecfg.WithLegacyWorkloadRetirement(legacyRetirement),
+		runtimecfg.WithReadinessProbes(staleGate.readinessProbe()),
 	)
 	if err != nil {
 		return err

@@ -37,7 +37,7 @@ func buildObservedReducerService(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
 	logger *slog.Logger,
-) (reducer.Service, *snapshot.Refresher, *snapshot.Refresher, func(), error) {
+) (reducer.Service, *snapshot.Refresher, *snapshot.Refresher, *winnersStaleAccessDeferred, error) {
 	activeWorkers := new(atomic.Int64)
 	instrumentedDB := &postgres.InstrumentedDB{
 		Inner:       postgres.SQLDB{DB: db},
@@ -59,14 +59,6 @@ func buildObservedReducerService(
 	if err != nil {
 		return reducer.Service{}, nil, nil, nil, fmt.Errorf("identity epoch cache: %w", err)
 	}
-	// The winners-audit split scan (#10416 slice 1) opens a stale reader
-	// access only when routing admits stale audits. Default off returns nil
-	// without touching the database, so the Auditor stays writer-backed
-	// exactly as before.
-	staleAccess, closeStaleAccess, err := openWinnersStaleAccessIfEnabled(ctx, getenv, meter, tracer, logger)
-	if err != nil {
-		return reducer.Service{}, nil, nil, nil, err
-	}
 	serviceRunner, err := buildReducerService(
 		ctx,
 		instrumentedDB,
@@ -82,54 +74,67 @@ func buildObservedReducerService(
 		identityCache,
 	)
 	if err != nil {
-		closeStaleAccess()
 		return reducer.Service{}, nil, nil, nil, err
 	}
-	if staleAccess != nil {
-		// Thread the stale reader to the Auditor only: verify, repair
-		// queueing, and commit stay on the writer transaction either way.
-		// The maintainer field is a shared pointer, so this survives the
-		// service copies below.
-		if maintainer := serviceRunner.SupplyChainImpactWinnersMaintainer; maintainer != nil {
-			if winnersStagedAuditRouting(getenv) {
-				// staged-audits runs the staged standby scan: per-scope
-				// batches on one pinned member, compacted client-side. The
-				// telemetry instance is shared across ticks so deferral
-				// splits, gauges, and the verify discard rate accumulate
-				// instead of recording into a per-tick recorder.
-				stagedTelemetry := pgaccess.NewStagedAuditTelemetry()
-				// #11117: export the recorder as OTEL instruments so a deferred
-				// or slow staged audit is visible, not only logged.
-				if err := telemetry.RegisterSupplyChainImpactWinnersStagedAuditInstruments(meter, stagedTelemetry); err != nil {
-					closeStaleAccess()
-					return reducer.Service{}, nil, nil, nil, fmt.Errorf("register staged audit instruments: %w", err)
-				}
-				// #11131: the staged audit is a sweep of identifier ranges
-				// with a persisted cursor; the maintainer runs ranges back
-				// to back within its tick budget.
-				maintainer.Auditor = &stagedaudit.StagedAuditor{
-					Fleet:       pgaccess.NewStagedAuditAccessFleet(staleAccess),
-					Store:       postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
-					Telemetry:   stagedTelemetry,
-					RangeBudget: loadSupplyChainImpactWinnersAuditRangeBudget(getenv),
-					// The keyed yield waits at most one keyed interval.
-					KeyedInterval: maintainer.Interval,
-					Logger:        logger,
-				}
-			} else {
-				maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).
-					WithStaleCandidates(staleAccess.StaleReader())
-			}
-		}
+	// The winners-audit split scan (#10416 slice 1) opens a stale reader
+	// access only when routing admits stale audits — but not here. The open
+	// runs after the status server starts (see run.go and the gate in
+	// winners_wiring.go), so a reader that is not yet reachable reports
+	// not-ready instead of exiting before the status server listens
+	// (#11306). Default off opens nothing, so the Auditor stays
+	// writer-backed exactly as before.
+	if err := winnersStaleAccessRoutingError(getenv); err != nil {
+		return reducer.Service{}, nil, nil, nil, err
 	}
+	staleGate := newWinnersStaleAccessDeferred(
+		winnersStaleAccessAdmitted(getenv),
+		func(openCtx context.Context) (*pgaccess.Access, func(), error) {
+			return openWinnersStaleAccessIfEnabled(openCtx, getenv, meter, tracer, logger)
+		},
+		func(staleAccess *pgaccess.Access) error {
+			// Thread the stale reader to the Auditor only: verify, repair
+			// queueing, and commit stay on the writer transaction either way.
+			// The maintainer field is a shared pointer, so this survives the
+			// service copies below.
+			if maintainer := serviceRunner.SupplyChainImpactWinnersMaintainer; maintainer != nil {
+				if winnersStagedAuditRouting(getenv) {
+					// staged-audits runs the staged standby scan: per-scope
+					// batches on one pinned member, compacted client-side. The
+					// telemetry instance is shared across ticks so deferral
+					// splits, gauges, and the verify discard rate accumulate
+					// instead of recording into a per-tick recorder.
+					stagedTelemetry := pgaccess.NewStagedAuditTelemetry()
+					// #11117: export the recorder as OTEL instruments so a deferred
+					// or slow staged audit is visible, not only logged.
+					if err := telemetry.RegisterSupplyChainImpactWinnersStagedAuditInstruments(meter, stagedTelemetry); err != nil {
+						return fmt.Errorf("register staged audit instruments: %w", err)
+					}
+					// #11131: the staged audit is a sweep of identifier ranges
+					// with a persisted cursor; the maintainer runs ranges back
+					// to back within its tick budget.
+					maintainer.Auditor = &stagedaudit.StagedAuditor{
+						Fleet:       pgaccess.NewStagedAuditAccessFleet(staleAccess),
+						Store:       postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
+						Telemetry:   stagedTelemetry,
+						RangeBudget: loadSupplyChainImpactWinnersAuditRangeBudget(getenv),
+						// The keyed yield waits at most one keyed interval.
+						KeyedInterval: maintainer.Interval,
+						Logger:        logger,
+					}
+				} else {
+					maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).
+						WithStaleCandidates(staleAccess.StaleReader())
+				}
+			}
+			return nil
+		},
+	)
 	serviceRunner, err = withStatusSummaryWriter(serviceRunner, getenv, instrumentedDB, tracer, instruments, logger)
 	if err != nil {
-		closeStaleAccess()
 		return reducer.Service{}, nil, nil, nil, err
 	}
 	graphRefresher, postgresRefresher, err := registerReducerObservableGauges(instruments, meter, db, activeWorkers, graphOrphanObserver(serviceRunner), graphReader, getenv, logger)
 	if err != nil {
-		closeStaleAccess()
 		return reducer.Service{}, nil, nil, nil, err
 	}
 	// Size the batch-claim occupancy tracker before the run copies the
@@ -137,7 +142,6 @@ func buildObservedReducerService(
 	// (#10480). Telemetry only: no claim, lock, or scheduling change.
 	serviceRunner.InitBatchWorkerOccupancy()
 	if err := telemetry.RegisterReducerBatchWorkerOccupancyGauge(instruments, meter, serviceRunner); err != nil {
-		closeStaleAccess()
 		return reducer.Service{}, nil, nil, nil, fmt.Errorf("register batch worker occupancy gauge: %w", err)
 	}
 	// Export the configured per-domain handler bounds (0 = unbounded) so the
@@ -145,11 +149,10 @@ func buildObservedReducerService(
 	// applies to it (#10866). The snapshot is taken by value: the bounds are
 	// operator configuration fixed at startup.
 	if err := telemetry.RegisterReducerHandlerTimeoutGauge(instruments, meter, reducerHandlerTimeoutBounds{service: serviceRunner}); err != nil {
-		closeStaleAccess()
 		return reducer.Service{}, nil, nil, nil, fmt.Errorf("register handler timeout gauge: %w", err)
 	}
 	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)
-	return serviceRunner, graphRefresher, postgresRefresher, closeStaleAccess, nil
+	return serviceRunner, graphRefresher, postgresRefresher, staleGate, nil
 }
 
 // reducerHandlerTimeoutBounds adapts a built reducer.Service to
