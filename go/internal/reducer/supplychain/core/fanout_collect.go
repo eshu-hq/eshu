@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // collectFanOutHolders gathers the holders one fan-out claim owes: the stored

@@ -350,20 +350,21 @@ the 3-hour QA window, not a single reading.
 ## Fan-out time by site
 
 `eshu_dp_supply_chain_impact_fanout_site_duration_seconds` (#10972) records,
-for each holder fan-out pass, the total time spent in each of five sites, one
+for each holder fan-out pass, the total time spent in each of six sites, one
 histogram sample per site the pass entered. Labels are `domain` and
 `fanout_site`; no scope, holder or CVE id is a label.
 
 | `fanout_site` | What it times |
 | --- | --- |
-| `inflight_read` | The claimed-or-running queue read that finds the holders to flag. |
+| `in_flight_early` | The load-end in-flight read (set A of the D4b narrowing) that runs before the writer. The fan-out reports its measured duration; a one-hop rerun takes no set A read and reports nothing for it. |
+| `inflight_read` | The claimed-or-running queue read at fan-out (set B) and the narrowing against set A that picks the holders to flag. |
 | `holder_reads` | Every holder lookup statement of the pass, summed. The per-statement view stays on `eshu_dp_supply_chain_impact_fanout_read_duration_seconds`. |
 | `holder_prefilter` | The one set read that drops holders whose queued pass already covers the stamp (#10972). Its per-read view stays on the read-duration histogram under kind `holder_prefilter`. |
 | `reopen_loop` | The per-holder reopen or replay-flag writes, summed. |
 | `state_update` | The replay-flag clear and the calling item's fan-out state write. |
 
 The same totals ride on the `supply_chain_impact.fanout` span as
-`inflight_read_seconds`, `holder_reads_seconds`, `holder_prefilter_seconds`, `reopen_loop_seconds` and
+`in_flight_early_seconds`, `inflight_read_seconds`, `holder_reads_seconds`, `holder_prefilter_seconds`, `reopen_loop_seconds` and
 `state_update_seconds`. A pass that fails inside a site still reports the time
 it spent there, so a timed-out read shows up. A pass with nothing to fan out
 enters no site and reports nothing; that early branch's write that consumes the

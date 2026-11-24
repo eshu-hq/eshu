@@ -66,7 +66,7 @@ core package suites.
 ## Pass reason and fan-out site timing
 
 `pass_reason` reads the loaded evidence, the stamp and two handler fields; it
-adds no read. The fan-out site timing wraps five existing calls (the in-flight
+adds no read. The fan-out site timing credits the D4b load-end read's own measured duration and wraps five existing calls (the in-flight
 read, each holder-read chunk, the queued-holder prefilter, each holder reopen, and the state writes) with
 two `time.Now` calls each, and adds one histogram sample and one span
 attribute per site entered. The fan-out pass holds at most 256 holder reopens,
