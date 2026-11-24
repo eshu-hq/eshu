@@ -368,7 +368,8 @@ func (t supplyChainImpactTx) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
-	return t.tx.ExecContext(ctx, query, args...)
+	result, err := t.tx.ExecContext(ctx, query, args...)
+	return result, t.classifyFactWriteStopped(ctx, err)
 }
 
 // QueryContext runs a read inside the write transaction.
@@ -379,7 +380,7 @@ func (t supplyChainImpactTx) QueryContext(
 ) (supplychaincore.SupplyChainImpactRows, error) {
 	rows, err := t.tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, t.classifyFactWriteStopped(ctx, err)
 	}
 	return rows, nil
 }

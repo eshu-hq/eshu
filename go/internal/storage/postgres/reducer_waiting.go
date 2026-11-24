@@ -309,6 +309,15 @@ func WaitingDeferralMap() []WaitingDeferral {
 			ProvidingSave: "supports backfill marker completion and old-writer fence drain; never parked, the retry timer re-claims the row",
 		},
 		{
+			// #10880 PR-C0: not parked. The refusal means this pod's image is older
+			// than the schema; no save wakes it, the retry timer re-claims the row
+			// and a pod on the new image takes it.
+			FailureClass:  SupplyChainImpactFactWriteStoppedFailureClass,
+			WaitsForKind:  WaitingKindTargetCommitted,
+			WakeSite:      WaitingWakeSiteNotAWait,
+			ProvidingSave: "none: a rollout to the image that no longer writes the finding facts; never parked, the retry timer re-claims the row",
+		},
+		{
 			FailureClass:  supplychaincore.SupplyChainImpactWriteSupersededFailureClass,
 			WaitsForKind:  WaitingKindTargetCommitted,
 			WakeSite:      WaitingWakeSiteNotAWait,

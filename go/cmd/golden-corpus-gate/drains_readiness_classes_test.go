@@ -89,6 +89,12 @@ var preMaintenanceBlockingFailureClasses = map[string]string{
 	// cells assert absent.
 	"generation_activation_not_ready": "attaches to any reducer domain and resolves without the maintenance pass; " +
 		"tolerating it would let pre-maintenance quiescence pass before a gated family's intent has evaluated its gate",
+	// #10880 PR-C0: the finding-fact reject trigger refused a write because the
+	// pod's image is older than the schema. It is a rollout defect, not a wait on
+	// a precondition the maintenance pass resolves, so quiescence must not treat
+	// it as settled; the class is inert until PR-C2 arms the trigger.
+	"supply_chain_impact_fact_write_stopped": "a refused finding-fact write means a reducer image older than the schema " +
+		"is still running; only a rollout clears it, so pre-maintenance quiescence must keep blocking on it",
 }
 
 // TestEveryNonCountingFailureClassHasPreMaintenanceDecision forces a control

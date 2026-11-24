@@ -75,3 +75,49 @@ func verifySliceOutcome(t *testing.T, set attribute.Set) string {
 	}
 	return value.AsString()
 }
+
+// TestRecordSupplyChainImpactFactWriteRejected proves the rejected-write
+// counter counts one per call with no label (no scope, generation or fact id
+// can reach it) and is safe on a nil receiver and on a bare Instruments.
+func TestRecordSupplyChainImpactFactWriteRejected(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
+	inst := &Instruments{}
+	if err := registerSupplyChainImpactSupportsInstruments(meter, inst); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	ctx := context.Background()
+	inst.RecordSupplyChainImpactFactWriteRejected(ctx)
+	inst.RecordSupplyChainImpactFactWriteRejected(ctx)
+
+	var nilInst *Instruments
+	nilInst.RecordSupplyChainImpactFactWriteRejected(ctx)
+	(&Instruments{}).RecordSupplyChainImpactFactWriteRejected(ctx)
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var total int64
+	var attributes int
+	var found bool
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_supply_chain_impact_fact_write_rejected_total" {
+				continue
+			}
+			found = true
+			for _, point := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				total += point.Value
+				attributes += point.Attributes.Len()
+			}
+		}
+	}
+	if !found {
+		t.Fatal("eshu_dp_supply_chain_impact_fact_write_rejected_total is not registered")
+	}
+	if total != 2 || attributes != 0 {
+		t.Fatalf("rejected counter = %d with %d attributes, want 2 with none", total, attributes)
+	}
+}

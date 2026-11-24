@@ -17,16 +17,17 @@ import (
 // The base digests below were taken at commit 662083f413 (origin/main when
 // #11234 started) by a throwaway dump test; the frozen gate in
 // testdata/stale_gate_pre_11234.sql was written by the same run. The batch and
-// single digests were re-pinned once, when #10880 PR-B2 enrolled the
-// supply_chain_impact_supports_not_ready class: the claim statements embed the
-// non-counting class list (reducerClaimAttemptCountCaseSQL), so the one added
+// single digests were re-pinned when #10880 PR-B2 enrolled the
+// supply_chain_impact_supports_not_ready class, and again when #10880 PR-C0
+// enrolled supply_chain_impact_fact_write_stopped: the claim statements embed the
+// non-counting class list (reducerClaimAttemptCountCaseSQL), so each added
 // predicate moved their bytes outside the gate; the funnel carries no class list
 // and keeps its base digest. Enrolling another non-counting class re-pins the two
 // the same way.
 const (
 	staleGate11234PreGateSHA    = "30a3fd23ee77b417d8c6cd5a981dfae7953c30749f8552953f41b766a38b3aeb"
-	staleGate11234BaseBatchSHA  = "63d4b2b9a063e3f84e283a5a1819959421190b718b5ada8317ac533cf45785f1"
-	staleGate11234BaseSingleSHA = "c7512ad37237837d15425f9f77798a145d5cf268e719488b7782239b6bc25a05"
+	staleGate11234BaseBatchSHA  = "48c1d6caa8f2e879cab0d000c6b407fd74e57599ee500d2dad9a5dde60a2440b"
+	staleGate11234BaseSingleSHA = "8aa781b80bda30c484b78e9b78a74c7395df3bdc680bf0b22975a0fbea44cc85"
 	staleGate11234BaseFunnelSHA = "53bf5acdcabd4b6d3cf77e343c3638de3b7fb3066ed02c8829df49258369597f"
 )
 

@@ -205,6 +205,12 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsReads counter: %w", err)
 	}
+	if inst.SupplyChainImpactFactWriteRejected, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_fact_write_rejected_total",
+		metric.WithDescription("Supply-chain impact finding fact writes the reject trigger refused (SQLSTATE 55000, constraint fact_records_reject_supply_chain_impact_finding). Each one is a reducer on an image that still writes the kind after the write stop; the intent retries without spending an attempt. No labels. A count above zero means an old reducer image is still running."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactFactWriteRejected counter: %w", err)
+	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
 		metric.WithDescription("Raw per-support rows one drain read (one whole call for the service-catalog reader; active or not, and the rows a failed drain read before it stopped), by reader (source label). Raw rows far above the active rows mean the key's supports sit mostly in superseded generations; a drain in the hundred thousands is a hot key."),
@@ -294,6 +300,17 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRows(ctx context.Context, a
 		return
 	}
 	i.SupplyChainImpactSupportsRows.Add(ctx, rows, metric.WithAttributes(AttrAction(action), AttrSource(source)))
+}
+
+// RecordSupplyChainImpactFactWriteRejected counts one impact-finding fact write
+// the reject trigger refused. It carries no label, so no scope, generation or fact
+// id can reach the metric. It is safe on a nil receiver and on an Instruments that
+// did not register the counter.
+func (i *Instruments) RecordSupplyChainImpactFactWriteRejected(ctx context.Context) {
+	if i == nil || i.SupplyChainImpactFactWriteRejected == nil {
+		return
+	}
+	i.SupplyChainImpactFactWriteRejected.Add(ctx, 1)
 }
 
 // RecordSupplyChainImpactSupportsRead counts one reducer read of the supports
