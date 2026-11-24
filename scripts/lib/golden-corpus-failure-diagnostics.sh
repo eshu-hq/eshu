@@ -38,20 +38,37 @@
 # lazily at call time, so sourcing this file early is safe.
 
 # redact_gate_log redacts credential-shaped content from a host-binary log
-# tail: Authorization headers, password= assignments, whole PEM private-key
-# blocks (a BEGIN line without its END in the tail window redacts through
-# end of tail: fail closed, since the cut remainder cannot be proven clean),
-# and URI userinfo (the no-DSN rule: any userinfo exists to carry
-# credentials). Whole-line replacement for key blocks, value replacement
-# elsewhere; portable BRE so it runs on GNU and BSD sed.
+# tail: Authorization headers (Authorization:, authorization:,
+# AUTHORIZATION:), password=/PASSWORD= assignments, whole PEM private-key
+# blocks, and URI userinfo (the no-DSN rule: any userinfo exists to carry
+# credentials). A 200-line tail can cut below a PEM BEGIN line, leaving a
+# key body whose END line the sed range below would never open on, so the
+# POSIX awk pre-pass fails closed first: an END line with no BEGIN above it
+# in the tail redacts back to the previous END (or the tail start). Long
+# base64 runs (48 or more characters, the PEM body shape; 40-char SHA1s pass
+# through) redact inline as a second net. Whole-line replacement for key
+# blocks, value replacement elsewhere; portable BRE so it runs on GNU and
+# BSD sed.
 redact_gate_log() {
-	sed -e 's/Authorization:.*/Authorization: [redacted]/' \
+	awk '
+		{ buf[NR] = $0 }
+		/BEGIN .* KEY/ { depth++ }
+		/END .* KEY/ {
+			if (depth > 0) { depth-- }
+			else { for (i = red + 1; i <= NR; i++) buf[i] = "[redacted private key material]" }
+			red = NR
+		}
+		END { for (i = 1; i <= NR; i++) print buf[i] }
+	' | sed -e 's/Authorization:.*/Authorization: [redacted]/' \
 		-e 's/authorization:.*/authorization: [redacted]/' \
+		-e 's/AUTHORIZATION:.*/AUTHORIZATION: [redacted]/' \
 		-e 's/password=[^[:space:]&;]*/password=[redacted]/g' \
+		-e 's/PASSWORD=[^[:space:]&;]*/PASSWORD=[redacted]/g' \
 		-e 's|://[^/@ ]*@|://[redacted]@|g' \
 		-e '/BEGIN .* KEY/,/END .* KEY/s/.*/[redacted private key material]/' \
 		-e '/PRIVATE KEY/s/.*/[redacted private key material]/' \
-		-e '/BEGIN .* KEY/s/.*/[redacted private key material]/'
+		-e '/BEGIN .* KEY/s/.*/[redacted private key material]/' \
+		-e 's/[A-Za-z0-9+\/=]\{48,\}/[redacted]/g'
 }
 
 # diag_pg runs one bounded diagnostic SELECT through pg(), printing the
@@ -118,9 +135,10 @@ stage_failure_diagnostics() {
 			fi
 		fi
 	done
-	# (ii) redacted 200-line tails of every host-binary log.
+	# (ii) redacted 200-line tails of every host-binary log (regular files
+	# only, like (i): a symlinked *.log is skipped, never followed).
 	for logf in "${log_dir}"/*.log; do
-		[[ -f "${logf}" ]] || continue
+		[[ -f "${logf}" && ! -L "${logf}" ]] || continue
 		base="$(basename "${logf}")"
 		if tail -n 200 "${logf}" 2>/dev/null | redact_gate_log >"${dest}/log-tails/${base}.tail"; then
 			staged=$((staged + 1))

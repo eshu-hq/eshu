@@ -58,6 +58,9 @@ seed_populated() {
 	printf '{"oracle":"persisted-aggregate-counts"}\n' >"${root}/work/logs/persisted-aggregate-counts.json"
 	printf '{"phases":{"graph_query":3}}\n' >"${root}/work/logs/phase-timings.json"
 	printf '{"leg":"pair1-neo4j","statements":12}\n' >"${root}/capture/recording.jsonl"
+	# The Bearer token below is a LIVE seed, not a pre-redacted one: Case 1
+	# asserts its absence from the staged bundle, so the Authorization
+	# rule is load-bearing (break the rule and the suite goes RED).
 	for i in $(seq 1 250); do
 		printf 'api log line %03d padding-padding-padding-padding\n' "${i}" >>"${root}/work/logs/api.log"
 	done
@@ -69,10 +72,36 @@ seed_populated() {
 		printf 'MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKdiagkey\n'
 		printf -- '-----END RSA PRIVATE KEY-----\n'
 		printf 'note: PRIVATE KEY material must never leave the host\n'
+		printf 'AUTHORIZATION: Bearer upper-diag-token-007\n'
+		printf 'db PASSWORD=UpperDiagPw007 authenticated\n'
 	} >>"${root}/work/logs/api.log"
 	for n in $(seq 1 10); do
 		printf 'short log line %d\n' "${n}" >>"${root}/work/logs/short.log"
 	done
+	# P1 straddle seed: a 301-line log whose PEM block straddles the
+	# 200-line tail cut. BEGIN sits on line 101 (cut off); the Proc-Type /
+	# DEK-Info headers, 20 body lines, and the END line fall inside the
+	# tail window (lines 102..301).
+	for n in $(seq 1 100); do
+		printf 'straddle filler %03d\n' "${n}" >>"${root}/work/logs/straddle.log"
+	done
+	{
+		printf -- '-----BEGIN RSA PRIVATE KEY-----\n'
+		printf 'Proc-Type: 4,ENCRYPTED\n'
+		printf 'DEK-Info: AES-128-CBC,9F8E7D6C\n'
+		for n in $(seq 1 20); do
+			printf 'c3RyYWRkbGVib2R5ZGlhZ2tleWxpbmUxMjM0NTY3ODkwQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5Ky8vPAD=%s\n' "${n}" >>"${root}/work/logs/straddle.log"
+		done
+		printf -- '-----END RSA PRIVATE KEY-----\n'
+		printf 'straddle post-end marker line\n'
+	} >>"${root}/work/logs/straddle.log"
+	for n in $(seq 126 301); do
+		printf 'straddle filler %03d\n' "${n}" >>"${root}/work/logs/straddle.log"
+	done
+	# P3b symlink seed: a *.log symlink pointing outside log_dir must be
+	# skipped, never followed into the bundle.
+	printf 'linked secret marker linked-secret-diag-5\n' >"${root}/outside-secret.log"
+	ln -s "${root}/outside-secret.log" "${root}/work/logs/linked.log"
 }
 
 # Case 1: a populated work_dir stages (i)+(ii)+(iii) with redacted tails.
@@ -99,6 +128,26 @@ done
 [[ -f "${dest}/log-tails/short.log.tail" ]] || fail "missing short log tail"
 cmp -s "${log_dir}/short.log" "${dest}/log-tails/short.log.tail" ||
 	fail "a short log must be tailed whole"
+for secret in upper-diag-token-007 UpperDiagPw007; do
+	if rg -q -F -- "${secret}" "${dest}"; then
+		fail "bundle leaks seeded uppercase secret: ${secret}"
+	fi
+done
+[[ -f "${dest}/log-tails/straddle.log.tail" ]] || fail "missing straddle log tail"
+[[ "$(wc -l <"${dest}/log-tails/straddle.log.tail" | tr -d ' ')" -eq 200 ]] ||
+	fail "straddle tail must hold the last 200 lines"
+for secret in c3RyYWRkbGVib2R5ZGlhZ2tleQ 'Proc-Type' 'DEK-Info' 'END RSA PRIVATE KEY'; do
+	if rg -q -F -- "${secret}" "${dest}/log-tails/straddle.log.tail"; then
+		fail "straddle tail leaks cut key material: ${secret}"
+	fi
+done
+rg -q -F -- 'straddle post-end marker line' "${dest}/log-tails/straddle.log.tail" ||
+	fail "straddle redaction must stop at the END line, not nuke the tail"
+test ! -e "${dest}/log-tails/linked.log.tail" ||
+	fail "a symlinked log must be skipped, never followed"
+if rg -q -F -- 'linked-secret-diag-5' "${dest}"; then
+	fail "bundle leaks content from outside log_dir via a symlinked log"
+fi
 for secret in s3cr3t-diag-token-001 hunter2-diag-pw dbpw-diag-9 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKdiagkey 'BEGIN RSA PRIVATE KEY'; do
 	if rg -q -F -- "${secret}" "${dest}"; then
 		fail "bundle leaks seeded secret: ${secret}"
@@ -199,5 +248,34 @@ rg -q '::error' "${fixture}/still_over_cap.log" || fail "an over-cap bundle must
 test ! -e "${RUNNER_TEMP}/golden-corpus-failure/huge-job" ||
 	fail "an over-cap bundle must leave nothing behind to upload"
 unset GOLDEN_CORPUS_DIAG_MAX_KB
+
+# Case 6: redact_gate_log unit probes — each redaction mechanism in
+# isolation, straight through the function (no staging).
+# (a) a standalone long-base64 run outside any key block redacts inline
+# while the surrounding line context survives.
+printf 'context before 0123456789\n%s\ncontext after 0123456789\n' \
+	'c3RyYWRkbGVib2R5ZGlhZ2tleWxpbmUxMjM0NTY3ODkwQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5Ky8vPAD=' |
+	redact_gate_log >"${fixture}/b64.out" ||
+	fail "redact_gate_log must handle a standalone base64 run"
+if rg -q -F -- 'c3RyYWRkbGVib2R5ZGlhZ2tleQ' "${fixture}/b64.out"; then
+	fail "a standalone long-base64 run must redact"
+fi
+rg -q -F -- 'context before 0123456789' "${fixture}/b64.out" ||
+	fail "base64 redaction must stay inline, not nuke the line"
+# (b) an END line with no BEGIN above it redacts back to the tail start,
+# keeping only what follows the END line.
+printf 'tail filler line one\nProc-Type: 4,ENCRYPTED\n%s\n%s\npost-end survivor\n' \
+	'c3RyYWRkbGVib2R5ZGlhZ2tleWxpbmUxMjM0NTY3ODkwQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5Ky8vPAD=' \
+	'-----END RSA PRIVATE KEY-----' |
+	redact_gate_log >"${fixture}/straddle.out" ||
+	fail "redact_gate_log must handle END-without-BEGIN"
+if rg -q -F -- 'Proc-Type' "${fixture}/straddle.out"; then
+	fail "END-without-BEGIN must redact back to the tail start"
+fi
+if rg -q -F -- 'tail filler line one' "${fixture}/straddle.out"; then
+	fail "END-without-BEGIN must redact the tail start itself"
+fi
+rg -q -F -- 'post-end survivor' "${fixture}/straddle.out" ||
+	fail "END-without-BEGIN redaction must stop at the END line"
 
 echo 'PASS: failure diagnostics staging is complete, redacted, and fail-closed'
