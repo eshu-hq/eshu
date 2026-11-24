@@ -1,0 +1,20 @@
+== mutation A: the jit switch removed before the keyed selector read (expect TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead FAIL)
+--- FAIL: TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead (0.00s)
+    --- FAIL: TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead/ungranted_advisory_selector (0.00s)
+        jit_off_test.go:170: the keyed selector read did not run right after the jit switch: begin,other,read:supports_selector,rollback
+    --- FAIL: TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead/ungranted_CVE_selector (0.00s)
+        jit_off_test.go:170: the keyed selector read did not run right after the jit switch: begin,other,read:supports_selector,rollback
+    --- FAIL: TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead/finding_id_miss_then_a_CVE_selector (0.00s)
+exit=1
+== mutation B: the package key restored in ungrantedExplainDrivingKey (expect TestUngrantedExplainRoutePicksTheDrivingKey FAIL)
+--- FAIL: TestUngrantedExplainRoutePicksTheDrivingKey (0.00s)
+    explain_key_first_test.go:410: finding id and a package: selector route = "supports_selector", want the legacy read
+    explain_key_first_test.go:410: package alone: selector route = "supports_selector", want the legacy read
+FAIL
+FAIL	github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact	0.011s
+FAIL
+exit=1
+== restored; clean run of both tests
+ok  	github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact	0.015s
+exit=0
+done

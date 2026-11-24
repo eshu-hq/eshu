@@ -5,7 +5,8 @@ Branch `drive/10880-prc-c1f`, stacked on C1. Rulings: `.claude/arbiter-c1-item-f
 ## What this changes
 The ungranted explain by selector used to read the whole supports table through a `NOT MATERIALIZED` source joined to the active scopes, with the selector
 as an optional predicate (`$4 = '' OR cve_id = $4`). On the QA replica the planner drove that join from the scopes and read every supports row through the
-scope index with the selector only as a filter: every selector and identity shape reached the 20 s statement timeout on both runs (4 PASS, 18 FAIL of 22).
+scope index with the selector only as a filter: every other selector and identity shape reached the 25 s statement timeout on run 1 (4 PASS on the two
+finishing keys, 10 TIMEOUT of 12 keys; a timed-out shape ran no second run).
 
 Now a call that names a CVE or an advisory drives from that key's own index, and the statement decides none, one or ambiguous before it computes any winner
 (`impact/explain_decide_first.go`, section "The decide-first design" below). The driving leg per key, in `explainKeyLegs`:
@@ -154,7 +155,7 @@ Decide-first against legacy, ms (run 1 / run 2), rows read from the key fence an
 | cve | largest | CVE-2022-3517 | 140,256 | 88 / 85 | TIMEOUT | 15 | 28 |
 | advisory | largest | GHSA-f8q6-p94x-37v3 | 140,256 | 89 / 88 | TIMEOUT | 15 | 28 |
 
-The package and repository rows of the same twelve-key run (median, p99, largest; 30 to 88 ms second runs; legacy TIMEOUT) timed a call the handler refuses
+The package and repository rows of the same twelve-key run (median, p99, largest; 29 to 84 ms second runs; legacy TIMEOUT) timed a call the handler refuses
 (`$2 = ''` with no CVE or advisory): **not reachable, no claim is made on them**; their raw plans stay in the evidence directory. Every CVE and advisory second run
 above is under 112 ms against the 1,500 ms bar; the 1,343 ms first run is a cold read of 7 fence rows and 12 probes.
 
@@ -165,16 +166,16 @@ above is under 112 ms against the 1,500 ms bar; the 1,343 ms first run is a cold
 | CVE + an absent package | 32 / 30 | 725 / 689 | 0 | 0 | none |
 
 CVE plus package alone leaves several canonical keys under every package of that CVE (the key carries the version and the repository), so one key needs the repository
-too. Most of the generic-plan time is planning the generic plan (about 0.65 s).
+too. Most of the generic-plan time is execution (about 0.65 s); planning the generic plan is about 0.04 s.
 
 ### Identity fallback with a CVE or an advisory (ruling 2.2)
 The fence is read to its end because the identity predicate cannot end the scan; time is about 7.2 microseconds per fence row (temp blocks of 8 kB):
 
 | selector and identity | r1 / r2 ms | temp blocks read / written (run 2) | probes | answer |
 |---|---|---|---|---|
-| CVE-2022-3517 (140,256 rows), finding id that misses | 1,123 / 1,033 | 24,646 / 24,646 | 0 | none |
+| CVE-2022-3517 (140,256 rows), finding id that misses | 1,123 / 1,033 | 49,292 / 24,646 | 0 | none |
 | CVE-2022-3517, fact id of one copy (hit) | 1,032 / 1,010 | 24,646 / 24,646 | 3 | one |
-| GHSA-f8q6-p94x-37v3 (140,256 rows), finding id that misses | 1,612 / 1,227 | 24,646 / 24,646 | 0 | none |
+| GHSA-f8q6-p94x-37v3 (140,256 rows), finding id that misses | 1,612 / 1,227 | 49,292 / 24,646 | 0 | none |
 | GHSA-f8q6-p94x-37v3, fact id of one copy (hit) | 1,055 / 1,070 | 24,646 / 24,646 | 3 | one |
 
 Pass (second run at or under 1,500 ms): a finding id with a CVE or an advisory stays on decide-first. **This is the largest case measured; the time grows with the
@@ -189,8 +190,9 @@ called rare. The identity-first follow-up PR is the fix.
 
 ### The key with the most copies per canonical key
 `pg_stats` top `canonical_key` (about 2,733 copies, `CVE-2026-8723` with `npm://registry.npmjs.org/qs`): the CVE and package selector is ambiguous (7 rows read,
-12 probes; 644 / 100 ms). A fact-id identity lookup on a copy of that key with the same CVE and package reads all 56,269 matching supports, ranks the key's copies
-and probes 3: 586 / 513 ms. That was measured before the ruling and is the same fence-scan case as the identity table above.
+12 probes; 133 ms in the ANALYZE index run, 100 ms in the run-2 plan). A fact-id identity lookup on a copy of that key with the same CVE and package scans past
+56,269 fence rows the identity filter removes, then ranks the key's copies: 483 ms in the run-2 plan. That was measured before the ruling and is the same fence-scan
+case as the identity table above.
 
 ## JIT
 The replica has `jit = on`, `jit_above_cost = 100000`, `jit_inline_above_cost = 500000`, `jit_optimize_above_cost = 500000` (server 18.6). The top plan cost at the largest
@@ -228,8 +230,8 @@ and lab evidence is committed under `10880-prc-c1f-replica/`.
 | One and none answers meet the bar (custom and generic plans) | `p21-results.txt`, `p22-results.txt` (111 / 73 and 32 / 30 ms custom; 708 / 693 and 725 / 689 ms generic) | the unranked version probed 30,001 candidates (lab, 410 ms) | QA replica; lab | 4 shapes x 2 runs |
 | Identity fallback with a CVE or an advisory meets the bar at the largest fence (140,256 rows) | `p22-results.txt`: second runs 1,010 to 1,227 ms | the same shape at the package statement timed out at 25 s (`p21b-identity-fallback-package.r1.txt`); a fence above about 190,000 rows would be over the bar (not measured) | QA replica | 4 shapes x 2 runs |
 | **Identity fallback with no CVE and no advisory: stays on legacy, not improved, not claimed** | `p22-results.txt`: legacy miss + axios and hit + axios both TIMEOUT at 25 s | n/a (follow-up PR, migration 355) | QA replica | 2 shapes x 1 run |
-| Finding id with a package, repository or digest and no CVE or advisory runs the legacy statement and counts `legacy` | `TestUngrantedExplainRoutePicksTheDrivingKey`, `TestExplainCountsEachStatementByRoute` | mutation run, package before CVE in `ungrantedExplainDrivingKey`: the route test FAILS (`route-mutation-proof.txt`, run against the earlier four-key version); the run against the two-key version is still owed | hermetic | 5 keyless filters, 3 count rows |
-| The keyed selector read runs under a transaction-local `jit = off`, right before the statement and nowhere else | `TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead`; live `TestExplainSelectorJITOffRevertsAfterTheExplainLive` | removing the switch from `loadExplanationFindingsByRoute` should fail the first: **mutation run still owed** (script `itemf_mut2.sh` was not run; see the handoff) | hermetic; disposable PostgreSQL | 9 filters; 2 stores x 3 answers |
+| Finding id with a package, repository or digest and no CVE or advisory runs the legacy statement and counts `legacy` | `TestUngrantedExplainRoutePicksTheDrivingKey`, `TestExplainCountsEachStatementByRoute` | restoring a `PackageID` case in `ungrantedExplainDrivingKey` FAILS the route test (finding id and a package, package alone); the clean run passes (`route-and-jit-mutation-proof.txt`; the earlier four-key `route-mutation-proof.txt` is kept as history) | hermetic | 10 legacy filters, 12 count cases |
+| The keyed selector read runs under a transaction-local `jit = off`, right before the statement and nowhere else | `TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead`; live `TestExplainSelectorJITOffRevertsAfterTheExplainLive` | neutering the `if route == RouteSupportsSelector && s.inSnapshot` guard in `loadExplanationFindingsByRoute` FAILS the order test on all three keyed subtests; the clean run passes (`route-and-jit-mutation-proof.txt`) | hermetic; disposable PostgreSQL | 9 filters; 2 stores x 3 answers |
 | JIT off is faster where JIT triggers | `lab-jit-pair-1.6M-copies.txt`, `lab-jit-pair-900k-and-hot.txt` | jit on: 1,421 ms at 831,151 plan cost vs 0.57 ms off | lab, PostgreSQL with LLVM | 4 keys x 2 plans x 3 runs |
 | Plan shape 7.2 under custom and generic plans for the CVE, advisory, cve+package and identity shapes | `TestKeyFirstPlansOnTheQAReplicaPassTheShapeCheck` over 12 replica fixtures, each stamped with the statement hash | `TestPlanShapeCheckerRejectsTheScopeDrivenItemFPlan` (real scope-driven plans), `TestPlanShapeCheckerRejectsAFullPrimaryKeyOrOperatorScan`; a changed statement fails the hash stamp | QA replica plans | 12 plans, 6 shapes |
 | The statement streams (lazy fence, no blocking node, cheap compare before the probe, LIMITed lateral probes, runtime filter kept) | `TestUngrantedExplainStatementsDriveFromTheirKey` | `TestExplainStatementShapeCheckRejectsSeededViolations`: a sort in the fence, no cheap compare, a plain scope join, the payload in the fence, the runtime filter dropped | hermetic | 2 statements, 5 mutations |
