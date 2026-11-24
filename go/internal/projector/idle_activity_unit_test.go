@@ -168,3 +168,56 @@ func TestWakeFiresOnlyOnTheFirstClaimAfterTheProcessWasIdle(t *testing.T) {
 		t.Fatalf("wake counter = %d, want 2 (the first claim of each busy spell only)", got)
 	}
 }
+
+// TestNoteClaimInAnActivePoolIsNotIdleWhenASiblingStampsFirst pins the race between
+// two claiming workers: A reads its time, B reads a later time and stores it first, then
+// A stores. A's claim happens in a pool B just proved active, so it must not report the
+// process idle (that would broadcast a spurious wake and overwrite B's newer stamp).
+// The injected clock plays B: on the call that A makes inside noteClaim it stores B's
+// later stamp, then returns the earlier time A read.
+func TestNoteClaimInAnActivePoolIsNotIdleWhenASiblingStampsFirst(t *testing.T) {
+	t.Parallel()
+
+	var activity *processActivity
+	calls := 0
+	clock := func() time.Time {
+		calls++
+		switch calls {
+		case 1: // the base, read by newProcessActivity
+			return simStart
+		case 2: // worker A's read inside noteClaim: B stamps a later time first
+			activity.lastClaim.Store(int64(10*time.Millisecond) + 1)
+			return simStart.Add(5 * time.Millisecond)
+		default: // any later read, after both have stamped
+			return simStart.Add(20 * time.Millisecond)
+		}
+	}
+	activity = newProcessActivity(clock)
+	if activity.noteClaim() {
+		t.Fatal("noteClaim() reported idle for a claim made 10 ms after a sibling's, want busy")
+	}
+	if got, want := activity.lastClaim.Load(), int64(20*time.Millisecond)+1; got != want {
+		t.Fatalf("stored stamp = %d, want %d (the newest time, not the older read)", got, want)
+	}
+}
+
+// TestIdleWakeSendsWhenTheClockReadsEarlierThanTheLastBroadcast pins that a clock that
+// went backward does not suppress wakes until it catches up: a negative gap since the
+// last send counts as elapsed.
+func TestIdleWakeSendsWhenTheClockReadsEarlierThanTheLastBroadcast(t *testing.T) {
+	t.Parallel()
+
+	clock := &stepClock{at: simStart.Add(time.Hour)}
+	wake := newIdleWake(time.Second, clock.now)
+	if !wake.broadcast() {
+		t.Fatal("first broadcast was suppressed")
+	}
+	clock.at = simStart // an hour earlier than the last send
+	if !wake.broadcast() {
+		t.Fatal("broadcast suppressed while the clock reads earlier than the last send, want it sent")
+	}
+	clock.at = simStart.Add(500 * time.Millisecond)
+	if wake.broadcast() {
+		t.Fatal("a broadcast 500 ms after the last send was not debounced")
+	}
+}

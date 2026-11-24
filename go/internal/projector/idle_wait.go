@@ -47,12 +47,13 @@ func (w *idleWake) channel() <-chan struct{} {
 }
 
 // broadcast wakes every worker holding the current channel and reports whether it
-// sent. A call inside minPeriod of the previous send is suppressed.
+// sent. A call inside minPeriod of the previous send is suppressed; a clock that reads
+// earlier than the last send (a step back, or no monotonic reading) counts as elapsed.
 func (w *idleWake) broadcast() bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	now := w.now()
-	if !w.last.IsZero() && now.Sub(w.last) < w.minPeriod {
+	if gap := now.Sub(w.last); !w.last.IsZero() && gap >= 0 && gap < w.minPeriod {
 		return false
 	}
 	w.last = now
@@ -155,9 +156,18 @@ func recent(last, now int64) bool {
 
 // noteClaim records a claim and reports whether the process had been idle: no claim
 // before it, or none within the last maxProjectorPollInterval.
+//
+// It is a compare-and-swap loop, not a swap: a worker that read its time and was then
+// overtaken by a sibling that stored a later stamp retries with a fresh read, so it sees
+// the sibling's claim (busy) and never stores an older time over a newer one.
 func (a *processActivity) noteClaim() (wasIdle bool) {
-	now := a.since()
-	return !recent(a.lastClaim.Swap(now), now)
+	for {
+		prev := a.lastClaim.Load()
+		now := a.since()
+		if a.lastClaim.CompareAndSwap(prev, now) {
+			return !recent(prev, now)
+		}
+	}
 }
 
 // active reports whether any worker claimed within the last maxProjectorPollInterval.

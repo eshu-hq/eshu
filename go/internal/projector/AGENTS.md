@@ -420,9 +420,9 @@ editing inside it. Three rules that are easy to get wrong from here:
 - **Add a new typed canonical family** → besides wiring it into
   `buildCanonicalMaterialization`, add its fact-kind prefix to
   `quarantinedFactStagePrefixes` in `decode/quarantine.go`. Why: a family with
-  no matching prefix falls through to the `unknown_canonical` stage label, so
-  its dead letters hide and an operator cannot see its input_invalid rate. The
-  table is ordered longest-prefix-first.
+  no matching prefix falls through to the `unknown_canonical` stage label: its
+  dead letters land there and the family's input_invalid rate is invisible. The
+  table is ordered longest-prefix-first; the reasoning is on the symbols themselves.
 
 ## Failure modes and how to debug
 

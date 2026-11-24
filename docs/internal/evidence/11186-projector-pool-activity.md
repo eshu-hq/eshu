@@ -60,7 +60,8 @@ load1 below 15 and run maximum below 15 on the host.
 Rep 3 ran while other jobs compiled on the host, so it is void under the gate and
 was rerun on the same build. Its values are listed only for the record; the verdict
 uses the rerun. The checker printed 0 FAIL and no INCONCLUSIVE line for reps 1 and
-2 (146 PASS lines over the control set and both reps) and 0 FAIL, 35 PASS for the
+2 (146 PASS lines over the control set and reps 1 to 3, where rep 3 is the void run:
+`rg -c '^PASS' report-gate.txt` in the results root) and 0 FAIL, 35 PASS for the
 rerun. In every T2TTL run the fleet-summed engaged counter was 1.0 and the
 claim-grant consult count was 176 to 178.
 
@@ -105,7 +106,8 @@ flat backoff.
 
 Extra claim polls per second per process while active: `(Workers - 1) / PollInterval`.
 The replay used 4 workers (3 per second). `Workers` defaults to `min(NumCPU, 8)`
-(`go/cmd/ingester/README.md`), up to 7 per second. Cost per process:
+(`go/cmd/ingester/README.md`; `NumCPU` with no cap for a local-authoritative NornicDB), 7 per
+second at `min(NumCPU, 8) = 8`. Cost per process:
 `(Workers - 1) / PollInterval x mean hand-out time`, with the mean read from the claim
 histogram.
 
@@ -130,6 +132,8 @@ hand-out mean was not measured; the replay means above are the only figures.
 | The first claim after idle wakes sleepers and no other claim does | `TestWakeFiresOnlyOnTheFirstClaimAfterTheProcessWasIdle`, `TestIdleWorkersWakeWhenASiblingClaimsAfterAnIdleSpell`, `TestIdleWorkerWakeIsDebounced`, `TestRecordIdleWakeCountsOnePerCall` | wake on every claim: "wake counter = 20, want 2"; never wake: counter 0 and "timed out waiting for three or more workers projecting" | n/a | 4 workers |
 | The window is strictly under 5 s | `TestProcessActivityWindowEdges` (0, 4.999 s, 5 s, 5.001 s, no claim yet) | `<=` instead of `<`: "at the cap: active() = true, want false" | n/a | 1 |
 | A backward clock does not hold the pool active | `TestProcessActivityTreatsABackwardClockAsIdle` | `age >= 0` dropped: "active() = true after the clock stepped back an hour" | n/a | 1 |
+| Two workers claiming at once do not report the process idle | `TestNoteClaimInAnActivePoolIsNotIdleWhenASiblingStampsFirst` (the injected clock plays the sibling that stamps first) | swap instead of compare-and-swap: "noteClaim() reported idle for a claim made 10 ms after a sibling's, want busy" | n/a | 2 workers |
+| A backward clock does not suppress wakes | `TestIdleWakeSendsWhenTheClockReadsEarlierThanTheLastBroadcast` | negative gap treated as inside the period: "broadcast suppressed while the clock reads earlier than the last send, want it sent" | n/a | 1 |
 | Registered B queue wait does not degrade | `check_arm.py --kind t2`, three valid T2TTL reps | baseline build: rep 1 p95 1.457 FAIL | n/a | 3 reps |
 | Race clean on the shared timestamp | `go test -race` on the projector package | not run on the final tests | n/a | 4 workers |
 
@@ -140,10 +144,12 @@ mutated. The simulated-clock tests drive the real `Service.Run` loop with an inj
 ## Not proven
 
 - The registered replay ran on build 835ce351a0 (44e8a5909c after the rebase onto the
-  current main; same patch). The clock-step hardening in 8a0631d984 changed how the activity
-  word stores time (monotonic base, a backward reading counts as idle); the replay was not
-  repeated on it. The hermetic tests cover that change; the replay figures above are for the
-  code before it.
+  current main; same patch, patch-id 1e62428d63). Two later changes alter how the activity word
+  stores time: the clock-step hardening (commit "Harden the projector pool-activity gate against a
+  clock step") and the compare-and-swap in `noteClaim`. The replay was not repeated on them: on a
+  monotonic clock the final code behaves as 835ce351a0 does in every case, and each change has a
+  hermetic test with a recorded RED in the claims table. The replay figures above are for the
+  build before them. `go-race-complete` in CI is the required race check for the shared timestamp.
 - The 30-minute diagnostic of why a first graph write is slow on a near-empty graph (the
   "M3" item in the replay ruling) was NOT done. The ruling owes it before #11186 closes.
 - `go test -race` on the final test set was not run: host load1 was above 8 when it was
