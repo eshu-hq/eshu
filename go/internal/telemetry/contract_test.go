@@ -134,6 +134,10 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"path",
 		"transition",
 		"worker",
+		"mode",
+		"repend_cause",
+		"changed",
+		"change_class",
 	}
 
 	got := MetricDimensionKeys()
