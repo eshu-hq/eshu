@@ -108,12 +108,15 @@ func TestSupplyChainImpactWinnersResweepKeyedAdmitsTheOldestCapturedAtFirstLive(
 		t.Fatalf("rewrite queued %d pending rows, want the 7 staged fact rows", depth)
 	}
 	// The oldest capture lands halfway between the full resweep's watermark
-	// and now, so it is older than every newer row yet still above the
-	// watermark: the debt is real and uncovered, as on the QA environment.
+	// and the newer rows' capture, so it is older than every newer row yet
+	// still above the watermark: the debt is real and uncovered, as on the QA
+	// environment.
 	h.exec(fmt.Sprintf(admissionOrderMoveStaged, "now()", "package_id NOT LIKE 'pkg:npm/zzz%'"))
 	h.exec(fmt.Sprintf(admissionOrderMoveStaged,
-		`(SELECT m.materialized_at + (now() - m.materialized_at) / 2
-          FROM supply_chain_impact_winners_materialization AS m WHERE m.singleton = 1)`,
+		`(SELECT m.materialized_at + (l.head - m.materialized_at) / 2
+          FROM supply_chain_impact_winners_materialization AS m,
+               (SELECT min(captured_at) AS head FROM supply_chain_impact_winners_dirty_log) AS l
+          WHERE m.singleton = 1)`,
 		"package_id LIKE 'pkg:npm/zzz%'"))
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 
