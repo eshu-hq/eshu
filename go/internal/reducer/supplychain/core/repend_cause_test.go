@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -289,7 +290,9 @@ func TestPassOutcomeSignalsCarryCauseChangedAndClassOnEverySurface(t *testing.T)
 
 // TestPassOutcomeIsSilentWhenTheWriteFails pins that the outcome counts a
 // completed pass only: a failed write records no outcome (the existing
-// pass_total still counted the pass at its evidence load).
+// pass_total still counted the pass at its evidence load). It asserts the
+// failure is the writer's own, reached once, so the test cannot pass when
+// Handle stops before the writer.
 func TestPassOutcomeIsSilentWhenTheWriteFails(t *testing.T) {
 	t.Parallel()
 
@@ -298,24 +301,33 @@ func TestPassOutcomeIsSilentWhenTheWriteFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	writer := &failingImpactWriter{}
 	handler := &SupplyChainImpactHandler{
 		FencingTokenIssuer: newTestImpactFencingTokenIssuer(),
 		FactLoader:         &stubSupplyChainImpactFactLoader{},
-		Writer:             failingImpactWriter{},
+		Writer:             writer,
 		Instruments:        inst,
 	}
 	intent := fanOutIntent(1, nil)
-	if _, err := handler.Handle(context.Background(), intent); err == nil {
-		t.Fatal("Handle() error = nil, want the write failure")
+	_, err = handler.Handle(context.Background(), intent)
+	if !errors.Is(err, errImpactWriteFailed) {
+		t.Fatalf("Handle() error = %v, want the writer's %v", err, errImpactWriteFailed)
+	}
+	if writer.calls != 1 {
+		t.Fatalf("writer calls = %d, want 1: the failure must come from the writer", writer.calls)
 	}
 	if series, _ := passOutcomeSeriesOf(t, reader); len(series) != 0 {
 		t.Fatalf("series = %v, want none for a failed pass", series)
 	}
 }
 
-// failingImpactWriter fails every write.
-type failingImpactWriter struct{}
+var errImpactWriteFailed = errors.New("write failed")
 
-func (failingImpactWriter) WriteSupplyChainImpactFindings(context.Context, SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error) {
-	return SupplyChainImpactWriteResult{}, fmt.Errorf("write failed")
+// failingImpactWriter fails every write with errImpactWriteFailed and counts
+// the calls it received.
+type failingImpactWriter struct{ calls int }
+
+func (w *failingImpactWriter) WriteSupplyChainImpactFindings(context.Context, SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error) {
+	w.calls++
+	return SupplyChainImpactWriteResult{}, errImpactWriteFailed
 }

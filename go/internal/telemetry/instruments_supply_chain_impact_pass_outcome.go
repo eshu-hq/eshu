@@ -49,8 +49,9 @@ const (
 	// told apart here.
 	SupplyChainImpactRependCauseFanOutRerun = "fanout_rerun"
 	// SupplyChainImpactRependCauseOtherRepend is a claim of an item that was
-	// re-pended without a fan-out stamp: a completion fan-out, an operator
-	// replay, or a re-pend of a genuine pass.
+	// re-pended and is not a one-hop fan-out rerun: a completion fan-out, an
+	// operator replay, or a stamped first attempt that also carries the owed
+	// marker (a genuine pass).
 	SupplyChainImpactRependCauseOtherRepend = "other_repend"
 	// SupplyChainImpactRependCauseUnknown means the claim carried too little
 	// to tell (no stamp and no usable timestamps).

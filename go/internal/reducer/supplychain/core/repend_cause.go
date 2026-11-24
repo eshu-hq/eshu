@@ -27,14 +27,18 @@ const passOutcomeLogMessage = "supply chain impact pass complete"
 // rependCauseOf names why a findings pass was claimed, read only from the
 // intent the claim already loaded. The order matters:
 //
-//  1. attempt count above one is a retry, whatever else the payload carries;
+//  1. attempt count above one is a retry, whatever else the payload carries.
+//     A retry in a non-counting failure class (a readiness or attachment
+//     deferral) keeps its attempt count at one, so the pass that finally
+//     commits reads as first or fanout_rerun, not retry;
 //  2. a fanout_remaining list is a continuation drain;
 //  3. a fanout_origin stamp on a first attempt with no owed marker is a
 //     fan-out rerun. That covers a reopen of a succeeded item and the replay
 //     of an item that was in flight when the stamp landed: both leave the
 //     same payload, so this function cannot tell them apart;
-//  4. a cycle start later than the enqueue time means something re-pended the
-//     item without a stamp (other_repend);
+//  4. a cycle start later than the enqueue time means the item was re-pended
+//     and is not a one-hop rerun (other_repend): an unstamped re-pend, or a
+//     stamped first attempt that also carries the owed marker;
 //  5. equal timestamps mean the item was never re-pended (first);
 //  6. anything else is unknown, which includes an intent with no timestamps.
 func rependCauseOf(intent reducercontract.Intent) string {

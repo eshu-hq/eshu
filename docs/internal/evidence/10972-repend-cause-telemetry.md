@@ -17,7 +17,10 @@ signature change is a `loaded` parameter on the write wrapper.
 
 ## Measurement
 
-Baseline: `b3085189ad`, the merge base. Backend: none. The handler runs over an
+Baseline: `b3085189ad`, the branch's original base. The branch now sits on
+`71781e83de`; `git diff b3085189ad 71781e83de` touches nothing under
+`internal/reducer/supplychain/core` or `internal/telemetry`, so the baseline
+still matches the code the branch changes. Backend: none. The handler runs over an
 in-memory loader and a recording writer that reports one changed CVE, with the
 registered instruments and a JSON logger writing to `io.Discard`, so this
 measures the handler's own work and not Postgres. Input shape: a stamped

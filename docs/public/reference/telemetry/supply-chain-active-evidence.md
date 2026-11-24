@@ -291,7 +291,9 @@ evidence load, so the two can differ by the failed passes.
 The pass derives `repend_cause` from what the claim already loaded, with no new
 query. The checks run in this order:
 
-1. `retry`: the attempt count is above one.
+1. `retry`: the attempt count is above one. A retry in a non-counting failure
+   class (a readiness or attachment deferral) keeps its attempt count at one,
+   so the pass that finally commits reads as `first` or `fanout_rerun`.
 2. `drain`: the item carries a `fanout_remaining` holder list.
 3. `fanout_rerun`: the item carries a `fanout_origin` stamp, the attempt count
    is one, and no owed marker is set. A reopen of a succeeded item and the
@@ -299,8 +301,9 @@ query. The checks run in this order:
    payloads, so this value covers both. Splitting them needs the reopen
    statement to record the prior status, which is a separate change.
 4. `other_repend`: the item's cycle start is later than its enqueue time, so
-   something re-pended it without a stamp (a completion fan-out, an operator
-   replay, or a re-pend of a pass that carried an owed marker).
+   it was re-pended and is not a one-hop rerun: an unstamped re-pend (a
+   completion fan-out or an operator replay), or a stamped first attempt that
+   also carries the owed marker.
 5. `first`: the cycle start equals the enqueue time.
 6. `unknown`: the claim carried no usable timestamps.
 
