@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // capturingImpactBeginner wraps the fake impact transaction with the winners
@@ -31,6 +33,16 @@ type capturingImpactTx struct {
 	SupplyChainImpactTx
 	batches  *[][]WinnersDirtyIdentifier
 	recorded map[string]int64
+}
+
+// The wrapper embeds the transaction interface, which hides the supports maintainer
+// the writer's write step requires; forward it to the wrapped fake.
+func (t capturingImpactTx) UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (SupplyChainImpactSupportsWrite, error) {
+	return t.SupplyChainImpactTx.(SupplyChainImpactSupportsMaintainer).UpsertImpactSupportRows(ctx, rows)
+}
+
+func (t capturingImpactTx) RecordRetractedImpactSupports(ctx context.Context, rows int64) {
+	t.SupplyChainImpactTx.(SupplyChainImpactSupportsMaintainer).RecordRetractedImpactSupports(ctx, rows)
 }
 
 func (t capturingImpactTx) CaptureWinnersDirtyFacts(_ context.Context, ids []WinnersDirtyIdentifier) (int64, error) {

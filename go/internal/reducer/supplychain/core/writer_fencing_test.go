@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
@@ -18,11 +17,12 @@ type failureClassifier interface {
 	FailureClass() string
 }
 
-// TestSupplyChainImpactWriterStampsFencingTokenOnRows pins #7142: every
-// upserted finding row carries the pass's token, so the upsert's conflict guard
-// (existing <= EXCLUDED) can rank a stale pass. A row left at the column
-// default 0 would make that guard inert for this domain.
-func TestSupplyChainImpactWriterStampsFencingTokenOnRows(t *testing.T) {
+// TestSupplyChainImpactWriterTokenReachesOnlyTheAdmission pins #7142 after the
+// PR-C2 write stop (#10880): the pass's fencing token is decided once, by the
+// admission row, which rejects a stale pass whole. The rows handed to the supports
+// maintainer carry no token (a support has no token column and no per-row guard),
+// and the admission statement receives the pass token.
+func TestSupplyChainImpactWriterTokenReachesOnlyTheAdmission(t *testing.T) {
 	t.Parallel()
 
 	inserts := &testutil.FakeExecer{}
@@ -33,17 +33,34 @@ func TestSupplyChainImpactWriterStampsFencingTokenOnRows(t *testing.T) {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 	}
 	if len(inserts.Execs) != 1 {
-		t.Fatalf("batched inserts = %d, want 1", len(inserts.Execs))
+		t.Fatalf("supports upsert batches = %d, want 1", len(inserts.Execs))
 	}
-	// The versioned batch insert binds fencing_token last, at $17.
+	// The fake maintainer re-encodes the rows it received in the batched versioned
+	// shape, which binds fencing_token last, at $17.
 	tokens, ok := inserts.Execs[0].Args[16].([]int64)
 	if !ok || len(tokens) != len(write.Findings) {
 		t.Fatalf("fencing token arg = %#v, want one int64 per finding", inserts.Execs[0].Args[16])
 	}
 	for i, token := range tokens {
-		if token != 4242 {
-			t.Fatalf("row %d fencing_token = %d, want the pass token 4242", i, token)
+		if token != 0 {
+			t.Fatalf("row %d carries fencing token %d, want none: the admission alone orders passes", i, token)
 		}
+	}
+	var admission *testutil.ExecCall
+	for i := range beginner.state.all {
+		if beginner.state.all[i].Query == supplyChainImpactAdmissionQuery {
+			admission = &beginner.state.all[i]
+		}
+	}
+	if admission == nil {
+		t.Fatal("no admission statement issued")
+	}
+	found := false
+	for _, arg := range admission.Args {
+		found = found || arg == int64(4242)
+	}
+	if !found {
+		t.Fatalf("admission args = %v, want the pass token 4242 among them", admission.Args)
 	}
 }
 
@@ -105,7 +122,7 @@ func TestSupplyChainImpactWriterRejectsSupersededPassBeforeUpsert(t *testing.T) 
 		t.Fatalf("error is not retryable with class %q", SupplyChainImpactWriteSupersededFailureClass)
 	}
 	for _, call := range beginner.state.all {
-		if call.Query == factwrite.BatchInsertVersionedQuery || call.Query == retractSupersededSupplyChainImpactFindingsQuery {
+		if call.Query == fakeSupportsUpsertQuery || call.Query == retractSupersededSupplyChainImpactFindingsQuery {
 			t.Fatalf("a rejected pass issued %q; it must write and retract nothing", call.Query)
 		}
 	}
@@ -154,8 +171,8 @@ func TestSupplyChainImpactWriterPartialEvidenceStillAdmits(t *testing.T) {
 	if !admitted || retracted {
 		t.Fatalf("admitted=%v retracted=%v, want admitted without retraction", admitted, retracted)
 	}
-	if tokens := inserts.Execs[0].Args[16].([]int64); tokens[0] != write.FencingToken {
-		t.Fatalf("partial pass row token = %d, want %d", tokens[0], write.FencingToken)
+	if len(inserts.Execs) != 1 {
+		t.Fatalf("supports upsert batches = %d, want the partial pass to upsert its rows", len(inserts.Execs))
 	}
 }
 

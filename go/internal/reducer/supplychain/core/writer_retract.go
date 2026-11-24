@@ -170,9 +170,9 @@ func commitSupplyChainImpactRowsTimed(
 	if err != nil {
 		return supplyChainImpactTxOutcome{suppression: supp}, err
 	}
-	// The fact rows and the supports derived from them, in this transaction and
-	// under the lock above (WriteSupplyChainImpactFindingRows is the one step
-	// every admission of finding rows runs, the advisory-group cell's included).
+	// The supports of the pass's rows, in this transaction and under the lock above
+	// (WriteSupplyChainImpactFindingRows is the one step every admission of finding
+	// rows runs, the advisory-group cell's included). No fact row is written.
 	if err := WriteSupplyChainImpactFindingRows(ctx, tx, rows, timings); err != nil {
 		return supplyChainImpactTxOutcome{}, err
 	}

@@ -1,9 +1,11 @@
 # Supply-Chain Impact Supports
 
 The per-support table `supply_chain_impact_finding_supports` holds one row per
-live finding fact (#10880 PR-B1). The impact writer keeps it current in the same
-transaction that writes the finding facts, and a reducer-owned backfill fills it
-for facts written before the maintainer shipped. An old-writer fence marks any
+live finding (#10880 PR-B1). The impact writer is its only writer: it upserts the
+support rows from the rows it holds in memory and retracts superseded ones with a
+`DELETE ... RETURNING` of the table, in one transaction, and writes no finding fact
+row (#10880 PR-C2 h, i and j). A reducer-owned backfill fills it from the frozen
+finding facts of installs that wrote them before. An old-writer fence marks any
 scope a writer without the maintainer touches, and the backfill drains those
 marks. Two reducer loaders read it as input (the security-alert reconciliation
 evidence loader and the service-catalog vulnerability loader, #10880 PR-B2c), and
@@ -190,7 +192,10 @@ for every claim; a login that lacks either fails the recheck with `permission de
 (SQLSTATE 42501), and the pass rolls back and retries. The advisory lock functions
 need no grant (PUBLIC execute).
 
-None of the four tables has a sequence. Until the first grant exists, the new
+None of the four tables has a sequence. Since PR-C2 the impact writer inserts and
+updates no `fact_records` row of the finding kind, so its login needs no write
+privilege on `fact_records` for its own statements; it still reads the table for the
+recovery transition leg, and other writers of other kinds keep their grants. Until the first grant exists, the new
 reducer's impact writes fail with `permission denied for table
 supply_chain_impact_finding_supports` (SQLSTATE 42501), and each pass rolls back
 and retries.

@@ -9,7 +9,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
@@ -78,8 +77,8 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	if all[2].Query != listStoredSupplyChainImpactFindingsQuery {
 		t.Fatalf("statement 2 = %q, want the stored-row read", all[2].Query)
 	}
-	if all[3].Query != factwrite.BatchInsertVersionedQuery {
-		t.Fatalf("statement 3 = %q, want the batched upsert", all[3].Query)
+	if all[3].Query != fakeSupportsUpsertQuery {
+		t.Fatalf("statement 3 = %q, want the supports upsert", all[3].Query)
 	}
 	retract := all[4]
 	if retract.Query != retractSupersededSupplyChainImpactFindingsQuery {
@@ -171,7 +170,7 @@ func TestWriteSupplyChainImpactFindingsRollsBackOnFailure(t *testing.T) {
 		lockSupplyChainImpactConflictDomainQuery,
 		supplyChainImpactAdmissionQuery,
 		supplyChainImpactScopePassStateQuery,
-		factwrite.BatchInsertVersionedQuery,
+		fakeSupportsUpsertQuery,
 		retractSupersededSupplyChainImpactFindingsQuery,
 	} {
 		beginner := newFakeImpactBeginner(&testutil.FakeExecer{})

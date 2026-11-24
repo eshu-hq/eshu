@@ -18,8 +18,8 @@ import (
 // supportsRecordingBeginner wraps the fake impact transaction with the supports
 // maintenance surface the Postgres transaction implements, and records every
 // statement shape and supports call in order, so a test can pin where the
-// supports statements sit relative to the fact insert and the retraction
-// (#10880 PR-B1: supports are written in the transaction that writes the facts).
+// supports statements sit relative to the retraction (#10880 PR-C2: the supports are
+// the only write, in the pass's transaction).
 type supportsRecordingBeginner struct {
 	fakeImpactBeginner
 	events    *[]string
@@ -43,10 +43,7 @@ type supportsRecordingTx struct {
 }
 
 func (t supportsRecordingTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	switch {
-	case strings.Contains(query, "INSERT INTO fact_records"):
-		*t.events = append(*t.events, "facts")
-	case query == retractSupersededSupplyChainImpactFindingsQuery:
+	if query == retractSupersededSupplyChainImpactFindingsQuery {
 		*t.events = append(*t.events, "retract")
 	}
 	return t.SupplyChainImpactTx.ExecContext(ctx, query, args...)
@@ -85,7 +82,7 @@ func supportsWriter(upsertErr error) (PostgresSupplyChainImpactWriter, *[]string
 }
 
 // TestWriteMaintainsSupportsInTheFactTransaction pins the maintainer placement:
-// the supports upsert runs after the fact insert and before the retraction, over
+// the supports upsert runs before the retraction, over
 // exactly the rows the pass wrote, and the supports delete runs after the
 // retraction for the pass's (scope, generation). A partial-evidence pass skips
 // the retraction, so it skips the delete too.
@@ -102,7 +99,7 @@ func TestWriteMaintainsSupportsInTheFactTransaction(t *testing.T) {
 		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
 			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 		}
-		want := []string{"facts", "supports-upsert", "retract", "supports-deleted:1"}
+		want := []string{"supports-upsert", "retract", "supports-deleted:1"}
 		if !reflect.DeepEqual(*events, want) {
 			t.Fatalf("event order = %v, want %v", *events, want)
 		}
@@ -119,7 +116,7 @@ func TestWriteMaintainsSupportsInTheFactTransaction(t *testing.T) {
 		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), partial); err != nil {
 			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 		}
-		want := []string{"facts", "supports-upsert"}
+		want := []string{"supports-upsert"}
 		if !reflect.DeepEqual(*events, want) {
 			t.Fatalf("event order = %v, want %v", *events, want)
 		}
@@ -136,11 +133,10 @@ func TestWriteMaintainsSupportsInTheFactTransaction(t *testing.T) {
 	})
 }
 
-// TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep pins
-// the seam #11201 uses: the exported step writes the fact rows and then the
-// supports of those fact ids in the caller's transaction, and is the very step
-// the writer runs (a writer pass records the same facts-then-supports events).
-func TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep(t *testing.T) {
+// TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnSupportsStep pins the seam
+// #11201 uses: the exported step upserts the supports of the rows in the caller's
+// transaction and nothing else, and is the very step the writer runs.
+func TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnSupportsStep(t *testing.T) {
 	t.Parallel()
 
 	writer, events, factIDs := supportsWriter(nil)
@@ -155,7 +151,7 @@ func TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep(t 
 	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, rows, nil); err != nil {
 		t.Fatalf("WriteSupplyChainImpactFindingRows() error = %v, want nil", err)
 	}
-	if want := []string{"facts", "supports-upsert"}; !reflect.DeepEqual(*events, want) {
+	if want := []string{"supports-upsert"}; !reflect.DeepEqual(*events, want) {
 		t.Fatalf("events = %v, want %v", *events, want)
 	}
 	if len(*factIDs) != 1 || !reflect.DeepEqual((*factIDs)[0], []string{"fact-1", "fact-2"}) {
@@ -169,5 +165,57 @@ func TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep(t 
 	}
 	if len(*events) != 0 {
 		t.Fatalf("events for no rows = %v, want none", *events)
+	}
+}
+
+// TestWriteSupplyChainImpactFindingRowsRefusesATransactionWithoutASupportsMaintainer
+// pins the fail-closed contract of the write stop (#10880 PR-C2 j): with no fact row
+// behind it, a transaction that cannot maintain the supports table would report
+// success for rows nothing stored. No rows is still a no-op for any transaction.
+func TestWriteSupplyChainImpactFindingRowsRefusesATransactionWithoutASupportsMaintainer(t *testing.T) {
+	t.Parallel()
+
+	tx := &struct{ SupplyChainImpactTx }{SupplyChainImpactTx: fakeImpactTx(newFakeImpactBeginner(nil))}
+	rows := []factwrite.VersionedRow{{FactID: "fact-1", ScopeID: "s", GenerationID: "g", FactKind: supplyChainImpactFactKind}}
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, rows); !errors.Is(err, errSupplyChainImpactNoSupportsMaintainer) {
+		t.Fatalf("WriteSupplyChainImpactFindingRows() error = %v, want errSupplyChainImpactNoSupportsMaintainer", err)
+	}
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, nil); err != nil {
+		t.Fatalf("WriteSupplyChainImpactFindingRows(nil) error = %v, want nil for no rows", err)
+	}
+}
+
+// TestWriterWritesNoFindingFactRow is the write stop itself (#10880 PR-C2 j): a
+// whole full pass and a whole scoped pass issue no INSERT into, and no UPDATE of,
+// fact_records. The reject trigger would refuse either, so the writer must never
+// issue one.
+func TestWriterWritesNoFindingFactRow(t *testing.T) {
+	t.Parallel()
+
+	for name, scoped := range map[string]bool{"full pass": false, "scoped pass": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			write := changedTestWrite(changedTestFinding("CVE-2026-0001"), changedTestFinding("CVE-2026-0002"))
+			if scoped {
+				write.ScopedCVEIDs = []string{"CVE-2026-0001"}
+			}
+			writer, beginner := changedTestWriter()
+			if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+				t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
+			}
+			if len(beginner.state.all) == 0 {
+				t.Fatal("the pass issued no statement at all")
+			}
+			for _, call := range beginner.state.all {
+				for _, forbidden := range []string{"INSERT INTO fact_records", "UPDATE fact_records"} {
+					if strings.Contains(call.Query, forbidden) {
+						t.Fatalf("the writer issued %q:\n%s", forbidden, call.Query)
+					}
+				}
+			}
+			if len(beginner.inserts.Execs) == 0 {
+				t.Fatal("the supports maintainer received no rows")
+			}
+		})
 	}
 }
