@@ -277,6 +277,19 @@ the test. On a fresh single-scope database the same pages read 2,017, 2,016 and
 1,009 buffers (2,296, 2,282 and 1,143 rewritten): with 9,000 scopes the per-row
 scope probes no longer memoize, which is the figure to quote.
 
+Where these two proofs run. The raw files above name the tests as
+`TestSupplyChainImpactSupportsRepositoryArmBoundsLive` and
+`TestSupplyChainImpactSupportsServiceCatalogShapesLive`; they are now
+`TestRepositoryArmBoundsLive` and `TestServiceCatalogSupportsShapesLive`. The old
+prefix is selected by the reducer contention gate's supply-chain `-run` filter, and
+the first test seeds 160,000 supports (182.9 s on the lab without `-race`), which
+the contention half cannot absorb. Neither new name matches either contention
+filter (checked against both `-run` patterns in
+`.github/workflows/reducer-contention-gate.yml`), and both files keep their
+`live-postgres-readiness` header, so the proofs run in the readiness shards. The
+shard model weighs an unmeasured test at its 3.8 s default, so the first CI run of
+the first test is its real weight.
+
 ## The service-catalog call shapes and the repository drains
 
 Raw: [service_catalog_shapes_and_drain_raw.txt](service_catalog_shapes_and_drain_raw.txt).

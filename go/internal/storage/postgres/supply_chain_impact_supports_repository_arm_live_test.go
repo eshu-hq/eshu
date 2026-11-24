@@ -155,7 +155,7 @@ OFFSET (SELECT count(*) - 250 FROM supply_chain_impact_finding_supports WHERE re
 // pqArray renders ids as the text[] literal a query parameter takes.
 func pqArray(ids []string) string { return "{" + strings.Join(ids, ",") + "}" }
 
-// TestSupplyChainImpactSupportsServiceCatalogShapesLive is proof 4 of the
+// TestServiceCatalogSupportsShapesLive is proof 4 of the
 // repository-arm ruling: the service-catalog loader's statement on three call
 // shapes over an existing lab corpus (B2C_REPO_ARM_DSN) holding repo:hotrepo,
 // repo:hotrepo2 and repo:hotrepo3 of 160,000 supports each and repo:mid-1 to
@@ -163,7 +163,7 @@ func pqArray(ids []string) string { return "{" + strings.Join(ids, ",") + "}" }
 // repositories plus one of 160,000. The loader drains one repository at a time, so
 // every repository's pages are measured: no temp, at most 50 ms warm, at most 15,000
 // buffers.
-func TestSupplyChainImpactSupportsServiceCatalogShapesLive(t *testing.T) {
+func TestServiceCatalogSupportsShapesLive(t *testing.T) {
 	dsn := os.Getenv("B2C_REPO_ARM_DSN")
 	if dsn == "" {
 		t.Skip("B2C_REPO_ARM_DSN is not set; the three call shapes need the lab corpus")
@@ -212,10 +212,17 @@ func TestSupplyChainImpactSupportsServiceCatalogShapesLive(t *testing.T) {
 	}
 }
 
-// TestSupplyChainImpactSupportsRepositoryArmBoundsLive is proof 1 of the
+// TestRepositoryArmBoundsLive is proof 1 of the
 // repository-arm ruling (arbiter-b2c-wal-repo-arm.md), on the index migration 346
 // builds, for the arms of both loaders.
-func TestSupplyChainImpactSupportsRepositoryArmBoundsLive(t *testing.T) {
+//
+// The name deliberately does not start with TestSupplyChainImpactSupports: that prefix is
+// selected by the reducer contention gate's supply-chain -run filter, and this proof seeds
+// 160,000 supports (about three minutes on the lab without -race). It belongs to the live
+// Postgres readiness shards, which the readiness header above registers it in, not to the
+// contention gate. TestServiceCatalogSupportsShapesLive is named the same way and skips
+// without the lab corpus.
+func TestRepositoryArmBoundsLive(t *testing.T) {
 	var db *sql.DB
 	var ctx context.Context
 	if dsn := os.Getenv("B2C_REPO_ARM_DSN"); dsn != "" {
