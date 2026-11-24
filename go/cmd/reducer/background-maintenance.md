@@ -126,16 +126,22 @@ impact writer maintained it, and drains the old-writer fence. One session-level
 advisory lock elects a single sweeper across replicas; a replica that loses the
 election waits for the next poll. Each step first drains the oldest dirty scope
 (a scope a writer without the maintainer touched), then walks the live finding
-facts in bounded chunks, each under the writer's own conflict-domain lock. The
-loop keeps running after the marker `supply_chain_impact_finding_supports_v1`
+facts in bounded chunks, each under the writer's own conflict-domain lock. After
+the last chunk it verifies in bounded, resumable slices (#10880 decision 6): each
+step checks one key interval of supports and live findings in one snapshot and
+stores the interval's end in the marker row, so a restarted reducer continues
+from it. A missing support restarts the sweep; an orphan support is removed under
+its pair's lock; the last clean slice sets the marker. The loop keeps running after the marker `supply_chain_impact_finding_supports_v1`
 is complete, polling every 30 seconds, because a rolling upgrade can mark a scope
 dirty at any time. No reader serves from the table in B1.
 
 Operators watch `eshu_dp_supply_chain_impact_supports_backfill_ready` (1 when the
 marker is complete, no higher-version marker exists, and the fence is empty),
 `..._dirty_scopes`, `..._backfill_steps_total` by `outcome`,
-`..._backfill_step_duration_seconds`, and
-`..._backfill_last_success_timestamp_seconds`. The ready and dirty gauges are set
+`..._backfill_step_duration_seconds`,
+`..._backfill_last_success_timestamp_seconds`, and the verification slices
+`..._backfill_verify_slices_total` and `..._backfill_verify_slice_duration_seconds`
+by `outcome`. The ready and dirty gauges are set
 only by the elected leader, so a replica that lost the election keeps its last
 value: read the maximum, or the leader's series. See
 [Supply-Chain Impact Supports](../../../docs/public/reference/telemetry/supply-chain-impact-supports.md).

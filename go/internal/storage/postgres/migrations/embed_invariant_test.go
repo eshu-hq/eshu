@@ -372,9 +372,13 @@ import (
 // two partial indexes behind the unscoped existence-filter reads. Count 370 is
 // 364 plus the four of 339 to 342 plus the pair; the digest is this test's own
 // derivation on the merged tree.
+// 348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql (#10880
+// decision 6) adds the verification cursor columns to the backfill marker
+// (345 to 347 are reserved for PR-B2c); count 371 is 370 plus 348, and the digest
+// is this test's own derivation.
 const (
-	goldenBootstrapDefinitionsDigest = "fe0b754a62f1c5e276b93974920a72a89b6204f624f01ba7bba2eea8b21fe3d0"
-	goldenBootstrapDefinitionsCount  = 370
+	goldenBootstrapDefinitionsDigest = "8f42c86572b15bd6f7863543e5bf84c7b779c3a5afd89606de1a8593a43e16aa"
+	goldenBootstrapDefinitionsCount  = 371
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
