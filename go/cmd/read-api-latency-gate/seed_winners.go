@@ -121,7 +121,7 @@ func winnersFindingPayload(group, source int) map[string]any {
 		"service_ids":       []string{fmt.Sprintf("seed-svc-%02d", group%12)},
 		"workload_ids":      []string{fmt.Sprintf("seed-wl-%02d", group%8)},
 		"environments":      []string{fmt.Sprintf("seed-env-%d", group%3)},
-		"image_ref":         "",
+		"image_ref":         winnersSeedImageRef(group),
 	}
 }
 
@@ -313,3 +313,16 @@ func VerifyWinnersSeeded(ctx context.Context, db *sql.DB, wantWinners int64) err
 	}
 	return nil
 }
+
+// winnersSeedImageRef is the image reference of one seeded group: empty for every group but the first,
+// which carries the reference the route coverage sweep reaches the supports_image read through
+// (#10880 PR-C2 n). One group keeps the corpus the work budgets were measured on almost unchanged.
+func winnersSeedImageRef(group int) string {
+	if group == 0 {
+		return winnersCoverageImageRef
+	}
+	return ""
+}
+
+// winnersCoverageImageRef is the image reference of group 0.
+const winnersCoverageImageRef = "registry.example/seed-00:1"

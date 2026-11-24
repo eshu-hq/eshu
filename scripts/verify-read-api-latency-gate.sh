@@ -284,7 +284,7 @@ export ESHU_MCP_QUERY_PROFILE="${ESHU_QUERY_PROFILE:-}"
 # not read ESHU_MCP_ADDR; the listen address travels on the -addr flag below.
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
-export ESHU_METRICS_ADDR="127.0.0.1:0"
+export ESHU_METRICS_ADDR="127.0.0.1:${GATE_METRICS_PORT:-19464}" # known port: the winners leg scrapes the route counter (#10880 PR-C2 n)
 # Without ESHU_COMPONENT_HOME, ComponentExtensionsHandler.readbackOrUnavailable
 # (go/internal/query/component_extensions.go) 503s GET /api/v0/component-extensions
 # unconditionally -- a gate-environment gap, not a product bug (issue #6797
@@ -484,7 +484,7 @@ require_grouped_inventory 503 service_id
 # The winners leg re-sweeps the same corpus into separate reports (never
 # merged with the legacy leg's): each report's identity block carries
 # -winners-read, so a reader can tell which read model produced it.
-winners_extra_args=(-winners-read)
+winners_extra_args=(-winners-read -metrics-url "http://127.0.0.1:${GATE_METRICS_PORT:-19464}/metrics" ${GATE_GRANTED_API_KEY:+-granted-api-key "${GATE_GRANTED_API_KEY}"})
 if [[ -n "${GATE_LATENCY_REPORT}" ]]; then
 	winners_extra_args+=(-latency-report "$(winners_report_path "${GATE_LATENCY_REPORT}")")
 fi

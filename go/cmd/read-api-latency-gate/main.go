@@ -27,6 +27,7 @@ func main() {
 	apiBaseURL := flag.String("api-base-url", envOr("READ_API_LATENCY_GATE_BASE_URL", "http://localhost:18080"), "running eshu-api satellite or eshu-core-api base URL (same read surface; flag overrides the default and the env)")
 	mcpBaseURL := flag.String("mcp-base-url", "", "running MCP HTTP transport base URL for pilot tools/call")
 	apiKey := flag.String("api-key", os.Getenv("ESHU_API_KEY"), "eshu-api bearer token")
+	coverage := registerCoverageFlags()
 	totalScopes := flag.Int("total-scopes", 800, "total ingestion_scopes rows to seed")
 	nodesPerLabel := flag.Int("nodes-per-label", 150000, "synthetic graph nodes to seed per infra label")
 	iacFactCount := flag.Int("iac-fact-count", 150000, "IaC content_entity fact_records rows to seed (issue #6793: currentInventoryCTE jsonb detoast cost)")
@@ -61,6 +62,7 @@ func main() {
 		apiBaseURL:         *apiBaseURL,
 		mcpBaseURL:         *mcpBaseURL,
 		apiKey:             *apiKey,
+		coverage:           coverage.settings(),
 		totalScopes:        *totalScopes,
 		nodesPerLabel:      *nodesPerLabel,
 		iacFactCount:       *iacFactCount,
@@ -99,6 +101,7 @@ type runOptions struct {
 	apiBaseURL         string
 	mcpBaseURL         string
 	apiKey             string
+	coverage           coverageSettings
 	totalScopes        int
 	nodesPerLabel      int
 	iacFactCount       int
@@ -174,23 +177,9 @@ func run(opts runOptions) (runErr error) {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: sweeping %d read operations x %d iterations\n", len(routes), opts.iterations)
-
-	results, err := SweepRoutes(SweepOptions{
-		BaseURL:     opts.apiBaseURL,
-		MCPBaseURL:  opts.mcpBaseURL,
-		Operations:  operations,
-		APIKey:      opts.apiKey,
-		Routes:      routes,
-		QueryArgs:   RouteQueryArgs,
-		Iterations:  opts.iterations,
-		Runs:        opts.runs,
-		Timeout:     opts.requestTimeout,
-		Meter:       meter,
-		Context:     ctx,
-		Diagnostics: opts.diagnostics,
-	})
+	results, coverageProblems, err := sweepWithCoverage(ctx, opts, meter, routes, operations)
 	if err != nil {
-		return fmt.Errorf("sweep routes: %w", err)
+		return err
 	}
 	if err := writeWorkReportFile(opts.workReportPath, results); err != nil {
 		return err
@@ -269,6 +258,7 @@ func run(opts runOptions) (runErr error) {
 		failures = append(failures, fmt.Sprintf("%d explicitly-budgeted route(s) were not exercised", len(missing)))
 	}
 	failures = append(failures, pilotFailures(results, operations)...)
+	failures = append(failures, coverageFailures(os.Stderr, coverageProblems)...)
 
 	if len(failures) > 0 {
 		return fmt.Errorf("%s", strings.Join(failures, "; "))

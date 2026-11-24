@@ -3,6 +3,8 @@
 
 package impact
 
+import "github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+
 // ReadRoute names the read model one impact call is answered from (#10880 PR-B2a,
 // arbiter ruling V). One function, routeFor, decides it; every store method that
 // issues the read and every method that reports its freshness takes the route from
@@ -81,4 +83,32 @@ func (f FindingFilter) route(gate bool) ReadRoute {
 // route returns the read model one aggregate call is answered from.
 func (f AggregateFilter) route(gate bool) ReadRoute {
 	return routeFor(gate, len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0, f.ImageRef, f.DetectionProfile)
+}
+
+// AllReadRoutes lists every ReadRoute value, in declaration order. The latency gate's route
+// coverage (#10880 PR-C2 n) is declared against this list: a label with no declared sweep request
+// fails, and TestAllReadRoutesListsEveryConstant fails when a constant of this type is missing here.
+func AllReadRoutes() []ReadRoute {
+	return []ReadRoute{
+		RouteLegacy, RouteWinners, RouteWinnersSupplement,
+		RouteSupportsGrant, RouteSupportsImage, RouteSupportsFindingID, RouteSupportsSelector,
+	}
+}
+
+// RouteForCall returns the read model a list, count, inventory or grouped call is answered from,
+// by the same function the stores use. It is pure: it reads no database.
+func RouteForCall(gate, granted bool, imageRef, profile string) ReadRoute {
+	return routeFor(gate, granted, imageRef, profile)
+}
+
+// ExplainRoutesForCall returns the route of the public-id probe and of the selector or identity
+// read of an explain call, by the same function the explain store uses. It is pure: it reads no
+// database. The selector read runs only when the public-id probe misses.
+func ExplainRoutesForCall(gate, granted bool, imageRef string) (publicID, selector ReadRoute) {
+	filter := packet.ExplanationFilter{ImageRef: imageRef}
+	if granted {
+		filter.AllowedScopeIDs = []string{"scope:granted"}
+	}
+	route := PostgresFindingStore{ReadFromWinners: gate}.explainRoute(filter)
+	return route.publicIDRoute, route.selectorRoute
 }

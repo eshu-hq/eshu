@@ -122,7 +122,7 @@ func TestWinnersFindingVersionedRowsShape(t *testing.T) {
 		"observed_version", "impact_status", "repository_id",
 		"ecosystem", "cvss_score", "priority_score", "priority_bucket",
 		"detection_profile", "match_reason", "suppression_state",
-		"service_ids", "workload_ids", "environments",
+		"service_ids", "workload_ids", "environments", "image_ref",
 	}
 	for i, row := range rows {
 		if row.FactKind != winnersSeedFactKind || row.IsTombstone {
