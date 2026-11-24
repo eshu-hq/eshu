@@ -265,6 +265,8 @@ func TestKeyRangeReadRecordsDurationByKind(t *testing.T) {
 		telemetry.FanOutReadKindHolders + "/ok":             1,
 		telemetry.FanOutReadKindHoldersKeyRange + "/ok":     uint64(len(ranges)),
 		telemetry.FanOutReadKindHoldersKeyRangeRead + "/ok": 1,
+		// The #10972 queued-holder prefilter runs once per claim with holders.
+		telemetry.FanOutReadKindHolderPrefilter + "/ok": 1,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("read-duration samples = %v, want %v", got, want)

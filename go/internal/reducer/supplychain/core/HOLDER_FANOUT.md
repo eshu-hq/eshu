@@ -23,7 +23,7 @@ copy once that holder's next pass runs, and a restored one returns each copy to
 its pre-retraction state: `active`, or hidden for an operator's decision when
 one applies. There is no precedence rule in the winners query. A holder's lag
 is queue latency plus one holder pass plus one winners resweep, and a CVE with
-more than 256 holders drains across claims. The bound holds only while every holder's item is reopenable and the originating pass finishes its fan-out. A dead-lettered holder, or a dead-lettered pass that still owes a fan-out, pins its copies until it is reopened. Queue latency is part of the bound.
+more than 256 holders drains across claims. The bound holds only while every holder's item is reopenable and the originating pass finishes its fan-out. A dead-lettered holder, or a dead-lettered pass that still owes a fan-out, pins its copies until it is reopened. Queue latency is part of the bound. A holder already pending or retrying whose queued pass covers the change is dropped before the cap by one set read, and one that is not covered has its stamp widened ([`HOLDER_FANOUT_PREFILTER.md`](HOLDER_FANOUT_PREFILTER.md), #10972).
 
 ## Dead-lettered holders (#11147)
 

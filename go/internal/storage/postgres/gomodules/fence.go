@@ -38,7 +38,9 @@ import (
 // re-derives nothing. Each holder must re-derive its own copy: the supply-chain impact pass
 // loads Go evidence across scopes (eshu-hq/eshu#10095, loader ListActiveGoReachabilityFacts),
 // so a holder keeps the retracted generation's Go verdict until its own pass re-derives it,
-// and holders are reopened here for that reason.
+// and holders are reopened here for that reason. The reopen is not free: since #10972 it widens
+// a pending or retrying holder whose stamp names a bounded CVE set to the fence's set-less stamp,
+// so that holder's next pass runs full instead of scoped, which costs extra full passes.
 //
 // The holder statement reads the supports readiness predicate and the holders in one snapshot
 // (#11197), so a backfill drain between a holder read and a separate recheck can no longer hide
