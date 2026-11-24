@@ -1999,8 +1999,8 @@ type Instruments struct {
 	// inventory, grouped-inventory and explain read statement by the read model its
 	// route function chose (#10880 PR-B2a): winners, winners_supplement (unscoped
 	// precise), supports_grant, supports_image, supports_finding_id (the public-id
-	// explain), or legacy (gate off, and the explain selector and identity reads that
-	// stay on the fact table). The label is bounded to those six values. A refused
+	// explain), supports_selector (the ungranted explain selector and identity
+	// reads), or legacy (the gate off). The label is bounded to those seven values. A refused
 	// list, count, inventory or grouped call still counts the route it tried, so an
 	// operator reads which route 503s; an explain counts only the statements it runs
 	// (a refused explain counts nothing). With the route span attribute it also names
@@ -6399,7 +6399,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_supply_chain_impact_read_route_total",
 		metric.WithDescription(
 			"Total supply-chain impact list, count, inventory, grouped-inventory and explain read statements by the read model the route function chose "+
-				"(route: winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)",
+				"(route: winners, winners_supplement, supports_grant, supports_image, supports_finding_id, supports_selector, legacy)",
 		),
 	)
 	if err != nil {
@@ -6408,7 +6408,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainImpactReadDuration, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_read_duration_seconds",
-		metric.WithDescription("Wall time of one supply-chain impact list, count, inventory, grouped-inventory or explain read statement, by route (winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)"),
+		metric.WithDescription("Wall time of one supply-chain impact list, count, inventory, grouped-inventory or explain read statement, by route (winners, winners_supplement, supports_grant, supports_image, supports_finding_id, supports_selector, legacy)"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10),
 	)

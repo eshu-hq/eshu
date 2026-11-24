@@ -128,3 +128,26 @@ reading of the trigger and cascade rules, not an observation. The ruling's own
 condition applies: if the capture reads no supports after the cascade removed them,
 this returns to the arbiter. The existing live scope-delete capture test covers it
 and has not been run for this migration.
+
+## C1 f: the ungranted explain reads move to supports
+
+With the winners gate on, two explain lookups still read the finding facts: an
+ungranted selector lookup (cve, advisory, package, repository or subject digest)
+without an image reference, and the identity fallback of an ungranted public-id miss.
+`ExplainFindingUngrantedFromSupportsQuery` is the same builder the granted and image
+reads use, with the whole supports table as the source and the identity predicate as
+the source-candidate predicate; the route function sends both lookups to it under a
+new route label, `supports_selector`. With the gate off every call keeps the legacy
+read. The route and read-duration metrics, their instrument descriptions, the metrics
+catalog and the telemetry README name the new label.
+
+Hermetic proof: `TestExplainRoutesByGrantAndLookup` (ungranted selector reads
+supports, the public-id miss falls back to the supports identity read, nothing reads
+the finding facts as a candidate source; the runtime filter's legs read other fact
+kinds on every route, as before) and `TestExplainCountsEachStatementByRoute`.
+
+Not measured: the statement drives from the cve, advisory, package and repository
+btrees for a selector lookup, but a lookup by fact id or canonical key has no
+dedicated supports index. That lookup, and the explain plans at the QA shape, are
+the ruling's T2 and belong to the C1 index set (g), which waits for a coordinator
+Postgres slot. Until then the new statement is correct and its plan is unmeasured.
