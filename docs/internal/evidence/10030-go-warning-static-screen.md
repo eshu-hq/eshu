@@ -37,6 +37,23 @@ alternating, of 10 runs each.
 go test ./internal/storage/postgres/ -run '^$' -bench BenchmarkStaticEnvelopeScreen -benchtime=20000x -count=10
 ```
 
+To reproduce the baseline column, check out the base commit (`b9d630a45a`), copy
+`supply_chain_impact_authorized_static_screen_bench_test.go` from this branch
+into `go/internal/storage/postgres/`, and make two substitutions in it, because
+the base has no `staticEnvelopeNeedsScanReceipt` and its screen fails closed on
+every warning:
+
+```text
+sed -i -e 's/staticEnvelopeNeedsScanReceipt(envelope)/targetOnlyImpactFactKind(envelope.FactKind)/' \
+       -e 's/failClosed != 100/failClosed != 200/' \
+       go/internal/storage/postgres/supply_chain_impact_authorized_static_screen_bench_test.go
+```
+
+The first line swaps the predicate for the call the loader made before this
+change; the second moves the expected count to the 200 warnings the base fails
+closed on. Then run the command above. On this branch the benchmark fails
+itself unless exactly 100 envelopes fail closed.
+
 | | baseline | after |
 | --- | --- | --- |
 | ns/op per 1,000 envelopes, median of 10 (round 1 / round 2) | 3,978 / 3,984 | 18,358 / 18,332 |
@@ -50,7 +67,7 @@ real authorized load carries a handful of warnings among many thousands of
 facts. The load itself is a repeatable-read snapshot of database reads that take
 milliseconds to seconds, so the added work is not measurable beside it.
 
-Terminal counts: the benchmark counts envelopes that fail closed. The baseline
+Terminal counts: the benchmark counts envelopes that fail closed and, on this branch, fails unless that count is exactly 100. The baseline
 fails closed on 200 of 1,000 (every warning); the after tree fails closed on 100
 (the image-analyzer warnings), which is the intended change. A twin table test
 (`TestStaticEnvelopeNeedsScanReceiptKeepsGoEvidenceStatic`) pins each edge: an

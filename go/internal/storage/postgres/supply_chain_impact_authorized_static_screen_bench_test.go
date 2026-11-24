@@ -43,7 +43,8 @@ func staticScreenBenchEnvelopes() []facts.Envelope {
 }
 
 // BenchmarkStaticEnvelopeScreen runs the engaged loader's static-envelope screen
-// over one 1,000-envelope load. It measures the per-envelope predicate only.
+// over one 1,000-envelope load. It measures the per-envelope predicate only and
+// fails if the screen stops failing closed on exactly the image-analyzer warnings.
 func BenchmarkStaticEnvelopeScreen(b *testing.B) {
 	envelopes := staticScreenBenchEnvelopes()
 	b.ReportAllocs()
@@ -57,7 +58,10 @@ func BenchmarkStaticEnvelopeScreen(b *testing.B) {
 			}
 		}
 	}
-	if failClosed == 0 {
-		b.Fatal("no envelope failed closed: the benchmark input is wrong")
+	// 10 percent of the input is image-analyzer warnings, the only envelopes that
+	// still fail closed on this branch (a go_reachability warning in a
+	// go-reachability scope passes as static Go evidence).
+	if failClosed != 100 {
+		b.Fatalf("fail-closed envelopes = %d, want 100 (the image-analyzer warnings)", failClosed)
 	}
 }
