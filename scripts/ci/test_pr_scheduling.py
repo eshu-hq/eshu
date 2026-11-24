@@ -192,8 +192,8 @@ def check_pr_plan_schema(caller: str) -> None:
 def main() -> None:
     """Verify the caller-to-leaf inventory and a seeded duplicate trigger."""
     fragments = sorted(FRAGMENTS.glob("*.yml"))
-    if len(fragments) != 27:
-        raise ValueError(f"expected 27 migrated leaves, got {len(fragments)}")
+    if len(fragments) != 28:
+        raise ValueError(f"expected 28 migrated leaves, got {len(fragments)}")
     central = (WORKFLOWS / "test.yml").read_text(encoding="utf-8")
     if "  pr-plan:\n" not in central or "ci-gates-bin\" pr-plan" not in central:
         raise ValueError("Build Test has no trusted PR planner")

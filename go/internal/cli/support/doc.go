@@ -9,8 +9,7 @@
 // report bundle capture and validation, and answer-quality scoring. Every
 // handler is a pure function of its request body — no graph, Postgres,
 // collector, or queue reads — so the package has zero construction
-// dependencies and mounts additively in the serving eshu-api wiring
-// (formerly in-tree go/cmd/api wiring, retired with the D13 removal).
+// dependencies and mounts additively in go/cmd/api wiring.
 //
 // The wire rules live in (#8874):
 // bounded bodies, strict single-object decoding (unknown fields and trailing

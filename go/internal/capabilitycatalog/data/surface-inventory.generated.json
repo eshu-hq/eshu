@@ -2376,6 +2376,11 @@
     },
     {
       "category": "command",
+      "name": "api",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "audit-preflight",
       "readiness": "implemented"
     },

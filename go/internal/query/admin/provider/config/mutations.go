@@ -81,7 +81,7 @@ type MutationHandler struct {
 	// primary enable path, which is still gated by the mandatory
 	// test-connection pass above. In production this is always wired
 	// alongside Store, backed by the same database as
-	// ReadHandler.Store.
+	// ReadHandler.Store (see cmd/api/wiring.go).
 	ReadStore ReadStore
 }
 

@@ -17,10 +17,10 @@ import (
 // wiring-computed authEnforcementConfigured predicate is false, and a
 // configured auth source (predicate true) denies a headerless request even
 // when the shared key is empty. The predicate itself is computed in wiring
-// (excluding the always-wired identity and browser-session resolvers) and was
-// exercised end-to-end against the real resolver composition in the former
-// in-tree auth-enforcement wiring test (retired with the D13 removal; the
-// MCP twin was removed with the entrypoint under eshu-hq/eshu#9670).
+// (excluding the always-wired identity and browser-session resolvers) and is
+// exercised end-to-end against the real resolver composition in
+// cmd/api/auth_enforcement_wiring_test.go (the MCP twin was removed with
+// the entrypoint under eshu-hq/eshu#9670).
 //
 // The earlier version of this file gated on resolver != nil and used
 // hand-built fakes; that missed the production reality that the identity and

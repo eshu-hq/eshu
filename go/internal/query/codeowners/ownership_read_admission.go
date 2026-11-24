@@ -98,8 +98,9 @@ type codeownersOwnershipReadAdmissionMirror struct {
 
 var _ CodeownersOwnershipReadAdmission = codeownersOwnershipReadAdmissionMirror{}
 
-// The satisfier assertion names the production adapter the former in-tree
-// wiring built for the catalog leg (service.NewPostgresServiceCatalogCorrelationStoreWithReadStore): the concrete Postgres store serves the
+// The satisfier assertion names the production adapter the wiring builds
+// today for the catalog leg (service.NewPostgresServiceCatalogCorrelationStoreWithReadStore
+// in go/cmd/api/wiring_router.go): the concrete Postgres store serves the
 // pinned catalog read, so the pin is satisfiable for that leg with the
 // minimal shape, no wider store surface. The graph legs ride the wired
 // GraphQuery reader in production, proven against querycontract.GraphQuery in

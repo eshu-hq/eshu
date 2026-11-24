@@ -88,12 +88,12 @@ func TestGoldenHarnessRuntimeSnapshotTransformsCompose(t *testing.T) {
 	}
 	script := string(scriptBody)
 	composeAt := strings.Index(script, "golden_service_changed_since_compose_snapshot")
-	staticAt := -1
+	suppressionAt := -1
 	if composeAt >= 0 {
-		staticAt = strings.Index(script[composeAt:], `"testdata/golden/e2e-20repo-snapshot.json"`)
+		suppressionAt = strings.Index(script[composeAt:], "${golden_suppression_runtime_snapshot}")
 	}
-	if composeAt < 0 || staticAt < 0 {
-		t.Fatal("service changed-since transform must consume the static head snapshot")
+	if composeAt < 0 || suppressionAt < 0 {
+		t.Fatal("service changed-since transform must consume the suppression-composed snapshot")
 	}
 	repositoryComposeAt := strings.Index(script, "golden_changed_since_compose_snapshot")
 	serviceSnapshotAt := -1

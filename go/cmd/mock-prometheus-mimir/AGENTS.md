@@ -5,8 +5,7 @@
 1. `README.md` for the test fixture's scope.
 2. `server.go` for the exact accepted request and response.
 3. `go/internal/query/metrics/prometheus.go` for the production client contract.
-4. The former in-tree metrics selector for environment-driven source
-   selection (retired with the D13 removal).
+4. `go/cmd/api/metrics_source.go` for environment-driven source selection.
 
 ## Invariants
 

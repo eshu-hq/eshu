@@ -1,0 +1,13 @@
+[
+  {
+    "producer_id": "dev.eshu.test.coreprobe",
+    "version": "0.1.0",
+    "kind": "sbom.document",
+    "schema_versions": [
+      "1.1.0"
+    ],
+    "scope": "probe-core",
+    "expires_at": "2037-01-01T00:00:00Z",
+    "revoked": false
+  }
+]

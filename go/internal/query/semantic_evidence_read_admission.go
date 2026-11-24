@@ -63,8 +63,8 @@ const SemanticEvidenceReadAdmissionContractVersion = "v0"
 //     QueryProfile are handler behavior, not port shape: there is no method
 //     set to freeze.
 //   - No constructor or Content surface: the satellite satisfies this port
-//     with its own wiring (formerly the in-tree handler type-asserted
-//     h.Content); this pin carries the read shape only.
+//     with its own wiring (today the handler type-asserts h.Content, wired in
+//     go/cmd/api/wiring_router.go); this pin carries the read shape only.
 //
 // Rollback: revert this pin. The seam is unwired — no handler, route, or
 // caller depends on it yet — so rollback moves no traffic and changes no

@@ -36,6 +36,9 @@ The API binary exposes lifecycle metrics covering graceful shutdown behavior. Ea
 | first-run setup wizard (#4965) | go/internal/query/setup_handler.go | `eshu_dp_auth_setup_wizard_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
 | sign-in policy guardrail (epic #4962/#4968) | go/internal/query/sign_in_policy_mutations.go | `eshu_dp_auth_sign_in_policy_guardrail_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
 | require-SSO login gate (epic #4962/#4968) | go/internal/query/local/sign_in_policy_gate.go | `eshu_dp_auth_require_sso_login_gate_total`, `eshu_dp_postgres_query_duration_seconds` | api lifecycle |
+| bootstrap identity seeding (epic #4962/#4963) | go/cmd/api/seed_initial_admin.go | `eshu_dp_auth_bootstrap_seed_total` | api lifecycle |
+| bootstrap credential + keyring seal/open (epic #4962/#4963, #4966) | go/cmd/api/seed_initial_admin_helpers.go | `eshu_dp_auth_bootstrap_credential_generated_total`, `eshu_dp_auth_secret_seal_total`, `eshu_dp_auth_secret_open_total` | api lifecycle |
+| API graceful shutdown | go/cmd/api/main.go | `eshu_dp_shutdown_duration_seconds` | api lifecycle |
 
 <!-- eshu:metric:section=graph-write-statement-metadata -->
 ## Graph-Write Statement Metadata

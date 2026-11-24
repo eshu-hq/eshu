@@ -63,9 +63,9 @@ type CodeHybridRanker struct {
 	// swapping a package-level var.
 	tracer trace.Tracer
 	// windowScores caches whole-window scores across rank_cursor pages
-	// (#8216). The ranker is built once per process (see the former
-	// in-tree semantic wiring, retired with the D13 removal), so the cache
-	// lives as long as the identical windows it serves.
+	// (#8216). The ranker is built once per process (see
+	// cmd/api/semantic_search_vector_wiring.go), so the cache lives as
+	// long as the identical windows it serves.
 	windowScores *WindowScoreCache
 }
 

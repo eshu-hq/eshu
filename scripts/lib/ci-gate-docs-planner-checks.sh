@@ -158,7 +158,7 @@ run_docs_set_checks() {
 		ok 'all three code: filters negate nested markdown and the scoped JSON set'
 	fi
 	ok_all=1
-	for frag in bench.yml e2e-tests.yml live-backend-tests.yml sdk-go.yml; do
+	for frag in bench.yml e2e-tests.yml live-backend-tests.yml read-api-latency-gate.yml sdk-go.yml; do
 		if ! rg -qF -- "- '!**/*.md'" "${fragdir}/${frag}"; then
 			bad "${frag} fragment lacks the '!**/*.md' exclusion (#9200)"
 			ok_all=0
