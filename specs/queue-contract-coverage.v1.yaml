@@ -1,0 +1,200 @@
+version: queue-contract-coverage/v1
+updated_at: 2026-11-24
+issue: 11354
+owners:
+  - storage
+purpose: >
+  Enumerate every queue/claim/lease invariant the reducer, projector and
+  workflow-control queues must hold (claim:no-double-claim,
+  claim:evalplanqual-recheck, lease:wall-clock-expiry,
+  lease:fencing-monotonic, ack:superseded-fence,
+  batch:rank-once-equivalence, batch:fairness-order,
+  retry:non-counting-deferral, deadletter:replay-state,
+  conflict:one-per-group-committed/pending, batch:fail-batch,
+  claim:duplicate-enqueue) with its exact proving Test funcs, runner, class
+  and build tag, plus a symbols: map from each covered SQL symbol to its
+  row. The validator (scripts/verify-queue-contract-coverage.sh) fails on a
+  row naming a missing test or file, a listed symbol absent from code, an
+  unknown runner or class, a build-tag mismatch, a live row with no
+  live-Postgres runner, and a row with no covered symbol, so an invariant
+  that loses its proof can never pass as clean.
+design: >
+  One row per invariant. class is live (a proving test executes real SQL on
+  live Postgres under an enrolled runner: live-postgres-readiness,
+  live-postgres-migrations, postgres-scheduled or reducer-contention),
+  env_gated (proving tests execute real SQL only with an operator-set DSN
+  and no enrolled runner selects them, so CI skips them), fake (proving
+  tests run in plain go test against fakes or static query text, never
+  opening live Postgres), or missing (no proving test exists yet). Only a
+  live-Postgres runner can promote a claim: or lease: row to live; every
+  other row is tracked burn-down and stays blocking: true until a live
+  proof lands. proving_tests entries name the exact file and Test funcs;
+  the file must exist, define each func, carry the row tag, and satisfy
+  the class enrollment rule (live: readiness marker or scheduled/contention
+  enrollment; env_gated: DSN skip; fake: no live open). symbols: maps each
+  covered SQL symbol to exactly one owning row; every row owns at least one
+  symbol. Unmapped symbols are future rows, not silent gaps: adding a queue
+  SQL symbol without a row is a follow-up, tracked by the coordinator.
+rows:
+  - contract_ref: claim:no-double-claim
+    surface: projector claim path under concurrent workers
+    class: live
+    runners: [live-postgres-readiness]
+    blocking: true
+    tag: ~
+    reason: "Sixteen workers claim 512 single-generation scopes per round with zero double-grant, miss or deadlock (#7473 full guard, #7469 marked guard); enrolled in the live-postgres-readiness runner"
+    proving_tests:
+      - file: go/internal/storage/postgres/projector_queue_claim_full_guard_contention_live_test.go
+        tests: [TestProjectorClaimFullGuardContention]
+      - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_contention_live_test.go
+        tests: [TestProjectorClaimMarkedGuardContention]
+
+  - contract_ref: claim:evalplanqual-recheck
+    surface: projector claim EvalPlanQual recheck after concurrent change
+    class: live
+    runners: [live-postgres-readiness]
+    blocking: true
+    tag: ~
+    reason: "Dropped full holder claimed after the snapshot, generation locked by a marker txn, and marker-vs-sweep races recheck under EvalPlanQual with guard/fence agreement across clocks (#7473, #7469); enrolled in the live-postgres-readiness runner"
+    proving_tests:
+      - file: go/internal/storage/postgres/projector_queue_claim_full_guard_epq_live_test.go
+        tests: [TestProjectorClaimDropsFullHolderClaimedAfterSnapshot, TestProjectorClaimFullGuardAgreesWithFenceAcrossClocks]
+      - file: go/internal/storage/postgres/projector_queue_claim_marked_guard_epq_live_test.go
+        tests: [TestProjectorClaimSweepSkipsGenerationLockedByMarkerTxn, TestProjectorClaimDropsHolderClaimedAfterSnapshot, TestProjectorClaimGuardAgreesWithFenceAcrossClocks, TestProjectorClaimMarkerSweepRace]
+
+  - contract_ref: lease:wall-clock-expiry
+    surface: reducer claim lease expiry and replacement claim
+    class: live
+    runners: [live-postgres-readiness]
+    blocking: true
+    tag: ~
+    reason: "A stale claim heartbeat race resolves by expiry; the replacement claim completes while the stale heartbeat and ACK are rejected (#8009); enrolled in the live-postgres-readiness runner"
+    proving_tests:
+      - file: go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go
+        tests: [TestReducerQueueExpiryInterleaveLive]
+
+  - contract_ref: lease:fencing-monotonic
+    surface: projector marker fence admission and refusal
+    class: live
+    runners: [live-postgres-readiness]
+    blocking: true
+    tag: ~
+    reason: "Write-started fence sync admits the fenced holder and a missing fence refuses the commit, so a stale holder can never fence past a newer one; enrolled in the live-postgres-readiness runner"
+    proving_tests:
+      - file: go/internal/storage/postgres/projector_queue_claim_marker_fence_live_test.go
+        tests: [TestMarkProjectionWriteStartedFenceSync, TestMarkProjectionWriteStartedMissingFenceRefuses]
+
+  - contract_ref: ack:superseded-fence
+    surface: projector and reducer ack against superseded generations
+    class: live
+    runners: [live-postgres-readiness, postgres-scheduled]
+    blocking: true
+    tag: ~
+    reason: "A superseded-only ACK is rejected and leaves the row claimed while the duplicate-claim batch acks the survivor (#8009, live-postgres-readiness); projector superseded generations roll back and keep owner and attempt fences (verified daily PostgreSQL liveness proof, postgres-scheduled)"
+    proving_tests:
+      - file: go/internal/storage/postgres/reducer_queue_batch_ack_reclaim_live_test.go
+        tests: [TestReducerQueueAckBatchFencesSupersededClaimLive]
+      - file: go/internal/storage/postgres/projector_queue_ack_superseded_live_test.go
+        tests: [TestProjectorAckRefusesSupersededGeneration, TestProjectorAckRefusesGenerationSupersededAfterClaim, TestProjectorAckSupersededMarkKeepsOwnerAndAttemptFences]
+
+  - contract_ref: batch:rank-once-equivalence
+    surface: reducer ClaimBatch rank-once rewrite candidate equality
+    class: env_gated
+    runners: [manual-dsn]
+    blocking: true
+    tag: ~
+    reason: "The rank-once rewrite differential proves the pre/post-rewrite candidate set and order match on disposable Postgres, but only with an operator DSN (ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN); hermetic shape and derive guards pin the window constructs without a database"
+    proving_tests:
+      - file: go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_test.go
+        tests: [TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder]
+
+  - contract_ref: batch:fairness-order
+    surface: reducer ClaimBatch cross-domain and cross-source fairness
+    class: env_gated
+    runners: [manual-dsn]
+    blocking: true
+    tag: ~
+    reason: "ClaimBatch never starves newer domains behind older backlogs and never fills workers from one noisy source, proved on disposable Postgres but only with an operator DSN (ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN); no enrolled runner selects these files"
+    proving_tests:
+      - file: go/internal/storage/postgres/reducer_queue_domain_fairness_test.go
+        tests: [TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog]
+      - file: go/internal/storage/postgres/projector_queue_source_fairness_test.go
+        tests: [TestProjectorQueueClaimOrdersBySourceFairness, TestProjectorQueueClaimDoesNotFillWorkersFromOneNoisySource, TestReducerQueueBatchClaimOrdersBySourceFairnessWithinDomain, TestReducerQueueBatchDoesNotStarveNewerSourceWithinDomain]
+
+  - contract_ref: retry:non-counting-deferral
+    surface: projector fail admission-budget accounting
+    class: fake
+    runners: [unit]
+    blocking: true
+    tag: ~
+    reason: "Admission-timeout Fail retries against the separate admission budget without consuming the projection attempt budget and dead-letters only when that budget is exhausted, proved against a recording execer with no live Postgres"
+    proving_tests:
+      - file: go/internal/storage/postgres/projector_queue_admission_budget_test.go
+        tests: [TestProjectorQueueFailRetriesAdmissionTimeoutWhenProjectionBudgetExhausted, TestProjectorQueueFailDeadLettersAdmissionTimeoutWhenAdmissionBudgetExhausted, TestProjectorQueueFailRefundsAdmissionWaitsFromProjectionBudget]
+
+  - contract_ref: deadletter:replay-state
+    surface: projector dead-letter guard cells
+    class: live
+    runners: [live-postgres-readiness]
+    blocking: true
+    tag: ~
+    reason: "Only an unacknowledged reconcile re-open on the canonical projector row keeps an active generation and its scope pointer; stamp-free, acknowledged, never-activated and refinalize dead letters fail the generation (#7978, rulings a9-130); enrolled in the live-postgres-readiness runner"
+    proving_tests:
+      - file: go/internal/storage/postgres/projector_queue_dead_letter_live_test.go
+        tests: [TestProjectorDeadLetterGuardCellsLive]
+
+  - contract_ref: conflict:one-per-group-committed/pending
+    surface: reducer conflict-key fencing across concurrent claimers
+    class: env_gated
+    runners: [manual-dsn]
+    blocking: true
+    tag: ~
+    reason: "Concurrent claimers on a shared conflict key fence to one holder while disjoint keys proceed and the fenced sibling becomes claimable after ack, proved on disposable Postgres but only with an operator DSN; the 10879 lease mirror pins the one-per-group uniqueness the same way"
+    proving_tests:
+      - file: go/internal/storage/postgres/reducer_queue_conflict_claim_proof_test.go
+        tests: [TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey, TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys, TestReducerClaimFencedSiblingBecomesClaimableAfterAck]
+      - file: go/internal/storage/postgres/reducer_queue_10879_lease_test.go
+        tests: [TestReducerQueue10879OnePerGroupLeaseUnique]
+
+  - contract_ref: batch:fail-batch
+    surface: reducer FailBatch wide blocking set under the btree row limit
+    class: live
+    runners: [live-postgres-readiness]
+    blocking: true
+    tag: ~
+    reason: "A 4-intent FailBatch with one 600-scope fence parks every item under the btree row limit and returns nil instead of the fatal 54000, a regression the hermetic intent-count ceilings could never exercise (#11350 TEST1, #11297 exit-1); enrolled in the live-postgres-readiness runner"
+    proving_tests:
+      - file: go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go
+        tests: [TestFailBatchWideBlockingSetParksCleanlyLive]
+
+  - contract_ref: claim:duplicate-enqueue
+    surface: projector enqueue collapse of concurrent duplicate work items
+    class: missing
+    runners: [none]
+    blocking: true
+    tag: ~
+    reason: "No test proves two concurrent enqueues of the same work item collapse to one pending row via ON CONFLICT DO NOTHING; the #8009 duplicate-claim batch proof covers a duplicate claim, not a duplicate enqueue"
+
+symbols:
+  claimProjectorWorkQuery: claim:no-double-claim
+  claimProjectorWorkPoolSQL: claim:no-double-claim
+  claimProjectorWorkSweepSQL: claim:evalplanqual-recheck
+  heartbeatReducerWorkQuery: lease:wall-clock-expiry
+  reapExpiredWorkflowClaimsQuery: lease:wall-clock-expiry
+  lockProjectorMarkerFenceQuery: lease:fencing-monotonic
+  bumpProjectorMarkerFenceQuery: lease:fencing-monotonic
+  fenceProjectorMarkerFenceExistsQuery: lease:fencing-monotonic
+  markProjectorAckSupersededQuery: ack:superseded-fence
+  ackProjectorWorkItemQuery: ack:superseded-fence
+  ackReducerWorkBatchQuery: ack:superseded-fence
+  claimReducerWorkBatchQuery: batch:rank-once-equivalence
+  reducerClaimBatchFunnelQuery: batch:fairness-order
+  retryProjectorWorkWithAdmissionWaitQuery: retry:non-counting-deferral
+  retryProjectorWorkWithSourcePacedWaitQuery: retry:non-counting-deferral
+  failProjectorWorkQuery: deadletter:replay-state
+  reducerResourceConflictPolicies: conflict:one-per-group-committed/pending
+  reducerConflictDomainKey: conflict:one-per-group-committed/pending
+  FailBatch: batch:fail-batch
+  failReducerWorkQuery: batch:fail-batch
+  enqueueProjectorWorkQuery: claim:duplicate-enqueue
+  supersedeProjectorActiveGenerationQuery: ack:superseded-fence
