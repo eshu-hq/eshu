@@ -32,7 +32,7 @@ const (
 	// FullPassMarkerGenerationKey names the generation the full pass wrote.
 	FullPassMarkerGenerationKey = "generation_id"
 	// FullPassMarkerScopedSinceFullKey counts scoped reruns since that pass.
-	FullPassMarkerScopedSinceFullKey = "scoped_since_full"
+	FullPassMarkerScopedSinceFullKey = "scoped_since_full" // #nosec G101 -- payload key name, not a credential
 	// FullPassMarkerFullAtKey is when that pass ran, RFC 3339 in UTC.
 	FullPassMarkerFullAtKey = "full_at"
 
