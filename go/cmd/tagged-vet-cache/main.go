@@ -69,7 +69,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	}
 
 	cfgPath := args[len(args)-1]
-	raw, err := os.ReadFile(cfgPath) // #nosec G304 -- cfgPath is the .cfg path supplied by go vet.
+	raw, err := os.ReadFile(cfgPath) // #nosec G304,G703 -- cfgPath is the .cfg path supplied by go vet.
 	if err != nil {
 		return execReal(realVet, args, stdout, stderr)
 	}
@@ -117,7 +117,7 @@ func resolveGoCache(getenv func(string) string) string {
 }
 
 func execReal(realVet string, args []string, stdout, stderr io.Writer) int {
-	cmd := exec.Command(realVet, args...) // #nosec G204 -- realVet is the operator-configured go tool vet binary.
+	cmd := exec.Command(realVet, args...) // #nosec G204,G702 -- realVet is the operator-configured go tool vet binary.
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
