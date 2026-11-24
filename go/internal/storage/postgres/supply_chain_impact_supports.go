@@ -283,10 +283,18 @@ func (t *supplyChainImpactTx) UpsertImpactSupportRows(
 ) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
 	var result supplychaincore.SupplyChainImpactSupportsWrite
 	rows = factwrite.DedupeRowsByFactID(rows, func(r factwrite.VersionedRow) string { return r.FactID })
-	if len(rows) == 0 {
+	// A support mirrors a live finding fact: the fact-derived statement reads only live rows of
+	// the finding kind, so a tombstoned row or a row of another kind gets no support here either.
+	ordered := make([]factwrite.VersionedRow, 0, len(rows))
+	for _, row := range rows {
+		if row.IsTombstone || row.FactKind != facts.ReducerSupplyChainImpactFindingFactKind {
+			continue
+		}
+		ordered = append(ordered, row)
+	}
+	if len(ordered) == 0 {
 		return result, nil
 	}
-	ordered := append([]factwrite.VersionedRow(nil), rows...)
 	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].FactID < ordered[j].FactID })
 	for start := 0; start < len(ordered); start += factwrite.BatchSize {
 		end := min(start+factwrite.BatchSize, len(ordered))

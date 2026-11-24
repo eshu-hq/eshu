@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -124,6 +125,7 @@ func (*flagRows) Close() error { return nil }
 func supportRow(factID, payload string) factwrite.VersionedRow {
 	return factwrite.VersionedRow{
 		FactID: factID, ScopeID: "scope-" + factID, GenerationID: "gen-" + factID,
+		FactKind:         facts.ReducerSupplyChainImpactFindingFactKind,
 		SourceConfidence: "inferred", StableFactKey: "key-" + factID, Payload: payload,
 	}
 }
@@ -215,4 +217,39 @@ func upsertArgStrings(t *testing.T, arg any) []string {
 		t.Fatalf("argument %#v is not an array.StringArray", arg)
 	}
 	panic(fmt.Sprintf("argument %#v is not an array.StringArray", arg))
+}
+
+// TestUpsertImpactSupportRowsSkipsTombstonedAndForeignKindRows pins the parity the
+// fact-derived statement has by its WHERE clause: it reads only live rows of the
+// finding kind, so the in-memory path drops a tombstoned row and a row of another
+// kind before binding (the advisory-group cell admits cassette rows that can carry
+// a tombstone).
+func TestUpsertImpactSupportRowsSkipsTombstonedAndForeignKindRows(t *testing.T) {
+	t.Parallel()
+
+	rec := &upsertRecordingTx{}
+	tx := &supplyChainImpactTx{tx: rec}
+	tombstone := supportRow("fact-b", `{}`)
+	tombstone.IsTombstone = true
+	foreign := supportRow("fact-c", `{}`)
+	foreign.FactKind = "some_other_kind"
+	rows := []factwrite.VersionedRow{supportRow("fact-a", `{}`), tombstone, foreign}
+	result, err := tx.UpsertImpactSupportRows(context.Background(), rows)
+	if err != nil {
+		t.Fatalf("UpsertImpactSupportRows() error = %v", err)
+	}
+	if len(rec.queries) != 1 {
+		t.Fatalf("statements = %d, want 1", len(rec.queries))
+	}
+	if got := upsertArgStrings(t, rec.args[0][0]); !reflect.DeepEqual(got, []string{"fact-a"}) {
+		t.Fatalf("bound fact ids = %v, want only fact-a", got)
+	}
+	if result.Inserted != 1 {
+		t.Fatalf("write = %+v, want 1 inserted", result)
+	}
+
+	onlyDropped := &upsertRecordingTx{}
+	if _, err := (&supplyChainImpactTx{tx: onlyDropped}).UpsertImpactSupportRows(context.Background(), []factwrite.VersionedRow{tombstone, foreign}); err != nil || len(onlyDropped.queries) != 0 {
+		t.Fatalf("only dropped rows: err %v, statements %d, want no statement", err, len(onlyDropped.queries))
+	}
 }
