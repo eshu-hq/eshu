@@ -188,7 +188,9 @@ func pausedPassRound(c *convergence, seam func(ctx context.Context)) (hookReturn
 // reopens its item. 40 rounds, zero 40P01.
 func TestGoEvidenceFenceQueuesBehindPassPausedBeforeItsMarkerLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
+	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 40; round++ {
+		c.handler.Writer = plainWriter
 		seed := seedGoEvidenceChain(c, fmt.Sprintf("pm%02d", round), 1)
 		c.drain()
 		settleSupplyChainImpactSupports(c.t, c.ctx, c.db)
@@ -209,6 +211,7 @@ func TestGoEvidenceFenceQueuesBehindPassPausedBeforeItsMarkerLive(t *testing.T) 
 		if passErr != nil || fenceErr != nil || fenced.Fenced != 1 || fenced.HoldersReopened < 1 {
 			t.Fatalf("round %d: pass error = %v, fence = %+v, err = %v; want the pass committed and the fence to fence and reopen its scope", round, passErr, fenced, fenceErr)
 		}
+		c.handler.Writer = plainWriter // the follow-up drain must not re-fire the round's seam
 		c.drain()
 		if holderVerdictNotCalled(c, seed.holder) {
 			t.Fatalf("round %d: the holder still carries the retracted generation's verdict after the fence reopened it", round)
@@ -244,7 +247,9 @@ func reopenHeldTx(ctx context.Context, t *testing.T, database *sql.DB, holder st
 // pending, which is for succeeded and dead-letter rows only. 40 rounds, zero 40P01.
 func TestGoEvidenceMarkerWaitsBehindAFenceStyleReopenLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
+	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 40; round++ {
+		c.handler.Writer = plainWriter
 		seed := seedGoEvidenceChain(c, fmt.Sprintf("dr%02d", round), 1)
 		c.drain()
 		settleSupplyChainImpactSupports(c.t, c.ctx, c.db)

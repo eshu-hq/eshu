@@ -6,7 +6,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"reflect"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -129,11 +129,16 @@ func runCensusPass(t *testing.T) []string {
 
 func runCensusPassWith(t *testing.T, recorder *censusRecorder) []string {
 	t.Helper()
+	return runCensusWriteWith(t, recorder, censusWrite())
+}
+
+func runCensusWriteWith(t *testing.T, recorder *censusRecorder, write supplychaincore.SupplyChainImpactWrite) []string {
+	t.Helper()
 	writer := supplychaincore.PostgresSupplyChainImpactWriter{
 		DB:  SupplyChainImpactBeginner{Beginner: censusBeginner{tx: recorder}},
 		Now: func() time.Time { return time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC) },
 	}
-	_, err := writer.WriteSupplyChainImpactFindings(context.Background(), censusWrite())
+	_, err := writer.WriteSupplyChainImpactFindings(context.Background(), write)
 	if recorder.recheckCurrent {
 		if err != nil {
 			t.Fatalf("WriteSupplyChainImpactFindings() error = %v, want the pass to commit", err)
@@ -267,7 +272,6 @@ func TestProtectedPublicationFunctionsTouchNoFenceRows(t *testing.T) {
 			t.Errorf("%s was not flagged", name)
 		}
 	}
-	_ = fmt.Sprint
 }
 
 // TestImpactWritePassFootprintEndsWithLockRecheckMarker records a changed pass that runs
@@ -302,5 +306,47 @@ func TestImpactWritePassFootprintEndsWithLockRecheckMarker(t *testing.T) {
 	moved = append(moved, statements[n-1], statements[n-3], statements[n-2])
 	if supplychaincore.SupplyChainImpactGoEvidenceEpilogueViolation(moved, markSupplyChainImpactFanOutOwedQuery) == "" {
 		t.Fatal("the core checker accepted the marker moved before the lock")
+	}
+}
+
+// TestImpactWriteTransactionSuppressionDiffReadsTheQueueBeforeTheLock records the pass of
+// a scope whose fact kinds include a suppression, which runs the suppression diff inside
+// the write transaction before the go-evidence lock. The diff's candidate read is a plain
+// SELECT with an EXISTS over fact_work_items (core/suppression_fanout_wire.go,
+// selectSuppressionCandidatesQuery): it names fact_work_items, so the strict census rule
+// flags it. A plain SELECT takes only ACCESS SHARE on the table and no row lock, so it
+// cannot wait on the fence's reopen or close a cycle with it, but the ruling text says no
+// statement before the lock names fact_work_items. OPEN for the arbiter: this test pins
+// that the only flagged statement is that read and that it takes no lock, so the exception
+// is visible and cannot grow unnoticed. The vacuity check proves the read ran.
+func TestImpactWriteTransactionSuppressionDiffReadsTheQueueBeforeTheLock(t *testing.T) {
+	t.Parallel()
+
+	write := censusWrite()
+	write.ScopeFactKinds = []string{chain.VulnerabilitySuppressionFactKind}
+	statements := runCensusWriteWith(t, &censusRecorder{}, write)
+	lockAt := -1
+	for i, statement := range statements {
+		if statement == supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery {
+			lockAt = i
+			break
+		}
+	}
+	if lockAt < 0 {
+		t.Fatalf("no shared go-evidence lock among %d statements", len(statements))
+	}
+	var flagged []string
+	for _, statement := range statements[:lockAt] {
+		if censusViolation(statement) != "" {
+			flagged = append(flagged, statement)
+		}
+	}
+	if len(flagged) != 1 {
+		t.Fatalf("flagged statements before the lock = %d, want exactly the suppression candidate read: the diff did not run or another statement joined it", len(flagged))
+	}
+	read := flagged[0]
+	if !strings.Contains(read, "fact_work_items") || censusScopeWrite.MatchString(read) || censusRowLock.MatchString(read) ||
+		regexp.MustCompile(`(?i)\b(UPDATE|INSERT|DELETE)\b`).MatchString(read) {
+		t.Fatalf("the flagged statement is not a plain read of fact_work_items:\n%s", read)
 	}
 }

@@ -163,7 +163,9 @@ func retryFence(ctx context.Context, t *testing.T, db *sql.DB, scope, generation
 // class.
 func TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
+	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 40; round++ {
+		c.handler.Writer = plainWriter
 		seed := seedGoEvidenceChain(c, fmt.Sprintf("dl%02d", round), 1)
 		c.drain() // the first pass: the scope becomes a holder with supports.
 		settleSupplyChainImpactSupports(c.t, c.ctx, c.db)
@@ -197,7 +199,8 @@ func TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive(t *testing.T) {
 		}
 		c.drain() // the in-flight pass.
 		wg.Wait()
-		c.drain() // the reopened holder.
+		c.handler.Writer = plainWriter // the follow-up drain must not re-fire the round's seam
+		c.drain()                      // the reopened holder.
 		if passErr != nil {
 			var changed *supplychaincore.SupplyChainImpactGoEvidenceChangedError
 			if !errors.As(passErr, &changed) {
@@ -219,7 +222,9 @@ func TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive(t *testing.T) {
 // lock order).
 func TestGoEvidenceAckCommitsWhilePassHoldsTheSharedLockLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
+	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 40; round++ {
+		c.handler.Writer = plainWriter
 		seed := seedGoEvidenceChain(c, fmt.Sprintf("ak%02d", round), 1)
 		successor := seed.goScopes[0] + "/g2"
 		hold := 50 * time.Millisecond
@@ -300,7 +305,9 @@ VALUES ($2, $1, 'synthetic', now(), now(), 'active', now())`, []any{scope, succe
 // holder ends re-derived.
 func TestGoEvidenceMultiRepositoryPassWithParallelFencesLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
+	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 10; round++ {
+		c.handler.Writer = plainWriter
 		seed := seedGoEvidenceChain(c, fmt.Sprintf("mr%02d", round), 2)
 		var wg sync.WaitGroup
 		c.handler.Writer = supplychaincore.PostgresSupplyChainImpactWriter{
@@ -320,6 +327,7 @@ func TestGoEvidenceMultiRepositoryPassWithParallelFencesLive(t *testing.T) {
 		}
 		c.drain()
 		wg.Wait()
+		c.handler.Writer = plainWriter // the follow-up drain must not re-fire the round's seam
 		c.drain()
 		if violations := goEvidenceInvariantViolations(c, []goEvidenceChain{seed}); len(violations) > 0 {
 			t.Fatalf("round %d: holders still carrying a retracted verdict: %v", round, violations)
@@ -383,7 +391,9 @@ func TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive(t *testing.T) {
 func TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
 	var chains []goEvidenceChain
+	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 40; round++ {
+		c.handler.Writer = plainWriter
 		seed := seedGoEvidenceChain(c, fmt.Sprintf("fi%02d", round), 1)
 		chains = append(chains, seed)
 		var wg sync.WaitGroup
@@ -396,14 +406,14 @@ func TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive(t *testing.T) {
 		}
 		switch round % 3 {
 		case 0:
-			c.handler.Writer = hookingWriter{inner: c.handler.Writer, before: func(write supplychaincore.SupplyChainImpactWrite) {
+			c.handler.Writer = hookingWriter{inner: plainWriter, before: func(write supplychaincore.SupplyChainImpactWrite) {
 				if write.ScopeID == seed.holder {
 					launch()
 					wg.Wait()
 				}
 			}}
 		case 1:
-			c.handler.Writer = hookingWriter{inner: c.handler.Writer, before: func(write supplychaincore.SupplyChainImpactWrite) {
+			c.handler.Writer = hookingWriter{inner: plainWriter, before: func(write supplychaincore.SupplyChainImpactWrite) {
 				if write.ScopeID == seed.holder {
 					launch()
 				}
@@ -421,6 +431,7 @@ func TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive(t *testing.T) {
 		}
 		c.drain()
 		wg.Wait()
+		c.handler.Writer = plainWriter // the follow-up drain must not re-fire the round's seam
 		c.drain()
 		if t.Failed() {
 			t.Fatalf("round %d failed above", round)

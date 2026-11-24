@@ -60,7 +60,8 @@ func runSupplyChainImpactTx(
 		return failed, err
 	}
 	if err := tx.Commit(); err != nil {
-		return supplyChainImpactTxOutcome{}, fmt.Errorf("commit supply chain impact transaction: %w", err)
+		// The lock-wait observation survives a failed commit too: the pass did take the lock.
+		return supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait}, fmt.Errorf("commit supply chain impact transaction: %w", err)
 	}
 	return outcome, nil
 }

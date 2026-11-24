@@ -222,6 +222,17 @@ skip count (must be 0) with both DSN variables (`ESHU_POSTGRES_DSN`, `ESHU_POSTG
 `ESHU_LIVE_REQUIRE_DSN=1` once it exists), the seconds of each live test, and the real-writer
 write-transaction duration and WAL numbers (ruling 4.9). Results: owed: coordinator slot.
 
+## Open for the arbiter: the suppression diff's queue read
+
+For a scope whose fact kinds include a suppression, the suppression diff runs in the write
+transaction before the lock, and its candidate read (`selectSuppressionCandidatesQuery`,
+`core/suppression_fanout_wire.go:59-74`) has an `EXISTS` over `fact_work_items`. It is a plain
+SELECT: ACCESS SHARE on the table, no row lock, so it cannot wait on the fence's reopen and does not
+conflict with the retirement fence's `LOCK TABLE ... EXCLUSIVE`. It does name `fact_work_items`, so
+the strict census rule flags it; the test above pins that it is the only flagged statement and that
+it is a plain read, so the exception cannot grow unnoticed. The rule text stays as ruled until the
+arbiter decides.
+
 ## Claims table
 
 Roles: "owner" is the disposable database's bootstrap owner (the harness login, not the
@@ -233,10 +244,10 @@ skip count (must be 0) with both DSN variables. `ESHU_LIVE_REQUIRE_DSN=1` does n
 
 | Claim | Test | Seeded violation | Role | N |
 | --- | --- | --- | --- | --- |
-| A fence and a pass cannot both commit around one go scope (AC1) | `TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive` | red on main (the pass commits the stale verdict) | owner | 1 |
-| A pass paused after its recheck makes the fence wait, then reopen its scope | `TestGoEvidenceFenceQueuesBehindPassPausedBeforeItsMarkerLive` | same test on main: no lock, the fence misses the pass | owner | 40 |
+| A fence and a pass cannot both commit around one go scope (AC1) | `TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive` | branch mutation: drop the `lockAndRecheckGoEvidence` call and the pass commits the stale verdict (coordinator slot) | owner | 1 |
+| A pass paused after its recheck makes the fence wait, then reopen its scope | `TestGoEvidenceFenceQueuesBehindPassPausedBeforeItsMarkerLive` | same mutation: no lock, the fence misses the pass | owner | 40 |
 | A recheck abort is non-counting and writes nothing | `TestWriteAbortsWithTheTypedClassWhenTheRecheckFindsAChangedGeneration`, `TestReducerQueueGoEvidenceChangedNeverSpendsAnAttempt` | a genuine failure in the same statement still counts (same test) | hermetic | 5 aborts |
-| The abort leaves nothing after 3 s of writes | `TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive` | AC1 on main | owner | 1 |
+| The abort leaves nothing after 3 s of writes | `TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive` | AC1 under the same branch mutation | owner | 1 |
 | The lock is the last statement(s) before commit, then only the marker | `TestWriteLocksGoEvidenceThenRechecksLastBeforeCommit`, `TestImpactWritePassFootprintEndsWithLockRecheckMarker` | `TestGoEvidenceEpilogueViolationNamesTheSeededShapes` (11 shapes), mutation run | hermetic | 1 |
 | Nothing before the lock holds a row the fence needs (recorded footprint) | `TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock`, `TestProtectedPublicationFunctionsTouchNoFenceRows`, `TestGoEvidenceRealHandlerPassFootprintLive` (real handler) | `TestCensusViolationNamesTheSeededStatements`, `TestFootprintViolationNamesTheSeededFootprints`, mutation run | hermetic; live: owner | 1 |
 | No deadlock between the fence and a pass whose scope is a holder | `TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive` | the marker-before-lock mutation is the deadlock shape | owner | 40 |
@@ -247,12 +258,15 @@ skip count (must be 0) with both DSN variables. `ESHU_LIVE_REQUIRE_DSN=1` does n
 | The ack takes no lock and commits while a pass holds the shared lock | `TestGoEvidenceAckCommitsWhilePassHoldsTheSharedLockLive` (the ack is the production statement sequence, not `ProjectorQueue.Ack`) | n/a | owner | 40 |
 | Two go scopes, two fences, one pass: no deadlock | `TestGoEvidenceMultiRepositoryPassWithParallelFencesLive` | n/a | owner | 10 |
 | The recheck covers exactly the loaded pairs | `TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive`, `TestGoEvidenceLoadReturnsExactlyTheResolvedPairs` | n/a | owner / hermetic | 1 |
-| 40 free interleavings leave no stale verdict (AC3) | `TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive` | AC1 on main | owner | 40 |
+| 40 free interleavings leave no stale verdict (AC3) | `TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive` | AC1 under the same branch mutation | owner | 40 |
 | A second pass queues behind a waiting fence | `TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive` | n/a | owner | 1 |
 | The fence's wait and timeout are observed; a timeout detaches nothing | `TestFenceLockTimeoutDetachesNothingAndIsObserved` | n/a | hermetic | 1 |
 | Isolation is READ COMMITTED or the pass fails loudly | `TestWriteFailsLoudWhenTheWriteTransactionIsNotReadCommitted` | the non-read-committed row is the seeded violation | hermetic | 1 |
 | The write-tx and lock-wait histograms record by outcome | `TestGoEvidenceLockSignalsRecordWithClosedLabels` | nil-receiver and unregistered cases | hermetic | 1 |
 | The lock-wait histogram includes the owed marker's time | `TestLockWaitHistogramIncludesTheOwedMarker` | a marker that takes 60 ms must show at least 60 ms | hermetic | 1 |
+| A genuine database error from the lock or the recheck (a 42501 included) is not the typed class and still counts | `TestGenuineFailureOfTheClosingStatementsIsNotTheTypedClass`, `TestClassifyGoEvidenceLockTimeoutMapsOnlyTheSharedLockStatement`, `TestReducerQueueGoEvidenceChangedNeverSpendsAnAttempt` | a 42501 error is the seeded case | hermetic | 1 |
+| The live-test wrapper tolerates unset seams (one proof cannot panic the live binary) | `TestRecheckHookTxToleratesUnsetSeams` | the footprint and 3 s proofs build the wrapper with one seam | hermetic | 1 |
+| The suppression diff's queue read before the lock is the one flagged statement and a plain read | `TestImpactWriteTransactionSuppressionDiffReadsTheQueueBeforeTheLock` | OPEN for the arbiter (see below) | hermetic | 1 |
 | A loader that cannot name the resolved go scopes fails the pass closed | `TestGoEvidenceFactsOnlyLoaderFailsClosed` | the facts-only loader is the seeded case | hermetic | 1 |
 | The recheck's SELECT is granted to the writer login | `grantImpactWriterPregrants` now grants `SELECT ON ingestion_scopes`; `TestSupplyChainImpactProtectedStaticPublishLive` runs as the worker | the worker lacks it without the grant | worker | 1 |
 
@@ -275,7 +289,7 @@ writer and the real storage transaction, not the handler.
 | The recheck covers exactly the loaded pairs | `TestGoEvidenceLoadReturnsExactlyTheResolvedPairs`, `TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive` |
 | Fence order and timeout detach nothing | `TestFenceTakesTheExclusiveGoEvidenceLockBeforeAnythingElse`, `TestFenceLockTimeoutDetachesNothingAndIsObserved` |
 | Isolation guard | `TestWriteFailsLoudWhenTheWriteTransactionIsNotReadCommitted` |
-| AC1: the miss is red on main, aborted now | `TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive` |
+| AC1: the miss is red without the lock (main, or the branch with the call dropped), aborted with it | `TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive` |
 | Pass paused between recheck and commit: the fence waits, then reopens | `TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive` |
 | A pass spending 3 s in its writes loses to a fence; nothing written, typed class | `TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive` |
 | A second pass queues behind a waiting fence | `TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive` |

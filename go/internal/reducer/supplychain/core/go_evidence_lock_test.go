@@ -430,3 +430,29 @@ func TestLockWaitHistogramIncludesTheOwedMarker(t *testing.T) {
 		t.Fatalf("committed write-tx observations = %d, want 1", committed)
 	}
 }
+
+// TestGenuineFailureOfTheClosingStatementsIsNotTheTypedClass pins that a database error
+// from the recheck or the shared lock that is not a lock timeout comes back as a plain
+// error, so the queue counts it (a permission or syntax failure must not retry forever
+// as a free deferral).
+func TestGenuineFailureOfTheClosingStatementsIsNotTheTypedClass(t *testing.T) {
+	t.Parallel()
+
+	for name, failOn := range map[string]string{
+		"recheck": supplyChainImpactGoEvidenceRecheckQuery,
+		"lock":    SupplyChainImpactGoEvidenceSharedLockQuery,
+	} {
+		beginner := newFakeImpactBeginner(&testutil.FakeExecer{})
+		beginner.state.goEvidenceCurrent = 1
+		beginner.state.failOn = failOn
+		write := goEvidenceWrite(GoEvidenceGeneration{ScopeID: "go-reachability://repository:r_a", GenerationID: "gen-a"})
+		_, err := (PostgresSupplyChainImpactWriter{DB: beginner}).WriteSupplyChainImpactFindings(context.Background(), write)
+		var changed *SupplyChainImpactGoEvidenceChangedError
+		if err == nil || errors.As(err, &changed) {
+			t.Fatalf("%s failure = %v, want a plain error the queue counts", name, err)
+		}
+		if got := writeTxOutcomeLabel(err); got != "rolled_back" {
+			t.Fatalf("%s failure outcome = %q, want rolled_back", name, got)
+		}
+	}
+}

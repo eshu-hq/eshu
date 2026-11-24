@@ -137,7 +137,9 @@ func (t *recheckHookTx) QueryContext(ctx context.Context, query string, args ...
 	rows, err := t.tx.QueryContext(ctx, query, args...)
 	if err == nil && !t.fired && strings.Contains(query, "AS pair(scope_id, generation_id)") {
 		t.fired = true
-		t.hook(ctx)
+		if t.hook != nil {
+			t.hook(ctx)
+		}
 	}
 	return rows, err
 }
@@ -193,7 +195,7 @@ func waitForAdvisoryWaiter(ctx context.Context, t *testing.T, db *sql.DB, want i
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		var waiting int
-		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`).Scan(&waiting); err != nil {
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`).Scan(&waiting); err != nil {
 			t.Errorf("count advisory waiters: %v", err)
 			return
 		}

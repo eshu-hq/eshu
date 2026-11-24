@@ -6,9 +6,12 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
@@ -47,13 +50,19 @@ func TestReducerQueueGoEvidenceChangedNeverSpendsAnAttempt(t *testing.T) {
 		}
 	}
 
-	genuine := &fakeExecQueryer{}
-	if failErr := newQueue(genuine).Fail(context.Background(),
-		reducercontract.Intent{IntentID: "intent-go-evidence", AttemptCount: 42}, errors.New("a genuine writer failure")); failErr != nil {
-		t.Fatalf("genuine Fail() error = %v", failErr)
-	}
-	if len(genuine.queries) == 0 || !strings.Contains(genuine.queries[0].query, "dead_letter") {
-		t.Fatalf("genuine failure at attempt 42 = %+v, want the dead-letter path (the class is non-counting, nothing else is)", genuine.queries)
+	// A genuine failure of the same statements still counts: an ordinary error, and a
+	// permission error (42501) from the lock or the recheck as the writer wraps it, which
+	// the lock-timeout mapping must leave alone.
+	denied := fmt.Errorf("lock supply chain impact go evidence: %w", &pgconn.PgError{Code: "42501", Message: "permission denied for table ingestion_scopes"})
+	for name, cause := range map[string]error{"ordinary": errors.New("a genuine writer failure"), "permission denied": denied} {
+		genuine := &fakeExecQueryer{}
+		if failErr := newQueue(genuine).Fail(context.Background(),
+			reducercontract.Intent{IntentID: "intent-go-evidence", AttemptCount: 42}, cause); failErr != nil {
+			t.Fatalf("%s: genuine Fail() error = %v", name, failErr)
+		}
+		if len(genuine.queries) == 0 || !strings.Contains(genuine.queries[0].query, "dead_letter") {
+			t.Fatalf("%s: genuine failure at attempt 42 = %+v, want the dead-letter path (the class is non-counting, nothing else is)", name, genuine.queries)
+		}
 	}
 }
 

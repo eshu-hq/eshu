@@ -51,12 +51,12 @@ import (
 //
 // The holder statement reads the supports readiness predicate and the holders in one snapshot
 // (#11197), so a backfill drain between a holder read and a separate recheck can no longer hide
-// a holder (with one drain runner). A finding that commits after that snapshot is not seen,
-// including an old-writer finding that commits between that snapshot and where the removed
-// recheck ran, which the recheck used to roll back: a scope with no support for the repository
-// at its active generation whose pass loaded Go evidence before the fence commit keeps the
-// retracted verdict until that scope's next supply_chain_impact pass, and nothing schedules one
-// (tracked in eshu-hq/eshu#11327). The same race exists in the fact read this statement replaced.
+// a holder (with one drain runner). A finding that commits after that snapshot is not seen by the
+// read, so the fence now takes the exclusive go-evidence advisory lock first (#11327): a pass that
+// loaded Go evidence holds the shared form from its recheck to its commit, so the fence either
+// waits for it and then sees its support, or commits first and the pass fails its recheck and
+// rolls back. The remaining window is the pass's owed marker between its recheck and its commit.
+// An old-writer finding takes no lock and stays outside this closure.
 const (
 	// fenceTimeoutsQuery bounds the waits, so a scope or work item held by another
 	// transaction cannot stall the reconcile loop, and a regressed holder read cannot

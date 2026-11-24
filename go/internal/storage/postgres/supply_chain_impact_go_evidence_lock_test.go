@@ -37,6 +37,10 @@ func TestClassifyGoEvidenceLockTimeoutMapsOnlyTheSharedLockStatement(t *testing.
 	if got := classifyGoEvidenceLockTimeout(lock, other); got != error(other) {
 		t.Fatalf("other error on the lock statement = %v, want it unchanged", got)
 	}
+	denied := &pgconn.PgError{Code: "42501", Message: "permission denied for table ingestion_scopes"}
+	if got := classifyGoEvidenceLockTimeout(lock, denied); got != error(denied) {
+		t.Fatalf("permission error on the lock statement = %v, want it unchanged and counting", got)
+	}
 	if got := classifyGoEvidenceLockTimeout(lock, nil); got != nil {
 		t.Fatalf("nil error = %v, want nil", got)
 	}
