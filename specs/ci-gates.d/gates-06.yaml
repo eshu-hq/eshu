@@ -354,6 +354,7 @@ gates:
     triggers:
       - ".github/workflows/build.yml"
       - ".github/workflows/test.yml"
+      - ".github/leaf-go-race-filter.yml"
       - ".github/workflows/security-scan.yml"
       - ".github/workflows/mcp-schema-drift.yml"
       - "specs/ci-gates.v1.yaml"

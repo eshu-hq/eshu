@@ -44,6 +44,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
+      go_security: ${{ steps.go_security.outputs.go_security }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -74,6 +75,30 @@ jobs:
           # from specs/ci-docs-lockstep-paths.txt into
           # .github/leaf-lockstep-filter.yml; edit the manifest, then regenerate.
           filters: .github/leaf-lockstep-filter.yml
+
+      - name: Filter Go security scanner inputs
+        id: go_security
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'some'
+          filters: |
+            go_security:
+              - 'go/**'
+              - 'sdk/go/**'
+              - '.github/workflows/security-scan.yml'
+              - 'scripts/dev/precommit-go.sh'
+              - 'scripts/lib/go-toolchain.sh'
+              - 'scripts/lib/precommit-go-filecap.sh'
+              - 'scripts/lib/cgo-cflags.sh'
+              - 'scripts/lib/precommit-go-gosec.sh'
+              - 'scripts/lib/ci-gates-resolved-fixtures.sh'
+              - 'scripts/test-precommit-go-gosec.sh'
+              - 'scripts/test-precommit-go-toolchain-isolation.sh'
+              - 'scripts/ci/go-mod-download-retry.sh'
+              - 'scripts/ci/go-install-retry.sh'
+              - 'scripts/ci/govulncheck-replace-recheck.sh'
+              - 'scripts/ci/run-scan-with-tee.sh'
+              - 'scripts/test-govulncheck-replace-recheck.sh'
   trivy-fs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-fs')) && (github.event_name != 'workflow_run') }}
     name: Trivy filesystem scan (vuln + secret + config)
@@ -165,7 +190,7 @@ jobs:
           sarif_file: trivy-image.sarif
           category: trivy-image
   govulncheck:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'govulncheck')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'govulncheck')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true') && needs.changes.outputs.go_security == 'true'))) }}
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-24.04
     # 30, not 20: the replaced-module re-check below compiles and runs the
@@ -214,7 +239,7 @@ jobs:
           path: go/govulncheck.out
           if-no-files-found: ignore
   gosec:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true'))) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true') && needs.changes.outputs.go_security == 'true'))) }}
     name: gosec (Go static analysis)
     runs-on: ubuntu-24.04
     timeout-minutes: 30

@@ -6,6 +6,26 @@ workflows:
   synchronize: true
   branches:
   - main
+  paths:
+  - 'go/**'
+  - 'scripts/generate-code-coverage-report.sh'
+  - 'scripts/test-generate-code-coverage-report.sh'
+  - 'scripts/verify-coverage-floors.sh'
+  - 'scripts/test-verify-coverage-floors.sh'
+  - 'scripts/ci/check-changed-coverage-floors.sh'
+  - 'scripts/ci/test-check-changed-coverage-floors.sh'
+  - 'scripts/ci/go-mod-download-retry.sh'
+  - 'scripts/ci/install-apt-packages.sh'
+  - 'scripts/lib/ci-gates-resolved-fixtures.sh'
+  - 'specs/coverage-floors.v1.yaml'
+  - 'docs/public/reference/code-coverage.md'
+  - 'docs/public/reference/code-coverage-shield.json'
+  - '.github/workflows/code-coverage-report.yml'
+  - 'docs/mkdocs.yml'
+  - 'README.md'
+  - 'specs/ci-gates.v1.yaml'
+  - 'specs/ci-gates.d/**'
+  - 'specs/ci-pr-workflows.d/code-coverage-report.yml'
   jobs:
   - coverage-report
   - package-floors

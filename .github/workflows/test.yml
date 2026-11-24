@@ -35,6 +35,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
+      go_race: ${{ steps.go_race.outputs.go_race == 'true' || steps.go_race_include.outputs.include == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -45,26 +46,35 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           predicate-quantifier: 'every'
-          # Shared single-source filter (#10980): the `code` block lived
-          # inline in three workflows and drifted (#5818). It is generated
-          # from specs/ci-docs-set-patterns.txt into
-          # .github/leaf-code-filter.yml; edit the specs, then regenerate.
+          # Shared single-source filter (#10980): generated from specs/ci-docs-set-patterns.txt.
           filters: .github/leaf-code-filter.yml
-
       - name: Filter lockstep test inputs
         id: lockstep
         uses: dorny/paths-filter@v3
         with:
-          # Unlike `code` above, this filter is all positives (the manifest-derived
-          # lockstep list), so it needs the default `some` quantifier: a PR touching
-          # ANY listed input must run the code-gated lanes. `every` would require a
-          # file to match all entries at once and select nothing.
           predicate-quantifier: 'some'
-          # Shared single-source filter (#10980): the manifest-derived
-          # `lockstep` list lived inline in three workflows. It is generated
-          # from specs/ci-docs-lockstep-paths.txt into
-          # .github/leaf-lockstep-filter.yml; edit the manifest, then regenerate.
+          # Shared single-source filter (#10980): generated from specs/ci-docs-lockstep-paths.txt.
           filters: .github/leaf-lockstep-filter.yml
+      - name: Filter Go race inputs
+        id: go_race
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'every'
+          filters: .github/leaf-go-race-filter.yml
+      - name: Filter Go-tree, spec-ledger, and workflow race inputs
+        id: go_race_include
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'some'
+          filters: |
+            include:
+              - 'go/**'
+              - 'sdk/go/**'
+              - 'specs/parser-backing-ledger.v1.yaml'
+              - 'specs/replay-coverage-manifest.v1.yaml'
+              - 'specs/language-feature-parity-ledger.v1.yaml'
+              - 'specs/query-budgets.v1.yaml'
+              - '.github/workflows/test.yml'
   pr-plan:
     runs-on: ubuntu-24.04
     permissions: {checks: read, contents: read, pull-requests: read, statuses: read}
@@ -324,18 +334,14 @@ jobs:
           SELECTED: ${{ contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core') }}
         run: bash scripts/ci/assert-go-complete.sh
   go-race:
-    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-race'))) && ((github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) }}
+    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-race'))) && ((github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' && needs.changes.outputs.go_race == 'true') || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) }}
     needs: [changes, pr-plan]
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-24.04
-    # Eight shards since 2026-11-19: the four-way split's slowest shard ran
-    # ~26 min on PR runners (~31 min on main) and twice hit this ceiling.
-    # Halving the packages per shard (1302 total, ~163 each) halves the
-    # worst case instead of raising the ceiling further; per-package
-    # -timeout 900s still bounds genuine hangs.
+    # Eight shards (~163 pkgs each); per-package -timeout 900s bounds hangs.
     timeout-minutes: 60
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
@@ -349,22 +355,12 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
-          # A race build stores different objects than go-core's plain build.
-          # Sharing go-core's key let it save first and shadow this lane with a
-          # cache holding no race objects (#9462), so the race lane keeps its own
-          # key. One key for all eight shards, not one each: the repository cache
-          # store is nearly full, and the shards share most compiled packages.
-          # "gobuildrace" does not match go-core's "gobuild-" restore prefix, so
-          # go-core never restores a race cache.
+          # Separate key from go-core's gobuild- (#9462); shared across shards.
           key: ${{ runner.os }}-${{ runner.arch }}-gobuildrace-${{ hashFiles('go/go.sum') }}
-          # The gobuild- entries (go-core's) are the fallback for a run that finds
-          # no gobuildrace- entry yet, so the first run after this key change
-          # starts from a populated cache instead of an empty one.
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuildrace-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
-      # cache: false: setup-go would store the build cache a second time
-      # (#9598). The pre-warm step downloads the modules.
+      # cache: false avoids duplicating GOCACHE in the 10 GB store (#9598).
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -428,6 +424,8 @@ jobs:
           LANE_RESULT: ${{ needs.go-race.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          RACE_CHANGED: ${{ needs.changes.outputs.go_race }}
+          LOCKSTEP_CHANGED: ${{ needs.changes.outputs.lockstep }}
           PLAN_RESULT: ${{ needs.pr-plan.result }}
           MODE: ${{ needs.pr-plan.outputs.mode }}
           HEAD_SHA: ${{ needs.pr-plan.outputs.head_sha }}

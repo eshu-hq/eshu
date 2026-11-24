@@ -281,6 +281,89 @@ else
 	note "PASS a nonexistent package path is refused"
 fi
 
+# Seeded RED/GREEN proofs for tagged-vet-cache and multi-package batching:
+# 1. A go vet analyzer diagnostic (not a compile error) in a tagged file still
+#    FAILS -- proves VetxOnly == false target packages are never skipped.
+vet_diag="$(init_module vet_diag \
+	"printf_bad_test.go@@tag_vet_diag@@import \"fmt\"
+func BadPrintf() { fmt.Printf(\"%d\", \"not-an-int\") }")"
+expect_fail "${vet_diag}" "a go vet printf diagnostic in a tagged file still fails" 'tags=tag_vet_diag'
+if ! rg -q 'Printf format %d has arg' "${tmp_root}/gate.err"; then
+	fail "expected go vet printf diagnostic on stderr"
+	sed -n '1,40p' "${tmp_root}/gate.err" >&2
+fi
+
+# 2. A dependency whose tagged file adds a printf wrapper invalidates the
+#    cached .vetx when switching tags -- proves transitive .vetx caching never
+#    causes false greens when a tag changes a dependency's exported facts.
+cross_dir="${tmp_root}/cross_vetx"
+mkdir -p "${cross_dir}/go/internal/dep" "${cross_dir}/go/internal/query"
+printf 'module example.invalid/tagged\n\ngo 1.22\n' >"${cross_dir}/go/go.mod"
+printf 'package dep\n\nfunc Plain() int { return 1 }\n' >"${cross_dir}/go/internal/dep/dep.go"
+printf '//go:build tag_printf\n\npackage dep\n\nimport "fmt"\n\nfunc Wrapf(format string, args ...any) { fmt.Printf(format, args...) }\n' \
+	>"${cross_dir}/go/internal/dep/dep_printf.go"
+printf 'package query\n\nimport "example.invalid/tagged/internal/dep"\n\nfunc Base() int { return dep.Plain() }\n' \
+	>"${cross_dir}/go/internal/query/plain.go"
+printf '//go:build tag_other\n\npackage query\n\nimport "example.invalid/tagged/internal/dep"\n\nfunc Other() int { return dep.Plain() }\n' \
+	>"${cross_dir}/go/internal/query/other_test.go"
+printf '//go:build tag_printf\n\npackage query\n\nimport "example.invalid/tagged/internal/dep"\n\nfunc BadWrap() { dep.Wrapf("%%d", "not-an-int") }\n' \
+	>"${cross_dir}/go/internal/query/printf_test.go"
+expect_fail "${cross_dir}" "a cross-package tagged printf-wrapper diagnostic invalidates .vetx cache" 'FAIL  ./internal/query  \[tag_printf\]  tags=tag_printf'
+if ! rg -q 'PASS  \./internal/query  \[tag_other\]  tags=tag_other' "${tmp_root}/gate.out"; then
+	fail "expected tag_other to pass before tag_printf failed"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+fi
+if ! rg -q 'Wrapf format %d has arg' "${tmp_root}/gate.err"; then
+	fail "expected cross-package Wrapf printf diagnostic on stderr"
+	sed -n '1,40p' "${tmp_root}/gate.err" >&2
+fi
+
+# 3. Multi-package batching with a shared tag: when one package passes and one
+#    fails, fallback reports PASS for the clean package, FAIL for the broken
+#    package, preserves exact counts, and exits non-zero.
+batch_dir="${tmp_root}/shared_batch"
+mkdir -p "${batch_dir}/go/internal/alpha" "${batch_dir}/go/internal/beta"
+printf 'module example.invalid/tagged\n\ngo 1.22\n' >"${batch_dir}/go/go.mod"
+printf 'package alpha\n\nfunc OK() int { return 1 }\n' >"${batch_dir}/go/internal/alpha/plain.go"
+printf '//go:build shared_tag\n\npackage alpha\n\nfunc UseOK() int { return OK() }\n' \
+	>"${batch_dir}/go/internal/alpha/tagged_test.go"
+printf 'package beta\n\nfunc OK() int { return 1 }\n' >"${batch_dir}/go/internal/beta/plain.go"
+printf '//go:build shared_tag\n\npackage beta\n\nfunc UseBroken() int { return MissingHelper() }\n' \
+	>"${batch_dir}/go/internal/beta/tagged_test.go"
+if TAGGED_BUILDS_REPO_ROOT="${batch_dir}" bash "${verifier}" ./internal/alpha ./internal/beta \
+	>"${tmp_root}/gate.out" 2>"${tmp_root}/gate.err"; then
+	fail "shared-tag batch with one broken package: expected non-zero exit"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+else
+	if ! rg -q '^PASS  \./internal/alpha  \[shared_tag\]  tags=shared_tag$' "${tmp_root}/gate.out" ||
+		! rg -q '^FAIL  \./internal/beta  \[shared_tag\]  tags=shared_tag$' "${tmp_root}/gate.out" ||
+		! rg -q 'vetted 2 build configuration\(s\), skipped 0, across 2 package path\(s\)' "${tmp_root}/gate.out"; then
+		fail "shared-tag batch fallback did not preserve exact per-package PASS/FAIL and counts"
+		sed -n '1,40p' "${tmp_root}/gate.out" >&2
+	else
+		note "PASS shared-tag multi-package batch fallback reports per-package PASS and FAIL"
+	fi
+fi
+
+# Clean multi-package batch with a shared tag passes in one batched go vet call.
+printf '//go:build shared_tag\n\npackage beta\n\nfunc UseFixed() int { return OK() }\n' \
+	>"${batch_dir}/go/internal/beta/tagged_test.go"
+if TAGGED_BUILDS_REPO_ROOT="${batch_dir}" bash "${verifier}" ./internal/alpha ./internal/beta \
+	>"${tmp_root}/gate.out" 2>"${tmp_root}/gate.err"; then
+	if ! rg -q '^PASS  \./internal/alpha  \[shared_tag\]  tags=shared_tag$' "${tmp_root}/gate.out" ||
+		! rg -q '^PASS  \./internal/beta  \[shared_tag\]  tags=shared_tag$' "${tmp_root}/gate.out" ||
+		! rg -q 'vetted 2 build configuration\(s\), skipped 0, across 2 package path\(s\)' "${tmp_root}/gate.out"; then
+		fail "clean shared-tag batch did not preserve exact PASS lines and counts"
+		sed -n '1,40p' "${tmp_root}/gate.out" >&2
+	else
+		note "PASS clean shared-tag multi-package batch passes both packages"
+	fi
+else
+	fail "clean shared-tag multi-package batch: expected exit 0"
+	sed -n '1,40p' "${tmp_root}/gate.out" >&2
+	sed -n '1,40p' "${tmp_root}/gate.err" >&2
+fi
+
 if [[ ${failures} -ne 0 ]]; then
 	printf 'test-verify-tagged-builds: %d assertion(s) failed\n' "${failures}" >&2
 	exit 1

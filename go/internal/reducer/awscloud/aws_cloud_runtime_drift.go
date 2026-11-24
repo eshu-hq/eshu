@@ -239,7 +239,8 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	if hasFresh {
 		inputVersion = freshSnapshot.Fingerprint
 	}
-	rows, err := h.loadDriftEvidenceShared(ctx, intent, inputVersion)
+	bypassCache := !readinessSignal.gateDisabled && readinessSignal.pending
+	rows, err := h.loadDriftEvidenceShared(ctx, intent, inputVersion, bypassCache, plan)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load aws cloud runtime drift evidence: %w", err)
 	}
@@ -275,6 +276,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	// zero decision, a clear failure means the condition resolved, and a
 	// settle-record failure decided abandoned — none of them deferred.
 	if decision.Defer {
+		h.invalidateDriftEvidenceCache(intent, inputVersion)
 		h.logStatePendingDefer(ctx, intent, admitted, decision.Elapsed)
 		return reducercontract.Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
 	}
@@ -292,6 +294,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 		EvaluatedARNs: evaluatedARNs,
 	})
 	if err != nil {
+		h.invalidateDriftEvidenceCache(intent, inputVersion)
 		if isAWSCloudRuntimeDriftWriteSuperseded(err) {
 			h.logWriteSuperseded(ctx, intent)
 		}

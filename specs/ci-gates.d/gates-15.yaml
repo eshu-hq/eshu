@@ -506,6 +506,7 @@ gates:
       - "specs/ci-docs-lockstep-paths.txt"
       - ".github/leaf-code-filter.yml"
       - ".github/leaf-lockstep-filter.yml"
+      - ".github/leaf-go-race-filter.yml"
       - "scripts/test-verify-ci-gates-registry.sh"
       - "scripts/verify-live-required-status-checks.sh"
       - "scripts/test-verify-live-required-status-checks.sh"

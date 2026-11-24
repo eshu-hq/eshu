@@ -337,6 +337,7 @@ func TestProjectorAckJournalCostCacheImbalance(t *testing.T) {
 	for s := range imbWarm + 2*imbScopes {
 		ajSeedScope(t, reader, fmt.Sprintf("m%03d", s))
 	}
+	ajPinPlannerState(t, reader)
 	rels := ajFixtureRelations(t, reader)
 	var evictedTotal int64
 	flush := func() {
@@ -357,8 +358,7 @@ func TestProjectorAckJournalCostCacheImbalance(t *testing.T) {
 		if pss {
 			ajExec(t, reader, `SELECT pg_stat_statements_reset()`)
 		}
-		flush()
-		c0 := ajBackendCounters(t, reader, pid)
+		c0 := ajBackendCountersSettled(t, reader, pid, flush)
 		for i := range scopes {
 			if evict {
 				evictedTotal += ajEvictFixture(t, reader, rels)
@@ -368,8 +368,7 @@ func TestProjectorAckJournalCostCacheImbalance(t *testing.T) {
 				t.Fatalf("Ack %s (journal %v): %v", label, journal, err)
 			}
 		}
-		flush()
-		c1 := ajBackendCounters(t, reader, pid)
+		c1 := ajBackendCountersSettled(t, reader, pid, flush)
 		n := float64(scopes)
 		sample := ajCostSample{
 			client:           float64(len(recorder.statements())) / n,

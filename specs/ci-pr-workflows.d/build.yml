@@ -16,6 +16,8 @@ workflows:
   - mkdocs.yml
   - .github/**/*.md
   - .agents/**
+  - '*.py'
+  - '**/*.py'
   jobs:
   - build
   - release

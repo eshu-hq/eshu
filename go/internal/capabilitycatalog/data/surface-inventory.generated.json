@@ -2575,6 +2575,11 @@
     },
     {
       "category": "command",
+      "name": "tagged-vet-cache",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "token-diff",
       "readiness": "implemented"
     },
