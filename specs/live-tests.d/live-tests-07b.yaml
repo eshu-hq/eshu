@@ -115,3 +115,8 @@ tests:
     class: dedicated_ci
     reason: "#10972 D2: the fenced fan-out state update stores the full-pass marker, a nil marker leaves it, a reopen and the ack keep it, and a lost lease stores nothing; reducer-contention selects TestUpdateFanOutStateStoresTheFullPassMarkerUnderTheLeaseLive through the TestUpdateFanOutState alternative of the supply-chain filter"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_out_of_stamp_linked_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D2 rekey exception: the shipped linked out-of-stamp probe over real supports rows (advisory arm, members arm, a no-CVE row, an unlinked row, a linked row inside the stamp); reducer-contention selects TestSupplyChainImpactSupportsLinkedOutOfStampProbeArmsLive through the TestSupplyChainImpact(...Supports...)[A-Za-z]*Live alternative of the supply-chain filter"
+    runner: reducer-contention

@@ -26,7 +26,10 @@ pass would leave its old key behind. CI caught this on the first D2 head:
 The linked probe (`hasLinkedOutOfStampActiveSupplyChainImpactRowsQuery`) runs
 on the same `(scope_id, generation_id)` access path as the out-of-stamp probe,
 with the advisory and group-member arms the holder read already uses as
-residual filters, and LIMIT 1.
+residual filters, and LIMIT 1. LIMIT 1 stops only at a match: a probe that
+finds none, the common case, reads every support row of the holder's
+generation through that index. The coordinator's QA EXPLAIN decides whether
+the members arm needs its own LIMIT 1 EXISTS.
 
 A complete full pass resets the marker, and a scoped pass adds one to its
 count. A partial full pass leaves the marker alone because it retracted

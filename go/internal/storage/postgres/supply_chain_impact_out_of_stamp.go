@@ -78,7 +78,10 @@ func (s FactStore) HasOutOfStampActiveSupplyChainImpactRows(
 // #10408), so its old key must be reaped by a full pass even under a fresh
 // full-pass marker. It reads the same (scope_id, generation_id) index as the
 // out-of-stamp probe, with the advisory and group-member arms the holder read
-// already uses as residual filters, and LIMIT 1. A support with no CVE id
+// already uses as residual filters, and LIMIT 1. LIMIT 1 stops at the first
+// match only: a probe that finds none reads every support row of the holder's
+// generation through that index, the common case for a fresh-marker rerun.
+// A support with no CVE id
 // counts here: a GHSA-only row is exactly what a late alias re-keys. No new
 // index.
 const hasLinkedOutOfStampActiveSupplyChainImpactRowsQuery = `
