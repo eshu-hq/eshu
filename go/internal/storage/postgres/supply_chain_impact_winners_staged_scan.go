@@ -78,7 +78,7 @@ const stagedWinnersNarrowColumns = `fact_id, canonical_key, finding_id, priority
 // stagedWinnersSourceBatchSQL fetches the narrow candidate rows of one
 // source pair: the shipped candidate select list minus the wide
 // scope/payload columns, with the shipped eligibility predicates verbatim.
-var stagedWinnersSourceBatchSQL = stagedWinnersBatchActiveFactsSQL + `,
+var stagedWinnersSourceBatchSQL = stagedWinnersBatchActiveFactsFromSupportsSQL + `,
 source_candidates AS (
     SELECT
         fact.fact_id,
@@ -96,7 +96,7 @@ ORDER BY fact_id ASC`
 // stagedWinnersOperatorBatchSQL fetches the narrow candidate rows of one
 // operator-suppressions pair on the same struct, with finding_id empty: an
 // operator payload carries suppression decisions, not source findings.
-var stagedWinnersOperatorBatchSQL = stagedWinnersBatchActiveFactsSQL + `,
+var stagedWinnersOperatorBatchSQL = stagedWinnersBatchActiveFactsFromSupportsSQL + `,
 operator_candidates AS (
     SELECT
         fact.fact_id,

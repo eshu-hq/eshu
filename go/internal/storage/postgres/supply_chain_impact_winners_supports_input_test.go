@@ -50,28 +50,50 @@ func TestWinnersMaintainerStatementsReadNoFactRecords(t *testing.T) {
 	}
 }
 
-// TestWinnersAuditStaysOnFacts proves the audit and the staged audit scan keep
-// reading the finding facts in C1: they are the oracle the supports-derived
-// winners are compared with, so moving them would compare supports with supports.
-func TestWinnersAuditStaysOnFacts(t *testing.T) {
+// TestWinnersAuditReadsSupports proves the audit and the staged audit scan read the
+// supports table (#10880 PR-C2 l): the write stop freezes the finding facts, so an audit
+// still on them would compare today's winners with a stale oracle. After this change the
+// audit compares the winners with the supports only; the D3a sweep before the stop is the
+// last independent oracle. The legacy constants stay as the base the swaps derive from.
+func TestWinnersAuditReadsSupports(t *testing.T) {
 	t.Parallel()
 
 	for name, stmt := range map[string]string{
 		"audit candidates":           selectWinnersAuditCandidatesSQL,
-		"legacy keyed active":        buildWinnersKeyedActiveFactsSQL,
-		"legacy keyed operator":      addWinnersKeyedOperatorFactsSQL,
-		"legacy winner select":       supplyChainImpactWinnerSelectSQL,
-		"scope expansion":            winnersScopeExpansionSelect(winnersStagingTable),
+		"audit pending":              createWinnersAuditPendingSQL,
+		"audit range pending":        createWinnersAuditRangePendingSQL,
+		"audit range stale pending":  createWinnersAuditRangeStalePendingSQL,
+		"keyed active":               buildWinnersKeyedActiveFactsFromSupportsSQL,
+		"keyed operator":             addWinnersKeyedOperatorFactsFromSupportsSQL,
+		"scope expansion":            winnersScopeExpansionSelectFromSupports(winnersStagingTable),
+		"audit first range":          selectWinnersAuditFirstRangeFromSupportsSQL,
+		"audit next range":           selectWinnersAuditNextRangeFromSupportsSQL,
+		"audit null probe":           probeWinnersAuditNullKeysFromSupportsSQL,
 		"staged audit scan source":   stagedWinnersSourceBatchSQL,
-		"staged audit scan active":   stagedWinnersBatchActiveFactsSQL,
+		"staged audit scan active":   stagedWinnersBatchActiveFactsFromSupportsSQL,
 		"staged audit scan operator": stagedWinnersOperatorBatchSQL,
-		"staged audit ident fetch":   stagedWinnerFactIdentSQL,
+		"staged audit ident fetch":   stagedWinnerFactIdentFromSupportsSQL,
+	} {
+		if strings.Contains(stmt, "fact_records") {
+			t.Errorf("%s statement still names fact_records: the audit must read the supports table", name)
+		}
+		if strings.Contains(stmt, "'reducer_supply_chain_impact_finding'") {
+			t.Errorf("%s statement still filters on the finding fact kind: a support is implicitly a live finding", name)
+		}
+		if !strings.Contains(stmt, "supply_chain_impact_finding_supports") {
+			t.Errorf("%s statement does not read the supports table", name)
+		}
+	}
+	// The legacy constants are the base the swaps derive from and stay on facts.
+	for name, stmt := range map[string]string{
+		"legacy keyed active":   buildWinnersKeyedActiveFactsSQL,
+		"legacy winner select":  supplyChainImpactWinnerSelectSQL,
+		"legacy staged active":  stagedWinnersBatchActiveFactsSQL,
+		"legacy audit range":    selectWinnersAuditFirstRangeSQL,
+		"legacy audit nullprob": probeWinnersAuditNullKeysSQL,
 	} {
 		if !strings.Contains(stmt, "fact_records") {
-			t.Errorf("%s statement no longer reads fact_records: the audit must stay on facts in C1", name)
-		}
-		if strings.Contains(stmt, "supply_chain_impact_finding_supports") {
-			t.Errorf("%s statement reads the supports table: the audit must stay on facts in C1", name)
+			t.Errorf("%s no longer reads fact_records: the derivation base moved", name)
 		}
 	}
 }

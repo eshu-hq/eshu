@@ -87,7 +87,7 @@ func fetchWinnerFactIdent(ctx context.Context, reader db.Queryer, factID string)
 	if reader == nil {
 		return none, false, fmt.Errorf("staged winners ident database is required")
 	}
-	rows, err := reader.QueryContext(ctx, stagedWinnerFactIdentSQL, factID)
+	rows, err := reader.QueryContext(ctx, stagedWinnerFactIdentFromSupportsSQL, factID)
 	if err != nil {
 		return none, false, fmt.Errorf("read staged winners ident fact: %w", err)
 	}
@@ -175,7 +175,7 @@ func (s SupplyChainImpactWinnersStore) VerifyStagedCandidates(
 	}
 	for _, stmt := range []string{
 		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL,
+		buildWinnersKeyedActiveFactsFromSupportsSQL, addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditPendingSQL,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {

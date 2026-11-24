@@ -87,12 +87,14 @@ func TestStagedBatchDerivesFromShippedWinnerSelect(t *testing.T) {
 				t.Fatalf("batch must pin its pair with parameters, missing %q:\n%s", param, query)
 			}
 		}
-		for _, want := range []string{
-			"fact_kind = 'reducer_supply_chain_impact_finding'",
-			"fact.is_tombstone = FALSE",
-		} {
-			if !strings.Contains(query, want) {
-				t.Fatalf("batch lost the active-scan index predicate %q:\n%s", want, query)
+		// The batch reads the supports table (#10880 PR-C2 l): a support is implicitly a live
+		// finding, so the fact-kind and tombstone predicates the fact index needed are gone.
+		if !strings.Contains(query, "FROM supply_chain_impact_finding_supports AS fact") {
+			t.Fatalf("batch does not read the supports table:\n%s", query)
+		}
+		for _, banned := range []string{"fact_kind", "is_tombstone", "fact_records"} {
+			if strings.Contains(query, banned) {
+				t.Fatalf("batch still carries %q after the move to supports:\n%s", banned, query)
 			}
 		}
 	}

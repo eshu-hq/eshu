@@ -106,7 +106,7 @@ JOIN (
 // candidates a keyed tick will recompute anyway.
 var createWinnersAuditRangePendingSQL = `
 CREATE TEMP TABLE winners_audit_range_pending ON COMMIT DROP AS
-` + winnersAuditRestrictedPendingSelect(winnersKeyedIdentsTable)
+` + winnersAuditRestrictedPendingSelectFromSupports(winnersKeyedIdentsTable)
 
 // dropWinnersAuditRangePendingIdentsSQL removes those candidates from the
 // identifier table the verify probes, so the lock is taken only when a
@@ -125,7 +125,7 @@ const countWinnersAuditRangeRemainingSQL = `SELECT count(*) FROM ` + winnersKeye
 // table carries the name queueWinnersAuditRepairsSQL reads.
 var createWinnersAuditRangeStalePendingSQL = `
 CREATE TEMP TABLE winners_audit_pending ON COMMIT DROP AS
-` + winnersAuditRestrictedPendingSelect(winnersAuditStaleTable)
+` + winnersAuditRestrictedPendingSelectFromSupports(winnersAuditStaleTable)
 
 // setWinnersAuditRangeLockTimeoutSQL scopes the waiting claim's bound to the
 // range transaction.
@@ -397,7 +397,7 @@ func (s SupplyChainImpactWinnersStore) verifyWinnersAuditRangeCandidates(
 	for _, stmt := range []string{
 		analyzeWinnersKeyedIdentsSQL,
 		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL,
+		buildWinnersKeyedActiveFactsFromSupportsSQL, addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditRangeStalePendingSQL,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {

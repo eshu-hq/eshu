@@ -310,7 +310,7 @@ type WinnersAuditRange struct {
 // after lo (from the start when lo is nil), trimmed to whole identifiers. It
 // takes no lock and writes nothing.
 func ReadWinnersAuditRange(ctx context.Context, reader db.Queryer, lo *WinnersAuditRangeIdent, budget int) (WinnersAuditRange, error) {
-	return readWinnersAuditRange(ctx, reader, lo, budget, selectWinnersAuditFirstRangeSQL, selectWinnersAuditNextRangeSQL)
+	return readWinnersAuditRange(ctx, reader, lo, budget, selectWinnersAuditFirstRangeFromSupportsSQL, selectWinnersAuditNextRangeFromSupportsSQL)
 }
 
 // readWinnersAuditRange runs the range statement pair first/next; tests pass
@@ -389,7 +389,7 @@ func ProbeWinnersAuditNullKeys(ctx context.Context, reader db.Queryer) (WinnersA
 	if reader == nil {
 		return none, fmt.Errorf("winners audit null probe database is required")
 	}
-	rows, err := reader.QueryContext(ctx, probeWinnersAuditNullKeysSQL)
+	rows, err := reader.QueryContext(ctx, probeWinnersAuditNullKeysFromSupportsSQL)
 	if err != nil {
 		return none, fmt.Errorf("probe winners audit null keys: %w", err)
 	}
