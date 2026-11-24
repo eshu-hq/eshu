@@ -51,5 +51,5 @@ cd go && go test ./internal/storage/postgres/coordination -count=1
 cd go && go test ./internal/storage/postgres -run 'TestBootstrap' -count=1
 # live, against an EMPTY disposable database; the pre-existing recovery test
 # in the same package leaves its own table behind and fails on a reused one:
-cd go && ESHU_POSTGRES_RECOVERY_TEST_DSN=... go test -tags integration ./internal/storage/postgres -run 'TestBootstrapWaitsForOwnership|TestBootstrapRetriesStatementLockTimeout' -count=1 -p 1
+cd go && ESHU_POSTGRES_RECOVERY_TEST_DSN=... go test -tags integration ./internal/storage/postgres -run 'TestBootstrapWaitsForOwnership|TestBootstrapTwoHolderProductionShapeRecovery|TestBootstrapConcurrentIndexBuildWaitsOutLockHolder' -count=1 -p 1
 ```
