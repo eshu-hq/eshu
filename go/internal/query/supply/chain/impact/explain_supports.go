@@ -185,11 +185,12 @@ const (
 	explainKeyPackage    explainDrivingKey = "package"
 )
 
-// ExplainFindingUngrantedByKeyQuery is the ungranted selector or identity explain driven from
-// key and decided before any winner is computed (see explain_decide_first.go): the key's own
-// partial btree feeds a narrow MATERIALIZED fetch, canonical keys qualify through an EXISTS over
-// their authorized copies, and the winner and its payload are computed only for the (at most two)
-// qualified keys. A key without an entry has no index to drive from.
+// ExplainFindingUngrantedByKeyQuery is the ungranted selector or identity explain, one
+// statement per driving key (explain_decide_first.go): it streams the narrow support tuples
+// of the key's own partial btree and decides none, one or ambiguous before it computes any
+// winner. Two canonical keys return the two hit rows and nothing else; one key ranks its copies
+// and runs the winner CTEs over the best authorized copy. A key without an entry has no index to
+// drive from and keeps the legacy read.
 var ExplainFindingUngrantedByKeyQuery = func() map[explainDrivingKey]string {
 	queries := make(map[explainDrivingKey]string, len(explainKeyLegs))
 	for key := range explainKeyLegs {
@@ -262,14 +263,16 @@ type explainRoute struct {
 //   - an ungranted selector lookup with an image reference reads supports through
 //     the image partial index, filter then pick;
 //   - an ungranted selector lookup without one drives from its own key: the first of
-//     CVE, advisory-or-CVE, repository and package it names reads the supports that
-//     match through that key's partial index into a MATERIALIZED fetch, and every
-//     other selector, the identity filter and the active-scope check apply to those
-//     candidates (the winners table cannot name its candidates: a mixed cve_id key, a
-//     second key that matches only on a lower copy, and a replaced winning support each
-//     give a wrong answer). A call with none of them (a subject digest alone, or an
-//     identity lookup by fact id, finding id or canonical key) has no supports index to
-//     drive from and keeps the legacy read.
+//     CVE, advisory-or-CVE, repository and package it names streams the narrow support
+//     tuples matching that key and decides none, one or ambiguous before any winner is
+//     computed (explain_decide_first.go); every other selector, the identity filter and the
+//     per-candidate authority probe apply to those candidates (the winners table cannot
+//     name its candidates: a mixed cve_id key, a second key that matches only on a lower
+//     copy, and a replaced winning support each give a wrong answer). A call with none of
+//     them (a subject digest alone, or an identity lookup by fact id, finding id or
+//     canonical key that names no CVE, advisory, repository or package) has no supports
+//     index to drive from and keeps the legacy read. With the gate on, such a bare
+//     public-id miss or a finding id with a subject digest still counts the legacy route.
 func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) explainRoute {
 	legacy := explainRoute{
 		publicID: ExplainFindingByPublicIDQuery, selector: ExplainFindingQuery,

@@ -131,7 +131,7 @@ func TestRenderUngrantedExplainShapes(t *testing.T) {
 		t.Fatalf("create %s: %v", dir, err)
 	}
 	var index strings.Builder
-	index.WriteString("# Ungranted explain shapes (supports read)\n\nRendered from the C1 head. Run each with psql -f on a read-only replica; override values with -v name=value (cve, advisory, package, repository, digest, fact_id, finding_id, canonical_key). Every file prepares the statement as the code defines it and runs EXPLAIN (ANALYZE, BUFFERS) EXECUTE under a 20 s statement_timeout; the .generic.sql variant sets plan_cache_mode = force_generic_plan first. The pass condition is no Seq Scan on supply_chain_impact_finding_supports in any plan.\n\n")
+	index.WriteString("# Ungranted explain shapes (supports read)\n\nRendered from the decide-first head. Run each with psql -f on a read-only replica; override values with -v name=value (cve, advisory, package, repository, digest, fact_id, finding_id, canonical_key). Every file prepares the statement as the code defines it and runs EXPLAIN (ANALYZE, BUFFERS) EXECUTE under a 20 s statement_timeout; the .generic.sql variant sets plan_cache_mode = force_generic_plan first. The pass condition is the plan shape of explain_key_first_test.go: the driving supports node is an index or bitmap scan with the route's own key as its Index Cond, no supports node carries that key only as a Filter, and nothing probes supports from the active scopes (no Seq Scan is necessary, not sufficient).\n\n")
 	for _, shape := range explainShapes() {
 		for _, generic := range []bool{false, true} {
 			name := shape.name + ".plain.sql"

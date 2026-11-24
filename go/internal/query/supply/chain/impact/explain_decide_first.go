@@ -113,6 +113,11 @@ var explainKeyLegs = map[explainDrivingKey][]string{
 	explainKeyPackage:    {"fact.package_id = $5 AND fact.package_id <> ''"},
 }
 
+// best_copy takes the first authorized row of ranked_copies and carries no ORDER BY of its
+// own: it relies on the lateral nested loop reading its outer rows in the order the
+// MATERIALIZED ranked_copies CTE stored them (a LATERAL subquery with a LIMIT cannot be
+// reordered, and a CTE scan returns its tuplestore in order). The live differential pins the
+// dependency: the "ranked copies in reverse" and tie-break seeded violations change the answer.
 // buildExplainDecideFirstQuery composes the decide-first ungranted explain for one driving key.
 func buildExplainDecideFirstQuery(key explainDrivingKey) (string, error) {
 	arms, ok := explainKeyLegs[key]

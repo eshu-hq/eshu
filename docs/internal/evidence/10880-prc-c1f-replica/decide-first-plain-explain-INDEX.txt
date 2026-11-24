@@ -1,0 +1,288 @@
+Plain EXPLAIN (no ANALYZE), replica recovery=t
+
+## cve plain  (psql wall 95 ms)  seq_scan_on_supports=no
+top: Limit  (cost=52439.46..52439.47 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  [cost 0.69..51356.33 rows 45261]
+        Index Cond: (cve_id = 'CVE-2026-67320'::text)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 18).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## cve generic  (psql wall 93 ms)  seq_scan_on_supports=no
+top: Limit  (cost=29916.10..29916.11 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  [cost 0.69..18188.60 rows 1]
+        Index Cond: (cve_id = $4)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## advisory plain  (psql wall 84 ms)  seq_scan_on_supports=no
+top: Limit  (cost=17057.32..17057.33 rows=2 width=117)
+  Bitmap Heap Scan on supply_chain_impact_finding_supports fact  [cost 214.04..8571.70 rows 169]
+        Recheck Cond: (((advisory_id = 'GHSA-jp2q-39xq-3w4g'::text) AND (advisory_id = 'GHSA-jp2q-39xq-3w4g'::text)) OR (cve_id = 'GHSA-jp2q-39xq-3w4g'::text))
+        Filter: ((advisory_id <> ''::text) AND (scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (advisory_id = 'GHSA-jp2q-39xq-3w4g'::text))
+  Bitmap Index Scan on supply_chain_impact_finding_supports_advisory_idx  [cost 0.00..5.42 rows 143]
+        Index Cond: ((advisory_id = 'GHSA-jp2q-39xq-3w4g'::text) AND (advisory_id = 'GHSA-jp2q-39xq-3w4g'::text))
+  Bitmap Index Scan on supply_chain_impact_finding_supports_cve_idx  [cost 0.00..208.54 rows 7327]
+        Index Cond: (cve_id = 'GHSA-jp2q-39xq-3w4g'::text)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact_1  [cost 0.69..8415.41 rows 30]
+        Index Cond: (cve_id = 'GHSA-jp2q-39xq-3w4g'::text)
+        Filter: ((advisory_id <> 'GHSA-jp2q-39xq-3w4g'::text) AND (scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 18).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## advisory generic  (psql wall 94 ms)  seq_scan_on_supports=no
+top: Limit  (cost=47293.02..47293.03 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports fact  [cost 0.69..17343.95 rows 1]
+        Index Cond: (advisory_id = $3)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact_1  [cost 0.69..18220.79 rows 1]
+        Index Cond: (cve_id = $3)
+        Filter: ((advisory_id <> $3) AND (scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 15).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 17).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_2  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 20).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 22).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 35).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## package plain  (psql wall 80 ms)  seq_scan_on_supports=no
+top: Limit  (cost=1883129.27..1883129.27 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_package_idx on supply_chain_impact_finding_supports fact  [cost 0.69..1832776.37 rows 2234927]
+        Index Cond: (package_id = 'npm://registry.npmjs.org/axios'::text)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 18).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## package generic  (psql wall 94 ms)  seq_scan_on_supports=no
+top: Limit  (cost=78546.17..78546.18 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_package_idx on supply_chain_impact_finding_supports fact  [cost 0.69..66818.67 rows 1]
+        Index Cond: (package_id = $5)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## repository plain  (psql wall 82 ms)  seq_scan_on_supports=no
+top: Limit  (cost=131146.12..131146.13 rows=2 width=117)
+  Bitmap Heap Scan on supply_chain_impact_finding_supports fact  [cost 1148.58..128430.22 rows 117798]
+        Recheck Cond: (repository_id = 'repository:r_e3c0ae60'::text)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text))
+  Bitmap Index Scan on supply_chain_impact_finding_supports_repository_idx  [cost 0.00..1119.13 rows 117920]
+        Index Cond: (repository_id = 'repository:r_e3c0ae60'::text)
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 18).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## repository generic  (psql wall 93 ms)  seq_scan_on_supports=no
+top: Limit  (cost=43459.98..43459.99 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports fact  [cost 0.43..31732.48 rows 1]
+        Index Cond: (repository_id = $6)
+        Filter: ((repository_id <> ''::text) AND (scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## cve_package plain  (psql wall 80 ms)  seq_scan_on_supports=no
+top: Limit  (cost=51728.66..51728.66 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  [cost 0.69..51469.57 rows 8637]
+        Index Cond: (cve_id = 'CVE-2026-67320'::text)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (package_id = 'npm://registry.npmjs.org/axios'::text))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 18).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## cve_package generic  (psql wall 94 ms)  seq_scan_on_supports=no
+top: Limit  (cost=29916.10..29916.11 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  [cost 0.69..18188.60 rows 1]
+        Index Cond: (cve_id = $4)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## identity_fact_id plain  (psql wall 83 ms)  seq_scan_on_supports=no
+top: Limit  (cost=14617.70..14617.71 rows=2 width=117)
+  Bitmap Heap Scan on supply_chain_impact_finding_supports fact  [cost 13000.49..14496.21 rows 1334]
+        Recheck Cond: ((cve_id = 'CVE-2026-33349'::text) AND (package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text))
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text))
+  Bitmap Index Scan on supply_chain_impact_finding_supports_cve_idx  [cost 0.00..1161.78 rows 40999]
+        Index Cond: (cve_id = 'CVE-2026-33349'::text)
+  Bitmap Index Scan on supply_chain_impact_finding_supports_package_idx  [cost 0.00..11837.80 rows 381482]
+        Index Cond: (package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text)
+  Index Scan using supply_chain_impact_finding_supports_package_idx on supply_chain_impact_finding_supports fact_1  [cost 0.69..2.91 rows 1]
+        Index Cond: ((package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text) AND (fact_id = 'reducer_supply_chain_impact_finding:f83a4e0da950bf884d0562f4e61cb62f1c89a7eb9113a0fbdd2acbd536a27f08'::text))
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (cve_id = 'CVE-2026-33349'::text))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 21).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## identity_fact_id generic  (psql wall 96 ms)  seq_scan_on_supports=no
+top: Limit  (cost=29916.10..29916.11 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  [cost 0.69..18188.60 rows 1]
+        Index Cond: (cve_id = $4)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## identity_finding_id plain  (psql wall 81 ms)  seq_scan_on_supports=no
+top: Limit  (cost=14618.80..14618.81 rows=2 width=117)
+  Bitmap Heap Scan on supply_chain_impact_finding_supports fact  [cost 13001.59..14497.31 rows 1334]
+        Recheck Cond: ((cve_id = 'CVE-2026-33349'::text) AND (package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text))
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text))
+  Bitmap Index Scan on supply_chain_impact_finding_supports_cve_idx  [cost 0.00..1161.78 rows 40999]
+        Index Cond: (cve_id = 'CVE-2026-33349'::text)
+  Bitmap Index Scan on supply_chain_impact_finding_supports_package_idx  [cost 0.00..11838.90 rows 381482]
+        Index Cond: (package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text)
+  Index Scan using supply_chain_impact_finding_supports_package_idx on supply_chain_impact_finding_supports fact_1  [cost 0.69..2.91 rows 1]
+        Index Cond: ((package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text) AND (fact_id = 'reducer_supply_chain_impact_finding:b3987a8b66222744a9d3176bf9ae56cc37789f26086c22514b5125be9e9ee0dd'::text))
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (cve_id = 'CVE-2026-33349'::text))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 21).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## identity_finding_id generic  (psql wall 95 ms)  seq_scan_on_supports=no
+top: Limit  (cost=29916.10..29916.11 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  [cost 0.69..18188.60 rows 1]
+        Index Cond: (cve_id = $4)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## identity_canonical_key plain  (psql wall 82 ms)  seq_scan_on_supports=no
+top: Limit  (cost=14618.80..14618.81 rows=2 width=117)
+  Bitmap Heap Scan on supply_chain_impact_finding_supports fact  [cost 13001.59..14497.31 rows 1334]
+        Recheck Cond: ((cve_id = 'CVE-2026-33349'::text) AND (package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text))
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text))
+  Bitmap Index Scan on supply_chain_impact_finding_supports_cve_idx  [cost 0.00..1161.78 rows 40999]
+        Index Cond: (cve_id = 'CVE-2026-33349'::text)
+  Bitmap Index Scan on supply_chain_impact_finding_supports_package_idx  [cost 0.00..11838.90 rows 381482]
+        Index Cond: (package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text)
+  Index Scan using supply_chain_impact_finding_supports_package_idx on supply_chain_impact_finding_supports fact_1  [cost 0.69..2.91 rows 1]
+        Index Cond: ((package_id = 'npm://registry.npmjs.org/fast-xml-parser'::text) AND (fact_id = 'CVE-2026-33349|GHSA-jp2q-39xq-3w4g|npm://registry.npmjs.org/fast-xml-parser|pkg:npm/fast-xml-parser|||3.19.0|3.19.0|possibly_affected|repository:r_e3c0ae60|'::text))
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (cve_id = 'CVE-2026-33349'::text))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 21).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## identity_canonical_key generic  (psql wall 91 ms)  seq_scan_on_supports=no
+top: Limit  (cost=29916.10..29916.11 rows=2 width=117)
+  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  [cost 0.69..18188.60 rows 1]
+        Index Cond: (cve_id = $4)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  [cost 0.69..3.18 rows 1]
+        Index Cond: (fact_id = $2)
+        Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = best_copy.fact_id)
+  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  [cost 0.12..2.35 rows 1]
+        Index Cond: (canonical_key = source_candidates.canonical_key)
+        Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  [cost 0.69..2.90 rows 1]
+        Index Cond: (fact_id = hit_1.fact_id)
+
+## catalog readings (replica)
+shared_buffers = 4GB
+effective_cache_size = 18GB
+work_mem = 64MB
+random_page_cost = 1.1
+effective_io_concurrency = 16
+supports table (relname|kind|size|reltuples|relpages|last_analyze|last_autoanalyze|n_live_tup; stats columns are the REPLICA's own, not the primary's): supply_chain_impact_finding_supports | r | 23 GB | 11713865 | 2983968 |  |  | 0
+index: supply_chain_impact_finding_supports_advisory_idx | 1825 MB | 11713865 | 229350 | t | t | CREATE INDEX supply_chain_impact_finding_supports_advisory_idx ON public.supply_chain_impact_finding_supports USING btree (advisory_id, fact_id) WHERE (advisory
+index: supply_chain_impact_finding_supports_cve_idx | 1731 MB | 11713865 | 219694 | t | t | CREATE INDEX supply_chain_impact_finding_supports_cve_idx ON public.supply_chain_impact_finding_supports USING btree (cve_id, fact_id) WHERE (cve_id <> ''::text
+index: supply_chain_impact_finding_supports_finding_idx | 154 MB | 11713865 | 19649 | t | t | CREATE INDEX supply_chain_impact_finding_supports_finding_idx ON public.supply_chain_impact_finding_supports USING btree (finding_id)
+index: supply_chain_impact_finding_supports_generation_idx | 194 MB | 11713865 | 23787 | t | t | CREATE INDEX supply_chain_impact_finding_supports_generation_idx ON public.supply_chain_impact_finding_supports USING btree (generation_id)
+index: supply_chain_impact_finding_supports_image_ref_idx | 8192 bytes | 0 | 1 | t | t | CREATE INDEX supply_chain_impact_finding_supports_image_ref_idx ON public.supply_chain_impact_finding_supports USING btree (image_ref) WHERE (image_ref <> ''::t
+index: supply_chain_impact_finding_supports_members_idx | 46 MB | 11713865 | 5331 | t | t | CREATE INDEX supply_chain_impact_finding_supports_members_idx ON public.supply_chain_impact_finding_supports USING gin (((payload #> '{provenance,advisory_group
+index: supply_chain_impact_finding_supports_operator_idx | 8192 bytes | 0 | 1 | t | t | CREATE INDEX supply_chain_impact_finding_supports_operator_idx ON public.supply_chain_impact_finding_supports USING btree (canonical_key) WHERE (scope_id = 'ope
+index: supply_chain_impact_finding_supports_package_idx | 1958 MB | 11713865 | 250055 | t | t | CREATE INDEX supply_chain_impact_finding_supports_package_idx ON public.supply_chain_impact_finding_supports USING btree (package_id, fact_id) WHERE (package_id
+index: supply_chain_impact_finding_supports_pkey | 2167 MB | 11713865 | 277066 | t | t | CREATE UNIQUE INDEX supply_chain_impact_finding_supports_pkey ON public.supply_chain_impact_finding_supports USING btree (fact_id)
+index: supply_chain_impact_finding_supports_precise_key_ordered_idx | 4242 MB | 10372237 | 536111 | t | t | CREATE INDEX supply_chain_impact_finding_supports_precise_key_ordered_idx ON public.supply_chain_impact_finding_supports USING btree (canonical_key, priority_sc
+index: supply_chain_impact_finding_supports_repository_fact_idx | 1805 MB | 11711523 | 230753 | t | t | CREATE INDEX supply_chain_impact_finding_supports_repository_fact_idx ON public.supply_chain_impact_finding_supports USING btree (repository_id, fact_id) WHERE
+index: supply_chain_impact_finding_supports_repository_idx | 165 MB | 11713865 | 20917 | t | t | CREATE INDEX supply_chain_impact_finding_supports_repository_idx ON public.supply_chain_impact_finding_supports USING btree (repository_id)
+index: supply_chain_impact_finding_supports_scope_generation_idx | 1067 MB | 11713865 | 131605 | t | t | CREATE INDEX supply_chain_impact_finding_supports_scope_generation_idx ON public.supply_chain_impact_finding_supports USING btree (scope_id, generation_id)
+index: supply_chain_impact_finding_supports_tokens_idx | 45 MB | 11713865 | 5072 | t | t | CREATE INDEX supply_chain_impact_finding_supports_tokens_idx ON public.supply_chain_impact_finding_supports USING gin (eshu_sci_foreign_member_tokens_v4(fact_id

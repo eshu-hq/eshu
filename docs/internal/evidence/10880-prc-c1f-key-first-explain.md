@@ -7,8 +7,8 @@ The ungranted explain by selector used to read the whole supports table through 
 as an optional predicate (`$4 = '' OR cve_id = $4`). On the QA replica the planner drove that join from the scopes and read every supports row through the
 scope index with the selector only as a filter: every selector and identity shape reached the 20 s statement timeout on both runs (4 PASS, 18 FAIL of 22).
 
-Now each selector drives from its own index through a `MATERIALIZED` candidate leg, the fence the image route already uses
-(`impact/explain_supports.go`, `supportsExplainKeyFences`):
+Now each selector drives from its own index, and the statement decides none, one or ambiguous before it computes any winner (`impact/explain_decide_first.go`,
+section "The decide-first design" below). The driving leg per selector, in `explainKeyLegs`:
 
 | selector the call names | driving leg | index |
 |---|---|---|
@@ -18,8 +18,8 @@ Now each selector drives from its own index through a `MATERIALIZED` candidate l
 | package (`$5`) | `package_id = $5 AND package_id <> ''` | `supports_package_idx` (345) |
 
 The route function (`ungrantedExplainDrivingKey`) picks the key in the fixed order CVE, advisory-or-CVE, repository, package. Every other selector, the grant,
-the identity predicate and the active-scope join apply to the candidates; the active scopes never drive. The `<> ''` literal repeats each partial index's
-predicate so a generic plan can prove the index applies.
+the identity predicate and the per-candidate authority probe apply to the candidates; the active scopes never drive. The `<> ''` literal repeats each partial
+index's predicate so a generic plan can prove the index applies.
 
 ## Two lookups stay on the legacy read in this PR
 The **subject digest** and the **canonical key of the identity fallback** have no supports index to drive from. A call whose only selector is a subject digest, and an
@@ -29,25 +29,23 @@ Design note, not code, for the two migrations (arbiter 8.4): one `CREATE INDEX C
 by the same plan-shape test: (1) `subject_digest` partial btree `WHERE subject_digest <> ''` for the digest selector (the column is `NOT NULL DEFAULT ''`; its
 selectivity and the index size are the lab measurements that migration needs); (2) the canonical key: `precise_key_ordered_idx` leads with `canonical_key` but is partial on the
 precise profile, so an identity lookup by canonical key needs its own `(canonical_key, fact_id)` index (the key is a long concatenation, so its size is the
-cost to measure). Each key-first statement then gains an entry in `supportsExplainKeyFences` and a row in `ungrantedExplainDrivingKey`; nothing else moves.
+cost to measure). Each statement then gains an entry in `explainKeyLegs` and a row in `ungrantedExplainDrivingKey`; nothing else moves.
 
 ## The plan-shape test (arbiter 7.2) and its seeded red
 `explain_key_first_test.go`: `planShapeViolations` parses a plain EXPLAIN and fails a supports node that is a Seq Scan, a probe from the active scopes
-(`..._scope_generation_idx`), or a node that carries the route's key only as a Filter (or not at all) instead of as the Index Cond; the operator-override probe
-and fact-id lookups are the only other supports nodes allowed.
-- **Red (the old statement):** `testdata/explain_item_f_{cve,package}_plain_qa_replica.red.txt` are the real plans the first item f statement got on the QA
+(`..._scope_generation_idx`), or a node that carries the route's key only as a Filter (or not at all) instead of as the Index Cond; a primary-key fetch by fact
+id and the operator-override probe by canonical key are the only other supports nodes allowed, each only with its own Index Cond.
+- **Red (the first item f statement):** `testdata/explain_item_f_{cve,package}_plain_qa_replica.red.txt` are the real plans the first item f statement got on the QA
   replica (2026-11-24T15:36Z). `TestPlanShapeCheckerRejectsTheScopeDrivenItemFPlan` asserts they fail with "supports probed from the active scopes" and "key only as a
-  Filter". The statement and route tests failed to compile before the change (the symbols did not exist).
-- **Green (the new statements):** `testdata/explain_item_f_{cve,advisory,package,repository}_{plain,generic}_qa_replica.green.txt` are the supports-node
-  projections of the real plain EXPLAIN of each new statement on the QA replica (2026-11-24T16:30Z, custom plan and `plan_cache_mode = force_generic_plan`);
-  `TestKeyFirstPlansOnTheQAReplicaPassTheShapeCheck` asserts they pass.
+  Filter".
+- **Green (the decide-first statements):** `testdata/explain_item_f_*_qa_replica.green.txt` are the supports-node projections of the real plain EXPLAIN of each
+  statement on the QA replica (2026-11-24T18:20Z, custom plan and `plan_cache_mode = force_generic_plan`); each fixture header carries the sha256 of the
+  rendered statement and the test asserts it equals the hash of the statement in the code, so a changed statement fails until it is re-planned on the replica.
 
-## Replica plans (plain EXPLAIN, read-only, replica, 16:30Z)
-All 16 plans (8 shapes x custom and generic) are key-first; no Seq Scan on supports, no scope-driven supports probe. Driving node, estimated rows:
-cve: Index Scan `cve_idx` 45,265 (custom) / 12,878 (generic); advisory: `advisory_idx` 40,974 + `cve_idx` 7,297 (custom), 12,271 + 12,865 (generic);
-package (axios): `package_idx` 2,235,147 (custom) / 48,802 (generic); repository: Bitmap Heap Scan on `repository_idx` 117,810 (custom), Index Scan 22,724 (generic);
-the cve+package and the three identity shapes (with a CVE and package selector) drive from `cve_idx` (45,265 / 12,878). Full text: the run directory
-`explain-runner/plans/20261124T163016Z/` (`INDEX-plans.txt`, one plan file per shape and variant, `COMMANDS.txt`).
+## Replica plans (plain EXPLAIN, read-only, replica, 18:20Z)
+All 16 plans of the four selectors, plus the cve+package and three identity shapes (custom and generic), drive from the route's own key index. Driving node,
+estimated rows (custom / generic): cve `cve_idx` 45,261 / 1; advisory Bitmap Heap Scan over `advisory_idx` + `cve_idx` / `advisory_idx` and `cve_idx` arms;
+package `package_idx`; repository `repository_idx`. The full text is committed under `docs/internal/evidence/10880-prc-c1f-replica/` (see Claim evidence below).
 
 ## The two estimate errors behind the old plan (findings, recorded per the ruling)
 1. The join of the active scopes (`scope_generations` 15,008 estimated active rows x `ingestion_scopes` 17,105) was estimated at **1 row** against about **15,000**
@@ -104,12 +102,15 @@ carries only the count (`ErrExplanationAmbiguous`, `explain_postgres.go`), so th
 
 ## Differential and seeded violations (disposable PostgreSQL, lab)
 
-`explain_decide_first_live_test.go` runs 91 ungranted requests (73 found, 7 ambiguous, 11 not found; the ambiguous candidate count is compared)
-through the decide-first store and the legacy fact-table store on the multi-support corpus plus fixtures: one authorized key beside an
-unauthorized-only key, a derived-scope key, a scanner-associated key and a derived-classified key (best-ranked copy of the authorized key stale);
-two authorized keys with static and retracted classifications; operator-suppressed keys (a suppressed winner still counts); copies in two scopes;
-fact-id identity lookups that fall through the public-id route. Every request equals legacy. Four seeded violations each make the same matrix fail:
-no active-generation check, no scanner-association guard, no second-key compare, no identity predicate.
+`explain_decide_first_live_test.go` runs 145 ungranted requests (114 found, 16 ambiguous, 15 not found; the ambiguous candidate count is compared) through the
+decide-first store and the legacy fact-table store on the multi-support corpus plus fixtures: one authorized key beside an unauthorized-only key, a derived-scope
+key, a scanner-associated key and a derived-classified key (best-ranked copy of the authorized key stale); two authorized keys with static and retracted
+classifications; operator-suppressed keys (a suppressed winner still counts); copies in two scopes; fact-id identity lookups that fall through the public-id
+route; runtime filters (service and workload facts naming one of two repositories); subject digests; an advisory id carried as `advisory_id` and in the `cve_id`
+column; and rank ties between authorized copies (a copy without a payload finding id whose fact id sorts first, and equal copies decided by fact id). Every
+request equals legacy. Nine seeded violations each make the same matrix fail: no active-generation check, no scanner-association guard, no second-key compare, no
+runtime-filter predicate, no subject-digest predicate, ranked copies in reverse, no payload-finding-id tie-break, fact id tie-break descending, no identity
+predicate.
 
 ## Lab work and time (disposable `f_scale` database, 450,300 supports, run 2, ms)
 
@@ -168,19 +169,49 @@ the CVE and package selector is ambiguous (7 rows read, 12 probes; 644 / 100 ms)
 canonical key, because the scan must then reach its end: a fact-id identity lookup on a copy of that key with the same CVE and package reads all 56,269
 matching supports (narrow tuples), ranks the key's copies and probes 3 of them: 586 / 513 ms. That is the worst measured case and is under the bar.
 
+## Review round: the real request shapes, JIT and what stays open
+
+The twelve baseline keys are single-selector calls that answer ambiguous; the route refuses a repository or package alone (`HasBoundedScope`: a CVE or advisory
+plus a target, or a finding id). The reviewer asked for the shapes a real caller sends, where "one" or "none" is the usual answer and the scan must reach its
+end. Replica run 2026-11-24 18:37Z (raw: `10880-prc-c1f-replica/p21-results.txt` and the plan files beside it), READ ONLY, 25 s, lag 0.02 to 0.3 s:
+
+| shape | run 1 / run 2 ms | key fence rows read | authority probes | answer |
+|---|---|---|---|---|
+| CVE-2022-3517 (140,256 rows) + package + repository leaving ONE canonical key | 111 / 73 | 209 | 2 | one |
+| CVE-2022-3517 + an absent package | 32 / 30 | 0 (the planner drives the fence from `package_idx`) | 0 | none |
+| identity fallback: finding id that misses + package axios (2,232,312 rows), package-driven statement | **TIMEOUT at 25 s** (run 2 not run) | the whole axios fence | n/a | none |
+
+CVE plus package alone leaves several canonical keys under every package of that CVE (the key carries the version and the repository), so a single-key CVE
+selector needs the repository too. **The identity fallback at axios is over the bar and is not fixed in this PR**: a finding id with no CVE or advisory falls to
+the package-driven statement, the identity predicate cannot end the scan, and the first and second hit read the whole fence (narrow tuples, one heap fetch each).
+The first attempt at this shape used the CVE statement by mistake (0 rows in 31 ms because the CVE argument was empty); it is recorded as discarded in
+`p21-results.txt`. Options returned to the arbiter: drive an identity lookup from the identity (fact id by primary key or finding id by `finding_idx`, then the
+copies of its canonical key through a `(canonical_key, fact_id)` index, the migration this note already designs), or keep the package-driven identity fallback on
+the legacy read, which also times out at axios in the legacy baseline above, so that gives equal behavior and no latency.
+
+JIT: the replica has `jit = on`, `jit_above_cost = 100000`, `jit_inline_above_cost = 500000`, `jit_optimize_above_cost = 500000` (server 18.6). The top plan cost is above
+the JIT threshold at the largest keys (cve 154,338, repository 180,921, package 1,883,140 in the custom plans) and no EXPLAIN ANALYZE of this statement shows a JIT
+section on the replica (the lab, with LLVM, did: 106 ms on two plain runs). `TestExplainNeverSwitchesJITOff` pins that an explain does not switch JIT off (ruling
+decision on the list and image routes only), so this PR does not change that; the QA primary was not read.
+
+Probe cost: `second_hit` re-probes a row `first_hit` already rejected, so a candidate whose authority probe fails is probed up to twice. The authority-probe figures
+in the tables are therefore bounded by twice the rows read; they were measured, not tuned.
+
 ## Claims table
 
-Role: the QA replica rows use the read-only login on the replica; the live rows use the owning role of a disposable PostgreSQL 18 database in the lab.
+Role: the replica rows use the read-only login on the replica; the live rows use the owning role of a disposable PostgreSQL 18 database in the lab. Raw replica
+evidence is committed under `10880-prc-c1f-replica/`.
 
-| Claim | Test or run | Seeded violation (RED) | Role | N |
+| Claim | Test or run | Seeded violation that fails the NAMED test or run | Role | N |
 |---|---|---|---|---|
-| Ungranted selector explain meets 1,500 ms (second run) at median, p99 and largest for cve, advisory, package, repository | `analyze_f2.py` run above (not a repo test) | legacy baseline: 10 of 12 keys TIMEOUT, the other two 1.8 to 3.8 s | QA replica, read only | 12 keys, 2 runs each |
-| Plan shape 7.2 holds under custom and generic plans | `TestKeyFirstPlansOnTheQAReplicaPassTheShapeCheck` over the replica plan fixtures | `TestPlanShapeCheckerRejectsTheScopeDrivenItemFPlan` over the previous statement's real replica plans | QA replica plans | 8 plans |
-| Statement drives from the key, streams without a blocking node, probes only after the cheap key compare | `TestUngrantedExplainStatementsDriveFromTheirKey` | the live seeded violation "no second-key compare" below | hermetic | 4 statements |
-| Route picks the driving key and keeps the legacy read for a lookup without an indexed key | `TestUngrantedExplainRoutePicksTheDrivingKey`, `TestExplainCountsEachStatementByRoute` rows | none beyond the route assertions themselves (a wrong route fails them) | hermetic | routes per driving key and the keyless fallback |
-| Answer equals legacy over zero, one and several keys, an unauthorized-only key, a best copy that is unauthorized, scanner association and classification, a derived scope, operator suppression, identity lookups, and the ambiguous count | `TestExplainUngrantedDecideFirstEqualsLegacyLive` ("equals legacy") | subtests: no active-generation check, no association guard, no second-key compare, no identity predicate each fail the matrix | disposable PostgreSQL, owner | 91 requests (73 found, 7 ambiguous, 11 not found) |
-| Rows read and authority probes are bounded for an ambiguous answer, whatever the match count | replica table above; lab `f_scale` table | first key-first statement: about 70 microseconds per candidate on 140,292 candidates | QA replica; lab | 12 keys; 9 lab keys |
-| The one-key case (scan to its end) stays under the bar | replica fact-id identity timing above | the unranked version probed 30,001 candidates in the lab (410 ms) | QA replica; lab | 1 key (56,269 fence rows) |
+| Ambiguous selector explain meets 1,500 ms (second run) at median, p99 and largest for cve, advisory, package, repository | `decide-first-analyze-INDEX.txt` (replica ANALYZE) | `baseline-legacy-INDEX.txt`: legacy, same keys and limits, 10 of 12 TIMEOUT | QA replica, read only | 12 keys x 2 runs |
+| One and none answers meet the bar | `p21-results.txt` (111 / 73 ms and 32 / 30 ms) and the 513 ms single-key worst case (`decide-first-identity_fact_id.copies.r2.plan.txt`) | the unranked version probed 30,001 candidates (lab, 410 ms) | QA replica; lab | 3 shapes |
+| **Identity fallback at axios meets the bar: NOT MET** (25 s timeout) | `p21-results.txt` | n/a (open, returned to the arbiter) | QA replica | 1 key, 1 run |
+| Plan shape 7.2 under custom and generic plans, for the four selectors, cve+package and the three identity shapes | `TestKeyFirstPlansOnTheQAReplicaPassTheShapeCheck` over 16 replica fixtures, each stamped with the statement hash | `TestPlanShapeCheckerRejectsTheScopeDrivenItemFPlan` (real scope-driven plans), `TestPlanShapeCheckerRejectsAFullPrimaryKeyOrOperatorScan`; a changed statement fails the hash stamp | QA replica plans | 16 plans, 8 shapes |
+| The statement streams (lazy fence, no blocking node, cheap compare before the probe, LIMITed lateral probes, runtime filter kept) | `TestUngrantedExplainStatementsDriveFromTheirKey` | `TestExplainStatementShapeCheckRejectsSeededViolations`: a sort in the fence, no cheap compare, a plain scope join, the payload in the fence, the runtime filter dropped | hermetic | 4 statements, 5 mutations |
+| The route picks the driving key and keeps the legacy read when no key is indexed | `TestUngrantedExplainRoutePicksTheDrivingKey`, `TestExplainCountsEachStatementByRoute` | mutation run, package before CVE in `ungrantedExplainDrivingKey`: the route test FAILS (4 cases), restored it passes: `route-mutation-proof.txt` | hermetic | routes per key, keyless fallback |
+| Answer equals legacy over zero, one and several keys, unauthorized-only and stale best copies, scanner association and classification, derived scope, operator suppression, identity lookups, runtime filters (service, workload), subject digest, advisory ids (both arms), rank ties, and the ambiguous count | `TestExplainUngrantedDecideFirstEqualsLegacyLive` ("equals legacy") | nine subtests, each making the same matrix fail: no active-generation check, no association guard, no second-key compare, no runtime-filter predicate, no digest predicate, ranked copies in reverse, no payload-finding-id tie-break, fact id tie-break descending, no identity predicate | disposable PostgreSQL, owner | 145 requests (114 found, 16 ambiguous, 15 not found) |
+| Rows read and authority probes are bounded for an ambiguous answer whatever the match count | replica table above; lab `f_scale` table | first key-first statement: about 70 microseconds per candidate on 140,292 candidates | QA replica; lab | 12 keys; 9 lab keys |
 
 ## Not checked
 The legacy routes' current plans for the same keys; the live family runs (the coordinator's); that a key's matching supports count equals the supports the driving

@@ -75,6 +75,32 @@ VALUES ($1, $2, 'synthetic', NOW(), NOW(), 'superseded', NOW(), '{}'::jsonb)`, d
 	fact("fact:d5:k12:stale", decideScopeStale, decideGenStaleOld, "d5", "k12", 70)
 	fact("fact:d6:k13:a", multiSupportScopeA, "gen:a", "d6", "k13", 50)
 	fact("fact:d6:k13:b", multiSupportScopeB, "gen:b", "d6", "k13", 75)
+	decideFactWith := func(id, scope, generation, cve, pkg string, score int, edit func(map[string]any)) {
+		payload := decidePayload(cve, pkg, score)
+		edit(payload)
+		groupedLiveFact(t, ctx, database, id, scope, generation, FindingFactKind, payload)
+	}
+	// d7: runtime filters. Two keys in two repositories; service and workload facts name only repository decide-a.
+	decideFactWith("fact:d7:k14:a", multiSupportScopeA, "gen:a", "d7", "k14", 70, func(p map[string]any) { p["repository_id"] = "repository:decide-a" })
+	decideFactWith("fact:d7:k15:b", multiSupportScopeB, "gen:b", "d7", "k15", 70, func(p map[string]any) { p["repository_id"] = "repository:decide-b" })
+	groupedLiveFact(t, ctx, database, "fact:runtime:svc-decide-a", multiSupportScopeA, "gen:a", serviceCatalogCorrelationFactKind,
+		map[string]any{"service_id": "service:decide-a", "repository_id": "repository:decide-a", "outcome": "exact"})
+	groupedLiveFact(t, ctx, database, "fact:runtime:wl-decide-a", multiSupportScopeA, "gen:a", "reducer_workload_identity",
+		map[string]any{"workload_id": "workload:decide-a", "repository_id": "repository:decide-a"})
+	// d8: subject digests. Two keys that differ only by digest.
+	decideFactWith("fact:d8:k16:a", multiSupportScopeA, "gen:a", "d8", "k16", 70, func(p map[string]any) { p["subject_digest"] = "sha256:decide-1" })
+	decideFactWith("fact:d8:k17:b", multiSupportScopeB, "gen:b", "d8", "k17", 70, func(p map[string]any) { p["subject_digest"] = "sha256:decide-2" })
+	// d9: an advisory id: two keys carry it as advisory_id, one carries it in the cve_id column (the second arm).
+	decideFactWith("fact:d9:k18:a", multiSupportScopeA, "gen:a", "d9", "k18", 70, func(p map[string]any) { p["advisory_id"] = "GHSA-decide-9" })
+	decideFactWith("fact:d9:k19:b", multiSupportScopeB, "gen:b", "d9", "k19", 70, func(p map[string]any) { p["advisory_id"] = "GHSA-decide-9" })
+	decideFactWith("fact:d9:k20:a", multiSupportScopeA, "gen:a", "d9", "k20", 70, func(p map[string]any) { p["cve_id"] = "GHSA-decide-9" })
+	// d10: rank ties between authorized copies of one key. k21: equal score, one copy without a payload
+	// finding id whose fact id sorts first (the payload-finding-id tie-break must beat the fact id).
+	// k22: equal score and both with a finding id (the smaller fact id wins). The copies differ by cvss_score.
+	decideFactWith("fact:d10:k21:z", multiSupportScopeA, "gen:a", "d10", "k21", 70, func(p map[string]any) { p["cvss_score"] = 5.1 })
+	decideFactWith("fact:d10:k21:a", multiSupportScopeA, "gen:a", "d10", "k21", 70, func(p map[string]any) { p["cvss_score"] = 6.2; delete(p, "finding_id") })
+	decideFactWith("fact:d10:k22:y", multiSupportScopeA, "gen:a", "d10", "k22", 70, func(p map[string]any) { p["cvss_score"] = 5.3 })
+	decideFactWith("fact:d10:k22:b", multiSupportScopeA, "gen:a", "d10", "k22", 70, func(p map[string]any) { p["cvss_score"] = 6.4 })
 	for _, overlay := range []struct{ id, cve, pkg string }{
 		{"fact:op:d3:k10", "d3", "k10"}, {"fact:op:d4:k11", "d4", "k11"},
 	} {
@@ -151,6 +177,27 @@ func decideRequests(all []FindingRow) []packet.ExplanationFilter {
 	} {
 		requests = append(requests, packet.ExplanationFilter{CVEID: "CVE-2026-" + fixture.cve, PackageID: "pkg:npm/" + fixture.pkg + "@1.0.0"})
 	}
+	// Runtime filters, digests, advisory ids and rank ties: every selector the route takes.
+	requests = append(requests,
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", ServiceID: "service:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", ServiceID: "service:decide-b"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", WorkloadID: "workload:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", WorkloadID: "workload:decide-b"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", RepositoryID: "repository:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", RepositoryID: "repository:decide-b"},
+		packet.ExplanationFilter{AdvisoryID: "CVE-2026-d7", ServiceID: "service:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", SubjectDigest: "sha256:decide-1"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", SubjectDigest: "sha256:decide-2"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", SubjectDigest: "sha256:decide-3"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", RepositoryID: decideRepository},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", RepositoryID: decideRepository},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", PackageID: "pkg:npm/k18@1.0.0"},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", PackageID: "pkg:npm/k20@1.0.0"},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", PackageID: "pkg:npm/k19@1.0.0", ServiceID: "service:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d10", PackageID: "pkg:npm/k21@1.0.0"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d10", PackageID: "pkg:npm/k22@1.0.0"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d10", RepositoryID: decideRepository},
+	)
 	for _, row := range all {
 		requests = append(requests,
 			packet.ExplanationFilter{CVEID: row.CVEID, PackageID: row.PackageID},
@@ -269,6 +316,30 @@ func TestExplainUngrantedDecideFirstEqualsLegacyLive(t *testing.T) {
 		})
 		diverges(t)
 	})
+	t.Run("seeded violation: no runtime-filter predicate", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			q = strings.ReplaceAll(q, "$9 = ''\n        OR EXISTS", "TRUE\n        OR EXISTS")
+			return strings.ReplaceAll(q, "$8 = ''\n        OR EXISTS", "TRUE\n        OR EXISTS")
+		})
+		diverges(t)
+	})
+	t.Run("seeded violation: no subject-digest predicate", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			return strings.ReplaceAll(q, "AND ($7 = '' OR fact.subject_digest = $7)", "AND TRUE")
+		})
+		diverges(t)
+	})
+	const rankOrder = "ORDER BY fact.priority_score DESC, fact.has_payload_finding_id DESC, fact.fact_id ASC"
+	for name, flipped := range map[string]string{
+		"ranked copies in reverse":        "ORDER BY fact.priority_score ASC, fact.has_payload_finding_id ASC, fact.fact_id DESC",
+		"no payload-finding-id tie-break": "ORDER BY fact.priority_score DESC, fact.fact_id ASC",
+		"fact id tie-break descending":    "ORDER BY fact.priority_score DESC, fact.has_payload_finding_id DESC, fact.fact_id DESC",
+	} {
+		t.Run("seeded violation: "+name, func(t *testing.T) {
+			mutate(t, func(q string) string { return strings.ReplaceAll(q, rankOrder, flipped) })
+			diverges(t)
+		})
+	}
 	t.Run("seeded violation: no identity predicate", func(t *testing.T) {
 		mutate(t, func(q string) string {
 			return strings.ReplaceAll(q, "($2 = ''\n        OR fact.fact_id = $2", "(TRUE\n        OR fact.fact_id = $2")
