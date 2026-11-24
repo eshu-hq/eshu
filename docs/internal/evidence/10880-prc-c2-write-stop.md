@@ -195,6 +195,15 @@ Not done here; it waits for the default flip and the D2 readings.
 - Kept: the backfill, drain and verify (the upgrade path from frozen facts), the stored-read twin join and the
   recovery transition leg, the carrier envelope and decode filter, and the fact indexes until PR-D.
 
+## Static gate run
+
+The selected blocking static gates (the registry's pre-pr tier, categories exactness, telemetry, hygiene and docs, against
+base a8ba1c0687) pass at the C2 head except two host-environment failures that do not touch this diff and fail the same way
+on the C1 runs: `agent-canon` (this worktree has no installed `.agents/roles.json`; the agent-kit installer was not run) and
+`golden-corpus-filter-exhaustive` (the host `yq` is the Python wrapper and cannot read `.schema_version` from
+`specs/ci-pr-workflows.d/golden-corpus-gate.yml`). Neither is a finding about the change. The DEFER-CI gates
+(`golden-corpus-mirror`, `live-backend-static-mirror`) run in `make pre-pr`, which the coordinator owns.
+
 ## Performance and observability
 
 Performance Evidence: not measured in this change. The statements change (`DELETE ... RETURNING` for the
