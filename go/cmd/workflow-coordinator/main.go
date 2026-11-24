@@ -64,6 +64,13 @@ func main() {
 		return
 	}
 
+	// The out-of-rotation one-shot (eshu-hq/eshu#10002) runs before the
+	// reconciler and never starts it: one plan attempt for one repository,
+	// then the process exits with the outcome's code.
+	if code, handled := runOperatorCommand(os.Args[1:], os.Stdout, os.Stderr); handled {
+		os.Exit(code)
+	}
+
 	if err := run(context.Background()); err != nil {
 		slog.Error("workflow coordinator failed", "error", err)
 		os.Exit(1)

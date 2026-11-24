@@ -26,6 +26,12 @@
   It owns only Postgres via `NewWorkflowControlStore`.
 - **Signal-driven shutdown** — SIGINT and SIGTERM both cancel the context.
   Do not add `os.Exit` calls outside `main`.
+- **One-shot stays one-shot** — `plan-go-reachability-scope`
+  (`plan_go_reachability_scope.go`) performs one plan attempt and exits; it
+  never starts the reconciler, reaper, or any loop. Business logic belongs in
+  `internal/coordinator` (`operator_go_modules.go`); this file is flags,
+  wiring, and exit-code mapping only. Flag validation happens before any
+  connection opens, so usage errors never touch the database.
 
 ## Common changes and how to scope them
 
