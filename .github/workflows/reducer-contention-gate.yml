@@ -67,13 +67,14 @@ jobs:
     # 610.3 s there (x1.234 of the reference run 137217346469's 494.8 s), half
     # two about 683 s once its 27 missing tests are added (x1.167 of 585.6 s);
     # four more slow passing runs give 597.8 to 611.5 s and 662.0 to 680.8 s.
-    # Caps 800 s and 900 s are 1.31x and 1.32x of those (the 900 s half-two cap
-    # was raised to 1200 s in the supply-chain step's comment). Worst case per job,
-    # from the caps: 1 min setup + 13 min cold build + test cap + tail (6 min
-    # here, the 240 s stress cap in the other job) = 33.3 and 33.0 min, inside
-    # 45 (the job was 44.5 min worst case before the split). Realistic slowest
-    # job: about 27 min against 40.6 min before. Each step keeps its own
-    # -timeout; this cap is job headroom only.
+    # Caps 800 s (this half) and 900 s (the other half) were 1.31x and 1.32x of
+    # those. The other half's step cap is now 1200 s, 1.28x of about 937 s, derived
+    # in that step's comment. Worst case per job, from the caps: 1 min setup + 13
+    # min cold build + test cap + tail (6 min here, the 240 s stress cap in the
+    # other job) = 33.3 min here and 38.0 min there (it was 33.0 min with the 900
+    # s cap), inside 45 (the job was 44.5 min worst case before the split).
+    # Realistic slowest job: about 27 min against 40.6 min before. Each step keeps
+    # its own -timeout; this cap is job headroom only.
     timeout-minutes: 45
 
     services:
@@ -579,12 +580,14 @@ jobs:
         # the closing enrollment guard (8 s in the reference run) unfinished,
         # so about 908 s. The slowest completed runs before it took 858.6,
         # 842.7 and 834.1 s (45280192739, 45221097657, 45272900266), about
-        # 22 s more on today's set. Worst case in this job: 1 min setup + 13
-        # min cold build + 1200 s cap + 240 s stress cap (the stress step
-        # below reuses this job's hot build cache) = 38.0 min, 40.0 min with
-        # a 6 min tail, inside 45. The runner bound
-        # MAX_STEP_TIMEOUT_SECONDS (1200 s) is reached: the next growth moves
-        # tests to the other half or raises that bound with the arithmetic.
+        # 25 s more on today's set. The 937 s figure rests on two runs that
+        # were both cut off at the cap. Worst case in this job: 1 min setup +
+        # 13 min cold build + 1200 s cap + 240 s stress cap (the stress step
+        # below reuses this job's hot build cache) = 38.0 min, inside 45. The
+        # runner bound MAX_STEP_TIMEOUT_SECONDS (1200 s) is reached: the next
+        # near-cap read of this half is the trigger to rebalance, by moving
+        # the newest proofs to the other half's filter when the filters are
+        # next touched, or by raising that bound with the arithmetic.
         # New supply-chain alternatives are appended at the end
         # of this filter, so growth lands here first; re-measure both halves
         # when either gets within 1.3x of its cap on a slow runner. The overlap
