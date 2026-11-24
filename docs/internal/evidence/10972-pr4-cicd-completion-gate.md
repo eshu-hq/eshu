@@ -46,6 +46,12 @@ re-pended, with the fan-out enqueueing 30, for a ci_cd pass that wrote nothing.
   unchanged.
 - **Two passes of the same item.** The queue lease allows one live claim. A
   zombie's marker UPDATE matches zero rows, so its transaction rolls back.
+- **Zero-row passes always emit.** A write with no rows counts as changed
+  because it has no baseline to compare. That rule fires on every zero-row
+  pass, not only the first. An item whose pass never produces a correlation
+  therefore emits on every success, as it did before the gate. This fails open
+  and stays bounded: one event per such success. The suppression counter does
+  not count these passes, because they are not suppressed.
 - **Verdict scope.** The verdict covers the rows this pass writes. Rows a
   generation wrote earlier and this pass did not re-derive stay active and
   unchanged, so a consumer sees no change from them.
@@ -56,6 +62,15 @@ No-Regression Evidence: the write path adds one read by fact id, on the `fact_re
 inside the transaction the write now runs in. It also adds one UPDATE of the
 pass's own work item, and only when rows changed. Before, the same rows were
 upserted in autocommit batches.
+
+The write also changes its transaction shape. Before, the rows were upserted
+in autocommit batches, and each batch released its `fact_records` row locks on
+commit. Now every row of one ci_cd write goes through ONE transaction, so the
+row locks of a large write are held until the final commit. Two ci_cd items
+never share a fact id, so they never wait on each other's locks. A concurrent
+reader of `fact_records` is not blocked, because readers take no row locks.
+The cost is that a large write holds more locks for longer. That lock-hold time
+is NOT measured for the largest ci_cd generation; no number is claimed here.
 
 The ack adds one primary-key subselect for the marker and a `payload - key` on
 the row it already updates. No lock is added, no lock order changes, and no

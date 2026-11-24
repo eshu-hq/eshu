@@ -134,7 +134,12 @@ Keep `completionDigestFields` equal to the fields supply_chain_impact reads
 from a `reducer_ci_cd_run_correlation` row (`supplychain/core/deployment_context.go`,
 `core/active_filter.go`, `core/criteria_bound.go`). A consumer-read field left
 out of the digest is a silently missed refresh; a per-pass field put in makes
-every pass "changed". A changed write must record the `cicd_completion_owed`
+every pass "changed". `TestCompletionDigestCoversEveryConsumerPayloadRead`
+(`completion_fields_guard_test.go`) scans the reducer and fact-index source and
+fails on a ci_cd payload read of a field that is neither hashed nor part of the
+fact-id identity. A changed write must record the `cicd_completion_owed`
 marker in the same transaction, so a pass that commits and dies before its ack
-still emits on its retry. A missing verdict must emit. Evidence:
+still emits on its retry. A missing verdict must emit. A write with no rows counts as changed on every
+such pass (an item that never produces a correlation emits on every success);
+keep that fail-open rule unless a stored baseline for "no rows" exists. Evidence:
 `docs/internal/evidence/10972-pr4-cicd-completion-gate.md`.

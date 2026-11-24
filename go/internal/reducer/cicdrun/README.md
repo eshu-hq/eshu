@@ -242,7 +242,11 @@ supply_chain_impact reads.
   transaction and compares a digest of the consumer-read fields:
   `artifact_digest`, `image_ref`, `repository_id`, `environment`,
   `environment_evidence`, `outcome` and `provenance_only`. The handler puts the
-  verdict on the result as `cicd_completion_changed`.
+  verdict on the result as `cicd_completion_changed`. A write with no rows has
+  no baseline and counts as changed on every such pass, so an item whose pass
+  never produces a correlation emits on every success (fail open, bounded, and
+  not counted as suppressed). All rows of one write now commit in one
+  transaction.
 - **Owed marker.** A changed write records `cicd_completion_owed` on the pass's
   item. The ack that emits clears it.
 - **Ack rule.** The ack emits on a changed verdict, on a missing verdict, or on
