@@ -484,26 +484,7 @@ FROM generate_series(1, 5) AS i`,
 			t.Fatalf("write the plan: %v", err)
 		}
 	}
-	if !strings.Contains(plan, "supply_chain_impact_finding_supports_keyed_probe_idx") {
-		t.Fatalf("the keyed probe does not use the keyed probe index:\n%s", plan)
-	}
-	if strings.Contains(plan, "Seq Scan on supply_chain_impact_finding_supports") {
-		t.Fatalf("the keyed probe scans the supports table sequentially:\n%s", plan)
-	}
-	// All five equalities are index conditions of the node that uses the index.
-	_, rest, found := strings.Cut(plan, "supply_chain_impact_finding_supports_keyed_probe_idx")
-	if !found {
-		t.Fatalf("the plan names no keyed probe index:\n%s", plan)
-	}
-	if next := strings.Index(rest, "->"); next > 0 {
-		rest = rest[:next]
-	}
-	for _, want := range []string{"'package_id'", "'repository_id'", "'subject_digest'", "'cve_id'", "'advisory_id'"} {
-		if !strings.Contains(rest, want) {
-			t.Errorf("the index node's conditions lack %s:\n%s", want, rest)
-		}
-	}
-	if !strings.Contains(rest, "Index Cond") {
-		t.Errorf("the index node has no Index Cond:\n%s", rest)
+	if problems := keyedProbePlanProblems(plan); len(problems) != 0 {
+		t.Fatalf("the keyed probe plan is wrong: %v\n%s", problems, plan)
 	}
 }
