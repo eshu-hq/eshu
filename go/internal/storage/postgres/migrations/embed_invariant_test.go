@@ -381,9 +381,15 @@ import (
 // 346_supply_chain_impact_supports_repository_fact_idx.sql (#10880 PR-B2c) adds the
 // partial (repository_id, fact_id) btree, built CONCURRENTLY. Count 373 is 371 plus
 // 345 and 346; the digest is this test's own derivation on the merged tree.
+// 347_fact_records_vuln_pkg_eco_scope_gen_active_idx.sql and
+// 349_fact_records_vuln_pkg_eco_stats.sql (#11376) add the folded-ecosystem
+// partial index and its extended statistics object for the package-keyed
+// holder read (numbered 347/349, 348 held by main's verify cursor). Count 375
+// is main's 373 plus the pair; the digest is this test's own derivation on
+// the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "577b542bdb8c37c5350185c70849d3f6d430d3aee308eacec5d93dcb58b84fd7"
-	goldenBootstrapDefinitionsCount  = 373
+	goldenBootstrapDefinitionsDigest = "765e9c779dc5a93272bad6f5366a0ef93d1cbb0b7c13800f0239d6b79beefc9c"
+	goldenBootstrapDefinitionsCount  = 375
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

@@ -186,7 +186,16 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 346 (#10880 PR-B2c) adds the partial (repository_id, fact_id) btree
 	// on the supports table.
 	"supply_chain_impact_supports_repository_fact_idx",
+	// Migration 347 (#11376) adds the folded-ecosystem partial index
+	// serving the package-keyed holder read's ecosystem arm, built
+	// CONCURRENTLY like migrations 156 and 211.
+	"fact_records_vuln_pkg_eco_scope_gen_active_idx",
 	// Migration 348 (#10880 decision 6) adds the resumable verification cursor
 	// to the supports backfill marker.
 	"supply_chain_impact_finding_supports_backfill_verify_cursor",
+	// Migration 349 (#11376) adds the single-expression extended
+	// statistics object on the same folded ecosystem expression holding
+	// the eco arm on its partial index (CREATE STATISTICS plus ANALYZE),
+	// like migrations 283 and 290.
+	"fact_records_vuln_pkg_eco_stats",
 }

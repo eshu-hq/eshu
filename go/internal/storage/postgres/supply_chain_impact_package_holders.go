@@ -13,26 +13,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// findPackageHolderCandidatesQuery returns the active affected-package
+// FindPackageHolderCandidatesQuery returns the active affected-package
 // identities, outside the asking scope, whose folded ecosystem spelling is one
 // of $1 (every alias of the requested ecosystems, see ecosystemSpellings): the
-// #9874 package-keyed holder read. No index anchors affected_package by
-// (ecosystem, name), so the ecosystem is a residual filter. With few scopes
-// the planner probes each scope's active generation through
-// fact_records_vulnerability_affected_package_active_scan_idx; with many
-// scopes it bitmap-scans that whole partial index, superseded rows included,
-// and joins to the active generation afterwards, so cost grows with every
-// retained affected-package row of the requested ecosystems. The handler
+// #9874 package-keyed holder read. The ecosystem predicate is served by
+// fact_records_vuln_pkg_eco_scope_gen_active_idx (#11376), whose leading
+// expression is byte-identical to the LOWER(BTRIM(...)) fold below: with many
+// scopes the planner bitmap-scans that index for the requested spellings
+// instead of the whole affected-package partial index (superseded rows
+// included), so cost follows the requested ecosystems instead of every
+// retained affected-package row. At small scope counts the planner may still
+// probe each scope's active generation through a scope-generation index. The handler
 // matches names with the findings pass's own consumption-key join, so this
 // read stays a coarse prefilter and never under-matches a name spelling.
 // There is no DISTINCT and no ORDER BY on purpose: the text sort was most of
 // the statement at 10x; the store dedupes.
 //
+// It is exported so the #11376 plan pin explains the shipped text instead of
+// a hand-frozen copy, which would drift and go false-green.
+//
 // Performance Evidence: (#9874)
 // (PG 18.6, synthetic 50,000 active plus 50,000 superseded affected-package
 // rows: median 46.6 ms over 1,101 scopes, median 65.3 ms over 20,601 scopes;
 // under the 10 s holder-read statement timeout).
-const findPackageHolderCandidatesQuery = `
+const FindPackageHolderCandidatesQuery = `
 SELECT fact.scope_id,
        COALESCE(fact.payload->>'ecosystem', ''),
        COALESCE(fact.payload->>'package_name', ''),
@@ -59,7 +63,7 @@ WHERE fact.fact_kind = 'vulnerability.affected_package'
 // provider-state subset of what securityAlertCanSeedImpact refuses to seed
 // a finding from) are left out:
 // reopening their scope could not change a finding. Shape matches
-// findPackageHolderCandidatesQuery (same five identity columns, no DISTINCT,
+// FindPackageHolderCandidatesQuery (same five identity columns, no DISTINCT,
 // no ORDER BY; the store dedupes), and the handler matches names with the
 // findings pass's own consumption-key join, so an alert for an unchanged
 // package of the same repository is filtered there, not here.
@@ -131,7 +135,7 @@ func (s SupplyChainImpactFanOutStore) FindPackageHolderCandidates(
 		return nil
 	}
 	if len(folded) > 0 {
-		if err := collect(findPackageHolderCandidatesQuery, folded); err != nil {
+		if err := collect(FindPackageHolderCandidatesQuery, folded); err != nil {
 			return nil, err
 		}
 	}
