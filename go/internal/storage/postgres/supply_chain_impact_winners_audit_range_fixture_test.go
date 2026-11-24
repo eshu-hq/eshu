@@ -127,6 +127,9 @@ UNION ALL
 SELECT 'op:nopkg', $1, $2, $3, 'op:nopkg', '1.0.0', 'synthetic', 'op:nopkg', now(), now(), false,
   jsonb_build_object('cve_id', 'CVE-2026-9', 'suppression_state', 'suppressed')`, op, opGen, kind, identifiers)
 	h.exec(`ANALYZE fact_records`)
+	// The fixture writes finding facts with raw SQL; the impact writer would have
+	// written their supports in the same transaction, and the maintainer reads those.
+	h.syncSupports()
 	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("populating full: %v", err)
 	}

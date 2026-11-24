@@ -71,6 +71,11 @@ VALUES ('iso-g1', 'iso-scope', 'synthetic', now(), now(), 'active', now(), '{}':
 VALUES ('iso-f1', 'iso-scope', 'iso-g1', $1, 'iso-f1', '1.0.0', 'synthetic', 'iso-f1', now(), now(), false,
   '{"cve_id":"CVE-2026-9805","package_id":"pkg:npm/iso","repository_id":"repo-iso","subject_digest":"","advisory_id":""}'::jsonb)`,
 		facts.ReducerSupplyChainImpactFindingFactKind)
+	// The impact writer writes a finding's support with its fact; the scope-delete
+	// capture reads the supports (migration 352), in this isolated schema.
+	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: database}); err != nil {
+		t.Fatalf("sync supports from facts in schema: %v", err)
+	}
 
 	exec(`UPDATE ingestion_scopes SET active_generation_id = 'iso-g1' WHERE scope_id = 'iso-scope'`)
 	if got := count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'scope' AND scope_id = 'iso-scope'`); got != 1 {

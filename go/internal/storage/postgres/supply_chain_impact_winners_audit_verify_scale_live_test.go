@@ -131,6 +131,7 @@ SELECT 'f-' || g, $1, $1 || '/active', $2, 'f-' || g, '1.0.0', 'synthetic', 'f-'
     'service_ids', '["svc-a"]'::jsonb, 'workload_ids', '["wl-a"]'::jsonb, 'environments', '["prod"]'::jsonb)
 FROM generate_series(1, $3::int) AS g`, scope, facts.ReducerSupplyChainImpactFindingFactKind, shape.winners)
 	h.exec(`ANALYZE fact_records`)
+	h.syncSupports() // the writer would have written the supports with the facts
 	if r, err := h.store.ResweepWinners(ctx); err != nil || r.Inserted != int64(shape.winners) {
 		t.Fatalf("populating full = %+v, %v; want %d winners", r, err, shape.winners)
 	}
@@ -138,6 +139,7 @@ FROM generate_series(1, $3::int) AS g`, scope, facts.ReducerSupplyChainImpactFin
 	// log holds the first shape.log keys, staging re-marks every candidate.
 	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '99')
 WHERE fact_id IN (SELECT 'f-' || g FROM generate_series(1, $1::int) AS g)`, shape.candidates)
+	h.syncSupports() // the writer would have updated the supports with the facts
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	h.exec(`INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)

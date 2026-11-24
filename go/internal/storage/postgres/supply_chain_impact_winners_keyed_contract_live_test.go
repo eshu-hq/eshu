@@ -49,6 +49,7 @@ func TestSupplyChainImpactWinnersResweepEvidenceFactIDsRefreshWinnerPayloadLive(
 	scopeA, _ := keyedSeedSettled(h)
 	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{evidence_fact_ids}', '["ev-a","ev-b"]'::jsonb, true)
 WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
+	h.syncSupports() // the writer would have updated the support with the fact
 	got, err := h.store.ResweepWinners(h.ctx)
 	if err != nil || got.Inserted != 0 || got.Updated != 1 || got.Deleted != 0 {
 		t.Fatalf("full resweep after an evidence-only rewrite = %+v, %v; want exactly one winner updated", got, err)
