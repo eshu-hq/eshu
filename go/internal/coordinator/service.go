@@ -133,6 +133,10 @@ type Service struct {
 	// Go reachability activation. It is required only when an activation
 	// enables derive_from_go_modules.
 	GoModuleRepositoryReader GoModuleRepositoryReader
+	// GoModuleSingleRepositoryReader reads one repository for an operator
+	// out-of-rotation plan (eshu-hq/eshu#10002). It is required only for that
+	// one-shot path; the rotation never touches it.
+	GoModuleSingleRepositoryReader GoModuleSingleRepositoryReader
 	// GoEvidenceFencer retracts Go evidence the commit-skew rule names. It is
 	// required with GoModuleRepositoryReader: without it, evidence of an old
 	// commit could stay active with no bound.

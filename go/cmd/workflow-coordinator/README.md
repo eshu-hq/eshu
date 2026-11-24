@@ -272,6 +272,26 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 `eshu-workflow-coordinator -v`. Both flags print the build-time version through
 `buildinfo.PrintVersionFlag` before telemetry or Postgres setup begins.
 
+## Out-of-rotation one-shot: plan-go-reachability-scope
+
+`eshu-workflow-coordinator plan-go-reachability-scope` plans one Go repository
+out of rotation (eshu-hq/eshu#10002). It wires the same config, control store,
+repository reader, and fence as the reconciler, attempts exactly one plan, prints
+the outcome as a JSON document on stdout, and exits. It never starts the
+reconciler, the claim reaper, or any loop.
+
+Required flags: `--instance-id`, `--repository-id` (the repository `source_key`,
+for example `repository:r_efdfb126`), `--request-id` (the operator-chosen
+idempotency token), `--requested-by`, `--reason`. `--dry-run` evaluates
+eligibility and the fence decision and writes nothing.
+
+Outcomes and exit codes: `planned`, `already_open`, and `dry_run` exit 0;
+`not_eligible` exits 1; invocation or infrastructure failure exits 2. The same
+closed outcome set is logged by `coordinator.Service.PlanGoReachabilityScopeNow`.
+A re-fire under the same `--request-id` is an exact no-op reporting the existing
+run. See [Go reachability operator plan](../../../docs/public/operate/go-reachability-operator-plan.md)
+for the firing sequence, the slot-day table, and the do-not-fire-when-open rule.
+
 ## Dependencies
 
 - `internal/coordinator` — `Service`, `LoadConfig`, `NewMetrics`, `Store`;

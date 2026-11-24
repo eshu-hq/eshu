@@ -64,6 +64,13 @@ func main() {
 		return
 	}
 
+	// The out-of-rotation one-shot (eshu-hq/eshu#10002) runs before the
+	// reconciler and never starts it: one plan attempt for one repository,
+	// then the process exits with the outcome's code.
+	if len(os.Args) > 1 && os.Args[1] == "plan-go-reachability-scope" {
+		os.Exit(runOperatorPlanWithSignals(os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	if err := run(context.Background()); err != nil {
 		slog.Error("workflow coordinator failed", "error", err)
 		os.Exit(1)

@@ -15,4 +15,11 @@
 // go-reachability generations measured a commit the repository left more than two
 // rotation periods ago. It decides only; the root applies the decision through the
 // store.
+//
+// PlanRequest.TriggerKind is the out-of-rotation override (eshu-hq/eshu#10002):
+// the zero value derives exactly today's bootstrap/schedule trigger, so
+// scheduled RunIDs, trigger kinds, and item identities are byte-identical with
+// or without it. The only accepted explicit value is operator_recovery, which
+// lands in the RunID's trigger segment and the run row; any other explicit
+// kind is refused.
 package reachability
