@@ -25,6 +25,20 @@ import (
 // missed supply_chain_impact refresh. Query-time readers (go/internal/query)
 // read live rows per request and wait for no completion event, so they are out
 // of scope.
+//
+// Limits: the scan sees only the read shapes listed on scanCICDPayloadReads.
+// It does not see:
+//   - a read gated by an if (envelope.FactKind == cicdrun.CICDRunCorrelationFactKind)
+//     instead of a switch case;
+//   - a key passed as a named constant or variable instead of a string literal;
+//   - a read through a method, or through a helper in another package whose
+//     name does not contain "payload";
+//   - a range over envelope.Payload, or over a copy of the map;
+//   - the kind spelled as the string literal "reducer_ci_cd_run_correlation"
+//     instead of an identifier containing CICDRunCorrelation.
+//
+// A new reader written in one of these shapes passes silently, so a new reader
+// shape needs the guard extended in the same change.
 
 // completionGuardRoots are the source trees that hold the completion
 // consumer's reads, relative to this package directory.

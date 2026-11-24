@@ -137,7 +137,9 @@ out of the digest is a silently missed refresh; a per-pass field put in makes
 every pass "changed". `TestCompletionDigestCoversEveryConsumerPayloadRead`
 (`completion_fields_guard_test.go`) scans the reducer and fact-index source and
 fails on a ci_cd payload read of a field that is neither hashed nor part of the
-fact-id identity. A changed write must record the `cicd_completion_owed`
+fact-id identity. It sees only the read shapes its header comment lists; a
+reader in a new shape needs the guard extended in the same change. A changed
+write must record the `cicd_completion_owed`
 marker in the same transaction, so a pass that commits and dies before its ack
 still emits on its retry. A missing verdict must emit. A write with no rows counts as changed on every
 such pass (an item that never produces a correlation emits on every success);
