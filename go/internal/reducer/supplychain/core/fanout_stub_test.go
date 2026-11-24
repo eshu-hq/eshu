@@ -62,6 +62,16 @@ type stubFanOut struct {
 	queuedErr       error
 	queuedCalls     [][]string
 	queuedStampOuts [][]string
+	// claimedAt is each in-flight scope's claim identity on the claim reads
+	// (#10972 D4b); a scope not named claims at stubInFlightClaimTime.
+	claimedAt map[string]time.Time
+	// early, when earlySet, is what the load-end claim read (set A) returns;
+	// unset, it returns the same claims as set B, so every claim is kept.
+	// earlyErr fails that read; earlyCalls counts it.
+	early      []InFlightClaim
+	earlySet   bool
+	earlyErr   error
+	earlyCalls int
 	// mu guards every recording append below: split holder reads run
 	// concurrently, so unguarded appends race under -race.
 	mu sync.Mutex

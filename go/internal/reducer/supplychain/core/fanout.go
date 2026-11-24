@@ -198,6 +198,7 @@ type SupplyChainImpactFanOut interface {
 	// asking pass's source facts were visible, and a scope whose new generation
 	// has no finding rows yet is invisible to FindHolderScopes. Same timeout contract.
 	FindInFlightNonMarkerScopes(ctx context.Context, ownScopeID string) ([]string, error)
+	InFlightClaimReader // the two claim reads a findings fan-out narrows with (#10972 D4b)
 	// FindPackageHolderCandidates returns active package-holder identities outside
 	// ownScopeID for query (#9874, #10061; see manifest_trigger.go).
 	FindPackageHolderCandidates(ctx context.Context, ownScopeID string, query PackageHolderQuery) ([]PackageHolderCandidate, error)

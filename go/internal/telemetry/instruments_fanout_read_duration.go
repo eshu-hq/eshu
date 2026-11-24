@@ -31,6 +31,9 @@ const (
 	// FanOutReadKindHolderPrefilter is the #10972 queued-holder prefilter: one
 	// set read per claim over the collected holder list.
 	FanOutReadKindHolderPrefilter = "holder_prefilter"
+	// FanOutReadKindInFlightEarly is the in-flight claim read a findings pass
+	// takes when its evidence load ends (#10972 D4b, set A).
+	FanOutReadKindInFlightEarly = "in_flight_early"
 )
 
 // AttrFanOutReadKind returns the kind attribute for the fan-out

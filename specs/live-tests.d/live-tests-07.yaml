@@ -400,10 +400,20 @@ tests:
     class: dedicated_ci
     reason: "#10643 PR 2: reducer-contention enrolled TestHolderKeyRange[A-Za-z]*Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (token function stored as frozen v4 and GIN array_ops token index valid after the migration path; F1 matrix 1,944 cells (18 shapes, 9 ids) all agree with jsonb ? for ids of at most 1,024 bytes, 172 true, longer ids never tokenized, array-only RED disagrees; Go lookup tokens and SQL stored tokens agree for 20 fact-id last characters)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_claims_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D4b: reducer-contention enrolled 2 named Go test(s) in scripts/lib/reducer_contention_inventory.json, selected by the TestFindInFlight prefix of the -run filter in .github/workflows/reducer-contention-gate.yml; the set A and set B claim reads against disposable PostgreSQL"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go
     tag: ~
     class: dedicated_ci
     reason: "dev-1-5: reducer-contention verified 9/9 named Go test passes with -json -race (summed test elapsed 10.71s)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_two_read_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D4b: reducer-contention enrolled 5 named Go test(s) in scripts/lib/reducer_contention_inventory.json, selected by the TestFanOutRace prefix of the -run filter in .github/workflows/reducer-contention-gate.yml; the two-read in-flight narrowing on the real claim path against disposable PostgreSQL"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_live_test.go
     tag: ~

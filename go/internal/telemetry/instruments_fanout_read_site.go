@@ -19,6 +19,10 @@ const (
 	FanOutReadSiteHolderPrefilter = "holder_prefilter"
 	// FanOutReadSiteInFlight is the claimed-or-running queue-state read.
 	FanOutReadSiteInFlight = "in_flight"
+	// FanOutReadSiteInFlightEarly is the in-flight claim read a findings pass
+	// takes when its evidence load ends (#10972 D4b). Its failure never fails
+	// the pass: the fan-out then flags every in-flight claim.
+	FanOutReadSiteInFlightEarly = "in_flight_early"
 	// FanOutReadSiteManifestGeneration is the #9874 manifest generation read.
 	FanOutReadSiteManifestGeneration = "manifest_generation"
 	// FanOutReadSitePackage is the #9874/#10061 package-keyed holder read.
