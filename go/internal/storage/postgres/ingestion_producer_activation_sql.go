@@ -350,13 +350,23 @@ var producerTombstoneEvidenceArmSQL = `(fact.is_tombstone = TRUE
 // producerEvidenceCoreSQL is the producer-evidence predicate: identity-filter
 // facts (embedded verbatim with the loader's own 'fact' alias, mirroring
 // the loader including its tombstone filter), tombstones retracting
-// identity-filter evidence with a live predecessor (#7705), or
+// identity-filter evidence with a live predecessor (#7705),
 // terraform_state_resource facts with a joinable ARN (mirroring the drift
-// reader, which has no tombstone filter).
+// reader, which has no tombstone filter), or config backend declarations
+// (file/git facts with a non-empty parsed_file_data.terraform_backends
+// array, mirroring listTerraformBackendCanonicalRowsQuery's load-bearing
+// predicate in tfstate/backend_canonical.go, which likewise has no
+// tombstone filter; see ingestion_producer_activation_config.go).
 var producerEvidenceCoreSQL = `(` + identityFactFilterSQL + ` AND fact.is_tombstone = FALSE)
       OR ` + producerTombstoneEvidenceArmSQL + `
       OR (fact.fact_kind = 'terraform_state_resource'
-          AND btrim(COALESCE(fact.payload->'attributes'->>'arn', '')) <> '')`
+          AND btrim(COALESCE(fact.payload->'attributes'->>'arn', '')) <> '')
+      OR (fact.fact_kind = 'file'
+          AND fact.source_system = 'git'
+          AND CASE
+                WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'terraform_backends') = 'array'
+                THEN jsonb_array_length(fact.payload->'parsed_file_data'->'terraform_backends')
+                ELSE 0 END > 0)`
 
 // producerEvidenceFactKindPattern finds the fact_kind literals the identity
 // filter matches: the IN-list arm and the equality arms.
