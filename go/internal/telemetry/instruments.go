@@ -1489,6 +1489,11 @@ type Instruments struct {
 	// changed anything is known only then. Registered by
 	// registerSupplyChainImpactPassOutcomeInstruments.
 	SupplyChainImpactPassOutcomeTotal metric.Int64Counter
+	// SupplyChainImpactFanOutSiteDuration records, per holder fan-out pass,
+	// the total seconds spent in each site the pass entered (inflight_read,
+	// holder_reads, reopen_loop, state_update; #10972). Registered by
+	// registerSupplyChainImpactFanOutSiteInstruments.
+	SupplyChainImpactFanOutSiteDuration metric.Float64Histogram
 	// SupplyChainSuppressionDiffTotal counts suppression diff decisions per
 	// supply-chain impact pass (#10019). Labels: domain
 	// (supply_chain_impact), outcome (ran, skipped_kind, skipped_duplicate,
@@ -7392,6 +7397,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactPassOutcomeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactFanOutSiteInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerWorkflowClaimStatsInstruments(meter, inst); err != nil {

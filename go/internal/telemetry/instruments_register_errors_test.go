@@ -130,6 +130,9 @@ func TestRegisterInstrumentsFailLoud(t *testing.T) {
 		{"supply_chain_impact_pass_outcome", func(m metric.Meter) error {
 			return registerSupplyChainImpactPassOutcomeInstruments(m, &Instruments{})
 		}},
+		{"supply_chain_impact_fanout_site", func(m metric.Meter) error {
+			return registerSupplyChainImpactFanOutSiteInstruments(m, &Instruments{})
+		}},
 		{"own_gate_wake", func(m metric.Meter) error { return registerOwnGateWakeInstruments(m, &Instruments{}) }},
 		{"fact_id_owner_conflict", func(m metric.Meter) error { return registerFactIDOwnerConflictInstruments(m, &Instruments{}) }},
 		{"reducer_waiting", func(m metric.Meter) error { return registerReducerWaitingInstruments(m, &Instruments{}) }},

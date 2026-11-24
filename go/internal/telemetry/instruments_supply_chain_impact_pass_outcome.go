@@ -18,6 +18,9 @@ const (
 	// scoped_fallback_sentinel, scoped_fallback_out_of_stamp). It mirrors the
 	// `mode` label of eshu_dp_supply_chain_impact_pass_total.
 	MetricDimensionPassMode = "mode"
+	// MetricDimensionPassReason labels why the pass ran scoped or full: the
+	// split of the lumped full mode.
+	MetricDimensionPassReason = "pass_reason"
 	// MetricDimensionRependCause labels why the pass was claimed.
 	MetricDimensionRependCause = "repend_cause"
 	// MetricDimensionPassChanged labels whether the pass changed output.
@@ -54,6 +57,36 @@ const (
 	SupplyChainImpactRependCauseUnknown = "unknown"
 )
 
+// Pass reasons (#10972): why a findings pass ran scoped or full. mode lumps
+// no_stamp, no_seed and engaged_protection into full and counts only
+// out_of_stamp and sentinel as fallbacks; the reason names each. The set is
+// closed; SupplyChainImpactPassReasons lists it.
+const (
+	// SupplyChainImpactPassReasonScoped is a pass that re-derived the stamped
+	// CVEs only.
+	SupplyChainImpactPassReasonScoped = "scoped"
+	// SupplyChainImpactPassReasonNoStamp is a pass with no bounded stamp to
+	// scope by: a genuine pass, an unstamped one, a retry, or one with an
+	// empty stamp.
+	SupplyChainImpactPassReasonNoStamp = "no_stamp"
+	// SupplyChainImpactPassReasonSentinel is a one-hop pass whose stamp names
+	// an unbounded change.
+	SupplyChainImpactPassReasonSentinel = "sentinel"
+	// SupplyChainImpactPassReasonNoSeed is a pass with a bounded stamp that
+	// ran full because nothing seeded a scope: no finding row and no local
+	// stamped advisory, a loader without the seed seam, or a failed seed
+	// read.
+	SupplyChainImpactPassReasonNoSeed = "no_seed"
+	// SupplyChainImpactPassReasonOutOfStamp is a pass that qualified for a
+	// scoped re-derivation but ran full because the holder carried active
+	// finding rows outside the stamp (#10415).
+	SupplyChainImpactPassReasonOutOfStamp = "out_of_stamp"
+	// SupplyChainImpactPassReasonEngagedProtection is a pass with a bounded
+	// stamp that never scoped because the protected or static-only evidence
+	// path ran, whose authorization witnesses cover the whole static input.
+	SupplyChainImpactPassReasonEngagedProtection = "engaged_protection"
+)
+
 // Pass change outcomes (#10972).
 const (
 	// SupplyChainImpactPassChanged means the pass's writer commit changed a
@@ -87,6 +120,18 @@ func SupplyChainImpactRependCauses() []string {
 	}
 }
 
+// SupplyChainImpactPassReasons returns the closed pass reason set.
+func SupplyChainImpactPassReasons() []string {
+	return []string{
+		SupplyChainImpactPassReasonScoped,
+		SupplyChainImpactPassReasonNoStamp,
+		SupplyChainImpactPassReasonSentinel,
+		SupplyChainImpactPassReasonNoSeed,
+		SupplyChainImpactPassReasonOutOfStamp,
+		SupplyChainImpactPassReasonEngagedProtection,
+	}
+}
+
 // SupplyChainImpactPassChanges returns the closed changed value set.
 func SupplyChainImpactPassChanges() []string {
 	return []string{SupplyChainImpactPassChanged, SupplyChainImpactPassUnchanged}
@@ -101,6 +146,12 @@ func SupplyChainImpactChangeClasses() []string {
 // the supplychain core pass-mode constants.
 func AttrSupplyChainImpactPassMode(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionPassMode, v)
+}
+
+// AttrSupplyChainImpactPassReason returns the pass reason attribute. v is one
+// of the SupplyChainImpactPassReason* constants.
+func AttrSupplyChainImpactPassReason(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionPassReason, v)
 }
 
 // AttrSupplyChainImpactRependCause returns the re-pend cause attribute. v is
@@ -125,12 +176,13 @@ func AttrSupplyChainImpactChangeClass(v string) attribute.KeyValue {
 // pass-outcome counter on inst. One increment per findings pass that
 // completes its write and fan-out, labeled by domain, mode, re-pend cause,
 // whether the pass changed output, and the change class: at most
-// 4 x 6 x 2 x 2 series, with no id in any label.
+// 4 x 6 x 6 x 2 x 2 series at most (the reason fixes most of the mode, so far
+// fewer occur), with no id in any label.
 func registerSupplyChainImpactPassOutcomeInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.SupplyChainImpactPassOutcomeTotal, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_pass_outcome_total",
-		metric.WithDescription("Completed supply-chain impact findings passes by reducer domain, mode (full, scoped, scoped_fallback_sentinel, scoped_fallback_out_of_stamp), re-pend cause (first, retry, drain, fanout_rerun, other_repend, unknown), whether the pass changed output (changed, unchanged) and change class (none, unknown) (#10972)"),
+		metric.WithDescription("Completed supply-chain impact findings passes by reducer domain, mode (full, scoped, scoped_fallback_sentinel, scoped_fallback_out_of_stamp), pass reason (scoped, no_stamp, sentinel, no_seed, out_of_stamp, engaged_protection), re-pend cause (first, retry, drain, fanout_rerun, other_repend, unknown), whether the pass changed output (changed, unchanged) and change class (none, unknown) (#10972)"),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactPassOutcomeTotal counter: %w", err)
 	}
@@ -142,6 +194,7 @@ func registerSupplyChainImpactPassOutcomeInstruments(meter metric.Meter, inst *I
 func registerSupplyChainImpactPassOutcome() {
 	metricDimensionKeys = append(metricDimensionKeys,
 		MetricDimensionPassMode,
+		MetricDimensionPassReason,
 		MetricDimensionRependCause,
 		MetricDimensionPassChanged,
 		MetricDimensionChangeClass,
