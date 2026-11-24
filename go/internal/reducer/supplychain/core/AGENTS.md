@@ -398,3 +398,5 @@ every other pass uses the identity sets. A payload field not named in
 `TestIdentityDigestClassifiesEveryPayloadField` fails until a new field is
 classified on purpose. Add a field to the enrichment class only when every
 non-EPSS, non-KEV input it is derived from is itself an identity field.
+
+Go scan facts, the go_reachability warning included, reach a pass only through the cross-scope Go stage from a go-reachability scope; the own-scope kind list must not carry scanner_worker.warning, which is target-only under engaged protection for every other analyzer.
