@@ -113,7 +113,7 @@ func TestSupplyChainImpactPassOutcomeInstrumentExportsBoundedLabels(t *testing.T
 func TestSupplyChainImpactFanOutSiteDurationIsBounded(t *testing.T) {
 	t.Parallel()
 
-	if want := []string{"inflight_read", "holder_reads", "reopen_loop", "state_update"}; !slices.Equal(SupplyChainImpactFanOutSites(), want) {
+	if want := []string{"in_flight_early", "inflight_read", "holder_reads", "holder_prefilter", "reopen_loop", "state_update"}; !slices.Equal(SupplyChainImpactFanOutSites(), want) {
 		t.Fatalf("SupplyChainImpactFanOutSites() = %v, want %v", SupplyChainImpactFanOutSites(), want)
 	}
 	reader := sdkmetric.NewManualReader()

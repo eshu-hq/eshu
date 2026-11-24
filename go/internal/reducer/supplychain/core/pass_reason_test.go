@@ -57,19 +57,20 @@ func TestPassReasonOfSplitsTheFullMode(t *testing.T) {
 }
 
 // TestPassOutcomeCarriesTheScopedAndNoSeedReasons runs two stamped passes
-// through Handle: one with finding-row seeds (scoped) and one with none
-// (no_seed), and reads the reason off the counter.
+// through Handle: one with finding-row seeds and a local advisory (scoped) and
+// one with neither (no_seed), and reads the reason off the counter.
 func TestPassOutcomeCarriesTheScopedAndNoSeedReasons(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct {
-		seeds []ScopedFindingPackage
-		want  string
+		seeds      []ScopedFindingPackage
+		localFacts bool
+		want       string
 	}{
 		"scoped": {seeds: []ScopedFindingPackage{{
 			CVEID: "CVE-2026-9001", PackageID: "pkg:npm/example@1", PURL: "pkg:npm/example@1.2.3",
 			PackageName: "example", Ecosystem: "npm",
-		}}, want: "scoped"},
+		}}, localFacts: true, want: "scoped"},
 		"no_seed": {want: "no_seed"},
 	} {
 		reader := sdkmetric.NewManualReader()
@@ -77,14 +78,16 @@ func TestPassOutcomeCarriesTheScopedAndNoSeedReasons(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		var scopeFacts []facts.Envelope
+		if tc.localFacts {
+			scopeFacts = []facts.Envelope{
+				vulnerabilityCVEFact("cve-1", "CVE-2026-9001", 9.8),
+				vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-9001", "pkg:npm/example@1", "npm", "example", "1.2.3", "1.3.0"),
+			}
+		}
 		loader := &scopedSeedLoader{
-			stubSupplyChainImpactFactLoader: &stubSupplyChainImpactFactLoader{
-				scopeFacts: []facts.Envelope{
-					vulnerabilityCVEFact("cve-1", "CVE-2026-9001", 9.8),
-					vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-9001", "pkg:npm/example@1", "npm", "example", "1.2.3", "1.3.0"),
-				},
-			},
-			seeds: tc.seeds,
+			stubSupplyChainImpactFactLoader: &stubSupplyChainImpactFactLoader{scopeFacts: scopeFacts},
+			seeds:                           tc.seeds,
 		}
 		handler, _, _ := scopedPassHandler(loader, inst)
 		intent := fanOutIntent(1, scopedStampPayload("CVE-2026-9001"))

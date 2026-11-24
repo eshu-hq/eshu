@@ -99,7 +99,7 @@ func TestFanOutReportsTimeBySite(t *testing.T) {
 			fanOutSpanAttrs[string(kv.Key)] = true
 		}
 	}
-	for _, key := range []string{"inflight_read_seconds", "holder_reads_seconds", "reopen_loop_seconds", "state_update_seconds"} {
+	for _, key := range []string{"in_flight_early_seconds", "inflight_read_seconds", "holder_reads_seconds", "holder_prefilter_seconds", "reopen_loop_seconds", "state_update_seconds"} {
 		if !fanOutSpanAttrs[key] {
 			t.Fatalf("fan-out span lacks %s (attrs %v)", key, fanOutSpanAttrs)
 		}

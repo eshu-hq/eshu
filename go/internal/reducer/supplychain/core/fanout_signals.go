@@ -35,6 +35,56 @@ const (
 	fanOutReadOutcomeOK = "ok"
 )
 
+// fanOutResult is what one pass's fan-out did, for sub-signals and the log.
+type fanOutResult struct {
+	// cause is the committing generation's evidence family (fanOutCause),
+	// carried on every counter outcome this pass emits.
+	cause         string
+	holders       int
+	reopened      int
+	replayFlagged int
+	pendingNoop   int
+	enqueued      int
+	// stampWidened counts holders whose queued or already-flagged item got
+	// this change merged into its stamp (#10972).
+	stampWidened int
+	// prefiltered counts holders the queued-holder prefilter dropped before
+	// the cap slice: their item was already pending or retrying (#10972).
+	prefiltered int
+	// deadLetterReopened, deadLetterSkipped, and noActiveGeneration count the
+	// #11147 holder outcomes for the summary line and sub-signals; their
+	// counter series are written per holder (recordHolderReopen) or with the
+	// pass (emitFanOut).
+	deadLetterReopened int
+	deadLetterSkipped  int
+	noActiveGeneration int
+	// holderStatements, splitChunks, hotIDs, and maxIDMassRows record what
+	// adaptive splitting did (#10643): statements run, chunks that split,
+	// singleton statements (hot by mass, or isolated by packing/unknown
+	// mass — read hotIDs as singletons), and the largest measured per-id
+	// mass.
+	holderStatements int
+	splitChunks      int
+	hotIDs           int
+	maxIDMassRows    int64
+	// keyRangedIDs and keyRangeStatements record the hot singleton ids read
+	// as fact_id key ranges and the key-range statements they ran (#10643).
+	keyRangedIDs       int
+	keyRangeStatements int
+	// deferred is the number of holders still owed after this claim, a gauge
+	// the sub-signal reports. newlyDeferred is the part that was not already
+	// owed when the claim started, which is what the counter adds, so draining
+	// one backlog across several claims counts each holder once.
+	deferred      int
+	newlyDeferred int
+	crashRecovery bool
+	// replayCleared is true when the pass proved its rewrite clear of the
+	// flagged change and its replay flag was cleared (#9740), so the ack
+	// succeeds instead of rerunning it.
+	replayCleared bool
+	inFlight      inFlightNarrowing // the #10972 D4b in-flight arm
+}
+
 func (h SupplyChainImpactHandler) startFanOutSpan(ctx context.Context, intent reducercontract.Intent) (context.Context, trace.Span) {
 	if h.Tracer == nil {
 		// A no-op span: ending it must never end the caller's span.
@@ -265,4 +315,74 @@ func (h SupplyChainImpactHandler) observeFanOutRead(ctx context.Context, kind st
 		telemetry.AttrFanOutReadKind(kind),
 		attribute.String("outcome", outcome),
 	))
+}
+
+// fanOutSiteTimes accumulates the time one fan-out pass spends in each of the
+// closed telemetry.SupplyChainImpactFanOutSites (#10972). It observes only:
+// no decision reads it. The reads that feed it run one after another on the
+// handler's goroutine, so it needs no lock.
+type fanOutSiteTimes struct {
+	elapsed map[string]time.Duration
+}
+
+func newFanOutSiteTimes() *fanOutSiteTimes {
+	return &fanOutSiteTimes{elapsed: make(map[string]time.Duration, 4)}
+}
+
+// addEarlyRead credits the load-end in-flight read (set A) to the in_flight_early
+// site: it ran before the writer, so the fan-out reports its measured duration
+// instead of timing it. A pass that took no set A read reports nothing.
+func (t *fanOutSiteTimes) addEarlyRead(early inFlightAtLoadEnd) {
+	if early.state == "" || early.state == inFlightEarlyReadSkipped {
+		return
+	}
+	t.elapsed[telemetry.SupplyChainImpactFanOutSiteInFlightEarly] += early.duration
+}
+
+// begin starts timing one entry into site; the returned func adds the
+// elapsed time to the site's total, so a site entered many times (one reopen
+// per holder) reports its sum.
+func (t *fanOutSiteTimes) begin(site string) func() {
+	start := time.Now()
+	return func() { t.elapsed[site] += time.Since(start) }
+}
+
+// finish records one histogram sample and one fan-out span attribute
+// (<site>_seconds) per site the pass entered, in the closed set's order. A
+// site the pass never entered reports nothing. It runs deferred, so a pass
+// that fails inside a site still reports the time it spent there.
+func (t *fanOutSiteTimes) finish(ctx context.Context, h SupplyChainImpactHandler, span trace.Span) {
+	for _, site := range telemetry.SupplyChainImpactFanOutSites() {
+		elapsed, entered := t.elapsed[site]
+		if !entered {
+			continue
+		}
+		span.SetAttributes(attribute.Float64(site+"_seconds", elapsed.Seconds()))
+		if h.Instruments == nil || h.Instruments.SupplyChainImpactFanOutSiteDuration == nil {
+			continue
+		}
+		h.Instruments.SupplyChainImpactFanOutSiteDuration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(
+			telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+			telemetry.AttrSupplyChainImpactFanOutSite(site),
+		))
+	}
+}
+
+// setSpanAttributes puts the pass's fan-out counts on its span.
+func (r fanOutResult) setSpanAttributes(span trace.Span) {
+	span.SetAttributes(
+		attribute.String("cause", r.cause),
+		attribute.Int("holders", r.holders),
+		attribute.Int("reopened", r.reopened),
+		attribute.Int("replay_flagged", r.replayFlagged),
+		attribute.Int("stamp_widened", r.stampWidened),
+		attribute.Int("deferred", r.deferred),
+		attribute.Int("prefiltered_pending", r.prefiltered),
+		attribute.Int("holder_statements", r.holderStatements),
+		attribute.Int("split_chunks", r.splitChunks),
+		attribute.Int("hot_ids", r.hotIDs),
+		attribute.Int64("max_id_mass_rows", r.maxIDMassRows),
+		attribute.Int("key_ranged_ids", r.keyRangedIDs),
+		attribute.Int("holder_key_range_statements", r.keyRangeStatements),
+	)
 }

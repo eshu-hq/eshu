@@ -20,12 +20,20 @@ const MetricDimensionFanOutSite = "fanout_site"
 // spent in each site it entered. The set is closed; SupplyChainImpactFanOutSites
 // lists it.
 const (
+	// SupplyChainImpactFanOutSiteInFlightEarly is the load-end in-flight read
+	// (set A of the D4b narrowing, #10972) that runs before the writer. It is
+	// reported with the fan-out pass it feeds; a pass that took no set A read
+	// (a one-hop rerun) reports nothing for it.
+	SupplyChainImpactFanOutSiteInFlightEarly = "in_flight_early"
 	// SupplyChainImpactFanOutSiteInFlightRead is the claimed-or-running queue
 	// state read that finds the holders to flag.
 	SupplyChainImpactFanOutSiteInFlightRead = "inflight_read"
 	// SupplyChainImpactFanOutSiteHolderReads is every holder lookup statement
 	// of the pass (the packed, split and key-range reads).
 	SupplyChainImpactFanOutSiteHolderReads = "holder_reads"
+	// SupplyChainImpactFanOutSiteHolderPrefilter is the one set read that drops
+	// the holders whose queued pass already covers the stamp (#10972).
+	SupplyChainImpactFanOutSiteHolderPrefilter = "holder_prefilter"
 	// SupplyChainImpactFanOutSiteReopenLoop is the per-holder reopen or
 	// replay-flag writes.
 	SupplyChainImpactFanOutSiteReopenLoop = "reopen_loop"
@@ -37,8 +45,10 @@ const (
 // SupplyChainImpactFanOutSites returns the closed fan-out time site set.
 func SupplyChainImpactFanOutSites() []string {
 	return []string{
+		SupplyChainImpactFanOutSiteInFlightEarly,
 		SupplyChainImpactFanOutSiteInFlightRead,
 		SupplyChainImpactFanOutSiteHolderReads,
+		SupplyChainImpactFanOutSiteHolderPrefilter,
 		SupplyChainImpactFanOutSiteReopenLoop,
 		SupplyChainImpactFanOutSiteStateUpdate,
 	}
@@ -60,7 +70,7 @@ func registerSupplyChainImpactFanOutSiteInstruments(meter metric.Meter, inst *In
 	var err error
 	if inst.SupplyChainImpactFanOutSiteDuration, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_fanout_site_duration_seconds",
-		metric.WithDescription("Supply-chain impact holder fan-out time in seconds by site (inflight_read, holder_reads, reopen_loop, state_update), one sample per site a pass entered (#10972)"),
+		metric.WithDescription("Supply-chain impact holder fan-out time in seconds by site (in_flight_early, inflight_read, holder_reads, holder_prefilter, reopen_loop, state_update), one sample per site a pass entered (#10972)"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 180),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactFanOutSiteDuration histogram: %w", err)

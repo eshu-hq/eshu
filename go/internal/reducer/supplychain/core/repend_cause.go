@@ -81,18 +81,21 @@ func (h SupplyChainImpactHandler) emitPassOutcome(
 	write SupplyChainImpactWriteResult,
 ) {
 	mode := supplyChainImpactPassMode(intent, loaded)
+	reason := h.passReasonOf(intent, loaded)
 	cause := rependCauseOf(intent)
 	changed, class := passChangeOf(write)
 	if h.Instruments != nil && h.Instruments.SupplyChainImpactPassOutcomeTotal != nil {
 		h.Instruments.SupplyChainImpactPassOutcomeTotal.Add(ctx, 1, metric.WithAttributes(
 			telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
 			telemetry.AttrSupplyChainImpactPassMode(mode),
+			telemetry.AttrSupplyChainImpactPassReason(reason),
 			telemetry.AttrSupplyChainImpactRependCause(cause),
 			telemetry.AttrSupplyChainImpactPassChanged(changed),
 			telemetry.AttrSupplyChainImpactChangeClass(class),
 		))
 	}
 	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String(telemetry.MetricDimensionPassReason, reason),
 		attribute.String(telemetry.MetricDimensionRependCause, cause),
 		attribute.String(telemetry.MetricDimensionPassChanged, changed),
 		attribute.String(telemetry.MetricDimensionChangeClass, class),
@@ -107,13 +110,40 @@ func (h SupplyChainImpactHandler) emitPassOutcome(
 		slog.String("intent_id", intent.IntentID),
 		slog.Int("attempt_count", intent.AttemptCount),
 		slog.String(telemetry.MetricDimensionPassMode, mode),
+		slog.String(telemetry.MetricDimensionPassReason, reason),
 		slog.String(telemetry.MetricDimensionRependCause, cause),
 		slog.String(telemetry.MetricDimensionPassChanged, changed),
 		slog.String(telemetry.MetricDimensionChangeClass, class),
 	)
 }
 
-// passReasonOf is a placeholder the #10972 reason tests drive red.
-func (h SupplyChainImpactHandler) passReasonOf(reducercontract.Intent, supplyChainImpactLoadedEvidence) string {
-	return ""
+// passReasonOf names why a pass ran scoped or full, from what the load
+// already decided and the handler's wiring, never from a new read. It splits
+// the lumped full mode:
+//
+//  1. scoped: the load scoped;
+//  2. out_of_stamp: the #10415 probe sent a scoped candidate to full;
+//  3. sentinel: a one-hop stamp that names an unbounded change;
+//  4. no_stamp: nothing bounded to scope by (a genuine pass, an unstamped or
+//     empty stamp, or a retry);
+//  5. engaged_protection: a bounded stamp, but the protected or static-only
+//     path never scopes;
+//  6. no_seed: a bounded stamp that nothing seeded (no finding row and no
+//     local stamped advisory, a loader without the seed seam, or a failed
+//     seed read, which logs its own warning).
+func (h SupplyChainImpactHandler) passReasonOf(intent reducercontract.Intent, loaded supplyChainImpactLoadedEvidence) string {
+	switch {
+	case loaded.scoped != nil:
+		return telemetry.SupplyChainImpactPassReasonScoped
+	case loaded.scopedFallbackOutOfStamp:
+		return telemetry.SupplyChainImpactPassReasonOutOfStamp
+	case fanOutOneHop(intent) && fanOutStampSentinel(fanOutStampCVEIDs(intent)):
+		return telemetry.SupplyChainImpactPassReasonSentinel
+	case len(scopedPassCVEIDs(intent)) == 0:
+		return telemetry.SupplyChainImpactPassReasonNoStamp
+	case h.AuthorizedEvidenceLoader != nil || h.authorizedStaticOnly:
+		return telemetry.SupplyChainImpactPassReasonEngagedProtection
+	default:
+		return telemetry.SupplyChainImpactPassReasonNoSeed
+	}
 }

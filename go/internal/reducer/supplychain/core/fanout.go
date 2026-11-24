@@ -7,11 +7,12 @@ import (
 	"context"
 	"fmt"
 
-	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // The holder fan-out (#9695, item 1.5b) closes the convergence gap a source
@@ -225,56 +226,6 @@ type SupplyChainImpactFanOut interface {
 	ClearReplayFlagIfStampSeen(ctx context.Context, intent reducercontract.Intent, seen map[string]any) (bool, error)
 }
 
-// fanOutResult is what one pass's fan-out did, for sub-signals and the log.
-type fanOutResult struct {
-	// cause is the committing generation's evidence family (fanOutCause),
-	// carried on every counter outcome this pass emits.
-	cause         string
-	holders       int
-	reopened      int
-	replayFlagged int
-	pendingNoop   int
-	enqueued      int
-	// stampWidened counts holders whose queued or already-flagged item got
-	// this change merged into its stamp (#10972).
-	stampWidened int
-	// prefiltered counts holders the queued-holder prefilter dropped before
-	// the cap slice: their item was already pending or retrying (#10972).
-	prefiltered int
-	// deadLetterReopened, deadLetterSkipped, and noActiveGeneration count the
-	// #11147 holder outcomes for the summary line and sub-signals; their
-	// counter series are written per holder (recordHolderReopen) or with the
-	// pass (emitFanOut).
-	deadLetterReopened int
-	deadLetterSkipped  int
-	noActiveGeneration int
-	// holderStatements, splitChunks, hotIDs, and maxIDMassRows record what
-	// adaptive splitting did (#10643): statements run, chunks that split,
-	// singleton statements (hot by mass, or isolated by packing/unknown
-	// mass — read hotIDs as singletons), and the largest measured per-id
-	// mass.
-	holderStatements int
-	splitChunks      int
-	hotIDs           int
-	maxIDMassRows    int64
-	// keyRangedIDs and keyRangeStatements record the hot singleton ids read
-	// as fact_id key ranges and the key-range statements they ran (#10643).
-	keyRangedIDs       int
-	keyRangeStatements int
-	// deferred is the number of holders still owed after this claim, a gauge
-	// the sub-signal reports. newlyDeferred is the part that was not already
-	// owed when the claim started, which is what the counter adds, so draining
-	// one backlog across several claims counts each holder once.
-	deferred      int
-	newlyDeferred int
-	crashRecovery bool
-	// replayCleared is true when the pass proved its rewrite clear of the
-	// flagged change and its replay flag was cleared (#9740), so the ack
-	// succeeds instead of rerunning it.
-	replayCleared bool
-	inFlight      inFlightNarrowing // the #10972 D4b in-flight arm
-}
-
 // fanOutHolders runs the holder fan-out for one committed pass. It returns an
 // error for a failed holder read or reopen, so the pass fails before its
 // acknowledgement and the queue retries it: a holder left unreopened would be a
@@ -348,7 +299,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 
 	ctx, span := h.startFanOutSpan(ctx, intent)
 	defer span.End()
-	ordered, split, inFlight, err := h.collectFanOutHolders(ctx, span, cause, intent, early, lookupIDs, remaining)
+	times := newFanOutSiteTimes()
+	times.addEarlyRead(early)
+	defer times.finish(ctx, h, span)
+	ordered, split, inFlight, err := h.collectFanOutHolders(ctx, span, cause, intent, early, lookupIDs, remaining, times)
 	if err != nil {
 		return fanOutResult{cause: cause}, err
 	}
@@ -357,7 +311,9 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// BEFORE the cap slice, so the cap and the continuation list count only
 	// holders that still need a reopen statement (#10972).
 	holderTotal := len(ordered)
+	done := times.begin(telemetry.SupplyChainImpactFanOutSiteHolderPrefilter)
 	ordered, prefiltered, err := h.dropQueuedHolders(ctx, cause, ordered, stampOut)
+	done()
 	if err != nil {
 		span.RecordError(err)
 		return fanOutResult{cause: cause}, err
@@ -387,7 +343,9 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		CVEIDs:             stampOut,
 	}
 	for _, holder := range batch {
+		done := times.begin(telemetry.SupplyChainImpactFanOutSiteReopenLoop)
 		reopen, err := h.FanOut.ReopenHolderDetailed(ctx, holder, origin)
+		done()
 		if err != nil {
 			h.countFanOut(ctx, cause, fanOutOutcomeReopenError, 1)
 			span.RecordError(err)
@@ -414,7 +372,10 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		// before the stamp is consumed below: the ack then succeeds instead
 		// of rerunning it. A newer stamp between the compare and the clear
 		// turns the clear into a no-op and the pass reruns once.
-		if clear, err := h.clearReplayFlag(ctx, intent, write, stampCVEs, state.ExpectedOrigin); err != nil {
+		done := times.begin(telemetry.SupplyChainImpactFanOutSiteStateUpdate)
+		clear, err := h.clearReplayFlag(ctx, intent, write, stampCVEs, state.ExpectedOrigin)
+		done()
+		if err != nil {
 			h.countFanOut(ctx, cause, fanOutOutcomeStateError, 1)
 			span.RecordError(err)
 			return result, err
@@ -422,28 +383,35 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 			result.replayCleared = clear
 		}
 	}
-	if state.ReplaceRemaining || state.ConsumeOrigin || state.ClearOwed {
-		if err := h.FanOut.UpdateFanOutState(ctx, intent, state); err != nil {
-			h.countFanOut(ctx, cause, fanOutOutcomeStateError, 1)
-			span.RecordError(err)
-			return result, fanOutError{fmt.Errorf("record supply chain impact fan-out state: %w", err)}
-		}
+	if err := h.writeFanOutState(ctx, intent, state, cause, span, times); err != nil {
+		return result, err
 	}
 	h.emitFanOut(ctx, intent, result)
-	span.SetAttributes(
-		attribute.String("cause", result.cause),
-		attribute.Int("holders", result.holders),
-		attribute.Int("reopened", result.reopened),
-		attribute.Int("replay_flagged", result.replayFlagged),
-		attribute.Int("stamp_widened", result.stampWidened),
-		attribute.Int("deferred", result.deferred),
-		attribute.Int("prefiltered_pending", result.prefiltered),
-		attribute.Int("holder_statements", result.holderStatements),
-		attribute.Int("split_chunks", result.splitChunks),
-		attribute.Int("hot_ids", result.hotIDs),
-		attribute.Int64("max_id_mass_rows", result.maxIDMassRows),
-		attribute.Int("key_ranged_ids", result.keyRangedIDs),
-		attribute.Int("holder_key_range_statements", result.keyRangeStatements),
-	)
+	result.setSpanAttributes(span)
 	return result, nil
+}
+
+// writeFanOutState records the pass's fan-out state on its own item when
+// there is something to record, timing the write as the state_update site and
+// counting a failure as a state_error outcome.
+func (h SupplyChainImpactHandler) writeFanOutState(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	state FanOutState,
+	cause string,
+	span trace.Span,
+	times *fanOutSiteTimes,
+) error {
+	if !state.ReplaceRemaining && !state.ConsumeOrigin && !state.ClearOwed {
+		return nil
+	}
+	done := times.begin(telemetry.SupplyChainImpactFanOutSiteStateUpdate)
+	err := h.FanOut.UpdateFanOutState(ctx, intent, state)
+	done()
+	if err != nil {
+		h.countFanOut(ctx, cause, fanOutOutcomeStateError, 1)
+		span.RecordError(err)
+		return fanOutError{fmt.Errorf("record supply chain impact fan-out state: %w", err)}
+	}
+	return nil
 }
