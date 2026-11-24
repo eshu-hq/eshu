@@ -19,8 +19,9 @@ primary key for supports written before migration 350. The twin is a scalar
 subquery, the second COALESCE argument, which COALESCE evaluates only when the
 support's key is NULL: a filled key costs no `fact_records` probe (the earlier join
 probed once per row either way; the arbiter ruling R1 of 2026-11-24 required the
-lazy form; its EXPLAIN proof, a SubPlan never executed, is a lab proof not yet
-run). The fencing
+lazy form). Its plan proof is `TestSupplyChainImpactSupportsLazyStoredReadPlanLive`
+(C1k), which passed in run 31: for a filled key the twin SubPlan prints
+`(never executed)`, for a NULL key it runs once per row. The fencing
 token is the constant 0: the per-row guard is redundant with whole-pass admission
 (the fact id embeds scope and generation; the pair lock and the admission reject a
 stale pass). A row with no key on either side reads under a unique
@@ -45,6 +46,9 @@ note; the raw plans stay outside the repository). Statements rendered from this 
   then 798. The supports plan is the scope/generation index plus 14,123
   `fact_records_pkey` probes (the twin join); the first run read 19,351 shared
   buffers. Warm it is within 10% of legacy; cold it is about 14 times slower.
+  This measured the earlier join form; the shipped lazy form probes the twin only
+  for a NULL key (`TestSupplyChainImpactSupportsLazyStoredReadPlanLive`, run 31).
+  The QA re-measure of the lazy form is owed to D3a.
 - Recovery reads (c), 2-leg form (61 rows): cve ids 1,206 then 541 versus 351 then
   350; group ids 372 then 362 versus 347 then 345. Index scans only. This run still
   includes the facts leg, so it is not supports-only.
@@ -85,8 +89,9 @@ subquery and no join, the fallback key, token 0, the shared generation window, o
 mention), a derivation test (each payload expression equals the frozen legacy one
 over `s.payload`), the frozen-oracle digest, fake-DB tests of the missing-key rule
 and of `changedCVEIDs` over a keyless baseline, and the adapter's hold-and-flush
-counting. The equality of the two reads on a seed is a live proof and is not run
-here.
+counting. The equality of the two reads on a seed is
+`TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive`, which passed in runs 30
+and 31; its prior-generation leg was added after those runs (see the live-run record).
 
 ## C1 c: the retraction records its keys, and the recovery reads take them
 
@@ -110,9 +115,11 @@ key cascades.
 Hermetic proof: both retraction statements reduce to their base digest when the two
 fragments are removed; the fill is the same text in both; the legs, their `UNION`
 joins, the shared generation window and the byte-identical fact legs are pinned; the
-retention arm is pinned. Not run here (live, coordinator slot): the equality of the
-three-leg read with the fact read on a seed, a crash-after-commit recovery across
-the cutover, and the retention cascade accounting.
+retention arm is pinned. The equality of the three-leg read with the fact read on a
+seed, and the crash-after-commit recovery, are
+`TestSupplyChainImpactSupportsRecoveryReadEqualsLegacyReadLive` (passed in runs 30 and
+31). The retention cascade accounting has the census classification
+(`TestCensusClassifiesRetractedFindingKeys`) and no live run.
 
 ## C1 d: the winners maintainer's full and keyed inputs read supports
 
@@ -134,16 +141,16 @@ The winners contract pin (version 2) is re-pinned, not bumped. A bump runs one f
 on every instance after the roll. `TestWinnersContractRepinnedForSupportsInputs`
 reverses the declared swaps in every contract statement and requires the previous
 pin `8e761819...`. The live byte-identity differential of the stored winners on a
-seed is not run here.
+seed is `TestSupplyChainImpactWinnersResweepSupportsDifferentialLive` (passed in runs
+30 and 31).
 
 Not done, and why:
 
-- The keyed probe on the supports table has no counterpart of
-  `fact_records_supply_chain_impact_winners_keyed_idx` (the five-expression index).
-  The statements are correct without it and unmeasured with it; the index set is
-  PR-C1 g, which waits for T1. The live plan guards that assert the probe on that
-  index (`keyed_contract_live_test`, the explain export) still point at the legacy
-  statement, which the audit runs, and will need re-targeting with g.
+- The keyed probe's index on the supports table is migration 354 (C1 g below). The
+  live plan guards in `keyed_contract_live_test` and the explain export still assert
+  the legacy statement on `fact_records_supply_chain_impact_winners_keyed_idx`, which
+  the audit runs; the supports probe's plan guard is
+  `TestSupplyChainImpactSupportsKeyedProbePlanLive` (C1k).
 - Staged statements, final reading (lead's rule: a statement moves when the
   winners maintainer's non-audit path consumes it; it stays on facts when only the
   audit consumes it). Caller census, `rg` over `go/` at this HEAD, non-test code:
@@ -180,10 +187,10 @@ search_path, the PUBLIC revoke, no conflict arbiter, the dirty log untouched).
 Open, owed to a live run: the scope-delete capture is `BEFORE DELETE` on
 `ingestion_scopes`, which fires before the foreign-key cascade removes the scope's
 generations and their supports, so the supports are still readable. That order is a
-reading of the trigger and cascade rules, not an observation. The ruling's own
-condition applies: if the capture reads no supports after the cascade removed them,
-this returns to the arbiter. The existing live scope-delete capture test covers it
-and has not been run for this migration.
+reading of the trigger and cascade rules, observed live:
+`TestSupplyChainImpactSupportsScopeDeleteCaptureStagesTheFactSetLive` passed in runs 30
+and 31 for both orders (the scope deleted with its generations, and a retired
+generation deleted before its scope).
 
 ## C1 f: not in C1
 
@@ -219,8 +226,14 @@ expression, and a sixth probe equality.
 
 The set is final only after the post-roll QA measurement (an axios-size package may
 need a different composite than 345 plus this one), and it must not be applied inside
-W1b. Not measured: the index's size, its build time on the QA table (a lab build at
-8M rows precedes the roll that applies it) or the plan it gives.
+W1b. Lab (compressible 9,000-byte payloads, so no QA detoast cost): the build of
+300,000 rows took 1.07 s, 28.7 MB of index, valid and ready
+(`TestSupplyChainImpactSupportsKeyedProbeIndexBuildLabLive`, lab run 14 at C1k
+e68900b7d4; it passed again at its default size in run 31); at the same scale, after
+`VACUUM (ANALYZE)` and with no planner override, the keyed probe chooses
+`supply_chain_impact_finding_supports_keyed_probe_idx` with all five equalities as
+Index Cond and no Seq Scan on supports (`TestSupplyChainImpactSupportsKeyedProbePlanLive`,
+run 32). Not measured: the build time and the plan on the QA table.
 
 ## C1 R2: the winners maintainer waits for the supports table
 
@@ -239,9 +252,13 @@ arbiter ruling closes that:
 - Durable state for "run one full after a not-ready period": the gate also reports
   whether the supports marker's `completed_at` is later than the winners watermark's
   `materialized_at` (both durable rows, one snapshot). A ready table whose marker
-  completed after the last committed resweep runs one unguarded full
-  (`reason="supports_ready"`; the guarded full would skip, the contract being current),
-  which stamps a newer watermark and so clears the condition. No process memory is
+  completed after the last committed resweep runs one supports-ready full
+  (`reason="supports_ready"`; the contract-guarded full would skip, the contract being
+  current), which stamps a newer watermark and so clears the condition. It runs as
+  `ResweepWinnersUnlessNewer`: under the resweep lock it re-reads the contract and
+  stands down, writing nothing, when a newer binary's contract committed after the
+  decision read, as the keyed tick does (`TestWinnersSupportsReadyFullStandsDownUnderANewerContract`,
+  RED on the unguarded full, and `TestResweepWinnersUnlessNewerStandsDownOnlyUnderANewerContract`). No process memory is
   used, so a restart between the not-ready period and the first ready tick still runs
   it, and a second maintainer instance cannot run it twice (lease, then the condition
   is false).
@@ -267,17 +284,22 @@ No-Regression Evidence: the gate is one single-row statement per tick (every
 30 s per instance, plus each audit interval) over two one-row tables and the existing
 readiness predicate; it takes no lock and writes nothing. A ready table adds that read
 and nothing else to the keyed path. The live proof that the statement runs and the
-first-ready full fires on a real marker is owed to a coordinator slot.
+first-ready full fires on a real marker is `TestSupplyChainImpactWinnersResweepSupportsGateLive`
+(passed in runs 30 and 31).
 Observability Evidence: `eshu_dp_supply_chain_impact_winners_supports_not_ready_total`,
 `full_resweeps_total{reason="supports_ready"}` and the waiting/resumed log lines,
 documented in `docs/public/reference/telemetry/supply-chain-impact-winners.md`.
 
 ## Live proofs to run (R5 and section 3)
 
-Written, not yet run. Environment, for a disposable server only:
-`ESHU_POSTGRES_TEST_DSN=<dsn>`, `ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN=<admin dsn of the same server>`,
-`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1`, `ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1`. Command, from `go/`:
-`go test -count=1 -v -run '<name>' ./internal/storage/postgres/`.
+Run; the results are in the live-run record below. Environment, for a disposable
+server only, all four families set (with fewer, tests skip; with
+`ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1` a missing DSN fails instead):
+`ESHU_POSTGRES_TEST_DSN`, `ESHU_POSTGRES_DSN` with `ESHU_POSTGRES_DISPOSABLE=1`,
+`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN` with `ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1`, and
+`ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DSN` with `ESHU_SUPPLY_CHAIN_IMPACT_EVIDENCE_PROOF_DISPOSABLE=1`.
+Command, from `go/`:
+`go test -count=1 -p 1 -run '^(TestSupplyChainImpact.*Live|TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive)$' ./internal/storage/postgres/`.
 
 - `TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive`: the supports-backed stored read equals
   the frozen fact read on one seed, including a NULL support key with a twin, with no twin and with an
@@ -355,5 +377,66 @@ caller of a seam, with a seeded pair. The render test for the ungranted explain 
 (`TestRenderUngrantedExplainShapes`) moves with item f: its statements become key-first, and the
 replica proofs (plan shape, work and time criteria of the item f ruling, each plain and under
 `plan_cache_mode = force_generic_plan`) belong to the f PR, not to C1. The live family must be
-recorded at the heads that will be pushed, one run on the C1 head and one on the C1k head, each stating both DSN
-variables and zero skips, with the log path; those runs are the coordinator's and are added here when they exist.
+recorded at the heads that will be pushed, one run on the C1 head and one on the C1k head, each stating the DSN
+variables and zero skips, with the log path: see the live-run record below.
+
+## Live-run record
+
+Lab: the disposable `lab-c1-pg` Postgres 18.6 container; every test clones its own
+database. All four DSN families above were set, plus `ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1`.
+Command as above, under `nice -n 19` with `-json`. Counts include subtests; logs are under
+`~/.cache/lab-c1/logs/` on the lab host (outside the repository).
+
+| Run | Head | Result | Log |
+| --- | --- | --- | --- |
+| 30 | C1 `790fcfa968` | 302 pass, 1 fail, 0 skip. The fail is `TestSupplyChainImpactWinnersStagingAutovacuumSoakLive` VOID: load1 reached 28.51 from other lanes (ceiling 8.0), so the test published no numbers. | `run30-c1-alone-790fcf.json` |
+| 31 | C1k `9038930ea4` (C1 `790fcfa968` plus C1k) | 310 pass, 0 fail, 0 skip, the soak test included. | `run31-c1k-903893.json` |
+| 32 | C1k `59148e1969` | `TestSupplyChainImpactSupportsKeyedProbePlanLive` at 300,000 rows and 9,000-byte payloads: pass. The plan chose `supply_chain_impact_finding_supports_keyed_probe_idx` with all five equalities as Index Cond; the only Seq Scan was on the 5-row identifier table. | `run32-keyed-plan-300k-59148e.json`, plan in `~/.cache/lab-c1/plans/run32/keyed_probe.txt` |
+| 33 | C1 `5a4478f524` | The soak test alone: VOID at start (load1 12.42, ceiling 8.0). | `run33-soak-c1-5a4478.json` |
+
+Disposition of the soak VOID: it is a load self-void, not an assertion. Run 31 at C1k, a
+superset of the C1 code, passed it, and C1 does not touch its path.
+
+The heads above predate the review fixes: the supports-ready full guard, the corrected
+352 and 354 headers, the prior-generation stored-read leg and the keyed-tick facts
+checks across the change classes. Those four are not in any run above. The live family
+is owed again at the final heads, one run on C1 and one on C1k.
+
+## Claims table
+
+N is the number of green live runs recorded above at a C1 or C1k head; 0 marks a proof
+not yet run live, and "unit" marks a hermetic test, run on every commit.
+
+| Claim | Test | Seeded-violation test | Role | N |
+| --- | --- | --- | --- | --- |
+| The stored read from supports equals the frozen fact read (b) | `TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive` | `TestLegacyStoredFindingsQueryStaysFrozen` (oracle digest) | differential | 2 (prior-generation leg: 0) |
+| The stored read derives from the legacy expressions over the payload (b) | `TestStoredFindingsSupportsQueryDerivesFromTheLegacyExpressions` | none: a changed expression fails the derivation | derivation | unit |
+| A missing stable key reads as changed and is counted (b) | `TestReadStoredFindingsTreatsAMissingKeyAsChangedAndCountsIt` | none: the fake-DB rows are the violation | behavior | unit |
+| The twin is probed only for a NULL key (b, R1) | `TestSupplyChainImpactSupportsLazyStoredReadPlanLive` (C1k) | none: the filled pair asserts no probe | plan | 1 |
+| The three-leg recovery read equals the fact read, also after a crash (c) | `TestSupplyChainImpactSupportsRecoveryReadEqualsLegacyReadLive` | `TestRecoveryReadsKeepTheFactReadAsTheTransitionLeg` | differential | 2 |
+| A retraction records its keys in the same statement (c) | `TestRetractedKeysFillShape` | `TestRetractionStatementsOnlyGainTheKeyFill` | shape guard | unit |
+| Every maintainer statement reads supports, not facts (d) | `TestWinnersMaintainerStatementsReadNoFactRecords` | `TestWinnersKeyedTickReadsNoFactRecords` (RED on the unswapped #11308 count) | guard | unit |
+| The supports statements are the legacy ones with the declared swaps only (d) | `TestWinnersSupportsInputsDeriveFromTheLegacyStatements` | `TestWinnersContractRepinnedForSupportsInputs` (shipped pin must differ) | derivation | unit |
+| The audit stays on facts in C1 (d) | `TestWinnersAuditStaysOnFacts` | none: a moved statement fails it | guard | unit |
+| The full winners from supports equal the facts select (d) | `TestSupplyChainImpactWinnersResweepSupportsDifferentialLive` | none: a non-empty EXCEPT ALL is the violation | differential | 2 |
+| The keyed tick equals the facts select across every change class (d, section 3) | `TestSupplyChainImpactWinnersResweepTriggerCaptureViolationsAreCaughtLive` (with-trigger arms and the retracted-finding cases) | its without-trigger arms | differential | 0 |
+| The #11308 scanned-copies count probes the supports table (d) | `TestWinnersSupportsScannedCountMatchesTheSupportsProbe` | `TestWinnersKeyedTickReadsNoFactRecords` | guard | unit |
+| 352 and 353 are 310 and 311 over supports (e) | `TestSupportsScopeDeleteCaptureIsTheFactCaptureOverSupports`, `TestSupportsScannerCapturesAreTheFactCapturesOverSupports` | `TestSupportsCaptureMigrationsRedefineOnlyTheFunctionsThatReadFacts` | derivation | unit |
+| The scope-delete capture reads supports before the cascade (e) | `TestSupplyChainImpactSupportsScopeDeleteCaptureStagesTheFactSetLive` | none: a missing identifier is the violation | order | 2 |
+| Index 354 covers the keyed probe (g) | `TestKeyedSupportsIndexCoversTheKeyedProbe` | `TestKeyedProbeCoverageRejectsSeededViolations` | guard | unit |
+| The keyed probe uses 354 with five Index Conds and no override (g) | `TestSupplyChainImpactSupportsKeyedProbePlanLive` (C1k) | none: a Seq Scan on supports fails it | plan | 2 (run 32 at 300k) |
+| The maintainer waits for supports and runs one full after (R2) | `TestWinnersFirstReadyTickAfterNotReadyRunsExactlyOneFull`, `TestWinnersNotReadyTickWritesNothingAndKeepsTheWatermark`, `TestSupplyChainImpactWinnersResweepSupportsGateLive` | the R2 mutations (gate removed, `FullNeeded` ignored, audit ungated) each fail a named test | gate | unit, live 2 |
+| The gate compares only durable stamps (R2) | `TestWinnersSupportsGateEmbedsTheReadinessPredicateAndComparesDurableStamps`, `TestWinnersFullAfterNotReadySurvivesARestart` | none: process memory in place of the stamps fails the restart test | gate | unit |
+| The supports-ready full stands down under a newer contract (R2) | `TestResweepWinnersUnlessNewerStandsDownOnlyUnderANewerContract` | `TestWinnersSupportsReadyFullStandsDownUnderANewerContract` (RED on the unguarded full) | guard | unit |
+| A dirty fence needs no full (Q7) | `TestSupplyChainImpactWinnersResweepSupportsDirtyFenceScannerLive` | none: a stale winner is the violation | differential | 2 |
+| No write-capable proof seam ships in a binary (13) | `TestProofSeamsHaveNoNonTestCallers` | its seeded pair | census | unit |
+| The retracted-keys table is classified for retention (c) | `TestCensusClassifiesRetractedFindingKeys` | none: an unclassified table fails it | census | unit |
+| A protected publish captures winners dirty keys | `TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive` | none | behavior | 2 |
+
+## File-size waiver
+
+`go/cmd/reducer/main.go` (595 lines on main, 598 here) and
+`go/internal/storage/postgres/migrations/migration_checksum_manifest_test.go` (600 on main,
+612 here) were over the 500-line cap before C1, which adds a few lines to each.
+`go/internal/telemetry/instruments.go` is over the cap on main and C1 shrinks it. The
+split of these pre-existing files is not part of C1.
