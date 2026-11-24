@@ -66,11 +66,33 @@ var supplyChainImpactSupportColumns = []supplyChainImpactSupportColumn{
 	{"payload", "fact.payload"},
 }
 
+// supplyChainImpactSupportFillOnlyColumns are columns the upsert fills and sets
+// on a row it rewrites anyway but never compares (#10880 PR-C1 a). stable_fact_key
+// links a finding across generations and is copied from the fact so the stored
+// read can leave fact_records; it is outside the write-on-change guard, so a
+// replay does not rewrite a row only to fill it, and a row written before the
+// column existed keeps NULL until a real change rewrites it (the stored read
+// falls back to the fact's own key for those).
+var supplyChainImpactSupportFillOnlyColumns = []supplyChainImpactSupportColumn{
+	{"stable_fact_key", "fact.stable_fact_key"},
+}
+
 // supplyChainImpactSupportsSelectSQL renders the SELECT that derives support
 // rows from live finding facts, filtered by predicate, in fact id order.
 func supplyChainImpactSupportsSelectSQL(predicate string) string {
+	return supplyChainImpactSupportsSelectSQLWith(predicate, supplyChainImpactSupportFillOnlyColumns)
+}
+
+// supplyChainImpactSupportsSelectSQLWith is supplyChainImpactSupportsSelectSQL
+// over an explicit fill-only column list. The differential test renders it with
+// none to prove the shipped statements differ from the version-1 pin only by the
+// fill-only columns.
+func supplyChainImpactSupportsSelectSQLWith(predicate string, fillOnly []supplyChainImpactSupportColumn) string {
 	var exprs []string
 	for _, column := range supplyChainImpactSupportColumns {
+		exprs = append(exprs, "    "+column.expr+" AS "+column.name)
+	}
+	for _, column := range fillOnly {
 		exprs = append(exprs, "    "+column.expr+" AS "+column.name)
 	}
 	return `SELECT fact.fact_id,
@@ -82,10 +104,14 @@ WHERE fact.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
 ORDER BY fact.fact_id`
 }
 
-// supplyChainImpactSupportsColumnNames returns fact_id then every derived column.
-func supplyChainImpactSupportsColumnNames() string {
+// supplyChainImpactSupportsColumnNamesWith returns fact_id, every derived column,
+// then the fill-only columns (see supplyChainImpactSupportsSelectSQLWith).
+func supplyChainImpactSupportsColumnNamesWith(fillOnly []supplyChainImpactSupportColumn) string {
 	names := []string{"fact_id"}
 	for _, column := range supplyChainImpactSupportColumns {
+		names = append(names, column.name)
+	}
+	for _, column := range fillOnly {
 		names = append(names, column.name)
 	}
 	return strings.Join(names, ", ")
@@ -104,13 +130,22 @@ var upsertSupplyChainImpactSupportsSQL = supplyChainImpactUpsertSupportsStatemen
 // upsert shared by the writer and the backfill, so both write the same rows the
 // same way.
 func supplyChainImpactUpsertSupportsStatement(selectSQL string) string {
+	return supplyChainImpactUpsertSupportsStatementWith(selectSQL, supplyChainImpactSupportFillOnlyColumns)
+}
+
+// supplyChainImpactUpsertSupportsStatementWith is the upsert over an explicit
+// fill-only column list (see supplyChainImpactSupportsSelectSQLWith).
+func supplyChainImpactUpsertSupportsStatementWith(selectSQL string, fillOnly []supplyChainImpactSupportColumn) string {
 	var set, existing, incoming []string
 	for _, column := range supplyChainImpactSupportColumns {
 		set = append(set, column.name+" = EXCLUDED."+column.name)
 		existing = append(existing, "supports."+column.name)
 		incoming = append(incoming, "EXCLUDED."+column.name)
 	}
-	return `INSERT INTO supply_chain_impact_finding_supports AS supports (` + supplyChainImpactSupportsColumnNames() + `)
+	for _, column := range fillOnly {
+		set = append(set, column.name+" = EXCLUDED."+column.name)
+	}
+	return `INSERT INTO supply_chain_impact_finding_supports AS supports (` + supplyChainImpactSupportsColumnNamesWith(fillOnly) + `)
 ` + selectSQL + `
 ON CONFLICT (fact_id) DO UPDATE SET
     ` + strings.Join(set, ",\n    ") + `

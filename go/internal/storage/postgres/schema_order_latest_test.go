@@ -198,4 +198,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// the eco arm on its partial index (CREATE STATISTICS plus ANALYZE),
 	// like migrations 283 and 290.
 	"fact_records_vuln_pkg_eco_stats",
+	// Migration 350 (#10880 PR-C1 a) adds the nullable stable_fact_key column to
+	// the supports table (an ALTER, no new relation: this names its migration file).
+	"supply_chain_impact_finding_supports_stable_fact_key",
 }

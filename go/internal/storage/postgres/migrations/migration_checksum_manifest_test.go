@@ -528,6 +528,9 @@ var migrationShippedChecksums = map[string]string{
 	"347_fact_records_vuln_pkg_eco_scope_gen_active_idx.sql":              "8b8699d0e2ee0154c9705498bc42012099f2a6010ffde4fb107277e5d0640814",
 	"348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql": "b329d635afe998a087c2faef1295156935583d95b5002b6ca7b3328e0e2d8edf",
 	"349_fact_records_vuln_pkg_eco_stats.sql":                             "9b739659bcd23e5efb2cb390b4722ca16ced88c04878ef18e5bf9dbf54756d26",
+	// #10880 PR-C1 a: the nullable stable_fact_key the upsert fills outside its
+	// write-on-change guard (349 is #11376's eco stats on main).
+	"350_supply_chain_impact_finding_supports_stable_fact_key.sql": "ccc38b897b2e04bfed6fc0df1401d55e43a8e765da3cd1f4945a8030d83d62a1",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
