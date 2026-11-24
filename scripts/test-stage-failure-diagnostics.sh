@@ -58,9 +58,11 @@ seed_populated() {
 	printf '{"oracle":"persisted-aggregate-counts"}\n' >"${root}/work/logs/persisted-aggregate-counts.json"
 	printf '{"phases":{"graph_query":3}}\n' >"${root}/work/logs/phase-timings.json"
 	printf '{"leg":"pair1-neo4j","statements":12}\n' >"${root}/capture/recording.jsonl"
-	# The Bearer token below is a LIVE seed, not a pre-redacted one: Case 1
-	# asserts its absence from the staged bundle, so the Authorization
-	# rule is load-bearing (break the rule and the suite goes RED).
+	# The Bearer lines below are LIVE seeds, not pre-redacted ones (this
+	# includes the lowercase authorization: line): Case 1 asserts each
+	# token's absence from the staged bundle, so every Authorization rule
+	# is load-bearing (neuter one rule and the suite goes RED naming its
+	# token).
 	for i in $(seq 1 250); do
 		printf 'api log line %03d padding-padding-padding-padding\n' "${i}" >>"${root}/work/logs/api.log"
 	done
@@ -72,6 +74,7 @@ seed_populated() {
 		printf 'MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKdiagkey\n'
 		printf -- '-----END RSA PRIVATE KEY-----\n'
 		printf 'note: PRIVATE KEY material must never leave the host\n'
+		printf 'authorization: Bearer lower-diag-token-003 authenticated\n'
 		printf 'AUTHORIZATION: Bearer upper-diag-token-007\n'
 		printf 'db PASSWORD=UpperDiagPw007 authenticated\n'
 	} >>"${root}/work/logs/api.log"
@@ -153,6 +156,12 @@ for secret in s3cr3t-diag-token-001 hunter2-diag-pw dbpw-diag-9 MIIEvgIBADANBgkq
 		fail "bundle leaks seeded secret: ${secret}"
 	fi
 done
+if rg -q -F -- 'lower-diag-token-003' "${dest}"; then
+	fail "bundle leaks seeded lowercase secret: lower-diag-token-003"
+fi
+if rg -q -F -- 'PRIVATE KEY' "${dest}/log-tails/api.log.tail"; then
+	fail "bundle leaks standalone PRIVATE KEY canary"
+fi
 rg -q -F -- "[redacted]" "${dest}/log-tails/api.log.tail" || fail "tails must carry redaction markers"
 jq -e '.terraform_state_scopes | length == 1' "${dest}/reducer-domain.json" >/dev/null ||
 	fail "reducer-domain.json must carry the terraform-state scope counts"
