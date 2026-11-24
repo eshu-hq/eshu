@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -177,10 +178,12 @@ func TestFleetSnapshotSetControlStatementsDoNotEmitBusinessStart(t *testing.T) {
 			pool.SetMaxOpenConns(2)
 			t.Cleanup(func() { _ = pool.Close() })
 			allocator := newReaderAllocator([]int{2}, 2)
+			holder := &atomic.Pointer[memberIdentity]{}
+			holder.Store(&memberIdentity{incarnation: "123", addresses: []net.IP{net.ParseIP("127.0.0.1")}})
 			access := &Access{
 				observer: spy, replayTimeout: time.Second,
 				lineage:       newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
-				readerMembers: []physicalReaderMember{{pool: pool, incarnation: "123", addresses: []net.IP{net.ParseIP("127.0.0.1")}}},
+				readerMembers: []physicalReaderMember{{pool: pool, identity: holder}},
 				allocator:     allocator,
 			}
 			ctx := t.Context()

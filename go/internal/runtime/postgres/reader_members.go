@@ -12,6 +12,7 @@ import (
 	"net"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -20,19 +21,42 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
-type physicalReaderMember struct {
-	ordinal     int
-	id          string
-	host        string
-	pool        *sql.DB
+// memberIdentity is one direct reader member's frozen physical pinning: the
+// postmaster incarnation and the addresses its hostname resolved to. A
+// standby restart changes both; requalification republishes them after
+// verifying the member still serves the lined-up cluster. The holder is a
+// pointer so member copies share one published identity.
+type memberIdentity struct {
 	incarnation string
-	serverIP    net.IP
 	addresses   []net.IP
-	maxOpen     int
+	serverIP    net.IP
+}
+
+type physicalReaderMember struct {
+	ordinal int
+	id      string
+	host    string
+	pool    *sql.DB
+	// identity is the frozen physical pinning. A nil holder (tests, legacy
+	// literals) skips the pinning check, matching the single-pool reader.
+	identity *atomic.Pointer[memberIdentity]
+	// dial carries the member's auth, TLS, and database settings for
+	// requalification dials. A nil dial (tests) disables requalification.
+	dial    *pgx.ConnConfig
+	maxOpen int
 	// snapshotExport is this member's #7957 snapshot-export verdict: seeded
 	// from the bootstrap identity read and refreshed by every borrow's
 	// identity check. It is a pointer so member copies share one holder.
 	snapshotExport *snapshotExportQualification
+}
+
+// currentIdentity loads the frozen pinning. A nil holder or member skips the
+// pinning check, matching the single-pool reader path.
+func (m *physicalReaderMember) currentIdentity() *memberIdentity {
+	if m == nil || m.identity == nil {
+		return nil
+	}
+	return m.identity.Load()
 }
 
 func openReaderMembers(ctx context.Context, stageBudget time.Duration, cfg Config, template *pgx.ConnConfig, writer physicalIdentity, parsedValidator pgconn.ValidateConnectFunc) ([]physicalReaderMember, error) {
@@ -95,8 +119,12 @@ func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConf
 		return physicalReaderMember{}, err
 	}
 	config.DialFunc = originalDialFunc
+	holder := &atomic.Pointer[memberIdentity]{}
+	holder.Store(&memberIdentity{incarnation: id.incarnation, addresses: physicalAddresses, serverIP: net.ParseIP(serverAddress)})
+	dialTemplate := config.Copy()
+	dialTemplate.ValidateConnect = nil
 	config.ValidateConnect = attestThenValidate(cfg.ReaderRoleAttestor,
-		validateThenValidate(parsedValidator, memberValidator(writer, id.incarnation, physicalAddresses)))
+		validateThenValidate(parsedValidator, memberValidator(writer, holder.Load)))
 	pool := stdlib.OpenDB(*config)
 	maxOpen := cfg.ReadMaxOpenConns / len(cfg.ReadMembers)
 	if index < cfg.ReadMaxOpenConns%len(cfg.ReadMembers) {
@@ -115,7 +143,7 @@ func qualifyReaderMember(ctx context.Context, cfg Config, template *pgx.ConnConf
 	pool.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 	exportQualification := newSnapshotExportQualification(cfg.SnapshotExportBuilds)
 	exportQualification.observe(id.serverVersion, id.serverVersionNum, id.recovery == "true")
-	return physicalReaderMember{ordinal: index, id: member.ID, host: member.Host, pool: pool, incarnation: id.incarnation, serverIP: net.ParseIP(serverAddress), addresses: physicalAddresses, maxOpen: maxOpen, snapshotExport: exportQualification}, nil
+	return physicalReaderMember{ordinal: index, id: member.ID, host: member.Host, pool: pool, identity: holder, dial: dialTemplate, maxOpen: maxOpen, snapshotExport: exportQualification}, nil
 }
 
 func awaitPGXCleanup(ctx context.Context, cleanupDone <-chan struct{}, forceClose func() error) error {
@@ -219,7 +247,11 @@ func qualifyReaderCandidates(ctx context.Context, inventory []ReaderMember, atte
 	sort.Slice(members, func(i, j int) bool { return members[i].ordinal < members[j].ordinal })
 	for i := range members {
 		for j := 0; j < i; j++ {
-			if members[i].serverIP != nil && members[i].serverIP.Equal(members[j].serverIP) && members[i].incarnation == members[j].incarnation {
+			pinned, other := members[i].currentIdentity(), members[j].currentIdentity()
+			if pinned == nil || other == nil {
+				continue
+			}
+			if pinned.serverIP != nil && pinned.serverIP.Equal(other.serverIP) && pinned.incarnation == other.incarnation {
 				return nil, errors.Join(ErrWrongTopology, closeReaderMembers(members))
 			}
 		}
@@ -295,7 +327,7 @@ func readerFailureClass(err error) readerFailureKind {
 	return readerFailureFatal
 }
 
-func memberValidator(writer physicalIdentity, incarnation string, addresses []net.IP) pgconn.ValidateConnectFunc {
+func memberValidator(writer physicalIdentity, current func() *memberIdentity) pgconn.ValidateConnectFunc {
 	base := readerValidator(writer, nil)
 	return func(ctx context.Context, conn *pgconn.PgConn) error {
 		if err := base(ctx, conn); err != nil {
@@ -309,7 +341,11 @@ func memberValidator(writer physicalIdentity, incarnation string, addresses []ne
 		if err != nil {
 			return err
 		}
-		if id.incarnation != incarnation || len(results) != 1 || len(results[0].Rows) != 1 || len(results[0].Rows[0]) != 1 || !addressMatches(string(results[0].Rows[0][0]), addresses) {
+		pinned := current()
+		if pinned == nil {
+			return nil
+		}
+		if id.incarnation != pinned.incarnation || len(results) != 1 || len(results[0].Rows) != 1 || len(results[0].Rows[0]) != 1 || !addressMatches(string(results[0].Rows[0][0]), pinned.addresses) {
 			return memberLocalTopology{}
 		}
 		return nil

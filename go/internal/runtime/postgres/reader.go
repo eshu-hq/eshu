@@ -155,8 +155,13 @@ func (a *Access) fenceReaderIdentity(ctx context.Context, conn *sql.Conn, member
 	if err == nil && point != nil && (id.systemID != point.systemID || id.database != point.database) {
 		err = ErrWrongTopology
 	}
-	if err == nil && member != nil && (id.incarnation != member.incarnation || !addressMatches(id.serverAddress, member.addresses)) {
-		err = memberLocalTopology{}
+	// The pinning check is skipped when the member carries no frozen identity
+	// (tests, legacy literals), matching the single-pool reader path.
+	if err == nil && member != nil {
+		if pinned := member.currentIdentity(); pinned != nil &&
+			(id.incarnation != pinned.incarnation || !addressMatches(id.serverAddress, pinned.addresses)) {
+			err = memberLocalTopology{}
+		}
 	}
 	a.observe(ctx, "reader", StageReaderIdentity, started, err)
 	if err != nil {

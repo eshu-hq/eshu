@@ -37,8 +37,10 @@ latches the Access to `ErrWrongTopology` until restart. A dial whose
 observation went stale during its round trip returns `errLineageRaced`
 (`driver.ErrBadConn`) and never latches. Hold `writerLineage.mu` only for
 in-memory work, never across a query. An unchanged incarnation must cost no
-extra query. Direct reader members keep their frozen incarnation: a restarted
-member stays ineligible until process restart. Promotion, proxies, Aurora, and
+extra query. Direct reader members keep their frozen incarnation, refreshed
+by requalification: a restarted member that still serves the lined-up cluster
+republishes its pinning on the next borrow; an unverifiable member stays
+ineligible until process restart. Promotion, proxies, Aurora, and
 split-brain handling need separate proof. `ReadTransaction` owns its borrowed connection
 until Commit, Rollback, or cancellation; a cursor only closes its own rows.
 `snapshotStatusReader.read` issues `SET LOCAL jit = off` once, after

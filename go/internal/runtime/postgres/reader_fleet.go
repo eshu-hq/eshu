@@ -137,6 +137,7 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 	}
 	excluded := make(map[int]bool)
 	tried := make(map[int]bool)
+	var requalified map[int]bool
 	var failures error
 	capacityTimeout := false
 	exportExcluded := 0
@@ -217,6 +218,19 @@ func runFleet[T any](access *Access, ctx context.Context, count int, attempt fun
 		}
 		var local memberLocalTopology
 		if errors.As(attemptErr, &local) {
+			// A standby restart changes the member's postmaster incarnation
+			// and possibly its addresses, which the frozen pinning rejects.
+			// Reverify the member once per call: a member that still serves
+			// the lined-up cluster refreshes its pinning and is retried,
+			// while a genuinely replaced member stays excluded.
+			if requalified == nil {
+				requalified = make(map[int]bool)
+			}
+			if !requalified[reservation.member] && access.tryRequalifyMember(bounded, reservation.member) {
+				requalified[reservation.member] = true
+				delete(tried, reservation.member)
+				continue
+			}
 			excluded[reservation.member] = true
 			continue
 		}

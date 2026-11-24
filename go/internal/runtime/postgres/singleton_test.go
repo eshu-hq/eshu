@@ -117,7 +117,11 @@ func TestSingleReaderMemberKeepsSnapshotAndFailsClosed(t *testing.T) {
 	if _, stats := access.Stats(); stats.InUse != 0 {
 		t.Fatalf("singleton set leaked %d reader connections", stats.InUse)
 	}
-	access.readerMembers[0].incarnation = "stale-epoch"
+	// Freeze a stale pinning with requalification disabled: the member is
+	// unverifiable, so the fleet must keep refusing it (fail closed) instead
+	// of serving through a pinning it cannot reverify.
+	access.readerMembers[0].identity.Store(&memberIdentity{incarnation: "stale-epoch"})
+	access.readerMembers[0].dial = nil
 	var localTopology memberLocalTopology
 	if err := access.Ping(ctx); !errors.As(err, &localTopology) {
 		t.Fatalf("readiness did not reject replaced member identity: %v", err)

@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"net"
 	"strings"
 	"testing"
 	"time"
@@ -193,7 +192,7 @@ func newStaleFleetFixtureAccess(tb testing.TB, first, second *staleFixtureConn) 
 		tb.Cleanup(func() { _ = pool.Close() })
 		return physicalReaderMember{
 			ordinal: ordinal, id: string(rune('a' + ordinal)), host: "127.0.0.1",
-			pool: pool, addresses: []net.IP{net.ParseIP("127.0.0.1")}, maxOpen: 1,
+			pool: pool, identity: fleetIdentityForTest("", "127.0.0.1"), maxOpen: 1,
 			snapshotExport: newSnapshotExportQualification(nil),
 		}
 	}

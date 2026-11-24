@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"net"
 	"sync"
 	"testing"
 	"time"
@@ -95,7 +94,7 @@ func TestFleetSnapshotCancellationBeforeBusinessEmitsNoStart(t *testing.T) {
 	access := &Access{
 		observer: spy, replayTimeout: time.Second,
 		lineage:       newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
-		readerMembers: []physicalReaderMember{{pool: pool, incarnation: "123", addresses: []net.IP{net.ParseIP("127.0.0.1")}}},
+		readerMembers: []physicalReaderMember{{pool: pool, identity: fleetIdentityForTest("123", "127.0.0.1")}},
 		allocator:     allocator,
 	}
 	ownerCtx, cancel := context.WithCancel(t.Context())
@@ -136,7 +135,7 @@ func TestFleetFailedFenceEmitsNoBusinessStart(t *testing.T) {
 	access := &Access{
 		observer: spy, replayTimeout: time.Second,
 		lineage:       newWriterLineage(physicalIdentity{systemID: "7", database: "eshu"}, lineageObservation{}, nil),
-		readerMembers: []physicalReaderMember{{pool: pool, incarnation: "123", addresses: []net.IP{net.ParseIP("127.0.0.1")}}},
+		readerMembers: []physicalReaderMember{{pool: pool, identity: fleetIdentityForTest("123", "127.0.0.1")}},
 		allocator:     allocator,
 	}
 	reservation, err := allocator.reserve(t.Context(), []int{0}, 1)

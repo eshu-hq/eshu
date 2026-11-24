@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"net"
 	"strings"
 	"testing"
 	"time"
@@ -68,8 +67,7 @@ func newFleetStageFixtureAccess(tb testing.TB, observer Observer) (*Access, cont
 		pool := sql.OpenDB(fleetStageConnector{})
 		tb.Cleanup(func() { _ = pool.Close() })
 		members[i] = physicalReaderMember{
-			ordinal: i, pool: pool, maxOpen: 4, incarnation: "inc-1",
-			addresses: []net.IP{net.ParseIP("127.0.0.1")},
+			ordinal: i, pool: pool, maxOpen: 4, identity: fleetIdentityForTest("inc-1", "127.0.0.1"),
 		}
 	}
 	access := &Access{

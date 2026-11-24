@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -162,8 +161,8 @@ func newExportSpyFleetAccess(t *testing.T, builds []SnapshotExportBuild, observe
 		holder := newSnapshotExportQualification(builds)
 		holder.observe(spec.version, int(spec.versionNum), true)
 		fleet[i] = physicalReaderMember{
-			ordinal: i, pool: pool, maxOpen: 4, incarnation: "inc-1",
-			addresses: []net.IP{net.ParseIP("127.0.0.1")}, snapshotExport: holder,
+			ordinal: i, pool: pool, maxOpen: 4, identity: fleetIdentityForTest("inc-1", "127.0.0.1"),
+			snapshotExport: holder,
 		}
 		caps[i] = 4
 	}
