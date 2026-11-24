@@ -13,8 +13,14 @@ the facts are still written, so the facts stay the oracle for the equality proof
 `supply_chain_impact_finding_supports AS s`. Payload-derived columns are the legacy
 expressions over `s.payload`, which is the fact payload verbatim. `cve_id` and
 `advisory_id` are the support's derived columns. The stable key is
-`COALESCE(s.stable_fact_key, twin.stable_fact_key, '')`, the twin being the fact
-row joined by primary key, for supports written before migration 350. The fencing
+`COALESCE(s.stable_fact_key, (SELECT twin.stable_fact_key FROM fact_records AS
+twin WHERE twin.fact_id = s.fact_id), '')`, the twin being the fact row read by
+primary key for supports written before migration 350. The twin is a scalar
+subquery, the second COALESCE argument, which COALESCE evaluates only when the
+support's key is NULL: a filled key costs no `fact_records` probe (the earlier join
+probed once per row either way; the arbiter ruling R1 of 2026-11-24 required the
+lazy form; its EXPLAIN proof, a SubPlan never executed, is a lab proof not yet
+run). The fencing
 token is the constant 0: the per-row guard is redundant with whole-pass admission
 (the fact id embeds scope and generation; the pair lock and the admission reject a
 stale pass). A row with no key on either side reads under a unique
@@ -74,8 +80,8 @@ Observability Evidence: `eshu_dp_supply_chain_impact_stored_key_missing_total` (
 labels), documented in `docs/public/reference/telemetry/supply-chain-impact-supports.md`
 and the coverage row of `docs/public/observability/telemetry-coverage-reducer-domains.md`.
 
-Hermetic proof only: query-shape tests (supports row source, primary-key twin join,
-the fallback key, token 0, the shared generation window, one `fact_records`
+Hermetic proof only: query-shape tests (supports row source, the lazy primary-key twin
+subquery and no join, the fallback key, token 0, the shared generation window, one `fact_records`
 mention), a derivation test (each payload expression equals the frozen legacy one
 over `s.payload`), the frozen-oracle digest, fake-DB tests of the missing-key rule
 and of `changedCVEIDs` over a keyless baseline, and the adapter's hold-and-flush

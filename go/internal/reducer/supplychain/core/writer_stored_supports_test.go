@@ -92,8 +92,7 @@ func TestStoredFindingsSupportsQueryReadsSupportsWithTheFactKeyTwin(t *testing.T
 	q := listStoredSupplyChainImpactFindingsQuery
 	for name, want := range map[string]string{
 		"supports row source":            "FROM supply_chain_impact_finding_supports AS s",
-		"twin joined by primary key":     "LEFT JOIN fact_records AS twin ON twin.fact_id = s.fact_id",
-		"key with twin fallback":         "COALESCE(s.stable_fact_key, twin.stable_fact_key, '')",
+		"key with a lazy twin fallback":  "COALESCE(s.stable_fact_key, (SELECT twin.stable_fact_key FROM fact_records AS twin WHERE twin.fact_id = s.fact_id), '')",
 		"token 0":                        "0::bigint",
 		"scope predicate":                "s.scope_id = $1",
 		"generation window":              "s.generation_id IN ($2, " + priorGenerationSupplyChainImpactSQL + ")",
@@ -106,9 +105,18 @@ func TestStoredFindingsSupportsQueryReadsSupportsWithTheFactKeyTwin(t *testing.T
 	if strings.Contains(q, "FROM fact_records\n") || strings.Contains(q, "is_tombstone") || strings.Contains(q, "fencing_token") {
 		t.Fatalf("the stored supports read still reads fact rows, tombstones or fencing tokens:\n%s", q)
 	}
-	// The twin is joined only by its primary key: no other fact_records predicate.
+	// The twin is read only by its primary key, and only inside the scalar
+	// subquery: a join would probe fact_records for every row even when the support
+	// carries its key, while COALESCE stops at the first non-null argument.
 	if got := strings.Count(q, "fact_records"); got != 1 {
-		t.Fatalf("the stored supports read names fact_records %d times, want exactly the one twin join", got)
+		t.Fatalf("the stored supports read names fact_records %d times, want exactly the one lazy twin", got)
+	}
+	if strings.Contains(q, "JOIN fact_records") || strings.Contains(q, "twin.stable_fact_key,") {
+		t.Fatalf("the twin is joined or listed as an eager COALESCE argument, so it is probed for every row:\n%s", q)
+	}
+	subquery := "(SELECT twin.stable_fact_key FROM fact_records AS twin WHERE twin.fact_id = s.fact_id)"
+	if i, j := strings.Index(q, "COALESCE(s.stable_fact_key, "), strings.Index(q, subquery); i < 0 || j < i || strings.Index(q, "FROM supply_chain_impact_finding_supports AS s") < j {
+		t.Fatalf("the twin subquery is not the second COALESCE argument of the select list:\n%s", q)
 	}
 }
 

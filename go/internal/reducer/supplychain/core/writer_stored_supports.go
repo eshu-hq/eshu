@@ -21,9 +21,12 @@ import (
 // tombstone), so the tombstone predicate has no counterpart.
 //
 // The stable key is the support's own, falling back to the fact's key through a
-// primary-key join for a support written before the column existed (migration
-// 350); a row with neither reads as an empty key, which the reader replaces with a
-// key nothing can match. The fencing token is the constant 0: the per-row guard is
+// primary-key scalar subquery for a support written before the column existed
+// (migration 350). The subquery is the second COALESCE argument, which COALESCE
+// evaluates only when the support's key is NULL, so a filled key costs no
+// fact_records probe (a join would probe once per row either way). A row with
+// neither key reads as an empty key, which the reader replaces with a key nothing
+// can match. The fencing token is the constant 0: the per-row guard is
 // redundant with whole-pass admission (the fact id embeds scope and generation and
 // the pair lock and admission reject a stale pass), so a stored row never reads as
 // fresher than the pass. The generation window is the shared previous-generation
@@ -31,7 +34,7 @@ import (
 const listStoredSupplyChainImpactFindingsQuery = `
 SELECT s.fact_id,
        s.generation_id,
-       COALESCE(s.stable_fact_key, twin.stable_fact_key, ''),
+       COALESCE(s.stable_fact_key, (SELECT twin.stable_fact_key FROM fact_records AS twin WHERE twin.fact_id = s.fact_id), ''),
        COALESCE(s.payload #>> '{provenance,content_digest}', ''),
        s.cve_id,
        s.advisory_id,
@@ -40,7 +43,6 @@ SELECT s.fact_id,
        COALESCE(NULLIF(s.payload ->> 'suppression_state', ''), 'active'),
        COALESCE(s.payload #>> '{evidence_fact_ids}', '[]')
 FROM supply_chain_impact_finding_supports AS s
-LEFT JOIN fact_records AS twin ON twin.fact_id = s.fact_id
 WHERE s.scope_id = $1
   AND s.generation_id IN ($2, ` + priorGenerationSupplyChainImpactSQL + `)
 `
