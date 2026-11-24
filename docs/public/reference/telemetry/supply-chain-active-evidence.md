@@ -324,9 +324,12 @@ checks run in this order:
 3. `sentinel`: a one-hop stamp that names an unbounded change.
 4. `no_stamp`: nothing bounded to scope by: a genuine pass, an unstamped or
    empty stamp, or a retry.
-5. `engaged_protection`: a bounded stamp, but the protected or static-only
-   evidence path never scopes. The QA environment does not run it; other
-   stores may.
+5. `engaged_protection`: a bounded stamp, but the load ran the engaged
+   protected path, which never scopes. The pass reads this from the load (the
+   authorized snapshot is set), not from the handler's wiring: production always
+   wires the protected loader, and when protection is not engaged (the QA
+   environment, where the role policy state has no rows) the load returns the
+   static result and the pass reads `no_seed` instead.
 6. `no_seed`: a bounded stamp that nothing seeded: no finding row and no local
    stamped advisory, a loader without the seed seam, or a failed seed read
    (that case also logs `supply chain impact scoped seed read failed`).
@@ -335,7 +338,9 @@ The same fields ride on one INFO line per pass, `supply chain impact pass
 complete`, with `scope_id`, `generation_id`, `intent_id`, `attempt_count` and
 the pass `mode`, and as attributes `repend_cause`, `changed` and `change_class`
 on the span that wraps the pass (`reducer.run`). Ids are log fields only; no id
-is a metric label, and the series count is at most 4 modes x 6 causes x 2 x 2.
+is a metric label, and the series count is at most 72: `pass_reason` fixes the `mode` (six
+mode and reason pairs), times 6 causes, times 2 for `changed`, which fixes
+`change_class`.
 
 Read it as a rate. The share of `changed="unchanged"` among
 `repend_cause="fanout_rerun"` is the useless re-run share of the fan-out loop;
@@ -361,5 +366,6 @@ The same totals ride on the `supply_chain_impact.fanout` span as
 `inflight_read_seconds`, `holder_reads_seconds`, `holder_prefilter_seconds`, `reopen_loop_seconds` and
 `state_update_seconds`. A pass that fails inside a site still reports the time
 it spent there, so a timed-out read shows up. A pass with nothing to fan out
-enters no site and reports nothing. The sites do not cover the writer commit or
+enters no site and reports nothing; that early branch's write that consumes the
+stamp or clears the owed marker is not timed. The sites do not cover the writer commit or
 the advisory-group enqueue, which run before the fan-out.

@@ -130,8 +130,11 @@ func (h SupplyChainImpactHandler) emitPassOutcome(
 //  3. sentinel: a one-hop stamp that names an unbounded change;
 //  4. no_stamp: nothing bounded to scope by (a genuine pass, an unstamped or
 //     empty stamp, or a retry);
-//  5. engaged_protection: a bounded stamp, but the protected or static-only
-//     path never scopes;
+//  5. engaged_protection: a bounded stamp, but the load ran the engaged
+//     protected path (loaded.asAuthorized is set), which never scopes. The
+//     handler's wiring does not decide this: production always wires the
+//     protected loader, and a disengaged load returns the static result with
+//     asAuthorized unset, so that pass falls through to no_seed;
 //  6. no_seed: a bounded stamp that nothing seeded (no finding row and no
 //     local stamped advisory, a loader without the seed seam, or a failed
 //     seed read, which logs its own warning).
@@ -145,7 +148,7 @@ func (h SupplyChainImpactHandler) passReasonOf(intent reducercontract.Intent, lo
 		return telemetry.SupplyChainImpactPassReasonSentinel
 	case len(scopedPassCVEIDs(intent)) == 0:
 		return telemetry.SupplyChainImpactPassReasonNoStamp
-	case h.AuthorizedEvidenceLoader != nil || h.authorizedStaticOnly:
+	case loaded.asAuthorized != nil:
 		return telemetry.SupplyChainImpactPassReasonEngagedProtection
 	default:
 		return telemetry.SupplyChainImpactPassReasonNoSeed

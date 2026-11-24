@@ -83,8 +83,10 @@ const (
 	// finding rows outside the stamp (#10415).
 	SupplyChainImpactPassReasonOutOfStamp = "out_of_stamp"
 	// SupplyChainImpactPassReasonEngagedProtection is a pass with a bounded
-	// stamp that never scoped because the protected or static-only evidence
-	// path ran, whose authorization witnesses cover the whole static input.
+	// stamp that never scoped because the load ran the engaged protected
+	// evidence path, whose authorization witnesses cover the whole static
+	// input. It follows the load, not the handler's wiring: a disengaged load
+	// is no_seed.
 	SupplyChainImpactPassReasonEngagedProtection = "engaged_protection"
 )
 
@@ -175,10 +177,10 @@ func AttrSupplyChainImpactChangeClass(v string) attribute.KeyValue {
 
 // registerSupplyChainImpactPassOutcomeInstruments registers the #10972
 // pass-outcome counter on inst. One increment per findings pass that
-// completes its write and fan-out, labeled by domain, mode, re-pend cause,
-// whether the pass changed output, and the change class: at most
-// 4 x 6 x 6 x 2 x 2 series at most (the reason fixes most of the mode, so far
-// fewer occur), with no id in any label.
+// completes its write, labeled by domain, mode, pass reason, re-pend cause,
+// whether the pass changed output, and the change class: at most 72 series.
+// The reason fixes the mode (six mode and reason pairs), the cause has six
+// values, and changed fixes the change class. No id is in any label.
 func registerSupplyChainImpactPassOutcomeInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.SupplyChainImpactPassOutcomeTotal, err = meter.Int64Counter(
