@@ -39,6 +39,16 @@ tests:
     class: postgres_ci
     reason: "#9875 fleet acceptance gate on disposable PostgreSQL 18: an advisory, a KEV listing, and an owned package on a catalogued service drain through the real SupplyChainImpactHandler and queue, the keyed winners tick, and the grouped inventory HTTP route; the service bucket must be complete with the KEV-scored critical winner, the unmapped control must sit in the unattributed bucket, and source commit to rollup read must stay within ESHU_FLEET_GATE_MAX_ELAPSED (default 30s); withholding the KEV, affected_package, or service mapping fact must fail the gate; reads ESHU_FLEET_GATE_PROOF_DSN with its disposable opt-in; the service rollup reads profile=comprehensive; after the supports backfill completes the same run expects the default (precise) profile to answer the same rollup from the supports table, and expects 503 naming the supports read model while the readiness marker is reset, then 200 again once the backfill completes"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof that a supply-chain impact pass and the Go-modules fence cannot both commit around the same go scope: a fence between the Go evidence load and the pass write aborts the pass with the non-counting class, a pass holding the shared go-evidence lock makes the fence wait and then see it, a lock wait past the fence's 2 s timeout detaches nothing, and no support derived from a retracted generation survives without a reopened holder"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL race proofs of the go-evidence lock: 40 rounds of the fence reopening the work item of a pass already in flight (zero deadlocks), a successor ack that commits while a pass holds the shared lock for 3 s and ends on the successor, a multi-repository pass with fences on two of its go scopes in parallel, the recheck covering exactly the pairs the loader resolved, and 40 free-interleaving rounds whose invariant is that no support derived from a retracted generation survives without a reopened holder"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go
     tag: ~
     class: postgres_ci

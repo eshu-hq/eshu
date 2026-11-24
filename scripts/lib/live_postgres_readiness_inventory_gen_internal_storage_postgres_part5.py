@@ -46,6 +46,18 @@ TABLE = {
             "TestFleetAcceptanceGateKEVReachesServiceRollup9875Live",
             "TestFleetAcceptanceGateFailsWhenEvidenceIsWithheld9875Live",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_live_test.go": (
+            "TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive",
+            "TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive",
+            "TestGoEvidenceFenceTimesOutBehindALongPassAndDetachesNothingLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_race_live_test.go": (
+            "TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive",
+            "TestGoEvidenceAckCommitsWhilePassHoldsTheSharedLockLive",
+            "TestGoEvidenceMultiRepositoryPassWithParallelFencesLive",
+            "TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive",
+            "TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go": (
             "TestSupplyChainImpactProtectedStaticPublishLive",
             "TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive",
