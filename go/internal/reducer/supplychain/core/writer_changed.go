@@ -99,33 +99,6 @@ const priorGenerationSupplyChainImpactSQL = `(
     LIMIT 1
 )`
 
-// listStoredSupplyChainImpactFindingsQuery reads the active finding rows of the
-// generation being written and of the scope's previous generation: the rows the
-// pass may rewrite unchanged, the rows its retraction may tombstone, and the
-// baseline of a first pass. Tombstoned rows are deliberately absent, so a row a
-// pass derives again after a retraction looks new and counts as changed. No
-// array parameter: a generic plan turns a large keep set into a linear scan (see
-// retractSupersededSupplyChainImpactFindingsQuery). The fact kind is a literal,
-// not a parameter, so the planner can prove the predicate of the partial finding
-// indexes under a generic plan too. Arguments: $1 scope id, $2 generation id.
-const listStoredSupplyChainImpactFindingsQuery = `
-SELECT fact_id,
-       generation_id,
-       stable_fact_key,
-       COALESCE(payload #>> '{provenance,content_digest}', ''), COALESCE(payload #>> '{provenance,identity_digest}', ''),
-       COALESCE(payload ->> 'cve_id', ''),
-       COALESCE(payload ->> 'advisory_id', ''),
-       fencing_token,
-       COALESCE(payload #>> '{provenance,advisory_group_members}', '[]'),
-       COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active'),
-       COALESCE(payload #>> '{evidence_fact_ids}', '[]')
-FROM fact_records
-WHERE fact_kind = '` + supplyChainImpactFactKind + `'
-  AND scope_id = $1
-  AND is_tombstone = FALSE
-  AND generation_id IN ($2, ` + priorGenerationSupplyChainImpactSQL + `)
-`
-
 // listSupplyChainImpactCVEIDsQuery lists every CVE id the finding rows of the
 // generation being written and of the previous generation name, tombstoned rows
 // included, plus each row's advisory group member set (#10408). It runs only
@@ -159,44 +132,6 @@ type storedFinding struct {
 	// evidenceFactIDs is the stored row's evidence fact id set, read for
 	// the capture secondary comparison (#10880 ruling decision 4).
 	evidenceFactIDs []string
-}
-
-// readStoredSupplyChainImpactFindings returns the active rows of the generation
-// being written and of the scope's previous generation.
-func readStoredSupplyChainImpactFindings(
-	ctx context.Context,
-	tx SupplyChainImpactTx,
-	scopeID string,
-	generationID string,
-) ([]storedFinding, error) {
-	rows, err := tx.QueryContext(ctx, listStoredSupplyChainImpactFindingsQuery, scopeID, generationID)
-	if err != nil {
-		return nil, fmt.Errorf("read stored supply chain impact findings: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var stored []storedFinding
-	for rows.Next() {
-		var row storedFinding
-		var membersRaw, evidenceRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
-			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
-		}
-		members, err := parseAdvisoryGroupMembers(membersRaw)
-		if err != nil {
-			return nil, fmt.Errorf("decode stored supply chain impact finding members: %w", err)
-		}
-		row.members = members
-		evidence, err := parseEvidenceFactIDs(evidenceRaw)
-		if err != nil {
-			return nil, fmt.Errorf("decode stored supply chain impact finding evidence fact ids: %w", err)
-		}
-		row.evidenceFactIDs = evidence
-		stored = append(stored, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate stored supply chain impact findings: %w", err)
-	}
-	return stored, nil
 }
 
 // changedCVEIDs returns the sorted CVE ids a pass changed, unioned with the

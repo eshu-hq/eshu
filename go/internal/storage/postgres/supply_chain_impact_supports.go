@@ -245,3 +245,25 @@ func (t *supplyChainImpactTx) flushSupports() {
 	}
 	t.pendingSupports = nil
 }
+
+var _ supplychaincore.SupplyChainImpactStoredKeyRecorder = (*supplyChainImpactTx)(nil)
+
+// RecordStoredKeyMissing holds the count of stored findings the writer read with
+// no stable key (see SupplyChainImpactStoredKeyRecorder) and counts it when the
+// transaction commits, like the support rows: a rollback discards it. A
+// transaction without instruments, or a zero count, holds nothing.
+func (t *supplyChainImpactTx) RecordStoredKeyMissing(ctx context.Context, rows int64) {
+	if t.instruments == nil || rows <= 0 {
+		return
+	}
+	t.pendingStoredKeyMissing += rows
+	t.captureCtx = context.WithoutCancel(ctx)
+}
+
+// flushStoredKeyMissing counts the held stored-key-missing rows and clears them.
+func (t *supplyChainImpactTx) flushStoredKeyMissing() {
+	if t.pendingStoredKeyMissing > 0 {
+		t.instruments.RecordSupplyChainImpactStoredKeyMissing(t.captureCtx, t.pendingStoredKeyMissing)
+	}
+	t.pendingStoredKeyMissing = 0
+}

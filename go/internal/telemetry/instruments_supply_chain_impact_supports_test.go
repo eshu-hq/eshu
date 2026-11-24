@@ -121,3 +121,50 @@ func TestRecordSupplyChainImpactFactWriteRejected(t *testing.T) {
 		t.Fatalf("rejected counter = %d with %d attributes, want 2 with none", total, attributes)
 	}
 }
+
+// TestRecordSupplyChainImpactStoredKeyMissing proves the stored-key-missing
+// counter adds the rows it is given with no label, ignores zero and negative
+// counts, and is safe on a nil receiver and on an unregistered Instruments.
+func TestRecordSupplyChainImpactStoredKeyMissing(t *testing.T) {
+	t.Parallel()
+	reader := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test")
+	inst := &Instruments{}
+	if err := registerSupplyChainImpactSupportsInstruments(meter, inst); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	ctx := context.Background()
+	inst.RecordSupplyChainImpactStoredKeyMissing(ctx, 3)
+	inst.RecordSupplyChainImpactStoredKeyMissing(ctx, 2)
+	inst.RecordSupplyChainImpactStoredKeyMissing(ctx, 0)
+	inst.RecordSupplyChainImpactStoredKeyMissing(ctx, -4)
+	var nilInst *Instruments
+	nilInst.RecordSupplyChainImpactStoredKeyMissing(ctx, 9)
+	(&Instruments{}).RecordSupplyChainImpactStoredKeyMissing(ctx, 9)
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var total int64
+	var attributes int
+	var found bool
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_supply_chain_impact_stored_key_missing_total" {
+				continue
+			}
+			found = true
+			for _, point := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				total += point.Value
+				attributes += point.Attributes.Len()
+			}
+		}
+	}
+	if !found {
+		t.Fatal("eshu_dp_supply_chain_impact_stored_key_missing_total is not registered")
+	}
+	if total != 5 || attributes != 0 {
+		t.Fatalf("stored key missing counter = %d with %d attributes, want 5 with none", total, attributes)
+	}
+}

@@ -1559,6 +1559,10 @@ type Instruments struct {
 	// SupplyChainImpactFactWriteRejected counts impact-finding fact writes the
 	// PR-C reject trigger refused (#10880); registered with the supports signals.
 	SupplyChainImpactFactWriteRejected metric.Int64Counter
+	// SupplyChainImpactStoredKeyMissing counts stored findings the writer read
+	// with no stable key on the support or its fact twin (#10880 PR-C1 b);
+	// registered with the supports signals.
+	SupplyChainImpactStoredKeyMissing metric.Int64Counter
 
 	// The per-support table signals of #10880 PR-B1, registered by
 	// registerSupplyChainImpactSupportsInstruments.

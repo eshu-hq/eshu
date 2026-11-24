@@ -211,6 +211,12 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactFactWriteRejected counter: %w", err)
 	}
+	if inst.SupplyChainImpactStoredKeyMissing, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_stored_key_missing_total",
+		metric.WithDescription("Stored supply-chain impact findings the writer read with no stable_fact_key on the support and none on its fact row. Each is treated as a changed finding for that pass. Counted when the writer transaction commits. No labels. A steady non-zero rate means supports written before migration 350 whose facts are gone, or a writer that does not fill the key."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactStoredKeyMissing counter: %w", err)
+	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
 		metric.WithDescription("Raw per-support rows one drain read (one whole call for the service-catalog reader; active or not, and the rows a failed drain read before it stopped), by reader (source label). Raw rows far above the active rows mean the key's supports sit mostly in superseded generations; a drain in the hundred thousands is a hot key."),
@@ -311,6 +317,16 @@ func (i *Instruments) RecordSupplyChainImpactFactWriteRejected(ctx context.Conte
 		return
 	}
 	i.SupplyChainImpactFactWriteRejected.Add(ctx, 1)
+}
+
+// RecordSupplyChainImpactStoredKeyMissing counts stored findings read with no
+// stable key. It carries no label, ignores a zero or negative count, and is safe
+// on a nil receiver and on an Instruments that did not register the counter.
+func (i *Instruments) RecordSupplyChainImpactStoredKeyMissing(ctx context.Context, rows int64) {
+	if i == nil || i.SupplyChainImpactStoredKeyMissing == nil || rows <= 0 {
+		return
+	}
+	i.SupplyChainImpactStoredKeyMissing.Add(ctx, rows)
 }
 
 // RecordSupplyChainImpactSupportsRead counts one reducer read of the supports
