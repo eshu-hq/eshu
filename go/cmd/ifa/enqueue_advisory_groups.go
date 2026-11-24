@@ -91,8 +91,10 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 // generation through the one production write seam (admitFindingRows):
 // the conflict-domain lock, a transaction from the production beginner (which
 // sets the old-writer fence setting), and the impact writer's own
-// facts-plus-supports step, supplychaincore.WriteSupplyChainImpactFindingRows
-// (#11201, #10880). The finding-fact write stop therefore changes one place.
+// supports step, supplychaincore.WriteSupplyChainImpactFindingRows (#11201,
+// #10880). Since PR-C2 that step writes the supports table only and no finding
+// fact: the reject trigger is armed on the proof database, so a fact write here
+// would fail with SQLSTATE 55000. The write stop therefore changes one place.
 // Cassette ingestion cannot admit them: a finding payload carries
 // reducer_domain=supply_chain_impact, so re-projecting a generation that
 // holds them makes the projector's generic per-fact builder enqueue a fresh
@@ -166,7 +168,7 @@ func cassetteFindingRows(o enqueueAdvisoryGroupsOptions) ([]factwrite.VersionedR
 // admitFindingRows writes finding fact rows through the production impact
 // writer's seam: it opens the transaction from the production beginner, takes
 // the (scope, generation) conflict-domain lock the writer and the supports
-// backfill take, runs the writer's own facts-plus-supports step, and commits.
+// backfill take, runs the writer's own supports step (no finding fact since PR-C2), and commits.
 // The cell does not set the old-writer fence setting itself: the production
 // beginner sets it for the transaction, so the admitted rows never mark their
 // scope dirty. A transaction without the supports maintainer is refused:
@@ -255,7 +257,7 @@ func rebuildWinnersOnce(ctx context.Context, store postgres.SupplyChainImpactWin
 // the pass's OUTPUT facts back (see admitCassetteFindings for why
 // ingestion cannot carry them). This verb performs the production
 // steps the drive leaves undone, at their production ports — admit
-// the finding facts through the writer fact-store statement, run the
+// the finding rows through the writer supports step, run the
 // winners maintainer's full rebuild over them, enqueue through the
 // production enqueuer over the real reducer queue, then rebuild again
 // so the watermark covers the enqueue the handler defers on. It

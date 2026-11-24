@@ -351,4 +351,23 @@ awk 'BEGIN {FS=OFS="\t"} $1=="git" {$3=11} {print}' "${state_dir}/fact-counts.ts
 mv "${state_dir}/fact-counts.next" "${state_dir}/fact-counts.tsv"
 expect_fail_with preserved_duplicate preserved "preserved restart produced new facts" --previous-manifest "${TMP_DIR}/clean.json"
 
+# #10880 PR-C2: the finding count must come from the supports table. A fact_records-only count reads 0 findings once
+# the writer stops writing finding facts, and the supply_chain_impact reducer row then fails "no reducer evidence".
+fact_count_query_problems() {
+  local query="$1"
+  [[ "${query}" == *"FROM supply_chain_impact_finding_supports"* ]] || printf 'the fact count does not read the supports table\n'
+  [[ "${query}" == *"fact_kind <> 'reducer_supply_chain_impact_finding'"* ]] || printf 'the fact_records arm still counts finding facts (frozen rows would double count)\n'
+}
+suite_fact_count_query="$(rg -o 'query_postgres_tsv "SELECT source_system, fact_kind[^"]*" "\$\{out_dir\}/fact-counts.tsv"' "${REPO_ROOT}/scripts/e2e_remote_compose_suite.sh")"
+[[ -n "${suite_fact_count_query}" ]] || { printf 'could not find the suite fact-count query\n' >&2; exit 1; }
+if [[ -n "$(fact_count_query_problems "${suite_fact_count_query}")" ]]; then
+  printf 'suite fact-count query departs from the supports contract:\n%s\n' "$(fact_count_query_problems "${suite_fact_count_query}")" >&2
+  exit 1
+fi
+seeded="${suite_fact_count_query//FROM supply_chain_impact_finding_supports/FROM fact_records}"
+[[ -n "$(fact_count_query_problems "${seeded}")" ]] || {
+  printf 'seeded violation (supports arm replaced by fact_records) was not detected\n' >&2
+  exit 1
+}
+
 printf 'e2e remote compose suite tests passed\n'

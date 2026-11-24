@@ -231,10 +231,7 @@ func TestSupplyChainImpactSupportsFamilySeededRedsLive(t *testing.T) {
 	if _, err := f.db.ExecContext(f.ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, dropped); err != nil {
 		t.Fatalf("drop a support: %v", err)
 	}
-	var mutated string
-	if err := f.db.QueryRowContext(f.ctx, familyDigestSQL).Scan(&mutated); err != nil {
-		t.Fatalf("digest after the drop: %v", err)
-	}
+	mutated := f.digest()
 	if mutated == digest {
 		t.Fatal("dropping a support did not change the digest: the digest cannot bite")
 	}

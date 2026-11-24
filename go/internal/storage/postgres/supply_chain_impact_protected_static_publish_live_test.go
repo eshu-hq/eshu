@@ -197,13 +197,22 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 	if revisionCount != 1 {
 		t.Fatalf("authority revisions = %d, want exactly one pinned static revision", revisionCount)
 	}
-	var factCount int
-	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM fact_records
-		WHERE scope_id=$1 AND generation_id=$2 AND NOT is_tombstone`, scopeID, generationID).Scan(&factCount); err != nil {
+	// The writer keeps a finding only in the supports table since #10880 PR-C2:
+	// the support exists and no finding fact was written (the reject trigger is armed).
+	var supportCount, factCount int
+	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports
+		WHERE scope_id=$1 AND generation_id=$2`, scopeID, generationID).Scan(&supportCount); err != nil {
 		t.Fatal(err)
 	}
-	if factCount != 1 {
-		t.Fatalf("live impact facts = %d, want the one committed finding", factCount)
+	if supportCount != 1 {
+		t.Fatalf("supports = %d, want the one committed finding", supportCount)
+	}
+	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM fact_records
+		WHERE scope_id=$1 AND generation_id=$2 AND fact_kind='reducer_supply_chain_impact_finding'`, scopeID, generationID).Scan(&factCount); err != nil {
+		t.Fatal(err)
+	}
+	if factCount != 0 {
+		t.Fatalf("finding facts = %d, want 0: the writer no longer writes them", factCount)
 	}
 
 	// A byte-identical retry at the same fence replays as a no-op instead

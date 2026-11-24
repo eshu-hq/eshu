@@ -327,7 +327,8 @@ main() {
 	capture_pprof "${out_dir}/pprof-index.txt"
 	capture_stats "${out_dir}/docker-stats.jsonl"
 	capture_logs "${out_dir}/compose-services.txt" "${RUN_TMP_DIR}/logs.raw" "${out_dir}/logs.sanitized"
-	query_postgres_tsv "SELECT source_system, fact_kind, COUNT(*) FROM fact_records WHERE is_tombstone = false GROUP BY source_system, fact_kind ORDER BY source_system, fact_kind" "${out_dir}/fact-counts.tsv"
+	# Findings are counted from the per-support table: since #10880 PR-C2 the impact writer writes no finding fact.
+	query_postgres_tsv "SELECT source_system, fact_kind, COUNT(*) FROM fact_records WHERE is_tombstone = false AND fact_kind <> 'reducer_supply_chain_impact_finding' GROUP BY source_system, fact_kind UNION ALL SELECT 'reducer', 'reducer_supply_chain_impact_finding', COUNT(*) FROM supply_chain_impact_finding_supports HAVING COUNT(*) > 0 ORDER BY 1, 2" "${out_dir}/fact-counts.tsv"
 	query_postgres_tsv "SELECT collector_kind, status, COUNT(*) FROM workflow_work_items GROUP BY collector_kind, status ORDER BY collector_kind, status" "${out_dir}/workflow-counts.tsv"
 	# Delivered from a sibling data file, not a heredoc: Homebrew bash >= 5.1
 	# writes an entire heredoc body to a pipe before forking the reader, and

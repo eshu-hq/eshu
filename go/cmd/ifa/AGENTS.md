@@ -116,13 +116,15 @@
   connection targets the same way. Keep these two narrow fixture setups as
   the only write-capable graph verbs in this command; a third needs its own
   gate-mirror pin before it lands.
-- `ifa enqueue-advisory-groups` (#10466) is the one write-capable
-  Postgres verb: it validates all flags before opening the database,
+- `ifa impact-digest` (#10880 PR-C2) reads the supports and winners digest through
+  `internal/ifa/impact/digest`; do not copy that statement here. Its only write is the optional
+  `-resweep`, the production winners rebuild. Keep the pin-file handling in `impactdigest.Pinned`.
+- `ifa enqueue-advisory-groups` (#10466) is the write-capable Postgres verb that admits rows: it validates all flags before opening the database,
   admits the cassette's held-back finding facts through the production
-  impact writer's transaction shape (#11201: facts plus their supports in
-  one transaction, `admitFindingRowsWithSupports`; never cassette
-  ingestion, which retracts them, and never the facts-only statement,
-  which leaves no support and fences the scope dirty), runs the production winners rebuild, enqueues through the
+  impact writer's transaction shape (#11201: the supports, and since
+  #10880 PR-C2 no finding fact, in one transaction, `admitFindingRows`; never cassette
+  ingestion, which retracts them, and never a direct finding-fact write,
+  which the armed reject trigger refuses), runs the production winners rebuild, enqueues through the
   production `AdvisoryGroupProjectionEnqueuer`, and rebuilds again so
   the watermark covers the enqueue. It writes no graph state and
   invents no fact kind; keep it that way — a verb that hand-seeds

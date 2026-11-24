@@ -9,7 +9,7 @@
 # live on this branch). Production findings never enter through
 # ingestion — the pass writer upserts them into an already projected
 # generation — so the mid-drive step admits them through that same
-# writer transaction (the facts and their supports, #11201), then runs the production winners rebuild
+# writer transaction (the supports, #11201; since #10880 PR-C2 no finding fact), then runs the production winners rebuild
 # and AdvisoryGroupProjectionEnqueuer (eshu-ifa
 # enqueue-advisory-groups) — never an invented marker fact — and the
 # second drain claims, handles, and acks the real
@@ -79,7 +79,7 @@ ifa_advisory_group_live_assert_absent() {
 }
 
 # The mid-drive step, at production ports only: admit the cassette's
-# finding facts through the writer fact-store statement, winners
+# finding rows through the writer supports step, winners
 # rebuild, then AdvisoryGroupProjectionEnqueuer, then a second rebuild
 # so the watermark covers the enqueue. The group/scope/generation
 # literals are the fixture's own identities, spelled out so a drifted

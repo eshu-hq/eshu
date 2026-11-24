@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	impactdigest "github.com/eshu-hq/eshu/go/internal/ifa/impact/digest"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	projectorimpact "github.com/eshu-hq/eshu/go/internal/projector/supply/chain/impact"
@@ -40,29 +42,6 @@ import (
 // This file uses only APIs present at the PR-C1 head, so the same family can be run there and its digest compared with
 // the PR-C2 head's (the accuracy proof that supports built from the writer's rows equal supports built from facts).
 // The faults, the duplicate delivery and the trigger assertions are in the sibling file, which is PR-C2 only.
-
-// familyCassettes are the committed cassettes the family drives, in commit order: the vulnerability intelligence
-// scopes, the SBOM documents and the package registry, whose purls and package ids the findings join on.
-var familyCassettes = []string{
-	"vulnerabilityintelligence/supply-chain-demo.json",
-	"sbomattestation/supply-chain-demo.json",
-	"packageregistry/supply-chain-demo.json",
-}
-
-// familyDigestSQL is the Postgres digest of the family: sha256 over every support row (payload without intent_id and
-// cause, the two keys that name the delivering intent) ordered by fact id, a separator, and every winner row (without the
-// materialization stamp) ordered by canonical key. It includes the stable key, the content digest and the evidence ids
-// (they are payload) and every derived column.
-const familyDigestSQL = `
-SELECT encode(sha256(convert_to(
-    (SELECT COALESCE(string_agg(
-        (to_jsonb(s) - 'payload' || jsonb_build_object('payload', s.payload - 'intent_id' - 'cause'))::text,
-        E'\n' ORDER BY s.fact_id), '')
-     FROM supply_chain_impact_finding_supports AS s)
-    || E'\n--winners--\n' ||
-    (SELECT COALESCE(string_agg((to_jsonb(w) - 'materialized_at')::text, E'\n' ORDER BY w.canonical_key), '')
-     FROM supply_chain_impact_canonical_winners AS w),
-    'UTF8')), 'hex')`
 
 // impactFamily is one disposable database with the family's seeded intents and the counters a run needs.
 type impactFamily struct {
@@ -97,7 +76,7 @@ func newImpactFamily(t *testing.T) *impactFamily {
 func (f *impactFamily) seed() {
 	f.t.Helper()
 	committer := postgres.NewIngestionStore(postgres.SQLDB{DB: f.db})
-	for _, relative := range familyCassettes {
+	for _, relative := range impactdigest.Cassettes {
 		path, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "testdata", "cassettes", relative))
 		if err != nil {
 			f.t.Fatalf("resolve cassette %s: %v", relative, err)
@@ -291,23 +270,15 @@ func (f *impactFamily) resweep() {
 	}
 }
 
-// digest returns the family digest and requires the tables it covers to be non-empty, so a family that derived nothing
-// cannot pass.
+// digest returns the family digest and requires the tables it covers to be non-empty (impactdigest.Read), so a
+// family that derived nothing cannot pass.
 func (f *impactFamily) digest() string {
 	f.t.Helper()
-	var supports, winners int
-	if err := f.db.QueryRowContext(f.ctx, `
-SELECT (SELECT count(*) FROM supply_chain_impact_finding_supports), (SELECT count(*) FROM supply_chain_impact_canonical_winners)`).Scan(&supports, &winners); err != nil {
-		f.t.Fatalf("count supports and winners: %v", err)
+	result, err := impactdigest.Read(f.ctx, f.db)
+	if err != nil {
+		f.t.Fatalf("%v", err)
 	}
-	if supports == 0 || winners == 0 {
-		f.t.Fatalf("the family derived %d supports and %d winners: the cassette composition yields no findings, so the digest would compare empty tables", supports, winners)
-	}
-	var digest string
-	if err := f.db.QueryRowContext(f.ctx, familyDigestSQL).Scan(&digest); err != nil {
-		f.t.Fatalf("digest supports and winners: %v", err)
-	}
-	return digest
+	return result.Digest
 }
 
 // deadLetters counts impact work items in a terminal failure state.
@@ -370,7 +341,7 @@ func (f *impactFamily) derivedRowVersions() map[string]map[string]string {
 	return map[string]map[string]string{
 		"supports":       f.rowVersions("supply_chain_impact_finding_supports", "fact_id"),
 		"winners":        f.rowVersions("supply_chain_impact_canonical_winners", "canonical_key"),
-		"retracted keys": f.rowVersions("supply_chain_impact_retracted_finding_keys", "key_hash"),
+		"retracted keys": f.rowVersions("supply_chain_impact_retracted_finding_keys", "generation_id || '/' || scope_id || '/' || key_hash"),
 	}
 }
 
@@ -449,5 +420,12 @@ func TestSupplyChainImpactSupportsFamilyDigestEqualAcrossWorkersLive(t *testing.
 	}
 	if digests[1] != digests[2] || digests[1] != digests[4] {
 		t.Fatalf("the digest depends on the worker count: 1=%s 2=%s 4=%s", digests[1], digests[2], digests[4])
+	}
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "testdata", "golden", "ifa-impact-family-digest.txt"))
+	if err != nil {
+		t.Fatalf("read the pinned digest: %v", err)
+	}
+	if pin := impactdigest.Pinned(string(raw)); pin != "" && pin != digests[1] {
+		t.Fatalf("the family digest is %s, want the pinned %s (the Compose cell compares against the same pin)", digests[1], pin)
 	}
 }

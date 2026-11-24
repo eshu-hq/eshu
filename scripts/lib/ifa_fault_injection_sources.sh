@@ -186,6 +186,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_taint_evi
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_runtime_declaration_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_advisory_group_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_advisory_group_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_impact_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_impact_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cloud_resource_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_kubernetes_correlation_cells.sh

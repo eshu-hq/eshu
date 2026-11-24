@@ -65,11 +65,18 @@ func advisoryGroupWinnerEffectiveStateSQL() string {
     END`
 }
 
+// advisoryGroupWinnerPayloadSQL is the winner's finding payload: the supports row first, because the
+// impact writer stores a finding only there since #10880 PR-C2, and the fact row only as the fallback for
+// a winner whose support the backfill has not yet copied (the two carry the same payload). Both joins are
+// primary-key lookups on the winner fact id. The fallback leaves with the fact_records join when the
+// legacy readers go (#10880 PR-C2 m).
+const advisoryGroupWinnerPayloadSQL = "COALESCE(s.payload, f.payload)"
+
 // advisoryGroupWinnersQuery selects the qualifying canonical winners behind
 // one advisory group. The group matches on winners columns only (CVE when the
 // row names one, else the advisory id), so the read never scans facts by CVE.
-// Members and purl come only from the winner fact payload via winner_fact_id
-// (fact_records.fact_id, the same join key the winners list read uses):
+// Members and purl come only from the winner finding payload via winner_fact_id
+// (supports.fact_id, falling back to fact_records.fact_id; the same join key the winners list read uses):
 // members at the provenance.advisory_group_members path the impact writer
 // emits (#10475; jsonb #> preserves the array bytes the scan decodes), and
 // the protected-scan exclusion is the always-on subset of the static-winner
@@ -79,11 +86,13 @@ func advisoryGroupWinnerEffectiveStateSQL() string {
 var advisoryGroupWinnersQuery = `SELECT w.repository_id,
        w.package_id,
        w.ecosystem,
-       COALESCE(f.payload->>'purl', ''),
+       COALESCE(` + advisoryGroupWinnerPayloadSQL + `->>'purl', ''),
        w.cve_id,
        w.advisory_id,
-       f.payload #> '{provenance,advisory_group_members}'
+       ` + advisoryGroupWinnerPayloadSQL + ` #> '{provenance,advisory_group_members}'
 FROM supply_chain_impact_canonical_winners AS w
+LEFT JOIN supply_chain_impact_finding_supports AS s
+  ON s.fact_id = w.winner_fact_id
 LEFT JOIN fact_records AS f
   ON f.fact_id = w.winner_fact_id
 WHERE (CASE WHEN btrim(w.cve_id) <> '' THEN w.cve_id ELSE w.advisory_id END) = $1

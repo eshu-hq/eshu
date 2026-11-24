@@ -698,6 +698,16 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-C2 h: reducer-contention proof that the supports the writer's in-memory upsert leaves for 60 planted findings equal, column for column, the supports the fact-derived upsert leaves for the same facts, and that a changed payload shows as a difference"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_advisory_group_winners_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 reducer-contention proof, on an armed clone, that the production writer leaves a finding only in supports, the production resweep derives its winner from supports, and the advisory group winners read still returns the purl and the provenance members (the fact_records-only join returned an empty purl and no members for every new winner)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fact_write_stop_role_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 role proof: reducer-contention proof, as the least-privilege runtime-writer login of the protected-publish proof (inventory required grants plus the DBA pregrant list), that the finding-fact reject trigger refuses a finding fact with the classified 55000 error and not a missing-privilege 42501 (another fact kind is written first to prove the grant), that the armed check reads pg_trigger as that login and sees a disabled trigger, and that the impact writer path leaves its finding in supports with no finding fact and retracts it through DELETE RETURNING on supports"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_family_live_test.go
     tag: ~
     class: dedicated_ci

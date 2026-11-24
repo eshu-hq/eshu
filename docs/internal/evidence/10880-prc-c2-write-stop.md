@@ -104,6 +104,19 @@ coordinator slot); `NOT_CHECKED` means no test of that kind exists yet.
 | 23 | The impact work budget never loosens | `TestImpactWorkBudgetsNeverLoosen` | `TestImpactWorkBudgetRatchetCatchesALoosenedRow` | none | the two shipped tables | hermetic: pass; lowering to 2,403 needs a live run |
 | 24 | The gate seeds the winners corpus through the supports step | `TestWinnersFindingVersionedRowsShape` | rows carry kind and anchor | none | 10 seeded findings | hermetic: pass |
 | 25 | The trigger migration is numbered 355, applies in one order and is pinned | `TestMigrationChecksumManifestPinsEveryShippedMigration`, `TestBootstrapDefinitionsMatchesPreRefactorGolden` | the manifest's tamper and delete tests | none | the migration set | hermetic: pass |
+| 26 | The impact family's digest (supports plus winners) is equal at 1, 2 and 4 workers, one handler execution per work item, zero dead letters, and equals the pin when one is committed | `TestSupplyChainImpactSupportsFamilyDigestEqualAcrossWorkersLive` | `TestSupplyChainImpactSupportsFamilySeededRedsLive` (a dropped support changes the digest; `impactdigest.Read` refuses empty tables, `TestReadRefusesAnEmptyFamily`) | n/a (superuser clone) | 3 worker counts over the 3 committed supply-chain-demo cassettes | NOT_CHECKED: compiled and enrolled, not run (needs the live slot) |
+| 27 | A killed worker's claimed row is reclaimed after its real lease and the digest equals the baseline | `TestSupplyChainImpactSupportsFamilyKillAfterClaimLive` | the digest equality fails on a dropped support (above) | n/a | 1 dropped claim, 2-second real lease (`familyShortLease`, shape: the 3 demo cassettes, passes of milliseconds) | NOT_CHECKED |
+| 28 | A pass whose lease expired after its fencing token was issued is refused by admission and changes zero rows (by `xmin` on supports, winners and retracted keys); the faulted intent runs exactly twice | `TestSupplyChainImpactSupportsFamilyLeaseExpiresMidHandlerLive` | the same test fails if the stale pass returns nil or moves a row version | n/a | 1 parked pass, 2 passes of the faulted intent, 2-second real lease | NOT_CHECKED |
+| 29 | Redelivering an already succeeded intent writes no row version | `TestSupplyChainImpactSupportsFamilyDuplicateDeliveryWritesNoRowVersionLive` | `rowVersionsEqual` names the table that moved | n/a | every intent of the family | NOT_CHECKED |
+| 30 | A planted finding-fact write on the family's armed database fails with 55000 | `TestSupplyChainImpactSupportsFamilySeededRedsLive` | the plant is the violation | n/a | 1 plant | NOT_CHECKED |
+| 31 | The advisory_group Compose cells (131 to 133) keep passing with the trigger armed: `enqueue-advisory-groups` writes supports only through `WriteSupplyChainImpactFindingRows` | `TestAdmitFindingRowsWritesSupportsInTheSameTransaction`, `TestAdmitFindingRowsRollsBackWhenTheSupportsWriteFails` (`enqueue_advisory_groups_supports_test.go`) | arming the trigger and writing a finding fact fails 55000 (family test 30) | n/a | cells 131 to 133 | hermetic: pass; Compose run NOT_CHECKED (Docker, coordinator). The two live proofs in `enqueue_advisory_groups_supports_live_test.go` still join `fact_records` (the byte-equal-fact check) and write facts directly (the facts-only contrast): EXPECT RED on the armed clone until converted |
+| 32 | The advisory group winners read takes purl and provenance members from the supports payload (fact_records only as fallback) | `TestAdvisoryGroupWinnersReadPayloadFromSupports`, `TestAdvisoryGroupWinnersQueryShape`, `TestAdvisoryGroupWinnersReadProvenanceMembers` | reverting the join to fact_records alone fails the first (mutation run) | n/a | 1 query | hermetic: pass; no EXPLAIN run (both joins are primary-key lookups on the winner fact id); Compose cells 131 to 133 are the end-to-end proof, NOT_CHECKED |
+| 33 | The reject trigger refuses a finding fact as the runtime-writer login with 55000, not 42501; the armed check reads pg_trigger as that login | `TestSupplyChainImpactSupportsFactWriteStopAsRuntimeWriterLive` | another kind is written first by the same login; the check sees a disabled trigger | runtime-writer (inventory required rows plus the DBA pregrant list, `grantImpactWriterPregrants`) | 1 login | NOT_CHECKED: needs the live slot; grant list source is the proof's own pregrants, no deployment artifact lists them |
+| 34 | The impact writer path as runtime-writer leaves its finding in supports with no finding fact and retracts it through DELETE RETURNING | `TestSupplyChainImpactWriterPathLeavesFindingsInSupportsAsRuntimeWriterLive`, `TestSupplyChainImpactProtectedStaticPublishLive` (now counts supports) | a finding fact count above 0 fails | runtime-writer | 2 passes | NOT_CHECKED |
+| 35 | The Compose cell `cell_impact_family` (real projector and reducer at 4 workers, armed) matches the shared pin with no dead letter and no rejected write | the cell itself; `TestImpactDigestShellCassetteListMatchesTheGoList` | the cell dies while the pin is blank or the digest differs | n/a | 1 cell, 3 cassettes | hermetic list pin: pass; Docker run NOT_CHECKED |
+| 36 | A new winner's purl and provenance members are read from supports with the trigger armed and no finding fact present | `TestSupplyChainImpactSupportsAdvisoryGroupWinnersReadLive` (production writer, production resweep, production read) | the fact_records-only join returns an empty purl and no members: the test asserts both | n/a | 1 winner, 2 members | NOT_CHECKED: compiled and enrolled, not run |
+| 37 | The remote e2e fact-count readback counts findings from supports, and the fact_records arm excludes the finding kind (no double count of frozen rows) | `scripts/test-e2e-remote-compose-suite.sh` (`fact_count_query_problems`) | the same test replaces the supports arm with fact_records and requires the problem to be reported | n/a | 1 query | pass (run with `ESHU_DEPLOY_CHECKOUT` set) |
+| 38 | The offline winners shim is marked legacy | docstring of `05-winners-write-on-change.py` | none (a doc line; the shim seeds its own synthetic fact_records and never touches a real database) | n/a | 1 file | n/a |
 
 ## Owed live proof (run in a coordinator slot; none has run)
 
@@ -117,6 +130,43 @@ over supports against the fact baseline), T3 (fact insert throughput with and wi
 (retraction DELETE and recovery at 20,000 scope rows), T5 (real-writer WAL, B2 against the C2 head), the
 latency gate run at the C2 head with the route coverage (`-metrics-url`, a granted key) to confirm the
 impact work rows (expect 2,403 blocks), and W2.
+
+### Owed before the write stop is armed (finding-fact reader census, 2026-11-24)
+
+Read-only census: `.claude/finding-fact-readers-census-2026-11-24.md`. Class C items beyond the advisory group
+winners join (fixed, rows 32 and 36):
+
+- C2, the Ifá advisory_group fault row (`scripts/lib/ifa_family_registry/rows/34_advisory_group.sh`, blocker
+  `table_lock:fact_records`, and `ifa_advisory_group_start_fact_records_lock`): DEFERRED to m. Owner: m's author (the blocker
+  row moves with m). Proof: the advisory_group cells 131 to 133 on the Compose runner at the C2 head (coordinator, in a slot). While the winners read
+  keeps its `fact_records` fallback join the lock still holds the handler; when m drops the join the blocker must
+  become a lock the handler really waits on (supports or the winners table), in the same commit as m. Listed in the m
+  deletion inventory above.
+- C3, the `ifa drive -from-facts` re-drain (B-12): DEFERRED with a stated decision, NOT_CHECKED. Finding facts are
+  reducer output, never input to the replay: the re-drain loads the evidence generations, the projector enqueues the
+  impact passes from them, and the target's own reducers derive the supports. After C2 the source has no finding rows,
+  so the targets lack them equally, and B-12 compares targets across worker counts, so the comparison stays symmetric.
+  What changes is coverage, not equality: the targets now derive winners from supports through the real handler. Owed:
+  one B-12 run at the C2 head (coordinator, in a slot) before the write stop is armed; if the digest drifts the arbiter hears it.
+- C4, the remote e2e fact-count gate: FIXED (row 37). The readback is `fact_records`-based
+  (`scripts/e2e_remote_compose_suite.sh`, the fact-counts query), so findings read 0 and the `supply_chain_impact`
+  reducer row failed "no reducer evidence"; the query now counts supports and excludes the finding kind from the
+  `fact_records` arm.
+- C5, the retirement ledger `derived_fact_records` / `DerivedFacts`: DEFERRED, no change. The name is accurate (it
+  counts `fact_records` rows), the purge stays correct (supports leave through the generation foreign key cascade, and
+  C1's scope-delete capture feeds the winners dirty staging), and the live expectations at
+  `repository_retirements_derived_live_test.go:152,175` seed raw facts, so they fail loudly with 55000 (red, not silent)
+  until converted. Owner: impl-latch, converting them in the order of the coordinator's first failure list, before the
+  trigger is armed on any environment. If operators need the purged support count in the ledger, add a separate `derived_supports` key
+  later; changing the meaning of `derived_fact_records` would break the ledger's invariant with the preview.
+- C6, the offline winners shim: marked legacy in its docstring (row 38).
+
+
+### Owed before merge
+
+- The advisory group winners read's EXPLAIN is NOT_CHECKED (both joins are primary-key lookups on the winner fact
+  id). Owner: the coordinator, through impl-qa10883's runner after item f: the replica plan-shape proof of arbiter
+  section 7.2 applies to it before C2 merges.
 
 ## C2 m: what it will delete
 
@@ -137,6 +187,11 @@ Not done here; it waits for the default flip and the D2 readings.
 - The MCP markers `mcp/route_serves_data_registry.go:96-97` and `route_serves_data_registry_routes.go:176-208`.
 - The latency gate's legacy leg: the first leg of `scripts/verify-read-api-latency-gate.sh`, `-winners-read`
   and `WinnersRead` (`latency_report.go`), `doc.go:47`, the fact-leg work table.
+- The `fact_records` fallback join of the advisory group winners read (`advisoryGroupWinnerPayloadSQL` in
+  `supply_chain_impact_advisory_group_winners.go`): once the legacy readers go, the payload comes from supports alone.
+- The Ifá advisory_group fault row's blocker: `scripts/lib/ifa_family_registry/rows/34_advisory_group.sh:14-16,34`
+  (`table_lock:fact_records`) and `ifa_advisory_group_start_fact_records_lock`; change them to a lock the handler really
+  waits on (supports or the winners table) in the same commit that drops the fallback join.
 - Kept: the backfill, drain and verify (the upgrade path from frozen facts), the stored-read twin join and the
   recovery transition leg, the carrier envelope and decode filter, and the fact indexes until PR-D.
 
@@ -146,6 +201,10 @@ Performance Evidence: not measured in this change. The statements change (`DELET
 tombstone `UPDATE`, an `unnest` upsert for the fact-derived upsert, the audit over supports); the theory
 proofs T1, T3, T4 and T5 above are owed before C2 opens, and the work budget stays at its committed ceilings
 (never loosened; the impact rows take the winners value once a live run confirms it).
+
+Performance Evidence (advisory group winners read): the statement gains one `LEFT JOIN` on the supports primary key beside
+the existing `fact_records` primary-key join; no EXPLAIN was run (NOT_CHECKED, no Postgres on this side), so the live
+advisory-group cells are the measurement owed.
 
 Observability Evidence: new gauge `eshu_dp_supply_chain_impact_fact_write_stop_armed` (the trigger reads
 enabled), the reader label `fact_write_stop` on `eshu_dp_supply_chain_impact_supports_reads_total`

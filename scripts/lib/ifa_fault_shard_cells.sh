@@ -281,6 +281,9 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_advisory_group
 	cell_killworker_advisory_group
 	cell_failgraphwrite_advisory_group
+	# supply_chain_impact (#10880 PR-C2): one fault-free cell, no graph;
+	# a singleton group with no baseline of its own.
+	cell_impact_family
 )
 
 # Co-location constraints -- see "INPUT DATA VS. PARTITION ALGORITHM" above.

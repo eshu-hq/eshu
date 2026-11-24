@@ -20,7 +20,7 @@ func main() {
 
 // run dispatches to Ifá's subcommands. "coverage", "expectations", "drive",
 // "graph-dump", "assert-edges", "assert-gcp-project-edge-scopes", "materialize-platform-prerequisite",
-// "materialize-workload-endpoints", "enqueue-advisory-groups",
+// "materialize-workload-endpoints", "enqueue-advisory-groups", "impact-digest",
 // "mutate-cassette", "dead-letters", and "synth-cassette" are full
 // subcommands with their own flag sets (coverage.go,
 // expectations.go, drive.go, graph_dump.go, assert_edges.go,
@@ -58,6 +58,8 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 			return runMaterializeWorkloadEndpointsCommand(ctx, args[1:], stdout, stderr)
 		case "enqueue-advisory-groups":
 			return runEnqueueAdvisoryGroupsCommand(ctx, args[1:], stdout, stderr)
+		case "impact-digest":
+			return runImpactDigestCommand(ctx, args[1:], stdout, stderr)
 		case "mutate-cassette":
 			return runMutateCassetteCommand(args[1:], stdout, stderr)
 		case "dead-letters":

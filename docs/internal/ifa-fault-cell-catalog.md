@@ -242,6 +242,12 @@ than there are entries here.
 131. baseline-advisory-group (#10466) -- family-scoped fault-free baseline; twenty-ninth direct-materialization family in this gate (dispatched here, after the uses_service_account trio, by gate order). Winners-fed shape: the cell drains, asserts zero AFFECTED_BY edges, runs the production winners rebuild + enqueuer (eshu-ifa enqueue-advisory-groups), drains again, then exact-asserts the two-edge set and the AdvisoryGroup node member union.
 132. kill-worker-after-claim-advisory-group (#10466) -- lease reclaim proof (fact_records lock holds the handler's winners read; scoped advisory_group_projection reducer for the kill window).
 133. fail-graph-write-once-then-succeed-advisory-group (#10466) -- AFFECTED_BY retry proof.
+134. impact-family (#10880 PR-C2) -- one fault-free cell with no graph digest: the real projector and reducer at the gate's
+   four workers drain the three supply-chain-demo cassettes (vulnerability intelligence, SBOM, package registry) with the
+   finding-fact reject trigger armed. It passes when `eshu-ifa impact-digest -resweep` (supports plus winners, the statement the
+   in-process family shares) equals the pin in `testdata/golden/ifa-impact-family-digest.txt`, no work item is dead-lettered, no
+   work item carries the `supply_chain_impact_fact_write_stopped` failure class, and the trigger still reads enabled. It fails
+   while the pin is blank. The faults run in process, on a real lease (see the section below).
 
 ## In-process families (not dispatched by the Compose gate)
 

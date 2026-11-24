@@ -40,11 +40,11 @@ func TestAdvisoryGroupWinnersReadProvenanceMembers(t *testing.T) {
 	// The shipped reader must extract the array at the provenance path.
 	// jsonb #> preserves the array bytes the row scan decodes; #>> would
 	// return text and is wrong here.
-	const provenanceExtraction = "f.payload #> '{provenance,advisory_group_members}'"
+	const provenanceExtraction = advisoryGroupWinnerPayloadSQL + " #> '{provenance,advisory_group_members}'"
 	if !strings.Contains(advisoryGroupWinnersQuery, provenanceExtraction) {
 		t.Fatalf("winners query must extract %s: production writes members only under provenance, so a top-level extraction reads NULL and Members is always empty:\n%s", provenanceExtraction, advisoryGroupWinnersQuery)
 	}
-	if strings.Contains(advisoryGroupWinnersQuery, "f.payload->'advisory_group_members'") {
+	if strings.Contains(advisoryGroupWinnersQuery, advisoryGroupWinnerPayloadSQL+"->'advisory_group_members'") {
 		t.Fatalf("winners query must not read top-level advisory_group_members; no production writer emits that key:\n%s", advisoryGroupWinnersQuery)
 	}
 

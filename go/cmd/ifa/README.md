@@ -119,17 +119,24 @@ session.
   id. Only the fixture's own positive anchor is seeded; negative and
   ambiguous anchors get no nodes. This is explicit gate setup, not a reducer or
   deployment command.
+- `ifa impact-digest [-resweep] [-expect DIGEST | -expect-file FILE]`
+  (#10880 PR-C2) - the Compose cell's truth read for the supply-chain impact
+  family, which writes no graph. It optionally runs one production winners
+  resweep (the only write), prints the sha256 over the supports and winners
+  tables through `internal/ifa/impact/digest` (the statement the in-process
+  family shares), refuses an empty family, and fails when a pinned digest
+  differs. The pin file is `testdata/golden/ifa-impact-family-digest.txt`.
 - `ifa enqueue-advisory-groups -cassette FILE -group ID [-group ID...]
   -scope SCOPE -generation GENERATION -source-system SYSTEM` - performs
   the mid-drive step of the advisory_group live cells (#10466). The
   drive holds the cassette's finding facts back from ingestion:
   re-projecting a generation that holds them would retract them as
   superseded, so this verb admits them itself through the production
-  impact writer's transaction shape (#11201): the facts through the
-  statement every governed reducer writer uses, with the fact ids
-  cassette replay would have minted, and the supports of the live facts
-  in the same transaction under the supports writer setting, so the
-  per-support table stays current and the old-writer fence stays empty. It then
+  impact writer's transaction shape (#11201): the supports, with the fact
+  ids cassette replay would have minted, in one transaction under the
+  supports writer setting, so the per-support table is current and the
+  old-writer fence stays empty. Since #10880 PR-C2 no finding fact is
+  written (the reject trigger is armed on the proof database). It then
   runs the production winners rebuild, enqueues one
   advisory_group_projection intent per group through the production
   enqueuer over the real reducer queue, and rebuilds again so the
