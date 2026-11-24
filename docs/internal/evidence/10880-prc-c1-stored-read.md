@@ -304,3 +304,25 @@ Written, not yet run. Environment, for a disposable server only:
 The statements come from the writer's package through two small proof seams
 (`core.ProofStoredFindingsQuery` and the recovery equivalents, `postgres.WinnersProofSelects`), so the proof runs
 the statements the writer and the maintainer run. The ledger and the reducer-contention inventory name both files.
+
+### Raw-fact winners proofs now sync supports
+
+Fifteen older winners live proofs passed on the base and failed on C1. Each seeds or changes finding facts
+with raw SQL to simulate a change no capture saw. The winners maintainer reads the supports table since C1 d,
+and the impact writer changes a fact and its support in one transaction, so the raw SQL left the supports
+behind. None of the failures is a product defect of the swap (the per-test classification is in the PR
+discussion). Those proofs now call `postgres.ProofSyncSupportsFromFacts` after their raw writes: it runs the
+writer's own retraction delete and support upsert per scope generation under the pair's conflict-domain lock,
+and nothing else (no marker, no capture, no hand-built supports row). No assertion changed. These tests do
+not prove that C1's dual write is equivalent: that is proven by
+`TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive` and
+`TestSupplyChainImpactWinnersResweepSupportsDifferentialLive`, which run the real writer and compare the two
+sources. Expect the shared helpers (the operator fact writer, the audit range fixture, `winnersLiveSeedFact`) to
+change the behavior of proofs that passed before, because they now run against a populated winners table and
+real overrides.
+
+Carried to C2 l (arbiter ruling on C1, section 5): while the audit stays on the finding facts, a divergence
+between the facts and the supports (a writer bug, since the two change in one transaction) makes the audit
+re-queue the same key on every pass, because the keyed tick recomputes the winner from the supports and the
+audit compares it with the facts. After C2 l moves the audit to the supports the audit compares the winners
+with the supports only, so the audit sweep run at D3a is the last independent oracle.
