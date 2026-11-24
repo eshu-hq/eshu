@@ -432,3 +432,40 @@ of each arm.
 `golden-corpus-filter-exhaustive` fails because the host `yq` is the Python flavour
 and reads the PR inventory as an unsupported schema. Neither reads this diff.
 `make pre-push` and `make pre-pr` belong to the coordinator.
+
+## Fence one-snapshot closure proof
+
+All on disposable PostgreSQL 18.6 (512 MB, one test at a time, nice 19).
+
+- RED on the old two-statement form (base `b3085189ad`, throwaway test, not
+  committed): the check wrapper commits an old-writer finding after check 1 and runs
+  the backfill drain before check 2. The fence returned `Fenced:1 HoldersReopened:0`
+  with no error: it committed without the drained holder.
+- GREEN on the one-statement form: `TestFenceHolderStatementReadsReadinessAndHoldersInOneSnapshotLive`
+  (2.0 s) covers the three states. Mark present and support absent returns the typed
+  not-ready refusal with the pointer still set and the generation active. Mark
+  cleared and support present reopens the drained holder. A ready table with no
+  holder commits (`Fenced:1 HoldersReopened:0`).
+- `TestFenceUnderAFreeInterleavingWithTheDrainReopensEveryCommittedHolderLive` (2.7 s,
+  40 rounds): the old-writer finding commits first, then the fence retries alongside
+  `RunStep` with no hook; every committed fence reopened the holder and the only
+  errors were typed not-ready refusals.
+- EXPLAIN (ANALYZE, BUFFERS) in `TestFenceReopensHoldersInDeadLetterLockOrderLive`:
+  the holder statement still reads `supply_chain_impact_finding_supports_repository_idx`
+  and `ingestion_scopes_active_generation_idx`; the readiness predicate plans as
+  InitPlans. Execution 0.075 ms against 0.052 ms for the retired separate statement on the
+  same 3-holder fixture (one run each, tiny lab, not a performance claim). The sort
+  key is still the work item id `COLLATE "C"`, then the scope id.
+- Unchanged and green: `TestFenceAndAckRaceEndOnTheSuccessorLive` (2.8 s, the 40-round
+  race), every `gomodules` test (43 PASS, no FAIL or SKIP, 52 s), the coordinator
+  fence lock-timeout test (3.8 s), and the go-fence chain tests (5.8 s, 0.7 s, 0.2 s).
+- Planted violations against the production code, each failing the named tests and then
+  restored: readiness text changed by one character, or removed from the holder
+  statement (`TestHolderStatementEmbedsTheReadinessTextOnce`,
+  `TestSupportsReadyBindingCarriesThePinnedPredicate`); Go ignoring `ok`
+  (`TestFenceRollsBackWhenTheHolderStatementIsNotReadyEvenWithHolders`); a readiness
+  check re-added after the holder read
+  (`TestFenceHolderStatementIsTheOnlyOneCarryingReadinessAfterTheDetach`).
+
+The new live tests run in the live-postgres-readiness runner, not the reducer
+contention filter, so they add nothing to the supply-chain half's 1200 s cap.
