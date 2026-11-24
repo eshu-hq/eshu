@@ -43,13 +43,20 @@ identity digest and reads as changed, so it fans out once after rollout.
 - CPU: one extra SHA-256 over a copy of the typed payload per written row, the
   same order of work as the existing content digest.
 - Payload size: one 64-character hex string per row.
-- The core package tests pass, including the byte-exact batch payload test,
-  which shows the full `content_digest` value is unchanged.
-- Live proofs (PostgreSQL 18.3, the coordinator's run):
-  `TestEPSSDateOnlyRerunOfANonEnrichmentScopeReopensNobodyLive` (RED before,
-  GREEN after), `TestEPSSScopesOwnPassStillReopensEveryHolderLive`, and the
-  `TestFanOutIdentityGate*Live` cases. NOT_CHECKED in this lane: no Postgres
-  here.
+- The full `content_digest` value is unchanged.
+  `TestContentDigestValueIsPinnedForAFixedFinding` pins it as a literal hex
+  value computed on the pre-D7 code for a fixed fixture finding. The
+  byte-exact batch payload test alone could not show it, because it
+  recomputes its expectation with the production digest.
+- Live proofs on PostgreSQL 18.3 (the coordinator's runs):
+  - At the RED commit, `TestEPSSDateOnlyRerunOfANonEnrichmentScopeReopensNobodyLive`
+    and `TestFanOutIdentityGateKEVListingSeenByANonEnrichmentScopeReopensNobodyLive`
+    failed: the EPSS-only and KEV-only reruns reached 21 holders.
+  - At the fix commit, every case passed: both of those,
+    `TestEPSSScopesOwnPassStillReopensEveryHolderLive`,
+    `TestFanOutIdentityGateKEVScopesOwnPassReopensEveryHolderLive`,
+    `TestFanOutIdentityGateMixedChangeStillFansOutLive`, and
+    `TestFanOutIdentityGateScopeHoldingEPSSFansOutOnTheFullDigestLive`.
 
 ## Observability Evidence:
 

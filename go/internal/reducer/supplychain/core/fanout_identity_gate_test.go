@@ -230,3 +230,25 @@ func TestIdentityDigestClassifiesProvenanceEntries(t *testing.T) {
 		}
 	}
 }
+
+// TestContentDigestValueIsPinnedForAFixedFinding pins the full content digest
+// of one fixed finding to the literal value the code before D7 computed for it
+// (#10972). The byte-exact batch payload test recomputes its expectation with
+// the production digest, so only a literal can show that adding the identity
+// digest left the full digest's value unchanged.
+func TestContentDigestValueIsPinnedForAFixedFinding(t *testing.T) {
+	t.Parallel()
+
+	write := SupplyChainImpactWrite{
+		FencingToken: 1, IntentID: "intent-impact-batch", ScopeID: "vuln-intel://osv/npm/example",
+		GenerationID: "generation-impact-batch", SourceSystem: "vulnerability_intelligence", Cause: "vulnerability evidence observed",
+	}
+	finding := SupplyChainImpactFinding{
+		CVEID: "CVE-2026-1001", PackageID: testImpactPackageID, PURL: testImpactPURL, ObservedVersion: "1.2.3",
+		Status: SupplyChainImpactAffectedExact, RepositoryID: testImpactRepositoryID, CanonicalWrites: 1,
+	}
+	const preD7 = "a80d29db2de24987749c5171ea49f5292b9dc4de7d831bbc4344e481baf96575"
+	if got := supplyChainImpactContentDigest(write, finding); got != preD7 {
+		t.Fatalf("content digest = %s, want the pre-D7 value %s: the full digest's meaning changed", got, preD7)
+	}
+}
