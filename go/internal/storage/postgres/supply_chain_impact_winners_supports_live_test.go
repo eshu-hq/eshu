@@ -203,3 +203,22 @@ func TestSupplyChainImpactWinnersResweepSupportsDifferentialLive(t *testing.T) {
 		t.Errorf("supports-driven winners table EXCEPT ALL the facts select = %d rows, want 0", n)
 	}
 }
+
+// winnersAssertTableEqualsFactsSelect requires the stored winners table to equal the
+// winners select over the finding facts, EXCEPT ALL both ways over every data column:
+// the keyed tick, which reads the supports table, checked against the facts oracle
+// (#10880 PR-C1, the change classes of the PR-C design ruling, section 5). Call it
+// after the tick and before any full recompute, which would overwrite the table.
+func winnersAssertTableEqualsFactsSelect(h *keyedHarness, label string) {
+	h.t.Helper()
+	facts, _ := postgres.WinnersProofSelects()
+	columns := "canonical_key, " + strings.Join(postgres.WinnersProofDataColumns(), ", ")
+	table := `SELECT ` + columns + ` FROM supply_chain_impact_canonical_winners`
+	fromFacts := `SELECT ` + columns + ` FROM (` + facts + `) AS l`
+	if n := h.count(`SELECT count(*) FROM ((` + fromFacts + `) EXCEPT ALL (` + table + `)) AS d`); n != 0 {
+		h.t.Errorf("%s: the facts select EXCEPT ALL the keyed winners table = %d rows, want 0", label, n)
+	}
+	if n := h.count(`SELECT count(*) FROM ((` + table + `) EXCEPT ALL (` + fromFacts + `)) AS d`); n != 0 {
+		h.t.Errorf("%s: the keyed winners table EXCEPT ALL the facts select = %d rows, want 0", label, n)
+	}
+}

@@ -250,7 +250,54 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			if counted < 1 {
 				t.Fatalf("keyed tick reported %+v, want at least one %q row consumed", result.TriggerCaptured, tc.wantSource)
 			}
+			// The keyed tick reads the supports table (#10880 PR-C1): its table must
+			// equal the facts oracle for this change class, checked before the
+			// recompute below overwrites it.
+			winnersAssertTableEqualsFactsSelect(h, tc.name)
 			h.assertParity(tc.name)
+		})
+	}
+
+	// Scanner changes on a retracted finding (#10880 PR-C1, the change classes of the
+	// PR-C design ruling, section 5): the finding's fact is tombstoned and its support
+	// deleted, so neither capture (311 on facts, 353 on supports) stages a row and no
+	// winner moves; the keyed table must still equal the facts select.
+	for _, rc := range []struct {
+		name   string
+		change func(h *keyedHarness, fact string)
+	}{
+		{"classification INSERT on a retracted finding", func(h *keyedHarness, fact string) {
+			insertClassification(h, fact, "derived", "active")
+		}},
+		{"association INSERT on a retracted finding", func(h *keyedHarness, fact string) {
+			insertAssociation(h, fact)
+		}},
+	} {
+		t.Run(rc.name, func(t *testing.T) {
+			h := newKeyedHarness(t, "#10880 C1 retracted-finding scanner proof")
+			scopeA, _ := keyedSeedSettled(h)
+			h.dropForeignKeysOf(classTable)
+			h.dropForeignKeysOf(assocTable)
+			retracted := h.findingFactID(scopeA, "CVE-2026-2002")
+			h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 5))
+			h.keyed()
+			if n := h.count(`SELECT count(*) FROM fact_records WHERE fact_id = $1 AND is_tombstone`, retracted); n != 1 {
+				t.Fatalf("the second pass left %d tombstoned facts for %s, want 1: the finding is not retracted", n, retracted)
+			}
+			if n := h.count(`SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, retracted); n != 0 {
+				t.Fatalf("the retracted finding %s still has %d supports, want 0", retracted, n)
+			}
+			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
+			rc.change(h, retracted)
+			if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE source = 'scanner'`); n != 0 {
+				t.Fatalf("the change staged %d scanner rows for a retracted finding, want 0", n)
+			}
+			if _, err := h.store.ResweepWinnersKeyed(h.ctx); err != nil {
+				t.Fatalf("keyed tick: %v", err)
+			}
+			winnersAssertTableEqualsFactsSelect(h, rc.name)
+			h.assertParity(rc.name)
 		})
 	}
 }
