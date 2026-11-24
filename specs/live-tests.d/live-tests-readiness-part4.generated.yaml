@@ -329,6 +329,11 @@ tests:
     class: postgres_ci
     reason: "#10055 real PostgreSQL proof of the commit-skew fence: the amended rule on the real page read at one slot and at fleet scale, the retraction transition, the unusable-remote acceptance case, the dirty-log capture, and the open-target guard releasing a repository after a terminal failure"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/gomodules/fence_snapshot_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11197 real PostgreSQL proof that the fence's holder statement reads the supports readiness predicate and the holders in one snapshot: a table that is not ready in that snapshot rolls the fence back with the pointer set, a drained scope's holder is reopened, a ready table with no holder commits, and under a free interleaving with the backfill drain every committed fence reopened the holder"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/gomodules/store_live_test.go
     tag: ~
     class: postgres_ci

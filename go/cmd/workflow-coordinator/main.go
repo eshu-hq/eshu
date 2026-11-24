@@ -40,7 +40,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
@@ -356,11 +355,13 @@ func run(parent context.Context) error {
 	return service.Run(ctx)
 }
 
-// goModulesFenceSupportsReadiness binds the supports readiness check the Go-modules
-// fence runs as its first statement after the timeouts (#11197): the shared helper,
-// the shared typed refusal and the shared counter, under the fence's reader label.
+// goModulesFenceSupportsReadiness binds the supports readiness predicate the
+// Go-modules fence runs (#11197): the postgres root's predicate text, its two
+// parameters and the shared classification (typed refusal, counter) under the
+// fence's reader label. The fence embeds the same text in its holder statement, so
+// the verdict and the holders come from one snapshot.
 func goModulesFenceSupportsReadiness(instruments *telemetry.Instruments) gomodules.SupportsReadiness {
-	return func(ctx context.Context, tx db.Queryer) error {
-		return postgres.RequireSupplyChainImpactSupportsReady(ctx, tx, instruments, telemetry.SupplyChainImpactSupportsReaderGoModulesFence)
-	}
+	return gomodules.SupportsReadiness(
+		postgres.NewSupplyChainImpactSupportsReadyBinding(instruments, telemetry.SupplyChainImpactSupportsReaderGoModulesFence),
+	)
 }

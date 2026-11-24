@@ -29,6 +29,16 @@ import (
 // the work item id the reducer queue mints, so the reopen's enqueue collides with it.
 func seedFindingHolder(t *testing.T, database *sql.DB, holderScopeID, repositoryID, itemStatus string) string {
 	t.Helper()
+	itemID := seedFindingHolderUnsettled(t, database, holderScopeID, repositoryID, itemStatus)
+	settleSupports(t, database)
+	return itemID
+}
+
+// seedFindingHolderUnsettled is seedFindingHolder as an old-writer image leaves it: the
+// finding fact is committed, the dirty trigger has marked the scope, and no support row
+// exists until the backfill drains the mark.
+func seedFindingHolderUnsettled(t *testing.T, database *sql.DB, holderScopeID, repositoryID, itemStatus string) string {
+	t.Helper()
 	ctx := t.Context()
 	generationID := holderScopeID + "/g1"
 	if _, err := database.ExecContext(ctx, `
@@ -55,7 +65,6 @@ VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1, 'reducer', $1, no
 		holderScopeID+"/finding", holderScopeID, generationID, repositoryID); err != nil {
 		t.Fatalf("seed holder finding: %v", err)
 	}
-	settleSupports(t, database)
 	if itemStatus == "" {
 		return ""
 	}
@@ -321,7 +330,8 @@ func TestFenceReopensHoldersInDeadLetterLockOrderLive(t *testing.T) {
 		t.Fatalf("fixture lost the order disagreement: scope %q<%q, item %q<%q", api, web, webItem, apiItem)
 	}
 
-	rows, err := database.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+fenceFindHoldersQuery, repository, fence.ScopeID)
+	explainArgs := append(append([]any{}, testSupportsReadiness.Args...), repository, fence.ScopeID)
+	rows, err := database.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+HolderStatement(testSupportsReadiness.SQL), explainArgs...)
 	if err != nil {
 		t.Fatalf("explain holder read: %v", err)
 	}

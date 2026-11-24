@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/gomodules"
@@ -104,9 +102,8 @@ func TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	store := gomodules.NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(func(ctx context.Context, tx db.Queryer) error {
-		return postgres.RequireSupplyChainImpactSupportsReady(ctx, tx, nil, "go_modules_fence")
-	})
+	store := gomodules.NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(
+		gomodules.SupportsReadiness(postgres.NewSupplyChainImpactSupportsReadyBinding(nil, "go_modules_fence")))
 	service := Service{
 		Config: Config{
 			DeploymentMode: deploymentModeActive, ClaimsEnabled: true, ReconcileInterval: time.Hour,
