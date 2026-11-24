@@ -122,6 +122,10 @@ tests:
     tag: integration
     class: scheduled
     reason: requires a dedicated empty PostgreSQL database; local tracked-migration writer proof took 0.58s, excluding Go startup
+  - file: go/internal/storage/postgres/schema_bootstrap_two_holder_live_test.go
+    tag: integration
+    class: scheduled
+    reason: "#11352 two-holder production-shape bootstrap recovery proof needs a disposable PostgreSQL database (ESHU_POSTGRES_RECOVERY_TEST_DSN), which the live-backend CI job does not provision; local run passed in about 18s on PostgreSQL 18.6 — promote to blocking with CI timing evidence"
   - file: go/internal/storage/postgres/schema_bootstrap_wait_live_test.go
     tag: integration
     class: scheduled

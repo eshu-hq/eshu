@@ -62,3 +62,11 @@ second no longer exercises this package's retry loop for that statement
 shape: `ConcurrentIndexBuildPlan` (#7004) exempts a bare CREATE/DROP
 INDEX CONCURRENTLY statement from lock_timeout entirely, so it waits out a
 conflicting lock instead of hitting 55P03 and retrying.
+`TestBootstrapTwoHolderProductionShapeRecoveryLive` (#11352) is the first
+live regression to drive the retry loop itself with real contention: one
+holder owns the advisory lock across an actively running migration-shape
+statement while a second holder blocks a DDL target past lock_timeout and
+then holds an old snapshot, so one run proves ownership waiting (naming the
+holder), lock_wait/lock_recovered for the statement that exceeded
+lock_timeout, and the silent snapshot-wait (starting/finished, never
+lock_wait) for the concurrent build, all ending in a bounded total wait.
