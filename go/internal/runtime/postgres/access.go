@@ -8,10 +8,13 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -103,6 +106,15 @@ type Access struct {
 	// snapshot-export qualification and denial records.
 	snapshotExport *snapshotExportQualification
 	logger         *slog.Logger
+	// requalifyMu serializes fleet member requalification: the network reads
+	// run under it so concurrent borrows share one refresh.
+	requalifyMu sync.Mutex
+	// readMemberIdentity dials one member and reads its physical identity for
+	// requalification. Nil uses the built-in dial; tests inject a stub.
+	readMemberIdentity func(ctx context.Context, m *physicalReaderMember) (physicalIdentity, string, []net.IP, error)
+	// readerRoleAttestor validates requalification connections when the role
+	// boundary is configured. Nil preserves the legacy contract.
+	readerRoleAttestor pgconn.ValidateConnectFunc
 }
 
 // Open validates physical writer and reader identity before exposing either pool.
@@ -210,7 +222,7 @@ func Open(ctx context.Context, cfg Config, observer Observer) (*Access, error) {
 	if budget <= 0 {
 		budget = DefaultStaleReplayBudget
 	}
-	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, readRouting: cfg.ReadRouting, staleReplayBudget: budget, observer: observer, lineage: lineage, snapshotSetGate: make(chan struct{}, 1), snapshotExport: exportQualification, logger: cfg.Logger}
+	access := &Access{writer: writer, reader: reader, readerMembers: members, readerInventoryCount: len(cfg.ReadMembers), readerHasFallbacks: len(readCfg.Fallbacks) > 0, samePrimary: cfg.SamePrimary, replayTimeout: cfg.ReplayTimeout, pingTimeout: cfg.PingTimeout, readRouting: cfg.ReadRouting, staleReplayBudget: budget, observer: observer, lineage: lineage, snapshotSetGate: make(chan struct{}, 1), snapshotExport: exportQualification, logger: cfg.Logger, readerRoleAttestor: cfg.ReaderRoleAttestor}
 	if access.logger == nil {
 		access.logger = slog.Default()
 	}

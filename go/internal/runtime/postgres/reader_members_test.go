@@ -281,10 +281,14 @@ func TestReaderMembersSnapshotSetsStayOnOnePhysicalReader(t *testing.T) {
 	if err := access.Ping(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// A changed incarnation is rejected before business SQL. The whole
-	// reservation is discarded and rebuilt on B, never half-imported.
-	oldIncarnation := access.readerMembers[0].incarnation
-	access.readerMembers[0].incarnation = "replaced"
+	// A changed incarnation on an unverifiable member is rejected before
+	// business SQL. The whole reservation is discarded and rebuilt on B,
+	// never half-imported. Requalification is disabled here to model a
+	// replacement the process cannot reverify; a verifiable same-cluster
+	// restart refreshes the pinning instead (TestFleetRequalifiesRestartedMember).
+	oldPinned := access.readerMembers[0].identity.Load()
+	access.readerMembers[0].identity.Store(&memberIdentity{incarnation: "replaced"})
+	access.readerMembers[0].dial = nil
 	access.nextReader.Store(0)
 	replacedSet, err := beginner.BeginReadOnlySnapshotSet(ctx, 4)
 	if err != nil {
@@ -296,7 +300,7 @@ func TestReaderMembersSnapshotSetsStayOnOnePhysicalReader(t *testing.T) {
 	if err := replacedSet.Close(); err != nil {
 		t.Fatal(err)
 	}
-	access.readerMembers[0].incarnation = oldIncarnation
+	access.readerMembers[0].identity.Store(oldPinned)
 	// A refused dial models a lost Pod without treating a deliberately closed
 	// in-process pool as a PostgreSQL transport failure. Readiness and a
 	// complete new snapshot remain available on the other qualified member.
@@ -461,11 +465,17 @@ func TestReaderMembersPingRequiresFrozenMemberIdentity(t *testing.T) {
 	if err := access.Ping(context.Background()); err != nil {
 		t.Fatalf("healthy fleet ping: %v", err)
 	}
-	access.readerMembers[0].incarnation = "replaced"
+	// Requalification is disabled to model replacements the process cannot
+	// reverify; a verifiable same-cluster restart refreshes the pinning
+	// instead (TestFleetRequalifiesRestartedMember).
+	for i := range access.readerMembers {
+		access.readerMembers[i].dial = nil
+	}
+	access.readerMembers[0].identity.Store(&memberIdentity{incarnation: "replaced"})
 	if err := access.Ping(context.Background()); err != nil {
 		t.Fatalf("one qualified member should keep readiness: %v", err)
 	}
-	access.readerMembers[1].incarnation = "replaced"
+	access.readerMembers[1].identity.Store(&memberIdentity{incarnation: "replaced"})
 	if err := access.Ping(context.Background()); err == nil {
 		t.Fatal("readiness accepted two members that no longer match frozen identity")
 	}

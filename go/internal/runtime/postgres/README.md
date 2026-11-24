@@ -234,9 +234,12 @@ latch; new dials, checkpoints, and readiness are. A dial whose observation went
 stale while another dial published a different incarnation neither publishes
 nor latches; it returns a `driver.ErrBadConn` error so `database/sql` dials
 again. Streaming standbys do not check the primary incarnation. A restarted
-direct reader member (`ESHU_POSTGRES_READ_MEMBERS`) keeps its frozen
-incarnation and stays ineligible until the process restarts; that is a known
-limitation.
+direct reader member (`ESHU_POSTGRES_READ_MEMBERS`) whose frozen incarnation
+no longer matches is requalified once per borrow: the fleet re-reads the
+member identity over a throwaway connection and republishes it after the
+member proves the lined-up system identifier, database, and standby role, so
+routine standby restarts heal without a process restart. A member that cannot
+be reverified stays excluded until the process restarts.
 
 Each accepted, raced, or latched decision logs `event_name=postgres.writer.lineage`
 on `Config.Logger` with `outcome` (`accepted`, `raced`, `latched`), the
