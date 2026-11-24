@@ -201,3 +201,12 @@ go test ./internal/testutil/postgresproof -count=1
 is closed, the drop and its verification are skipped, and the clone's name is written to the test log (use `-v`). Drop it by
 hand when finished. Unset, every clone is dropped and verified as before. It is for lab measurements against a seeded database,
 never for CI.
+
+## Finding write stop
+
+A clone starts with the finding-kind reject trigger
+(`fact_records_reject_supply_chain_impact_finding`, #10880 PR-C2 k) disabled, because many
+proofs seed frozen finding facts on purpose (the backfill, drain, verification and key fill
+read them). `ArmFindingWriteStop` enables it for a proof that tests the stop itself;
+`DisarmFindingWriteStop` disables it again. The state is per clone and never reaches the
+template.

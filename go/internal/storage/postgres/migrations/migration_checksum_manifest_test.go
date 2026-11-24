@@ -529,7 +529,10 @@ var migrationShippedChecksums = map[string]string{
 	"348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql": "b329d635afe998a087c2faef1295156935583d95b5002b6ca7b3328e0e2d8edf",
 	"349_fact_records_vuln_pkg_eco_stats.sql":                             "9b739659bcd23e5efb2cb390b4722ca16ced88c04878ef18e5bf9dbf54756d26",
 	// #10880 PR-C1 a: the nullable stable_fact_key the upsert fills outside its
-	// write-on-change guard (349 is #11376's eco stats on main).
+	// write-on-change guard (349 is #11376's eco stats on main; the PR-C2 k
+	// reject trigger below is a second 349, renumbered later in this series).
+	// #10880 PR-C2 k: the reject trigger on fact_records for the finding kind.
+	"349_supply_chain_impact_finding_fact_write_stop.sql":          "3e0df69f6781648750b9eb881bbccb94f3df79245ba92e042a84845935f8195f",
 	"350_supply_chain_impact_finding_supports_stable_fact_key.sql": "ccc38b897b2e04bfed6fc0df1401d55e43a8e765da3cd1f4945a8030d83d62a1",
 	// #10880 PR-C1 c: the retracted-keys table the recovery reads take over from
 	// tombstoned fact rows.

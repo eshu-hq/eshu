@@ -206,11 +206,8 @@ func cloneIsolatedBootstrapTemplate(
 	targetConfig.RuntimeParams = cloneRuntimeParams(config.RuntimeParams)
 	targetConfig.RuntimeParams["search_path"] = isolatedBootstrapSearchPath()
 	targetDB := stdlib.OpenDB(*targetConfig, inventory.WriterConnectOption())
-	if err := targetDB.PingContext(ctx); err != nil {
-		_ = targetDB.Close()
-		_ = dropDisposableDatabaseName(ctx, adminDB, clone)
-		_ = adminDB.Close()
-		return nil, "", nil, fmt.Errorf("ping cloned PostgreSQL database: %w", err)
+	if err := prepareClone(ctx, targetDB, adminDB, clone); err != nil {
+		return nil, "", nil, err
 	}
 	cleanup := func() {
 		_ = targetDB.Close()

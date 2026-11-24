@@ -400,12 +400,18 @@ import (
 // the merged tree.
 // 357_supply_chain_impact_finding_first_seen.sql (#11031) adds the durable
 // set-once first-seen stamp table. Count 383 is 382 plus 357.
+// 349_supply_chain_impact_finding_fact_write_stop.sql (#10880 PR-C2 k) adds the
+// reject trigger on fact_records for the finding kind (a second 349 beside
+// main's eco stats; renumbered to 358 later in this series since main took
+// 357). Count and digest are RE-DERIVEd at the end of the rebase: the values
+// below are placeholders.
 // 359_supply_chain_impact_winners_enrichment_first_carry.sql (#11466) adds
-// the durable set-once-per-value enrichment first-carry stamp table (358 is
-// the open #11476 write-stop lane). Count 384 is 383 plus 359.
+// the durable set-once-per-value enrichment first-carry stamp table on main's
+// tree (358 stays the #11476 write-stop lane). Its count and digest join the
+// re-derivation below.
 const (
-	goldenBootstrapDefinitionsDigest = "06445f4f2fac10882602e7c590dfcbdc1ddaffbf3625ea3ac8961e0f140d715e"
-	goldenBootstrapDefinitionsCount  = 384
+	goldenBootstrapDefinitionsDigest = "RE-DERIVE"
+	goldenBootstrapDefinitionsCount  = 383
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
