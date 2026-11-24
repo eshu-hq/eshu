@@ -15,6 +15,7 @@
 # What the schedule does not do: run a reducer, or run any hosted collector
 # other than the T2 stand-in described in the design record.
 
+REPLAY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPLAY_HOSTED_SRC="dev.eshu.collector.synth-8877-cutover"
 REPLAY_HOSTED_COLLECTOR="synth_zero_fact"
 REPLAY_ENGAGED_WINDOW="${REPLAY_ENGAGED_WINDOW:-120}"
@@ -163,21 +164,18 @@ replay_write_manifest() {
   if [[ "$ARM_THRESHOLDS" == 1 && "$ARM_A_KIND" == git ]]; then
     sel_base=20 # ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL seconds, see replay_threshold_env
   fi
-  python3 -I - "$REPLAY_RUN_DIR/manifest.json" <<PY
-import hashlib, json, os, sys
-bins = {n: hashlib.sha256(open(os.path.join("$REPLAY_BIN", n), "rb").read()).hexdigest()
-        for n in sorted(os.listdir("$REPLAY_BIN")) if n.startswith("eshu-")}
-json.dump({"binaries": bins,
-  "arm": "$arm", "rep": $rep, "ttl": "$ARM_TTL", "completion_step": bool($ARM_COMPLETE),
-  "thresholds": "$thresholds", "global_admission": "$(replay_global_admission_env | paste -sd, -)", "global_marks": "$ARM_GLOBAL_MARKS", "source_a": "$REPLAY_SRC_A", "source_b": "$REPLAY_SRC_B",
-  "a_shape": "$ARM_A_SHAPE", "a_reducer_rows": $REPLAY_A_ROWS, "a_projector_generations": $REPLAY_A_GENERATIONS,
-  "b_generations": $REPLAY_B_COUNT, "b_cadence": "$REPLAY_B_CADENCE",
-  "workers": {"projector": $REPLAY_PROJECTOR_WORKERS, "ingester_projector": $REPLAY_INGESTER_PROJECTOR_WORKERS},
-  "engaged_window_s": $REPLAY_ENGAGED_WINDOW, "selection_base_s": $sel_base, "load1_at_start": "$(replay_load1)",
-  "postgres": "$REPLAY_PG_IMAGE", "neo4j": "$REPLAY_NEO4J_IMAGE",
-  "commit": "$(cat "$REPLAY_RESULTS/build.commit")", "started": "$(date -u +%FT%TZ)",
-}, open(sys.argv[1], "w"), indent=2, sort_keys=True)
-PY
+  REPLAY_MF_BIN="$REPLAY_BIN" REPLAY_MF_ARM="$arm" REPLAY_MF_REP="$rep" REPLAY_MF_TTL="$ARM_TTL" \
+    REPLAY_MF_COMPLETE="$ARM_COMPLETE" REPLAY_MF_THRESHOLDS="$thresholds" \
+    REPLAY_MF_GLOBAL_ADMISSION="$(replay_global_admission_env | paste -sd, -)" REPLAY_MF_GLOBAL_MARKS="$ARM_GLOBAL_MARKS" \
+    REPLAY_MF_SOURCE_A="$REPLAY_SRC_A" REPLAY_MF_SOURCE_B="$REPLAY_SRC_B" REPLAY_MF_A_SHAPE="$ARM_A_SHAPE" \
+    REPLAY_MF_A_REDUCER_ROWS="$REPLAY_A_ROWS" REPLAY_MF_A_PROJECTOR_GENERATIONS="$REPLAY_A_GENERATIONS" \
+    REPLAY_MF_B_GENERATIONS="$REPLAY_B_COUNT" REPLAY_MF_B_CADENCE="$REPLAY_B_CADENCE" \
+    REPLAY_MF_WORKERS_PROJECTOR="$REPLAY_PROJECTOR_WORKERS" \
+    REPLAY_MF_WORKERS_INGESTER_PROJECTOR="$REPLAY_INGESTER_PROJECTOR_WORKERS" \
+    REPLAY_MF_ENGAGED_WINDOW_S="$REPLAY_ENGAGED_WINDOW" REPLAY_MF_SELECTION_BASE_S="$sel_base" \
+    REPLAY_MF_LOAD1_AT_START="$(replay_load1)" REPLAY_MF_POSTGRES="$REPLAY_PG_IMAGE" REPLAY_MF_NEO4J="$REPLAY_NEO4J_IMAGE" \
+    REPLAY_MF_COMMIT="$(cat "$REPLAY_RESULTS/build.commit")" REPLAY_MF_STARTED="$(date -u +%FT%TZ)" \
+    python3 -I "$REPLAY_LIB_DIR/../write_manifest.py" "$REPLAY_RUN_DIR/manifest.json"
 }
 
 # replay_wait_until <seconds> <description> <command...> polls a command once a

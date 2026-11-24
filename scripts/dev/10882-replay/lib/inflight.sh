@@ -31,23 +31,11 @@
 # Needs env.sh, host.sh, proc.sh, sampler.sh, collect.sh, hosted.sh, arm.sh and
 # REPLAY_SEEDER_IF (the seeder binary with ESHU_REPLAY_SKIP_MIX).
 
+REPLAY_INFLIGHT_SQL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 # replay_inflight_install_hold creates the hold table and the marker trigger.
 replay_inflight_install_hold() {
-  replay_psql -q <<'SQL'
-CREATE TABLE replay_hold (hold boolean NOT NULL);
-INSERT INTO replay_hold VALUES (true);
-CREATE FUNCTION replay_hold_marker() RETURNS trigger LANGUAGE plpgsql AS $fn$
-BEGIN
-  WHILE (SELECT hold FROM replay_hold) LOOP
-    PERFORM pg_sleep(0.05);
-  END LOOP;
-  RETURN NEW;
-END
-$fn$;
-CREATE TRIGGER replay_hold_marker BEFORE UPDATE OF projection_write_started_at ON scope_generations
-  FOR EACH ROW WHEN (NEW.projection_write_started_at IS NOT NULL AND NEW.scope_id LIKE 'git-repository-scope:%')
-  EXECUTE FUNCTION replay_hold_marker();
-SQL
+  replay_psql -q -f "$REPLAY_INFLIGHT_SQL_DIR/inflight_hold.sql"
 }
 
 # replay_inflight_trigger waits for a claimed real-fixture projector item, inserts

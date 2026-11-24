@@ -140,6 +140,7 @@ Everything lives under `scripts/dev/10882-replay/`, each file under 500 lines:
 | `b_item_table.py`, `test_b_item_table.py` | Per-item queue wait of the healthy source, per arm and pooled, plus the burst waits of the git-B arms. Reports, judges nothing. |
 | `per_worker_timeline.py`, `neo4j_plan_discards.py`, `explain_probe.sh` | Which worker held the burst items; the burst's first canonical write matched to Neo4j stale-plan discards; EXPLAIN of the bounded probe on a saved run. Reports, judge nothing. |
 | `report.sh` | Runs the gate over every run and prints the numbers. |
+| `build_identity.py`, `write_manifest.py`, `report_run_variant.py`, `report_numbers.py`, `inflight_hold.sql` | The long bodies the shell scripts run: build identity, run manifest, the run-variant proof, the numbers block and the in-flight hold trigger. Files rather than heredocs, because the heredoc budget gate caps a shell heredoc body at 512 bytes. `test_write_manifest.py` proves the manifest equals the old heredoc's. |
 | `test_check_arm.py`, `test_replay_readers.py`, `test_census.sh` | Seeded RED/GREEN proofs. |
 
 ## Rulings that shaped the driver

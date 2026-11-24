@@ -42,27 +42,7 @@ if ((${#controls2[@]} > 0)); then
 fi
 
 echo "== run-variant fields: top-level payload keys that differ between control runs C-rep1 and each later C-rep"
-python3 -I - "$results" <<'PY' || status=1
-import glob, os, sys
-sys.path.insert(0, os.environ.get("REPLAY_SCRIPT_DIR", "."))
-import replay_facts
-runs = sorted(glob.glob(os.path.join(sys.argv[1], "C-rep*", "export", "real_facts.tsv")))
-want = sorted(replay_facts.RUN_VARIANT_PAYLOAD_FIELDS)
-bad = False
-for other in runs[1:]:
-  keys = replay_facts.differing_top_level_keys(runs[0], other)
-  ok = keys == want
-  bad |= not ok
-  print("%s %s vs %s: differing top-level payload keys = %s (must be exactly %s)" % (
-      "PASS" if ok else "FAIL", os.path.basename(os.path.dirname(os.path.dirname(runs[0]))),
-      os.path.basename(os.path.dirname(os.path.dirname(other))), keys, want))
-  for run in (runs[0], other):
-    for scope, counts in replay_facts.fact_counts(run).items():
-      if counts["facts"] != counts["distinct_stable_keys"]:
-        bad = True
-        print("FAIL fact count != distinct stable keys in %s %s: %s" % (run, scope, counts))
-sys.exit(1 if bad else 0)
-PY
+python3 -I "$here/report_run_variant.py" "$results" || status=1
 
 for dir in "$results"/*-rep*; do
   name="$(basename "$dir")"
@@ -92,21 +72,5 @@ else:
 PY
 
 echo "== numbers (engaged-scrape consult p50/p95 and share within 100 ms, K, parked rows, superseded, A drain after catch-up)"
-python3 -I - "$results" <<'PY'
-import glob, json, os, sys
-for path in sorted(glob.glob(os.path.join(sys.argv[1], "*-rep*", "result.json"))):
-  r = json.load(open(path))
-  a = r.get("consult", {}).get("A", {})
-  rep = r["report"]
-  print("%-12s ttl=%-3s consult(A) p50=%.1fms p95=%.1fms within100ms=%.2f n=%d | K_peak=%s parked_peak=%s woken=%s wait_rows=%s "
-        "| superseded_scopes=%s paced_A=%s | A_done_after_catchup=%ss | load1 max=%s end=%s" % (
-            os.path.basename(os.path.dirname(path)), r.get("ttl"), 1000 * a.get("p50_s", 0), 1000 * a.get("p95_s", 0),
-            a.get("within_100ms", 0), a.get("count", 0), rep["k_peak"], rep["parked_rows_peak"], rep["woken_holding_wait"],
-            rep["wait_table_rows_final"], r["paced"]["superseded_scopes"], r["paced"]["paced_items"].get("A", 0),
-            r.get("a_drain", {}).get("after_catchup_s"), rep.get("load1_max"), rep.get("load1_end")))
-  g = r.get("consult_claim_grant", {})
-  if g.get("count"):
-    print("%-12s claim-grant consult (collector_kind series, hosted collector): n=%d p50=%.1fms p95=%.1fms within100ms=%.2f" % (
-        os.path.basename(os.path.dirname(path)), g["count"], 1000 * g["p50_s"], 1000 * g["p95_s"], g["within_100ms"]))
-PY
+python3 -I "$here/report_numbers.py" "$results"
 exit "$status"
