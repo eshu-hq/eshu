@@ -4,9 +4,10 @@ Part of #9209. Refs #11350, #10972, #11366.
 
 ## Recommendation
 
-Record the owner-agreed decision on #11368: **the claim path
-(ordering incl. gate boost and starvation bound, batch-vs-single
-selection) is proven by live Postgres tests, not by an Odù.**
+Arbiter-ruled decision for #11368 (2026-11-24, arbiter-eshu ADOPT,
+high confidence): **the claim path (ordering incl. gate boost and
+starvation bound, batch-vs-single selection) is proven by live
+Postgres tests, not by an Odù.**
 Keep #11368's gap named and linked from #11350 per its "no silent
 gaps" acceptance criterion. Do not extend
 `specs/ifa-coverage-manifest.v1.yaml` for this surface.
@@ -79,14 +80,15 @@ proof gate, i.e. an Ifá platform extension with a design doc — out
 of scope for #11368's either/or. If that platform work ever lands,
 the manifest row belongs to it, and this note becomes the pointer.
 
-## Suggested text for #11368 (owner to agree / coordinator to post)
+## Suggested text for #11368 (posted by coordinator)
 
-> Decision (date, owner): the claim path stays proven by live
-> Postgres tests; no Odù. Rationale: Odù layers assert terminal,
-> order-independent graph truth, so any claim order over the same
-> cassette converges green — a claim-path Odù could not fail when
-> the ordering contract breaks. The ordering contract lives in the
-> batch-claim live tests named in
+> Decision (2026-11-24, arbiter-eshu ADOPT, high confidence): the
+> claim path stays proven by live Postgres tests; no Odù.
+> Rationale: Odù layers assert terminal, order-independent graph
+> truth, so any claim order over the same cassette converges
+> green — a claim-path Odù could not fail when the ordering
+> contract breaks. The ordering contract lives in the batch-claim
+> live tests named in
 > `docs/internal/evidence/11368-claim-path-decision.md`. This issue
 > stays open/linked from #11350 as the named gap: if Ifá ever gains
 > a claim-path surface family, the manifest row belongs to that
@@ -94,8 +96,10 @@ the manifest row belongs to it, and this note becomes the pointer.
 
 ## Outstanding
 
-- `arbiter-eshu` verdict on this design decision: not obtained —
-  no arbiter invocation route exists in this leaf session.
-  Coordinator to escalate with the raw observations above.
+- `arbiter-eshu` verdict: obtained 2026-11-24 — ADOPT, high
+  confidence. Rationale: Odù asserts order-independent terminal
+  graph truth, so any claim order over the same cassette converges
+  green and cannot fail on ordering regression.
 - Owner agreement + posting the decision text on #11368 and the
-  #11350 link: coordinator/owner owned.
+  #11350 link: coordinator to post; issue stays open until the
+  owner acks.
