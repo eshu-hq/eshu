@@ -23,10 +23,13 @@ import (
 // non-counting class list (reducerClaimAttemptCountCaseSQL), so each added
 // predicate moved their bytes outside the gate; the funnel carries no class list
 // and keeps its base digest. Enrolling another non-counting class re-pins the two
-// the same way.
+// the same way. The batch digest was re-pinned again for #11366, which adds a
+// second UNION arm to gate_waited_generations (older undrained baseline
+// windows): the arm sits outside the stale gate by design, and the re-pin
+// records exactly that reviewed movement and nothing else.
 const (
 	staleGate11234PreGateSHA    = "30a3fd23ee77b417d8c6cd5a981dfae7953c30749f8552953f41b766a38b3aeb"
-	staleGate11234BaseBatchSHA  = "48c1d6caa8f2e879cab0d000c6b407fd74e57599ee500d2dad9a5dde60a2440b"
+	staleGate11234BaseBatchSHA  = "98c0883559d021c6efe3e1652a934fb32784ae202f4a152cb74dd532c4158203"
 	staleGate11234BaseSingleSHA = "8aa781b80bda30c484b78e9b78a74c7395df3bdc680bf0b22975a0fbea44cc85"
 	staleGate11234BaseFunnelSHA = "53bf5acdcabd4b6d3cf77e343c3638de3b7fb3066ed02c8829df49258369597f"
 )

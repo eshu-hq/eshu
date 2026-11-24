@@ -286,3 +286,57 @@ func keysOf(got map[string]bool) []string {
 	}
 	return keys
 }
+
+// TestClaimBatchGatePriorityBoostsOlderBaselineWindowLive is the failing-first
+// proof for eshu-hq/eshu#11366: the gate boost must cover every undrained
+// window of an incomplete baseline year, not just the checkpoint's last
+// committed generation. An older window whose reducer never ran (its
+// checkpoint moved on when a newer window committed) sorts boosted ahead of
+// older ordinary backlog; the newer window keeps its ordinary place, so the
+// one-boosted-slot bound still holds. The superseded-generation de-boost
+// (TestClaimBatchGatePriorityIgnoresSupersededGenerationLive) is untouched:
+// it uses non-baseline scopes, which never join the gating set.
+func TestClaimBatchGatePriorityBoostsOlderBaselineWindowLive(t *testing.T) {
+	t.Parallel()
+
+	db := openGatePriorityProofDB(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	now := time.Date(2026, time.November, 19, 22, 0, 0, 0, time.UTC)
+	const (
+		runID     = "test-gate-older-window"
+		scopeOrdO = "vuln-intel://test-gate-older-window/ordinary-old"
+		scopeOrdM = "vuln-intel://test-gate-older-window/ordinary-mid"
+		scopeOld  = "vuln-intel://nvd/_baseline/test-gate-older-window/2026/1767225600000000"
+		genOld    = "vulnerability_intelligence:test-gate-older-window:old"
+		scopeNew  = "vuln-intel://nvd/_baseline/test-gate-older-window/2026/1781691075297000"
+		genNew    = "vulnerability_intelligence:test-gate-older-window:new"
+		genOrdOld = "gen:gate-older-window-ord-old"
+		genOrdMid = "gen:gate-older-window-ord-mid"
+	)
+	// Ordinary backlog strictly older than the orphaned window: without the
+	// fix, updated_at ASC puts both of these ahead of it.
+	seedGatePriorityWorkItem(t, ctx, db, "reducer_gate_older_ord_old", scopeOrdO, genOrdOld, now.Add(-4*time.Hour), "pending", nil)
+	seedGatePriorityWorkItem(t, ctx, db, "reducer_gate_older_ord_mid", scopeOrdM, genOrdMid, now.Add(-3*time.Hour), "pending", nil)
+	// The checkpoint moved on to the newer window, but the older window's
+	// reducer never ran.
+	seedGatePriorityCheckpoint(t, ctx, db, runID, 2026, false, scopeNew, genNew, now.Add(-30*time.Minute))
+	seedGatePriorityWorkItem(t, ctx, db, "reducer_gate_older_old", scopeOld, genOld, now.Add(-2*time.Hour), "pending", nil)
+	seedGatePriorityWorkItem(t, ctx, db, "reducer_gate_older_new", scopeNew, genNew, now.Add(-time.Hour), "pending", nil)
+
+	intents, err := gatePriorityClaimer(db, now).ClaimBatch(ctx, 2)
+	if err != nil {
+		t.Fatalf("ClaimBatch() error = %v", err)
+	}
+	got := make(map[string]bool, len(intents))
+	for _, in := range intents {
+		got[in.GenerationID] = true
+	}
+	if len(got) != 2 || !got[genOld] || !got[genOrdOld] {
+		t.Fatalf("batch of 2 must claim the orphaned older window and the oldest ordinary row, got generations %v", keysOf(got))
+	}
+	if got[genNew] {
+		t.Fatalf("newer window must keep its ordinary place (one boosted slot per batch), got %v", keysOf(got))
+	}
+}
