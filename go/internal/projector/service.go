@@ -192,6 +192,8 @@ func (s Service) runConcurrent(ctx context.Context) error {
 		errs []error
 		wg   sync.WaitGroup
 	)
+	// A worker that claims after an idle spell wakes its sleeping siblings (#11186).
+	wake := newIdleWake(s.pollInterval())
 
 	for i := 0; i < s.Workers; i++ {
 		workerID := i
@@ -204,6 +206,9 @@ func (s Service) runConcurrent(ctx context.Context) error {
 					return
 				}
 
+				// Read before the claim: a wake that lands between the claim and
+				// the sleep must still end that sleep.
+				woken := wake.channel()
 				claimStart := time.Now()
 				work, ok, err := s.WorkSource.Claim(ctx)
 				if s.Instruments != nil {
@@ -226,7 +231,7 @@ func (s Service) runConcurrent(ctx context.Context) error {
 				}
 				if !ok {
 					consecutiveEmpty++
-					if err := s.wait(ctx, projectorPollBackoff(s.pollInterval(), consecutiveEmpty)); err != nil {
+					if err := s.waitIdle(ctx, projectorPollBackoff(s.pollInterval(), consecutiveEmpty), woken); err != nil {
 						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 							return
 						}
@@ -239,6 +244,9 @@ func (s Service) runConcurrent(ctx context.Context) error {
 					continue
 				}
 
+				if consecutiveEmpty > 0 && wake.broadcast() {
+					s.recordIdleWake(ctx, workerID)
+				}
 				consecutiveEmpty = 0
 				if err := s.processWork(ctx, work, workerID); err != nil {
 					mu.Lock()
@@ -472,28 +480,4 @@ func (s Service) validate() error {
 		return errWriteMarkerMissing
 	}
 	return nil
-}
-
-func (s Service) pollInterval() time.Duration {
-	if s.PollInterval <= 0 {
-		return defaultPollInterval
-	}
-
-	return s.PollInterval
-}
-
-func (s Service) wait(ctx context.Context, interval time.Duration) error {
-	if s.Wait != nil {
-		return s.Wait(ctx, interval)
-	}
-
-	timer := time.NewTimer(interval)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }

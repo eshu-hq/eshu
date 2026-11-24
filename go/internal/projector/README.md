@@ -60,7 +60,7 @@ flowchart LR
 flowchart TB
   A["Service.Run\npoll projector queue"] --> B["ProjectorWorkSource.Claim"]
   B --> C{"work available?"}
-  C -- no --> D["wait idle backoff\n1s,2s,4s,cap 5s\nthen loop"]
+  C -- no --> D["wait idle backoff\n1s,2s,4s,cap 5s\nor until a sibling wakes it\nthen loop"]
   C -- yes --> E["FactStore.LoadProjectionFacts"]
   E --> F["Runtime.Project"]
   F --> G["buildProjection\nbuild CanonicalMaterialization\nbuild content.Materialization\nbuild ReducerIntents"]
