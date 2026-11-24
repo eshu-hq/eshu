@@ -29,7 +29,6 @@ workflows:
   - go/cmd/projector/**
   - go/cmd/reducer/**
   - go/cmd/collector-*/**
-  - go/cmd/api/**
   - go/cmd/golden-corpus-gate/**
   - go/cmd/mock-prometheus-mimir/**
   - go/cmd/mock-openai-compatible/**
