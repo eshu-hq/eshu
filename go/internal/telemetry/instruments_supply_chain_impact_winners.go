@@ -301,7 +301,7 @@ func registerSupplyChainImpactWinnersContractInstruments(meter metric.Meter, ins
 	}
 	if inst.SupplyChainImpactWinnersFullResweeps, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_full_resweeps_total",
-		metric.WithDescription("Committed supply-chain impact winners full resweeps, by start reason (no_watermark, contract_version, keyed_cap). A reducer roll with an unchanged contract adds nothing."),
+		metric.WithDescription("Committed supply-chain impact winners full resweeps, by start reason (no_watermark, contract_version, keyed_cap, supports_ready). A reducer roll with an unchanged contract adds nothing."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersFullResweeps counter: %w", err)
 	}

@@ -1556,6 +1556,10 @@ type Instruments struct {
 	SupplyChainImpactWinnersFullResweeps        metric.Int64Counter
 	SupplyChainImpactWinnersStandDowns          metric.Int64Counter
 	supplyChainImpactWinnersContract            *winnersContractState
+	// SupplyChainImpactWinnersSupportsNotReady counts winners maintainer ticks
+	// (and audit ticks) refused because the supports table is not ready
+	// (#10880 PR-C1); registered with the supports signals.
+	SupplyChainImpactWinnersSupportsNotReady metric.Int64Counter
 	// SupplyChainImpactFactWriteRejected counts impact-finding fact writes the
 	// PR-C reject trigger refused (#10880); registered with the supports signals.
 	SupplyChainImpactFactWriteRejected metric.Int64Counter

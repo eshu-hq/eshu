@@ -231,3 +231,53 @@ This is a DRAFT. The final set is decided after the post-roll QA measurement (an
 axios-size package may need a different composite than 345 plus this one), and it
 must not be applied inside W1b: the build on the 96 GB table takes hours and adds
 WAL. Not measured: the index's size, build time or the plan it gives.
+
+## C1 R2: the winners maintainer waits for the supports table
+
+The full and keyed inputs read supports (C1 d), but only the writer and the readers
+checked readiness. On an upgrade whose supports marker was incomplete, a maintainer
+tick would have rebuilt the winners from partial supports, and the capture functions
+(352, 353) would have staged nothing for a finding that had no support yet. R2 of the
+arbiter ruling closes that:
+
+- Every tick (`runTick`: full, guarded full, keyed) and the audit read one gate
+  statement, `selectSupplyChainImpactWinnersSupportsGateSQL`, which embeds the pinned
+  supports readiness predicate byte for byte. A not-ready tick claims no lease, writes
+  nothing, leaves the watermark alone and counts on
+  `eshu_dp_supply_chain_impact_winners_supports_not_ready_total{path}`. A failed gate
+  read is an error and runs nothing.
+- Durable state for "run one full after a not-ready period": the gate also reports
+  whether the supports marker's `completed_at` is later than the winners watermark's
+  `materialized_at` (both durable rows, one snapshot). A ready table whose marker
+  completed after the last committed resweep runs one unguarded full
+  (`reason="supports_ready"`; the guarded full would skip, the contract being current),
+  which stamps a newer watermark and so clears the condition. No process memory is
+  used, so a restart between the not-ready period and the first ready tick still runs
+  it, and a second maintainer instance cannot run it twice (lease, then the condition
+  is false).
+- Cost to state: a ready table whose marker completed after the last committed
+  winners write runs the one full once, even if nothing was refused (for example a
+  quiet system whose marker completed after its last write). It is a one-time full per
+  such state, logged and counted.
+- The dirty-fence-only case (marker complete, fence briefly set) refuses ticks but
+  does not by itself ask for a full: the old writers still stage their own winner
+  marks, which remain in the dirty log, and no marker stamp changes. This is a reading
+  of the staging path, not an observation.
+
+Hermetic proof (`winners_supports_gate_test.go`, `supply_chain_impact_winners_supports_gate_test.go`,
+the wiring test): a not-ready period runs no full or keyed resweep, claims no lease
+and keeps the watermark; becoming ready runs exactly one full then keyed ticks; a
+restart between the two still runs it, and a second restart runs none; a table ready
+from the start runs none; the audit waits; a gate error runs nothing; the gate
+statement embeds the readiness predicate and compares only the two durable stamps.
+Mutations: removing the `runTick` gate, ignoring `FullNeeded`, and ungating the audit
+each fail a named test.
+
+No-Regression Evidence: the gate is one single-row statement per tick (every
+30 s per instance, plus each audit interval) over two one-row tables and the existing
+readiness predicate; it takes no lock and writes nothing. A ready table adds that read
+and nothing else to the keyed path. The live proof that the statement runs and the
+first-ready full fires on a real marker is owed to a coordinator slot.
+Observability Evidence: `eshu_dp_supply_chain_impact_winners_supports_not_ready_total`,
+`full_resweeps_total{reason="supports_ready"}` and the waiting/resumed log lines,
+documented in `docs/public/reference/telemetry/supply-chain-impact-winners.md`.

@@ -217,6 +217,12 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactStoredKeyMissing counter: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersSupportsNotReady, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_supports_not_ready_total",
+		metric.WithDescription("Supply-chain impact winners maintainer ticks refused because the supports table its inputs read is not ready (marker incomplete, a higher contract version, or the old-writer fence set), by path (full, keyed, audit). A refused tick claims no lease, writes nothing and leaves the watermark alone; a count that keeps rising after a roll means the supports backfill has not completed"),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersSupportsNotReady counter: %w", err)
+	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
 		metric.WithDescription("Raw per-support rows one drain read (one whole call for the service-catalog reader; active or not, and the rows a failed drain read before it stopped), by reader (source label). Raw rows far above the active rows mean the key's supports sit mostly in superseded generations; a drain in the hundred thousands is a hot key."),
@@ -399,4 +405,21 @@ func (i *Instruments) RecordSupplyChainImpactSupportsBackfillReady(ctx context.C
 		value = 1
 	}
 	i.SupplyChainImpactSupportsBackfillReady.Record(ctx, value)
+}
+
+// SupplyChainImpactWinnersFullReasonSupportsReady is the start reason of a full
+// resweep that ran because the supports table became ready after the last
+// committed resweep (#10880 PR-C1), one of the closed set of reasons on
+// eshu_dp_supply_chain_impact_winners_full_resweeps_total.
+const SupplyChainImpactWinnersFullReasonSupportsReady = "supports_ready"
+
+// RecordSupplyChainImpactWinnersSupportsNotReady counts one winners maintainer
+// tick or audit tick refused because the supports table is not ready, on path
+// (one of the SupplyChainImpactWinnersPath* constants). It is safe on a nil
+// receiver and on an Instruments that did not register the counter.
+func (i *Instruments) RecordSupplyChainImpactWinnersSupportsNotReady(ctx context.Context, path string) {
+	if i == nil || i.SupplyChainImpactWinnersSupportsNotReady == nil {
+		return
+	}
+	i.SupplyChainImpactWinnersSupportsNotReady.Add(ctx, 1, metric.WithAttributes(AttrPath(path)))
 }

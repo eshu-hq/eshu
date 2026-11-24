@@ -41,4 +41,7 @@ func TestBuildReducerServiceWiresTheWinnersContract(t *testing.T) {
 	if m.Contract == nil {
 		t.Fatal("buildReducerService() winners maintainer Contract = nil, want the winners contract store")
 	}
+	if m.SupportsGate == nil {
+		t.Fatal("buildReducerService() winners maintainer SupportsGate = nil: the maintainer's inputs read the supports table, so it must wait for its readiness (#10880 PR-C1)")
+	}
 }

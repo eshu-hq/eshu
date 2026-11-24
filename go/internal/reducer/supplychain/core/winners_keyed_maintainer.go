@@ -52,6 +52,9 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, tick wi
 	}
 	m.sampleWatermark(ctx)
 	m.sampleDirtyLog(ctx)
+	if blocked, gateErr := m.supportsBlocked(ctx, tick.path()); gateErr != nil || blocked {
+		return SupplyChainImpactWinnersResweep{SupportsNotReady: blocked}, false, gateErr
+	}
 	claimed, err := m.LeaseManager.ClaimPartitionLease(
 		ctx, SupplyChainImpactWinnersDomain, 0, 1, m.leaseOwner(), m.leaseTTL(),
 	)
@@ -213,7 +216,7 @@ func decideWinnersContract(c SupplyChainImpactWinnersContract) (winnersContractA
 	}
 }
 
-// runContractTick reads the stored contract, records it, and runs what it
+// runDecidedContractTick reads the stored contract, records it, and runs what it
 // decides. The full-resweep counter and the contract log line mark only a
 // guarded full this tick took the lease for and committed (#11177). A tick
 // that did not claim the lease, a full skipped behind another instance, and a
@@ -221,7 +224,7 @@ func decideWinnersContract(c SupplyChainImpactWinnersContract) (winnersContractA
 // instance's commit satisfies them, and the next tick re-reads the row and
 // runs keyed. standDown reports a tick that ran nothing because a newer
 // contract is stored.
-func (m SupplyChainImpactWinnersMaintainer) runContractTick(ctx context.Context) (result SupplyChainImpactWinnersResweep, contract SupplyChainImpactWinnersContract, standDown bool, err error) {
+func (m SupplyChainImpactWinnersMaintainer) runDecidedContractTick(ctx context.Context) (result SupplyChainImpactWinnersResweep, contract SupplyChainImpactWinnersContract, standDown bool, err error) {
 	contract, err = m.Contract.WinnersContract(ctx)
 	if err != nil {
 		return SupplyChainImpactWinnersResweep{}, contract, false, fmt.Errorf("read winners contract: %w", err)
@@ -341,7 +344,7 @@ func (m SupplyChainImpactWinnersMaintainer) auditAllowed(ctx context.Context) bo
 		return false
 	}
 	action, _ := decideWinnersContract(contract)
-	return action == winnersContractRunKeyed
+	return action == winnersContractRunKeyed && m.supportsReadyForAudit(ctx)
 }
 
 // runAuditOnce claims the audit lease and runs one audit tick. A whole-table

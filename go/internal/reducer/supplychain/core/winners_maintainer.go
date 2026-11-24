@@ -91,6 +91,10 @@ type SupplyChainImpactWinnersResweep struct {
 	// binary's full committed after this tick's decision read, so it wrote
 	// nothing.
 	StoodDown bool
+	// SupportsNotReady is true when the tick ran nothing because the supports
+	// table the maintainer reads is not ready (#10880 PR-C1): no lease claim, no
+	// write, the watermark untouched.
+	SupportsNotReady bool
 	// Path is the path that ran: telemetry.SupplyChainImpactWinnersPathFull or
 	// ...PathKeyed. It is empty for a result from a rebuilder that predates the
 	// keyed resweep (#9805), which the maintainer reads as full.
@@ -211,6 +215,10 @@ type SupplyChainImpactWinnersMaintainer struct {
 	// ticks and the audit only; a higher version stands this binary down. It is
 	// required with a KeyedRebuilder.
 	Contract SupplyChainImpactWinnersContractStore
+	// SupportsGate gates every tick and the audit on the supports table the
+	// maintainer's inputs read (#10880 PR-C1). Nil disables the gate (tests of
+	// the maintainer's other contracts); production wiring always sets it.
+	SupportsGate SupplyChainImpactWinnersSupportsGateReader
 }
 
 func (m SupplyChainImpactWinnersMaintainer) now() time.Time {
@@ -299,7 +307,7 @@ func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 	}
 	defer audits.Wait()
 	backoff := m.interval()
-	standingDown := false
+	standingDown, supportsWaiting := false, false
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -314,6 +322,7 @@ func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 			bounded = err == nil && !res.Skipped && res.Bounded
 			if err == nil {
 				m.noteStandDown(ctx, &standingDown, down, contract)
+				m.noteSupportsWaiting(ctx, &supportsWaiting, res.SupportsNotReady)
 			}
 		} else {
 			_, err = m.RunOnce(ctx)
