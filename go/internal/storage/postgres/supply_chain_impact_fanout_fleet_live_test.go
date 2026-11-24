@@ -41,6 +41,27 @@ func (fleetNoInFlight) FindInFlightNonMarkerClaims(context.Context, string) ([]s
 	return nil, nil
 }
 
+// fleetCountingFanOut is the "on" arm's port: the real reads, counted. Every
+// genuine pass of the burst takes one load-end read (set A) and, because its
+// status change changes rows, one fan-out read (set B); the one-hop reruns
+// take neither. claims sums the claims set B returned.
+type fleetCountingFanOut struct {
+	supplychaincore.SupplyChainImpactFanOut
+	earlyReads, inFlightReads, claims atomic.Int64
+}
+
+func (f *fleetCountingFanOut) SnapshotInFlightNonMarkerClaims(ctx context.Context, own string) ([]supplychaincore.InFlightClaim, error) {
+	f.earlyReads.Add(1)
+	return f.SupplyChainImpactFanOut.SnapshotInFlightNonMarkerClaims(ctx, own)
+}
+
+func (f *fleetCountingFanOut) FindInFlightNonMarkerClaims(ctx context.Context, own string) ([]supplychaincore.InFlightClaim, error) {
+	f.inFlightReads.Add(1)
+	claims, err := f.SupplyChainImpactFanOut.FindInFlightNonMarkerClaims(ctx, own)
+	f.claims.Add(int64(len(claims)))
+	return claims, err
+}
+
 // fleetPaddedWriter makes a pass take about fleetPassPad between its evidence
 // load and its commit, like a pass that does real work.
 type fleetPaddedWriter struct {
@@ -54,7 +75,10 @@ func (w fleetPaddedWriter) WriteSupplyChainImpactFindings(ctx context.Context, i
 
 type fleetResult struct {
 	passes, flagged, reopened int64
-	makespan                  time.Duration
+	// earlyReads, inFlightReads, and claims are the on arm's set A reads, set
+	// B reads, and claims set B returned (#10972 D4b); zero on the off arm.
+	earlyReads, inFlightReads, claims int64
+	makespan                          time.Duration
 }
 
 func fleetScope(i int) string { return fmt.Sprintf("scope:9695:fleet:%02d", i) }
@@ -97,6 +121,8 @@ WHERE fact_id LIKE 'fact:9695:fleet:%:cve'`); err != nil {
 		t.Fatal(err)
 	}
 	c.handler.Writer = fleetPaddedWriter{inner: c.handler.Writer}
+	counting := &fleetCountingFanOut{SupplyChainImpactFanOut: c.fanOut}
+	c.handler.FanOut = counting
 	if !inFlight {
 		c.handler.FanOut = fleetNoInFlight{c.fanOut}
 	}
@@ -165,7 +191,10 @@ SELECT count(*) FROM fact_work_items WHERE domain = 'supply_chain_impact'
 		t.Fatalf("fleet did not settle in %s", makespan)
 	}
 	fleetWantRetracted(t, c)
-	return fleetResult{passes: passes.Load(), flagged: flagged.Load(), reopened: reopened.Load(), makespan: makespan}
+	return fleetResult{
+		passes: passes.Load(), flagged: flagged.Load(), reopened: reopened.Load(), makespan: makespan,
+		earlyReads: counting.earlyReads.Load(), inFlightReads: counting.inFlightReads.Load(), claims: counting.claims.Load(),
+	}
 }
 
 // fleetWantRetracted checks every scope converged: the status change reached each
@@ -201,9 +230,13 @@ WHERE f.fact_kind = $1 AND NOT f.is_tombstone AND f.scope_id LIKE 'scope:9695:fl
 // TestFanOutRaceFleetBurstCostOfTheInFlightReadLive is the fleet-cost proof the
 // arbiter required. With the in-flight read off a burst of N genuine passes costs
 // N passes (each scope holds a distinct CVE, so the row read reaches nothing).
-// With it on, a changed commit flags every pass in flight, so about every genuine
-// pass gets one one-hop rerun: about 2N passes. The test pins both arms and the
-// ceiling: more than fleetRatioCeiling passes per genuine pass fails it.
+// With it on, a changed commit flags the passes that were in flight when its
+// evidence load ended (#10972 D4b); a pass claimed later, during the source's
+// padded write, loads after it and is not flagged. How many land in each class
+// depends on timing, so the on arm pins only what is deterministic: every
+// genuine pass took exactly one set A and one set B read, each flag or reopen
+// is exactly one rerun, every scope converged (fleetWantRetracted), and the cost
+// stays under fleetRatioCeiling passes per genuine pass.
 func TestFanOutRaceFleetBurstCostOfTheInFlightReadLive(t *testing.T) {
 	// Each arm opens its own disposable database, and a missing live DSN skips the
 	// whole test before any result is read.
@@ -213,9 +246,9 @@ func TestFanOutRaceFleetBurstCostOfTheInFlightReadLive(t *testing.T) {
 		name string
 		r    fleetResult
 	}{{"off", off}, {"on", on}} {
-		t.Logf("FLEET in_flight_read=%s N=%d W=%d pass=%s passes=%d ratio=%.2f replay_flagged=%d reopened=%d makespan=%.2fs",
+		t.Logf("FLEET in_flight_read=%s N=%d W=%d pass=%s passes=%d ratio=%.2f replay_flagged=%d reopened=%d in_flight_claims=%d makespan=%.2fs",
 			row.name, fleetScopes, fleetWorkers, fleetPassPad, row.r.passes, float64(row.r.passes)/fleetScopes,
-			row.r.flagged, row.r.reopened, row.r.makespan.Seconds())
+			row.r.flagged, row.r.reopened, row.r.claims, row.r.makespan.Seconds())
 	}
 	if off.passes != fleetScopes || off.flagged != 0 || off.reopened != 0 {
 		t.Fatalf("read off = %+v, want exactly %d passes and no flags: distinct CVEs leave the row read nothing to reach", off, fleetScopes)
@@ -228,7 +261,12 @@ func TestFanOutRaceFleetBurstCostOfTheInFlightReadLive(t *testing.T) {
 	if ratio := float64(on.passes) / fleetScopes; ratio > fleetRatioCeiling {
 		t.Fatalf("read on cost %.2fx genuine passes (%+v), above the %.1fx ceiling: build the narrowing", ratio, on, fleetRatioCeiling)
 	}
-	if float64(on.passes) < 1.5*fleetScopes {
-		t.Fatalf("read on cost %d passes for %d scopes (%+v): the in-flight read flagged almost nothing, so the arm measured nothing", on.passes, fleetScopes, on)
+	// The arm measured the read: each genuine pass read both sets once, and the
+	// one-hop reruns read neither.
+	if on.earlyReads != fleetScopes || on.inFlightReads != fleetScopes {
+		t.Fatalf("read on = %+v, want exactly %d set A and %d set B reads: one of each per genuine pass", on, fleetScopes, fleetScopes)
+	}
+	if on.flagged > on.claims {
+		t.Fatalf("read on = %+v, want replay_flagged <= the claims set B returned", on)
 	}
 }
