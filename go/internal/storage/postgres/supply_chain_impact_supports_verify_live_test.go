@@ -162,7 +162,7 @@ LEFT JOIN fact_records f ON f.fact_id = s.fact_id AND NOT f.is_tombstone WHERE f
 func TestSupplyChainImpactSupportsVerifyCatchesALateOrphanLive(t *testing.T) {
 	for _, planted := range []bool{true, false} {
 		t.Run(fmt.Sprintf("planted=%v", planted), func(t *testing.T) {
-			ctx, db := openReplaceSetLiveDB(t)
+			ctx, db := openPreC2ReplaceSetLiveDB(t)
 			replaceSetSeedSecondScope(t, ctx, db)
 			supportsBackfillSeed(t, ctx, db)
 			backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 1000, VerifySliceSize: 1}
@@ -220,7 +220,7 @@ RETURNING fact_id`, last[0], last[1]).Scan(&orphan[2]); err != nil {
 func TestSupplyChainImpactSupportsVerifyRestartsOnALateMissLive(t *testing.T) {
 	for _, planted := range []bool{true, false} {
 		t.Run(fmt.Sprintf("planted=%v", planted), func(t *testing.T) {
-			ctx, db := openReplaceSetLiveDB(t)
+			ctx, db := openPreC2ReplaceSetLiveDB(t)
 			replaceSetSeedSecondScope(t, ctx, db)
 			supportsBackfillSeed(t, ctx, db)
 			backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 1000, VerifySliceSize: 1}
@@ -273,7 +273,7 @@ RETURNING scope_id, generation_id, fact_id`).Scan(&missing[0], &missing[1], &mis
 // after the stored cursor (its first slice moves the cursor forward, it never
 // starts over), keeps the sweep, and finishes.
 func TestSupplyChainImpactSupportsVerifyResumesAfterKillLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	store := postgres.SQLDB{DB: db}
@@ -308,7 +308,7 @@ func TestSupplyChainImpactSupportsVerifyResumesAfterKillLive(t *testing.T) {
 // the scope, a step drains it, and the marker is set only with the fence empty
 // and the old writer's fact backed by a support.
 func TestSupplyChainImpactSupportsVerifyWaitsForAnOldWriterLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 1000, VerifySliceSize: 1}
@@ -347,7 +347,7 @@ func TestSupplyChainImpactSupportsVerifyWaitsForAnOldWriterLive(t *testing.T) {
 // the next verification starts at the first key of the key space and checks
 // every interval again before the marker is set.
 func TestSupplyChainImpactSupportsVerifyResetMarkerStartsOverLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 1000, VerifySliceSize: 1}

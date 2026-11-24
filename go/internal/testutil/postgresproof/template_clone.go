@@ -282,8 +282,11 @@ func cloneBootstrapTemplate(
 	targetConfig.RuntimeParams = cloneRuntimeParams(config.RuntimeParams)
 	targetConfig.RuntimeParams["search_path"] = "public"
 	targetDB := stdlib.OpenDB(*targetConfig, inventory.WriterConnectOption())
-	if err := prepareClone(ctx, targetDB, adminDB, clone); err != nil {
-		return nil, "", nil, err
+	if err := targetDB.PingContext(ctx); err != nil {
+		_ = targetDB.Close()
+		_ = dropDisposableDatabaseName(ctx, adminDB, clone)
+		_ = adminDB.Close()
+		return nil, "", nil, fmt.Errorf("ping cloned PostgreSQL database: %w", err)
 	}
 	cleanup := func() {
 		_ = targetDB.Close()

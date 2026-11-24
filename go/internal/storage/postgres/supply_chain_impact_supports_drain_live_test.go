@@ -181,7 +181,7 @@ func drainWrongReader(
 // frozen finding-fact read, once per row, and two readers with the named bugs do
 // not.
 func TestSupplyChainImpactSupportsDrainEqualsFactReadOnAdversarialSeedsLive(t *testing.T) {
-	db, ctx := openIsolatedLiveDB(t, "b2c_drain_equality",
+	db, ctx := openPreC2IsolatedLiveDB(t, "b2c_drain_equality",
 		workflowControlIntegrationDSNEnv+" is not set; skipping Postgres integration test")
 	drainSeed(t, ctx, db)
 

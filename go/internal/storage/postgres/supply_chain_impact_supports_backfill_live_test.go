@@ -76,7 +76,7 @@ func supportsBackfillRunToCompletion(t *testing.T, ctx context.Context, b postgr
 // nothing missing, restarts the sweep when verification does find a miss, and
 // is a no-op once complete.
 func TestSupplyChainImpactSupportsBackfillLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	store := postgres.SQLDB{DB: db}
@@ -121,7 +121,7 @@ func TestSupplyChainImpactSupportsBackfillLive(t *testing.T) {
 // its pair (an old-binary writer in a rolling upgrade) makes the verification
 // restart the sweep, and the next sweep fills it before the marker is set.
 func TestSupplyChainImpactSupportsBackfillRestartsOnAMissLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	store := postgres.SQLDB{DB: db}
@@ -159,7 +159,7 @@ func TestSupplyChainImpactSupportsBackfillRestartsOnAMissLive(t *testing.T) {
 // support a writer's retraction just removed or miss one a writer just wrote:
 // after both finish the supports equal the live facts, with no deadlock.
 func TestSupplyChainImpactSupportsBackfillRacesWritersLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	writer := replaceSetWriter(db)
@@ -230,7 +230,7 @@ LEFT JOIN fact_records f ON f.fact_id = s.fact_id AND NOT f.is_tombstone WHERE f
 // step that skipped the lock could write a support for a fact the writer is
 // about to retract.
 func TestSupplyChainImpactSupportsBackfillWaitsForTheConflictDomainLockLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	var scope, generation string

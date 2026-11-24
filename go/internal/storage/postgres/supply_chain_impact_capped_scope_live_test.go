@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
+
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -46,6 +48,8 @@ func openCappedScopeLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	if err := postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, postgres.SQLDB{DB: db}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
+	// The capped-scope proofs plant finding facts with raw SQL; whole-test disarm (allowlisted).
+	postgresproof.DisarmFindingWriteStopForTest(t, db)
 	replaceSetSeedScope(t, ctx, db)
 	return ctx, db
 }

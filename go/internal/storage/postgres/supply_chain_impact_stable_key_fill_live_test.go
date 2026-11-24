@@ -115,7 +115,7 @@ WHERE scope_id = $1 AND fact_id LIKE $2::text || '%' AND right(fact_id, 1) NOT I
 // marker is set only by the step that verified clean, and the fill never touches the
 // supports readiness marker.
 func TestSupplyChainImpactSupportsStableKeyFillLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	fillable := fillShapeSeed(t, ctx, db, replaceSetLiveScope, replaceSetLiveGeneration, "fa", 1300)
 	otherMarkers := fillCount(t, ctx, db, `SELECT count(*) FROM supply_chain_impact_finding_supports_backfill WHERE marker_name <> $1`, postgres.SupplyChainImpactStableKeyFillMarker)
 
@@ -169,7 +169,7 @@ func TestSupplyChainImpactSupportsStableKeyFillLive(t *testing.T) {
 // complete afterwards with no lost update: the writer's support and every fillable
 // support end up keyed.
 func TestSupplyChainImpactSupportsStableKeyFillRespectsThePairLockLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	fillShapeSeed(t, ctx, db, replaceSetLiveScope, replaceSetLiveGeneration, "fb", 100)
 	holder, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -248,7 +248,7 @@ func TestSupplyChainImpactSupportsStableKeyFillRespectsThePairLockLive(t *testin
 // database: the cursor in the marker row carries the sweep, no row is filled twice and
 // none is missed.
 func TestSupplyChainImpactSupportsStableKeyFillResumesAfterARestartLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	fillable := fillShapeSeed(t, ctx, db, replaceSetLiveScope, replaceSetLiveGeneration, "fc", 1300)
 
 	first, err := postgres.SupplyChainImpactStableKeyFill{DB: postgres.SQLDB{DB: db}}.RunStep(ctx)

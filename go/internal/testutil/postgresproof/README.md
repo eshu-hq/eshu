@@ -204,9 +204,11 @@ never for CI.
 
 ## Finding write stop
 
-A clone starts with the finding-kind reject trigger
-(`fact_records_reject_supply_chain_impact_finding`, #10880 PR-C2 k) disabled, because many
-proofs seed frozen finding facts on purpose (the backfill, drain, verification and key fill
-read them). `ArmFindingWriteStop` enables it for a proof that tests the stop itself;
-`DisarmFindingWriteStop` disables it again. The state is per clone and never reaches the
-template.
+Proof databases carry the finding-kind reject trigger
+(`fact_records_reject_supply_chain_impact_finding`, #10880 PR-C2 k, migration 355) **armed**, as
+production does: a forgotten disarm fails loudly with SQLSTATE 55000, where a forgotten arm
+would pass silently. A proof that must plant a frozen finding fact disables it around the
+plant with `SeedFindingFacts` (the code under test runs armed); a proof that models a schema
+from before C2 disables it for the whole test with `DisarmFindingWriteStopForTest`. Both
+re-arm and fail the test if the trigger does not read enabled afterwards. Every caller is named,
+with a reason, in the shrink-only allowlist of `finding_write_stop_allowlist_test.go`.

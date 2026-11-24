@@ -87,7 +87,7 @@ VALUES ($1, $2, $3, $4, $1, 'synthetic', $1, now(), now(), FALSE,
 // which is what a previous-release reducer on a least-privilege database would
 // hit from the migration's commit until a DBA granted by hand.
 func TestSupplyChainImpactSupportsFenceRunsWithoutDirtyTablePrivilegesLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	conn := supportsFenceRestrictedConn(t, ctx, db)
 
 	if err := supportsFenceInsertFinding(ctx, conn, "fact:fence-priv:insert", "reducer_supply_chain_impact_finding"); err != nil {
@@ -112,7 +112,7 @@ func TestSupplyChainImpactSupportsFenceRunsWithoutDirtyTablePrivilegesLive(t *te
 // kind never marks. Neither write touches the dirty table, so neither needs a
 // privilege on it.
 func TestSupplyChainImpactSupportsFenceSkipsTheWriterAndOtherKindsLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	conn := supportsFenceRestrictedConn(t, ctx, db)
 
 	tx, err := conn.BeginTx(ctx, nil)
@@ -151,7 +151,7 @@ VALUES ('fact:fence-priv:writer', $1, $2, 'reducer_supply_chain_impact_finding',
 // caller creates a temporary table named like the dirty table; the mark must
 // still land in the real table, not the caller's.
 func TestSupplyChainImpactSupportsFenceIgnoresCallerTempTablesLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	conn := supportsFenceRestrictedConn(t, ctx, db)
 
 	if _, err := conn.ExecContext(ctx, `CREATE TEMP TABLE supply_chain_impact_finding_supports_dirty
@@ -175,7 +175,7 @@ func TestSupplyChainImpactSupportsFenceIgnoresCallerTempTablesLive(t *testing.T)
 // must land in the function's own schema, not public.
 func TestSupplyChainImpactSupportsFenceFunctionPostureLive(t *testing.T) {
 	t.Run("public", func(t *testing.T) {
-		ctx, db := openReplaceSetLiveDB(t)
+		ctx, db := openPreC2ReplaceSetLiveDB(t)
 		assertSupportsFenceFunction(ctx, t, db, "public")
 	})
 	t.Run("isolated schema", func(t *testing.T) {

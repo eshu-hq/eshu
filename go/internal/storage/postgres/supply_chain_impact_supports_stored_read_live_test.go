@@ -148,7 +148,7 @@ func TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive(t *testing.T) {
 	if got := hex.EncodeToString(sum[:]); got != supportsLegacyStoredReadDigest {
 		t.Fatalf("the frozen legacy stored read hashes to %s, want %s: the oracle was edited", got, supportsLegacyStoredReadDigest)
 	}
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	ids := supportsReadSeed(t, ctx, db, "intent:c1:stored-read", 0, 6)
 	if len(ids) != 6 {
 		t.Fatalf("seeded %d findings, want 6", len(ids))
@@ -286,7 +286,7 @@ func scanRecovery(t *testing.T, ctx context.Context, db *sql.DB, query string) [
 // finding: the state a retry meets after an attempt that committed its retraction and
 // died before anything else.
 func TestSupplyChainImpactSupportsRecoveryReadEqualsLegacyReadLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	supportsReadSeed(t, ctx, db, "intent:c1:recovery-seed", 0, 6)
 	// A second authoritative pass that keeps findings 0 and 1: 2..5 are retracted, so
 	// their supports are gone and their keys are recorded.
@@ -372,7 +372,7 @@ func TestSupplyChainImpactSupportsScopeDeleteCaptureStagesTheFactSetLive(t *test
 		{"retired generation deleted before its scope", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, db := openReplaceSetLiveDB(t)
+			ctx, db := openPreC2ReplaceSetLiveDB(t)
 			supportsReadSeed(t, ctx, db, "intent:c1:scope-delete-current", 0, 4)
 			// Findings in the retired generation: the same writer, another generation.
 			prior := replaceSetLiveGeneration + ":prior"

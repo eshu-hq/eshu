@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
+
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -50,6 +52,8 @@ func TestAdvisoryGroupWinnersQualifyingLive(t *testing.T) {
 	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
+	// The advisory-group fixtures plant finding facts with raw SQL; whole-test disarm (allowlisted).
+	postgresproof.DisarmFindingWriteStopForTest(t, db)
 
 	seedAdvisoryGroupWinnersLive(t, ctx, db)
 	t.Cleanup(func() {

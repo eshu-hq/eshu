@@ -99,12 +99,10 @@ func requireWriteStop(t *testing.T, err error) {
 // neither errors nor re-enables a disabled trigger.
 func TestSupplyChainImpactSupportsFactWriteStopTriggerLive(t *testing.T) {
 	ctx, db := openReplaceSetLiveDB(t)
-	// A proof clone starts disarmed; production has the trigger armed.
-	if err := postgresproof.ArmFindingWriteStop(ctx, db); err != nil {
-		t.Fatalf("arm the write stop: %v", err)
-	}
+	// A fresh bootstrap is armed as production is: this is the test that a proof clone
+	// starts armed and that a write of the kind raises the classified error.
 	if state := writeStopTriggerState(t, ctx, db); state != "O" {
-		t.Fatalf("trigger state = %q, want O (enabled)", state)
+		t.Fatalf("trigger state after a fresh bootstrap = %q, want O (enabled)", state)
 	}
 	scope, generation := replaceSetLiveScope, replaceSetLiveGeneration
 
@@ -137,16 +135,12 @@ func TestSupplyChainImpactSupportsFactWriteStopTriggerLive(t *testing.T) {
 	})
 
 	t.Run("update of an existing kind row raises", func(t *testing.T) {
-		// Seed the row the way a pre-stop writer left it, then arm again.
-		if err := postgresproof.DisarmFindingWriteStop(ctx, db); err != nil {
-			t.Fatalf("disarm to seed: %v", err)
-		}
-		if _, err := db.ExecContext(ctx, writeStopInsert, "stop-frozen", scope, generation, writeStopKind); err != nil {
-			t.Fatalf("seed a frozen finding fact: %v", err)
-		}
-		if err := postgresproof.ArmFindingWriteStop(ctx, db); err != nil {
-			t.Fatalf("arm: %v", err)
-		}
+		// Seed the row the way a pre-stop writer left it; the helper re-arms and checks.
+		postgresproof.SeedFindingFacts(t, db, func() {
+			if _, err := db.ExecContext(ctx, writeStopInsert, "stop-frozen", scope, generation, writeStopKind); err != nil {
+				t.Fatalf("seed a frozen finding fact: %v", err)
+			}
+		})
 		_, err := db.ExecContext(ctx, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = 'stop-frozen'`)
 		requireWriteStop(t, err)
 		var tomb bool
@@ -201,9 +195,7 @@ func TestSupplyChainImpactSupportsFactWriteStopTriggerLive(t *testing.T) {
 	})
 
 	t.Run("re-applying the migration keeps a disabled trigger disabled", func(t *testing.T) {
-		if err := postgresproof.DisarmFindingWriteStop(ctx, db); err != nil {
-			t.Fatalf("disarm: %v", err)
-		}
+		postgresproof.DisarmFindingWriteStopForTest(t, db)
 		applyWriteStopMigration(t, ctx, db)
 		if state := writeStopTriggerState(t, ctx, db); state != "D" {
 			t.Fatalf("trigger state after a re-apply = %q, want D: the guard must not re-enable it", state)

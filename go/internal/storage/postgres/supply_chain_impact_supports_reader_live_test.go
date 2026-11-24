@@ -329,7 +329,7 @@ func b2cPayloadText(t *testing.T, raw string) string {
 // ids and payloads as the finding-fact reads on the multi-scope seed, for every
 // filter shape.
 func TestSecurityAlertReconciliationAndAdvisoryLoadersEqualFactReadsLive(t *testing.T) {
-	db, ctx := openIsolatedLiveDB(t, "b2c_reader_equality",
+	db, ctx := openPreC2IsolatedLiveDB(t, "b2c_reader_equality",
 		workflowControlIntegrationDSNEnv+" is not set; skipping Postgres integration test")
 	b2cSeed(t, ctx, db)
 	store := NewFactStore(SQLDB{DB: db})
