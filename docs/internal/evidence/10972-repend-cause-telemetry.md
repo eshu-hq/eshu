@@ -18,7 +18,7 @@ signature change is a `loaded` parameter on the write wrapper.
 ## Measurement
 
 Baseline: `origin/main` at `9fa8f6049a`, a throwaway detached worktree with
-only `repend_cause_bench_test.go` copied in. After: this branch at its tip on
+only `repend_cause_bench_test.go` copied in. After: this branch (the code is identical at `3b0c2056bd` and its tip) on
 the same base. Backend: none. The handler runs over an in-memory loader and a
 recording writer that reports one changed CVE, with the registered instruments
 and a JSON logger writing to `io.Discard`, so this measures the handler's own
@@ -40,8 +40,8 @@ go test ./internal/reducer/supplychain/core/ -run '^$' -bench BenchmarkHandleSta
 | B/op | 14,170 | 15,977 |
 | allocs/op | 102 | 120 (119 in one round) |
 
-The time numbers moved by more between rounds of the same tree (14,357 to
-16,649 on the baseline) than the signals add, so read the stable columns: the
+The time numbers moved by more between rounds of the same tree on the after
+tree (21,479 to 17,320 ns, 4,159 ns) than the signals add, so read the stable columns: the
 signals add about 1.8 KB and 17 to 18 allocations per pass, and on the
 best-case minimum across both rounds about 3 microseconds (14,357 to 17,320
 ns). A real pass spends its time in Postgres reads and writes that take 62 to
