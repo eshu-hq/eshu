@@ -101,6 +101,23 @@ func (c *convergence) finishClaimed(intent reducercontract.Intent) {
 	}
 }
 
+// claimTarget claims until scope's item is claimed. Any other item claimed
+// first is a pass this test's own passes reopened (a holder's fan-out reopens
+// the scopes holding its CVE, scope:9695:epss among them); it runs to its
+// acknowledgement so it is not left in flight.
+func (c *convergence) claimTarget(scope string) reducercontract.Intent {
+	c.t.Helper()
+	for i := 0; i < 10; i++ {
+		intent := c.raceClaim("")
+		if intent.ScopeID == scope {
+			return intent
+		}
+		c.finishClaimed(intent)
+	}
+	c.t.Fatalf("scope %s was not claimable within 10 claims", scope)
+	return reducercontract.Intent{}
+}
+
 // drainedRuns drains the queue and returns how many times scope ran in it.
 func (c *convergence) drainedRuns(scope string) int {
 	c.t.Helper()
@@ -140,7 +157,7 @@ func TestFanOutRaceHolderClaimedAfterTheSourceLoadIsNotFlaggedLive(t *testing.T)
 	)
 	hook.afterLoadEnd = func() {
 		fanOutSeedItem(t, c.ctx, c.db, late, "g1")
-		holder = c.raceClaim(late)
+		holder = c.claimTarget(late)
 		xmin = workItemXmin(t, c.ctx, c.db, holder.IntentID)
 	}
 	c.rejectSource()
@@ -171,7 +188,7 @@ func TestFanOutRaceHolderClaimedBeforeTheSourceLoadEndedIsFlaggedLive(t *testing
 	const early = "scope:10972:before-load"
 	c.seedNoRowHolder(early)
 	fanOutSeedItem(t, c.ctx, c.db, early, "g1")
-	holder := c.raceClaim(early)
+	holder := c.claimTarget(early)
 	hook := c.hookFanOut()
 	c.rejectSource()
 	if !hook.sourceLoadEndHolds(early) {
@@ -193,22 +210,32 @@ func TestFanOutRaceHolderClaimedBeforeTheSourceLoadEndedIsFlaggedLive(t *testing
 // 3: the holder is in set A, acknowledges, and is claimed again before set B.
 // The new claim has a newer last_attempt_at, so the old claim does not match
 // it and the new claim, which loads after the source's load, is not flagged.
+// The first claim is acknowledged without a pass, so the holder still has no
+// finding row and only the in-flight arm could flag it: a first pass would
+// write the CVE's row, and the unchanged row read would then reopen (and flag)
+// the second claim whatever the two sets say.
 func TestFanOutRaceHolderReclaimedAfterTheSourceLoadIsNotFlaggedLive(t *testing.T) {
 	c := newConvergence(t, false)
 	c.drain()
 	const reclaimed = "scope:10972:reclaimed"
 	c.seedNoRowHolder(reclaimed)
 	fanOutSeedItem(t, c.ctx, c.db, reclaimed, "g1")
-	first := c.raceClaim(reclaimed)
+	first := c.claimTarget(reclaimed)
 	hook := c.hookFanOut()
 	var (
 		second reducercontract.Intent
 		xmin   string
 	)
 	hook.afterLoadEnd = func() {
-		c.finishClaimed(first)
+		if err := c.queue.Ack(c.ctx, first, reducercontract.Result{
+			IntentID: first.IntentID,
+			Domain:   reducercontract.DomainSupplyChainImpact,
+			Status:   reducercontract.ResultStatusSucceeded,
+		}); err != nil {
+			t.Errorf("ack first claim: %v", err)
+		}
 		c.rerun(reclaimed)
-		second = c.raceClaim(reclaimed)
+		second = c.claimTarget(reclaimed)
 		xmin = workItemXmin(t, c.ctx, c.db, second.IntentID)
 	}
 	c.rejectSource()
@@ -252,7 +279,7 @@ func TestFanOutRaceLoadEndReadFailureFlagsEveryInFlightPassLive(t *testing.T) {
 			var holder reducercontract.Intent
 			hook.afterLoadEnd = func() {
 				fanOutSeedItem(t, c.ctx, c.db, late, "g1")
-				holder = c.raceClaim(late)
+				holder = c.claimTarget(late)
 			}
 			c.rejectSource()
 			hook.stopFailing()
@@ -284,7 +311,7 @@ func TestFanOutRaceNoRowHolderInSetAIsFlaggedAndConvergesLive(t *testing.T) {
 	c.seedNoRowHolder(late)
 	fanOutSeedItem(t, c.ctx, c.db, late, "g1")
 	hook := c.hookFanOut()
-	pass := c.startGatedPass(c.raceClaim(late))
+	pass := c.startGatedPass(c.claimTarget(late))
 	c.rejectSource()
 	if !hook.sourceLoadEndHolds(late) {
 		t.Fatalf("the source's set A = %v, want it to name the running holder", hook.loadEnd[convergenceSource])
