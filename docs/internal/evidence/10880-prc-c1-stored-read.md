@@ -71,3 +71,38 @@ joins, the shared generation window and the byte-identical fact legs are pinned;
 retention arm is pinned. Not run here (live, coordinator slot): the equality of the
 three-leg read with the fact read on a seed, a crash-after-commit recovery across
 the cutover, and the retention cascade accounting.
+
+## C1 d: the winners maintainer's full and keyed inputs read supports
+
+The canonical-winners maintainer builds its winners from the active finding facts:
+the full rebuild's select, and the keyed resweep's scope expansion, per-identifier
+probe and operator insert. PR-C stops writing those facts, so the maintainer reads
+the supports table instead, while the facts are still written.
+
+`supply_chain_impact_winners_supports_input.go` derives each supports statement from
+the shipped legacy constant by declared swaps (the table, and the kind and
+tombstone predicates a support makes implicit); a swap that does not match exactly
+once panics at initialization. The rebuild, the keyed build_idents list, the keyed
+active-facts build and the keyed operator insert use the supports statements. The
+audit (`selectWinnersAuditCandidatesSQL`, its keyed active-facts statements, the
+scope expansion) and the staged audit scan keep the legacy statements, as the
+ruling says: they are the oracle the supports-derived winners are compared with.
+
+The winners contract pin (version 2) is re-pinned, not bumped. A bump runs one full
+on every instance after the roll. `TestWinnersContractRepinnedForSupportsInputs`
+reverses the declared swaps in every contract statement and requires the previous
+pin `8e761819...`. The live byte-identity differential of the stored winners on a
+seed is not run here.
+
+Not done, and why:
+
+- The keyed probe on the supports table has no counterpart of
+  `fact_records_supply_chain_impact_winners_keyed_idx` (the five-expression index).
+  The statements are correct without it and unmeasured with it; the index set is
+  PR-C1 g, which waits for T1. The live plan guards that assert the probe on that
+  index (`keyed_contract_live_test`, the explain export) still point at the legacy
+  statement, which the audit runs, and will need re-targeting with g.
+- `stagedWinnerFactIdentSQL` (a point fetch of one fact's identifier) and the
+  staged audit scan stay on facts: both belong to the audit path. Whether the
+  staged scan counts as a maintainer input under "full, keyed and staged" is a
+  question for the arbiter's reading; it was left on facts.

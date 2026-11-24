@@ -75,7 +75,17 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// TestKeyedTickScansIdentifierCopiesOnce (one probe pass, preserved
 	// scanned signal) and TestWinnersKeyedFanoutMatchesRecomputeLive in the
 	// coordinator's live slot. No full resweep is triggered by this re-pin.
-	2: "25e4d8910be1951ac76980f97de64e5d5f9b483e9151a459236dc0761175747a",
+	//
+	// Version 2 was re-pinned again, without a bump, when #10880 PR-C1 d moved the
+	// maintainer's inputs (the full select, the keyed narrow probe, the keyed
+	// final fetch and the operator statements) from fact_records to the supports
+	// table.
+	// TestWinnersContractRepinnedForSupportsInputs shows the shipped statements
+	// reduce, by reversing the declared swaps alone, to the statements the previous
+	// version-2 hash (25e4d891...) pinned; a live byte-identity differential of the
+	// stored winners on a seed is owed with the live proofs.
+	// TEMP-REBASE-PIN: recomputed at the end of the rebase (handoff step 3).
+	2: "9b414e51cf5de5caf779089279bb2d23872c3679f1beda52468fe6847a3664b1",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
@@ -89,10 +99,10 @@ func supplyChainImpactWinnersContractStatements() []string {
 	return append(stmts,
 		selectWinnersKeyedChunkIdentsSQL,
 		restrictWinnersKeyedIdentsToChunkSQL,
-		buildWinnersKeyedNarrowSQL,
+		buildWinnersKeyedNarrowFromSupportsSQL,
 		analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsSQL,
-		addWinnersKeyedOperatorFactsSQL,
+		buildWinnersKeyedActiveFactsFromSupportsSQL,
+		addWinnersKeyedOperatorFactsFromSupportsSQL,
 		applyWinnersKeyedSQL,
 		convertWinnersKeyedScopeRemainderSQL,
 	)

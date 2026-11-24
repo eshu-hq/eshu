@@ -339,7 +339,7 @@ VALUES ('fact', 'fact_upsert', $1, 'repo:survive', 'digest:survive', $2, $2, 1)`
 		t.Fatalf("re-mark collapse outcome = %+v, want {groups 1, rows 1}", outcome)
 	}
 	for _, stmt := range []string{
-		buildWinnersKeyedScopeIdentsSQL,
+		buildWinnersKeyedScopeIdentsFromSupportsSQL,
 		buildWinnersKeyedIdentsSQL,
 		analyzeWinnersKeyedIdentsSQL,
 	} {

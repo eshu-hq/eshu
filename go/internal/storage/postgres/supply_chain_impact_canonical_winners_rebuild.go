@@ -89,7 +89,7 @@ func supplyChainImpactWinnerConflictSet() string {
 // covered by S, and the watermark never regresses. With an empty residual the
 // LEAST is S. Run it only through ResweepWinners or the keyed fallback.
 var rebuildSupplyChainImpactWinnersSQL = `
-WITH winners_now AS (` + supplyChainImpactWinnerSelectSQL + `),
+WITH winners_now AS (` + supplyChainImpactWinnerSelectFromSupportsSQL + `),
 changed AS MATERIALIZED (
     SELECT n.*, (w.canonical_key IS NULL) AS is_new
     FROM winners_now AS n

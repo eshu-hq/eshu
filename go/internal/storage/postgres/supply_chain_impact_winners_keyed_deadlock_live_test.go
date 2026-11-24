@@ -112,7 +112,7 @@ func winnersExplainSettleLocks(t *testing.T, ctx context.Context, database *sql.
 	defer func() { _ = tx.Rollback() }()
 	for _, ddl := range []string{
 		createWinnersKeyedConsumedSQL,
-		buildWinnersKeyedScopeIdentsSQL,
+		buildWinnersKeyedScopeIdentsFromSupportsSQL,
 		buildWinnersKeyedIdentsSQL,
 		createWinnersKeyedChunkIdentsSQL,
 	} {
@@ -233,7 +233,7 @@ func winnersSettleOnce(ctx context.Context, tx db.Transaction) (winnersCaptureTa
 		return nil, 0, fmt.Errorf("admit: %w", err)
 	}
 	for _, stmt := range []string{
-		buildWinnersKeyedScopeIdentsSQL,
+		buildWinnersKeyedScopeIdentsFromSupportsSQL,
 		buildWinnersKeyedIdentsSQL,
 		analyzeWinnersKeyedIdentsSQL,
 	} {

@@ -391,7 +391,7 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 		{"collapse", selectWinnersStagingCollapseBoundSQL, "collapse", []string{"claim", "collapse"}, false, false},
 		{"consume", admitWinnersKeyedWindowSQL, "consume", []string{"claim", "collapse", "consume"}, false, false},
 		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "collapse", "consume", "build_idents"}, false, false},
-		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},
+		{"build_active_facts", addWinnersKeyedOperatorFactsFromSupportsSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},
 		{"scanned copies count", countWinnersKeyedScannedCopiesSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},
 		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts", "apply"}, false, false},
 		{"stamp", stampWinnersWatermarkSQL, "stamp", []string{"claim", "collapse", "consume", "stamp"}, true, false},

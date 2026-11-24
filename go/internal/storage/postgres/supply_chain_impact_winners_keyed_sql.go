@@ -213,7 +213,7 @@ const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 // statistics. runKeyedOrFull and the explain export both run this list, so
 // the explained plans are the plans the tick gets.
 var winnersKeyedBuildIdentsStmts = []string{
-	buildWinnersKeyedScopeIdentsSQL,
+	buildWinnersKeyedScopeIdentsFromSupportsSQL,
 	indexWinnersKeyedScopeIdentsSQL,
 	analyzeWinnersKeyedScopeIdentsSQL,
 	buildWinnersKeyedIdentsSQL,

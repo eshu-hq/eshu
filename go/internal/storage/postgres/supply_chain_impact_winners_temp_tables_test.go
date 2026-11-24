@@ -44,7 +44,7 @@ func TestWinnersKeyedBuildIdentsStatementOrder(t *testing.T) {
 		position[stmt] = i
 	}
 	ordered := []string{
-		buildWinnersKeyedScopeIdentsSQL,
+		buildWinnersKeyedScopeIdentsFromSupportsSQL,
 		indexWinnersKeyedScopeIdentsSQL,
 		analyzeWinnersKeyedScopeIdentsSQL,
 		buildWinnersKeyedIdentsSQL,
