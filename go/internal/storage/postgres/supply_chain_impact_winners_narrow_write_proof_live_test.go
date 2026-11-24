@@ -168,6 +168,38 @@ func narrowVehicleDigest(t *testing.T, h *keyedHarness, vehicle string) string {
 	return narrowDigestOfWinners(t, got)
 }
 
+// narrowStatioBlocks reads this database's block touches (buffer hits plus
+// reads) from the statistics views. pg_stat_database carries the live
+// per-database counters; the legacy pg_statio_* table views report zeros
+// for relation I/O on this stack (PostgreSQL 18), so they cannot back the
+// bar. Relation stats reach the shared counters on flush, so the read is
+// preceded by pg_stat_force_next_flush. The sum is cache-state
+// independent: a warm cache moves touches from reads to hits without
+// changing the total, so the bar below compares work, not cache luck.
+func narrowStatioBlocks(t *testing.T, h *keyedHarness) int64 {
+	t.Helper()
+	if _, err := h.db.ExecContext(h.ctx, `SELECT pg_stat_force_next_flush()`); err != nil {
+		t.Fatalf("statio flush: %v", err)
+	}
+	var n int64
+	if err := h.db.QueryRowContext(h.ctx, `
+SELECT blks_read + blks_hit FROM pg_stat_database WHERE datname = current_database()`).Scan(&n); err != nil {
+		t.Fatalf("statio blocks: %v", err)
+	}
+	return n
+}
+
+// narrowStatioProbe executes query and returns the block touches it caused,
+// measured as the statistics-view delta around the execution.
+// The statement runs for its real side effects (the shipped arm builds its
+// temp active-facts table); temp-table writes are not block touches.
+func narrowStatioProbe(t *testing.T, h *keyedHarness, query string) int64 {
+	t.Helper()
+	before := narrowStatioBlocks(t, h)
+	h.exec(query)
+	return narrowStatioBlocks(t, h) - before
+}
+
 // narrowDrain runs bounded ticks until the backlog drains and returns every
 // tick result. The chunk bound keeps every tick short; the loop is the
 // maintainer's re-tick while Bounded.
@@ -193,10 +225,12 @@ func narrowDrain(t *testing.T, h *keyedHarness, bound int) []supplychaincore.Sup
 // TestSupplyChainImpactWriterNarrowShapesWriteBarLive builds the three M6
 // narrow-store write shapes side by side on QA-shaped payloads with the
 // production index set and reports the write bar per shape: WAL bytes per
-// fact, CPU per fact, first-pass buffers, and, at 8 and 16 concurrent
-// writers, facts written per hour, WAL rate, and the deadlock profile. It
-// then runs the full keyed differential: every shape's winner digest must
-// equal the shipped digest over the same snapshot.
+// fact, CPU per fact, first-pass block touches from the statistics views
+// (each shape at most one quarter of the shipped probe), and, at 8 and 16
+// concurrent writers, facts written per hour, WAL rate, and the deadlock
+// count, which must stay 0. It then runs the full keyed differential:
+// every shape's winner digest must equal the shipped digest over the same
+// snapshot.
 func TestSupplyChainImpactWriterNarrowShapesWriteBarLive(t *testing.T) {
 	corpus := narrowProofCorpusFor(t)
 	h := newKeyedHarness(t, "#11142 M6 narrow write shapes")
@@ -285,14 +319,23 @@ FROM sci_winners_narrow_prototype LIMIT 50`)
 	h.exec(`CREATE TEMP TABLE ` + postgres.WinnersKeyedIdentsTableForTest + ` AS
 SELECT *, now() AS age_captured_at, 0 AS age_seq FROM narrow_proof_idents`)
 	h.exec(`ANALYZE ` + postgres.WinnersKeyedIdentsTableForTest)
-	shippedPlan, shippedHits, shippedReads := narrowExplain(t, h, postgres.WinnersKeyedActiveFactsSQLForTest)
-	t.Logf("shipped per-identifier probe: buffers hit=%d read=%d", shippedHits, shippedReads)
-	_ = shippedPlan
+	// The bar counts first-pass block touches (buffer hits plus reads) from
+	// the statistics views around a real execution of each probe, per shape:
+	// each shape must touch at most one quarter of the shipped probe's
+	// blocks. EXPLAIN below serves the plan-shape assertions only (which
+	// index serves each probe); its buffer lines are plan context, not the
+	// bar, and the shipped arm is measured on the executed build, never on
+	// an EXPLAIN of the CREATE TABLE AS.
+	shippedBlocks := narrowStatioProbe(t, h, postgres.WinnersKeyedActiveFactsSQLForTest)
+	t.Logf("shipped per-identifier probe: statio block touches=%d", shippedBlocks)
+	if shippedBlocks == 0 {
+		t.Fatalf("shipped probe recorded 0 statio block touches: the statistics-view measurement is blind")
+	}
+	h.exec(`DROP TABLE IF EXISTS ` + postgres.WinnersKeyedActiveFactsTableForTest)
 	candidates := map[postgres.NarrowWriteShape]int{}
 	for _, shape := range postgres.NarrowWriteShapes() {
 		firstPass := postgres.NarrowShapeFirstPassSQL(shape, "narrow_proof_idents")
-		plan, hits, reads := narrowExplain(t, h, firstPass)
-		t.Logf("shape %s first pass: buffers hit=%d read=%d", shape, hits, reads)
+		plan, _, _ := narrowExplain(t, h, firstPass)
 		if shape == postgres.NarrowShapeIndexExpression &&
 			!strings.Contains(plan, "Index Scan using fact_records_sci_winners_rank_expr_idx") {
 			t.Errorf("shape %s first pass does not probe the trailing-expression index:\n%s", shape, plan)
@@ -301,13 +344,20 @@ SELECT *, now() AS age_captured_at, 0 AS age_seq FROM narrow_proof_idents`)
 			!strings.Contains(plan, "covering_idx") {
 			t.Errorf("shape %s first pass does not use its covering index:\n%s", shape, plan)
 		}
-		if hits+reads >= shippedHits+shippedReads {
-			t.Errorf("shape %s first pass buffers %d >= shipped %d", shape, hits+reads, shippedHits+shippedReads)
-		}
+		before := narrowStatioBlocks(t, h)
 		var count int
 		if err := h.db.QueryRowContext(h.ctx,
 			`SELECT count(*) FROM (`+firstPass+`) AS fp`).Scan(&count); err != nil {
 			t.Fatalf("shape %s candidate count: %v", shape, err)
+		}
+		shapeBlocks := narrowStatioBlocks(t, h) - before
+		t.Logf("shape %s first pass: statio block touches=%d (shipped %d)", shape, shapeBlocks, shippedBlocks)
+		if shapeBlocks == 0 {
+			t.Errorf("shape %s recorded 0 statio block touches: the statistics-view measurement is blind", shape)
+		}
+		if shippedBlocks < 4*shapeBlocks {
+			t.Errorf("shape %s first pass block touches %d > shipped %d / 4: the narrow first pass must read at least 4x fewer blocks than the shipped probe",
+				shape, shapeBlocks, shippedBlocks)
 		}
 		candidates[shape] = count
 		t.Logf("shape %s first pass candidates: %d", shape, count)
@@ -395,10 +445,134 @@ WHERE fact.fact_id IN (SELECT fact_id FROM (` +
 		}
 		t.Logf("%d writers: %d facts in %v = %.0f facts/hr, WAL %d bytes = %.2f MB/s, deadlocks=%d",
 			writers, n, elapsed.Round(time.Millisecond), float64(n)/hours, wal, float64(wal)/secs/1e6, deadlocks)
+		if deadlocks != 0 {
+			t.Errorf("%d writers: pg_stat_database.deadlocks = %d, want 0 (concurrent disjoint-scope writers must not deadlock the tick)", writers, deadlocks)
+		}
 		drainStart := time.Now()
 		drainResults := narrowDrain(t, h, h.pendingDepth()/150+8)
 		drainWall := time.Since(drainStart)
 		t.Logf("%d writers: drained in %d bounded ticks in %v", writers, len(drainResults), drainWall.Round(time.Millisecond))
 		h.assertParity(fmt.Sprintf("%d writers", writers))
+	}
+}
+
+// TestSupplyChainImpactWinnersNarrowNearMissSingleFlipLive is the Box 1/2
+// RED test for #11142: one contested canonical key, exactly one ranking
+// input flipped. The control phase rewrites a scope with byte-identical
+// findings and requires the winner digest to stay byte-identical (the
+// differential is not volatile). The flip phase raises the loser's
+// priority_score above the winner's and requires the winner digest to move
+// while the winner count stays unchanged (the differential is sensitive to
+// a one-input near miss). The shape phase replays the M6 vehicle
+// differential on the flipped snapshot: every narrow shape's winner digest
+// must equal the shipped digest (the shapes preserve the flipped truth).
+func TestSupplyChainImpactWinnersNarrowNearMissSingleFlipLive(t *testing.T) {
+	h := newKeyedHarness(t, "#11142 Box 1/2 narrow near-miss single flip")
+
+	const (
+		scopeA = "vuln-intel://11142-nearmiss/a"
+		scopeB = "vuln-intel://11142-nearmiss/b"
+		genA   = scopeA + "/g1"
+		genB   = scopeB + "/g1"
+	)
+	h.seedScope(scopeA, genA)
+	h.seedScope(scopeB, genB)
+
+	// The contested copies share every canonical-key field (the key carries
+	// no scope), so both scopes feed one canonical key with source_count 2.
+	// The control key never moves.
+	contested := func(priority int) supplychaincore.SupplyChainImpactFinding {
+		f := keyedFinding("CVE-2026-11000", "pkg:npm/nearmiss", priority)
+		f.RepositoryID = "repo-nearmiss"
+		return f
+	}
+	controlFinding := func() supplychaincore.SupplyChainImpactFinding {
+		f := keyedFinding("CVE-2026-11001", "pkg:npm/nearmiss-control", 7)
+		f.RepositoryID = "repo-nearmiss"
+		return f
+	}
+	// writeA rewrites scope A carrying the contested copy at priority plus
+	// the untouched control finding, so a rewrite never drops a key.
+	writeA := func(priority int) {
+		t.Helper()
+		if _, err := h.writer.WriteSupplyChainImpactFindings(h.ctx, supplychaincore.SupplyChainImpactWrite{
+			IntentID: "intent-11142-nearmiss", ScopeID: scopeA, GenerationID: genA,
+			SourceSystem: "vulnerability_intelligence", Cause: "11142 near-miss single flip",
+			Findings:     []supplychaincore.SupplyChainImpactFinding{contested(priority), controlFinding()},
+			FencingToken: keyedFenceTokens.Add(1),
+		}); err != nil {
+			t.Fatalf("write scope A at priority %d: %v", priority, err)
+		}
+	}
+
+	writeA(10)
+	if _, err := h.writer.WriteSupplyChainImpactFindings(h.ctx, supplychaincore.SupplyChainImpactWrite{
+		IntentID: "intent-11142-nearmiss", ScopeID: scopeB, GenerationID: genB,
+		SourceSystem: "vulnerability_intelligence", Cause: "11142 near-miss single flip",
+		Findings:     []supplychaincore.SupplyChainImpactFinding{contested(50)},
+		FencingToken: keyedFenceTokens.Add(1),
+	}); err != nil {
+		t.Fatalf("write scope B: %v", err)
+	}
+	narrowDrain(t, h, 32)
+	h.assertParity("near-miss baseline")
+	before := narrowDigestOfWinners(t, winnersLiveRead(t, h.ctx, h.db))
+	beforeCount := h.count(`SELECT count(*) FROM supply_chain_impact_canonical_winners`)
+	if beforeCount != 2 {
+		t.Fatalf("baseline winner count = %d, want 2 (one contested key plus one control key)", beforeCount)
+	}
+	t.Logf("baseline digest %s over %d winners (A=10 loses to B=50)", before, beforeCount)
+
+	// Control: a byte-identical rewrite of scope A must not move the digest.
+	writeA(10)
+	narrowDrain(t, h, 32)
+	h.assertParity("near-miss control rewrite")
+	controlDigest := narrowDigestOfWinners(t, winnersLiveRead(t, h.ctx, h.db))
+	if controlDigest != before {
+		t.Fatalf("control rewrite moved the digest: %s -> %s (a no-op rewrite must be digest-stable)", before, controlDigest)
+	}
+	t.Logf("control rewrite digest stable: %s", controlDigest)
+
+	// Flip: exactly one ranking input moves — A's copy outranks B's.
+	writeA(90)
+	narrowDrain(t, h, 32)
+	h.assertParity("near-miss flip")
+	after := narrowDigestOfWinners(t, winnersLiveRead(t, h.ctx, h.db))
+	afterCount := h.count(`SELECT count(*) FROM supply_chain_impact_canonical_winners`)
+	if after == before {
+		t.Fatalf("flip left the digest at %s: raising the loser's priority_score above the winner's must move the winner", after)
+	}
+	if afterCount != beforeCount {
+		t.Fatalf("flip moved the winner count %d -> %d: one re-ranked key must keep the same winner rows", beforeCount, afterCount)
+	}
+	t.Logf("flip moved the digest %s -> %s with count unchanged at %d", before, after, afterCount)
+
+	// Shape phase: every narrow shape preserves the flipped truth.
+	for _, shape := range []postgres.NarrowWriteShape{postgres.NarrowShapePrototype, postgres.NarrowShapeDeduped} {
+		h.exec(postgres.NarrowShapeDDL(shape))
+		h.exec(postgres.NarrowShapePopulateSQL(shape))
+	}
+	h.exec(postgres.NarrowShapeDDL(postgres.NarrowShapeIndexExpression))
+	h.exec(`CREATE TEMP TABLE active_facts_narrow_deduped AS
+SELECT fact.* FROM fact_records AS fact
+WHERE fact.fact_id IN (SELECT fact_id FROM sci_winners_narrow_deduped)`)
+	h.exec(`CREATE TEMP TABLE narrow_proof_all_idents AS
+SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id
+FROM sci_winners_narrow_prototype`)
+	h.exec(`CREATE TEMP TABLE active_facts_narrow_expr AS
+SELECT fact.* FROM fact_records AS fact
+WHERE fact.fact_id IN (SELECT fact_id FROM (` +
+		postgres.NarrowShapeFirstPassSQL(postgres.NarrowShapeIndexExpression, "narrow_proof_all_idents") + `) AS fp)`)
+	vehicles := map[postgres.NarrowWriteShape]string{
+		postgres.NarrowShapePrototype:       "sci_winners_narrow_prototype",
+		postgres.NarrowShapeDeduped:         "active_facts_narrow_deduped",
+		postgres.NarrowShapeIndexExpression: "active_facts_narrow_expr",
+	}
+	for _, shape := range postgres.NarrowWriteShapes() {
+		if digest := narrowVehicleDigest(t, h, vehicles[shape]); digest != after {
+			t.Errorf("shape %s vehicle digest %s != flipped shipped digest %s", shape, digest, after)
+		} else {
+			t.Logf("shape %s vehicle digest matches flipped shipped %s", shape, digest)
+		}
 	}
 }
