@@ -28,6 +28,16 @@ import (
 // fanOutStampSQL is the stored stamp of the row the statement reads.
 const fanOutStampSQL = `work.payload->'` + supplychaincore.PayloadKeyFanOutOrigin + `'`
 
+// fanOutStampAbsentSQL is TRUE when the stamp expression is absent: the key is
+// missing, JSON null, or not an object. It is the one place the absent rule
+// lives (arbiter ruling, Amendment 1): an absent stamp is not an owed set. A
+// queued or flagged row with no stamp runs a genuine full pass, so it covers
+// any change and is never written; an unflagged in-flight row with no stamp
+// takes the incoming stamp as is when it is flagged. Never NULL.
+func fanOutStampAbsentSQL(stamp string) string {
+	return `(jsonb_typeof(` + stamp + `) IS DISTINCT FROM 'object')`
+}
+
 // fanOutStampUnboundedSQL is TRUE when the stamp expression names no bounded
 // set: no stamp object (missing, JSON null, or another JSON type), no cves
 // array, an empty array, or the sentinel. A pass with such a stamp derives
@@ -35,7 +45,7 @@ const fanOutStampSQL = `work.payload->'` + supplychaincore.PayloadKeyFanOutOrigi
 func fanOutStampUnboundedSQL(stamp string) string {
 	cves := stamp + `->'` + supplychaincore.FanOutStampCVEKey + `'`
 	return `(CASE
-            WHEN jsonb_typeof(` + stamp + `) IS DISTINCT FROM 'object' THEN TRUE
+            WHEN ` + fanOutStampAbsentSQL(stamp) + ` THEN TRUE
             WHEN jsonb_typeof(` + cves + `) IS DISTINCT FROM 'array' THEN TRUE
             WHEN jsonb_array_length(` + cves + `) = 0 THEN TRUE
             ELSE ` + cves + ` @> '["` + supplychaincore.FanOutStampSentinel + `"]'::jsonb

@@ -84,11 +84,16 @@ reopen statement (`reopenSupplyChainImpactHolderQuery`) writes, per state:
   failure fields. The claim orders by `updated_at`, so a bump would push a busy
   holder to the back on every fan-out.
 - `claimed` or `running` with the replay bit already on: the stamp is merged
-  when its set does not name the change, and left untouched when it does.
+  when its set does not name the change, and left untouched when it does. A
+  row with no stamp object (missing, JSON null, or not an object) is never
+  written: its flag was set by something other than a fan-out, its rerun is a
+  genuine full pass, and a stamp would narrow it to a scoped one hop.
 - `claimed` or `running` with the bit off: the bit is set as before, and the
   stamp is merged instead of overwritten. A row with no stamp object has
   nothing to merge and takes the incoming stamp, as before, so a genuine pass
-  in flight still reruns scoped on the change.
+  in flight still reruns scoped on the change. An absent stamp is not an owed
+  set (arbiter Amendment 1); the rule lives in one SQL fragment,
+  `fanOutStampAbsentSQL`.
 - `succeeded` and dead-letter rows: unchanged.
 
 The merge (`supply_chain_impact_fanout_reopen_merge.go`) keeps the incoming

@@ -35,6 +35,12 @@ that file short.
     clear fails; a second same-origin reopen writes nothing; the cap goes to the
     sentinel and a set-less change removes `cves`
     (`supply_chain_impact_fanout_stamp_widen_live_test.go`);
+  - the absent stamp (arbiter Amendment 1): an unflagged in-flight holder with
+    no stamp (missing or JSON null) is flagged with exactly the incoming set,
+    and after its own ack its rerun runs scoped to it; a flagged one is not
+    written (same `xmin`, `pending_noop`); a set-less or sentinel stored stamp
+    stays unbounded with the flag off and on
+    (`supply_chain_impact_fanout_stamp_absent_live_test.go`);
   - concurrency: 8 concurrent reopens end at the union; a reopen and a real
     claim in both orders, the reopen blocked on the claim's row lock and
     rechecked under EvalPlanQual; the claim order of a widened row is unchanged

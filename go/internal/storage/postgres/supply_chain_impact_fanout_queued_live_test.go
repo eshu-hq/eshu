@@ -163,11 +163,12 @@ func TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionLive(t *testin
 		dropped[scope] = true
 	}
 	before := queuedRowVersions(t, ctx, db)
-	// Every kept holder must still reach the per-holder statement; the loop
-	// below runs it for the holders whose reopen this fixture can complete. A
-	// failed-only holder has no matched item, so its reopen would enqueue a new
-	// intent that collides with the fixture's failed row: that enqueue path is
-	// covered by the reopen tests, not by this one.
+	// This asserts that the claimed, running, and succeeded holders are kept
+	// and runs their reopen; the full kept set is pinned by the differential in
+	// supply_chain_impact_fanout_queued_cover_live_test.go. A failed-only
+	// holder has no matched item, so its reopen would enqueue a new intent that
+	// collides with the fixture's failed row: that enqueue path is covered by
+	// the reopen tests, not by this one.
 	kept := []string{"h-claimed", "h-running", "h-succeeded"}
 	for _, scope := range kept {
 		if dropped[scope] {

@@ -71,7 +71,9 @@ const reopenSupplyChainImpactSetsFlag = `(work.status IN ('claimed', 'running') 
 // updated_at, because the claim orders by updated_at and a bump would push a
 // busy holder to the back on every fan-out. A claimed or running row whose flag
 // is already on is widened the same way when its stamp does not name the
-// change, and left untouched when it does. A dead letter whose class is not
+// change, and left untouched when it does or when it has no stamp object (a
+// flag set by something other than a fan-out: its rerun is a genuine full
+// pass, which a stamp would narrow). A dead letter whose class is not
 // unsafe to replay (#11147) returns to pending as a full genuine pass: attempts
 // zeroed, lease, retry, and failure fields cleared, the identity authorization
 // columns set the way the admin replay sets them, the replay bit off, and the

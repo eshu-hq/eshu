@@ -20,8 +20,12 @@ import (
 // when it does not. A stored cves array with no usable string id is unbounded
 // too: the Go reader (fanOutStampCVEIDs) finds no set there and runs the pass
 // full, so a union with the incoming ids alone would narrow it. A row with no
-// stamp object has nothing to merge, so it takes the incoming stamp as the
-// statement always wrote it.
+// stamp object (fanOutStampAbsentSQL) has nothing to merge, so the unflagged
+// in-flight row the reopen flags takes the incoming stamp as the statement
+// always wrote it; an absent stamp is not an owed set (arbiter Amendment 1).
+// The merge never reaches a flagged or queued row with an absent stamp: the
+// cover rule calls that row covered, because its rerun is a genuine full pass,
+// and writing a stamp there would narrow it to a scoped one hop.
 //
 // Every fragment reads work.payload, the row the UPDATE locked and evaluates
 // under EvalPlanQual, never the target CTE's snapshot: two fan-outs that reach
@@ -48,7 +52,7 @@ func fanOutMergedStampSQL(incomingArg, cvesArg, boundedArg string) string {
 		supplychaincore.FanOutStampSentinel + `"]'::jsonb, TRUE)`
 	return `CASE
             WHEN NOT ` + boundedArg + ` THEN ` + incomingArg + `
-            WHEN jsonb_typeof(` + fanOutStampSQL + `) IS DISTINCT FROM 'object' THEN ` + incomingArg + `
+            WHEN ` + fanOutStampAbsentSQL(fanOutStampSQL) + ` THEN ` + incomingArg + `
             WHEN ` + fanOutStampUnboundedSQL(fanOutStampSQL) + ` THEN ` + sentinel + `
             WHEN NOT EXISTS (` + fanOutStampIDsSQL(stored) + `) THEN ` + sentinel + `
             ELSE (

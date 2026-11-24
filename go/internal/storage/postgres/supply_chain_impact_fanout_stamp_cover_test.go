@@ -30,6 +30,10 @@ func TestFanOutCoverRuleIsSharedByThePrefilterAndTheReopen(t *testing.T) {
 		{"merge cap from the Go constant", fanOutMergedStampSQL("$3", "$5", "$6"), "count(*) > " + strconv.Itoa(supplychaincore.FanOutOriginCVEIDCap) + " "},
 		{"merge byte order", fanOutMergedStampSQL("$3", "$5", "$6"), `ORDER BY merged.id COLLATE "C"`},
 		{"merge reads the locked row", fanOutMergedStampSQL("$3", "$5", "$6"), fanOutStampSQL},
+		// Amendment 1: one fragment carries the absent-stamp rule for both the
+		// cover rule and the merge, so it flips with one edit.
+		{"merge reads the absent rule", fanOutMergedStampSQL("$3", "$5", "$6"), "WHEN " + fanOutStampAbsentSQL(fanOutStampSQL) + " THEN $3"},
+		{"cover reads the absent rule", fanOutStampUnboundedSQL(fanOutStampSQL), "WHEN " + fanOutStampAbsentSQL(fanOutStampSQL) + " THEN TRUE"},
 	}
 	for _, check := range checks {
 		if !strings.Contains(check.text, check.want) {
