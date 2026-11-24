@@ -140,7 +140,8 @@ ruling says: they are the oracle the supports-derived winners are compared with.
 The winners contract pin (version 2) is re-pinned, not bumped. A bump runs one full
 on every instance after the roll. `TestWinnersContractRepinnedForSupportsInputs`
 reverses the declared swaps in every contract statement and requires the previous
-pin `8e761819...`. The live byte-identity differential of the stored winners on a
+pin `df97e229...` (the #11359 once-per-tick live_gens re-pin on origin/main
+460eb1f938). The live byte-identity differential of the stored winners on a
 seed is `TestSupplyChainImpactWinnersResweepSupportsDifferentialLive` (passed in runs
 30 and 31).
 

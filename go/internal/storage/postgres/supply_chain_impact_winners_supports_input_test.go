@@ -17,8 +17,9 @@ import (
 // live proof (T1) and is not run here.
 
 // winnersLegacyContractPin is the version-2 winners contract hash at origin/main
-// f1f45ddad3, before the maintainer's inputs moved to supports.
-const winnersLegacyContractPin = "8e761819b7b0f43d77ea3d46d8fd7395f5308ad945e542bc3b5c7ce3677d292e"
+// aa2ddc3aa6 (after the watermark-stall narrow-temp-table re-pin), before the
+// maintainer's inputs moved to supports.
+const winnersLegacyContractPin = "25e4d8910be1951ac76980f97de64e5d5f9b483e9151a459236dc0761175747a"
 
 // TestWinnersMaintainerStatementsReadNoFactRecords proves every statement the
 // winners contract names, the full rebuild and every keyed build and apply
