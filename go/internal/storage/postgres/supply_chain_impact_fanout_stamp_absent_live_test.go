@@ -9,9 +9,11 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // The arbiter's Amendment 1 for #10972: an absent stored stamp (key missing,
@@ -136,5 +138,47 @@ func TestReopenKeepsAnUnboundedStoredStampUnboundedLive(t *testing.T) {
 				t.Fatalf("row = %+v, want the replay flag on", row)
 			}
 		})
+	}
+}
+
+// TestReopenWidensAPendingHolderToSetLessInTheFenceTransactionLive pins the
+// commit-skew fence path (ReopenSupplyChainImpactHolderInTransaction, a
+// set-less origin): a pending holder stamped {A} is widened to the set-less
+// stamp, so its next pass runs full, with status, attempt_count, updated_at,
+// and visible_at unchanged; a pending unstamped holder is covered and keeps
+// its row version.
+func TestReopenWidensAPendingHolderToSetLessInTheFenceTransactionLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	stamped := widenSeedPending(t, ctx, db, "h-fence-stamped")
+	fanOutSeedScope(t, ctx, db, "h-fence-unstamped", "g1")
+	unstamped := fanOutSeedItem(t, ctx, db, "h-fence-unstamped", "g1")
+	beforeStamped := widenRead(t, ctx, db, stamped)
+	beforeUnstamped := widenRead(t, ctx, db, unstamped)
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC)
+	for _, holder := range []string{"h-fence-stamped", "h-fence-unstamped"} {
+		if err := postgres.ReopenSupplyChainImpactHolderInTransaction(ctx, postgres.SQLTx{Tx: tx}, holder, "scope:fence", "gen-fence", now); err != nil {
+			t.Fatalf("fence reopen %s: %v", holder, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	after := widenRead(t, ctx, db, stamped)
+	if _, present := fanOutStampCVEs(t, ctx, db, stamped); present || after.scopeID != "scope:fence" {
+		t.Fatalf("stamped holder = %+v, want the set-less fence stamp", after)
+	}
+	if after.status != beforeStamped.status || after.attempts != beforeStamped.attempts ||
+		!after.updatedAt.Equal(beforeStamped.updatedAt) || after.visibleAt != beforeStamped.visibleAt {
+		t.Fatalf("stamped holder %+v -> %+v, want only the stamp written", beforeStamped, after)
+	}
+	if got := widenRead(t, ctx, db, unstamped); got.version != beforeUnstamped.version {
+		t.Fatalf("unstamped holder version %s -> %s, want untouched", beforeUnstamped.version, got.version)
 	}
 }

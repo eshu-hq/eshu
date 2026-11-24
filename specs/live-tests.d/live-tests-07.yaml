@@ -378,7 +378,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_stamp_absent_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10972 arbiter Amendment 1: reducer-contention enrolled 3 absent-stamp proofs (unflagged in-flight holder takes the incoming set only and its rerun runs scoped to it; flagged unstamped holder is not written; unbounded stored stamp stays unbounded) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestReopenStampsAnUnstamped, TestReopenLeavesAFlaggedUnstamped, and TestReopenKeepsAnUnboundedStored alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    reason: "#10972 arbiter Amendment 1: reducer-contention enrolled 4 absent-stamp and fence proofs (unflagged in-flight holder takes the incoming set only and its rerun runs scoped to it; flagged unstamped holder is not written; unbounded stored stamp stays unbounded; the commit-skew fence widens a pending bounded holder to set-less) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestReopenStampsAnUnstamped, TestReopenLeavesAFlaggedUnstamped, TestReopenKeepsAnUnboundedStored, and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_adaptive_split_live_test.go
     tag: ~

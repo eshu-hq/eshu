@@ -96,6 +96,12 @@ reopen statement (`reopenSupplyChainImpactHolderQuery`) writes, per state:
   `fanOutStampAbsentSQL`.
 - `succeeded` and dead-letter rows: unchanged.
 
+The set-less reopen of the commit-skew fence
+(`ReopenSupplyChainImpactHolderInTransaction`) follows the same rule, so it now
+widens a pending or retrying holder stamped with a bounded set to set-less, and
+that holder's next pass runs full where base left the row untouched; an
+unstamped, set-less, owed, or attempt-above-1 holder is covered and not written.
+
 The merge (`supply_chain_impact_fanout_reopen_merge.go`) keeps the incoming
 origin's identity fields and sets `cves` to the sorted distinct union of the
 stored and incoming ids, in byte order (`COLLATE "C"`, the order `sort.Strings`

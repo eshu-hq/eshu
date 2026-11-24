@@ -88,6 +88,9 @@ count the fence returns.
   `supply_chain_impact` items, the order the admin replay, the recovery drain, and
   poison recovery lock dead letters in, because a reopen also locks a holder's dead
   letter (#11147). Scope-id order differs, since the item id maps `:` and `/` to `_`.
+  Since #10972 the fence's set-less reopen also widens a pending or retrying holder with a
+  bounded stamp to a set-less one, so its next pass runs full; until eshu-hq/eshu#10095 that
+  is extra full passes and no verdict change.
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
   query (eshu-hq/eshu#10054).
