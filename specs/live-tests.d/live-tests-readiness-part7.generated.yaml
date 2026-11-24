@@ -179,6 +179,11 @@ tests:
     class: postgres_ci
     reason: "#10746 disposable PostgreSQL proof of the forward-rotation probe race: a probe that matches no row takes no lock, so a commit forced between the probe and the upsert changes the stored identity while the forward rotation goes uncounted (no row yet, a row with no stamp, the stored sha under a newer stamp), a probe that matches holds the row lock so a concurrent writer waits, and the upsert guard still refuses an older seed after a missed probe"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_corpus_drain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11388 real-corpus half of #11350 TEST4 (collector #199 shapes, eshu-hq/eshu#10809): both measured same-stamp groups replay at full record count through the plan-to-commit loop on disposable PostgreSQL and drain to year-complete with a strict advance every cycle; disposable database per test, seconds locally"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_adapter_live_test.go
     tag: ~
     class: postgres_ci
