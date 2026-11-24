@@ -44,6 +44,11 @@ tests:
     class: postgres_ci
     reason: "#11327 real PostgreSQL proof that a supply-chain impact pass, which takes the shared go-evidence lock as the last statements before its commit, and the Go-modules fence cannot both commit around the same go scope: a fence between the Go evidence load and the pass write aborts the pass with the non-counting class, a pass that spends 3 s in its writes loses to a fence that takes its lock at once, a fence behind a pass paused between recheck and commit waits then reopens it, and a second pass queues behind a waiting fence"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_marker_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof of the owed marker that follows the go-evidence lock: the recorded footprint of a changed pass through the real handler, 40 rounds each of a fence queued behind a pass paused before its marker and of a fence-style reopen holding the marker's row, a retirement-style table lock under the marker, and a marker row held 3 s while a fence on that go scope times out and detaches nothing"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_protected_live_test.go
     tag: ~
     class: postgres_ci

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -208,6 +209,23 @@ func lockAndRecheckGoEvidence(ctx context.Context, tx SupplyChainImpactTx, pairs
 	return true, wait, nil
 }
 
+// recordOwedAfterGoEvidenceLock records the pass's owed marker, the one statement that
+// follows the lock and updates the pass's own fact_work_items row. When the pass holds
+// the shared lock the marker's duration, including any wait on that row, is added to
+// the lock wait so a fence timeout behind a stalled marker can be explained from the
+// lock-wait histogram (#11327). It returns the lock wait including the marker.
+func recordOwedAfterGoEvidenceLock(ctx context.Context, tx SupplyChainImpactTx, write SupplyChainImpactWrite, locked bool, wait time.Duration) (time.Duration, error) {
+	started := time.Now()
+	err := write.Owed.RecordFanOutOwed(ctx, tx)
+	if locked {
+		wait += time.Since(started)
+	}
+	if err != nil {
+		return wait, fmt.Errorf("record supply chain impact fan-out owed: %w", err)
+	}
+	return wait, nil
+}
+
 // goEvidenceEpilogueViolation reports a statement order that breaks the #11327
 // contract, or "" for a clean one. Clean is either no go-evidence statement at all, or
 // the shared locks, then the one recheck right after them, then at most the owed-marker
@@ -216,11 +234,12 @@ func lockAndRecheckGoEvidence(ctx context.Context, tx SupplyChainImpactTx, pairs
 // of the writer cannot move the lock and the recheck off the end unnoticed.
 // markerStatement is the owed-marker query text, or "" when the pass records none.
 func goEvidenceEpilogueViolation(statements []string, markerStatement string) string {
-	locks, rechecks, markerEarly := 0, 0, false
+	locks, rechecks, markerEarly, queueEarly := 0, 0, false, false
 	first := -1
 	for i, statement := range statements {
-		if markerStatement != "" && statement == markerStatement && first < 0 {
-			markerEarly = true
+		if first < 0 && strings.Contains(statement, "fact_work_items") {
+			queueEarly = true
+			markerEarly = markerEarly || (markerStatement != "" && statement == markerStatement)
 		}
 		switch statement {
 		case SupplyChainImpactGoEvidenceSharedLockQuery:
@@ -240,6 +259,9 @@ func goEvidenceEpilogueViolation(statements []string, markerStatement string) st
 	}
 	if markerEarly {
 		return "the owed marker updates the pass's work item before the lock: it can deadlock with a fence"
+	}
+	if queueEarly {
+		return "a statement before the lock names fact_work_items, a row the fence reopens"
 	}
 	end := first
 	for end < len(statements) && statements[end] == SupplyChainImpactGoEvidenceSharedLockQuery {

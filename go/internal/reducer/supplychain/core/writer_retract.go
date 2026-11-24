@@ -297,14 +297,12 @@ func commitSupplyChainImpactRows(
 	// or locks ingestion_scopes or scope_generations (the census guard in storage/postgres
 	// pins it), so this wait cannot close a cycle with a fence holding the exclusive lock.
 	locked, wait, err := lockAndRecheckGoEvidence(ctx, tx, write.GoEvidence)
+	if err == nil && owed {
+		wait, err = recordOwedAfterGoEvidenceLock(ctx, tx, write, locked, wait)
+	}
 	outcome.goEvidenceLocked, outcome.goEvidenceLockWait = locked, wait
 	if err != nil {
 		return supplyChainImpactTxOutcome{goEvidenceLocked: locked, goEvidenceLockWait: wait}, err
-	}
-	if owed {
-		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {
-			return supplyChainImpactTxOutcome{}, fmt.Errorf("record supply chain impact fan-out owed: %w", err)
-		}
 	}
 	return outcome, nil
 }

@@ -256,7 +256,7 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	}
 	if inst.SupplyChainImpactGoEvidenceLockWait, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds",
-		metric.WithDescription("Wall time a supply-chain impact pass spent taking the shared go-evidence advisory locks at the end of its write transaction, granted or refused. A tail means passes queue behind a Go-modules fence. Passes with no resolved Go scope record nothing. No labels."),
+		metric.WithDescription("Wall time a supply-chain impact pass spent in the closing statements that follow its first shared go-evidence advisory lock: taking the locks, granted or refused, and its owed marker, which can wait on its work-item row. A tail means passes queue behind a Go-modules fence or a stalled marker, and is the time a fence can wait behind the pass. Passes with no resolved Go scope record nothing. No labels."),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(supplyChainImpactGoEvidenceLockWaitBuckets...),
 	); err != nil {

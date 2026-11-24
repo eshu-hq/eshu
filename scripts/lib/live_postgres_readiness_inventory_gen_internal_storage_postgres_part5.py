@@ -52,6 +52,14 @@ TABLE = {
             "TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive",
             "TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_marker_live_test.go": (
+            "TestFootprintViolationNamesTheSeededFootprints",
+            "TestGoEvidenceRealHandlerPassFootprintLive",
+            "TestGoEvidenceFenceQueuesBehindPassPausedBeforeItsMarkerLive",
+            "TestGoEvidenceMarkerWaitsBehindAFenceStyleReopenLive",
+            "TestGoEvidenceMarkerWaitsBehindATableLockWithoutDeadlockLive",
+            "TestGoEvidenceMarkerRowHeldThreeSecondsFenceTimesOutLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_protected_live_test.go": (
             "TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive",
         ),

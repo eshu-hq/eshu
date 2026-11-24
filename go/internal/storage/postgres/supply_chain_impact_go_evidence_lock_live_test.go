@@ -98,6 +98,9 @@ type recheckHookBeginner struct {
 	inner      supplychaincore.SupplyChainImpactBeginner
 	beforeLock func(ctx context.Context)
 	hook       func(ctx context.Context)
+	// onEnd, when set, receives every statement the transaction ran, in order, and
+	// whether it committed: the recorded footprint of one pass.
+	onEnd func(statements []string, committed bool)
 }
 
 func (b recheckHookBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supplychaincore.SupplyChainImpactTx, error) {
@@ -105,18 +108,21 @@ func (b recheckHookBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supp
 	if err != nil {
 		return nil, err
 	}
-	return &recheckHookTx{tx: tx, beforeLock: b.beforeLock, hook: b.hook}, nil
+	return &recheckHookTx{tx: tx, beforeLock: b.beforeLock, hook: b.hook, onEnd: b.onEnd}, nil
 }
 
 type recheckHookTx struct {
 	tx            supplychaincore.SupplyChainImpactTx
 	beforeLock    func(ctx context.Context)
 	hook          func(ctx context.Context)
+	onEnd         func(statements []string, committed bool)
+	statements    []string
 	fired         bool
 	lockedAlready bool
 }
 
 func (t *recheckHookTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	t.statements = append(t.statements, query)
 	if query == supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery && !t.lockedAlready {
 		t.lockedAlready = true
 		if t.beforeLock != nil {
@@ -127,6 +133,7 @@ func (t *recheckHookTx) ExecContext(ctx context.Context, query string, args ...a
 }
 
 func (t *recheckHookTx) QueryContext(ctx context.Context, query string, args ...any) (supplychaincore.SupplyChainImpactRows, error) {
+	t.statements = append(t.statements, query)
 	rows, err := t.tx.QueryContext(ctx, query, args...)
 	if err == nil && !t.fired && strings.Contains(query, "AS pair(scope_id, generation_id)") {
 		t.fired = true
@@ -135,8 +142,21 @@ func (t *recheckHookTx) QueryContext(ctx context.Context, query string, args ...
 	return rows, err
 }
 
-func (t *recheckHookTx) Commit() error   { return t.tx.Commit() }
-func (t *recheckHookTx) Rollback() error { return t.tx.Rollback() }
+func (t *recheckHookTx) Commit() error {
+	err := t.tx.Commit()
+	if t.onEnd != nil {
+		t.onEnd(t.statements, err == nil)
+	}
+	return err
+}
+
+func (t *recheckHookTx) Rollback() error {
+	err := t.tx.Rollback()
+	if t.onEnd != nil {
+		t.onEnd(t.statements, false)
+	}
+	return err
+}
 
 func (t *recheckHookTx) CaptureWinnersDirtyFacts(ctx context.Context, identifiers []supplychaincore.WinnersDirtyIdentifier) (int64, error) {
 	if capturer, ok := t.tx.(supplychaincore.SupplyChainImpactWinnersCapturer); ok {

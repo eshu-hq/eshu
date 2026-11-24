@@ -53,6 +53,9 @@ func censusViolation(statement string) string {
 // protected policy pins return one row, every other read returns none.
 type censusRecorder struct {
 	statements []string
+	// recheckCurrent makes the Go-evidence recheck find its pair still active, so the
+	// pass runs to its commit instead of ending at the typed refusal.
+	recheckCurrent bool
 }
 
 func (r *censusRecorder) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
@@ -67,6 +70,8 @@ func (r *censusRecorder) QueryContext(_ context.Context, query string, _ ...any)
 		return &censusRows{rows: [][]any{{int64(7), "database-identity"}}}, nil
 	case strings.Contains(query, "supply_chain_impact_scope_pass_state"):
 		return &censusRows{rows: [][]any{{false, int64(1)}}}, nil
+	case strings.Contains(query, "AS pair(scope_id, generation_id)") && r.recheckCurrent:
+		return &censusRows{rows: [][]any{{"go-reachability://repository:r_census", "read committed"}}}, nil
 	case strings.Contains(query, "WITH retracted AS"):
 		return &censusRows{rows: [][]any{{int64(0), int64(0)}}}, nil
 	}
@@ -119,14 +124,24 @@ func censusWrite() supplychaincore.SupplyChainImpactWrite {
 // statements it issued, in order.
 func runCensusPass(t *testing.T) []string {
 	t.Helper()
-	recorder := &censusRecorder{}
+	return runCensusPassWith(t, &censusRecorder{})
+}
+
+func runCensusPassWith(t *testing.T, recorder *censusRecorder) []string {
+	t.Helper()
 	writer := supplychaincore.PostgresSupplyChainImpactWriter{
 		DB:  SupplyChainImpactBeginner{Beginner: censusBeginner{tx: recorder}},
 		Now: func() time.Time { return time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC) },
 	}
+	_, err := writer.WriteSupplyChainImpactFindings(context.Background(), censusWrite())
+	if recorder.recheckCurrent {
+		if err != nil {
+			t.Fatalf("WriteSupplyChainImpactFindings() error = %v, want the pass to commit", err)
+		}
+		return recorder.statements
+	}
 	// The recheck read returns no row, so the pass ends on the typed refusal: every
 	// statement before the lock has run, which is the census.
-	_, err := writer.WriteSupplyChainImpactFindings(context.Background(), censusWrite())
 	var changed *supplychaincore.SupplyChainImpactGoEvidenceChangedError
 	if err == nil || !asGoEvidenceChanged(err, &changed) {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v, want the go-evidence refusal that ends the census at the recheck", err)
@@ -251,4 +266,29 @@ func TestProtectedPublicationFunctionsTouchNoFenceRows(t *testing.T) {
 		}
 	}
 	_ = fmt.Sprint
+}
+
+// TestImpactWritePassFootprintEndsWithLockRecheckMarker records a changed pass that runs
+// to its commit and pins the tail of its footprint exactly: the shared lock, the recheck,
+// the owed marker, then nothing. The census above covers what comes before the lock.
+func TestImpactWritePassFootprintEndsWithLockRecheckMarker(t *testing.T) {
+	t.Parallel()
+
+	statements := runCensusPassWith(t, &censusRecorder{recheckCurrent: true})
+	n := len(statements)
+	if n < 3 ||
+		statements[n-3] != supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery ||
+		!strings.Contains(statements[n-2], "AS pair(scope_id, generation_id)") ||
+		statements[n-1] != markSupplyChainImpactFanOutOwedQuery {
+		t.Fatalf("the pass footprint ends %q, want the shared lock, the recheck and the owed marker", statements[max(0, n-3):])
+	}
+	locks := 0
+	for _, statement := range statements {
+		if statement == supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery {
+			locks++
+		}
+	}
+	if locks != 1 {
+		t.Fatalf("shared locks = %d, want one for the one go scope", locks)
+	}
 }
