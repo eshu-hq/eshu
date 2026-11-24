@@ -139,6 +139,11 @@ mutated. The simulated-clock tests drive the real `Service.Run` loop with an inj
 
 ## Not proven
 
+- The registered replay ran on build 835ce351a0 (44e8a5909c after the rebase onto the
+  current main; same patch). The clock-step hardening in 8a0631d984 changed how the activity
+  word stores time (monotonic base, a backward reading counts as idle); the replay was not
+  repeated on it. The hermetic tests cover that change; the replay figures above are for the
+  code before it.
 - The 30-minute diagnostic of why a first graph write is slow on a near-empty graph (the
   "M3" item in the replay ruling) was NOT done. The ruling owes it before #11186 closes.
 - `go test -race` on the final test set was not run: host load1 was above 8 when it was
