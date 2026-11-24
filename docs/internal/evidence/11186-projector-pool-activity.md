@@ -7,6 +7,14 @@ healthy work waits behind one awake worker when the idle backoff (#10869) has pu
 its siblings to sleep. This note records the design, the three builds that were
 measured, the registered run, and what is still not proven.
 
+## Evidence markers
+
+The performance-evidence gate matches these literal lines; each points at the section that holds the data.
+
+- Performance Evidence: baseline build 9e63e08c11 failed the registered T2TTL p95 check in rep 1 (1.457 s against a control mean of .963 s, tolerance .209 s). After, on this change (build 835ce351a0): B queue wait p50 .481, .392, .463 s and p95 .967, .896, .948 s in the three valid reps against a control mean of .4375 and .8354 s (tolerances .1190 and .2955 s), all PASS. Backend: PostgreSQL 18.6 queue, Neo4j Community 2026.08.1 graph, replay driver of #10882. Input shape: 4 projector workers, a feed of one B item per second, source A paced (arm T2TTL, TTL 5 s) against the same build's C2 control; 504 B items over the three original T2TTL reps. Terminal counts and claim counts per rep are in "Registered run" and "Claim counts". Safe because the claim SQL, worker count and run-of-claims length are unchanged, an idle process polls at the unchanged backoff rate (96 claims per 120 s run, equal to main), and the active-pool cost is `(Workers - 1) / PollInterval` extra polls a second ("Cost while active").
+- No-Regression Evidence: idle projector, 4 workers, no feed, 120 s: 96 claims on the unchanged backoff and 96 on this change, twice each ("Idle cost").
+- Observability Evidence: `eshu_dp_projector_idle_wakes_total` counts each wake (the first claim after the process was idle), a debug log line names the claiming worker, and `eshu_dp_queue_claim_duration_seconds` still counts every claim, so the extra polls while active show in its count; rows in the metrics catalog and the projector telemetry coverage doc.
+
 ## Design
 
 `processActivity` (`go/internal/projector/idle_wait.go`) is one atomic word that
