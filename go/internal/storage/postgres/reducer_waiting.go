@@ -148,8 +148,33 @@ type WaitingDeferral struct {
 // completeness tests fail when any class in nonCountingReducerRetryFailureClasses
 // or ownGateCountingClasses() lacks exactly one row, so a new class cannot
 // be enrolled silently.
+// winnersWatermarkDeferrals parks both winners-watermark wait classes on the
+// maintainer's resweep commit. The not_ready wait is the routine race (the
+// maintainer rebuilds every 30 s); the stale wait fires after the 30-minute
+// post-claim bound and stays counting, so it still dead-letters past
+// MaxAttempts when the maintainer is truly down — the park only stops the
+// counted wait churning the retry timer while a long resweep holds the
+// watermark.
+func winnersWatermarkDeferrals() []WaitingDeferral {
+	return []WaitingDeferral{
+		{
+			FailureClass:  advisorygroup.WinnersWatermarkNotReadyFailureClass,
+			WaitsForKind:  WaitingKindWinnersWatermark,
+			WakeSite:      WaitingWakeSiteInTx,
+			ProvidingSave: "winners maintainer resweep commit (ResweepWinners)",
+		},
+		{
+			FailureClass:  advisorygroup.WinnersWatermarkStaleFailureClass,
+			WaitsForKind:  WaitingKindWinnersWatermark,
+			WakeSite:      WaitingWakeSiteInTx,
+			ProvidingSave: "winners maintainer resweep commit (ResweepWinners); the stale wait stays counting and still dead-letters past MaxAttempts",
+		},
+	}
+}
+
 func WaitingDeferralMap() []WaitingDeferral {
 	entries := append([]WaitingDeferral{}, waitingPhaseDeferrals()...)
+	entries = append(entries, winnersWatermarkDeferrals()...)
 	entries = append(entries, []WaitingDeferral{
 		{
 			FailureClass: crossscope.ProducerNotReadyFailureClass,
@@ -160,12 +185,6 @@ func WaitingDeferralMap() []WaitingDeferral {
 			// activates the producer generation; the audit re-checks the
 			// handler quiescence rule and the backstop still bounds a miss.
 			ProvidingSave: "producer reducer Ack (AckBatch/Ack terminal commit) + projector-Ack generation activation (domain wakes by acked scope kind); audit quiescence fallback + backstop",
-		},
-		{
-			FailureClass:  advisorygroup.WinnersWatermarkNotReadyFailureClass,
-			WaitsForKind:  WaitingKindWinnersWatermark,
-			WakeSite:      WaitingWakeSiteInTx,
-			ProvidingSave: "winners maintainer resweep commit (ResweepWinners)",
 		},
 		{
 			FailureClass:  reducer.CloudAdmissionNotReadyFailureClass,

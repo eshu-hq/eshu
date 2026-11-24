@@ -195,10 +195,10 @@ func TestReducerQueueClaimCarriesFailureEvidenceLive(t *testing.T) {
 		if staleVerdicts > queue.MaxAttempts {
 			t.Fatalf("stale loop ran %d iterations without dead-lettering (MaxAttempts=%d)", staleVerdicts, queue.MaxAttempts)
 		}
-		// Past the retry timer: the stale class parks on no wait (only
-		// the not_ready class has a WaitingDeferral entry), so the row
-		// is retrying on a short backoff; travel anyway so the claim is
-		// deterministic and the handler clock stays past the bound.
+		// Past the backstop: the stale class parks on the winners_watermark
+		// wait like the not_ready class, so the row is retrying on the
+		// 10-minute backstop; travel past it so the claim is deterministic
+		// and the handler clock stays past the bound.
 		queueClock = queueClock.Add(11 * time.Minute)
 		intentN, claimed, err := queue.Claim(ctx)
 		if err != nil {
