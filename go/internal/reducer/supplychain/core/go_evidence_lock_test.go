@@ -310,9 +310,9 @@ func TestGoEvidenceFactsOnlyLoaderFailsClosed(t *testing.T) {
 	}
 }
 
-type failingImpactWriter struct{ err error }
+type goEvidenceFailingImpactWriter struct{ err error }
 
-func (w failingImpactWriter) WriteSupplyChainImpactFindings(context.Context, SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error) {
+func (w goEvidenceFailingImpactWriter) WriteSupplyChainImpactFindings(context.Context, SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error) {
 	return SupplyChainImpactWriteResult{}, w.err
 }
 
@@ -324,8 +324,8 @@ func TestHandlerCountsAGoEvidenceRecheckAbortByReason(t *testing.T) {
 
 	inst, reader := narrowTestInstruments(t)
 	count := func(err error) {
-		handler := SupplyChainImpactHandler{Writer: failingImpactWriter{err: err}, Instruments: inst}
-		if _, got := handler.writeFindingsWithSuppressionDiff(context.Background(), reducercontract.Intent{}, SupplyChainImpactWrite{}); got == nil {
+		handler := SupplyChainImpactHandler{Writer: goEvidenceFailingImpactWriter{err: err}, Instruments: inst}
+		if _, got := handler.writeFindingsWithSuppressionDiff(context.Background(), reducercontract.Intent{}, supplyChainImpactLoadedEvidence{}, SupplyChainImpactWrite{}); got == nil {
 			t.Fatal("write error was swallowed")
 		}
 	}
