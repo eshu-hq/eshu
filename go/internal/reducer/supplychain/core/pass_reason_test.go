@@ -45,8 +45,11 @@ func TestPassReasonOfSplitsTheFullMode(t *testing.T) {
 		{"stamped retry is genuine again", SupplyChainImpactHandler{}, reducercontract.Intent{AttemptCount: 2, Payload: bounded}, supplyChainImpactLoadedEvidence{}, telemetry.SupplyChainImpactPassReasonNoStamp},
 		{"unbounded stamp", SupplyChainImpactHandler{}, reducercontract.Intent{AttemptCount: 1, Payload: sentinel}, supplyChainImpactLoadedEvidence{}, telemetry.SupplyChainImpactPassReasonSentinel},
 		{"bounded stamp with nothing to seed", SupplyChainImpactHandler{}, reducercontract.Intent{AttemptCount: 1, Payload: bounded}, supplyChainImpactLoadedEvidence{}, telemetry.SupplyChainImpactPassReasonNoSeed},
-		{"protected loader", SupplyChainImpactHandler{AuthorizedEvidenceLoader: reasonAuthorizedLoader{}}, reducercontract.Intent{AttemptCount: 1, Payload: bounded}, supplyChainImpactLoadedEvidence{}, telemetry.SupplyChainImpactPassReasonEngagedProtection},
-		{"static only", SupplyChainImpactHandler{authorizedStaticOnly: true}, reducercontract.Intent{AttemptCount: 1, Payload: bounded}, supplyChainImpactLoadedEvidence{}, telemetry.SupplyChainImpactPassReasonEngagedProtection},
+		// Production always wires the protected loader. When protection is not
+		// engaged (the QA environment) the load returns the static result with
+		// asAuthorized unset, so the pass is no_seed, not engaged_protection.
+		{"protected loader wired but protection disengaged", SupplyChainImpactHandler{AuthorizedEvidenceLoader: reasonAuthorizedLoader{}}, reducercontract.Intent{AttemptCount: 1, Payload: bounded}, supplyChainImpactLoadedEvidence{}, telemetry.SupplyChainImpactPassReasonNoSeed},
+		{"protection engaged in the load", SupplyChainImpactHandler{AuthorizedEvidenceLoader: reasonAuthorizedLoader{}}, reducercontract.Intent{AttemptCount: 1, Payload: bounded}, supplyChainImpactLoadedEvidence{asAuthorized: &AuthorizedSupplyChainImpactLoad{}}, telemetry.SupplyChainImpactPassReasonEngagedProtection},
 		{"protected loader without a stamp stays no_stamp", SupplyChainImpactHandler{AuthorizedEvidenceLoader: reasonAuthorizedLoader{}}, reducercontract.Intent{AttemptCount: 1}, supplyChainImpactLoadedEvidence{}, telemetry.SupplyChainImpactPassReasonNoStamp},
 	}
 	for _, tc := range cases {
