@@ -59,6 +59,34 @@ const (
 	SupplyChainImpactSupportsBackfillStepContended = "contended"
 	// SupplyChainImpactSupportsBackfillStepFailed is a step that returned an error.
 	SupplyChainImpactSupportsBackfillStepFailed = "failed"
+	// SupplyChainImpactSupportsBackfillStepVerify is a verification slice that
+	// neither restarted the sweep nor set the marker: it moved the cursor, removed
+	// an orphan pair, or was a last slice the fence recheck held back. The slice
+	// counter's outcome label says which.
+	SupplyChainImpactSupportsBackfillStepVerify = "verify"
+)
+
+// Verification slice outcomes for
+// eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total and its
+// duration histogram. They are the closed set of the outcome label.
+const (
+	// SupplyChainImpactSupportsVerifySliceAdvance is a slice that found no
+	// missing support and no orphan and moved the cursor to its end.
+	SupplyChainImpactSupportsVerifySliceAdvance = "advance"
+	// SupplyChainImpactSupportsVerifySliceOrphan is a slice that found a support
+	// of a tombstoned fact; the step removed that pair's orphans and kept the
+	// cursor, so the slice runs again.
+	SupplyChainImpactSupportsVerifySliceOrphan = "orphan"
+	// SupplyChainImpactSupportsVerifySliceGap is a slice that found a live finding
+	// without a support and restarted the sweep.
+	SupplyChainImpactSupportsVerifySliceGap = "gap"
+	// SupplyChainImpactSupportsVerifySliceLast is the clean slice that reached the
+	// end of the key space and ran the completion statement.
+	SupplyChainImpactSupportsVerifySliceLast = "last"
+	// SupplyChainImpactSupportsVerifySliceFailed is a slice whose statement, or
+	// the restart, cleanup, advance or completion after it, returned an error (a
+	// statement timeout among them); the step fails and the slice runs again.
+	SupplyChainImpactSupportsVerifySliceFailed = "failed"
 )
 
 // Reducer reads of the per-support table (#10880 PR-B2) for the reader
@@ -137,6 +165,12 @@ var supplyChainImpactSupportsBackfillStepBuckets = []float64{0.005, 0.01, 0.025,
 //   - eshu_dp_supply_chain_impact_supports_backfill_ready: 1 once the readiness
 //     marker is set at the current contract version and the fence is empty, else 0.
 //
+//   - eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total{outcome}
+//     and ..._verify_slice_duration_seconds{outcome}: the bounded verification
+//     slices and the wall time of each slice statement. The count of advance
+//     slices is how far the verification got; the duration tail is the longest
+//     snapshot the verification holds.
+//
 // No label carries a scope, repository, canonical key or CVE.
 func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
@@ -154,7 +188,7 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	}
 	if inst.SupplyChainImpactSupportsBackfillSteps, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_supports_backfill_steps_total",
-		metric.WithDescription("Per-support backfill steps by outcome (chunk, verify_gap, complete, idle, contended, failed). A rising verify_gap count means supports went missing after the sweep passed them."),
+		metric.WithDescription("Per-support backfill steps by outcome (chunk, verify, verify_gap, drain, complete, idle, contended, failed). A rising verify_gap count means supports went missing after the sweep passed them."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsBackfillSteps counter: %w", err)
 	}
@@ -185,7 +219,38 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsBackfillReady gauge: %w", err)
 	}
+	if inst.SupplyChainImpactSupportsVerifySlices, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total",
+		metric.WithDescription("Per-support backfill verification slices by outcome (advance, orphan, gap, last, failed). Each slice checks one bounded key interval of supports and live findings in one snapshot."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsVerifySlices counter: %w", err)
+	}
+	if inst.SupplyChainImpactSupportsVerifySliceDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_supports_backfill_verify_slice_duration_seconds",
+		metric.WithDescription("Wall time of one per-support backfill verification slice statement, by outcome. The tail is the longest snapshot the verification holds open."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsBackfillStepBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsVerifySliceDuration histogram: %w", err)
+	}
 	return nil
+}
+
+// RecordSupplyChainImpactSupportsVerifySlice counts one verification slice under
+// outcome, which must be one of the SupplyChainImpactSupportsVerifySlice*
+// constants, and records the slice statement's wall time. It is safe on a nil
+// receiver.
+func (i *Instruments) RecordSupplyChainImpactSupportsVerifySlice(ctx context.Context, outcome string, spent time.Duration) {
+	if i == nil {
+		return
+	}
+	attrs := metric.WithAttributes(AttrOutcome(outcome))
+	if i.SupplyChainImpactSupportsVerifySlices != nil {
+		i.SupplyChainImpactSupportsVerifySlices.Add(ctx, 1, attrs)
+	}
+	if i.SupplyChainImpactSupportsVerifySliceDuration != nil {
+		i.SupplyChainImpactSupportsVerifySliceDuration.Record(ctx, spent.Seconds(), attrs)
+	}
 }
 
 // RecordSupplyChainImpactSupportsRows counts support rows written under action

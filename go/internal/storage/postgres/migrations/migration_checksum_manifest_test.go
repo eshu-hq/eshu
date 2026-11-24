@@ -519,6 +519,7 @@ var migrationShippedChecksums = map[string]string{
 	// reads (numbered 343 and 344; 339 to 342 are reserved for PR-B2b).
 	"343_supply_chain_impact_finding_supports_precise_key_ordered_idx.sql": "26542615642bf2df191537b44df8a539e7d2b0db158fe8e53e6fcf83f9a0af2d",
 	"344_supply_chain_impact_finding_supports_image_ref_idx.sql":           "66f8c261f923edcd0ee8988beeab6406f92bbed90ac21fb7c674ced430c3c21f",
+	"348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql":  "b329d635afe998a087c2faef1295156935583d95b5002b6ca7b3328e0e2d8edf",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

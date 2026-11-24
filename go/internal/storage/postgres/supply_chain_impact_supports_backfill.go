@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
@@ -33,9 +34,13 @@ INSERT INTO supply_chain_impact_finding_supports_backfill (marker_name, contract
 VALUES ($1, $2)
 ON CONFLICT (marker_name) DO NOTHING`
 
-// supplyChainImpactSupportsBackfillReadMarkerSQL reads the cursor and the state.
+// supplyChainImpactSupportsBackfillReadMarkerSQL reads the sweep cursor, the
+// state, the sweep count, and the verification cursor with whether it belongs
+// to the current sweep (migration 348).
 const supplyChainImpactSupportsBackfillReadMarkerSQL = `
-SELECT cursor_scope_id, cursor_generation_id, cursor_fact_id, completed_at IS NOT NULL
+SELECT cursor_scope_id, cursor_generation_id, cursor_fact_id, completed_at IS NOT NULL, sweeps::bigint,
+       COALESCE(verify_cursor_scope_id, ''), COALESCE(verify_cursor_generation_id, ''),
+       COALESCE(verify_cursor_fact_id, ''), COALESCE(verify_sweep = sweeps, FALSE)
 FROM supply_chain_impact_finding_supports_backfill
 WHERE marker_name = $1`
 
@@ -71,34 +76,16 @@ UPDATE supply_chain_impact_finding_supports_backfill
 SET cursor_scope_id = $2, cursor_generation_id = $3, cursor_fact_id = $4, updated_at = now()
 WHERE marker_name = $1 AND completed_at IS NULL`
 
-// supplyChainImpactSupportsBackfillOrphanPairSQL finds one (scope, generation)
-// holding a support whose fact a retraction tombstoned, which only a writer
-// without the maintainer leaves behind.
-const supplyChainImpactSupportsBackfillOrphanPairSQL = `
-SELECT s.scope_id, s.generation_id
-FROM supply_chain_impact_finding_supports AS s
-JOIN fact_records AS f ON f.fact_id = s.fact_id
-WHERE f.is_tombstone = TRUE
-LIMIT 1`
-
-// supplyChainImpactSupportsBackfillMissingSQL counts, up to 1000, live finding
-// facts with no support. The cap keeps the verification's report bounded; any
-// count above zero restarts the sweep.
-const supplyChainImpactSupportsBackfillMissingSQL = `
-SELECT count(*) FROM (
-    SELECT 1
-    FROM fact_records AS f
-    WHERE f.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-      AND f.is_tombstone = FALSE
-      AND NOT EXISTS (SELECT 1 FROM supply_chain_impact_finding_supports AS s WHERE s.fact_id = f.fact_id)
-    LIMIT 1000
-) AS missing`
-
-// supplyChainImpactSupportsBackfillRestartSQL moves the cursor back to the start
-// after a verification found a gap.
+// supplyChainImpactSupportsBackfillRestartSQL moves the sweep cursor back to the
+// start after a verification found a gap and drops the verification cursor. The
+// sweeps bump alone already voids that cursor (it counts only while verify_sweep
+// equals sweeps), which is what keeps an older binary's restart, which does not
+// clear these columns, safe.
 const supplyChainImpactSupportsBackfillRestartSQL = `
 UPDATE supply_chain_impact_finding_supports_backfill
 SET cursor_scope_id = '', cursor_generation_id = '', cursor_fact_id = '',
+    verify_cursor_scope_id = NULL, verify_cursor_generation_id = NULL,
+    verify_cursor_fact_id = NULL, verify_sweep = NULL,
     sweeps = sweeps + 1, updated_at = now()
 WHERE marker_name = $1 AND completed_at IS NULL`
 
@@ -156,7 +143,9 @@ func SupplyChainImpactSupportsReady(ctx context.Context, queryer db.Queryer) (bo
 // SupplyChainImpactSupportsBackfill fills supply_chain_impact_finding_supports
 // for the finding facts written before the same-transaction maintainer shipped,
 // in resumable steps, and sets the readiness marker only after a verification
-// found no live finding fact without a support.
+// found no live finding fact without a support and no support of a tombstoned
+// fact. The verification runs in bounded slices, one per step, and resumes from
+// the cursor stored in the marker row (supply_chain_impact_supports_verify.go).
 //
 // Each step writes at most ChunkSize supports of one (scope, generation) in one
 // transaction under that pair's conflict-domain advisory lock, the lock the
@@ -172,6 +161,9 @@ type SupplyChainImpactSupportsBackfill struct {
 	DB db.ExecQueryer
 	// ChunkSize bounds the facts one step writes; zero means the default (500).
 	ChunkSize int
+	// VerifySliceSize bounds the supports and the live findings one
+	// verification slice reads; zero means the default (20,000).
+	VerifySliceSize int
 }
 
 // SupplyChainImpactSupportsBackfillReport describes one RunStep.
@@ -181,11 +173,17 @@ type SupplyChainImpactSupportsBackfillReport struct {
 	Written, Unchanged int64
 	// Removed counts supports of tombstoned facts the step deleted.
 	Removed int64
-	// Verified is true when the step ran the verification pass.
+	// Verified is true when the step ran a verification slice.
 	Verified bool
-	// Missing is the verification's count of live facts without a support,
-	// capped at 1000; nonzero restarts the sweep.
+	// Missing is the slice's count of live facts without a support, at most
+	// the slice size; nonzero restarts the sweep.
 	Missing int64
+	// VerifySlice is the outcome of the verification slice the step ran (one of
+	// the telemetry.SupplyChainImpactSupportsVerifySlice* values), empty when the
+	// step ran none.
+	VerifySlice string
+	// VerifySliceDuration is the wall time of that slice statement.
+	VerifySliceDuration time.Duration
 	// Drained counts old-writer dirty scopes the step re-read.
 	Drained int
 	// DirtyScopes is the old-writer fence's depth after the step, capped at 1000.
@@ -194,8 +192,8 @@ type SupplyChainImpactSupportsBackfillReport struct {
 	Complete bool
 }
 
-// RunStep performs one bounded unit of work: a chunk, an orphan cleanup, or the
-// verification. Call it until Complete is true.
+// RunStep performs one bounded unit of work: a chunk, a drain, or one
+// verification slice. Call it until Complete is true.
 func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyChainImpactSupportsBackfillReport, error) {
 	var report SupplyChainImpactSupportsBackfillReport
 	beginner, ok := b.DB.(db.Beginner)
@@ -210,10 +208,11 @@ func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyC
 		SupplyChainImpactSupportsBackfillMarker, SupplyChainImpactSupportsContractVersion); err != nil {
 		return report, fmt.Errorf("ensure supply chain impact supports backfill marker: %w", err)
 	}
-	cursorScope, cursorGeneration, cursorFact, complete, err := b.readMarker(ctx)
+	marker, err := b.readMarker(ctx)
 	if err != nil {
 		return report, err
 	}
+	cursorScope, cursorGeneration, cursorFact, complete := marker.scope, marker.generation, marker.fact, marker.complete
 	drained, err := b.drainOneDirtyScope(ctx, beginner, chunk, &report)
 	if err != nil {
 		return report, err
@@ -235,7 +234,7 @@ func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyC
 			return report, err
 		}
 		if !found {
-			return b.verify(ctx, beginner, report)
+			return b.verify(ctx, beginner, marker, report)
 		}
 		after, entering = "", true
 	}
@@ -255,7 +254,7 @@ func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyC
 			return report, err
 		}
 		if !found {
-			return b.verify(ctx, beginner, report)
+			return b.verify(ctx, beginner, marker, report)
 		}
 		scope, generation, after, entering = next, nextGen, "", true
 		if report.Removed > 0 || report.Written > 0 {
@@ -263,24 +262,6 @@ func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyC
 			return report, nil
 		}
 	}
-}
-
-func (b SupplyChainImpactSupportsBackfill) readMarker(ctx context.Context) (scope, generation, fact string, complete bool, err error) {
-	rows, err := b.DB.QueryContext(ctx, supplyChainImpactSupportsBackfillReadMarkerSQL, SupplyChainImpactSupportsBackfillMarker)
-	if err != nil {
-		return "", "", "", false, fmt.Errorf("read supply chain impact supports backfill marker: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return "", "", "", false, fmt.Errorf("read supply chain impact supports backfill marker: %w", err)
-		}
-		return "", "", "", false, errors.New("supply chain impact supports backfill marker row is missing")
-	}
-	if err := rows.Scan(&scope, &generation, &fact, &complete); err != nil {
-		return "", "", "", false, fmt.Errorf("scan supply chain impact supports backfill marker: %w", err)
-	}
-	return scope, generation, fact, complete, nil
 }
 
 func (b SupplyChainImpactSupportsBackfill) nextPair(ctx context.Context, scope, generation string) (nextScope, nextGeneration string, found bool, err error) {
@@ -355,85 +336,6 @@ func (b SupplyChainImpactSupportsBackfill) writeChunk(ctx context.Context, begin
 		return 0, 0, 0, "", fmt.Errorf("commit supply chain impact supports backfill chunk: %w", err)
 	}
 	return written, unchanged, removed, last, nil
-}
-
-// verify runs when the sweep passed the last finding fact. It first cleans one
-// pair of orphaned supports, then counts live facts without a support: a gap
-// restarts the sweep, none sets the readiness marker.
-func (b SupplyChainImpactSupportsBackfill) verify(ctx context.Context, beginner db.Beginner, report SupplyChainImpactSupportsBackfillReport) (SupplyChainImpactSupportsBackfillReport, error) {
-	scope, generation, found, err := b.orphanPair(ctx)
-	if err != nil {
-		return report, err
-	}
-	if found {
-		tx, err := beginner.Begin(ctx)
-		if err != nil {
-			return report, fmt.Errorf("begin supply chain impact supports orphan cleanup: %w", err)
-		}
-		defer func() { _ = tx.Rollback() }()
-		if _, err := tx.ExecContext(ctx, supplychaincore.SupplyChainImpactConflictDomainLockQuery,
-			supplychaincore.SupplyChainImpactConflictDomainKey(scope, generation)); err != nil {
-			return report, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
-		}
-		if report.Removed, err = deleteRetractedSupports(ctx, tx, scope, generation); err != nil {
-			return report, err
-		}
-		if err := tx.Commit(); err != nil {
-			return report, fmt.Errorf("commit supply chain impact supports orphan cleanup: %w", err)
-		}
-		return report, nil
-	}
-	report.Verified = true
-	rows, err := b.DB.QueryContext(ctx, supplyChainImpactSupportsBackfillMissingSQL)
-	if err != nil {
-		return report, fmt.Errorf("verify supply chain impact supports: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if rows.Next() {
-		if err := rows.Scan(&report.Missing); err != nil {
-			return report, fmt.Errorf("scan supply chain impact supports verification: %w", err)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return report, fmt.Errorf("verify supply chain impact supports: %w", err)
-	}
-	_ = rows.Close()
-	if report.Missing > 0 {
-		if _, err := b.DB.ExecContext(ctx, supplyChainImpactSupportsBackfillRestartSQL, SupplyChainImpactSupportsBackfillMarker); err != nil {
-			return report, fmt.Errorf("restart supply chain impact supports backfill: %w", err)
-		}
-		return report, nil
-	}
-	result, err := b.DB.ExecContext(ctx, supplyChainImpactSupportsBackfillCompleteSQL, SupplyChainImpactSupportsBackfillMarker)
-	if err != nil {
-		return report, fmt.Errorf("complete supply chain impact supports backfill: %w", err)
-	}
-	// Zero rows means the fence was not empty at the recheck (or another runner
-	// set the marker): the next step drains it, then completes.
-	if marked, err := result.RowsAffected(); err != nil {
-		return report, fmt.Errorf("count supply chain impact supports marker update: %w", err)
-	} else if marked > 0 {
-		report.Complete = true
-	}
-	return report, nil
-}
-
-func (b SupplyChainImpactSupportsBackfill) orphanPair(ctx context.Context) (scope, generation string, found bool, err error) {
-	rows, err := b.DB.QueryContext(ctx, supplyChainImpactSupportsBackfillOrphanPairSQL)
-	if err != nil {
-		return "", "", false, fmt.Errorf("find orphaned supply chain impact supports: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return "", "", false, fmt.Errorf("find orphaned supply chain impact supports: %w", err)
-		}
-		return "", "", false, nil
-	}
-	if err := rows.Scan(&scope, &generation); err != nil {
-		return "", "", false, fmt.Errorf("scan orphaned supply chain impact support: %w", err)
-	}
-	return scope, generation, true, nil
 }
 
 // queryBackfillFactIDs runs a statement that selects one fact_id column.

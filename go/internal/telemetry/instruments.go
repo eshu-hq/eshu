@@ -1530,6 +1530,10 @@ type Instruments struct {
 	SupplyChainImpactSupportsDirtyScopes          metric.Int64Gauge
 	SupplyChainImpactSupportsBackfillLastSuccess  metric.Int64Gauge
 	SupplyChainImpactSupportsBackfillStepDuration metric.Float64Histogram
+	// The bounded verification slices of the supports backfill (#10880
+	// decision 6), registered by registerSupplyChainImpactSupportsInstruments.
+	SupplyChainImpactSupportsVerifySlices        metric.Int64Counter
+	SupplyChainImpactSupportsVerifySliceDuration metric.Float64Histogram
 	// The keyed-resweep signals of #9805, registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
 	// keyed tick, dirty-log identifiers consumed, consumed rows by capture
