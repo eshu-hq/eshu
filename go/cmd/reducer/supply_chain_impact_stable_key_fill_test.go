@@ -24,8 +24,8 @@ func TestStableKeyFillConfigDefaultsAreOffAndWithinTheRulingLimits(t *testing.T)
 	if cfg.Enabled {
 		t.Fatal("the fill is enabled by default: it must not run inside a counted window or before the lab run")
 	}
-	if cfg.Pace.BytesPerRow != 3100 {
-		t.Fatalf("default WAL estimate = %d bytes a row, want the T6 lab figure 3100", cfg.Pace.BytesPerRow)
+	if cfg.Pace.BytesPerRow != 120000 {
+		t.Fatalf("default WAL estimate = %d bytes a row, want the bound 14.1 x 8192 + 3100 = 120000, not a lab figure", cfg.Pace.BytesPerRow)
 	}
 	if cfg.Pace.BytesPerHour > 8_000_000_000 || cfg.Pace.BytesPerHour <= 0 {
 		t.Fatalf("default WAL budget = %d bytes an hour, want at most the ruling's 8 GB", cfg.Pace.BytesPerHour)
@@ -248,5 +248,40 @@ func TestStableKeyFillStartsNothingWhenDisabled(t *testing.T) {
 	case <-ran:
 	default:
 		t.Fatal("an enabled fill did not start its runner")
+	}
+}
+
+// TestStableKeyFillPassMakesProgressAtTheShippedPace runs one pass on a virtual clock at the
+// shipped defaults (8 GB an hour, 120,000 bytes a row): a 500-row chunk waits 27 s, so a
+// one-minute pass runs three steps and ends with the outcome that polls again at once, which
+// is 500 rows every 27 s, about 66,000 an hour: the rate the canary assumes.
+func TestStableKeyFillPassMakesProgressAtTheShippedPace(t *testing.T) {
+	t.Parallel()
+
+	cfg := loadStableKeyFillConfig(func(string) string { return "" })
+	wait := cfg.Pace.Delay(500)
+	if wait != 27*time.Second {
+		t.Fatalf("a 500-row chunk waits %v at the defaults, want 27s", wait)
+	}
+	virtual := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+	steps := 0
+	script := &fillScript{state: clearFillState()}
+	deps := script.deps(nil)
+	deps.cfg = cfg
+	deps.now = func() time.Time { return virtual }
+	deps.sleep = func(_ context.Context, d time.Duration) error { virtual = virtual.Add(d); return nil }
+	deps.step = func(context.Context) (postgres.SupplyChainImpactStableKeyFillReport, error) {
+		steps++
+		return postgres.SupplyChainImpactStableKeyFillReport{Filled: 500}, nil
+	}
+	outcome, err := runStableKeyFillPass(context.Background(), deps)
+	if err != nil || outcome != stableKeyFillRan {
+		t.Fatalf("pass = %v, %v, want the running outcome", outcome, err)
+	}
+	if steps != 3 {
+		t.Fatalf("a one-minute pass ran %d steps at 27 s a step, want 3", steps)
+	}
+	if perHour := float64(steps*500) / (virtual.Sub(time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)).Hours()); perHour < 60000 || perHour > 72000 {
+		t.Fatalf("the pass fills %.0f rows an hour, want about 66,000", perHour)
 	}
 }

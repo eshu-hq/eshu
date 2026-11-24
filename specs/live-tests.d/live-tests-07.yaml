@@ -691,7 +691,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_stable_key_fill_lab_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10880 PR-C1k lab harness at a default scale of 5,000 rows (ESHU_LAB_FILL_ROWS sets the lab scale): the fill's WAL bytes per row, HOT share, dead tuples and step time, the migration 354 index build (seconds, WAL, temp bytes, size, validity), and the EXPLAIN proof that the lazy stored read probes fact_records not at all for a keyed pair and once per row for a keyless pair, both equal to the fact read"
+    reason: "#10880 PR-C1k lab harness at a default scale of 5,000 rows (ESHU_LAB_FILL_ROWS sets the lab scale): the fill's WAL bytes per row, HOT share, dead tuples and step time, the migration 354 index build (seconds, WAL, temp bytes, size, validity), the keyed probe plan under migration 354 (the keyed probe index with five index conditions and no Seq Scan, no planner override), and the EXPLAIN proof that the lazy stored read probes fact_records not at all for a keyed pair and once per row for a keyless pair, both equal to the fact read"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_supports_stored_read_live_test.go
     tag: ~

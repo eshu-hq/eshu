@@ -34,13 +34,15 @@ const (
 	stableKeyFillPausedPoll       = time.Minute
 	stableKeyFillCompletePoll     = 5 * time.Minute
 	defaultStableKeyFillBytesHour = int64(8_000_000_000)
-	// defaultStableKeyFillBytesRow is the estimated WAL one filled support writes. T6
-	// measured 3,068 B/row (pg_stat_wal) and 3,095 B/row (log position delta) filling 80,000
-	// supports on a quiet lab server with small payloads (1,955 to 2,488 B/row at 20,000 rows:
-	// the figure grows with size), see docs/internal/evidence/10880-prc-c1k-stable-key-fill.md.
-	// QA payloads are about 9 KB, so WAL per row there may be higher: calibrate again at the
-	// first QA step.
-	defaultStableKeyFillBytesRow = int64(3100)
+	// defaultStableKeyFillBytesRow is the estimated WAL one filled support writes, and it is a
+	// bound, not a measurement: 14.1 WAL records a row at 8,192 bytes a full-page image, plus
+	// the 3,100 bytes the lab wrote a row, so 14.1 x 8,192 + 3,100 = about 119 KB (arbiter
+	// ruling, 2026-11-24). The lab (T6, 80,000 rows, small payloads, 0.84% HOT) measured 2.7
+	// to 3.1 KB a row, but small tables saturate full-page images and on QA each of the 14 pages
+	// a row touches can be a first touch since the last checkpoint; the pacer never reads the
+	// log, so an under-read estimate overruns the budget by up to about 37 times. The figure is
+	// calibrated down at the first QA step (see the env registry entry), never assumed.
+	defaultStableKeyFillBytesRow = int64(120000)
 	defaultStableKeyFillMinDisk  = int64(100_000_000_000)
 	defaultStableKeyFillMaxLag   = 60 * time.Second
 )

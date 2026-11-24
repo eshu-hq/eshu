@@ -398,3 +398,112 @@ WHERE c.relname = 'supply_chain_impact_finding_supports_keyed_probe_idx'`).Scan(
 		}
 	}
 }
+
+// TestSupplyChainImpactSupportsKeyedProbePlanLive is the plan proof of ruling 15 (ii): with
+// migration 354 built from the embedded text and the table analyzed, the keyed active_facts
+// probe the winners maintainer runs chooses supply_chain_impact_finding_supports_keyed_probe_idx
+// with all five identifier equalities as index conditions and no Seq Scan on supports, under no
+// planner override (no enable_* setting, no plan_cache_mode change). The statement is
+// postgres.WinnersProofKeyedProbeSQL, rendered from the code. The plan text goes to ESHU_LAB_PLAN_DIR.
+// ESHU_LAB_FILL_ROWS sets the seed (default 3,000; the lab scale is 300,000).
+func TestSupplyChainImpactSupportsKeyedProbePlanLive(t *testing.T) {
+	rows := labInt(t, "ESHU_LAB_FILL_ROWS", 3000)
+	pairRows := labInt(t, "ESHU_LAB_FILL_PAIR_ROWS", 2000)
+	payload := labInt0(t, "ESHU_LAB_PAYLOAD_BYTES")
+	if rows > labMaxRows && labEnv("ESHU_LAB_ALLOW_BIG") != "1" {
+		t.Fatalf("ESHU_LAB_FILL_ROWS=%d is over the %d-row lab cap; set ESHU_LAB_ALLOW_BIG=1 to override", rows, labMaxRows)
+	}
+	labDiskGuard(t, rows, payload)
+	_, db := openReplaceSetLiveDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute+time.Duration(rows)*2*time.Millisecond)
+	defer cancel()
+	labKeepDB(t, ctx, db)
+
+	pairs := (rows + pairRows - 1) / pairRows
+	for i := 0; i < pairs; i++ {
+		scope := fmt.Sprintf("scope:c1k:probe:%06d", i)
+		generation := scope + ":g1"
+		labScopeGeneration(t, ctx, db, scope, generation)
+		n := pairRows
+		if i == pairs-1 {
+			n = rows - pairRows*(pairs-1)
+		}
+		fillSeedRowsPadded(t, ctx, db, scope, generation, fmt.Sprintf("prb%06d:", i), n, payload)
+	}
+	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("derive supports from facts: %v", err)
+	}
+	supportsExec(t, ctx, db, `DROP INDEX IF EXISTS supply_chain_impact_finding_supports_keyed_probe_idx`)
+	supportsExec(t, ctx, db, indexBuildSQL(t))
+	supportsExec(t, ctx, db, `VACUUM (ANALYZE) supply_chain_impact_finding_supports`)
+
+	// The probe reads its identifiers from the session table the keyed tick builds; build the
+	// same shape on one connection and plan the statement inside a transaction (the statement
+	// is CREATE TEMP TABLE ... ON COMMIT DROP).
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("open a connection: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	idents := postgres.WinnersProofKeyedIdentsTable()
+	for _, stmt := range []string{
+		`CREATE TEMP TABLE ` + idents + ` (package_id text, repository_id text, subject_digest text, c0 text, advisory_id text,
+  age_captured_at timestamptz, age_seq bigint) ON COMMIT DROP`,
+		`INSERT INTO ` + idents + `
+SELECT 'pkg:npm/p' || (i % 50), 'repository:r' || (i % 100), '', 'CVE-2026-' || i, '', now(), i
+FROM generate_series(1, 5) AS i`,
+		`ANALYZE ` + idents,
+	} {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("prepare the identifier table: %v\n%s", err, stmt)
+		}
+	}
+	rowsOut, err := tx.QueryContext(ctx, `EXPLAIN (ANALYZE, BUFFERS) `+postgres.WinnersProofKeyedProbeSQL())
+	if err != nil {
+		t.Fatalf("explain the keyed probe: %v", err)
+	}
+	var lines []string
+	for rowsOut.Next() {
+		var line string
+		if err := rowsOut.Scan(&line); err != nil {
+			t.Fatalf("scan plan: %v", err)
+		}
+		lines = append(lines, line)
+	}
+	if err := rowsOut.Close(); err != nil {
+		t.Fatalf("close plan: %v", err)
+	}
+	plan := strings.Join(lines, "\n")
+	if dir := labEnv("ESHU_LAB_PLAN_DIR"); dir != "" {
+		if err := os.WriteFile(filepath.Join(dir, "keyed_probe.txt"), []byte(plan+"\n"), 0o644); err != nil {
+			t.Fatalf("write the plan: %v", err)
+		}
+	}
+	if !strings.Contains(plan, "supply_chain_impact_finding_supports_keyed_probe_idx") {
+		t.Fatalf("the keyed probe does not use the keyed probe index:\n%s", plan)
+	}
+	if strings.Contains(plan, "Seq Scan on supply_chain_impact_finding_supports") {
+		t.Fatalf("the keyed probe scans the supports table sequentially:\n%s", plan)
+	}
+	// All five equalities are index conditions of the node that uses the index.
+	_, rest, found := strings.Cut(plan, "supply_chain_impact_finding_supports_keyed_probe_idx")
+	if !found {
+		t.Fatalf("the plan names no keyed probe index:\n%s", plan)
+	}
+	if next := strings.Index(rest, "->"); next > 0 {
+		rest = rest[:next]
+	}
+	for _, want := range []string{"'package_id'", "'repository_id'", "'subject_digest'", "'cve_id'", "'advisory_id'"} {
+		if !strings.Contains(rest, want) {
+			t.Errorf("the index node's conditions lack %s:\n%s", want, rest)
+		}
+	}
+	if !strings.Contains(rest, "Index Cond") {
+		t.Errorf("the index node has no Index Cond:\n%s", rest)
+	}
+}

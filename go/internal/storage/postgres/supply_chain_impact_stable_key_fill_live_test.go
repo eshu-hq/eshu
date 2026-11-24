@@ -40,6 +40,7 @@ SELECT $3::text || lpad(i::text, 8, '0'), $1, $2, 'reducer_supply_chain_impact_f
        $3::text || lpad(i::text, 8, '0'), now(), now(),
        jsonb_build_object('finding_id', 'finding:' || i, 'cve_id', 'CVE-2026-' || i,
                           'package_id', 'pkg:npm/p' || (i % 50), 'repository_id', 'repository:r' || (i % 100),
+                          'subject_digest', '', 'advisory_id', '',
                           'provenance', jsonb_build_object('content_digest', md5(i::text)))
        || CASE WHEN $5::int > 0
                THEN jsonb_build_object('padding', substr(repeat(md5(i::text) || md5(i::text || 'a') || md5(i::text || 'b') || md5(i::text || 'c'), ($5::int / 128) + 1), 1, $5::int))
