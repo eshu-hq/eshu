@@ -46,6 +46,13 @@ is the supports backfill's twin:
   bytes (14.1 x 8,192 + 3,100), not to a lab figure: the pacer never reads the log, so an under-read overruns the budget.
   At the defaults a 500-row chunk waits 27 s, a one-minute pass runs three steps and the runner polls again at once: 500 rows
   every 27 s, about 66,000 an hour (`TestStableKeyFillPassMakesProgressAtTheShippedPace`).
+  At 120,000 bytes a row and 8 GB an hour (2.22 MB a second) a 500-row chunk is 60 MB, so it waits 27 s (not 18.6 s). The
+  pass checks its one-minute budget before each step, so it runs steps at 0 s, 27 s and 54 s (three, the third starting
+  inside the budget) and ends after the third wait; with the 500 ms poll between passes that is 500 rows per 27.5 s, about
+  65,000 to 66,700 an hour. The wait holds no transaction and no pair lock: each chunk's transaction commits before the
+  wait. The elected runner does hold one dedicated connection for the whole pass, because the election is a session advisory
+  lock on it (the supports backfill's pattern); the connection is idle while the pass sleeps and is released with the lock at
+  the end of the pass, at most about 81 s.
 - **Pauses**, checked before every step: replica replay lag over 60 s
   (`pg_stat_replication`, which needs the `pg_monitor` role), free disk under 100 GB, and any
   index build (`pg_stat_progress_create_index` not empty). A condition that cannot be read
