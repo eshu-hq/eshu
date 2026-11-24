@@ -102,10 +102,24 @@ Not done, and why:
   PR-C1 g, which waits for T1. The live plan guards that assert the probe on that
   index (`keyed_contract_live_test`, the explain export) still point at the legacy
   statement, which the audit runs, and will need re-targeting with g.
-- `stagedWinnerFactIdentSQL` (a point fetch of one fact's identifier) and the
-  staged audit scan stay on facts: both belong to the audit path. Whether the
-  staged scan counts as a maintainer input under "full, keyed and staged" is a
-  question for the arbiter's reading; it was left on facts.
+- Staged statements, final reading (lead's rule: a statement moves when the
+  winners maintainer's non-audit path consumes it; it stays on facts when only the
+  audit consumes it). Caller census, `rg` over `go/` at this HEAD, non-test code:
+  `stagedWinnersBatchActiveFactsSQL`, `stagedWinnersSourceBatchSQL` and
+  `stagedWinnersOperatorBatchSQL` are read only by `StageBatch`;
+  `stagedWinnersCensusSQL` only by `CensusPairs`; `stagedWinnerFactIdentSQL` only by
+  `fetchWinnerFactIdent`, reached only from `ResolveCandidateIdents`. None of the four
+  entry points (`StageBatch`, `CensusPairs`, `ResolveCandidateIdents`,
+  `FetchStoredWinners`) has a caller in the maintainer (rebuild, keyed, scope-settle)
+  code. They are the Lane A/B/C pieces of the staged stale-winners audit scan
+  (#10451): their file headers say so, and the only runtime consumer is the injected
+  plan in `go/internal/runtime/postgres/staged_audit_scan.go` ("The legacy writer
+  audit path is untouched"). No statement is shared between the batch path and the
+  maintainer, so there is nothing to split. All of them stay on facts, which remain the
+  oracle while the dual write lasts; `TestWinnersAuditStaysOnFacts` pins
+  `stagedWinnersSourceBatchSQL` on facts. If the lead reads a maintainer caller of
+  `StageBatch` that this census missed, the swap is the same mechanism as the other
+  four inputs.
 
 ## C1 e: the winners dirty-capture functions read supports
 

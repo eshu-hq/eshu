@@ -54,12 +54,15 @@ func TestWinnersAuditStaysOnFacts(t *testing.T) {
 	t.Parallel()
 
 	for name, stmt := range map[string]string{
-		"audit candidates":         selectWinnersAuditCandidatesSQL,
-		"legacy keyed active":      buildWinnersKeyedActiveFactsSQL,
-		"legacy keyed operator":    addWinnersKeyedOperatorFactsSQL,
-		"legacy winner select":     supplyChainImpactWinnerSelectSQL,
-		"scope expansion":          winnersScopeExpansionSelect(winnersStagingTable),
-		"staged audit scan source": stagedWinnersSourceBatchSQL,
+		"audit candidates":           selectWinnersAuditCandidatesSQL,
+		"legacy keyed active":        buildWinnersKeyedActiveFactsSQL,
+		"legacy keyed operator":      addWinnersKeyedOperatorFactsSQL,
+		"legacy winner select":       supplyChainImpactWinnerSelectSQL,
+		"scope expansion":            winnersScopeExpansionSelect(winnersStagingTable),
+		"staged audit scan source":   stagedWinnersSourceBatchSQL,
+		"staged audit scan active":   stagedWinnersBatchActiveFactsSQL,
+		"staged audit scan operator": stagedWinnersOperatorBatchSQL,
+		"staged audit ident fetch":   stagedWinnerFactIdentSQL,
 	} {
 		if !strings.Contains(stmt, "fact_records") {
 			t.Errorf("%s statement no longer reads fact_records: the audit must stay on facts in C1", name)
