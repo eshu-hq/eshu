@@ -268,7 +268,9 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 // DocumentationEvidenceLoader is wired) is sourced from the documentation facts
 // that reference each service; incidents evidence (when IncidentEvidenceLoader is
 // wired) is sourced from the exact PagerDuty incident-routing evidence that routes
-// to each service. Every family lands in the same generation, so a service
+// to each service; vulnerabilities evidence (when VulnerabilityEvidenceLoader is
+// wired) was attached by prepareServiceMaterializations before any write, because
+// it reads the supports table, which defers the intent while not ready (#11199). Every family lands in the same generation, so a service
 // generation is the snapshot of all of the service's evidence at materialization
 // time. When MaterializationWriter is nil this is a no-op, preserving the existing
 // correlation contract.
@@ -284,9 +286,6 @@ func (h ServiceCatalogCorrelationHandler) commitServiceGenerations(
 		return err
 	}
 	if err := h.attachServiceIncidentEvidence(ctx, writes); err != nil {
-		return err
-	}
-	if err := h.attachServiceVulnerabilityEvidence(ctx, writes, decisions); err != nil {
 		return err
 	}
 	for _, write := range writes {

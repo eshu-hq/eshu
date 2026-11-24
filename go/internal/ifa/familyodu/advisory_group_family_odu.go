@@ -44,7 +44,7 @@ const (
 	// payload.provenance.advisory_group_members (#10475). The scope also
 	// carries one vulnerability.source_snapshot anchor fact so the live
 	// drive creates this scope and generation before the findings are
-	// admitted through the writer's fact-store port (see
+	// admitted through the writer's transaction, facts and supports (see
 	// advisoryGroupFamilyScopeAnchorFact for why it is not a
 	// vulnerability.cve record).
 	advisoryGroupFamilyFindingScopeID      = "osv:eshu-fixture-advisory-findings"

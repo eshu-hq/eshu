@@ -234,6 +234,13 @@ func (h ServiceCatalogCorrelationHandler) prepareServiceMaterializations(
 	if err := h.attachServiceRuntimeEvidence(ctx, writes, decisions); err != nil {
 		return nil, reducercontract.ResolvedReadFingerprint{}, false, err
 	}
+	// The vulnerability read also runs before any write (#11199, #10880 PR-B2):
+	// it reads the supports table, and a not-ready table must defer the intent
+	// with nothing written. It used to run after the correlation write, so a
+	// refusal there rewrote the correlation facts on every retry cycle.
+	if err := h.attachServiceVulnerabilityEvidence(ctx, writes, decisions); err != nil {
+		return nil, reducercontract.ResolvedReadFingerprint{}, false, err
+	}
 	return writes, fingerprint, fingerprinted, nil
 }
 

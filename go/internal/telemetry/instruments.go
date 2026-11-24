@@ -1526,6 +1526,8 @@ type Instruments struct {
 	SupplyChainImpactSupportsRows                 metric.Int64Counter
 	SupplyChainImpactSupportsBackfillSteps        metric.Int64Counter
 	SupplyChainImpactSupportsReads                metric.Int64Counter
+	SupplyChainImpactSupportsDrainRawRows         metric.Int64Histogram
+	SupplyChainImpactSupportsDrainDuration        metric.Float64Histogram
 	SupplyChainImpactSupportsBackfillReady        metric.Int64Gauge
 	SupplyChainImpactSupportsDirtyScopes          metric.Int64Gauge
 	SupplyChainImpactSupportsBackfillLastSuccess  metric.Int64Gauge

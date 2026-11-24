@@ -1,0 +1,17 @@
+# #10880 PR-B2c repository-arm bounds on the index migration 346 builds, raw `go test -v` output.
+# TestSupplyChainImpactSupportsRepositoryArmBoundsLive against database b2c_hot (9,000 scopes; repo:hotrepo = 160,000 supports),
+# B2C_REPO_ARM_DSN / B2C_REPO_ARM_REPOSITORY set. The index is supply_chain_impact_finding_supports_repository_fact_idx built by
+# the migration 346 file itself (CREATE INDEX CONCURRENTLY, 106 s, 261 MB). Subtests: "after vacuum", then "every 20th row
+# rewritten, no vacuum" (8,000 rows rewritten). Each line is page 1 / midpoint / last page top-node buffers, warm second run.
+    supply_chain_impact_supports_repository_arm_live_test.go:186: reconciliation force_generic_plan: page 1 5909, midpoint 5897, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:186: reconciliation force_custom_plan: page 1 5909, midpoint 5897, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:186: service catalog force_generic_plan: page 1 5909, midpoint 5897, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:186: service catalog force_custom_plan: page 1 5909, midpoint 5897, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:186: reconciliation force_generic_plan: page 1 5978, midpoint 5965, last page 2989 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:186: reconciliation force_custom_plan: page 1 5978, midpoint 5965, last page 2989 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:186: service catalog force_generic_plan: page 1 5978, midpoint 5965, last page 2989 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:186: service catalog force_custom_plan: page 1 5978, midpoint 5965, last page 2989 buffers
+--- PASS: TestSupplyChainImpactSupportsRepositoryArmBoundsLive (182.86s)
+    --- PASS: TestSupplyChainImpactSupportsRepositoryArmBoundsLive/after_vacuum (0.55s)
+    --- PASS: TestSupplyChainImpactSupportsRepositoryArmBoundsLive/every_20th_row_rewritten,_no_vacuum (55.92s)
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	185.194s

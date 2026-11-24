@@ -161,25 +161,13 @@ func commitSupplyChainImpactRows(
 	if err != nil {
 		return supplyChainImpactTxOutcome{suppression: supp}, err
 	}
-	// Bounded chunked bulk insert: findings are upserted in O(N/batchSize)
-	// round-trips rather than one ExecContext per finding.
-	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
-		return supplyChainImpactTxOutcome{}, fmt.Errorf("write supply chain impact fact: %w", err)
+	// The fact rows and the supports derived from them, in this transaction and
+	// under the lock above (WriteSupplyChainImpactFindingRows is the one step
+	// every admission of finding rows runs, the advisory-group cell's included).
+	if err := WriteSupplyChainImpactFindingRows(ctx, tx, rows); err != nil {
+		return supplyChainImpactTxOutcome{}, err
 	}
-	// Keep the per-support table current in the same transaction, under the
-	// conflict-domain lock taken above, after the facts it derives from (#10880
-	// PR-B1). The supports are read back from the stored fact rows, so a row a
-	// fresher writer's fencing token kept is mirrored as stored, not as offered.
 	supports, hasSupports := tx.(SupplyChainImpactSupportsMaintainer)
-	if hasSupports && len(rows) > 0 {
-		factIDs := make([]string, 0, len(rows))
-		for _, row := range rows {
-			factIDs = append(factIDs, row.FactID)
-		}
-		if _, err := supports.UpsertImpactSupports(ctx, factIDs); err != nil {
-			return supplyChainImpactTxOutcome{}, fmt.Errorf("write supply chain impact supports: %w", err)
-		}
-	}
 	// Name the keys this pass changed for the winners keyed resweep (#9805), in
 	// the transaction that changes them. A rewrite to an identical digest names
 	// nothing, so an unchanged rerun issues no extra statement.

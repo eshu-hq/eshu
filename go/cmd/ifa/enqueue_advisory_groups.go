@@ -5,7 +5,9 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -50,7 +53,7 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 	fs.SetOutput(stderr)
 	var o enqueueAdvisoryGroupsOptions
 	var groups advisoryGroupListFlag
-	fs.StringVar(&o.cassettePath, "cassette", "", "family cassette whose reducer_supply_chain_impact_finding facts are admitted through the writer fact-store port")
+	fs.StringVar(&o.cassettePath, "cassette", "", "family cassette whose reducer_supply_chain_impact_finding facts are admitted through the impact writer transaction (facts and supports)")
 	fs.Var(&groups, "group", "advisory group id to enqueue a projection for (repeatable, at least one required)")
 	fs.StringVar(&o.scopeID, "scope", "", "origin scope id recorded on the projection intents (the findings scope); intents ride the synthetic advisory slot")
 	fs.StringVar(&o.generationID, "generation", "", "origin generation id recorded on the projection intents; intents ride the synthetic advisory slot")
@@ -83,23 +86,38 @@ func parseEnqueueAdvisoryGroupsFlags(args []string, stderr io.Writer) (enqueueAd
 	return o, nil
 }
 
-// admitCassetteFindings upserts the cassette's
+// admitCassetteFindings admits the cassette's
 // reducer_supply_chain_impact_finding facts for the origin scope and
-// generation through factwrite.BatchInsertVersionedFacts — the
-// statement every governed reducer writer uses, and the only way
-// finding facts enter fact_records in production. Cassette ingestion
-// cannot admit them: a finding payload carries
-// reducer_domain=supply_chain_impact, so re-projecting a generation
-// that holds them makes the projector's generic per-fact builder
-// enqueue a fresh impact pass that retracts them as superseded
-// (proven live on this branch: findings_retracted=5, winners=0). The
-// rows carry the very fact ids cassette replay would have minted
-// (cassette.DeriveFactID) and the payload bytes the committed
-// cassette carries, re-marshaled from its decoded map.
-func admitCassetteFindings(ctx context.Context, execer factwrite.Execer, o enqueueAdvisoryGroupsOptions) (int, error) {
+// generation through the one production write seam (admitFindingRows):
+// the conflict-domain lock, a transaction from the production beginner (which
+// sets the old-writer fence setting), and the impact writer's own
+// facts-plus-supports step, supplychaincore.WriteSupplyChainImpactFindingRows
+// (#11201, #10880). The finding-fact write stop therefore changes one place.
+// Cassette ingestion cannot admit them: a finding payload carries
+// reducer_domain=supply_chain_impact, so re-projecting a generation that
+// holds them makes the projector's generic per-fact builder enqueue a fresh
+// impact pass that retracts them as superseded (proven live on this branch:
+// findings_retracted=5, winners=0). The rows carry the very fact ids
+// cassette replay would have minted (cassette.DeriveFactID) and the payload
+// bytes the committed cassette carries, re-marshaled from its decoded map.
+// It returns the facts admitted.
+func admitCassetteFindings(ctx context.Context, beginner supplychaincore.SupplyChainImpactBeginner, o enqueueAdvisoryGroupsOptions) (int, error) {
+	rows, err := cassetteFindingRows(o)
+	if err != nil {
+		return 0, err
+	}
+	if err := admitFindingRows(ctx, beginner, o.scopeID, o.generationID, rows); err != nil {
+		return 0, err
+	}
+	return len(rows), nil
+}
+
+// cassetteFindingRows builds the versioned fact rows of the cassette's finding
+// facts for the origin scope and generation.
+func cassetteFindingRows(o enqueueAdvisoryGroupsOptions) ([]factwrite.VersionedRow, error) {
 	file, err := cassette.LoadFile(o.cassettePath)
 	if err != nil {
-		return 0, fmt.Errorf("load cassette: %w", err)
+		return nil, fmt.Errorf("load cassette: %w", err)
 	}
 	now := time.Now().UTC()
 	rows := []factwrite.VersionedRow{}
@@ -113,7 +131,7 @@ func admitCassetteFindings(ctx context.Context, execer factwrite.Execer, o enque
 			}
 			payloadJSON, err := json.Marshal(fact.Payload)
 			if err != nil {
-				return 0, fmt.Errorf("marshal finding payload %q: %w", fact.StableFactKey, err)
+				return nil, fmt.Errorf("marshal finding payload %q: %w", fact.StableFactKey, err)
 			}
 			intentID, _ := fact.Payload["intent_id"].(string)
 			collectorKind := fact.CollectorKind
@@ -140,12 +158,49 @@ func admitCassetteFindings(ctx context.Context, execer factwrite.Execer, o enque
 		}
 	}
 	if len(rows) == 0 {
-		return 0, fmt.Errorf("cassette %s carries no %s facts for scope %q generation %q; admitting nothing would let the cell pass vacuously", o.cassettePath, facts.ReducerSupplyChainImpactFindingFactKind, o.scopeID, o.generationID)
+		return nil, fmt.Errorf("cassette %s carries no %s facts for scope %q generation %q; admitting nothing would let the cell pass vacuously", o.cassettePath, facts.ReducerSupplyChainImpactFindingFactKind, o.scopeID, o.generationID)
 	}
-	if err := factwrite.BatchInsertVersionedFacts(ctx, execer, rows); err != nil {
-		return 0, fmt.Errorf("admit finding facts: %w", err)
+	return rows, nil
+}
+
+// admitFindingRows writes finding fact rows through the production impact
+// writer's seam: it opens the transaction from the production beginner, takes
+// the (scope, generation) conflict-domain lock the writer and the supports
+// backfill take, runs the writer's own facts-plus-supports step, and commits.
+// The cell does not set the old-writer fence setting itself: the production
+// beginner sets it for the transaction, so the admitted rows never mark their
+// scope dirty. A transaction without the supports maintainer is refused:
+// admitting facts that no support follows would leave the per-support table
+// behind the facts.
+func admitFindingRows(ctx context.Context, beginner supplychaincore.SupplyChainImpactBeginner, scopeID, generationID string, rows []factwrite.VersionedRow) error {
+	tx, err := beginner.BeginSupplyChainImpactTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin finding admission transaction: %w", err)
 	}
-	return len(rows), nil
+	if err := admitFindingRowsInTx(ctx, tx, scopeID, generationID, rows); err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			return fmt.Errorf("%w; rollback: %v", err, rbErr)
+		}
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit finding admission transaction: %w", err)
+	}
+	return nil
+}
+
+func admitFindingRowsInTx(ctx context.Context, tx supplychaincore.SupplyChainImpactTx, scopeID, generationID string, rows []factwrite.VersionedRow) error {
+	if _, ok := tx.(supplychaincore.SupplyChainImpactSupportsMaintainer); !ok {
+		return fmt.Errorf("finding admission transaction has no supports maintainer; admitted facts would have no supports")
+	}
+	if _, err := tx.ExecContext(ctx, supplychaincore.SupplyChainImpactConflictDomainLockQuery,
+		supplychaincore.SupplyChainImpactConflictDomainKey(scopeID, generationID)); err != nil {
+		return fmt.Errorf("lock supply chain impact conflict domain: %w", err)
+	}
+	if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows); err != nil {
+		return fmt.Errorf("admit finding rows: %w", err)
+	}
+	return nil
 }
 
 // rebuildWinnersOnce runs one full winners resweep — the rebuild the
@@ -210,11 +265,11 @@ func runEnqueueAdvisoryGroupsCommand(ctx context.Context, args []string, stdout,
 	}
 	defer func() { _ = db.Close() }()
 
-	admitted, err := admitCassetteFindings(ctx, db, o)
+	admitted, err := admitCassetteFindings(ctx, postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: db}}, o)
 	if err != nil {
 		return fmt.Errorf("ifa enqueue-advisory-groups: %w", err)
 	}
-	_, _ = fmt.Fprintf(stdout, "admitted %d finding fact(s) from cassette through the writer fact-store port\n", admitted)
+	_, _ = fmt.Fprintf(stdout, "admitted %d finding fact(s) and their supports from cassette through the impact writer's seam\n", admitted)
 
 	store := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db})
 	inserted, updated, deleted, unchanged, err := rebuildWinnersOnce(ctx, store)

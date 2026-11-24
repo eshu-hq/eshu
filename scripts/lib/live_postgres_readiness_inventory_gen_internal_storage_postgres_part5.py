@@ -47,6 +47,24 @@ TABLE = {
             "TestSupplyChainImpactProtectedStaticPublishLive",
             "TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_supports_drain_concurrency_live_test.go": (
+            "TestSupplyChainImpactSupportsDrainConcurrentWithWritesLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_supports_drain_live_test.go": (
+            "TestSupplyChainImpactSupportsDrainEqualsFactReadOnAdversarialSeedsLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_supports_many_repositories_live_test.go": (
+            "TestSupplyChainAdvisoriesForReposManySmallRepositoriesLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_supports_page_plan_live_test.go": (
+            "TestSupplyChainImpactSupportsPagePlanGuardLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_supports_reader_live_test.go": (
+            "TestSecurityAlertReconciliationAndAdvisoryLoadersEqualFactReadsLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_supports_repository_arm_live_test.go": (
+            "TestRepositoryArmBoundsLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_upstream_nvd_widen_live_test.go": (
             "TestSupplyChainImpactUpstreamWidenedProbeHoldsNVDScaleLive",
         ),

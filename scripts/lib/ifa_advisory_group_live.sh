@@ -9,7 +9,7 @@
 # live on this branch). Production findings never enter through
 # ingestion — the pass writer upserts them into an already projected
 # generation — so the mid-drive step admits them through that same
-# writer fact-store port, then runs the production winners rebuild
+# writer transaction (the facts and their supports, #11201), then runs the production winners rebuild
 # and AdvisoryGroupProjectionEnqueuer (eshu-ifa
 # enqueue-advisory-groups) — never an invented marker fact — and the
 # second drain claims, handles, and acks the real
