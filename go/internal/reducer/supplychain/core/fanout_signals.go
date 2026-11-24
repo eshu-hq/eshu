@@ -88,10 +88,11 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 	if r.crashRecovery {
 		h.countFanOut(ctx, r.cause, fanOutOutcomeCrashRecovery, 1)
 	}
+	h.emitInFlightNarrowing(ctx, r.cause, r.inFlight)
 	if h.Logger == nil {
 		return
 	}
-	h.Logger.InfoContext(ctx, "supply chain impact holder fan-out",
+	attrs := []any{
 		slog.String("domain", string(reducercontract.DomainSupplyChainImpact)),
 		slog.String("cause", r.cause),
 		slog.String("scope_id", intent.ScopeID),
@@ -115,7 +116,8 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 		slog.Int64("max_id_mass_rows", r.maxIDMassRows),
 		slog.Int("key_ranged_ids", r.keyRangedIDs),
 		slog.Int("holder_key_range_statements", r.keyRangeStatements),
-	)
+	}
+	h.Logger.InfoContext(ctx, "supply chain impact holder fan-out", append(attrs, r.inFlight.inFlightLogAttrs()...)...)
 }
 
 func (h SupplyChainImpactHandler) logFanOutHolder(ctx context.Context, intent reducercontract.Intent, holder string, outcome FanOutOutcome) {

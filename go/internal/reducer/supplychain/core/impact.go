@@ -221,6 +221,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	if err != nil {
 		return reducercontract.Result{}, err
 	}
+	inFlightAtLoad := h.readInFlightAtLoadEnd(ctx, intent, fanOutCause(loaded.scopeFactKinds)) // #10972 D4b set A: after the load, before the writer
 	h.emitScopedPassSignals(ctx, intent, loaded)
 	envelopes := loaded.envelopes
 
@@ -300,7 +301,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	// After the writer commit and before the queue acknowledgement (Handle
 	// returns first): reopen the scopes that hold stale copies of what this pass
 	// changed. A failed read or reopen fails the pass so the queue retries it.
-	fanOut, err := h.fanOutHolders(ctx, intent, withFullPassMarker(writeResult, intent, loaded), fanOutCause(loaded.scopeFactKinds))
+	fanOut, err := h.fanOutHolders(ctx, intent, withFullPassMarker(writeResult, intent, loaded), fanOutCause(loaded.scopeFactKinds), inFlightAtLoad)
 	if err != nil {
 		return reducercontract.Result{}, err
 	}

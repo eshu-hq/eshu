@@ -1,8 +1,8 @@
 # Holder fan-out and convergence (#9695)
 
 This is the detailed contract behind the "Convergence: the holder fan-out"
-bullet in `README.md`. The cost of the in-flight read and the signals an
-operator reads are stated in the README bullet "In-flight cost"; measurements
+bullet in `README.md`. Which in-flight passes are flagged is in [`HOLDER_FANOUT_INFLIGHT.md`](HOLDER_FANOUT_INFLIGHT.md) (#10972); the cost
+and the signals an operator reads are in the README bullet "In-flight cost"; measurements
 and the defects found while proving it are in
 (#9695), and the 1.5a probes in
 (#9695).

@@ -208,8 +208,8 @@ type racingFanOut struct {
 	between func()
 }
 
-func (r *racingFanOut) FindInFlightNonMarkerScopes(ctx context.Context, own string) ([]string, error) {
-	scopes, err := r.SupplyChainImpactFanOut.FindInFlightNonMarkerScopes(ctx, own)
+func (r *racingFanOut) FindInFlightNonMarkerClaims(ctx context.Context, own string) ([]supplychaincore.InFlightClaim, error) {
+	scopes, err := r.SupplyChainImpactFanOut.FindInFlightNonMarkerClaims(ctx, own)
 	if err == nil && r.between != nil {
 		hook := r.between
 		r.between = nil // the hook's own pass reads through this wrapper too
@@ -357,8 +357,8 @@ func (f *afterFirstReadFanOut) FindHolderScopes(ctx context.Context, own string,
 	return scopes, err
 }
 
-func (f *afterFirstReadFanOut) FindInFlightNonMarkerScopes(ctx context.Context, own string) ([]string, error) {
-	scopes, err := f.SupplyChainImpactFanOut.FindInFlightNonMarkerScopes(ctx, own)
+func (f *afterFirstReadFanOut) FindInFlightNonMarkerClaims(ctx context.Context, own string) ([]supplychaincore.InFlightClaim, error) {
+	scopes, err := f.SupplyChainImpactFanOut.FindInFlightNonMarkerClaims(ctx, own)
 	f.once.Do(f.hook)
 	return scopes, err
 }

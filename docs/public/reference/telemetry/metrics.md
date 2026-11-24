@@ -406,6 +406,13 @@ children are the `neo4j.execute` spans of each read.
 
 ## Focused Catalogs
 
+- The supply-chain impact holder fan-out's in-flight narrowing (#10972 D4b)
+  adds `kind=in_flight_early` to
+  `eshu_dp_supply_chain_impact_fanout_read_duration_seconds` and the outcomes
+  `in_flight_kept`, `in_flight_narrowed`, `in_flight_early_read_failed`, and
+  `in_flight_early_read_skipped` (one point per in-flight claim the fan-out
+  read) plus the read site `in_flight_early` to
+  `eshu_dp_supply_chain_impact_fanout_total`.
 - [CI/CD Run Metrics](metrics-cicd-run.md) covers provider reads, Actions
   delivery handoffs and reaps, and scheduled fallback.
 - [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) covers

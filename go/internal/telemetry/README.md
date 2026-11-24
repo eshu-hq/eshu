@@ -85,6 +85,13 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 
 #### Counters (Int64)
 
+The holder fan-out's in-flight narrowing (#10972 D4b) adds the
+`SupplyChainImpactFanOut` outcomes `in_flight_kept`, `in_flight_narrowed`,
+`in_flight_early_read_failed`, and `in_flight_early_read_skipped` (one point
+per in-flight claim the fan-out read), the read site `in_flight_early`, and the
+`SupplyChainImpactFanOutReadDuration` kind `in_flight_early`; the contract is in
+`reducer/supplychain/core/HOLDER_FANOUT_INFLIGHT.md`.
+
 | Field | Metric name |
 | --- | --- |
 | `FactsEmitted` | `eshu_dp_facts_emitted_total` |

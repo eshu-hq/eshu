@@ -236,6 +236,14 @@ func (p *registrationFanOut) FindInFlightNonMarkerScopes(context.Context, string
 	return nil, nil
 }
 
+func (p *registrationFanOut) FindInFlightNonMarkerClaims(context.Context, string) ([]supplychaincore.InFlightClaim, error) {
+	return nil, nil
+}
+
+func (p *registrationFanOut) SnapshotInFlightNonMarkerClaims(context.Context, string) ([]supplychaincore.InFlightClaim, error) {
+	return nil, nil
+}
+
 func (p *registrationFanOut) FindPackageHolderCandidates(context.Context, string, supplychaincore.PackageHolderQuery) ([]supplychaincore.PackageHolderCandidate, error) {
 	return nil, nil
 }
