@@ -201,7 +201,7 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 			if _, trustedPublic := advisoryFacts[envelope.FactID]; trustedPublic {
 				continue
 			}
-			if authorizedImpactAdvisoryKind(envelope.FactKind) || targetOnlyImpactFactKind(envelope.FactKind) {
+			if authorizedImpactAdvisoryKind(envelope.FactKind) || staticEnvelopeNeedsScanReceipt(envelope) {
 				loaded.CoverageReason = "policy_unavailable"
 				return nil
 			}
@@ -267,4 +267,12 @@ func targetOnlyImpactFactKind(kind string) bool {
 	default:
 		return false
 	}
+}
+
+// staticEnvelopeNeedsScanReceipt reports whether a fact the static impact load
+// returned is target-only evidence: the engaged loader fails the pass closed on
+// it, because only a scan result receipt can authenticate it. The caller has
+// already trusted the public advisory facts.
+func staticEnvelopeNeedsScanReceipt(envelope facts.Envelope) bool {
+	return targetOnlyImpactFactKind(envelope.FactKind)
 }
