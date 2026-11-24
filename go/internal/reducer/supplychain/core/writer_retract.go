@@ -371,7 +371,7 @@ WITH retracted AS (
         COALESCE(payload->>'repository_id', '') AS repository_id,
         COALESCE(payload->>'subject_digest', '') AS subject_digest,
         COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
-        COALESCE(payload->>'advisory_id', '') AS advisory_id
+        COALESCE(payload->>'advisory_id', '') AS advisory_id` + retractedFindingKeysReturningSQL + `
 ),
 ordered AS (
     SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id
@@ -384,7 +384,7 @@ upserted AS (
     SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
     FROM ordered
     RETURNING 1
-)
+)` + retractedFindingKeysRecordSQL + `
 SELECT (SELECT count(*) FROM retracted) AS tombstoned,
        (SELECT count(*) FROM upserted) AS marked
 `
@@ -412,7 +412,7 @@ WITH retracted AS (
         COALESCE(payload->>'repository_id', '') AS repository_id,
         COALESCE(payload->>'subject_digest', '') AS subject_digest,
         COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
-        COALESCE(payload->>'advisory_id', '') AS advisory_id
+        COALESCE(payload->>'advisory_id', '') AS advisory_id` + retractedFindingKeysReturningSQL + `
 ),
 ordered AS (
     SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id
@@ -425,7 +425,7 @@ upserted AS (
     SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
     FROM ordered
     RETURNING 1
-)
+)` + retractedFindingKeysRecordSQL + `
 SELECT (SELECT count(*) FROM retracted) AS tombstoned,
        (SELECT count(*) FROM upserted) AS marked
 `

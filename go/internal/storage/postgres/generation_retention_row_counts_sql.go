@@ -490,4 +490,4 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN security_alert_unread_repositories AS unread
   ON unread.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
-` + generationRetentionRowCountsLeaseArm + generationRetentionRowCountsSupportsArm
+` + generationRetentionRowCountsLeaseArm + generationRetentionRowCountsSupportsArm + generationRetentionRowCountsRetractedKeysArm

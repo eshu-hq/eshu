@@ -184,6 +184,8 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"fact_work_item_leases": 0,
 		// #10880 PR-B1: the per-support table; this fixture writes none.
 		"supply_chain_impact_finding_supports": 0,
+		// #10880 PR-C1 c: the retracted finding keys; this fixture writes none.
+		"supply_chain_impact_retracted_finding_keys": 0,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,

@@ -22,3 +22,18 @@ LEFT JOIN supply_chain_impact_finding_supports AS support
   ON support.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 `
+
+// generationRetentionRowCountsRetractedKeysArm counts
+// supply_chain_impact_retracted_finding_keys, the #10880 PR-C1 retraction record.
+// Its generation_id foreign key cascades from scope_generations like the supports
+// table's, so the arm is generation-only and probes the primary key's leading
+// generation_id column (migration 351), which is also what the cascade delete
+// probes.
+const generationRetentionRowCountsRetractedKeysArm = `
+UNION ALL
+SELECT candidate.generation_id, 'supply_chain_impact_retracted_finding_keys' AS table_name, COUNT(retracted.key_hash) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN supply_chain_impact_retracted_finding_keys AS retracted
+  ON retracted.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+`

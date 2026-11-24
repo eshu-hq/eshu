@@ -45,3 +45,29 @@ over `s.payload`), the frozen-oracle digest, fake-DB tests of the missing-key ru
 and of `changedCVEIDs` over a keyless baseline, and the adapter's hold-and-flush
 counting. The equality of the two reads on a seed is a live proof and is not run
 here.
+
+## C1 c: the retraction records its keys, and the recovery reads take them
+
+PR-C stops tombstoning facts, but the recovery reads find what a crashed attempt
+retracted by reading tombstoned fact rows. Migration 351 adds
+`supply_chain_impact_retracted_finding_keys` (primary key `(generation_id, scope_id,
+key_hash)`, cascading foreign key as migration 338). Both retraction statements
+(`writer_retract.go`) gain two shared fragments from `writer_retracted_keys.go`:
+extra RETURNING columns and a `recorded` CTE that inserts one row per distinct
+retracted key (cve id, advisory id, advisory-group members, sha256 key hash) in the
+same statement and transaction as the tombstone, skipping keys already recorded with
+`NOT EXISTS` (no `ON CONFLICT`: the retraction statements keep none on their hot
+path, and every writer of a pair's keys runs under the pair's conflict-domain lock).
+
+The two recovery reads become three legs joined by `UNION`: the live supports, the
+retracted keys, and the unchanged fact read with tombstones as the transition leg,
+byte-identical to the previous statement and pinned by digest. The retention
+row-count statement gains an arm for the new table, because its generation foreign
+key cascades.
+
+Hermetic proof: both retraction statements reduce to their base digest when the two
+fragments are removed; the fill is the same text in both; the legs, their `UNION`
+joins, the shared generation window and the byte-identical fact legs are pinned; the
+retention arm is pinned. Not run here (live, coordinator slot): the equality of the
+three-leg read with the fact read on a seed, a crash-after-commit recovery across
+the cutover, and the retention cascade accounting.

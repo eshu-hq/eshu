@@ -99,13 +99,13 @@ const priorGenerationSupplyChainImpactSQL = `(
     LIMIT 1
 )`
 
-// listSupplyChainImpactCVEIDsQuery lists every CVE id the finding rows of the
-// generation being written and of the previous generation name, tombstoned rows
-// included, plus each row's advisory group member set (#10408). It runs only
-// for a recovery write: a retry cannot know what the attempt that died
-// retracted or what the new generation dropped. Arguments: $1 scope id,
-// $2 generation id.
-const listSupplyChainImpactCVEIDsQuery = `
+// listSupplyChainImpactCVEIDsFactsLegQuery lists every CVE id the finding fact
+// rows of the generation being written and of the previous generation name,
+// tombstoned rows included, plus each row's advisory group member set (#10408).
+// It is the transition leg of listSupplyChainImpactCVEIDsQuery (writer_retracted_keys.go):
+// the facts a retraction tombstoned before the retracted-keys table existed.
+// Arguments: $1 scope id, $2 generation id.
+const listSupplyChainImpactCVEIDsFactsLegQuery = `
 SELECT DISTINCT COALESCE(payload ->> 'cve_id', ''),
        COALESCE(payload #>> '{provenance,advisory_group_members}', '[]')
 FROM fact_records
@@ -388,15 +388,15 @@ func readSupplyChainImpactCVEIDs(ctx context.Context, tx SupplyChainImpactTx, sc
 	return sortedSetKeys(ids), nil
 }
 
-// listSupplyChainImpactGroupIDsQuery lists the (cve_id, advisory_id) pair
-// of every finding row of the generation being written and of the previous
-// generation, tombstoned rows included. It is the recovery companion of
-// listSupplyChainImpactCVEIDsQuery for the advisory-group projection
-// (#10411): a retry whose fan-out died with the previous attempt owes a
-// projection for every group the scope's rows name, including CVE-less
-// groups the CVE-only recovery read cannot name. Arguments: $1 scope id,
-// $2 generation id.
-const listSupplyChainImpactGroupIDsQuery = `
+// listSupplyChainImpactGroupIDsFactsLegQuery lists the (cve_id, advisory_id)
+// pair of every finding fact row of the generation being written and of the
+// previous generation, tombstoned rows included. It is the transition leg of
+// listSupplyChainImpactGroupIDsQuery (writer_retracted_keys.go), the recovery
+// companion of the CVE read for the advisory-group projection (#10411): a retry
+// whose fan-out died with the previous attempt owes a projection for every group
+// the scope's rows name, including CVE-less groups the CVE-only recovery read
+// cannot name. Arguments: $1 scope id, $2 generation id.
+const listSupplyChainImpactGroupIDsFactsLegQuery = `
 SELECT DISTINCT COALESCE(payload ->> 'cve_id', ''), COALESCE(payload ->> 'advisory_id', '')
 FROM fact_records
 WHERE fact_kind = '` + supplyChainImpactFactKind + `'

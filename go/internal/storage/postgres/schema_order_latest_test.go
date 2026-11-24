@@ -201,4 +201,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 350 (#10880 PR-C1 a) adds the nullable stable_fact_key column to
 	// the supports table (an ALTER, no new relation: this names its migration file).
 	"supply_chain_impact_finding_supports_stable_fact_key",
+	// Migration 351 (#10880 PR-C1 c) adds the retracted finding keys table the
+	// recovery reads take over from tombstoned fact rows.
+	"supply_chain_impact_retracted_finding_keys",
 }

@@ -531,6 +531,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10880 PR-C1 a: the nullable stable_fact_key the upsert fills outside its
 	// write-on-change guard (349 is #11376's eco stats on main).
 	"350_supply_chain_impact_finding_supports_stable_fact_key.sql": "ccc38b897b2e04bfed6fc0df1401d55e43a8e765da3cd1f4945a8030d83d62a1",
+	// #10880 PR-C1 c: the retracted-keys table the recovery reads take over from
+	// tombstoned fact rows.
+	"351_supply_chain_impact_retracted_finding_keys.sql": "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
