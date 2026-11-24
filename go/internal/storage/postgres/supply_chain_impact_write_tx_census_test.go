@@ -194,6 +194,8 @@ func TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock(t *testing
 		"fact upsert":             "INSERT INTO fact_records",
 		"supports upsert":         "supply_chain_impact_finding_supports",
 		"pass state":              "supply_chain_impact_scope_pass_state",
+		"winners capture":         "supply_chain_impact_winners_dirty_staging",
+		"retraction":              "WITH retracted AS",
 	} {
 		found := false
 		for _, statement := range statements[:lockAt] {
@@ -290,5 +292,15 @@ func TestImpactWritePassFootprintEndsWithLockRecheckMarker(t *testing.T) {
 	}
 	if locks != 1 {
 		t.Fatalf("shared locks = %d, want one for the one go scope", locks)
+	}
+	// The core checker, with the production marker text, accepts the recorded footprint.
+	if why := supplychaincore.SupplyChainImpactGoEvidenceEpilogueViolation(statements, markSupplyChainImpactFanOutOwedQuery); why != "" {
+		t.Fatalf("the recorded footprint breaks the core epilogue contract: %s", why)
+	}
+	// Seeded: the same statements with the marker moved before the lock are refused.
+	moved := append([]string(nil), statements[:n-3]...)
+	moved = append(moved, statements[n-1], statements[n-3], statements[n-2])
+	if supplychaincore.SupplyChainImpactGoEvidenceEpilogueViolation(moved, markSupplyChainImpactFanOutOwedQuery) == "" {
+		t.Fatal("the core checker accepted the marker moved before the lock")
 	}
 }

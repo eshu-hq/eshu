@@ -326,7 +326,7 @@ const lockSupplyChainImpactConflictDomainQuery = `SELECT pg_advisory_xact_lock(h
 // brief extra wait, never a wrong result.
 //
 // The go-evidence lock key (SupplyChainImpactGoEvidenceLockKey, go_evidence_lock.go)
-// is a separate derivation in a separate namespace, taken before this lock.
+// is a separate derivation in a separate namespace, taken after this lock, at the end of the transaction.
 func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 	return supplyChainImpactFactKind + "\x1f" + scopeID + "\x1f" + generationID
 }

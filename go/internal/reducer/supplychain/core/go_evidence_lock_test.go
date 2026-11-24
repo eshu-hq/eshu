@@ -8,6 +8,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -111,7 +112,7 @@ func TestWriteLocksGoEvidenceThenRechecksLastBeforeCommit(t *testing.T) {
 	if all[n-1].Query != goEvidenceOwedMarkerQuery {
 		t.Fatalf("last statement = %q, want the owed marker after the recheck", all[n-1].Query)
 	}
-	if violation := goEvidenceEpilogueViolation(queriesOf(all), goEvidenceOwedMarkerQuery); violation != "" {
+	if violation := SupplyChainImpactGoEvidenceEpilogueViolation(queriesOf(all), goEvidenceOwedMarkerQuery); violation != "" {
 		t.Fatalf("clean epilogue reported as a violation: %s", violation)
 	}
 	for i, call := range all[:n-4] {
@@ -154,7 +155,7 @@ func TestGoEvidenceEpilogueViolationNamesTheSeededShapes(t *testing.T) {
 		"lock after the recheck":            {[]string{domain, lock, recheck, lock}, true},
 		"locks split by another statement":  {[]string{lock, admit, lock, recheck}, true},
 	} {
-		got := goEvidenceEpilogueViolation(tc.statements, marker) != ""
+		got := SupplyChainImpactGoEvidenceEpilogueViolation(tc.statements, marker) != ""
 		if got != tc.want {
 			t.Errorf("%s: violation = %v, want %v", name, got, tc.want)
 		}
@@ -279,23 +280,27 @@ func TestGoEvidenceLoadReturnsExactlyTheResolvedPairs(t *testing.T) {
 	}
 }
 
-// TestGoEvidenceFallbackDerivesPairsFromTheLoadedEnvelopes pins the loader without
-// the pairs seam: the pairs are the distinct (scope, generation) of the envelopes.
-func TestGoEvidenceFallbackDerivesPairsFromTheLoadedEnvelopes(t *testing.T) {
+// factsOnlyGoLoader has the fact-only Go seam and not the pairs seam.
+type factsOnlyGoLoader struct{}
+
+func (factsOnlyGoLoader) ListFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	return nil, nil
+}
+
+func (factsOnlyGoLoader) ListActiveGoReachabilityFacts(context.Context, GoReachabilityFactFilter) ([]facts.Envelope, error) {
+	return []facts.Envelope{}, nil
+}
+
+// TestGoEvidenceFactsOnlyLoaderFailsClosed pins that a loader that cannot report the go
+// scopes it resolved fails the pass: a resolved scope with zero facts would otherwise be
+// neither locked nor rechecked.
+func TestGoEvidenceFactsOnlyLoaderFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	loader := &goCrossScopeBackedLoader{goFacts: []facts.Envelope{
-		{FactID: "a", ScopeID: "go-reachability://repository:r_1", GenerationID: "gen-1"},
-		{FactID: "b", ScopeID: "go-reachability://repository:r_1", GenerationID: "gen-1"},
-	}}
-	loaded, err := (SupplyChainImpactHandler{FactLoader: loader}).loadGoReachabilityEvidence(
+	_, err := (SupplyChainImpactHandler{FactLoader: factsOnlyGoLoader{}}).loadGoReachabilityEvidence(
 		context.Background(), []facts.Envelope{goReachabilityRepositoryFact("r_1")})
-	if err != nil {
-		t.Fatalf("loadGoReachabilityEvidence() error = %v", err)
-	}
-	want := []GoEvidenceGeneration{{ScopeID: "go-reachability://repository:r_1", GenerationID: "gen-1"}}
-	if !slices.Equal(loaded.Generations, want) || len(loaded.Facts) != 2 {
-		t.Fatalf("pairs = %v facts = %d, want one pair and both envelopes", loaded.Generations, len(loaded.Facts))
+	if err == nil {
+		t.Fatal("loadGoReachabilityEvidence() error = nil, want it to fail closed for a facts-only loader")
 	}
 }
 
@@ -367,5 +372,61 @@ func TestWriteFailsLoudWhenTheWriteTransactionIsNotReadCommitted(t *testing.T) {
 	}
 	if beginner.state.commits != 0 {
 		t.Fatalf("commits = %d, want a rollback", beginner.state.commits)
+	}
+}
+
+// slowOwedMarker is an owed marker that takes a fixed time, as a marker waiting on its
+// work-item row would.
+type slowOwedMarker struct{ spend time.Duration }
+
+func (m slowOwedMarker) RecordFanOutOwed(context.Context, factwrite.Execer) error {
+	time.Sleep(m.spend)
+	return nil
+}
+
+// TestLockWaitHistogramIncludesTheOwedMarker pins ruling 2.5 of the marker ruling: the
+// lock-wait histogram observes the time from the first shared lock through the owed
+// marker, so a fence timeout behind a stalled marker can be explained, and the write-tx
+// histogram records the pass as committed.
+func TestLockWaitHistogramIncludesTheOwedMarker(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := narrowTestInstruments(t)
+	beginner := newFakeImpactBeginner(&testutil.FakeExecer{})
+	beginner.state.goEvidenceCurrent = 1
+	write := goEvidenceWrite(GoEvidenceGeneration{ScopeID: "go-reachability://repository:r_a", GenerationID: "gen-a"})
+	write.Owed = slowOwedMarker{spend: 60 * time.Millisecond}
+	if _, err := (PostgresSupplyChainImpactWriter{DB: beginner, Instruments: inst}).WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	var lockWaitSum float64
+	var lockWaitCount uint64
+	committed := uint64(0)
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			switch m.Name {
+			case "eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds":
+				for _, point := range m.Data.(metricdata.Histogram[float64]).DataPoints {
+					lockWaitSum += point.Sum
+					lockWaitCount += point.Count
+				}
+			case "eshu_dp_supply_chain_impact_write_tx_duration_seconds":
+				for _, point := range m.Data.(metricdata.Histogram[float64]).DataPoints {
+					if outcome, _ := point.Attributes.Value("outcome"); outcome.AsString() == "committed" {
+						committed += point.Count
+					}
+				}
+			}
+		}
+	}
+	if lockWaitCount != 1 || lockWaitSum < 0.06 {
+		t.Fatalf("lock-wait observations = %d sum = %.3fs, want one observation of at least the marker's 60 ms", lockWaitCount, lockWaitSum)
+	}
+	if committed != 1 {
+		t.Fatalf("committed write-tx observations = %d, want 1", committed)
 	}
 }

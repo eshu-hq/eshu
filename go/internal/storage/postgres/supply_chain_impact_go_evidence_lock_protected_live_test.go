@@ -29,8 +29,8 @@ import (
 // pass's own scope is already a holder (an earlier pass wrote its supports). Three
 // interleavings (the fence started right before the pass requests its lock and awaited,
 // started and not awaited, started while the pass is paused holding the lock). The pass
-// commits or is refused with the typed class or loses its lease to the reopen; none may
-// fail with a deadlock, and every fence commits.
+// commits or is refused with the typed class; a lost lease or a deadlock fails the probe,
+// and every fence commits.
 func TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive(t *testing.T) {
 	ctx, admin, worker := postgres.OpenProtectedPublishProofForTest(t)
 	settleSupplyChainImpactSupports(t, ctx, admin)
@@ -97,12 +97,11 @@ func TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive(t *testing.T) {
 		_, err := supplychaincore.PostgresSupplyChainImpactWriter{DB: beginner}.WriteSupplyChainImpactFindings(ctx, second)
 		wg.Wait()
 		var changed *supplychaincore.SupplyChainImpactGoEvidenceChangedError
-		switch {
-		case err == nil, errors.As(err, &changed):
-		case strings.Contains(err.Error(), "no longer held"):
-			// The fence reopened the work item before the marker: a retryable lease loss.
-		default:
-			t.Fatalf("round %s: protected pass failed with %v, want commit, the typed refusal or a lost lease (a deadlock reads 40P01)", tag, err)
+		// The fence is on the go scope the pass loaded, so the recheck refuses the pass
+		// before its marker whenever the fence committed first; a lost lease would mean the
+		// fence reopened the item without holding the lock, and fails the probe.
+		if err != nil && !errors.As(err, &changed) {
+			t.Fatalf("round %s: protected pass failed with %v, want a commit or the typed refusal (a deadlock reads 40P01, a lost lease is impossible here)", tag, err)
 		}
 		if t.Failed() {
 			t.Fatalf("round %s failed above", tag)

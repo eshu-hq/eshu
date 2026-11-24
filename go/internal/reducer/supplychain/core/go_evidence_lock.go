@@ -35,8 +35,9 @@ import (
 // ingestion upsert and the retirement fence never take it.
 
 // SupplyChainImpactGoEvidenceChangedFailureClass classifies a pass that aborted
-// before writing because the Go evidence it loaded no longer names its go scope's
-// active generation, or because the shared lock timed out behind a fence. It is
+// before its commit, so its writes rolled back, because the Go evidence it loaded no
+// longer names its go scope's active generation, or because the shared lock timed out
+// behind a fence. It is
 // enrolled in nonCountingReducerRetryFailureClasses
 // (go/internal/storage/postgres/reducer_queue_readiness_sql.go): another actor's
 // legitimate change caused it, and the retry reloads the evidence, so a counting
@@ -44,18 +45,19 @@ import (
 const SupplyChainImpactGoEvidenceChangedFailureClass = "supply_chain_impact_go_evidence_changed"
 
 // Causes of a SupplyChainImpactGoEvidenceChangedError. They are the closed values of
-// the cause label of eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total.
+// the reason label of eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total.
 const (
 	// GoEvidenceCauseGenerationChanged: a loaded generation is no longer the go
 	// scope's active generation (a fence retracted it, or a successor activated).
 	GoEvidenceCauseGenerationChanged = "generation_changed"
 	// GoEvidenceCauseLockTimeout: the shared lock hit the lock timeout (SQLSTATE
-	// 55P03) behind a fence's exclusive lock.
+	// 55P03) behind a fence's exclusive lock. The pass's own transaction sets no lock
+	// timeout, so this is the server or role default when one is set.
 	GoEvidenceCauseLockTimeout = "lock_timeout"
 )
 
 // SupplyChainImpactGoEvidenceChangedError is the typed refusal of a pass whose Go
-// evidence went stale before its write. It is retryable and an expected wait, so
+// evidence went stale before its commit. It is retryable and an expected wait, so
 // the queue defers the intent after the normal delay without spending an attempt
 // and the service records it as deferred.
 type SupplyChainImpactGoEvidenceChangedError struct {
@@ -226,14 +228,14 @@ func recordOwedAfterGoEvidenceLock(ctx context.Context, tx SupplyChainImpactTx, 
 	return wait, nil
 }
 
-// goEvidenceEpilogueViolation reports a statement order that breaks the #11327
+// SupplyChainImpactGoEvidenceEpilogueViolation reports a statement order that breaks the #11327
 // contract, or "" for a clean one. Clean is either no go-evidence statement at all, or
 // the shared locks, then the one recheck right after them, then at most the owed-marker
 // statement (the pass's own work item, which must follow the lock) and nothing else
 // before the commit. It is the checker behind the seeded-violation test, so a rewrite
 // of the writer cannot move the lock and the recheck off the end unnoticed.
 // markerStatement is the owed-marker query text, or "" when the pass records none.
-func goEvidenceEpilogueViolation(statements []string, markerStatement string) string {
+func SupplyChainImpactGoEvidenceEpilogueViolation(statements []string, markerStatement string) string {
 	locks, rechecks, markerEarly, queueEarly := 0, 0, false, false
 	first := -1
 	for i, statement := range statements {

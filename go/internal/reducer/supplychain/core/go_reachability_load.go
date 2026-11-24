@@ -44,8 +44,8 @@ type GoReachabilityEvidence struct {
 }
 
 // activeGoReachabilityEvidenceLoader is the production seam that also returns the
-// resolved pairs. A loader without it keeps the fact-only seam above and the pairs
-// are derived from the envelopes it returned.
+// resolved pairs. A loader that has only the fact-only seam above fails the pass
+// closed: it cannot name a resolved go scope that holds no facts.
 type activeGoReachabilityEvidenceLoader interface {
 	ListActiveGoReachabilityEvidence(context.Context, GoReachabilityFactFilter) (GoReachabilityEvidence, error)
 }
@@ -81,25 +81,14 @@ func (h SupplyChainImpactHandler) loadGoReachabilityEvidence(
 		}
 		return evidence, nil
 	}
-	loader, ok := h.FactLoader.(activeGoReachabilityFactLoader)
-	if !ok {
-		return GoReachabilityEvidence{}, nil
+	if _, ok := h.FactLoader.(activeGoReachabilityFactLoader); ok {
+		// A facts-only loader cannot say which go scopes it resolved, and a resolved scope
+		// with no facts would be neither locked nor rechecked, so the pass fails closed
+		// rather than guess the pairs from the envelopes (#11327). Production implements
+		// the seam above.
+		return GoReachabilityEvidence{}, fmt.Errorf("go reachability loader %T cannot report the go scopes it resolved: implement ListActiveGoReachabilityEvidence", h.FactLoader)
 	}
-	reachabilityFacts, err := loader.ListActiveGoReachabilityFacts(ctx, filter)
-	if err != nil {
-		return GoReachabilityEvidence{}, factload.ClassifyFactLoadError(err)
-	}
-	return GoReachabilityEvidence{Facts: reachabilityFacts, Generations: goEvidenceGenerationsOf(reachabilityFacts)}, nil
-}
-
-// goEvidenceGenerationsOf derives the pairs from loaded envelopes for a loader that
-// does not return them: the distinct (scope, generation) of each envelope.
-func goEvidenceGenerationsOf(loaded []facts.Envelope) []GoEvidenceGeneration {
-	pairs := make([]GoEvidenceGeneration, 0, len(loaded))
-	for _, envelope := range loaded {
-		pairs = append(pairs, GoEvidenceGeneration{ScopeID: envelope.ScopeID, GenerationID: envelope.GenerationID})
-	}
-	return sortedGoEvidencePairs(pairs)
+	return GoReachabilityEvidence{}, nil
 }
 
 // appendGoReachabilityEvidenceFacts runs the #10095 cross-scope Go stage as

@@ -97,7 +97,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// undone until a manual replay. TestReducerQueueFailDefersSupplyChainImpact
 	// SupportsNotReadyPastAttemptBudget is the regression.
 	supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass,
-	// #11327: a supply_chain_impact pass aborted before its write because the Go
+	// #11327: a supply_chain_impact pass rolled back before its commit because the Go
 	// evidence it loaded no longer names its go scope's active generation (a fence
 	// retracted it or a successor activated), or its shared go-evidence lock timed
 	// out behind a fence. Another actor's legitimate change caused it and the retry

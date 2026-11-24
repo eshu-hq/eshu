@@ -228,7 +228,7 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	}
 	if inst.SupplyChainImpactGoEvidenceRecheckAborts, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total",
-		metric.WithDescription("Supply-chain impact passes aborted before their write because the Go evidence they loaded no longer names its go scope's active generation (reason generation_changed) or the shared go-evidence lock timed out behind a fence (reason lock_timeout). Each one retries without spending an attempt; the retry reloads the evidence."),
+		metric.WithDescription("Supply-chain impact passes aborted at the end of their write transaction, so their writes rolled back, because the Go evidence they loaded no longer names its go scope's active generation (reason generation_changed) or the shared go-evidence lock timed out behind a fence (reason lock_timeout). Each one retries without spending an attempt; the retry reloads the evidence."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactGoEvidenceRecheckAborts counter: %w", err)
 	}
@@ -353,8 +353,8 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRows(ctx context.Context, a
 	i.SupplyChainImpactSupportsRows.Add(ctx, rows, metric.WithAttributes(AttrAction(action), AttrSource(source)))
 }
 
-// RecordSupplyChainImpactGoEvidenceRecheckAbort counts one pass aborted before its
-// write because its loaded Go evidence went stale (#11327). reason is one of the
+// RecordSupplyChainImpactGoEvidenceRecheckAbort counts one pass aborted at the end of its
+// write transaction (its writes rolled back) because its loaded Go evidence went stale (#11327). reason is one of the
 // supplychaincore.GoEvidenceCause values; it is a closed set, so no scope or
 // generation reaches the metric. It is safe on a nil receiver.
 func (i *Instruments) RecordSupplyChainImpactGoEvidenceRecheckAbort(ctx context.Context, reason string) {

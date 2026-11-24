@@ -3,7 +3,7 @@
 Refs #11327, #11197, #10880. Design B of `.claude/arbiter-11327-fence-b.md`: a shared
 transaction-scoped advisory lock keyed by the go scope in the impact pass's write
 transaction, the exclusive form in the Go-modules fence, and a recheck of every loaded
-(scope, generation) pair before the pass writes.
+(scope, generation) pair at the end of the pass's write transaction, so a stale pair rolls the pass back before its commit.
 
 ## The miss
 
@@ -34,7 +34,7 @@ schedules one. #11325 narrowed the drain part of the window; this closes the res
   shared lock and the fence would hold the exclusive lock while waiting for the row: a
   deadlock, and the census guard read RED on it. The marker now runs after the lock, from the
   same in-memory change set, so its value is unchanged. This is one statement outside the
-  ruling's "last statements" wording and is called out for the arbiter.
+  ruling's "last statements" wording; the arbiter accepted it (`.claude/arbiter-11327-marker-2026-11-24.md`).
 - The fence takes `pg_advisory_xact_lock` on the same key right after its timeouts and
   before the readiness check, the scope row, the generation and the holders
   (`gomodules/fence_goevidence.go`); the lock-order comment in `gomodules/fence.go` is
@@ -98,10 +98,24 @@ order comment :65-73 (every blocking path takes the scope row first). Statements
 scope row, each taking it first: the ingestion upsert (`ingestion_queries.go:83`), the
 repository-retirement fence (`repository_retirements_fence_sql.go:69`, after a
 `LOCK TABLE fact_work_items`), the reconcile update (`projector_queue_sql.go:241`) and the
-fence detach (`gomodules/fence.go`). None of them takes the advisory lock, and the pass
-write transaction touches none of the rows they lock after the scope row (no
-`fact_work_items`, no `scope_generations` write, no `ingestion_scopes` write), so no cycle
-exists with the lock first.
+fence detach (`gomodules/fence.go`). None of them takes the advisory lock. The pass write
+transaction takes no row of them before its lock (the census guard pins it) and, after the lock,
+only its own `fact_work_items` row for the owed marker, which the ack of a go scope does not hold
+(it updates the acked scope's projector item and other scopes' waiting reducer rows), so no
+cycle exists.
+
+Foreign-key locks, which the statement census cannot see: `INSERT INTO fact_records` takes
+`FOR KEY SHARE` on the holder's `ingestion_scopes` and `scope_generations` rows
+(`schema_fact_records.go:11-12`) before the lock. The fence's statements on those tables are
+`UPDATE ingestion_scopes SET active_generation_id = NULL` and `UPDATE scope_generations SET
+status = 'superseded'` (`gomodules/fence.go:67-72`), non-key updates that take `FOR NO KEY
+UPDATE`, which does not conflict with `FOR KEY SHARE`; and they touch the go scope's rows, not
+the holder's, so the pass holds no key share on a row the fence updates. No fence statement
+takes `FOR UPDATE` on either table. The retirement fence and the ack take `FOR NO KEY UPDATE`
+or `UPDATE` too (`repository_retirements_fence_sql.go:36`, `projector_queue_ack.go:74`); the
+repository purge deletes scope rows, which does conflict with a key share, but that is the
+existing foreign-key behaviour of any fact insert and forms no cycle with the advisory lock,
+which the purge never takes.
 
 ## How a successor activation reaches holders (ruling 5.4)
 
@@ -124,14 +138,16 @@ repository.
 
 ## The other pointer writers (source, origin/main 9fa8f6049a plus this branch)
 
-None of them takes the advisory lock and none is changed. For a go scope's pointer:
+None of them takes the advisory lock and none is changed. The retirement and reconcile rows share
+one pre-existing defect, filed as #11357 (it reads no holder and re-derives none); this PR does not
+fix it and does not widen to it. For a go scope's pointer:
 
 | Writer | Can it change a go scope's pointer | How holders get re-derived |
 | --- | --- | --- |
 | Ack (`projector_queue_ack.go:74,141`) | Yes: sets the successor, supersedes the old generation. | The successor generation raises its own impact pass (`projector/supply/chain/impact/intents.go`, #10077), whose `ChangedCVEIDs` fan-out reads holders by supports plus the in-flight arm, read first (`reducer/supplychain/core/HOLDER_FANOUT.md:45-52`). A pass in flight is named by the in-flight arm and a pass that committed is named by its supports, so a late first-finding commit is covered by reading. NOT verified live. The recheck also aborts a pass whose loaded pair the ack changed before the lock. |
-| Ingestion upsert (`ingestion_queries.go:83,121`) | Yes, when the incoming generation arrives with status active (`activeGenerationID`); otherwise it keeps the pointer. | The same projector item and impact intent as the ack. The enqueue path of a directly active generation was not read beyond the `INSERT INTO fact_work_items` assertion in `ingestion_test.go:114`; NOT_CHECKED. |
-| Retirement fence (`repository_retirements_fence_sql.go:69`, `fenceNullActivePointerQuery`) | Yes: NULLs the pointer and supersedes every generation of the repository's own scopes and its derived `go-reachability://` scope. | It does not re-derive holders and reads none. `retirementScopesOfReposSQL` (`repository_retirements_derived.go:34`) selects scopes by `partition_key` or the derived scope id of the repository, the scopes the repository owns. It does not select holder scopes (scopes of other kinds whose findings carry that repository id in supports). So retirement leaves a holder that already committed a Go verdict from the retired generation as it was; nothing reopens it. A pass still in flight is refused by the recheck. This is a pre-existing gap, not a holder read that a late commit can miss, and it is not widened here; flagged for the goal ledger and the arbiter. |
-| Reconcile (`projector_queue_sql.go:241`, `scope_update`) | Yes: NULLs the pointer when the active generation is the one it fails. | Nothing re-derives holders: the generation failed, no successor exists. Same shape as retirement for a holder that already committed; an in-flight pass is refused by the recheck. |
+| Ingestion upsert (`ingestion_queries.go:83,121`) | Yes, when the incoming generation arrives with status active (`activeGenerationID`, `ingestion_queries.go:286`); otherwise it keeps the pointer. | The same commit transaction enqueues the generation's projector item: `ProjectorQueue.Enqueue` at `ingestion.go:429` runs `enqueueProjectorWorkQuery` (`projector_queue.go:162`, `projector_queue_sql.go:18`, `ON CONFLICT (work_item_id) DO NOTHING`) after the upsert and before the commit. The projector claims it and ends on the ack path, so a pointer change by ingestion is followed by the go scope's own impact pass and fan-out, covered as for the ack. The `DO NOTHING` conflict means an item for the same generation already existed, which is the same pending or finished item, not a lost one. |
+| Retirement fence (`repository_retirements_fence_sql.go:69`, `fenceNullActivePointerQuery`; gap filed as #11357) | Yes: NULLs the pointer and supersedes every generation of the repository's own scopes and its derived `go-reachability://` scope. | It does not re-derive holders and reads none. `retirementScopesOfReposSQL` (`repository_retirements_derived.go:34`) selects scopes by `partition_key` or the derived scope id of the repository, the scopes the repository owns. It does not select holder scopes (scopes of other kinds whose findings carry that repository id in supports). So retirement leaves a holder that already committed a Go verdict from the retired generation as it was; nothing reopens it. A pass still in flight is refused by the recheck. This is a pre-existing gap, not a holder read that a late commit can miss, and it is not widened here; flagged for the goal ledger and the arbiter. |
+| Reconcile (`projector_queue_sql.go:241`, `scope_update`; gap filed as #11357) | Yes: NULLs the pointer when the active generation is the one it fails. | Nothing re-derives holders: the generation failed, no successor exists. Same shape as retirement for a holder that already committed; an in-flight pass is refused by the recheck. |
 
 ## The 2 s question
 
@@ -198,6 +214,14 @@ waits. The marker's duration is added to
 `eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds`, so a fence timeout behind a stalled
 marker can be explained (`TestGoEvidenceMarkerRowHeldThreeSecondsFenceTimesOutLive`).
 
+## Live proofs: not run
+
+Every live test named in this note was written and compiled but has not run. They are owed to the
+coordinator's slot, which will record here: AC1 RED on main and green at the branch head, the
+skip count (must be 0) with both DSN variables (`ESHU_POSTGRES_DSN`, `ESHU_POSTGRES_DISPOSABLE`;
+`ESHU_LIVE_REQUIRE_DSN=1` once it exists), the seconds of each live test, and the real-writer
+write-transaction duration and WAL numbers (ruling 4.9). Results: owed: coordinator slot.
+
 ## Claims table
 
 Roles: "owner" is the disposable database's bootstrap owner (the harness login, not the
@@ -228,6 +252,8 @@ skip count (must be 0) with both DSN variables. `ESHU_LIVE_REQUIRE_DSN=1` does n
 | The fence's wait and timeout are observed; a timeout detaches nothing | `TestFenceLockTimeoutDetachesNothingAndIsObserved` | n/a | hermetic | 1 |
 | Isolation is READ COMMITTED or the pass fails loudly | `TestWriteFailsLoudWhenTheWriteTransactionIsNotReadCommitted` | the non-read-committed row is the seeded violation | hermetic | 1 |
 | The write-tx and lock-wait histograms record by outcome | `TestGoEvidenceLockSignalsRecordWithClosedLabels` | nil-receiver and unregistered cases | hermetic | 1 |
+| The lock-wait histogram includes the owed marker's time | `TestLockWaitHistogramIncludesTheOwedMarker` | a marker that takes 60 ms must show at least 60 ms | hermetic | 1 |
+| A loader that cannot name the resolved go scopes fails the pass closed | `TestGoEvidenceFactsOnlyLoaderFailsClosed` | the facts-only loader is the seeded case | hermetic | 1 |
 | The recheck's SELECT is granted to the writer login | `grantImpactWriterPregrants` now grants `SELECT ON ingestion_scopes`; `TestSupplyChainImpactProtectedStaticPublishLive` runs as the worker | the worker lacks it without the grant | worker | 1 |
 
 The footprint test `TestGoEvidenceRealHandlerPassFootprintLive` runs the real handler through a
