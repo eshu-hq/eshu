@@ -36,7 +36,11 @@ type PostgresCICDRunCorrelationWriter struct {
 	// completion-owed marker (#10972 PR-4, completion_write.go). Nil keeps
 	// the autocommit write and reports no verdict, so the ack emits.
 	Beginner db.Beginner
-	Now      func() time.Time
+	// CompletionOwed, when set with Beginner, records the completion-owed
+	// marker on the pass's own item in the transaction that commits changed
+	// rows, so a pass that dies before its ack still emits on its retry.
+	CompletionOwed CompletionOwedMarker
+	Now            func() time.Time
 }
 
 // WriteCICDRunCorrelations persists exact, derived, ambiguous, unresolved, and

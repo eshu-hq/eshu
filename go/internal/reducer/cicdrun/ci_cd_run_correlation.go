@@ -76,10 +76,9 @@ type CICDRunCorrelationWrite struct {
 	SourceSystem string
 	Cause        string
 	Decisions    []CICDRunCorrelationDecision
-	// CompletionOwed, when set, marks the pass's own work item as owing a
-	// completion event inside the writer transaction that commits changed
-	// rows (#10972 PR-4). Nil records nothing.
-	CompletionOwed CompletionOwedRecorder
+	// ClaimedAt is the pass's claim identity (last_attempt_at). The writer's
+	// completion-owed marker fences on it like the ack (#10972 PR-4).
+	ClaimedAt time.Time
 }
 
 // CICDRunCorrelationWriteResult summarizes durable CI/CD correlation writes.
@@ -125,11 +124,6 @@ type CICDRunCorrelationHandler struct {
 	// class freezes attempt_count, so the queue row alone cannot tell an
 	// operator how long this consumer has been waiting.
 	Logger *slog.Logger
-	// CompletionOwed returns the recorder that marks the pass's own work item
-	// as owing a completion event (#10972 PR-4). Optional: nil records no
-	// marker, so a pass that commits changes and dies before its ack does not
-	// guarantee an event on its retry.
-	CompletionOwed func(reducercontract.Intent) CompletionOwedRecorder
 }
 
 // Handle executes one CI/CD run correlation reducer intent.
@@ -214,13 +208,13 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent reducercon
 	}
 	counts := cicdRunCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteCICDRunCorrelations(ctx, CICDRunCorrelationWrite{
-		IntentID:       intent.IntentID,
-		ScopeID:        intent.ScopeID,
-		GenerationID:   intent.GenerationID,
-		SourceSystem:   intent.SourceSystem,
-		Cause:          intent.Cause,
-		Decisions:      decisions,
-		CompletionOwed: h.completionOwedRecorder(intent),
+		IntentID:     intent.IntentID,
+		ScopeID:      intent.ScopeID,
+		GenerationID: intent.GenerationID,
+		SourceSystem: intent.SourceSystem,
+		Cause:        intent.Cause,
+		Decisions:    decisions,
+		ClaimedAt:    claimedAtOf(intent),
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write ci/cd run correlations: %w", err)

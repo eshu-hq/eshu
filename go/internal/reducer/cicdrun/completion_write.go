@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -81,8 +82,8 @@ func (w PostgresCICDRunCorrelationWriter) writeWithVerdict(
 	if err := factwrite.BatchInsertFacts(ctx, tx, rows); err != nil {
 		return false, fmt.Errorf("write ci/cd run correlation fact: %w", err)
 	}
-	if changed && write.CompletionOwed != nil {
-		if err := write.CompletionOwed.RecordCompletionOwed(ctx, tx); err != nil {
+	if changed && w.CompletionOwed != nil {
+		if err := w.CompletionOwed.Recorder(write.IntentID, write.ClaimedAt).RecordCompletionOwed(ctx, tx); err != nil {
 			return false, fmt.Errorf("record ci/cd completion owed: %w", err)
 		}
 	}
@@ -92,13 +93,12 @@ func (w PostgresCICDRunCorrelationWriter) writeWithVerdict(
 	return changed, nil
 }
 
-// completionOwedRecorder returns the recorder for the pass's own item, or nil
-// when the handler has none wired.
-func (h CICDRunCorrelationHandler) completionOwedRecorder(intent reducercontract.Intent) CompletionOwedRecorder {
-	if h.CompletionOwed == nil {
-		return nil
+// claimedAtOf returns the intent's claim identity, or the zero time.
+func claimedAtOf(intent reducercontract.Intent) time.Time {
+	if intent.ClaimedAt == nil {
+		return time.Time{}
 	}
-	return h.CompletionOwed(intent)
+	return intent.ClaimedAt.UTC()
 }
 
 // completionSubSignals adds the changed verdict to the result sub-signals so

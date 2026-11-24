@@ -92,11 +92,13 @@ WHERE work_item_id = $1 RETURNING last_attempt_at, attempt_count`, g.item, cicdG
 // recorder, and returns the result the handler would hand the queue.
 func (g *cicdGate) write(intent reducercontract.Intent, decisions []cicdrun.CICDRunCorrelationDecision) reducercontract.Result {
 	g.t.Helper()
-	writer := cicdrun.PostgresCICDRunCorrelationWriter{DB: SQLDB{DB: g.db}, Beginner: SQLDB{DB: g.db}}
+	writer := cicdrun.PostgresCICDRunCorrelationWriter{
+		DB: SQLDB{DB: g.db}, Beginner: SQLDB{DB: g.db}, CompletionOwed: CICDCompletionOwedMarker{LeaseOwner: cicdGateOwner},
+	}
 	written, err := writer.WriteCICDRunCorrelations(g.ctx, cicdrun.CICDRunCorrelationWrite{
 		IntentID: intent.IntentID, ScopeID: intent.ScopeID, GenerationID: intent.GenerationID,
 		SourceSystem: intent.SourceSystem, Cause: "pass " + intent.ClaimedAt.String(), Decisions: decisions,
-		CompletionOwed: CICDCompletionOwedMarker{LeaseOwner: cicdGateOwner}.Recorder(intent),
+		ClaimedAt: *intent.ClaimedAt,
 	})
 	if err != nil {
 		g.t.Fatalf("write ci_cd decisions: %v", err)

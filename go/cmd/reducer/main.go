@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
@@ -402,11 +401,7 @@ func buildReducerService(
 		PackageProvenanceEdgeWriter:         graphWriters.provenanceEdge,
 		ContainerImageProvenanceEdgeWriter:  graphWriters.provenanceEdge,
 		ContainerImageDerivedFromEdgeWriter: graphWriters.provenanceEdge,
-		CICDRunCorrelationWriter: cicdrun.PostgresCICDRunCorrelationWriter{
-			DB:       database,
-			Beginner: reducerBeginner(database),
-		},
-		CICDRunCorrelationCompletionOwed: postgres.CICDCompletionOwedMarker{LeaseOwner: reducerWorkQueueLeaseOwner}.Recorder,
+		CICDRunCorrelationWriter:            newCICDRunCorrelationWriter(database),
 		ServiceCatalogCorrelationWriter: servicecatalog.PostgresServiceCatalogCorrelationWriter{
 			DB: database,
 		},

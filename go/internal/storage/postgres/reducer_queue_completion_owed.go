@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
-	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
@@ -37,9 +36,10 @@ type CICDCompletionOwedMarker struct {
 	LeaseOwner string
 }
 
-// Recorder returns the recorder for one claimed ci_cd pass.
-func (m CICDCompletionOwedMarker) Recorder(intent reducercontract.Intent) cicdrun.CompletionOwedRecorder {
-	return cicdCompletionOwedRecorder{workItemID: intent.IntentID, leaseOwner: m.LeaseOwner, claimedAt: claimedAtValue(intent)}
+// Recorder returns the recorder for one claimed ci_cd pass: its work item id
+// and claim identity (last_attempt_at).
+func (m CICDCompletionOwedMarker) Recorder(workItemID string, claimedAt time.Time) cicdrun.CompletionOwedRecorder {
+	return cicdCompletionOwedRecorder{workItemID: workItemID, leaseOwner: m.LeaseOwner, claimedAt: claimedAt.UTC()}
 }
 
 type cicdCompletionOwedRecorder struct {

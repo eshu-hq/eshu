@@ -239,6 +239,23 @@ func identityCompletionEmitIDs(
 	return emitIDs
 }
 
+// completionEmitArgs returns the single-ack emit flag of a gated completion
+// producer, appended after the claim identity. container_image_identity
+// carries the paired run's support-changed verdict (#8284) and ci_cd carries
+// the writer's changed verdict (#10972 PR-4); both mirror the value-flow $6
+// emit flag. An unwired (zero) result fails open so a missing gate never
+// starves downstream consumers. Other domains bind nothing.
+func completionEmitArgs(intent reducercontract.Intent, result reducercontract.Result) []any {
+	switch intent.Domain {
+	case reducer.DomainContainerImageIdentity:
+		return []any{containerimage.ShouldEmitIdentityCompletion(result)}
+	case reducer.DomainCICDRunCorrelation:
+		return []any{cicdrun.ShouldEmitCompletion(result)}
+	default:
+		return nil
+	}
+}
+
 // cicdCompletionEmitIDs returns the ci_cd batch ack ids whose paired result
 // earned a completion event (#10972 PR-4), the ci_cd twin of
 // identityCompletionEmitIDs: every item still ACKs to succeeded, a missing

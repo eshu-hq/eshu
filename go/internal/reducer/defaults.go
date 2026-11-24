@@ -476,10 +476,6 @@ type DefaultHandlers struct {
 	// cicdrun.CICDRunCorrelationWriter persists provider run, artifact, and
 	// environment correlation decisions for CI/CD evidence.
 	CICDRunCorrelationWriter cicdrun.CICDRunCorrelationWriter
-	// CICDRunCorrelationCompletionOwed builds the recorder that marks a ci_cd
-	// pass's own item as owing a completion event inside its writer
-	// transaction (#10972 PR-4). Nil records no marker.
-	CICDRunCorrelationCompletionOwed func(reducercontract.Intent) cicdrun.CompletionOwedRecorder
 
 	// ServiceCatalogCorrelationWriter persists service-catalog ownership and
 	// repository correlation decisions.

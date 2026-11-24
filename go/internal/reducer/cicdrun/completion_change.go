@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -41,6 +42,12 @@ const PayloadKeyCompletionOwed = "cicd_completion_owed"
 // pass no longer holds its lease, so a zombie pass cannot commit.
 type CompletionOwedRecorder interface {
 	RecordCompletionOwed(ctx context.Context, exec factwrite.Execer) error
+}
+
+// CompletionOwedMarker builds the completion-owed recorder for one claimed
+// pass from its work item id and claim identity (last_attempt_at).
+type CompletionOwedMarker interface {
+	Recorder(workItemID string, claimedAt time.Time) CompletionOwedRecorder
 }
 
 // ShouldEmitCompletion reports whether an acknowledged ci_cd result earns a
