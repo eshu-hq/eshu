@@ -25,12 +25,27 @@ import (
 func TestClaimBatchCandidateReadsRepsWithoutRejoin(t *testing.T) {
 	t.Parallel()
 
-	body := stripSQLComments(cteBody(claimReducerWorkBatchQuery, "candidate AS (", "locked_search_doc_reserved AS"))
+	body := stripSQLComments(cteBody(claimReducerWorkBatchQuery, "candidate AS (", "gate_waited_generations AS"))
 	if body == "" {
 		t.Fatal("could not slice the candidate CTE body from the shipped batch claim")
 	}
 	if strings.Contains(body, "fact_work_items") {
 		t.Fatalf("candidate CTE still reads fact_work_items (the #10916 rejoin):\n%s", body)
+	}
+	// The gate sets after candidate keep their own reads: a waited-generation
+	// arm may probe fact_work_items as a grouped generation set, but must
+	// never rejoin per-candidate rows, which is the rejoin this gate forbids.
+	// The end marker above stops at the gate sets for exactly this reason:
+	// #10972's checkpoint arm never read fact_work_items, so the coarser
+	// span never noticed them.
+	gateSpan := stripSQLComments(cteBody(claimReducerWorkBatchQuery, "gate_waited_generations AS", "locked_search_doc_reserved AS"))
+	if gateSpan == "" {
+		t.Fatal("could not slice the gate set CTEs from the shipped batch claim")
+	}
+	for _, want := range []string{"reps.", "JOIN candidate"} {
+		if strings.Contains(gateSpan, want) {
+			t.Fatalf("gate set rejoins per-candidate rows %q:\n%s", want, gateSpan)
+		}
 	}
 	for _, want := range []string{
 		"reps.work_item_id",
@@ -66,7 +81,7 @@ func TestClaimBatchCandidateReadsRepsWithoutRejoin(t *testing.T) {
 	if strings.Contains(newQuery, "JOIN fact_work_items ON fact_work_items.work_item_id = reps.work_item_id") {
 		t.Fatal("derived candidate still re-joins fact_work_items; the #10916 rewrite is not in the shipped query")
 	}
-	if got := stripSQLComments(cteBody(newQuery, "candidate AS (", "SELECT work_item_id")); strings.Contains(got, "fact_work_items") {
+	if got := stripSQLComments(cteBody(newQuery, "candidate AS (", "gate_waited_generations AS")); strings.Contains(got, "fact_work_items") {
 		t.Fatalf("derived candidate CTE still reads fact_work_items:\n%s", got)
 	}
 	oldUpstream := oldQuery[strings.Index(oldQuery, "WITH "):strings.Index(oldQuery, "candidate AS (")]

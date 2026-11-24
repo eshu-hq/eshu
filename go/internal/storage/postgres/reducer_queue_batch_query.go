@@ -296,10 +296,19 @@ WITH ` + reducerClaimReadinessRequirementsCTE() + `,
 -- while its checkpoint is incomplete and names a last committed chunk: a
 -- drained generation drops out on its own because none of its rows are live
 -- candidates anymore (its work items are terminal), and a completed year
--- drops out by the year_complete fence. Claim-time fences (stale, readiness,
--- live-lease) still apply in the lock arms, so a waited-on row that fails
--- any of them is not claimable here either. MATERIALIZED like the other
--- gate sets: read once per claim.
+-- drops out by the year_complete fence. The second baseline arm covers the
+-- older windows of the same incomplete years: the checkpoint trails the
+-- newest committed chunk, so a window committed earlier whose reducer never
+-- ran is invisible to the first arm and would fall back to FIFO behind the
+-- whole backlog (#11366). A row qualifies while its scope names its year's
+-- baseline family (the pinned vuln-intel://nvd/_baseline/<run>/<year>/
+-- form, matched by strpos prefix so run ids with pattern characters stay
+-- literal) and the row is live; terminal rows never join, and a completed
+-- year drops out by the year_complete fence on its checkpoint row, exactly
+-- like the first arm. Claim-time fences (stale, readiness, live-lease)
+-- still apply in the lock arms, so a waited-on row that fails any of them
+-- is not claimable here either. MATERIALIZED like the other gate sets:
+-- read once per claim.
 gate_waited_generations AS MATERIALIZED (
     SELECT c.last_generation_id AS waited_generation_id,
            MIN(c.updated_at) AS gate_wait_since
@@ -307,6 +316,18 @@ gate_waited_generations AS MATERIALIZED (
     WHERE NOT c.year_complete
       AND c.last_generation_id <> ''
     GROUP BY c.last_generation_id
+    UNION
+    SELECT work.generation_id AS waited_generation_id,
+           MIN(c.updated_at) AS gate_wait_since
+    FROM vulnerability_nvd_baseline_checkpoints AS c
+    JOIN fact_work_items AS work
+      ON work.stage = 'reducer'
+     AND work.status IN ('pending', 'retrying', 'claimed', 'running')
+     AND work.generation_id <> ''
+     AND work.generation_id <> c.last_generation_id
+     AND strpos(work.scope_id, 'vuln-intel://nvd/_baseline/' || c.baseline_run_id || '/' || c.year::text || '/') = 1
+    WHERE NOT c.year_complete
+    GROUP BY work.generation_id
 ),` + reducerClaimBatchReservedArmCTE() + `,
 ` + reducerClaimBatchRestArmCTE() + `,
 locked AS (
