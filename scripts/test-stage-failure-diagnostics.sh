@@ -136,7 +136,7 @@ done
 [[ -f "${dest}/log-tails/straddle.log.tail" ]] || fail "missing straddle log tail"
 [[ "$(wc -l <"${dest}/log-tails/straddle.log.tail" | tr -d ' ')" -eq 200 ]] ||
 	fail "straddle tail must hold the last 200 lines"
-for secret in c3RyYWRkbGVib2R5ZGlhZ2tleQ 'Proc-Type' 'DEK-Info' 'END RSA PRIVATE KEY'; do
+for secret in c3RyYWRkbGVib2R5ZGlhZ2tleW 'Proc-Type' 'DEK-Info' 'END RSA PRIVATE KEY'; do
 	if rg -q -F -- "${secret}" "${dest}/log-tails/straddle.log.tail"; then
 		fail "straddle tail leaks cut key material: ${secret}"
 	fi
@@ -257,7 +257,7 @@ printf 'context before 0123456789\n%s\ncontext after 0123456789\n' \
 	'c3RyYWRkbGVib2R5ZGlhZ2tleWxpbmUxMjM0NTY3ODkwQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5Ky8vPAD=' |
 	redact_gate_log >"${fixture}/b64.out" ||
 	fail "redact_gate_log must handle a standalone base64 run"
-if rg -q -F -- 'c3RyYWRkbGVib2R5ZGlhZ2tleQ' "${fixture}/b64.out"; then
+if rg -q -F -- 'c3RyYWRkbGVib2R5ZGlhZ2tleW' "${fixture}/b64.out"; then
 	fail "a standalone long-base64 run must redact"
 fi
 rg -q -F -- 'context before 0123456789' "${fixture}/b64.out" ||
