@@ -13,7 +13,7 @@ import (
 )
 
 // TestProofCloneDisarmNamesTheMigrationsTrigger pins the coupling between the proof
-// clone helper and migration 349: a proof clone starts with the finding write stop
+// clone helper and migration 357: a proof clone starts with the finding write stop
 // disabled by trigger name, so a rename of the trigger in the migration without the
 // helper would leave every seeding proof refused by the stop (and a rename the other
 // way would leave the clones armed).
@@ -21,13 +21,13 @@ func TestProofCloneDisarmNamesTheMigrationsTrigger(t *testing.T) {
 	t.Parallel()
 
 	for _, def := range postgres.BootstrapDefinitions() {
-		if path.Base(def.Path) != "349_supply_chain_impact_finding_fact_write_stop.sql" {
+		if path.Base(def.Path) != "357_supply_chain_impact_finding_fact_write_stop.sql" {
 			continue
 		}
 		if !strings.Contains(def.SQL, "CREATE TRIGGER "+postgresproof.FindingWriteStopTrigger+"\n") {
-			t.Fatalf("migration 349 does not create the trigger %q the proof clone helper disarms", postgresproof.FindingWriteStopTrigger)
+			t.Fatalf("migration 357 does not create the trigger %q the proof clone helper disarms", postgresproof.FindingWriteStopTrigger)
 		}
 		return
 	}
-	t.Fatal("bootstrap definitions carry no migration 349")
+	t.Fatal("bootstrap definitions carry no migration 357")
 }

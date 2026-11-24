@@ -691,7 +691,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_fact_write_stop_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10880 PR-C2 k: reducer-contention proof that the finding-fact reject trigger (migration 349) raises a real *pgconn.PgError with SQLSTATE 55000, constraint fact_records_reject_supply_chain_impact_finding and table fact_records, that the reducer's impact transaction classifies it as supply_chain_impact_fact_write_stopped (retryable), that INSERT, upsert and UPDATE of the kind are refused and leave the row untouched while DELETE and other kinds pass, that a transaction opened before the trigger existed is refused whole when it writes after it, and that re-applying the migration keeps a disabled trigger disabled"
+    reason: "#10880 PR-C2 k: reducer-contention proof that the finding-fact reject trigger (migration 357) raises a real *pgconn.PgError with SQLSTATE 55000, constraint fact_records_reject_supply_chain_impact_finding and table fact_records, that the reducer's impact transaction classifies it as supply_chain_impact_fact_write_stopped (retryable), that INSERT, upsert and UPDATE of the kind are refused and leave the row untouched while DELETE and other kinds pass, that a transaction opened before the trigger existed is refused whole when it writes after it, and that re-applying the migration keeps a disabled trigger disabled"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_stable_key_fill_live_test.go
     tag: ~

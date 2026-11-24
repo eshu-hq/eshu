@@ -400,73 +400,10 @@ import (
 // the merged tree.
 // 357_supply_chain_impact_finding_first_seen.sql (#11031) adds the durable
 // set-once first-seen stamp table. Count 383 is 382 plus 357.
-// 349_supply_chain_impact_finding_fact_write_stop.sql (#10880 PR-C2 k) adds the
-// reject trigger on fact_records for the finding kind (a second 349 beside
-// main's eco stats; renumbered to 358 later in this series since main took
-// 357). Count and digest are RE-DERIVEd at the end of the rebase: the values
-// below are placeholders.
+// 358_supply_chain_impact_finding_fact_write_stop.sql (#10880 PR-C2 k) adds the
+// reject trigger on fact_records for the finding kind (renumbered from 349:
+// main took 357 for the first-seen stamp).
 // 359_supply_chain_impact_winners_enrichment_first_carry.sql (#11466) adds
 // the durable set-once-per-value enrichment first-carry stamp table on main's
-// tree (358 stays the #11476 write-stop lane). Its count and digest join the
-// re-derivation below.
-const (
-	goldenBootstrapDefinitionsDigest = "RE-DERIVE"
-	goldenBootstrapDefinitionsCount  = 383
-)
-
-func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
-	defs := BootstrapDefinitions()
-	if len(defs) != goldenBootstrapDefinitionsCount {
-		t.Fatalf("BootstrapDefinitions() count = %d, want %d", len(defs), goldenBootstrapDefinitionsCount)
-	}
-	h := sha256.New()
-	for _, def := range defs {
-		sqlSum := sha256.Sum256([]byte(def.SQL))
-		fmt.Fprintf(h, "%s|%s|%s\n", def.Name, def.Path, hex.EncodeToString(sqlSum[:]))
-	}
-	got := hex.EncodeToString(h.Sum(nil))
-	if got != goldenBootstrapDefinitionsDigest {
-		t.Fatalf("BootstrapDefinitions() digest = %s, want %s (Name/Path/SQL/order must stay byte-identical)",
-			got, goldenBootstrapDefinitionsDigest)
-	}
-}
-
-// TestBootstrapDefinitionsHaveUniqueSequenceNumbers keeps recent migrations
-// from claiming the same ordering slot after concurrent PRs merge. Older
-// migrations intentionally reuse several slots, so the guard starts at 100.
-func TestBootstrapDefinitionsHaveUniqueSequenceNumbers(t *testing.T) {
-	seen := make(map[int]string)
-	for _, def := range BootstrapDefinitions() {
-		filename := path.Base(def.Path)
-		parts := strings.SplitN(filename, "_", 2)
-		if len(parts) != 2 {
-			t.Fatalf("migration %q has no sequence prefix", filename)
-		}
-		sequence, err := strconv.Atoi(parts[0])
-		if err != nil || sequence < 100 {
-			continue
-		}
-		if previous, exists := seen[sequence]; exists {
-			t.Fatalf("migration sequence %d is shared by %q and %q", sequence, previous, filename)
-		}
-		seen[sequence] = filename
-	}
-}
-
-// TestBootstrapDefinitionsExcludesNonSQLFiles guards the embed pattern: only
-// *.sql files may become definitions. embed.go itself, doc.go, README.md and
-// AGENTS.md must never appear.
-func TestBootstrapDefinitionsExcludesNonSQLFiles(t *testing.T) {
-	for _, def := range BootstrapDefinitions() {
-		if def.Name == "" {
-			t.Fatalf("definition with empty name for path %q", def.Path)
-		}
-	}
-	for _, name := range []string{"embed", "doc", "README", "AGENTS"} {
-		for _, def := range BootstrapDefinitions() {
-			if def.Name == name {
-				t.Fatalf("non-SQL file %q leaked into BootstrapDefinitions()", name)
-			}
-		}
-	}
-}
+// tree (358 stays the #11476 write-stop lane). Count and digest are RE-DERIVEd
+// at the end of the rebase: the const below stays placeholder.

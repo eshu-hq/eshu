@@ -85,7 +85,7 @@ func TestNoGoFileWritesTheFindingKindToFactRecords(t *testing.T) {
 	for _, site := range sites {
 		found[site] = true
 		if _, allowed := findingWriteSiteAllowlist[site]; !allowed {
-			t.Errorf("%s names the finding kind and writes fact_records: the reject trigger (migration 349) refuses that write, so the file must write the supports table instead (WriteSupplyChainImpactFindingRows)", site)
+			t.Errorf("%s names the finding kind and writes fact_records: the reject trigger (migration 357) refuses that write, so the file must write the supports table instead (WriteSupplyChainImpactFindingRows)", site)
 		}
 	}
 	for site, reason := range findingWriteSiteAllowlist {

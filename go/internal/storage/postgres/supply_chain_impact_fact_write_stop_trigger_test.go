@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// The reject trigger (#10880 PR-C2 k, migration 349) is the database half of the
+// The reject trigger (#10880 PR-C2 k, migration 357) is the database half of the
 // finding-fact write stop; the C0 classifier is the reducer half. They are coupled
 // by two literals the classifier reads off the real *pgconn.PgError: the SQLSTATE
 // and the CONSTRAINT diagnostic. The repo's older triggers (088, 092, 250) raise
@@ -20,7 +20,7 @@ import (
 // error and classifies) is owed to the lab: ...fact_write_stop_live_test.go.
 
 const (
-	factWriteStopMigration = "349_supply_chain_impact_finding_fact_write_stop.sql"
+	factWriteStopMigration = "357_supply_chain_impact_finding_fact_write_stop.sql"
 	factWriteStopTrigger   = "fact_records_reject_supply_chain_impact_finding"
 	factWriteStopFunction  = "reject_supply_chain_impact_finding_fact_record_write"
 )

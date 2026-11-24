@@ -10,7 +10,7 @@ import (
 )
 
 // FindingWriteStopTrigger is the fact_records trigger that refuses every INSERT or
-// UPDATE of a reducer_supply_chain_impact_finding row (#10880 PR-C2 k, migration 349).
+// UPDATE of a reducer_supply_chain_impact_finding row (#10880 PR-C2 k, migration 357).
 // The production schema arms it. A proof database is a clone of the bootstrapped
 // template, so it carries it too, and many proofs seed finding facts into fact_records
 // on purpose: the backfill, drain, verification and key fill read frozen facts, and the
