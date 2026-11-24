@@ -59,10 +59,10 @@ load1 below 15 and run maximum below 15 on the host.
 
 Rep 3 ran while other jobs compiled on the host, so it is void under the gate and
 was rerun on the same build. Its values are listed only for the record; the verdict
-uses the rerun. The checker printed 0 FAIL and no INCONCLUSIVE line for reps 1 and
-2 (146 PASS lines over the control set and reps 1 to 3, where rep 3 is the void run:
-`rg -c '^PASS' report-gate.txt` in the results root) and 0 FAIL, 35 PASS for the
-rerun. In every T2TTL run the fleet-summed engaged counter was 1.0 and the
+uses the rerun. The checker printed 0 FAIL and no INCONCLUSIVE line for the control
+set and reps 1 and 2 (111 PASS lines: `sed -n '1,114p' report-gate.txt | rg -c '^PASS'`,
+a file kept in the operator's results root, not in the repo) and 0 FAIL, 35 PASS for the
+rerun. The void rep 3 section is not part of that count and no result is claimed for it. In every T2TTL run the fleet-summed engaged counter was 1.0 and the
 claim-grant consult count was 176 to 178.
 
 Arm against the control mean: p95 is above it in all three valid reps (by .132,
@@ -147,7 +147,9 @@ mutated. The simulated-clock tests drive the real `Service.Run` loop with an inj
   current main; same patch, patch-id 1e62428d63). Two later changes alter how the activity word
   stores time: the clock-step hardening (commit "Harden the projector pool-activity gate against a
   clock step") and the compare-and-swap in `noteClaim`. The replay was not repeated on them: on a
-  monotonic clock the final code behaves as 835ce351a0 does in every case, and each change has a
+  monotonic clock the final code behaves as 835ce351a0 does in every case except the
+  claim-ordering race that the compare-and-swap removes (the measured build swapped its stamp
+  and could report a spurious idle and wake in that interleaving), and each change has a
   hermetic test with a recorded RED in the claims table. The replay figures above are for the
   build before them. `go-race-complete` in CI is the required race check for the shared timestamp.
 - The 30-minute diagnostic of why a first graph write is slow on a near-empty graph (the
