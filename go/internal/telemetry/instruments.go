@@ -2009,8 +2009,9 @@ type Instruments struct {
 	// inventory, grouped-inventory and explain read statement by the read model its
 	// route function chose (#10880 PR-B2a): winners, winners_supplement (unscoped
 	// precise), supports_grant, supports_image, supports_finding_id (the public-id
-	// explain), supports_selector (the ungranted explain selector and identity
-	// reads), or legacy (the gate off). The label is bounded to those seven values. A refused
+	// explain), supports_selector (the ungranted explain selector read driven from
+	// its own key's index), or legacy (the gate off, and the explain reads that have no
+	// supports index to drive from). The label is bounded to those seven values. A refused
 	// list, count, inventory or grouped call still counts the route it tried, so an
 	// operator reads which route 503s; an explain counts only the statements it runs
 	// (a refused explain counts nothing). With the route span attribute it also names

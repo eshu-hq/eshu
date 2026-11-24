@@ -25,8 +25,9 @@ import (
 //   - Any other granted lookup drives from the grant, as two index arms, so a
 //     selector over a large grant never scans the table.
 //
-// An ungranted selector or identity lookup without an image reference reads the
-// whole table through the same builder (ExplainFindingUngrantedFromSupportsQuery).
+// An ungranted selector lookup that names a CVE, advisory, repository or package
+// drives from that key's own index (ExplainFindingUngrantedByKeyQuery); an ungranted
+// lookup with no indexed selector keeps the legacy read.
 
 // supportsExplainOverrideLateral is the operator override probe of the explain
 // reads. Unlike the list's, it returns the override payload, which the explain
@@ -173,15 +174,77 @@ var ExplainFindingByPublicIDFromSupportsQuery = mustBuildExplainFromSupportsQuer
 var ExplainFindingFromSupportsQuery = mustBuildExplainFromSupportsQuery(
 	supportsExplainGrantArms, "", "", supportsExplainIdentityPredicate)
 
-// ExplainFindingUngrantedFromSupportsQuery is the ungranted selector or identity
-// explain (#10880 PR-C1 f): the whole supports table as the source, with the same
-// authorization, selector and identity predicates the granted read applies. The
-// grant predicate is vacuous without a grant, so the selector columns
-// (cve_id, advisory_id, package_id, repository_id, subject_digest) drive the
-// read through their btrees; a fact-id, finding-id or canonical-key lookup has no
-// dedicated supports index yet and is measured with the C1 index set.
-var ExplainFindingUngrantedFromSupportsQuery = mustBuildExplainFromSupportsQuery(
-	"supply_chain_impact_finding_supports", "", "", supportsExplainIdentityPredicate)
+// explainDrivingKey names the selector an ungranted explain drives its read from.
+type explainDrivingKey string
+
+const (
+	explainKeyNone       explainDrivingKey = ""
+	explainKeyCVE        explainDrivingKey = "cve"
+	explainKeyAdvisory   explainDrivingKey = "advisory"
+	explainKeyRepository explainDrivingKey = "repository"
+	explainKeyPackage    explainDrivingKey = "package"
+)
+
+// supportsExplainKeyFences is the key-first source of an ungranted selector
+// explain (#10880 PR-C1 f, arbiter ruling 2026-11-24): the supports that match the
+// route's own key, read through that key's partial btree into a MATERIALIZED fetch,
+// the fence the image route uses so the planner cannot flatten the read into a
+// join driven from the active scopes. The not-empty literal repeats each partial
+// index's predicate so a generic plan can still prove the index applies. The
+// advisory-or-CVE argument ($3) is two index arms, the second excluding the rows the
+// first covers. Every other selector, the grant, the identity predicate and the
+// active-scope join apply to these candidates afterwards.
+var supportsExplainKeyFences = map[explainDrivingKey]string{
+	explainKeyCVE: `key_supports AS MATERIALIZED (
+  SELECT * FROM supply_chain_impact_finding_supports
+  WHERE cve_id = $4 AND cve_id <> ''
+)`,
+	explainKeyAdvisory: `key_supports AS MATERIALIZED (
+  SELECT * FROM supply_chain_impact_finding_supports
+  WHERE advisory_id = $3 AND advisory_id <> ''
+  UNION ALL
+  SELECT * FROM supply_chain_impact_finding_supports
+  WHERE cve_id = $3 AND cve_id <> '' AND advisory_id <> $3
+)`,
+	explainKeyRepository: `key_supports AS MATERIALIZED (
+  SELECT * FROM supply_chain_impact_finding_supports
+  WHERE repository_id = $6 AND repository_id <> ''
+)`,
+	explainKeyPackage: `key_supports AS MATERIALIZED (
+  SELECT * FROM supply_chain_impact_finding_supports
+  WHERE package_id = $5 AND package_id <> ''
+)`,
+}
+
+// ExplainFindingUngrantedByKeyQuery is the ungranted selector or identity explain
+// driven from key: same builder, same predicates, with the key-first fence as the
+// source. A key without an entry has no index to drive from.
+var ExplainFindingUngrantedByKeyQuery = func() map[explainDrivingKey]string {
+	queries := make(map[explainDrivingKey]string, len(supportsExplainKeyFences))
+	for key, fence := range supportsExplainKeyFences {
+		queries[key] = mustBuildExplainFromSupportsQuery("key_supports", fence, "", supportsExplainIdentityPredicate)
+	}
+	return queries
+}()
+
+// ungrantedExplainDrivingKey picks the selector an ungranted explain drives from, in
+// a fixed order (CVE, advisory-or-CVE, repository, package). It returns
+// explainKeyNone for a call with no indexed selector: a subject digest or an
+// identity (fact id, finding id, canonical key) alone has no supports index to drive
+// from, so that call keeps the legacy read until its own migration exists.
+func ungrantedExplainDrivingKey(filter packet.ExplanationFilter) explainDrivingKey {
+	switch {
+	case filter.CVEID != "":
+		return explainKeyCVE
+	case filter.AdvisoryID != "":
+		return explainKeyAdvisory
+	case filter.RepositoryID != "":
+		return explainKeyRepository
+	case filter.PackageID != "":
+		return explainKeyPackage
+	}
+	return explainKeyNone
+}
 
 // supportsExplainImageFence is the ungranted selector lookup with an image
 // reference: the candidates come from the image partial index through a
@@ -227,11 +290,15 @@ type explainRoute struct {
 //     set, #10880 PR-C1 f);
 //   - an ungranted selector lookup with an image reference reads supports through
 //     the image partial index, filter then pick;
-//   - an ungranted selector lookup without one reads the whole supports table
-//     through the cve, advisory, package and repository btrees (contract S of the
-//     arbiter, now that PR-B2b's indexes exist); the winners table cannot name
-//     its candidates (a mixed cve_id key, a second key that matches only on a lower
-//     copy, and a replaced winning support each give a wrong answer).
+//   - an ungranted selector lookup without one drives from its own key: the first of
+//     CVE, advisory-or-CVE, repository and package it names reads the supports that
+//     match through that key's partial index into a MATERIALIZED fetch, and every
+//     other selector, the identity filter and the active-scope check apply to those
+//     candidates (the winners table cannot name its candidates: a mixed cve_id key, a
+//     second key that matches only on a lower copy, and a replaced winning support each
+//     give a wrong answer). A call with none of them (a subject digest alone, or an
+//     identity lookup by fact id, finding id or canonical key) has no supports index to
+//     drive from and keeps the legacy read.
 func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) explainRoute {
 	legacy := explainRoute{
 		publicID: ExplainFindingByPublicIDQuery, selector: ExplainFindingQuery,
@@ -248,8 +315,13 @@ func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) expl
 	}
 	route := explainRoute{
 		supports: true,
-		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingUngrantedFromSupportsQuery,
-		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteSupportsSelector,
+		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingQuery,
+		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteLegacy,
+	}
+	// A selector with an index drives from it (key-first); without one the lookup
+	// keeps the legacy read.
+	if key := ungrantedExplainDrivingKey(filter); key != explainKeyNone {
+		route.selector, route.selectorRoute = ExplainFindingUngrantedByKeyQuery[key], RouteSupportsSelector
 	}
 	// One exception to "the identity lookup stays legacy": a finding id that misses
 	// the public-id probe on a call that also names an image reference runs the image

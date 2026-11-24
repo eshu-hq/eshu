@@ -54,7 +54,7 @@ func TestExplainRoutesByGrantAndLookup(t *testing.T) {
 	// legs read other fact kinds from fact_records on every route, so the check is
 	// the legacy candidate source, not the table name.)
 	ungranted := func(q string) bool {
-		return strings.Contains(q, "FROM supply_chain_impact_finding_supports AS fact") &&
+		return strings.Contains(q, "key_supports AS MATERIALIZED (") && strings.Contains(q, "FROM key_supports AS fact") &&
 			!strings.Contains(q, "image_supports") && !strings.Contains(q, "SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id") &&
 			!strings.Contains(q, "FROM fact_records AS fact")
 	}
@@ -79,9 +79,14 @@ func TestExplainRoutesByGrantAndLookup(t *testing.T) {
 			packet.ExplanationFilter{FindingID: "finding:a", AllowedScopeIDs: granted},
 			[]func(string) bool{probe, supportsPublicID, supportsGrantArms},
 		},
-		"ungranted public id then supports identity fallback": {
+		"ungranted public id then the legacy identity fallback (no indexed selector)": {
 			true,
 			packet.ExplanationFilter{FindingID: "finding:a"},
+			[]func(string) bool{probe, supportsPublicID, legacy},
+		},
+		"ungranted public id with a CVE then the key-first identity fallback": {
+			true,
+			packet.ExplanationFilter{FindingID: "finding:a", CVEID: "CVE-2026-1"},
 			[]func(string) bool{probe, supportsPublicID, ungranted},
 		},
 		"ungranted selector reads supports": {

@@ -1,0 +1,6 @@
+-- supports-node projection of the plain EXPLAIN of the key-first cve explain, plain variant, QA replica 2026-11-24T16:30Z (explain_only.py; pg 18.6)
+     ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports  (cost=0.69..51123.26 rows=45265 width=1500)
+           Index Cond: (cve_id = 'CVE-2026-67320'::text)
+                                 ->  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  (cost=0.12..2.35 rows=1 width=987)
+                                       Index Cond: (canonical_key = source_candidates.canonical_key)
+                                       Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 10).col1))

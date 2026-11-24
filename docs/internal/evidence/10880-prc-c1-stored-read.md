@@ -193,7 +193,7 @@ reading of the trigger and cascade rules, observed live:
 and 31 for both orders (the scope deleted with its generations, and a retired
 generation deleted before its scope).
 
-## C1 f: not in C1
+## C1 f: not in C1 (now its own PR: key-first reads, evidence in `10880-prc-c1f-key-first-explain.md`)
 
 The two ungranted explain routes (an ungranted selector lookup, and the identity
 fallback of an ungranted public-id miss) are NOT supports-backed in C1. Both keep the

@@ -1,0 +1,8 @@
+-- supports-node projection of the plain EXPLAIN of the key-first repository explain, plain variant, QA replica 2026-11-24T16:30Z (explain_only.py; pg 18.6)
+     ->  Bitmap Heap Scan on supply_chain_impact_finding_supports  (cost=1146.39..127838.42 rows=117810 width=1500)
+           Recheck Cond: (repository_id = 'repository:r_e3c0ae60'::text)
+           ->  Bitmap Index Scan on supply_chain_impact_finding_supports_repository_idx  (cost=0.00..1116.93 rows=117920 width=0)
+                 Index Cond: (repository_id = 'repository:r_e3c0ae60'::text)
+                                 ->  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  (cost=0.12..2.35 rows=1 width=987)
+                                       Index Cond: (canonical_key = source_candidates.canonical_key)
+                                       Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 10).col1))
