@@ -71,11 +71,19 @@ items (CVE-2026-27606) as a bounded `stampOut`.
 
 So the covered-only drop removes 56% of the largest list (61% with the bounded
 change), where the status-only drop removed 99.7%. The 1,628 kept uncovered
-holders each get one `stamp_widened` statement on this fan-out; once their
-stamp names the change, the next fan-out drops them. Queued manifest-marker
+holders each get one `stamp_widened` statement on this fan-out. Because these
+lists' `stampOut` is empty (unbounded), the widen writes the set-less stamp, so
+each of those holders' next pass changes from a scoped one hop to a full pass;
+the next fan-out then drops them as covered. The same holds for the 1,243 kept
+on list 2 and the 1,181 on list 3. With a bounded change (the last row) the
+widen keeps the pass scoped, on the union. Queued manifest-marker
 holders among the listed holders: 0, so no marker-specific rule is needed.
 
-The plan of the new statement, largest list: `GroupAggregate` over a `Sort` over
+The plan below is the shim's text of the predicate, a draft OR-chain, not the
+shipped CASE text: the shipped form guards `jsonb_array_length` inside a CASE
+branch, so it cannot raise on a non-array whatever order the OR arms are
+evaluated in. Its row set is the same; the shipped text's own EXPLAIN on QA is
+a post-merge reading slot. The plan of the shim's statement, largest list: `GroupAggregate` over a `Sort` over
 a `Hash Join`. `fact_work_items` is read by an Index Scan on
 `fact_work_items_stage_domain_status_idx` (3,736 rows kept, 5,576 removed by the
 holder filter, 44,413 buffers, 59.9 ms). It is hash-joined to a Seq Scan of
@@ -111,14 +119,23 @@ reopen already locks and never moves its claim order. The read never scans
 `fact_work_items` sequentially, at 1.26 s warm on the largest list. The success
 bar is the arbiter's: deferred holder statements per hour down at least 90%
 from 13,896 across three consecutive hours, open `supply_chain_impact` work
-lower at the end than the start, and `stamp_widened` per hour falling as
-stamps converge.
+lower at the end than the start, `stamp_widened` per hour falling as
+stamps converge, and the `supply_chain_impact` pass duration
+(`eshu_dp_reducer_run_duration_seconds{domain="supply_chain_impact"}`
+and `eshu_dp_supply_chain_impact_pass_total` by `mode`) read over the same
+three hours, because the widened holders run full passes.
 
 No-Regression Evidence (#10972 PR-2 holder prefilter): a pass with no covered
 holders pays one extra read-only statement and drops nothing; every kept holder
 runs one reopen statement, in the same order, as before. A queued holder that
 was a no-op before is now widened once per new id; that write is bounded by
-the stamp cap and stops at the sentinel. The concurrency model is unchanged: no
+the stamp cap and stops at the sentinel. When the change is unbounded, as on
+the QA lists read here, the widen makes the holder's next pass full instead of
+a scoped one hop. That is not an added pass: on base the same holder sat on the
+continuation list, ran its scoped pass, and the drain then reopened it
+set-less once it had succeeded, so it ran scoped and then full; now one full
+pass replaces both. The commit-skew fence's set-less reopen widens the same
+way (`HOLDER_FANOUT_PREFILTER.md`). The concurrency model is unchanged: no
 lock, lease, claim query, worker count, or batch size changes, so nothing is
 serialized.
 
