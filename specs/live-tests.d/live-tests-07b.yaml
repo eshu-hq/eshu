@@ -110,3 +110,8 @@ tests:
     class: dedicated_ci
     reason: "#10972 D2: a multi-CVE holder's stamped one-hop rerun with a fresh full-pass marker stays scoped and leaves the row outside the stamp at its xmin; reducer-contention selects TestUpdateFanOutStateMarkerKeepsRowsOutsideTheStampLive through the TestUpdateFanOutState alternative of the supply-chain filter; RED before the marker"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_marker_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D2: the fenced fan-out state update stores the full-pass marker, a nil marker leaves it, a reopen and the ack keep it, and a lost lease stores nothing; reducer-contention selects TestUpdateFanOutStateStoresTheFullPassMarkerUnderTheLeaseLive through the TestUpdateFanOutState alternative of the supply-chain filter"
+    runner: reducer-contention

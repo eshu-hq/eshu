@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -79,7 +80,7 @@ func (h SupplyChainImpactHandler) scopedSupplyChainImpactFilterEnvelopes(
 ) (*scopedSupplyChainImpactScope, []facts.Envelope, bool) {
 	if cves := scopedPassCVEIDs(intent); len(cves) > 0 && h.AuthorizedEvidenceLoader == nil && !h.authorizedStaticOnly {
 		if scoped := h.scopeSupplyChainImpactPass(ctx, intent, envelopes, cves); scoped != nil {
-			if h.hasOutOfStampActiveSupplyChainImpactRows(ctx, intent, cves) {
+			if fullPassReapDue(intent, time.Now()) && h.hasOutOfStampActiveSupplyChainImpactRows(ctx, intent, cves) {
 				return nil, envelopes, true
 			}
 			return scoped, scopeSupplyChainImpactEnvelopes(envelopes, scoped), false

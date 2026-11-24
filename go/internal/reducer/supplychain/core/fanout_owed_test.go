@@ -32,7 +32,7 @@ func TestOwedMarkerIsRecordedOnlyWhenTheCommitChangedSomething(t *testing.T) {
 	if _, has := changed.payload[PayloadKeyFanOutOwed]; has {
 		t.Fatal("the marker is still set after the fan-out finished: it must be cleared with the last holder")
 	}
-	if !reflect.DeepEqual(changed.stateCalls, []FanOutState{{ClearOwed: true}}) {
+	if !reflect.DeepEqual(withoutFullPassMarkers(changed.stateCalls), []FanOutState{{ClearOwed: true}}) {
 		t.Fatalf("state calls = %+v, want one marker clear that leaves the list alone", changed.stateCalls)
 	}
 

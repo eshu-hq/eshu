@@ -309,3 +309,14 @@ the finding facts stop being written. A supports table that
 is not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`, which
 `fanOutReadFailure` returns unwrapped so the queue defers the item without counting
 an attempt. Evidence: `docs/internal/evidence/11197-holder-reads-supports.md`.
+
+## The full-pass marker bounds the out-of-stamp fallback (#10972 D2)
+
+`fullPassReapDue` (`full_pass_marker.go`) runs before the out-of-stamp probe
+in `scopedSupplyChainImpactFilterEnvelopes`. Keep that order: the probe sends a
+multi-CVE holder's stamped rerun full on every reopen, which makes the rerun
+long enough to be flagged again. The marker is written only through the pass's
+own fenced `UpdateFanOutState` (`FanOutState.FullPassMarker`); do not add a
+second statement for it. A missing or malformed marker must stay "reap due".
+Change N (`fullPassReapMaxScopedReruns`) or T (`fullPassReapMaxAge`) only with
+a measured rerun rate.
