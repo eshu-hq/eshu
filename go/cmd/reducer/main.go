@@ -403,8 +403,10 @@ func buildReducerService(
 		ContainerImageProvenanceEdgeWriter:  graphWriters.provenanceEdge,
 		ContainerImageDerivedFromEdgeWriter: graphWriters.provenanceEdge,
 		CICDRunCorrelationWriter: cicdrun.PostgresCICDRunCorrelationWriter{
-			DB: database,
+			DB:       database,
+			Beginner: reducerBeginner(database),
 		},
+		CICDRunCorrelationCompletionOwed: postgres.CICDCompletionOwedMarker{LeaseOwner: reducerWorkQueueLeaseOwner}.Recorder,
 		ServiceCatalogCorrelationWriter: servicecatalog.PostgresServiceCatalogCorrelationWriter{
 			DB: database,
 		},

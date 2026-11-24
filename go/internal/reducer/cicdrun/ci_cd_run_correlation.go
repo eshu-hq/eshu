@@ -76,13 +76,22 @@ type CICDRunCorrelationWrite struct {
 	SourceSystem string
 	Cause        string
 	Decisions    []CICDRunCorrelationDecision
+	// CompletionOwed, when set, marks the pass's own work item as owing a
+	// completion event inside the writer transaction that commits changed
+	// rows (#10972 PR-4). Nil records nothing.
+	CompletionOwed CompletionOwedRecorder
 }
 
 // CICDRunCorrelationWriteResult summarizes durable CI/CD correlation writes.
 type CICDRunCorrelationWriteResult struct {
-	CanonicalWrites int
-	FactsWritten    int
-	EvidenceSummary string
+	// CompletionChanged is the changed verdict of the write (#10972 PR-4):
+	// true when it inserted or changed a row supply_chain_impact reads,
+	// false when it rewrote the same consumer truth, nil when the writer has
+	// no transaction to compute it (the ack then emits).
+	CompletionChanged *bool
+	CanonicalWrites   int
+	FactsWritten      int
+	EvidenceSummary   string
 }
 
 // CICDRunCorrelationWriter persists reducer-owned CI/CD run correlations.
@@ -116,6 +125,11 @@ type CICDRunCorrelationHandler struct {
 	// class freezes attempt_count, so the queue row alone cannot tell an
 	// operator how long this consumer has been waiting.
 	Logger *slog.Logger
+	// CompletionOwed returns the recorder that marks the pass's own work item
+	// as owing a completion event (#10972 PR-4). Optional: nil records no
+	// marker, so a pass that commits changes and dies before its ack does not
+	// guarantee an event on its retry.
+	CompletionOwed func(reducercontract.Intent) CompletionOwedRecorder
 }
 
 // Handle executes one CI/CD run correlation reducer intent.
@@ -200,12 +214,13 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent reducercon
 	}
 	counts := cicdRunCorrelationCounts(decisions)
 	writeResult, err := h.Writer.WriteCICDRunCorrelations(ctx, CICDRunCorrelationWrite{
-		IntentID:     intent.IntentID,
-		ScopeID:      intent.ScopeID,
-		GenerationID: intent.GenerationID,
-		SourceSystem: intent.SourceSystem,
-		Cause:        intent.Cause,
-		Decisions:    decisions,
+		IntentID:       intent.IntentID,
+		ScopeID:        intent.ScopeID,
+		GenerationID:   intent.GenerationID,
+		SourceSystem:   intent.SourceSystem,
+		Cause:          intent.Cause,
+		Decisions:      decisions,
+		CompletionOwed: h.completionOwedRecorder(intent),
 	})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("write ci/cd run correlations: %w", err)
@@ -223,7 +238,7 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent reducercon
 		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: cicdRunCorrelationSummary(evaluatedCount, preservedCount, counts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
-		SubSignals:      factdecode.InputInvalidSubSignals(quarantinedCount),
+		SubSignals:      h.completionSubSignals(ctx, writeResult, factdecode.InputInvalidSubSignals(quarantinedCount)),
 		SubDurations: map[string]float64{
 			"workflow_image_bridge_load": workflowBridgeLoadDuration.Seconds(),
 		},

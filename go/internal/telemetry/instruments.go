@@ -1495,6 +1495,11 @@ type Instruments struct {
 	// A pass whose fan-out later fails is still counted once. Registered by
 	// registerSupplyChainImpactPassOutcomeInstruments.
 	SupplyChainImpactPassOutcomeTotal metric.Int64Counter
+	// CrossScopeCompletionSuppressed counts producer passes whose ack skips
+	// the cross-scope completion event because nothing a consumer reads
+	// changed (#10972 PR-4), by producer domain. Registered by
+	// registerCrossScopeCompletionSuppressedInstruments.
+	CrossScopeCompletionSuppressed metric.Int64Counter
 	// SupplyChainImpactFanOutSiteDuration records, per holder fan-out pass,
 	// the total seconds spent in each site the pass entered (in_flight_early,
 	// inflight_read, holder_reads, holder_prefilter, reopen_loop,
@@ -7413,6 +7418,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactPassOutcomeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCrossScopeCompletionSuppressedInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactFanOutSiteInstruments(meter, inst); err != nil {
