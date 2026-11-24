@@ -114,7 +114,6 @@ const standbyHarnessRowsPerScope = 1500
 type standbyHarnessTopology struct {
 	writerDSN string
 	readerDSN string
-	cleanup   func()
 }
 
 // requireStandbyHarnessTopology returns the owned pair from the environment
