@@ -74,6 +74,11 @@ tests:
     class: postgres_ci
     reason: "#10972 drain-gated priority tier: a live generation a gate waits on must win a claim slot ahead of older ordinary backlog (capped at one per batch, FIFO among gating generations), and non-gating relative order plus auto-expiry on drain must hold; disposable PostgreSQL through postgresproof with the production claim path"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11350 TEST1 (and #11297 exit-1): a 4-intent FailBatch with one 600-scope fence parks every item under the btree row limit and returns nil instead of the fatal 54000; disposable database per test, about 10 s locally"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go
     tag: ~
     class: postgres_ci
