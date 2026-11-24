@@ -120,3 +120,23 @@ tests:
     class: dedicated_ci
     reason: "#10972 D2 rekey exception: the shipped linked out-of-stamp probe over real supports rows (advisory arm, members arm, a no-CVE row, an unlinked row, a linked row inside the stamp); reducer-contention selects TestSupplyChainImpactSupportsLinkedOutOfStampProbeArmsLive through the TestSupplyChainImpact(...Supports...)[A-Za-z]*Live alternative of the supply-chain filter"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_quiescence_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 requeue budget (arbiter re-run contract tests A and B, gate E seeded self-test): one change with passes in flight must drain within 1 + holders + in-flight passes with no unrelated full rerun, and steady arrivals must leave a long unrelated holder at two runs; reducer-contention selects the 3 TestSupplyChainImpact*Live tests in this file through the supply-chain filter"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_scoped_reach_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D3 guard differential (arbiter RANK2 section 3, the cases that hold on main): a stamped one-hop rerun versus a genuine full pass of the same holder on the real writer; reducer-contention selects the TestScopedReachDifferential*Live tests through the supply-chain filter"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_scoped_reach_closure_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D3 guard cases (arbiter D3/D2 ruling): a link after the full pass, a closure over its cap, and a D2-due marker; reducer-contention selects the TestScopedReachDifferential*Live tests through the supply-chain filter"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_writer_rewrite_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 write-amplification pin: an unchanged full rerun keeps every row's content digest, stages 0 winners dirty marks, and rewrites every row (new xmin), because the finding upsert has no content-equality guard; reducer-contention selects TestSupplyChainImpactWriterRewritesEveryRowOfAnUnchangedFullRerunLive through the TestSupplyChainImpact(Writer...)[A-Za-z]*Live alternative of the supply-chain filter"
+    runner: reducer-contention

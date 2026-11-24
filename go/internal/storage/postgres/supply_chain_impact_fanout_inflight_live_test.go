@@ -452,7 +452,8 @@ func TestFanOutRaceAFlaggedRerunIsItselfFlaggableLive(t *testing.T) {
 // evidence and writes no finding, so the fan-out must not set its replay bit:
 // the migration 093 trigger would turn that bit into a pending re-run at the
 // marker's ack, the self-loop that kept markers running between bulk events.
-// A claimed findings pass in another scope is still flagged, so the exclusion
+// A findings pass in another scope, claimed before the source's load ended
+// (#10972 D4b), is still flagged, so the exclusion
 // is the marker's, not the in-flight read's.
 func TestManifestMarkerFlagsNeverComeFromACVEFanOutLive(t *testing.T) {
 	c := newConvergence(t, false)
