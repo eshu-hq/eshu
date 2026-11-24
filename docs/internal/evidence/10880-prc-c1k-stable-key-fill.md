@@ -82,3 +82,27 @@ Evidence: `eshu_dp_supply_chain_impact_stable_key_fill_steps_total`, `..._rows_t
 `..._pauses_total` and the `..._complete` gauge, documented in
 `docs/public/reference/telemetry/supply-chain-impact-supports.md`; four new environment
 variables in the env registry.
+
+## Live and lab proofs to run
+
+Written, not yet run. Environment, for a disposable server only: `ESHU_POSTGRES_TEST_DSN=<dsn>`,
+`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN=<admin dsn of the same server>`,
+`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1`, `ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1`. Command, from `go/`:
+`go test -count=1 -v -run '<name>' ./internal/storage/postgres/`.
+
+- `TestSupplyChainImpactSupportsStableKeyFillLive`: a 1,300-support pair; filled keys equal the twin's, a key a
+  rewrite filled is kept, an empty twin key stays keyless, no step touches more than 500, the marker is set only by
+  the step that verified clean, the supports marker row is untouched.
+- `TestSupplyChainImpactSupportsStableKeyFillRespectsThePairLockLive`: with the pair's conflict-domain lock held, a fill
+  step and a writer pass both wait (seen in `pg_stat_activity`), nothing is keyed meanwhile, and both finish with no lost
+  update.
+- `TestSupplyChainImpactSupportsStableKeyFillResumesAfterARestartLive`: one step, then a new fill value over the same
+  database finishes the sweep; every fillable support is filled exactly once.
+- `TestSupplyChainImpactSupportsStableKeyFillLabLive` (T6): `ESHU_LAB_FILL_ROWS` (default 5,000) and
+  `ESHU_LAB_FILL_PAIR_ROWS` (default 2,000) set the scale; it seeds keyless supports across pairs, runs the fill to completion
+  at the production chunk size, and reports WAL bytes per filled row (log position delta and `pg_stat_wal`), the HOT share,
+  dead tuples, wall time and the per-step time. `ESHU_LAB_FILL_REPORT=<path>` writes the JSON. Run it on a quiet server: the WAL
+  deltas include every writer.
+- `TestSupplyChainImpactSupportsLazyStoredReadPlanLive`: `EXPLAIN (ANALYZE, BUFFERS)` of the stored read: for a keyed pair the twin
+  SubPlan is never executed and `fact_records_pkey` is not probed; for a keyless pair it is probed once per row; both answers equal
+  the fact read. `ESHU_LAB_PLAN_DIR=<dir>` writes the two plans.
