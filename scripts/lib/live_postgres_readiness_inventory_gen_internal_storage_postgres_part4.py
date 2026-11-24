@@ -48,6 +48,7 @@ TABLE = {
             "TestClaimBatchGatePriorityExpiresOnDrainLive",
             "TestClaimBatchGatePriorityIgnoresSupersededGenerationLive",
             "TestClaimBatchGatePriorityBoostsOlderBaselineWindowLive",
+            "TestClaimBatchGatePriorityIgnoresCompletedYearLive",
         ),
         "go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go": (
             "TestFailBatchWideBlockingSetParksCleanlyLive",
