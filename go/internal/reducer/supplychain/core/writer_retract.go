@@ -103,6 +103,14 @@ func commitSupplyChainImpactRows(
 	hasProtected bool,
 	now time.Time,
 ) (supplyChainImpactTxOutcome, error) {
+	// The go-evidence lock and recheck come first, before the protected-scan
+	// authorization and the conflict-domain lock (#11327): the shared lock must be the
+	// first lock this transaction takes, so a fence's exclusive wait can never form a
+	// cycle with a lock the pass already holds, and the recheck must read after the
+	// lock is granted. A pass with no resolved Go scope issues neither statement.
+	if err := lockAndRecheckGoEvidence(ctx, tx, write.GoEvidence); err != nil {
+		return supplyChainImpactTxOutcome{}, err
+	}
 	var publisher ProtectedScanImpactPublisher
 	var authorizer ProtectedScanImpactAuthorizer
 	if hasProtected {
@@ -305,6 +313,9 @@ const lockSupplyChainImpactConflictDomainQuery = `SELECT pg_advisory_xact_lock(h
 // (scope, generation) finding set. The fact kind prefix namespaces it away
 // from other domains' advisory keys; a 64-bit hash collision only costs a
 // brief extra wait, never a wrong result.
+//
+// The go-evidence lock key (SupplyChainImpactGoEvidenceLockKey, go_evidence_lock.go)
+// is a separate derivation in a separate namespace, taken before this lock.
 func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 	return supplyChainImpactFactKind + "\x1f" + scopeID + "\x1f" + generationID
 }

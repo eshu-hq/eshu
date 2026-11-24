@@ -45,6 +45,9 @@ A drain that reads 100,000 raw rows or more, or that fails after reading any (th
 without a dashboard.
 
 ## Refused fact writes
+| `eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total` | counter | `reason` | Impact passes aborted before their write because the Go evidence they loaded no longer names its go scope's active generation (`generation_changed`: a Go-modules fence retracted it or a successor activated) or the shared go-evidence lock timed out behind a fence (`lock_timeout`). Each retries without spending an attempt (class `supply_chain_impact_go_evidence_changed`) and the retry reloads the evidence. A sustained rate means fences and passes keep colliding on one repository. |
+| `eshu_dp_go_fence_advisory_lock_timeouts_total` | counter | none | Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight impact pass. Nothing was detached; the coordinator retries the page next tick. Three consecutive ticks timing out on the same scope returns to the owner of #11327. |
+| `eshu_dp_go_fence_advisory_lock_wait_seconds` | histogram | none | How long the fence waited for the exclusive go-evidence lock, granted or timed out. The tail is the longest impact pass write transaction that held the shared lock; the lock timeout is 2 s. |
 
 After the finding-fact write stop (#10880 PR-C), the database refuses every INSERT and UPDATE of a
 `reducer_supply_chain_impact_finding` row in `fact_records` with SQLSTATE 55000 and the constraint name

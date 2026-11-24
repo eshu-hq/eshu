@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -283,7 +284,7 @@ func run(parent context.Context) error {
 		ComponentExtensionPlanner:         extension.WorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		GoModuleRepositoryReader:          gomodules.NewStore(goModuleRepositoriesDB),
-		GoEvidenceFencer:                  gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(goModulesFenceSupportsReadiness(instruments)),
+		GoEvidenceFencer:                  gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(goModulesFenceSupportsReadiness(instruments)).WithGoEvidenceLockObserver(goEvidenceLockObserver(instruments)),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
@@ -371,4 +372,12 @@ func goModulesFenceSupportsReadiness(instruments *telemetry.Instruments) gomodul
 	return gomodules.SupportsReadiness(
 		postgres.NewSupplyChainImpactSupportsReadyBinding(instruments, telemetry.SupplyChainImpactSupportsReaderGoModulesFence),
 	)
+}
+
+// goEvidenceLockObserver binds the Go-modules fence's exclusive go-evidence lock wait to
+// the advisory wait histogram and the timeout counter (#11327).
+func goEvidenceLockObserver(instruments *telemetry.Instruments) gomodules.GoEvidenceLockObserver {
+	return func(ctx context.Context, wait time.Duration, timedOut bool) {
+		instruments.RecordGoFenceAdvisoryLockWait(ctx, wait, timedOut)
+	}
 }

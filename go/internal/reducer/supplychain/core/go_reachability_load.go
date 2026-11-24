@@ -34,6 +34,22 @@ type activeGoReachabilityFactLoader interface {
 	ListActiveGoReachabilityFacts(context.Context, GoReachabilityFactFilter) ([]facts.Envelope, error)
 }
 
+// GoReachabilityEvidence is what one cross-scope Go evidence load returned: the
+// envelopes and the (go scope, generation) pairs the loader resolved, read in the
+// same snapshot (#11327). The pairs are what the writer locks and rechecks; a scope
+// the filter named but the loader did not resolve is not in the set.
+type GoReachabilityEvidence struct {
+	Facts       []facts.Envelope
+	Generations []GoEvidenceGeneration
+}
+
+// activeGoReachabilityEvidenceLoader is the production seam that also returns the
+// resolved pairs. A loader without it keeps the fact-only seam above and the pairs
+// are derived from the envelopes it returned.
+type activeGoReachabilityEvidenceLoader interface {
+	ListActiveGoReachabilityEvidence(context.Context, GoReachabilityFactFilter) (GoReachabilityEvidence, error)
+}
+
 // loadGoReachabilityEvidenceFacts loads the active generation's
 // vulnerability.go_module_evidence and vulnerability.go_call_reachability
 // facts for every repository in the pass, from that repository's
@@ -44,19 +60,46 @@ func (h SupplyChainImpactHandler) loadGoReachabilityEvidenceFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(activeGoReachabilityFactLoader)
-	if !ok {
-		return nil, nil
-	}
+	evidence, err := h.loadGoReachabilityEvidence(ctx, envelopes)
+	return evidence.Facts, err
+}
+
+// loadGoReachabilityEvidence is loadGoReachabilityEvidenceFacts plus the resolved
+// (go scope, generation) pairs the writer locks and rechecks (#11327).
+func (h SupplyChainImpactHandler) loadGoReachabilityEvidence(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+) (GoReachabilityEvidence, error) {
 	filter := goReachabilityFactFilter(envelopes)
 	if len(filter.RepositoryIDs) == 0 {
-		return nil, nil
+		return GoReachabilityEvidence{}, nil
+	}
+	if loader, ok := h.FactLoader.(activeGoReachabilityEvidenceLoader); ok {
+		evidence, err := loader.ListActiveGoReachabilityEvidence(ctx, filter)
+		if err != nil {
+			return GoReachabilityEvidence{}, factload.ClassifyFactLoadError(err)
+		}
+		return evidence, nil
+	}
+	loader, ok := h.FactLoader.(activeGoReachabilityFactLoader)
+	if !ok {
+		return GoReachabilityEvidence{}, nil
 	}
 	reachabilityFacts, err := loader.ListActiveGoReachabilityFacts(ctx, filter)
 	if err != nil {
-		return nil, factload.ClassifyFactLoadError(err)
+		return GoReachabilityEvidence{}, factload.ClassifyFactLoadError(err)
 	}
-	return reachabilityFacts, nil
+	return GoReachabilityEvidence{Facts: reachabilityFacts, Generations: goEvidenceGenerationsOf(reachabilityFacts)}, nil
+}
+
+// goEvidenceGenerationsOf derives the pairs from loaded envelopes for a loader that
+// does not return them: the distinct (scope, generation) of each envelope.
+func goEvidenceGenerationsOf(loaded []facts.Envelope) []GoEvidenceGeneration {
+	pairs := make([]GoEvidenceGeneration, 0, len(loaded))
+	for _, envelope := range loaded {
+		pairs = append(pairs, GoEvidenceGeneration{ScopeID: envelope.ScopeID, GenerationID: envelope.GenerationID})
+	}
+	return sortedGoEvidencePairs(pairs)
 }
 
 // appendGoReachabilityEvidenceFacts runs the #10095 cross-scope Go stage as
@@ -72,21 +115,21 @@ func (h SupplyChainImpactHandler) appendGoReachabilityEvidenceFacts(
 	budget *supplyChainImpactEvidenceBudget,
 	truncation *supplyChainImpactTruncation,
 	timing *supplyChainImpactTiming,
-) ([]facts.Envelope, int, error) {
+) ([]facts.Envelope, int, []GoEvidenceGeneration, error) {
 	start := len(envelopes)
 	started := time.Now()
 	defer func() { timing.loadGoReachabilityDuration = time.Since(started) }()
 	if budget.exhausted() {
-		return envelopes, 0, nil
+		return envelopes, 0, nil, nil
 	}
-	loaded, err := h.loadGoReachabilityEvidenceFacts(ctx, envelopes)
+	loaded, err := h.loadGoReachabilityEvidence(ctx, envelopes)
 	if err != nil {
-		return nil, 0, fmt.Errorf("load Go reachability evidence facts: %w", err)
+		return nil, 0, nil, fmt.Errorf("load Go reachability evidence facts: %w", err)
 	}
-	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, loaded...)
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, loaded.Facts...)
 	budget.charge(len(envelopes) - start)
 	truncation.budget = truncation.budget || budget.exhausted()
-	return envelopes, len(envelopes) - start, nil
+	return envelopes, len(envelopes) - start, loaded.Generations, nil
 }
 
 // goReachabilityFactFilter keeps every repository id the pass already

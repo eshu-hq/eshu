@@ -77,6 +77,10 @@ const (
 		"attempt, the backfill is reducer-owned and depends on no maintenance-pass output, and the families write only " +
 		"reconciliation rows, service-catalog correlations and impact findings, which no pre-maintenance cell asserts " +
 		"absent (#10880 PR-B2)"
+	toleratedSupplyChainGoEvidence = "returned by supply_chain_impact before any write when the Go evidence it loaded no " +
+		"longer names its go scope's active generation or its shared lock timed out behind a Go-modules fence; the retry " +
+		"does not spend an attempt, reloads the evidence, and the family writes only supply-chain impact findings, which " +
+		"no pre-maintenance cell asserts absent (#11327)"
 	toleratedServiceRuntimeFence = "returned by service catalog correlation before any write while a correlated " +
 		"repository's workload_materialization work is in flight; the family writes only service-catalog " +
 		"correlations and service evidence lineage, which no pre-maintenance cell asserts absent, and the " +
@@ -127,6 +131,9 @@ var preMaintenanceToleratedFailureClasses = map[string]string{
 	// #10880 PR-B2: a reducer read of the supports table refused while the
 	// backfill is incomplete; the post-maintenance strict drain re-checks it.
 	"supply_chain_impact_supports_not_ready": toleratedSupplyChainSupportsNotReady,
+	// #11327: a pass aborted before its write because its loaded Go evidence went
+	// stale; the retry reloads it.
+	"supply_chain_impact_go_evidence_changed": toleratedSupplyChainGoEvidence,
 	// #6759 and #7268: waiting on a graph target of an already-resolved write.
 	"workload_materialization_deployment_source_target_not_ready": toleratedResolvedTarget,
 	"shared_edge_target_not_ready":                                toleratedResolvedTarget,

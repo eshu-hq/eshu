@@ -18,14 +18,19 @@ import (
 // repository to re-derive. Both updates name the generation the page read, so a
 // successor activated after that read makes the fence a no-op.
 //
-// Lock order, in one transaction: the derived scope's ingestion_scopes row, then the
-// fenced generation's scope_generations row, then each holder's fact_work_items rows,
-// holders in scope_id order. Every blocking path takes the scope row first (#7389, see
-// ProjectorQueue.Ack): the ack, the failure path, the ingestion commit, and the
-// repository-retirement fence. A fence that took the generation first could deadlock
-// against an ack holding the scope row and wanting that generation. The fence never
-// takes a holder's scope row, a repository scope row, or any row of the successor's
-// work.
+// Lock order, in one transaction: the exclusive go-evidence advisory lock of the
+// derived scope (#11327; the supply-chain impact pass holds the shared form from the
+// first lock of its write transaction until it commits, so the fence waits for an
+// in-flight pass and a pass that starts later waits for the fence), then the derived
+// scope's ingestion_scopes row, then the fenced generation's scope_generations row,
+// then each holder's fact_work_items rows, holders in scope_id order. Every blocking
+// path takes the scope row first (#7389, see ProjectorQueue.Ack): the ack, the failure
+// path, the ingestion commit, and the repository-retirement fence; none of them takes
+// the advisory lock, and the pass takes it before any other lock, so it cannot hold a
+// row the fence wants while it waits. A fence that took the generation first could
+// deadlock against an ack holding the scope row and wanting that generation. The fence
+// never takes a holder's scope row, a repository scope row, or any row of the
+// successor's work.
 //
 // Against an ack of a successor, both orders end on the successor:
 //   - The ack commits first. The pointer predicate rechecks against the new pointer
@@ -156,6 +161,14 @@ func (s Store) fenceOne(
 
 	if _, err := tx.ExecContext(ctx, fenceTimeoutsQuery); err != nil {
 		return false, 0, fmt.Errorf("set timeouts: %w", err)
+	}
+	// The exclusive go-evidence lock comes before every other lock and statement
+	// (#11327): it waits for an in-flight supply-chain impact pass that loaded this
+	// scope's evidence, whose commit the holder statement below then sees. A lock
+	// timeout (55P03) returns here with nothing detached and the coordinator
+	// retries the page.
+	if err := s.lockGoEvidence(ctx, tx, fence.ScopeID); err != nil {
+		return false, 0, err
 	}
 	// The holder read answers from the supports table, so a table that is not ready
 	// must stop the fence before it detaches anything: the transaction rolls back

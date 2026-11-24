@@ -164,7 +164,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, jvmReachabilityFacts...)
 	jvmReachabilityFactCount := len(envelopes) - jvmReachabilityStartCount
 
-	envelopes, goReachabilityFactCount, err := h.appendGoReachabilityEvidenceFacts(ctx, envelopes, budget, &truncation, &timing)
+	envelopes, goReachabilityFactCount, goEvidence, err := h.appendGoReachabilityEvidenceFacts(ctx, envelopes, budget, &truncation, &timing)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, err
 	}
@@ -201,15 +201,15 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		pythonReachabilityFacts:         pythonReachabilityFacts,
 		pythonReachabilityPayloadBytes:  pythonReachability.foldedBytes,
 		jvmReachabilityFactCount:        jvmReachabilityFactCount,
-		goReachabilityFacts:             goReachabilityFactCount,
-		postSecurityAlertScopeFacts:     postSecurityAlertScopeFacts,
-		securityAlertScopingApplied:     securityAlertScopingApplied,
-		securityAlertScopedOutFacts:     securityAlertScopedOutFacts,
-		floorArmed:                      floorArmed,
-		crossScopeProducerDelta:         producerDelta,
-		scoped:                          scoped,
-		scopedFallbackOutOfStamp:        scopedFallback,
-		criteriaBound:                   criteriaBound,
+		goReachabilityFacts:             goReachabilityFactCount, goEvidence: goEvidence,
+		postSecurityAlertScopeFacts: postSecurityAlertScopeFacts,
+		securityAlertScopingApplied: securityAlertScopingApplied,
+		securityAlertScopedOutFacts: securityAlertScopedOutFacts,
+		floorArmed:                  floorArmed,
+		crossScopeProducerDelta:     producerDelta,
+		scoped:                      scoped,
+		scopedFallbackOutOfStamp:    scopedFallback,
+		criteriaBound:               criteriaBound,
 	}, timing, nil
 }
 

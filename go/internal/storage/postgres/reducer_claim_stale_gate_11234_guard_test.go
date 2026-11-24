@@ -19,7 +19,8 @@ import (
 // testdata/stale_gate_pre_11234.sql was written by the same run. The batch and
 // single digests were re-pinned when #10880 PR-B2 enrolled the
 // supply_chain_impact_supports_not_ready class, and again when #10880 PR-C0
-// enrolled supply_chain_impact_fact_write_stopped: the claim statements embed the
+// enrolled supply_chain_impact_fact_write_stopped, and again when #11327 enrolled
+// supply_chain_impact_go_evidence_changed: the claim statements embed the
 // non-counting class list (reducerClaimAttemptCountCaseSQL), so each added
 // predicate moved their bytes outside the gate; the funnel carries no class list
 // and keeps its base digest. Enrolling another non-counting class re-pins the two

@@ -449,6 +449,7 @@ func (h SupplyChainImpactHandler) writeFindingsWithSuppressionDiff(ctx context.C
 	finishSuppressionDiffSpan(diffSpan, writeResult.suppressionDiff)
 	if err != nil {
 		h.countSuppressionDiffFailClosed(ctx, write, err)
+		h.countGoEvidenceRecheckAbort(ctx, err)
 		return writeResult, fmt.Errorf("write supply chain impact findings: %w", err)
 	}
 	h.emitStaleCopyRepairs(ctx, writeResult.StaleCopyRepairs)

@@ -97,6 +97,14 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// undone until a manual replay. TestReducerQueueFailDefersSupplyChainImpact
 	// SupportsNotReadyPastAttemptBudget is the regression.
 	supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass,
+	// #11327: a supply_chain_impact pass aborted before its write because the Go
+	// evidence it loaded no longer names its go scope's active generation (a fence
+	// retracted it or a successor activated), or its shared go-evidence lock timed
+	// out behind a fence. Another actor's legitimate change caused it and the retry
+	// reloads the evidence, so a counting class would spend attempts on a loop the
+	// pass cannot cause. TestReducerQueueGoEvidenceChangedNeverSpendsAnAttempt is the
+	// regression.
+	supplychaincore.SupplyChainImpactGoEvidenceChangedFailureClass,
 	// #10880 PR-C0: a finding-fact write the PR-C reject trigger refused
 	// (SQLSTATE 55000, constraint fact_records_reject_supply_chain_impact_finding).
 	// The pod runs an image older than the schema; a rollout clears it, and a

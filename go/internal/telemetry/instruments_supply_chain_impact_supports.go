@@ -149,6 +149,11 @@ var supplyChainImpactSupportsDrainRowBuckets = []float64{0, 1, 10, 100, 1000, 10
 // milliseconds (one page) to the hour a drain of a very hot key could take.
 var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 3600}
 
+// goFenceAdvisoryLockWaitBuckets spans a fence wait from an uncontended grant
+// (microseconds) to its 2 s lock timeout and a little past, so a timeout lands in
+// the last finite bucket.
+var goFenceAdvisoryLockWaitBuckets = []float64{0.0005, 0.001, 0.005, 0.025, 0.1, 0.25, 0.5, 1, 1.5, 2, 2.5, 5}
+
 // registerSupplyChainImpactSupportsInstruments registers the per-support table
 // signals of #10880 PR-B1 on inst.
 //
@@ -210,6 +215,26 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 		metric.WithDescription("Supply-chain impact finding fact writes the reject trigger refused (SQLSTATE 55000, constraint fact_records_reject_supply_chain_impact_finding). Each one is a reducer on an image that still writes the kind after the write stop; the intent retries without spending an attempt. No labels. A count above zero means an old reducer image is still running."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactFactWriteRejected counter: %w", err)
+	}
+	if inst.SupplyChainImpactGoEvidenceRecheckAborts, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total",
+		metric.WithDescription("Supply-chain impact passes aborted before their write because the Go evidence they loaded no longer names its go scope's active generation (reason generation_changed) or the shared go-evidence lock timed out behind a fence (reason lock_timeout). Each one retries without spending an attempt; the retry reloads the evidence."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactGoEvidenceRecheckAborts counter: %w", err)
+	}
+	if inst.GoFenceAdvisoryLockTimeouts, err = meter.Int64Counter(
+		"eshu_dp_go_fence_advisory_lock_timeouts_total",
+		metric.WithDescription("Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight supply-chain impact pass. Nothing was detached; the coordinator retries the page. No labels."),
+	); err != nil {
+		return fmt.Errorf("register GoFenceAdvisoryLockTimeouts counter: %w", err)
+	}
+	if inst.GoFenceAdvisoryLockWait, err = meter.Float64Histogram(
+		"eshu_dp_go_fence_advisory_lock_wait_seconds",
+		metric.WithDescription("Wall time the Go-modules fence waited for the exclusive go-evidence advisory lock, granted or timed out. The tail is the longest supply-chain impact pass write transaction that held the shared lock. No labels."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(goFenceAdvisoryLockWaitBuckets...),
+	); err != nil {
+		return fmt.Errorf("register GoFenceAdvisoryLockWait histogram: %w", err)
 	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
@@ -300,6 +325,32 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRows(ctx context.Context, a
 		return
 	}
 	i.SupplyChainImpactSupportsRows.Add(ctx, rows, metric.WithAttributes(AttrAction(action), AttrSource(source)))
+}
+
+// RecordSupplyChainImpactGoEvidenceRecheckAbort counts one pass aborted before its
+// write because its loaded Go evidence went stale (#11327). reason is one of the
+// supplychaincore.GoEvidenceCause values; it is a closed set, so no scope or
+// generation reaches the metric. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactGoEvidenceRecheckAbort(ctx context.Context, reason string) {
+	if i == nil || i.SupplyChainImpactGoEvidenceRecheckAborts == nil {
+		return
+	}
+	i.SupplyChainImpactGoEvidenceRecheckAborts.Add(ctx, 1, metric.WithAttributes(AttrReason(reason)))
+}
+
+// RecordGoFenceAdvisoryLockWait records how long the Go-modules fence waited for the
+// exclusive go-evidence lock and, when the wait ended in the lock timeout, counts it.
+// It carries no label. It is safe on a nil receiver.
+func (i *Instruments) RecordGoFenceAdvisoryLockWait(ctx context.Context, wait time.Duration, timedOut bool) {
+	if i == nil {
+		return
+	}
+	if i.GoFenceAdvisoryLockWait != nil {
+		i.GoFenceAdvisoryLockWait.Record(ctx, wait.Seconds())
+	}
+	if timedOut && i.GoFenceAdvisoryLockTimeouts != nil {
+		i.GoFenceAdvisoryLockTimeouts.Add(ctx, 1)
+	}
 }
 
 // RecordSupplyChainImpactFactWriteRejected counts one impact-finding fact write
