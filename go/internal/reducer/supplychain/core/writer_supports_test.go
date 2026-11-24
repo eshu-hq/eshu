@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -71,9 +72,8 @@ func (t supportsRecordingTx) UpsertImpactSupportRows(_ context.Context, rows []f
 	return SupplyChainImpactSupportsWrite{Inserted: int64(len(rows))}, nil
 }
 
-func (t supportsRecordingTx) DeleteRetractedImpactSupports(_ context.Context, scopeID, generationID string) (int64, error) {
-	*t.events = append(*t.events, "supports-delete:"+scopeID+"/"+generationID)
-	return 0, nil
+func (t supportsRecordingTx) RecordRetractedImpactSupports(_ context.Context, rows int64) {
+	*t.events = append(*t.events, fmt.Sprintf("supports-deleted:%d", rows))
 }
 
 func supportsWriter(upsertErr error) (PostgresSupplyChainImpactWriter, *[]string, *[][]string) {
@@ -102,7 +102,7 @@ func TestWriteMaintainsSupportsInTheFactTransaction(t *testing.T) {
 		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
 			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 		}
-		want := []string{"facts", "supports-upsert", "retract", "supports-delete:" + write.ScopeID + "/" + write.GenerationID}
+		want := []string{"facts", "supports-upsert", "retract", "supports-deleted:1"}
 		if !reflect.DeepEqual(*events, want) {
 			t.Fatalf("event order = %v, want %v", *events, want)
 		}

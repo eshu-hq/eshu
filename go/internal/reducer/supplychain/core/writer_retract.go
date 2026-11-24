@@ -215,7 +215,7 @@ func commitSupplyChainImpactRowsTimed(
 		touchedGroups = unionSortedStrings(touchedGroups, supp.cveIDs)
 	}
 	// Derived is the disjoint-compare input (#9740): every row the pass
-	// wrote plus every row its retraction tombstones. The suppression diff
+	// wrote plus every row its retraction deletes. The suppression diff
 	// joins the union because a suppression-only change rewrites rows the
 	// meta below already carries; naming its ids twice is harmless.
 	derived := unionSortedStrings(derivedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence, write.ScopedCVEIDs), suppMembers)
@@ -246,11 +246,11 @@ func commitSupplyChainImpactRowsTimed(
 	// waiting for the lock would close a cycle with a fence holding the exclusive lock.
 	owed := write.Owed != nil && (len(outcome.changedCVEs) > 0 || len(outcome.touchedGroups) > 0)
 	if !write.PartialEvidence {
-		tombstoned, err := retractTimedSupersededFindings(ctx, tx, write, keep, supports, hasSupports, timings)
+		deleted, err := retractTimedSupersededFindings(ctx, tx, write, keep, supports, hasSupports, timings)
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err
 		}
-		outcome.retracted = tombstoned
+		outcome.retracted = deleted
 	}
 	if write.Recovery {
 		recoveryCVEs, recoveryGroups, err := readTimedRecoveryReport(ctx, tx, write, timings)
@@ -293,99 +293,75 @@ func commitSupplyChainImpactRowsTimed(
 	return outcome, nil
 }
 
-// retractSupersededSupplyChainImpactFindingsQuery tombstones every active
-// finding row of this (scope, generation) that the current pass did not just
-// write (#6831). A finding's fact id embeds its whole logical identity,
-// including repository_id, so a pass that later anchors a finding to a
-// repository mints a NEW fact id; without this statement the earlier repo-less
-// row stays active forever next to it.
+// retractSupersededSupplyChainImpactFindingsQuery deletes every support row of this
+// (scope, generation) that the current pass did not just write (#6831, moved from
+// tombstoning fact rows to deleting supports by #10880 PR-C2 i). A finding's fact
+// id embeds its whole logical identity, including repository_id, so a pass that
+// later anchors a finding to a repository mints a NEW fact id; without this
+// statement the earlier repo-less row stays next to it forever.
+// (The conflict-domain advisory lock lives in writer_admission.go on this side;
+// the C2 duplicate block is dropped to keep one definition.)
 //
-// Rows are tombstoned, never deleted: the upsert's is_tombstone reset revives
-// a row a later pass derives again, and the tombstone stays auditable.
-//
-// NOT IN (SELECT unnest($4)) instead of fact_id <> ALL($4): the reducer's pgx
+// NOT IN (SELECT unnest($3)) instead of fact_id <> ALL($3): the reducer's pgx
 // connection caches prepared statements, and under a generic plan
 // <> ALL($param) is a linear per-row array scan -- measured 2889 ms for 20000
 // scope rows against a 10000-id keep set, versus 57 ms for the hashed subplan
-// this form always gets (#6831).
-// The keep set never carries NULL, so NOT IN has no NULL trap here.
+// this form always gets (#6831). The keep set never carries NULL, so NOT IN has
+// no NULL trap here.
 //
-// fencing_token <= $5 applies the insert's conflict guard to the retraction:
-// a row a fresher writer stamped with a higher token is never retracted by a
-// pass carrying a lower one. The tombstone is stamped with the retiring pass's
-// token (#7142), so a tombstone records which pass retired the row and the
-// upsert guard (existing <= EXCLUDED) refuses a stale pass's revive of it.
-// Legacy rows written before the token existed carry 0 and are retracted by any
-// pass (0 <= $5).
+// There is no per-row fencing predicate: a stale pass is rejected whole by the
+// admission row before any statement runs, and the conflict-domain lock
+// serializes the passes of one pair, so a row a fresher pass wrote is never in
+// this pass's reach (arbiter-prc-design F4). The deleted rows' keys are staged
+// for the winners resweep by the same statement (#9805, routed through the
+// staging queue by #10837) and recorded in the retracted-keys table (#10880
+// PR-C1 c), which reports two CTE-based counts: the supports it deleted and the
+// distinct keys it marked. A retracted row is always a change. The DISTINCT
+// collapses twin findings that share one key to one mark. The caller keeps the
+// deleted count as FactsRetracted (prior finding rows, per the write-result
+// contract) and the marked count as the fact_retract capture count.
 //
-// The tombstoned rows' keys are staged by the same statement (#9805, routed
-// through the staging queue by #10837), which reports two CTE-based counts:
-// the rows it tombstoned and the distinct keys it marked. A retracted row is
-// always a change. The DISTINCT collapses twin findings that share one key to
-// one mark, and the maintainer tick later collapses staged marks into the
-// versioned dirty log (version bumps by mark count). The caller keeps the
-// tombstoned count as FactsRetracted (prior finding rows, per the write-result
-// contract) and the marked count as the fact_retract capture count (staged
-// rows touched).
+// Arguments: $1 scope id, $2 generation id, $3 keep set of fact ids.
 const retractSupersededSupplyChainImpactFindingsQuery = `
 WITH retracted AS (
-    UPDATE fact_records
-    SET is_tombstone = TRUE,
-        fencing_token = $5
-    WHERE fact_kind = $1
-      AND scope_id = $2
-      AND generation_id = $3
-      AND is_tombstone = FALSE
-      AND fact_id NOT IN (SELECT unnest($4::text[]))
-      AND fencing_token <= $5
-    RETURNING
-        COALESCE(payload->>'package_id', '') AS package_id,
-        COALESCE(payload->>'repository_id', '') AS repository_id,
-        COALESCE(payload->>'subject_digest', '') AS subject_digest,
-        COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
-        COALESCE(payload->>'advisory_id', '') AS advisory_id` + retractedFindingKeysReturningSQL + `
-),
-ordered AS (
-    SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id
-    FROM retracted
-    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
-),
-upserted AS (
-    INSERT INTO supply_chain_impact_winners_dirty_staging
-        (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
-    SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
-    FROM ordered
-    RETURNING 1
-)` + retractedFindingKeysRecordSQL + `
-SELECT (SELECT count(*) FROM retracted) AS tombstoned,
-       (SELECT count(*) FROM upserted) AS marked
-`
+    DELETE FROM supply_chain_impact_finding_supports
+    WHERE scope_id = $1
+      AND generation_id = $2
+      AND fact_id NOT IN (SELECT unnest($3::text[]))` + retractedSupportsReturningSQL + retractedStagingSQL + retractedFindingKeysRecordSQL + retractedCountsSQL
 
 // retractSupersededSupplyChainImpactFindingsScopedQuery is the scoped-pass
 // (#9779) twin of the replace-set retraction above: same CTE-based
-// tombstoned/marked counts, but the statement only tombstones rows inside the
-// stamped CVE set. Rows outside it are not the pass's to retire, so they are
-// left byte-identical however stale the next full pass would find them. Rows
+// deleted/marked counts, but the statement only deletes rows inside the stamped
+// CVE set ($4). Rows outside it are not the pass's to retire, so they are left
+// byte-identical however stale the next full pass would find them. Rows
 // without a cve_id never match the set and converge on the next full pass.
 const retractSupersededSupplyChainImpactFindingsScopedQuery = `
 WITH retracted AS (
-    UPDATE fact_records
-    SET is_tombstone = TRUE,
-        fencing_token = $5
-    WHERE fact_kind = $1
-      AND scope_id = $2
-      AND generation_id = $3
-      AND is_tombstone = FALSE
-      AND fact_id NOT IN (SELECT unnest($4::text[]))
-      AND fencing_token <= $5
-      AND payload->>'cve_id' = ANY($6::text[])
+    DELETE FROM supply_chain_impact_finding_supports
+    WHERE scope_id = $1
+      AND generation_id = $2
+      AND fact_id NOT IN (SELECT unnest($3::text[]))
+      AND cve_id = ANY($4::text[])` + retractedSupportsReturningSQL + retractedStagingSQL + retractedFindingKeysRecordSQL + retractedCountsSQL
+
+// retractedSupportsReturningSQL is the RETURNING list both retraction statements
+// share: the five columns the winners dirty staging keys on, then the raw cve id
+// and member set the retracted-keys record needs. The values come from the
+// support's derived columns, which hold the same expressions the fact payload was
+// read with, so the staged keys equal what the tombstone statement staged.
+const retractedSupportsReturningSQL = `
     RETURNING
-        COALESCE(payload->>'package_id', '') AS package_id,
-        COALESCE(payload->>'repository_id', '') AS repository_id,
-        COALESCE(payload->>'subject_digest', '') AS subject_digest,
-        COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
-        COALESCE(payload->>'advisory_id', '') AS advisory_id` + retractedFindingKeysReturningSQL + `
-),
+        package_id,
+        repository_id,
+        subject_digest,
+        COALESCE(NULLIF(cve_id, ''), NULLIF(advisory_id, ''), '') AS c0,
+        advisory_id,
+        cve_id,
+        COALESCE(payload #>> '{provenance,advisory_group_members}', '[]') AS members
+),`
+
+// retractedStagingSQL stages the distinct retracted keys for the winners resweep
+// through the staging queue, as the tombstone statement did (#9805, #10837).
+const retractedStagingSQL = `
 ordered AS (
     SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id
     FROM retracted
@@ -397,14 +373,18 @@ upserted AS (
     SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
     FROM ordered
     RETURNING 1
-)` + retractedFindingKeysRecordSQL + `
-SELECT (SELECT count(*) FROM retracted) AS tombstoned,
+)`
+
+// retractedCountsSQL reports the two counts the writer reads back: the supports
+// deleted and the distinct keys marked.
+const retractedCountsSQL = `
+SELECT (SELECT count(*) FROM retracted) AS deleted,
        (SELECT count(*) FROM upserted) AS marked
 `
 
 // retractSupersededSupplyChainImpactFindings runs the replace-set retraction
 // for one pass and returns its CTE-based counts: the prior finding rows it
-// tombstoned, and the distinct dirty-log keys it marked. A scoped pass
+// deleted, and the distinct dirty-log keys it marked. A scoped pass
 // (#9779) retracts inside its stamped CVE set only.
 func retractSupersededSupplyChainImpactFindings(
 	ctx context.Context,
@@ -412,17 +392,10 @@ func retractSupersededSupplyChainImpactFindings(
 	scopeID string,
 	generationID string,
 	keepFactIDs []string,
-	fencingToken int64,
 	scopedCVEIDs []string,
-) (tombstoned, marked int, err error) {
+) (deleted, marked int, err error) {
 	query := retractSupersededSupplyChainImpactFindingsQuery
-	args := []any{
-		supplyChainImpactFactKind,
-		scopeID,
-		generationID,
-		keepFactIDs,
-		fencingToken,
-	}
+	args := []any{scopeID, generationID, keepFactIDs}
 	if len(scopedCVEIDs) > 0 {
 		query = retractSupersededSupplyChainImpactFindingsScopedQuery
 		args = append(args, scopedCVEIDs)
@@ -432,10 +405,10 @@ func retractSupersededSupplyChainImpactFindings(
 		return 0, 0, fmt.Errorf("retract superseded supply chain impact findings: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	var tombstoned64, marked64 int64
+	var deleted64, marked64 int64
 	found := false
 	for rows.Next() {
-		if err := rows.Scan(&tombstoned64, &marked64); err != nil {
+		if err := rows.Scan(&deleted64, &marked64); err != nil {
 			return 0, 0, fmt.Errorf("read supply chain impact retraction counts: %w", err)
 		}
 		found = true
@@ -446,5 +419,5 @@ func retractSupersededSupplyChainImpactFindings(
 	if !found {
 		return 0, 0, fmt.Errorf("retract superseded supply chain impact findings: no count row")
 	}
-	return int(tombstoned64), int(marked64), nil
+	return int(deleted64), int(marked64), nil
 }

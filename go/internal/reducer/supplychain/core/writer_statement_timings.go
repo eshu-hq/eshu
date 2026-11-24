@@ -218,9 +218,12 @@ func captureTimedWinnersDirtyKeys(
 	return nil
 }
 
-// retractTimedSupersededFindings runs the replace-set retraction and, when the
-// transaction maintains supports, the supports delete of the tombstoned facts,
-// folding both into the pass's timings. It returns the tombstoned row count.
+// retractTimedSupersededFindings runs the replace-set retraction — a single
+// statement that deletes superseded supports directly (#10880 PR-C2, no
+// tombstoned facts) — folding it into the pass's retract timing. It returns
+// the deleted support count. The retraction also stages the winners dirty
+// keys, and the transaction counts the deleted supports with the pass's other
+// support rows once it commits.
 func retractTimedSupersededFindings(
 	ctx context.Context,
 	tx SupplyChainImpactTx,
@@ -231,26 +234,21 @@ func retractTimedSupersededFindings(
 	timings *supplyChainImpactTxStatementTimings,
 ) (int, error) {
 	retractStarted := time.Now()
-	tombstoned, marked, err := retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken, write.ScopedCVEIDs)
-	timings.add(supplyChainImpactTxStmtRetract, time.Since(retractStarted), int64(tombstoned))
+	deleted, marked, err := retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.ScopedCVEIDs)
+	timings.add(supplyChainImpactTxStmtRetract, time.Since(retractStarted), int64(deleted))
 	if err != nil {
 		return 0, err
 	}
 	if hasSupports {
-		supportsDeleteStarted := time.Now()
-		deleted, supportsDeleteErr := supports.DeleteRetractedImpactSupports(ctx, write.ScopeID, write.GenerationID)
-		timings.add(supplyChainImpactTxStmtSupportsDelete, time.Since(supportsDeleteStarted), deleted)
-		if supportsDeleteErr != nil {
-			return 0, fmt.Errorf("remove retracted supply chain impact supports: %w", supportsDeleteErr)
-		}
+		supports.RecordRetractedImpactSupports(ctx, int64(deleted))
 	}
-	// The capture count is the marked keys, not the tombstoned rows:
+	// The capture count is the marked keys, not the deleted rows:
 	// twin findings that share one key collapse to one staged mark. It rides
 	// the retraction whether or not this transaction maintains supports.
 	if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
 		capturer.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactRetract, int64(marked))
 	}
-	return tombstoned, nil
+	return deleted, nil
 }
 
 // readTimedRecoveryReport reads the recovery CVE and advisory-group ids the

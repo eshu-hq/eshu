@@ -37,10 +37,10 @@ type SupplyChainImpactSupportsMaintainer interface {
 	// UpsertImpactSupportRows writes one support row per distinct fact id in rows,
 	// in fact id order, rewriting a row only when a derived column changed.
 	UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (SupplyChainImpactSupportsWrite, error)
-	// DeleteRetractedImpactSupports removes the supports of the (scope,
-	// generation) whose fact the retraction tombstoned, and returns the rows
-	// removed.
-	DeleteRetractedImpactSupports(ctx context.Context, scopeID, generationID string) (int64, error)
+	// RecordRetractedImpactSupports counts the supports the pass's retraction
+	// statement deleted (the statement deletes them itself, #10880 PR-C2 i), with
+	// the pass's other support rows once the transaction commits.
+	RecordRetractedImpactSupports(ctx context.Context, rows int64)
 }
 
 // WriteSupplyChainImpactFindingRows is the impact writer's own facts-plus-supports

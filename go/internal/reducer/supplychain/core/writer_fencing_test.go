@@ -47,11 +47,13 @@ func TestSupplyChainImpactWriterStampsFencingTokenOnRows(t *testing.T) {
 	}
 }
 
-// TestSupplyChainImpactWriterRetractionCarriesFencingToken pins #7142: the
-// retraction predicate and the tombstone stamp both use the pass token, so a
-// fresher pass's rows (higher token) are never retracted and a tombstone
-// records which pass retired it.
-func TestSupplyChainImpactWriterRetractionCarriesFencingToken(t *testing.T) {
+// TestSupplyChainImpactWriterRetractionHasNoPerRowFencingToken pins the #10880
+// PR-C2 i change of #7142's guard: the retraction deletes supports without a
+// per-row token predicate or stamp, because a stale pass is rejected whole by the
+// admission row before any statement runs and the conflict-domain lock serializes
+// the passes of one pair (arbiter-prc-design F4). Its arguments are the scope, the
+// generation and the keep set, and it names neither a token nor fact_records.
+func TestSupplyChainImpactWriterRetractionHasNoPerRowFencingToken(t *testing.T) {
 	t.Parallel()
 
 	beginner := newFakeImpactBeginner(&testutil.FakeExecer{})
@@ -69,11 +71,13 @@ func TestSupplyChainImpactWriterRetractionCarriesFencingToken(t *testing.T) {
 	if retract == nil {
 		t.Fatal("no retraction issued")
 	}
-	if got := retract.Args[4]; got != int64(4242) {
-		t.Fatalf("retraction $5 = %v, want the pass token 4242", got)
+	if len(retract.Args) != 3 || retract.Args[0] != write.ScopeID || retract.Args[1] != write.GenerationID {
+		t.Fatalf("retraction args = %v, want scope, generation and the keep set", retract.Args)
 	}
-	if !strings.Contains(retract.Query, "fencing_token = $5") || !strings.Contains(retract.Query, "AND fencing_token <= $5") {
-		t.Fatalf("retraction must both stamp and be fenced by $5:\n%s", retract.Query)
+	for _, forbidden := range []string{"fencing_token", "fact_records", "is_tombstone"} {
+		if strings.Contains(retract.Query, forbidden) {
+			t.Fatalf("the retraction names %q: it must delete supports only, with no per-row token:\n%s", forbidden, retract.Query)
+		}
 	}
 }
 

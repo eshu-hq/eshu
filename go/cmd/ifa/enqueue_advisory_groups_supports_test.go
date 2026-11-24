@@ -66,9 +66,7 @@ func (t *recordingImpactTx) UpsertImpactSupportRows(_ context.Context, rows []fa
 	return supplychaincore.SupplyChainImpactSupportsWrite{Inserted: int64(len(rows))}, nil
 }
 
-func (t *recordingImpactTx) DeleteRetractedImpactSupports(context.Context, string, string) (int64, error) {
-	return 0, nil
-}
+func (t *recordingImpactTx) RecordRetractedImpactSupports(context.Context, int64) {}
 
 type recordingImpactBeginner struct {
 	tx supplychaincore.SupplyChainImpactTx

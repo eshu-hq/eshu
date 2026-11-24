@@ -274,10 +274,10 @@ func TestWriteStagesOneDirtyRowWhenOnePassAddsAndRetiresTheSameKey(t *testing.T)
 }
 
 // TestRetractionCapturesRetractedFindingIdentifiers pins that the retract
-// statement itself stages one row per tombstoned key (#10837 direction C),
-// so no Go change is needed to name a retracted finding's key: the DISTINCT
-// collapses twins to one staged mark, and the final SELECT reports the
-// CTE-based tombstoned and marked counts. There is no ORDER BY (no locks to
+// statement itself stages one row per deleted support's key (#10837 direction C,
+// moved to supports by #10880 PR-C2 i), so no Go change is needed to name a
+// retracted finding's key: the DISTINCT collapses twins to one staged mark, and
+// the final SELECT reports the CTE-based deleted and marked counts. There is no ORDER BY (no locks to
 // take in order) and no ON CONFLICT (no unique index on the hot path): the
 // tick collapse restores the version math.
 func TestRetractionCapturesRetractedFindingIdentifiers(t *testing.T) {
@@ -288,12 +288,12 @@ func TestRetractionCapturesRetractedFindingIdentifiers(t *testing.T) {
 		"scoped":      retractSupersededSupplyChainImpactFindingsScopedQuery,
 	} {
 		for _, want := range []string{
-			"UPDATE fact_records",
+			"DELETE FROM supply_chain_impact_finding_supports",
 			"RETURNING",
 			"SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id",
 			"INSERT INTO supply_chain_impact_winners_dirty_staging",
 			"'fact_retract'",
-			"(SELECT count(*) FROM retracted) AS tombstoned",
+			"(SELECT count(*) FROM retracted) AS deleted",
 			"(SELECT count(*) FROM upserted) AS marked",
 		} {
 			if !strings.Contains(query, want) {
@@ -304,10 +304,30 @@ func TestRetractionCapturesRetractedFindingIdentifiers(t *testing.T) {
 			"supply_chain_impact_winners_dirty_log",
 			"ON CONFLICT",
 			"dirty_version",
+			"fact_records",
 		} {
 			if strings.Contains(query, banned) {
 				t.Errorf("%s retract statement contains %q, the hot path it must avoid:\n%s", name, banned, query)
 			}
 		}
+	}
+}
+
+// TestScopedRetractionFiltersOnTheCVEIDColumn pins the scoped variant of the
+// supports retraction (#10880 PR-C2 i): it deletes only inside the stamped CVE set
+// ($4) and filters on the support's cve_id column, not on a payload expression, so
+// the planner can use the column's index; the replace-set variant has no such
+// filter and takes no fourth argument.
+func TestScopedRetractionFiltersOnTheCVEIDColumn(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(retractSupersededSupplyChainImpactFindingsScopedQuery, "AND cve_id = ANY($4::text[])") {
+		t.Fatalf("the scoped retraction does not filter on the cve_id column:\n%s", retractSupersededSupplyChainImpactFindingsScopedQuery)
+	}
+	if strings.Contains(retractSupersededSupplyChainImpactFindingsScopedQuery, "payload->>'cve_id'") {
+		t.Fatal("the scoped retraction still filters on the payload expression")
+	}
+	if strings.Contains(retractSupersededSupplyChainImpactFindingsQuery, "$4") {
+		t.Fatal("the replace-set retraction names $4: it takes no CVE set")
 	}
 }

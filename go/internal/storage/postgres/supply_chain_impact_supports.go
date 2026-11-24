@@ -339,8 +339,18 @@ func (t *supplyChainImpactTx) runSupportsUpsert(ctx context.Context, query strin
 	return inserted, updated, nil
 }
 
+// RecordRetractedImpactSupports holds the supports the writer's retraction
+// statement deleted (#10880 PR-C2 i: the statement deletes them itself, so this
+// only counts them) and counts them with the pass's other support rows when the
+// transaction commits.
+func (t *supplyChainImpactTx) RecordRetractedImpactSupports(ctx context.Context, rows int64) {
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionDeleted, rows)
+}
+
 // DeleteRetractedImpactSupports removes the supports of the (scope, generation)
-// whose fact the retraction tombstoned.
+// whose fact the retraction tombstoned. The writer no longer calls it (its
+// retraction statement deletes supports directly); the backfill, which reads
+// frozen facts, still does.
 func (t *supplyChainImpactTx) DeleteRetractedImpactSupports(
 	ctx context.Context,
 	scopeID, generationID string,
