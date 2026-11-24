@@ -388,8 +388,8 @@ import (
 // is main's 373 plus the pair; the digest is this test's own derivation on
 // the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "ff3b40278b445a0ebefb1923f60d4e0533072344feca8a611734653a68b1ac65"
-	goldenBootstrapDefinitionsCount  = 377
+	goldenBootstrapDefinitionsDigest = "a608d9d51de63b60c5a5c9ab833b45ae26c6af145fb2f7d01c399a1a58e01ccb"
+	goldenBootstrapDefinitionsCount  = 379
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

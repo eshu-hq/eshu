@@ -106,3 +106,25 @@ Not done, and why:
   staged audit scan stay on facts: both belong to the audit path. Whether the
   staged scan counts as a maintainer input under "full, keyed and staged" is a
   question for the arbiter's reading; it was left on facts.
+
+## C1 e: the winners dirty-capture functions read supports
+
+Three SECURITY DEFINER capture functions read finding facts to name the keys a
+change touches: the scope-delete capture (when a scope row is deleted) and the
+scanner insert and delete captures (when a scanner classification or association
+row appears or goes). The activation capture reads no fact row. Migration 352
+replaces the scope-delete capture and migration 353, public-only like 311, the
+scanner pair; each body is the previous migration's (310, 311) with the row source
+swapped for the supports table and the kind and tombstone predicates dropped.
+`supply_chain_impact_winners_supports_capture_test.go` derives the expected text from
+the previous migration file and requires byte equality, so nothing else in the
+function changed, and pins the security shape (SECURITY DEFINER, the pinned
+search_path, the PUBLIC revoke, no conflict arbiter, the dirty log untouched).
+
+Open, owed to a live run: the scope-delete capture is `BEFORE DELETE` on
+`ingestion_scopes`, which fires before the foreign-key cascade removes the scope's
+generations and their supports, so the supports are still readable. That order is a
+reading of the trigger and cascade rules, not an observation. The ruling's own
+condition applies: if the capture reads no supports after the cascade removed them,
+this returns to the arbiter. The existing live scope-delete capture test covers it
+and has not been run for this migration.

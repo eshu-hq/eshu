@@ -204,4 +204,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 351 (#10880 PR-C1 c) adds the retracted finding keys table the
 	// recovery reads take over from tombstoned fact rows.
 	"supply_chain_impact_retracted_finding_keys",
+	// Migrations 352 and 353 (#10880 PR-C1 e) replace the winners dirty-capture
+	// functions that read finding facts with supports-reading ones.
+	"supply_chain_impact_winners_supports_scope_capture",
+	"supply_chain_impact_winners_supports_scanner_capture",
 }

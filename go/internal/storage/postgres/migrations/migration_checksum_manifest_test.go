@@ -533,7 +533,11 @@ var migrationShippedChecksums = map[string]string{
 	"350_supply_chain_impact_finding_supports_stable_fact_key.sql": "ccc38b897b2e04bfed6fc0df1401d55e43a8e765da3cd1f4945a8030d83d62a1",
 	// #10880 PR-C1 c: the retracted-keys table the recovery reads take over from
 	// tombstoned fact rows.
-	"351_supply_chain_impact_retracted_finding_keys.sql": "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
+	// #10880 PR-C1 e: the winners dirty-capture functions that read finding facts
+	// now read the supports table (352 the scope delete, 353 the scanner pair).
+	"352_supply_chain_impact_winners_supports_scope_capture.sql":   "ea2807e70453c071c2f734134423fc5ddc75e58aae5ba198bcc1043a019b092a",
+	"353_supply_chain_impact_winners_supports_scanner_capture.sql": "4b4237a659e753e35d4e13b6d1b2c813a4d96c548598ef7ffa8676d307b26549",
+	"351_supply_chain_impact_retracted_finding_keys.sql":           "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
