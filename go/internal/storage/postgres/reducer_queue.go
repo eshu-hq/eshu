@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // 556 lines (base 555): the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe; #11228 adds one line for the backstop-exit probe hook.
+package postgres //nolint:filelength // 562 lines (base 555): the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe; #11228 adds one line for the backstop-exit probe hook; #10972 PR-4 binds the ci_cd completion verdict beside the identity one.
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -481,6 +482,11 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, re
 		// below. An unwired (zero) result fails open so a missing gate
 		// never starves downstream consumers.
 		args = append(args, containerimage.ShouldEmitIdentityCompletion(result))
+	}
+	if intent.Domain == reducer.DomainCICDRunCorrelation {
+		// #10972 PR-4: the ci_cd ack emits only for a changed pass (or one
+		// with a pending completion-owed marker); a missing verdict emits.
+		args = append(args, cicdrun.ShouldEmitCompletion(result))
 	}
 	if isValueFlowRefreshProducer(intent.Domain) {
 		query = ackValueFlowRefreshProducerReducerWorkQuery

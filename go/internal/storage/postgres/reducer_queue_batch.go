@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
@@ -226,6 +227,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.In
 			now,
 			q.LeaseOwner,
 			cicdIntents,
+			cicdCompletionEmitIDs(cicdIntents, resultByID),
 		)
 		result, err := q.database.ExecContext(ctx, query, args...)
 		if err != nil {
@@ -294,6 +296,7 @@ func ackCICDRunCorrelationReducerWorkBatchQuery(
 	now time.Time,
 	leaseOwner string,
 	intents []reducercontract.Intent,
+	emitIDs []string,
 ) (string, []any) {
 	ids := make([]string, 0, len(intents))
 	claimedAt := make([]time.Time, 0, len(intents))
@@ -312,10 +315,11 @@ WITH requested AS MATERIALIZED (
 	GROUP BY id, claimed_at
     ORDER BY id COLLATE "C"
 ), locked_work AS MATERIALIZED (
-    SELECT lookup.work_item_id
+    SELECT lookup.work_item_id, lookup.owed
     FROM requested
     CROSS JOIN LATERAL (
-        SELECT work_item_id
+        SELECT work_item_id,
+               COALESCE(payload->>'` + cicdrun.PayloadKeyCompletionOwed + `', '') = 'true' AS owed
         FROM fact_work_items
         WHERE work_item_id = requested.id
           AND stage = requested.expected_stage
@@ -330,6 +334,7 @@ WITH requested AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
     cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
+    payload = work.payload - '` + cicdrun.PayloadKeyCompletionOwed + `',
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = NULL,
@@ -353,6 +358,8 @@ SELECT 'ci_cd_run_correlation', count(*)::BIGINT, 'pending',
 FROM acknowledged
 CROSS JOIN emission_clock
 WHERE acknowledged.status = 'succeeded'
+  AND (acknowledged.work_item_id = ANY($5::text[])
+       OR acknowledged.work_item_id IN (SELECT work_item_id FROM locked_work WHERE owed))
 GROUP BY emission_clock.emitted_at
 ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE SET
     producer_item_count = cross_scope_completion_events.producer_item_count + EXCLUDED.producer_item_count,
@@ -365,7 +372,7 @@ ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE 
 RETURNING 1
 )` + ",\n" + reducerQueueLeaseClearCTE + `
 SELECT 1 FROM acknowledged
-`, []any{now, leaseOwner, ids, claimedAt}
+`, []any{now, leaseOwner, ids, claimedAt, emitIDs}
 }
 
 func ackReducerWorkBatchQuery() string {

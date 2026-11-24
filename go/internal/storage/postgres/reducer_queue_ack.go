@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
@@ -238,11 +239,43 @@ func identityCompletionEmitIDs(
 	return emitIDs
 }
 
+// cicdCompletionEmitIDs returns the ci_cd batch ack ids whose paired result
+// earned a completion event (#10972 PR-4), the ci_cd twin of
+// identityCompletionEmitIDs: every item still ACKs to succeeded, a missing
+// paired result fails open and emits.
+func cicdCompletionEmitIDs(
+	target []reducercontract.Intent,
+	resultByID map[string]reducercontract.Result,
+) []string {
+	emitIDs := make([]string, 0, len(target))
+	for _, intent := range target {
+		result, paired := resultByID[intent.IntentID]
+		if !paired || cicdrun.ShouldEmitCompletion(result) {
+			emitIDs = append(emitIDs, intent.IntentID)
+		}
+	}
+	return emitIDs
+}
+
+// ackCICDRunCorrelationReducerWorkQuery acknowledges one ci_cd pass and emits
+// the cross-scope completion event only when the pass earned it (#10972
+// PR-4): $5 is the paired result's changed verdict
+// (cicdrun.ShouldEmitCompletion; a missing verdict emits), and a pending
+// completion-owed marker on the item (a changed write whose attempt died
+// before its ack) emits too. The ack clears the marker. The epoch bump stays
+// unconditional, so the migration 093 rolling-upgrade trigger never fires for
+// a new-path ack, emitting or not.
 const ackCICDRunCorrelationReducerWorkQuery = `
-WITH acknowledged AS MATERIALIZED (
+WITH owed AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE work_item_id = $2
+      AND COALESCE(payload->>'` + cicdrun.PayloadKeyCompletionOwed + `', '') = 'true'
+), acknowledged AS MATERIALIZED (
     UPDATE fact_work_items AS work
     SET status = 'succeeded',
         cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
+        payload = work.payload - '` + cicdrun.PayloadKeyCompletionOwed + `',
         lease_owner = NULL, claim_until = NULL, visible_at = NULL,
         updated_at = $1, failure_class = NULL,
         failure_message = NULL, failure_details = NULL
@@ -266,6 +299,7 @@ WITH acknowledged AS MATERIALIZED (
            emission_clock.emitted_at, emission_clock.emitted_at
     FROM acknowledged CROSS JOIN emission_clock
     WHERE acknowledged.status = 'succeeded'
+      AND ($5::boolean OR acknowledged.work_item_id IN (SELECT work_item_id FROM owed))
     GROUP BY emission_clock.emitted_at
     ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE SET
         producer_item_count = cross_scope_completion_events.producer_item_count + EXCLUDED.producer_item_count,
