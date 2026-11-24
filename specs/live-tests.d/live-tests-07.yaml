@@ -335,10 +335,45 @@ tests:
     class: dedicated_ci
     reason: "#10564: reducer-contention enrolled TestHolderH3DiffSetsLive + TestHolderH3StatementP95Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (H3 vs frozen H0 sets identical under custom and generic plans, statement p95 ~8.5ms)"
     runner: reducer-contention
-  - file: go/internal/storage/postgres/supply_chain_impact_fanout_holder_covering_live_test.go
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10643: reducer-contention enrolled TestHolderCoveringExpressionBlocksIndexOnlyLive in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed in 9.43s -race (covering shape serves both arms as Bitmap Heap Scan with heap blocks, no Index Only Scan; shipped/H0 scope sets identical)"
+    reason: "#10972: reducer-contention enrolled TestFindQueuedHolderScopes* (3 proofs in this file: reopen-classification differential, prefiltered holders keep their row version, read timeout) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes alternative; the coordinator's disposable PostgreSQL 18.3 run passed the status-only form at 54b50516cc; the covered-only predicate is NOT_CHECKED until the coordinator reruns them"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_plan_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled TestFindQueuedHolderScopesPlanAvoidsQueueSeqScanLive (plan never scans fact_work_items sequentially; scope_generation_idx or stage_domain_status_idx accepted) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes alternative; the coordinator's disposable PostgreSQL 18.3 run passed the earlier per-scope-probe form at 54b50516cc; the relaxed guard is NOT_CHECKED until the coordinator reruns it"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_stamp_widen_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled the stamp-widening proofs (prefilter keeps a pending holder stamped for another change; reopen widens a pending holder's stamp without moving its claim order; reopen widens a flagged in-flight holder's stamp) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_late_claim_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled 3 stamp-cover proofs in this file in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_cover_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled 3 stamp-cover proofs in this file in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_lockstep_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled 1 stamp-cover proofs in this file in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_stamp_widen_race_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled 3 stamp-cover proofs in this file in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_stamp_absent_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 arbiter Amendment 1: reducer-contention enrolled 4 absent-stamp and fence proofs (unflagged in-flight holder takes the incoming set only and its rerun runs scoped to it; flagged unstamped holder is not written; unbounded stored stamp stays unbounded; the commit-skew fence widens a pending bounded holder to set-less) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestReopenStampsAnUnstamped, TestReopenLeavesAFlaggedUnstamped, TestReopenKeepsAnUnboundedStored, and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_adaptive_split_live_test.go
     tag: ~
@@ -530,6 +565,31 @@ tests:
     class: dedicated_ci
     reason: "#10055: commit-skew fence chain proofs run in the reducer contention gate through the TestGoFence filter"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_reads_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18): the repository holder read, the scoped seed read and the out-of-stamp probe equal the retired finding-fact reads on a multi-support corpus and refuse with ErrSupportsNotReady"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_family_oracle_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: the moved fan-out holder family (5-id statement, 16-range key-range read with the open range and foreign-member token arm, over-length fallback, exact mass) equals the retired finding-fact statements kept as the oracle and keeps answering after every finding fact is deleted (disposable PostgreSQL 18)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_reads_contention_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: the moved holder reads run against the real writer and a cascade-deleting scope with no read error, no deadlock and no torn replacement (disposable PostgreSQL 18, -race, GOMAXPROCS=2)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_pending_list_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: the mass probe keeps its member arm on the GIN once fastupdate is off and its transaction turns enable_seqscan off; RED-1 reproduces the seq scan with a full pending list on about 40,000 supports (disposable PostgreSQL 18)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_supports_plan_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: every holder statement reads the supports table through its four indexes with no sequential or primary-key scan, and the checker rejects each of four seeded index drops (disposable PostgreSQL 18)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~
     class: dedicated_ci
@@ -584,6 +644,11 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the per-support table follows the real writer and survives racing writers"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_verify_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 decision 6: reducer-contention proof of the ranged supports verification against the real slice statement: a planted orphan and a planted missing support in a late slice are each caught (control runs see neither) while a real writer retracts and inserts between slices, a restart resumes from the stored cursor, a marker reset without a sweep bump re-verifies from the first key, and an old writer between slices behind the cursor keeps the marker unset with no gap until its scope is drained"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_verify_scale_live_test.go
     tag: ~
     class: dedicated_ci
@@ -608,6 +673,11 @@ tests:
     tag: ~
     class: dedicated_ci
     reason: "#9805: reducer-contention enrolled 2 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18 passed"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_admission_order_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11075: reducer-contention covers 1 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; RED on main by design (admission is FIFO by seq), not yet run against disposable PostgreSQL by this lane"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_audit_live_test.go
     tag: ~

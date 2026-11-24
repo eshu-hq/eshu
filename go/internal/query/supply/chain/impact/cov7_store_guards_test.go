@@ -393,14 +393,13 @@ func TestCov7ListFindingsValidation(t *testing.T) {
 	if _, err := winners.ListSupplyChainImpactFindings(t.Context(), FindingFilter{CVEID: "c", Limit: 1}); err != nil {
 		t.Fatalf("winners list = %v, want rows", err)
 	}
-	scopedQueryer := &cov7StoreQueryer{
-		onRows: func(string) (db.Rows, error) { return &cov7StoreRows{}, nil },
-	}
+	// A granted gate-on call reads the supports table, behind its readiness probe.
+	scopedQueryer := supportsRouteQueryer(true, nil)
 	scoped := NewPostgresFindingStoreWithReadStore(scopedQueryer, true)
 	if _, err := scoped.ListSupplyChainImpactFindings(t.Context(), FindingFilter{CVEID: "c", Limit: 1, AllowedRepositoryIDs: []string{"r1"}}); err != nil {
-		t.Fatalf("scoped winners list = %v, want rows", err)
+		t.Fatalf("scoped supports list = %v, want rows", err)
 	}
-	if winnersQueryer.queries[0] == scopedQueryer.queries[0] {
+	if len(scopedQueryer.queries) != 2 || winnersQueryer.queries[0] == scopedQueryer.queries[1] {
 		t.Fatalf("winners and scoped reads issued the same query, want distinct statements")
 	}
 	if store := NewPostgresFindingStore(nil); store.DB != nil {

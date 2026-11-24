@@ -127,6 +127,15 @@
 // Scheduler planners call contract.ValidateSafePlanKey for the shared
 // plan-key grammar. The contract package validates only the string. Service
 // keeps ordering, admission, persistence, retry, and telemetry ownership.
+// Service.PlanGoReachabilityScopeNow is the out-of-rotation one-shot
+// (eshu-hq/eshu#10002): one repository through the real reachability.Plan and
+// the real open-target admission, under a go-modules-operator-<request-id> plan
+// key and the operator_recovery trigger. It resolves the instance from the
+// durable set with the scheduled path's gates, reads the repository through
+// the single-repo reader with rotation-identical eligibility, runs the
+// commit-skew fence before admission, and reports the closed outcome set
+// planned/already_open/not_eligible/dry_run. Business outcomes are not errors;
+// a dry run and a same-request-id re-fire write nothing.
 //
 // semantic.ProviderWorker is the egress-gated semantic-provider execution worker,
 // reached through the optional Service.SemanticProviderWorker field.

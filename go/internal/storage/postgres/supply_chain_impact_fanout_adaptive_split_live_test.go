@@ -139,6 +139,8 @@ func TestHolderAdaptiveSplitRowIdentityLive(t *testing.T) {
 		t.Fatal("derived split is not a byte-prefix of the shipped constant")
 	}
 	adaptSplitSeedFixture(t, ctx, db)
+	// The statement answers from the supports table (#11197): settle them.
+	settleSupplyChainImpactSupports(t, ctx, db)
 
 	ids := []string{adaptSplitHot, adaptSplitWarm, adaptSplitCold1, adaptSplitCold2, adaptSplitCold3}
 	startMulti := time.Now()

@@ -18,7 +18,12 @@
 // `/readyz`, `/metrics`, and `/admin/status`.
 // Deployment mode (dark by default, active when the deployment knobs in the
 // runtime contract are set) gates scheduled planning, freshness handoff, reap,
-// and run-reconciliation loops. When a hosted tenant boundary is configured,
+// and run-reconciliation loops. The plan-go-reachability-scope subcommand is
+// the out-of-rotation one-shot (eshu-hq/eshu#10002): it builds the same config,
+// control store, repository reader, and fence, plans one repository through
+// the real reachability.Plan and the real open-target admission under a
+// go-modules-operator-<request-id> plan key and the operator_recovery trigger,
+// prints the outcome, and exits without starting any loop. When a hosted tenant boundary is configured,
 // the binary also wires the tenant grant store so coordinator planning and
 // claim completion can reject missing, revoked, or stale scope grants; trigger
 // normalization, provider API calls, and collector lease ownership remain

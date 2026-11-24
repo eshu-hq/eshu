@@ -319,7 +319,7 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 		ExtraMounts: []func(*http.ServeMux, *query.APIRouter){
 			mountCoreCLISupport,
 			mountCoreServiceIntelligence(rawDB, logger,
-				query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))),
+				query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv)), instruments),
 			mountCoreAsk(askResult.Handler),
 			mountCoreMetrics(providers.PrometheusHandler),
 		},

@@ -12,9 +12,9 @@ import (
 )
 
 // TestAggregatesWinnersReadGate pins the #10880 slice-2b query routing:
-// the gated store serves ungranted calls from the winners read model and
-// keeps scoped-token calls and the default store on the legacy CTE,
-// mirroring PostgresFindingStore.
+// the gated store serves ungranted plain calls from the winners read model and
+// keeps the default store on the legacy CTE, mirroring PostgresFindingStore.
+// Granted calls read the supports table: aggregates_supports_route_test.go.
 func TestAggregatesWinnersReadGate(t *testing.T) {
 	t.Parallel()
 
@@ -63,23 +63,6 @@ func TestAggregatesWinnersReadGate(t *testing.T) {
 			}
 			if strings.Contains(query, "canonical_facts") {
 				t.Fatalf("gated count query still reads the legacy CTE:\n%s", query)
-			}
-		}
-	})
-
-	t.Run("gated scoped call stays on legacy", func(t *testing.T) {
-		t.Parallel()
-		store := NewPostgresAggregateStoreWithReadModel(nil, true)
-		queries := routed(store, AggregateFilter{
-			Status:               "affected_exact",
-			AllowedRepositoryIDs: []string{"repository:r1"},
-		})
-		for _, query := range queries {
-			if !strings.Contains(query, "canonical_facts") {
-				t.Fatalf("gated scoped count query left the legacy CTE:\n%s", query)
-			}
-			if strings.Contains(query, "aggregate_winners AS") {
-				t.Fatalf("gated scoped count query reaches the winners read:\n%s", query)
 			}
 		}
 	})

@@ -299,6 +299,16 @@ func WaitingDeferralMap() []WaitingDeferral {
 			ProvidingSave: "none: waits on a fresher snapshot, not a providing save; never parked",
 		},
 		{
+			// #10880 PR-B2: not parked. The supports readiness (the backfill
+			// marker, the old-writer fence) has no wait kind whose satisfied
+			// check reads it, so a parked row would reopen at once; the retry
+			// timer (60 s, no attempt spent) is the only wake.
+			FailureClass:  supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass,
+			WaitsForKind:  WaitingKindTargetCommitted,
+			WakeSite:      WaitingWakeSiteNotAWait,
+			ProvidingSave: "supports backfill marker completion and old-writer fence drain; never parked, the retry timer re-claims the row",
+		},
+		{
 			FailureClass:  supplychaincore.SupplyChainImpactWriteSupersededFailureClass,
 			WaitsForKind:  WaitingKindTargetCommitted,
 			WakeSite:      WaitingWakeSiteNotAWait,

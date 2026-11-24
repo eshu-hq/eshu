@@ -35,6 +35,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/incident"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
 	"go.opentelemetry.io/otel/metric"
@@ -242,6 +243,16 @@ func main() {
 		slog.Error("reducer failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+// newCrossScopeCompletionStore builds the reducer's completion queue and hands
+// it the service logger, so the warning its post-commit manifest-marker count
+// writes on failure (#10972) reaches the operator's log stream. It lives here
+// to keep main.go within the repo file-size budget.
+func newCrossScopeCompletionStore(database db.ExecQueryer, logger *slog.Logger) *completionstore.CrossScopeCompletionStore {
+	store := completionstore.NewCrossScopeCompletionStore(database)
+	store.Logger = logger
+	return store
 }
 
 // reducerDomainStrings renders reducer domains as plain strings for structured

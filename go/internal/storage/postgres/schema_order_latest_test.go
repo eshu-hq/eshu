@@ -170,4 +170,17 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 338 (#10880 PR-B1) adds the per-support table behind the
 	// grant-scoped impact reads (333 to 337 are main's).
 	"supply_chain_impact_finding_supports",
+	// Migrations 339-342 (#11197) add the four holder-read indexes on the
+	// per-support table, one concurrent build per file.
+	"supply_chain_impact_finding_supports_cve_idx",
+	"supply_chain_impact_finding_supports_advisory_idx",
+	"supply_chain_impact_finding_supports_members_idx",
+	"supply_chain_impact_finding_supports_tokens_idx",
+	// Migrations 343-344 (#10880 PR-B2a) add the two partial indexes behind the
+	// unscoped existence-filter reads of that table.
+	"supply_chain_impact_finding_supports_precise_key_ordered_idx",
+	"supply_chain_impact_finding_supports_image_ref_idx",
+	// Migration 348 (#10880 decision 6) adds the resumable verification cursor
+	// to the supports backfill marker.
+	"supply_chain_impact_finding_supports_backfill_verify_cursor",
 }

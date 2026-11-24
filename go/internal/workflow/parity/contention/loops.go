@@ -230,6 +230,9 @@ type advisoryTally struct {
 	mu         sync.Mutex
 	rounds     int
 	cleanRound int
+	// voided counts rounds whose hold ended before every guard call
+	// returned; their verdict proves nothing and is not judged (#11074).
+	voided     int
 	duplicates []string
 	errors     []string
 }
@@ -237,7 +240,9 @@ type advisoryTally struct {
 // advisoryLoop is §5 step 6 (in-tree only): every AdvisoryInterval inside
 // the window, AdvisoryGoroutines goroutines race CreateRunWithWorkItems
 // IfNoOpenTargets for the same (kind, instance) and the same fresh target
-// scopes. Exactly one may insert; the rest must see zero eligible targets.
+// scopes. Exactly one may insert; the rest must see zero eligible targets. The
+// round's items stay invisible to claims for AdvisoryHold so they remain open
+// targets until every goroutine has passed the guard.
 func (r *runner) advisoryLoop() {
 	for round := 0; ; round++ {
 		select {
@@ -256,9 +261,13 @@ func (r *runner) advisoryRound(round int) {
 	g := r.opt.AdvisoryGoroutines
 	inserted := make([]int, g)
 	errs := make([]error, g)
+	returned := make([]time.Time, g)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	now := time.Now().UTC()
+	// The items stay hidden from claims until visibleAt. The round judges its
+	// verdict only if every guard call returned before then (below).
+	visibleAt := now.Add(r.opt.AdvisoryHold)
 	for i := range g {
 		run := newRun(r.ids.advisoryRun(round, i), now)
 		items := make([]workflow.WorkItem, 0, r.opt.AdvisoryItems)
@@ -269,6 +278,11 @@ func (r *runner) advisoryRound(round int) {
 			// workspace, subject, policy, acceptance unit): every goroutine
 			// must plan the same targets under its own run and item ids.
 			item.AcceptanceUnitID = r.ids.advisoryTarget(round, n)
+			// Hide the item from claims for the hold: the guard admits only
+			// while the targets stay open, and the harness's own workers
+			// would otherwise complete the first winner's items before a
+			// late goroutine's guard call (#11074).
+			item.VisibleAt = visibleAt
 			items = append(items, item)
 		}
 		wg.Add(1)
@@ -281,6 +295,7 @@ func (r *runner) advisoryRound(round int) {
 			admission, err := r.leg.Backend.AdmitGuarded(ctx, run, items)
 			r.rec.observe("admit_guarded", time.Since(t0), err)
 			inserted[i], errs[i] = admission.InsertedWorkItems, err
+			returned[i] = time.Now().UTC()
 		}(i)
 	}
 	close(start)
@@ -291,7 +306,6 @@ func (r *runner) advisoryRound(round int) {
 	winners, total := 0, 0
 	r.advisory.mu.Lock()
 	defer r.advisory.mu.Unlock()
-	r.advisory.rounds++
 	for i := range g {
 		if errs[i] != nil {
 			if isDeadlock(errs[i]) {
@@ -308,6 +322,19 @@ func (r *runner) advisoryRound(round int) {
 		total += inserted[i]
 	}
 	r.created.Add(int64(total))
+	// A guard that returned after visibleAt may have evaluated its targets
+	// after the workers completed them, which the guard rightly admits. Only
+	// a round whose every guard returned while the targets were still hidden
+	// proves the guard's one-winner contract.
+	for i := range g {
+		if returned[i].After(visibleAt) {
+			r.advisory.voided++
+			r.opt.Logf("advisory round %d voided: guard call %d returned %s after the %s hold ended; the verdict is not judged",
+				round, i, returned[i].Sub(visibleAt).Round(time.Millisecond), r.opt.AdvisoryHold)
+			return
+		}
+	}
+	r.advisory.rounds++
 	if winners == 1 && total == r.opt.AdvisoryItems {
 		r.advisory.cleanRound++
 		return

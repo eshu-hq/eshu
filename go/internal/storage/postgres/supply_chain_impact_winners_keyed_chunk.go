@@ -37,6 +37,10 @@ import (
 //     ~10.5k backlog at shim time is at least three windows. The existing
 //     50,000-identifier cap still sends a backlog whose expansion exceeds it
 //     to the full rebuild.
+//
+// The identifier bound stays 200. A 1000 bound was tried on QA (#10839) and
+// rolled back: its first tick took 710.8 s for 237,063 kept rows, about 1.8x
+// the per-kept-row cost of the 200 bound. See evidence-10839-chunk-bound-1000.md.
 const (
 	defaultWinnersChunkMaxDirtyRows = 5000
 	defaultWinnersChunkMaxIdents    = 200
@@ -397,8 +401,9 @@ func (t winnersCaptureTally) triggerSources() supplychaincore.WinnersTriggerCapt
 	}
 }
 
-// admitWinnersDirtyWindow copies the oldest limit dirty-log rows into the
-// consumed temp table and returns how many it admitted. The rows stay in the
+// admitWinnersDirtyWindow copies the limit dirty-log rows with the oldest
+// captures (captured_at, then seq; #11075) into the consumed temp table and
+// returns how many it admitted. The rows stay in the
 // log until settleWinnersKeyedDirtyLog deletes the applied ones. The copy
 // carries each row's dirty_version for the drain's version recheck.
 func admitWinnersDirtyWindow(ctx context.Context, tx db.Transaction, limit int64) (int64, error) {

@@ -75,6 +75,9 @@ type PostgresGroupedInventoryStore struct {
 	// Logger receives the WARN line of a failed watermark probe. A nil
 	// logger drops it; the response still reads freshness unknown.
 	Logger *slog.Logger
+	// Instruments receives the per-route read counter
+	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter.
+	Instruments *telemetry.Instruments
 }
 
 // NewPostgresGroupedInventoryStoreWithReadStore routes the grouped read
@@ -85,6 +88,16 @@ func NewPostgresGroupedInventoryStoreWithReadStore(
 	logger *slog.Logger,
 ) PostgresGroupedInventoryStore {
 	return PostgresGroupedInventoryStore{reader: reader, ReadFromWinners: readFromWinners, Logger: logger}
+}
+
+// readScope returns the queryer that runs a route's one read statement and the
+// function that ends its scope (see PostgresFindingStore.readScope).
+func (s PostgresGroupedInventoryStore) readScope(ctx context.Context, route ReadRoute) (db.Queryer, func(), error) {
+	if !route.wantsJITOff() {
+		return s.queryer(), func() {}, nil
+	}
+	queryer, _, end, err := withJITOff(ctx, s.reader, s.DB, s.queryer(), nil)
+	return queryer, end, err
 }
 
 func (s PostgresGroupedInventoryStore) queryer() db.Queryer {
@@ -126,16 +139,23 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	if s.DB == nil && s.reader == nil {
 		return GroupedInventoryPage{}, fmt.Errorf("supply chain impact grouped inventory database is required")
 	}
-	// image_ref and the precise profile are existence filters: copies of one
-	// canonical key can differ on both, and the winners row holds only the
-	// picked copy's. This store has no legacy read to route to, so it answers
-	// unavailable instead of an under-count (#10880 PR-B ruling).
-	if filter.ImageRef != "" || filter.DetectionProfile != "" {
-		return GroupedInventoryPage{}, ErrGroupedInventoryFilterUnavailable
-	}
+	// One route function decides the read model and the freshness (read_route.go):
+	// a grant and an image reference read the per-support table, an unscoped
+	// precise call reads the winners table plus the supplement, and everything else
+	// reads the winners table.
+	route := filter.route(s.ReadFromWinners)
+	countRoute(ctx, s.Instruments, route)
 	build := groupedInventoryQuery
-	if len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0 {
-		build = groupedInventoryScopedQuery
+	switch route {
+	case RouteLegacy, RouteWinners, RouteSupportsFindingID:
+		// unreachable for the legacy route (a gate-off store refused above); the
+		// winners route uses the winners builder
+	case RouteSupportsGrant:
+		build = groupedInventorySupportsQuery
+	case RouteSupportsImage:
+		build = groupedInventoryImageQuery
+	case RouteWinnersSupplement:
+		build = groupedInventorySupplementQuery
 	}
 	query, err := build(dimension)
 	if err != nil {
@@ -149,10 +169,30 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	}
 
 	readAt := SuppressionReadAt(s.Now)
-	freshness, available, probeFailed, err := s.winnersFreshness(ctx, readAt)
-	if err != nil {
-		return GroupedInventoryPage{}, err
+	freshness, available, probeFailed := GroupedInventoryFreshness{State: packet.FreshnessLabelFresh}, true, false
+	if route.readsSupports() {
+		// The per-support table is current by construction (the maintainer writes
+		// it in the finding facts' transaction), so a supports-only route reports
+		// fresh with no winners watermark. A table that is not ready refuses.
+		probe := PostgresFindingStore{DB: s.DB, reader: s.reader, ReadFromWinners: true}
+		if err := probe.requireSupportsReady(ctx); err != nil {
+			s.logWatermarkProbeFailure(ctx, err)
+			return GroupedInventoryPage{}, fmt.Errorf("%w: %w", ErrGroupedInventoryReadModelUnavailable, err)
+		}
 	}
+	if route.servesWinners() {
+		// The winners table is read (plain, or with the supplement): the older
+		// source bounds the answer, so the winners watermark labels the page.
+		var err error
+		freshness, available, probeFailed, err = s.winnersFreshness(ctx, readAt)
+		if err != nil {
+			return GroupedInventoryPage{}, err
+		}
+	}
+	// The duration sample is the read: it starts after the readiness and watermark
+	// probes, so a refused call records nothing and an accepted call does not
+	// include them.
+	defer timeRoute(ctx, s.Instruments, route)()
 
 	args := []any{
 		filter.CVEID,
@@ -178,7 +218,12 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 		limit,
 		offset,
 	}
-	rows, err := s.queryer().QueryContext(ctx, query, args...)
+	queryer, endRead, err := s.readScope(ctx, route)
+	if err != nil {
+		return GroupedInventoryPage{}, fmt.Errorf("supply chain impact grouped inventory: %w", err)
+	}
+	defer endRead()
+	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return GroupedInventoryPage{}, fmt.Errorf("grouped inventory supply chain impact findings: %w", err)
 	}

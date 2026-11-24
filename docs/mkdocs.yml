@@ -174,6 +174,7 @@ nav:
         - Observability, delivery, and security collectors: reference/env-registry/collectors-signals.md
       - Runtime And Storage Environment: reference/environment-runtime-storage.md
       - Postgres Tuning: reference/postgres-tuning.md
+      - Postgres Connection Budget: reference/postgres-connection-budget.md
       - Postgres Diagnostics: reference/postgres-diagnostics.md
       - Ingestion And Queue Environment: reference/environment-ingestion-queues.md
       - Collector Environment: reference/environment-collectors.md
@@ -491,6 +492,7 @@ nav:
     - Vulnerability Source Held Stale: operate/vulnerability-source-held-stale.md
     - NVD Feed Transport Govern and Trip: operate/nvd-feed-transport.md
     - "3 AM Operator Runbook": operate/3am-operator-runbook.md
+    - Go Reachability Operator Plan: operate/go-reachability-operator-plan.md
     - Hosted Operations Runbook: operate/hosted-operations-runbook.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md
     - Hosted Governance Posture: operate/hosted-governance.md

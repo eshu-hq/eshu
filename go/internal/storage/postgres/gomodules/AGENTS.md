@@ -20,6 +20,14 @@
   together and keep the live rotation test green.
 - Any change to `pageQuery` needs a fresh `EXPLAIN (ANALYZE, BUFFERS)` on
   representative data, per `eshu-postgres-rigor`.
+- `GetGoModuleRepository` is the only single-repository read, for the
+  out-of-rotation operator path (eshu-hq/eshu#10002). It narrows the page's
+  candidate predicates to `source_key = $1` with the same go.mod and
+  Go-evidence filters, and counts total candidates over the page's candidate
+  set so the fencer's slot count matches the rotation. Its scope-prefix
+  literal must match `scannercomponent.GoReachabilityScopeID` like the page's
+  does; `single_repository_test.go` pins the shared predicates. Any change to
+  `singleRepositoryQuery` needs the same fresh EXPLAIN treatment.
 - `FenceStaleGoEvidence` is the only write. Do not add another or a schema change here.
   Both updates name the scope and the generation the page read, so a successor activated
   after that read makes the fence a no-op.
@@ -38,6 +46,12 @@
   retirement deletes them.
 - Keep the CASE guard on `evidence_left_at`: the subquery must run only for a skewed row.
   The EXPLAIN in (#10055) holds its loop count.
+- The holder read answers from `supply_chain_impact_finding_supports`, never the finding facts
+  (#11197). `Store.WithSupportsReadiness` is required by `FenceStaleGoEvidence`; the check runs
+  twice: after the timeouts and before the pointer detach, and again after the holder read and
+  before any reopen, so a not-ready table rolls back with nothing retracted. Keep the second
+  check: the holder read is a separate READ COMMITTED snapshot, and the order of the two checks
+  is pinned by `TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack`. Keep the `ORDER BY ... COLLATE "C"` lock order of the holder reopen.
 - `HolderReopener` is injected because no subpackage imports the postgres root. A store with
   no reopener refuses to fence.
 

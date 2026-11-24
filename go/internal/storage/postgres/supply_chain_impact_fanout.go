@@ -12,10 +12,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // supplyChainImpactFanOutReadTimeout bounds one holder-read statement. The
@@ -31,8 +31,8 @@ const supplyChainImpactFanOutReadTimeout = 10 * time.Second
 const setSupplyChainImpactFanOutReadTimeoutQuery = `SELECT set_config('statement_timeout', $1, true)`
 
 // FindSupplyChainImpactHoldersQuery returns the scopes that hold an active
-// finding row matching any of the given lookup ids, other than the asking
-// scope. A row matches on its cve_id, its advisory_id, or its stored
+// finding support matching any of the given lookup ids, other than the asking
+// scope. A support matches on its cve_id, its advisory_id, or its stored
 // advisory-group member set (#10408): a re-key retires group and member ids
 // no replacement row names, and holders keyed by those ids — a dropped
 // member's fallback singleton, an advisory-keyed GHSA-only row, a holder
@@ -44,33 +44,31 @@ const setSupplyChainImpactFanOutReadTimeoutQuery = `SELECT set_config('statement
 // materialization puts the members arm on its GIN bitmap and deduplicates
 // pairs before the heap-heavy join. One join of the pair set against the
 // scope's active generation then drops rows left behind by superseded
-// generations. Each arm reads the writer's own output through its own
-// partial index (fact_records_supply_chain_impact_lookup_idx,
-// _advisory_lookup_idx, and _group_members_idx, all partial on the fact kind
-// and is_tombstone = FALSE), so the fact kind is a literal in every arm: a
-// bound parameter would not prove the partial-index predicates under a
-// generic plan. The operator suppression scope is a holder like any other:
-// its copies are ordinary finding rows that carry cve_id. Exported for
-// plan-shape proofs: EXPLAIN tests concatenate it instead of hand-copying it.
+// generations. The statement reads the per-support table (#11197): the table
+// holds live finding facts only, so no tombstone predicate applies. Each arm
+// reads its own index (supply_chain_impact_finding_supports_cve_idx and
+// _advisory_idx, partial on the non-empty id, and the _members_idx and
+// _tokens_idx GINs on the payload), so the partial arms carry the literal
+// predicate <> ” that proves the partial index under a generic plan; the
+// store drops blank lookup ids, so the predicate never changes an answer. The
+// operator suppression scope is a holder like any other: its copies are
+// ordinary supports that carry cve_id. Exported for plan-shape proofs:
+// EXPLAIN tests concatenate it instead of hand-copying it.
 const FindSupplyChainImpactHoldersQuery = `
 WITH candidates AS MATERIALIZED (
-    SELECT finding.scope_id, finding.generation_id
-    FROM fact_records AS finding
-    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-      AND finding.is_tombstone = FALSE
-      AND finding.payload->>'cve_id' = ANY($1::text[])
+    SELECT support.scope_id, support.generation_id
+    FROM supply_chain_impact_finding_supports AS support
+    WHERE support.cve_id <> ''
+      AND support.cve_id = ANY($1::text[])
     UNION
-    SELECT finding.scope_id, finding.generation_id
-    FROM fact_records AS finding
-    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-      AND finding.is_tombstone = FALSE
-      AND finding.payload->>'advisory_id' = ANY($1::text[])
+    SELECT support.scope_id, support.generation_id
+    FROM supply_chain_impact_finding_supports AS support
+    WHERE support.advisory_id <> ''
+      AND support.advisory_id = ANY($1::text[])
     UNION
-    SELECT finding.scope_id, finding.generation_id
-    FROM fact_records AS finding
-    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-      AND finding.is_tombstone = FALSE
-      AND finding.payload #> '{provenance,advisory_group_members}' ?| $1::text[]
+    SELECT support.scope_id, support.generation_id
+    FROM supply_chain_impact_finding_supports AS support
+    WHERE support.payload #> '{provenance,advisory_group_members}' ?| $1::text[]
 )
 SELECT DISTINCT candidates.scope_id
 FROM candidates
@@ -123,10 +121,34 @@ type SupplyChainImpactFanOutStore struct {
 	LeaseOwner string
 	// Now supplies the reopen timestamp; nil uses time.Now in UTC.
 	Now func() time.Time
+	// Instruments records the supports reads of this store on
+	// eshu_dp_supply_chain_impact_supports_reads_total (#11197). Nil records
+	// nothing.
+	Instruments *telemetry.Instruments
 	// ReadTimeout overrides the holder-read statement timeout; zero uses
 	// supplyChainImpactFanOutReadTimeout. Tests shorten it.
 	ReadTimeout time.Duration
 }
+
+// RequireSupportsReady is the handler-entry gate of the holder reads
+// (supplychaincore.SupplyChainImpactSupportsGate, #11197): one autocommit read of
+// the readiness predicate before the pass loads or writes anything. A table that
+// is not ready returns the typed non-counting refusal, counted as not_ready on
+// eshu_dp_supply_chain_impact_supports_reads_total under the fan-out holder
+// reader; a ready table records nothing here, since each holder read counts its
+// own served outcome.
+func (s SupplyChainImpactFanOutStore) RequireSupportsReady(ctx context.Context) error {
+	if s.DB == nil {
+		return errors.New("supply chain impact fan-out database is required")
+	}
+	return requireSupplyChainImpactSupportsReady(ctx, s.DB, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHolders)
+}
+
+// The store carries the handler-entry gate. The handler finds the gate by an
+// optional type assertion, so a signature drift would turn the gate off without an
+// error; this pin fails the build on a signature drift. It does not catch a wrapper
+// that hides the method.
+var _ supplychaincore.SupplyChainImpactSupportsGate = SupplyChainImpactFanOutStore{}
 
 func (s SupplyChainImpactFanOutStore) now() time.Time {
 	if s.Now != nil {
@@ -144,10 +166,27 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopes(
 	ownScopeID string,
 	lookupIDs []string,
 ) ([]string, error) {
+	lookupIDs = nonBlankLookupIDs(lookupIDs)
 	if len(lookupIDs) == 0 {
 		return nil, nil
 	}
-	return s.readScopeIDs(ctx, FindSupplyChainImpactHoldersQuery, lookupIDs, ownScopeID)
+	return s.readScopeIDsFromSupports(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHolders, FindSupplyChainImpactHoldersQuery, lookupIDs, ownScopeID)
+}
+
+// nonBlankLookupIDs drops blank lookup ids. The supports table stores the empty
+// string for a finding without a CVE or advisory id, and its holder indexes are
+// partial on the non-empty id, so a blank id must never reach a statement: it
+// would match findings that name no id and could not use the partial index
+// (#11197). The fact read compared payload text, which a missing key never
+// equalled, so dropping blanks keeps the answer the same.
+func nonBlankLookupIDs(lookupIDs []string) []string {
+	kept := lookupIDs[:0:0]
+	for _, id := range lookupIDs {
+		if id != "" {
+			kept = append(kept, id)
+		}
+	}
+	return kept
 }
 
 // readScopeIDs runs one scope-id query as a short read-only transaction under the
@@ -155,6 +194,23 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopes(
 // read goes through it, so each has the same timeout, the same typed timeout
 // error, and the same retry semantics.
 func (s SupplyChainImpactFanOutStore) readScopeIDs(ctx context.Context, query string, args ...any) ([]string, error) {
+	return s.readScopeIDsIn(ctx, "", query, args...)
+}
+
+// readScopeIDsFromSupports is readScopeIDs for a read that answers from the
+// supports table (#11197): the transaction is one repeatable-read snapshot whose
+// first statement checks that the table is ready, and a table that is not ready
+// fails the read with supplychaincore.SupplyChainImpactSupportsNotReadyError instead of answering
+// from a partial table.
+func (s SupplyChainImpactFanOutStore) readScopeIDsFromSupports(ctx context.Context, reader, query string, args ...any) ([]string, error) {
+	return s.readScopeIDsIn(ctx, reader, query, args...)
+}
+
+// readScopeIDsIn runs one scope-id read. A non-empty reader marks a read that
+// answers from the supports table: it is counted on the supports reads counter
+// and checks readiness first.
+func (s SupplyChainImpactFanOutStore) readScopeIDsIn(ctx context.Context, reader, query string, args ...any) ([]string, error) {
+	fromSupports := reader != ""
 	if s.Beginner == nil {
 		return nil, errors.New("supply chain impact fan-out beginner is required")
 	}
@@ -167,7 +223,11 @@ func (s SupplyChainImpactFanOutStore) readScopeIDs(ctx context.Context, query st
 		return nil, fmt.Errorf("begin supply chain impact fan-out read: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, "SET TRANSACTION READ ONLY"); err != nil {
+	setMode := "SET TRANSACTION READ ONLY"
+	if fromSupports {
+		setMode = setHolderKeyRangeSnapshotQuery
+	}
+	if _, err := tx.ExecContext(ctx, setMode); err != nil {
 		return nil, fmt.Errorf("set supply chain impact fan-out read read-only: %w", err)
 	}
 	rows, err := tx.QueryContext(ctx, setSupplyChainImpactFanOutReadTimeoutQuery, fmt.Sprintf("%dms", timeout.Milliseconds()))
@@ -175,6 +235,13 @@ func (s SupplyChainImpactFanOutStore) readScopeIDs(ctx context.Context, query st
 		return nil, fmt.Errorf("set supply chain impact fan-out read timeout: %w", err)
 	}
 	_ = rows.Close()
+	if fromSupports {
+		if err := requireSupplyChainImpactSupportsReady(ctx, tx, s.Instruments, reader); err != nil {
+			// The typed refusal reaches the queue as it is: wrapping it would
+			// replace its non-counting class.
+			return nil, err
+		}
+	}
 	rows, err = tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, classifyFanOutReadError(err)
@@ -190,6 +257,9 @@ func (s SupplyChainImpactFanOutStore) readScopeIDs(ctx context.Context, query st
 	}
 	if err := rows.Err(); err != nil {
 		return nil, classifyFanOutReadError(err)
+	}
+	if fromSupports {
+		s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadServed)
 	}
 	return scopes, nil
 }

@@ -4,11 +4,14 @@
 package postgres_test
 
 import (
+	"context"
 	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
@@ -171,7 +174,13 @@ func TestGoFenceReopensAHolderAndItsReducerPassRunsLive(t *testing.T) {
 	}
 	assertGoFenceWinnerVerdict(c, goFenceAdvisory, string(supplychaincore.GoVulnReachabilityNotCalled), "not_called")
 
-	store := gomodules.NewStore(postgres.SQLDB{DB: c.db}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction)
+	// The reducer passes above maintained the supports in their own
+	// transactions; the readiness marker is the backfill's, so complete it
+	// before the fence reads holders from the table (#11197).
+	settleSupplyChainImpactSupports(c.t, c.ctx, c.db)
+	store := gomodules.NewStore(postgres.SQLDB{DB: c.db}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(func(ctx context.Context, tx db.Queryer) error {
+		return postgres.RequireSupplyChainImpactSupportsReady(ctx, tx, nil, "go_modules_fence")
+	})
 	fence := []scannercomponent.StaleEvidenceFence{{ScopeID: goFenceScope, GenerationID: generationID}}
 	result, err := store.FenceStaleGoEvidence(c.ctx, fence, time.Now().UTC())
 	if err != nil || result.Fenced != 1 || result.HoldersReopened != 1 {

@@ -47,10 +47,14 @@ CROSS JOIN generate_series(1, 30000) g`, facts.ReducerSupplyChainImpactFindingFa
 	if _, err := db.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
 		t.Fatalf("analyze: %v", err)
 	}
-
-	store := postgres.SupplyChainImpactFanOutStore{
-		Beginner: postgres.SQLDB{DB: db}, DB: postgres.SQLDB{DB: db}, LeaseOwner: fanOutLiveOwner,
+	// The statement answers from the supports table (#11197): fill it from the
+	// bulk facts and give the planner its statistics.
+	settleSupplyChainImpactSupports(t, ctx, db)
+	if _, err := db.ExecContext(ctx, `ANALYZE supply_chain_impact_finding_supports`); err != nil {
+		t.Fatalf("analyze supports: %v", err)
 	}
+
+	store := fanOutLiveStore(db)
 	// Odd ids name no member set; odd multiples of 3 carry the GHSA advisory
 	// with an empty member set; even non-multiples of 3 name the GHSA id only
 	// inside advisory_group_members.
@@ -121,8 +125,8 @@ CROSS JOIN generate_series(1, 30000) g`, facts.ReducerSupplyChainImpactFindingFa
 		id    string
 		index string
 	}{
-		{"cve", "CVE-2026-0001", "fact_records_supply_chain_impact_lookup_idx"},
-		{"advisory", "GHSA-0401-0003", "fact_records_supply_chain_impact_advisory_lookup_idx"},
+		{"cve", "CVE-2026-0001", "supply_chain_impact_finding_supports_cve_idx"},
+		{"advisory", "GHSA-0401-0003", "supply_chain_impact_finding_supports_advisory_idx"},
 	} {
 		rows, err := db.QueryContext(ctx, `EXPLAIN (ANALYZE, BUFFERS) `+postgres.FindSupplyChainImpactHoldersQuery, []string{tc.id}, "scope:10408:bulk-a")
 		if err != nil {

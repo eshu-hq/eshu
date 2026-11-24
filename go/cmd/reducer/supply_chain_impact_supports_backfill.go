@@ -100,11 +100,20 @@ func runSupportsBackfillPass(
 		stepStarted := time.Now()
 		report, err := step(ctx)
 		if err != nil {
+			// A failed verification slice still reports its duration, so a
+			// statement timeout shows on the slice histogram. A slice cut short by
+			// shutdown is not a failure and records nothing, like the step itself.
+			if report.VerifySlice != "" && ctx.Err() == nil {
+				instruments.RecordSupplyChainImpactSupportsVerifySlice(ctx, report.VerifySlice, report.VerifySliceDuration)
+			}
 			return false, err
 		}
 		outcome := supportsBackfillOutcome(report)
 		recordSupportsBackfillStep(ctx, instruments, outcome)
 		instruments.RecordSupplyChainImpactSupportsBackfillStepResult(ctx, outcome, time.Since(stepStarted), report.DirtyScopes)
+		if report.VerifySlice != "" {
+			instruments.RecordSupplyChainImpactSupportsVerifySlice(ctx, report.VerifySlice, report.VerifySliceDuration)
+		}
 		instruments.RecordSupplyChainImpactSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUnchanged,
 			telemetry.SupplyChainImpactSupportsSourceBackfill, report.Unchanged)
 		// The backfill's write-on-change upsert reports one Written count for
@@ -116,7 +125,7 @@ func runSupportsBackfillPass(
 			telemetry.SupplyChainImpactSupportsSourceBackfill, report.Removed)
 		if outcome == telemetry.SupplyChainImpactSupportsBackfillStepGap && logger != nil {
 			logger.Warn("supply chain impact supports backfill verification found live findings without a support; restarting the sweep",
-				"missing_capped", report.Missing)
+				"missing_capped", report.Missing, "slice_duration_seconds", report.VerifySliceDuration.Seconds())
 		}
 		if report.Complete && report.DirtyScopes == 0 {
 			instruments.RecordSupplyChainImpactSupportsBackfillReady(ctx, true)
@@ -141,6 +150,9 @@ func supportsBackfillOutcome(report postgres.SupplyChainImpactSupportsBackfillRe
 		return telemetry.SupplyChainImpactSupportsBackfillStepComplete
 	case report.Complete:
 		return telemetry.SupplyChainImpactSupportsBackfillStepIdle
+	case report.VerifySlice != "":
+		// An advance, an orphan cleanup, or a last slice the fence held back.
+		return telemetry.SupplyChainImpactSupportsBackfillStepVerify
 	default:
 		return telemetry.SupplyChainImpactSupportsBackfillStepChunk
 	}

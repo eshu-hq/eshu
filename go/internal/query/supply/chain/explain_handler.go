@@ -136,6 +136,10 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	explanationTimer.Done(r.Context(), slog.Bool("error", err != nil))
+	if errors.Is(err, impact.ErrFindingSupportsUnavailable) {
+		h.writeImpactExplanationSupportsUnavailable(w, r)
+		return
+	}
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope, like the sibling probes below. The mapped

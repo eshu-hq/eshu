@@ -10,7 +10,10 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -38,6 +41,19 @@ type CrossScopeCompletionResult struct {
 	EventsProcessed        int
 	ProducerItemsProcessed int64
 	IntentsEnqueued        int
+	// ManifestMarkersSkipped is a census of the manifest-marker consumers
+	// (supply_chain_impact items with payload trigger=manifest_dependency) in
+	// an eligible state at an active generation when this fan-out committed;
+	// the fan-out neither schedules nor flags them: they read no producer
+	// output, so doing either only re-runs a pass that changes no finding
+	// (#10972). It is taken even when the fan-out scheduled nothing, so it is
+	// an upper bound on the re-pends avoided, not a measured saving.
+	// The store reads it with a separate statement after the fan-out
+	// committed, only for a producer with a supply_chain_impact consumer
+	// edge. It is zero for any other producer and when that read failed, so
+	// zero is not proof that no marker was skipped; the store logs a warning
+	// for a failed read.
+	ManifestMarkersSkipped int
 	FanoutDuration         time.Duration
 }
 
@@ -64,6 +80,8 @@ type CrossScopeCompletionRunner struct {
 	Now          func() time.Time
 	Wait         func(context.Context, time.Duration) error
 	Logger       *slog.Logger
+	// Instruments records the fan-out counters; nil records none.
+	Instruments *telemetry.Instruments
 }
 
 func (r CrossScopeCompletionRunner) now() time.Time {
@@ -150,6 +168,7 @@ func (r CrossScopeCompletionRunner) RunOnce(
 	cancel()
 	heartbeatErr := <-heartbeatDone
 	if fanoutErr == nil {
+		r.recordManifestMarkersSkipped(ctx, result)
 		return true, result, nil
 	}
 	fanoutErr = fmt.Errorf(
@@ -213,6 +232,7 @@ func (r CrossScopeCompletionRunner) Run(ctx context.Context) error {
 				"events_processed", result.EventsProcessed,
 				"producer_items_processed", result.ProducerItemsProcessed,
 				"intents_enqueued", result.IntentsEnqueued,
+				"manifest_markers_skipped", result.ManifestMarkersSkipped,
 				"fanout_duration_ms", result.FanoutDuration.Milliseconds(),
 			)
 		}
@@ -254,4 +274,22 @@ func (r CrossScopeCompletionRunner) wait(ctx context.Context, delay time.Duratio
 	case <-timer.C:
 		return nil
 	}
+}
+
+// recordManifestMarkersSkipped advances the skipped-marker counter by this
+// fan-out's count. The count is a census, not a saving: it is the number of
+// manifest markers in an eligible state at an active generation when a
+// fan-out for a producer that feeds supply_chain_impact committed. Before the
+// exclusion the same fan-out would have locked and re-pended or flagged each of
+// them, so the sum is an upper bound on the re-pends avoided, never a measured
+// count of them. It carries no gate on IntentsEnqueued, so a fan-out that
+// scheduled nothing still adds the census. One add per committed fan-out,
+// labelled by the producer domain (a closed set); executions per hour stay on
+// the existing manifest_trigger signal.
+func (r CrossScopeCompletionRunner) recordManifestMarkersSkipped(ctx context.Context, result CrossScopeCompletionResult) {
+	if r.Instruments == nil || r.Instruments.CrossScopeCompletionMarkersSkipped == nil || result.ManifestMarkersSkipped <= 0 {
+		return
+	}
+	r.Instruments.CrossScopeCompletionMarkersSkipped.Add(ctx, int64(result.ManifestMarkersSkipped),
+		metric.WithAttributes(telemetry.AttrDomain(string(result.ProducerDomain))))
 }

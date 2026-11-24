@@ -183,6 +183,7 @@ func (s *Source) ObserveClaimedGenerationCommitted(ctx context.Context, item wor
 	if settler, ok := s.commitPolicy.(ClaimCommitSettler); ok {
 		settler.SettleClaimCommitted(ctx, item)
 	}
+	s.emitNVDWindowCommitted(ctx, item)
 	if s.outcomeRecorder == nil {
 		return nil
 	}
@@ -206,6 +207,7 @@ func (s *Source) ObserveClaimedGenerationRefused(
 	if settler, ok := s.commitPolicy.(ClaimCommitSettler); ok {
 		settler.DiscardClaimSettlement(item)
 	}
+	s.emitNVDWindowRefused(ctx, item)
 	if s.outcomeRecorder == nil {
 		return nil
 	}

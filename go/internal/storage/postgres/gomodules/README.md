@@ -10,14 +10,20 @@ reopens the scopes holding findings for that repository.
 
 ## Ownership boundary
 
-This package owns one read and one write. The coordinator root owns the schedule and
+This package owns two reads and one write. The coordinator root owns the schedule and
 admission, and `coordinator/reachability` owns planning and the skew rule. It needs no
 migration.
 
 ## Exported surface
 
 - `Store`, `NewStore`, `Store.ListGoModuleRepositories`, `Store.WithHolderReopener`,
-  `Store.FenceStaleGoEvidence`, and `HolderReopener`.
+  `Store.WithSupportsReadiness`, `Store.FenceStaleGoEvidence`, `HolderReopener`, and
+  `SupportsReadiness`.
+- `Store.GetGoModuleRepository`, `GoModuleRepositoryRead`,
+  `ErrGoModuleRepositoryNotFound`, `ErrGoModuleRepositoryNoActiveGeneration` —
+  the single-repository read for the out-of-rotation operator path
+  (eshu-hq/eshu#10002): the same row the page read would return, with the
+  page's total-candidates count for the fencer's slot count.
 
 ## Dependencies
 
@@ -71,14 +77,20 @@ count the fence returns.
   for a skewed row, `evidence_left_at`: the newest `superseded_at` among the repository's own
   generations at that commit. `reachability.StaleEvidence` applies the rule, and
   `FenceStaleGoEvidence` writes the verdict.
-- A fence takes the scope row, supersedes the generation, finds the holders on
-  `fact_records_supply_chain_impact_repository_lookup_idx`, and reopens each, in one
-  transaction with a 2s `lock_timeout`. A successor's ack in either order ends on the
+- A fence takes the scope row, checks that the supports table is ready (check 1, before the
+  pointer detach), detaches the pointer, supersedes the generation, finds the holders on
+  `supply_chain_impact_finding_supports_repository_idx` (#11197), checks readiness again (check 2,
+  after the holder read and before any reopen), and reopens each holder, in one
+  transaction with a 2s `lock_timeout`. A table that is not ready at either check rolls the fence
+  back, with nothing retracted, and the coordinator retries the page. A successor's ack in either order ends on the
   successor. A fence that loses the race changes nothing and counts nothing. Evidence:
   (#10055). It reopens the holders in the `work_item_id COLLATE "C"` order of their
   `supply_chain_impact` items, the order the admin replay, the recovery drain, and
   poison recovery lock dead letters in, because a reopen also locks a holder's dead
   letter (#11147). Scope-id order differs, since the item id maps `:` and `/` to `_`.
+  Since #10972 the fence's set-less reopen also widens a pending or retrying holder with a
+  bounded stamp to a set-less one, so its next pass runs full; until eshu-hq/eshu#10095 that
+  is extra full passes and no verdict change.
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
   query (eshu-hq/eshu#10054).
@@ -94,6 +106,18 @@ count the fence returns.
      scan; a `go.mod` whose content has not landed waits one rotation.
 - Measured on Postgres 16 for one 256-candidate page, with 3,000 repositories,
   100,000 other scopes, 1.84M facts, and 820,000 content files: 66 ms cold, 55 ms warm.
+- Single-repository read cost (`singleRepositoryQuery`, eshu-hq/eshu#10032):
+  No-Regression Evidence: the rotation `pageQuery` is byte-unchanged, so every
+  reconcile tick costs what it did; the new read runs once per manual operator
+  fire only, never on the tick, as one `source_key` probe plus the scalar
+  total-candidates count over the page's candidate set that the fencer windows
+  into its slot count. No local EXPLAIN was captured (no live Postgres in this
+  lane); `TestGetGoModuleRepositoryMatchesPageRowLive` pins row and total
+  equivalence in CI, and the QA firing record carries EXPLAIN (ANALYZE,
+  BUFFERS). Observability Evidence: the read reports on the existing
+  `eshu_dp_postgres_query_duration_seconds{store="go_module_repositories"}`
+  series and every attempt logs the operator audit line; no new metric family
+  was added for one bounded operator act.
 
 ## Related docs
 

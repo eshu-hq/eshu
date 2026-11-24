@@ -76,7 +76,7 @@ func TestSuccessorAckBeforeTheFenceMakesItANoOpLive(t *testing.T) {
 	if err := proofQueue(database).Ack(t.Context(), work, runtime.Result{}); err != nil {
 		t.Fatalf("ack: %v", err)
 	}
-	result, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), stale, time.Now().UTC())
+	result, err := fenceStore(t, database).FenceStaleGoEvidence(t.Context(), stale, time.Now().UTC())
 	if err != nil || result.Fenced != 0 {
 		t.Fatalf("result = %+v, err = %v, want 0 fenced", result, err)
 	}
@@ -92,7 +92,7 @@ func TestFenceBeforeTheSuccessorAckEndsOnItLive(t *testing.T) {
 	work := seedSuccessor(t, database, scopeID, "successor", fmt.Sprintf("%040x", 1))
 
 	fence := []scannercomponent.StaleEvidenceFence{{ScopeID: scopeID, GenerationID: prior}}
-	result, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), fence, time.Now().UTC())
+	result, err := fenceStore(t, database).FenceStaleGoEvidence(t.Context(), fence, time.Now().UTC())
 	if err != nil || result.Fenced != 1 {
 		t.Fatalf("result = %+v, err = %v, want 1 fenced", result, err)
 	}
@@ -136,7 +136,7 @@ func TestFenceQueuesBehindAnAckHoldingTheScopeRowLive(t *testing.T) {
 	done := make(chan outcome, 1)
 	go func() {
 		fence := []scannercomponent.StaleEvidenceFence{{ScopeID: scopeID, GenerationID: prior}}
-		result, err := fenceStore(database).FenceStaleGoEvidence(ctx, fence, time.Now().UTC())
+		result, err := fenceStore(t, database).FenceStaleGoEvidence(ctx, fence, time.Now().UTC())
 		done <- outcome{result, err}
 	}()
 	waitForBlockedOn(ctx, t, database, ackXID)
@@ -196,7 +196,7 @@ func TestAckQueuesBehindAFenceHoldingAHolderLive(t *testing.T) {
 	fenceDone := make(chan outcome, 1)
 	go func() {
 		fence := []scannercomponent.StaleEvidenceFence{{ScopeID: scopeID, GenerationID: prior}}
-		result, err := fenceStore(database).FenceStaleGoEvidence(ctx, fence, time.Now().UTC())
+		result, err := fenceStore(t, database).FenceStaleGoEvidence(ctx, fence, time.Now().UTC())
 		fenceDone <- outcome{result, err}
 	}()
 	waitForBlockedOn(ctx, t, database, holderXID)
@@ -267,7 +267,7 @@ WHERE NOT granted AND locktype = 'transactionid' AND transactionid::text = $1`, 
 // end on the successor whichever side won.
 func TestFenceAndAckRaceEndOnTheSuccessorLive(t *testing.T) {
 	database := openStoreProof(t)
-	store := fenceStore(database)
+	store := fenceStore(t, database)
 	queue := proofQueue(database)
 	const rounds = 40
 	wins := 0

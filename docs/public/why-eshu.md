@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Why Eshu
+description: Explains the cross-layer problems Eshu solves, what it indexes, and how evidence-backed truth works.
+type: concept
+audience: new-user, practitioner, evaluator
+entrypoint: false
+landing: false
+-->
+
 # Why Eshu
 
 Eshu answers questions that cross code, dependencies, supply chain,
@@ -10,41 +19,55 @@ really runs, which images carry a vulnerable dependency, and what might break
 when you change it. It is the durable institutional-knowledge layer your team
 and its assistants query instead of re-deriving the answer by hand.
 
-## The Launch Beachhead: Supply-Chain Traceability
+## End-To-End Supply-Chain Traceability
 
-Eshu's first focused use case is following a dependency end to end. Start from a
+A common starting workflow is following a dependency end to end. Start from a
 vulnerable package and trace it through the container images that ship it, the
 workloads that run those images, and the source and Terraform that own them —
-with evidence at every hop. Eshu reconciles four advisory sources (CISA KEV,
-FIRST EPSS, OSV, and NVD), follows SBOM-to-image attachments by subject digest,
-and adds reachability so you can tell a dependency that is merely present from
-one that is actually called. See
+with evidence at every hop. Eshu reconciles advisory sources (CISA KEV, FIRST
+EPSS, OSV, NVD, and CVE List v5), follows SBOM-to-image attachments by subject
+digest, adds multi-language reachability (`govulncheck` for Go, opt-in
+value-flow reachability for Python/TypeScript/JavaScript/Java/C#, bounded JVM
+preview), and supports standalone local scans via `eshu vuln-scan repo` with
+SARIF v2.1.0 and VEX export. See
 [Security Intelligence](reference/security-intelligence.md) and
 [Vulnerability Scanner Confidence](reference/vulnerability-scanner-confidence.md).
 
 ## What Eshu Builds
 
-Eshu indexes repositories and external collector evidence into a self-hosted
-context graph that spans code, supply chain, infrastructure, and runtime.
+Eshu indexes repositories and opt-in, read-only external collector evidence into
+a self-hosted context graph that spans code, supply chain, infrastructure,
+incidents, documentation, and runtime.
 
-It can ingest:
+It can ingest and correlate:
 
-- source symbols, imports, calls, references, inheritance, complexity, and
-  dead-code candidates across 20+ languages
-- Terraform/HCL, Kubernetes, Helm, Kustomize, CloudFormation, ArgoCD,
-  Crossplane, and Docker Compose configuration
-- dependencies across 13 package ecosystems, container images from 7 registries
-  (ECR, GHCR, Docker Hub, Harbor, GAR, ACR, JFrog), and SBOM-to-image
-  attestations
-- vulnerability intelligence from CISA KEV, FIRST EPSS, OSV, and NVD, plus
-  govulncheck and value-flow reachability
-- cloud inventory and posture from AWS service scanners, plus Terraform state,
-  workflow, incident, observability, and documentation facts when those
-  collectors are enabled
+- source symbols, imports, calls, references, inheritance, complexity,
+  dead-code candidates, control/data flow, and structural fingerprints across
+  22 source languages
+- Terraform/HCL, Terragrunt, Kubernetes, Helm, Kustomize, CloudFormation,
+  ArgoCD, Flux, Crossplane, and Docker Compose configuration
+- dependencies across 13+ package ecosystems, container images from 7 registries
+  (ECR, GHCR, Docker Hub, Harbor, GAR, ACR, JFrog), and CycloneDX/SPDX SBOMs
+  plus in-toto/SLSA attestations
+- vulnerability intelligence from CISA KEV, FIRST EPSS, OSV, and NVD, provider
+  Dependabot alert reconciliation, reachability evidence, and offline
+  End-of-Life (EOL) runtime resolution
+- code-to-cloud exposure paths from untrusted handlers to IAM, secret,
+  internet-exposed, SQL, and shell sinks
+- cloud inventory and posture from AWS service scanners (plus opt-in GCP,
+  Azure, Vault metadata, Kubernetes live, and Terraform state), CI/CD runs,
+  PagerDuty incidents, Jira work items, Backstage/OpsLevel/Cortex service
+  catalogs, and metadata-only observability (Grafana, Prometheus/Mimir, Loki,
+  Tempo)
+- documentation claims from Markdown and Confluence verified against live repo
+  and graph truth (`eshu docs verify`)
 - cross-repo references such as module sources, image names, repository URLs,
   deployment config, and shared resources
 
-The same model is exposed through the CLI, MCP tools, and HTTP API.
+The same query and truth model is exposed through 173 read-only MCP tools (with
+context-saving `router` modes), 281 HTTP API routes, 41 CLI command families,
+and a 42-page self-hosted Console with built-in OIDC/SAML/GitHub SSO, TOTP MFA,
+RBAC, and audit logs.
 
 ## Questions It Helps With
 

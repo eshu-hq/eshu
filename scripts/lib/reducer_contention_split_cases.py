@@ -72,9 +72,9 @@ def build(module):
             )
 
         def test_a_step_timeout_above_the_bound_is_refused(self) -> None:
-            """RED: a cap of 85000 s defeats the job-cap arithmetic; GREEN is the real 900 s."""
+            """RED: a cap of 85000 s defeats the job-cap arithmetic; GREEN is the real 1200 s."""
             self.check(
-                lambda text: text.replace("-timeout 900s", "-timeout 85000s", 1),
+                lambda text: text.replace("-timeout 1200s", "-timeout 85000s", 1),
                 "exceeds the 1200s bound",
             )
 

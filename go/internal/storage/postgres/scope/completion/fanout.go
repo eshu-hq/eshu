@@ -9,9 +9,22 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
+
+// manifestMarkerPredicate is true for a supply_chain_impact work item that is a
+// manifest marker (payload trigger=manifest_dependency, #9874). A marker
+// reads no CI/CD, identity, or finding evidence and writes no finding, so a
+// completion event can change nothing it derives: re-pending a succeeded one
+// or flagging a claimed one only re-runs a pass that cannot change a finding,
+// and flagging one at its ack re-pends it (the migration 093 trigger). Only
+// supply_chain_impact items carry the marker, so the domain test keeps the
+// JSONB read off every other consumer domain. The spelling comes from the
+// supply-chain core constants the projector and the handler share.
+const manifestMarkerPredicate = `source.domain = '` + string(reducer.DomainSupplyChainImpact) + `'
+      AND COALESCE(source.payload->>'` + supplychaincore.PayloadKeyTrigger + `', '') = '` + supplychaincore.TriggerManifestDependency + `'`
 
 // FanoutCrossScopeCompletionQuery claims one cross-scope completion event
 // and fans it out to eligible consumers. Exported for the staying root plan
@@ -31,14 +44,7 @@ WITH lease AS MATERIALIZED (
     SELECT producer_domain, consumer_domain
     FROM unnest($7::text[], $8::text[])
          AS edge(producer_domain, consumer_domain)
-), active_generations AS MATERIALIZED (
-    SELECT scope.scope_id, generation.generation_id
-    FROM ingestion_scopes AS scope
-    JOIN scope_generations AS generation
-      ON generation.scope_id = scope.scope_id
-     AND generation.generation_id = scope.active_generation_id
-     AND generation.status = 'active'
-), current_consumers AS MATERIALIZED (
+), ` + activeGenerationsCTE + `, current_consumers AS MATERIALIZED (
     SELECT source.work_item_id,
            source.status,
            source.cross_scope_replay_required
@@ -47,11 +53,9 @@ WITH lease AS MATERIALIZED (
       ON dependency.consumer_domain = source.domain
     JOIN lease
       ON lease.producer_domain = dependency.producer_domain
-    JOIN active_generations AS generation
-      ON generation.scope_id = source.scope_id
-     AND generation.generation_id = source.generation_id
-    WHERE source.stage = 'reducer'
-      AND source.status IN ('claimed', 'running', 'succeeded')
+    ` + activeGenerationJoin + `
+    WHERE ` + consumerStatePredicate + `
+      AND NOT (` + manifestMarkerPredicate + `)
     ORDER BY source.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF source
 ), captured AS MATERIALIZED (
@@ -143,8 +147,22 @@ SELECT (SELECT count(*) FROM captured),
 `
 
 // Fanout coalesces an exact pending event set for the leased producer, schedules
-// each current-generation canonical consumer at most once, and deletes only
-// that captured event set in one statement.
+// each current-generation canonical consumer at most once (never a manifest
+// marker), and deletes only that captured event set in one statement.
+//
+// When the producer has a supply_chain_impact consumer edge, Fanout then counts
+// the manifest markers in an eligible state at an active generation into
+// ManifestMarkersSkipped with a separate read-only statement
+// (manifestMarkerCountQuery). The count is a census, an upper bound on the
+// re-pends the exclusion avoided, not a measured saving: it is taken whether or
+// not this fan-out scheduled anything. That count runs only after
+// the fan-out statement returned and committed (autocommit, no lock held), under
+// its own bounded context, so it adds nothing to the lock hold of the fan-out
+// or to a producer ack waiting on the event row. A count failure is the one
+// failure Fanout tolerates: the fan-out already committed and the count only
+// feeds eshu_dp_cross_scope_completion_markers_skipped_total, so an error or
+// timeout logs a warning, leaves ManifestMarkersSkipped at zero, and returns
+// the committed result.
 func (s *CrossScopeCompletionStore) Fanout(
 	ctx context.Context,
 	lease reducer.CrossScopeCompletionLease,
@@ -159,10 +177,34 @@ func (s *CrossScopeCompletionStore) Fanout(
 	edges := crossscope.CompletionEdges()
 	producerDomains := make([]string, 0, len(edges))
 	consumerDomains := make([]string, 0, len(edges))
+	feedsSupplyChainImpact := false
 	for _, edge := range edges {
 		producerDomains = append(producerDomains, string(edge.Producer))
 		consumerDomains = append(consumerDomains, string(edge.Consumer))
+		if string(edge.Producer) == string(lease.ProducerDomain) && edge.Consumer == reducer.DomainSupplyChainImpact {
+			feedsSupplyChainImpact = true
+		}
 	}
+	result, err := s.runFanoutStatement(ctx, lease, batchSize, producerDomains, consumerDomains)
+	if err != nil {
+		return reducer.CrossScopeCompletionResult{}, err
+	}
+	if feedsSupplyChainImpact {
+		result.ManifestMarkersSkipped = s.countSkippedManifestMarkers(ctx)
+	}
+	return result, nil
+}
+
+// runFanoutStatement runs the fan-out statement and returns its four counts. It
+// closes the cursor before returning so the caller's next statement never
+// overlaps an open one on the same connection.
+func (s *CrossScopeCompletionStore) runFanoutStatement(
+	ctx context.Context,
+	lease reducer.CrossScopeCompletionLease,
+	batchSize int,
+	producerDomains []string,
+	consumerDomains []string,
+) (reducer.CrossScopeCompletionResult, error) {
 	rows, err := s.database.QueryContext(
 		ctx,
 		FanoutCrossScopeCompletionQuery,

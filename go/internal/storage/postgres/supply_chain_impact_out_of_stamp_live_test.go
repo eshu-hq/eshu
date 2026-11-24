@@ -113,6 +113,9 @@ func TestHasOutOfStampActiveRowsLive(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = 'row-drift'`); err != nil {
 		t.Fatalf("tombstone drift row: %v", err)
 	}
+	// A tombstone written outside the maintainer marks the old-writer fence; the
+	// backfill drains it and drops the tombstoned fact's support (#11197).
+	settleSupplyChainImpactSupports(t, ctx, db)
 	if has, err := store.HasOutOfStampActiveSupplyChainImpactRows(ctx, "stamp-scope", gen, []string{"CVE-2026-9001"}); err != nil || has {
 		t.Fatalf("post-reap probe = %v err = %v, want false (tombstoned, empty-CVE, and older-generation rows never trigger)", has, err)
 	}

@@ -40,21 +40,44 @@ const (
 	SkipMissingCommit = "missing_commit"
 )
 
-// PlanRequest carries one rotation page for one activation.
+// PlanRequest carries one rotation page for one activation. TriggerKind is an
+// explicit override for out-of-rotation operator runs: the zero value derives
+// exactly today's bootstrap/schedule trigger, so scheduled pages are
+// byte-identical with or without it. The only accepted explicit value is
+// operator_recovery; every other kind is refused.
 type PlanRequest struct {
 	Instance     workflow.CollectorInstance
 	ObservedAt   time.Time
 	PlanKey      string
+	TriggerKind  workflow.TriggerKind
 	Repositories []scannercomponent.GoModuleRepository
 }
 
 // RunID returns the run a plan key's page lands under. The root reads it before
 // reading candidates, so a bucket with a planned page costs one primary-key
 // probe. The "derived" segment keeps it distinct from the generic
-// component-extension run.
+// component-extension run. The trigger segment is the derived
+// bootstrap/schedule value; explicit operator runs use RunIDWithTrigger.
 func RunID(instance workflow.CollectorInstance, planKey string) string {
+	return RunIDWithTrigger(instance, planKey, triggerKind(instance))
+}
+
+// RunIDWithTrigger names the run for one plan key under an explicit trigger
+// kind. RunID is the scheduled shorthand: the same instance and plan key
+// produce the identical string.
+func RunIDWithTrigger(instance workflow.CollectorInstance, planKey string, trigger workflow.TriggerKind) string {
 	return fmt.Sprintf("%s:%s:%s:derived:%s",
-		scope.CollectorScannerWorker, strings.TrimSpace(instance.InstanceID), triggerKind(instance), strings.TrimSpace(planKey))
+		scope.CollectorScannerWorker, strings.TrimSpace(instance.InstanceID), trigger, strings.TrimSpace(planKey))
+}
+
+// RequestTriggerKind resolves the trigger a PlanRequest plans under: the
+// explicit kind when set, otherwise the derived bootstrap/schedule value the
+// scheduled rotation always used.
+func RequestTriggerKind(request PlanRequest) workflow.TriggerKind {
+	if request.TriggerKind != "" {
+		return request.TriggerKind
+	}
+	return triggerKind(request.Instance)
 }
 
 // Plan returns one run and one work item per plannable repository, plus a count
@@ -64,8 +87,9 @@ func Plan(request PlanRequest) (workflow.Run, []workflow.WorkItem, map[string]in
 	if err := validate(request); err != nil {
 		return workflow.Run{}, nil, nil, err
 	}
+	trigger := RequestTriggerKind(request)
 	observedAt := request.ObservedAt.UTC()
-	runID := RunID(request.Instance, request.PlanKey)
+	runID := RunIDWithTrigger(request.Instance, request.PlanKey, trigger)
 	skipped := map[string]int{}
 	seen := make(map[string]struct{}, len(request.Repositories))
 	targets := make([]scannercomponent.GoReachabilityTarget, 0, len(request.Repositories))
@@ -96,7 +120,7 @@ func Plan(request PlanRequest) (workflow.Run, []workflow.WorkItem, map[string]in
 	}
 	return workflow.Run{
 		RunID:              runID,
-		TriggerKind:        triggerKind(request.Instance),
+		TriggerKind:        trigger,
 		Status:             workflow.RunStatusCollectionPending,
 		RequestedScopeSet:  string(requested),
 		RequestedCollector: string(scope.CollectorScannerWorker),
@@ -117,6 +141,15 @@ func validate(request PlanRequest) error {
 	}
 	if err := contract.ValidateSafePlanKey("go reachability planner", request.PlanKey); err != nil {
 		return err
+	}
+	if request.TriggerKind != "" {
+		if err := request.TriggerKind.Validate(); err != nil {
+			return fmt.Errorf("go reachability planner: %w", err)
+		}
+		if resolved := RequestTriggerKind(request); resolved != triggerKind(request.Instance) &&
+			resolved != workflow.TriggerKindOperatorRecovery {
+			return fmt.Errorf("go reachability planner trigger kind %q is not planned on this path", request.TriggerKind)
+		}
 	}
 	if len(request.Repositories) > scannercomponent.GoModulePageSize {
 		return fmt.Errorf("go reachability page exceeds %d repositories", scannercomponent.GoModulePageSize)

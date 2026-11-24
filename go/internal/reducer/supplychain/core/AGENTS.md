@@ -37,9 +37,23 @@ changing anything here.
   must also implement `FindPackageHolderCandidates`, and the production port
   must implement `ManifestDependencyGenerationReader` (generation read plus the
   lease-fenced `RecordManifestTriggerCompleted` stamp, plus the marker-free
-  `FindInFlightNonMarkerScopes` in-flight read). Stamp only when no
+  `FindInFlightNonMarkerScopes` in-flight read, which the findings fan-out
+  reads too: nothing reopens or flags an in-flight marker, #10972). Stamp only when no
   holder is left on the continuation list or nothing changed; the next marker
   pass of the scope diffs from the newest stamped generation.
+- The holder fan-out drops a holder only when every active-generation item it
+  has is pending or retrying AND that item's next pass covers the change
+  (`FindQueuedHolderScopes(ctx, holders, stampOut)`, one set read BEFORE the
+  256-cap slice; #10972, `fanout_prefilter.go`, `HOLDER_FANOUT_PREFILTER.md`).
+  Pass the capped `stampOut` the fan-out stamps, never a status-only drop: a
+  queued holder stamped for another change must reach the reopen, which widens
+  its stamp. Keep it after the in-flight and row reads, keep the cap and the
+  continuation list on the kept holders only, and never add an unfiltered
+  fallback for a failed read: the pass fails and retries. The Postgres
+  prefilter and the reopen share one matched-status constant and one cover
+  rule that mirrors `fanOutOneHop` and `scopedPassCVEIDs` (exported as
+  `ScopedPassCVEIDs` for the storage lockstep proof); change the Go pass rule
+  and the SQL rule together, and keep every SQL row condition NULL-safe.
 - A findings pass never loads evidence while its own scope generation's
   `sbom_attestation_attachment` work is in flight (#11105,
   `attachment_wait.go`): the probe runs in `beforeEvidenceLoad`, ahead of the
@@ -262,3 +276,36 @@ the lease was not claimed or the tick stood down; the meaning is stated in
 docs/public/reference/telemetry/supply-chain-impact-winners.md. #11111 reuses
 the existing closed `result="denied"` label on the alias-group counter. No new
 metric, label, span, or setting.
+
+No-Regression Evidence (#10972 markers out of the CVE fan-out): the findings
+fan-out's in-flight read now runs `findInFlightNonMarkerScopesQuery`, the
+shipped in-flight statement plus one residual `payload->>'trigger'` predicate on
+the rows the same `(stage, domain, status)` index scan already returns; the
+set is bounded by the passes in flight, and it is one read per fan-out as before.
+Fewer in-flight scopes reach the reopen loop, so a marker costs no reopen
+statement and sets no replay bit. No lock, lease, claim, or ordering change.
+`TestFanOutNeverReopensAnInFlightManifestMarker` was red on the base sources
+(reopened an in-flight marker) and is green now; the live twins
+(`TestFindInFlightScopesExcludesManifestMarkersLive`,
+`TestManifestMarkerFlagsNeverComeFromACVEFanOutLive`) run in the
+coordinator's slot.
+
+Observability Evidence (#10972): no new signal on this path. The existing
+fan-out holder counters and `fanout_holders` log field now exclude in-flight
+markers; marker executions per hour stay on the `manifest_trigger` signal. The
+completion fan-out's skipped-marker counter is described in
+`go/internal/storage/postgres/scope/completion/README.md`.
+
+## Holder reads answer from supports (#11197)
+
+Every holder read answers from
+`supply_chain_impact_finding_supports`, not the finding facts: the 5-id holder
+statement, the 16 key-range statements with the foreign-member token arm, the
+mass probe, `FindRepositoryFindingHolders`, the scoped seed read, the out-of-stamp
+probe and the Go-modules fence read. Migrations 339 to 342 add the `cve_id` and
+`advisory_id` btrees and the group-member and token GINs; they serve these reads
+in place of the `fact_records` lookup indexes of 283/289/290, which stay until
+the finding facts stop being written. A supports table that
+is not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`, which
+`fanOutReadFailure` returns unwrapped so the queue defers the item without counting
+an attempt. Evidence: `docs/internal/evidence/11197-holder-reads-supports.md`.

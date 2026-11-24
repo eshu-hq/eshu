@@ -23,7 +23,7 @@ copy once that holder's next pass runs, and a restored one returns each copy to
 its pre-retraction state: `active`, or hidden for an operator's decision when
 one applies. There is no precedence rule in the winners query. A holder's lag
 is queue latency plus one holder pass plus one winners resweep, and a CVE with
-more than 256 holders drains across claims. The bound holds only while every holder's item is reopenable and the originating pass finishes its fan-out. A dead-lettered holder, or a dead-lettered pass that still owes a fan-out, pins its copies until it is reopened. Queue latency is part of the bound.
+more than 256 holders drains across claims. The bound holds only while every holder's item is reopenable and the originating pass finishes its fan-out. A dead-lettered holder, or a dead-lettered pass that still owes a fan-out, pins its copies until it is reopened. Queue latency is part of the bound. A holder already pending or retrying whose queued pass covers the change is dropped before the cap by one set read, and one that is not covered has its stamp widened ([`HOLDER_FANOUT_PREFILTER.md`](HOLDER_FANOUT_PREFILTER.md), #10972).
 
 ## Dead-lettered holders (#11147)
 
@@ -44,7 +44,7 @@ rules, the outcomes, and the open residual are in
   the digest existed count as changed once.
 - Holders come from chunked indexed reads, 5 lookup ids per chunk (#10564 H3;
   the stamp cap stays one 200-id CVE chunk)
-  (`fact_records_supply_chain_impact_lookup_idx`), the asking scope excluded,
+  (`supply_chain_impact_finding_supports_cve_idx` since #11197), the asking scope excluded,
   the operator scope included, plus the scopes whose item at their active
   generation is claimed or running (`fact_work_items_stage_domain_status_idx`),
   read first: a pass in flight may have loaded evidence before this pass's facts
@@ -271,12 +271,11 @@ flagged each other on every round, forever
 never drained). What a marker does reopen is advisory or other non-marker
 scopes, stamped with its origin: a reopened succeeded item and a flagged
 running item both rerun once as a one-hop pass, which re-derives its findings
-and fans out nothing. A marker can be flagged by a CVE fan-out (that path's
-in-flight read is unchanged and still includes markers), but the marker's
-rerun only reopens non-markers one hop, so the chain is CVE pass, marker
-rerun, one-hop holder reruns, and it stops. An in-flight non-marker holder
-pass still gets exactly what the CVE path gives it: one replay of its pass
-after it acknowledges.
+and fans out nothing. A CVE fan-out reads the same marker-free in-flight
+set (#10972): it never reopens or flags a marker, which would turn the replay
+bit into a pending re-run at the marker's ack. The completion fan-out leaves
+markers out too (`scope/completion`). An in-flight non-marker holder pass
+still gets exactly what the CVE path gives it: one replay after it acknowledges.
 
 Security alert scopes are reopened since #10061. They build findings from
 manifest consumptions too (`appendSecurityAlertImpactFindings`), keyed by

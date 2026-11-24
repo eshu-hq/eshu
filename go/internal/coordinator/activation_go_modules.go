@@ -172,7 +172,9 @@ func (s Service) scheduleGoModuleDerivedScopes(
 		return fmt.Errorf("fence stale go evidence for %q: %w", instance.InstanceID, err)
 	}
 	run, items, skipped, err := reachability.Plan(reachability.PlanRequest{
-		Instance: instance, ObservedAt: observedAt, PlanKey: planKey, Repositories: page.Repositories,
+		Instance: instance, ObservedAt: observedAt, PlanKey: planKey,
+		TriggerKind:  reachability.RequestTriggerKind(reachability.PlanRequest{Instance: instance}),
+		Repositories: page.Repositories,
 	})
 	if err != nil {
 		return fmt.Errorf("plan go reachability derived scopes for %q: %w", instance.InstanceID, err)

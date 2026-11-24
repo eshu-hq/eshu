@@ -189,6 +189,35 @@ func TestBuildWinnersKeyedChunkBatchClampAboveParameterCeiling(t *testing.T) {
 	}
 }
 
+// TestWinnersChunkDefaultBoundIs200 pins the keyed winners chunk bound at 200
+// identifiers (eshu-hq/eshu#10839). A 1000 bound was tried on QA and rolled
+// back: the first tick took 710.8 s for 237,063 kept rows, 1.8x the per-kept-row
+// cost of the 200 bound. The zero-value store must resolve the 200 default, the
+// default batch stays one INSERT far under the Postgres parameter ceiling
+// (200 x 5 = 1000 params vs the 13107-row clamp), and a saturated default-bound
+// tick admits exactly the bound in one statement with truncation (oldest-first
+// order is pinned element-wise by TestBuildWinnersKeyedChunkBatchesIdentifierInserts).
+func TestWinnersChunkDefaultBoundIs200(t *testing.T) {
+	var empty SupplyChainImpactWinnersStore
+	if got := empty.chunkBounds(); got.identifiers != 200 || got.dirtyRows != 5000 {
+		t.Fatalf("default chunkBounds() = %+v, want {dirtyRows:5000 identifiers:200}", got)
+	}
+	if params := empty.chunkBounds().identifiers * 5; params > 65535 || empty.chunkBounds().identifiers > int64(maxWinnersKeyedChunkBatchIdents) {
+		t.Fatalf("default batch is 1000 params at 200 identifiers, want under the 65535 parameter ceiling and the %d-row clamp", maxWinnersKeyedChunkBatchIdents)
+	}
+	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(201)}
+	outcome, err := buildWinnersKeyedChunk(context.Background(), fake, empty.chunkBounds())
+	if err != nil {
+		t.Fatalf("buildWinnersKeyedChunk at the default bound: %v", err)
+	}
+	if outcome.identifiers != 200 || !outcome.truncated {
+		t.Fatalf("outcome = %+v, want {identifiers:200 truncated:true}", outcome)
+	}
+	if got := insertExecs(fake); got != 1 {
+		t.Fatalf("identifier INSERT statements = %d, want 1 batched statement", got)
+	}
+}
+
 // TestBuildWinnersKeyedChunkBatchExactCeilingSucceeds pins the clamp boundary:
 // exactly maxWinnersKeyedChunkBatchIdents (13,107 = 65,535/5) identifiers must
 // still build one INSERT (the clamp fires strictly above the ceiling).

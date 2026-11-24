@@ -220,7 +220,7 @@ active reducer finding by `finding_id` or
 advisory/CVE plus package, repository, or subject-digest scope, then hydrates
 only the referenced `evidence_fact_ids` so callers can inspect advisory,
 package/version, dependency-chain, manifest/SBOM/image/workload, freshness,
-and missing-evidence context without a whole-graph explain call.
+and missing-evidence context without a whole-graph explain call. With `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` on, a scoped-token explain and any public `finding_id` lookup read `supply_chain_impact_finding_supports` (#10880 PR-B2a) and answer 503 while it is not ready; the advisory evidence anchors for a repository, service, or workload call come from it too.
 The same handler exposes provider security alert reconciliations through a
 separate Postgres read model. Security alert reconciliation reads require a
 repository, provider, package, CVE, or GHSA anchor plus `limit`; provider state
@@ -290,7 +290,7 @@ that replaces the page-and-iterate caller workflow for ecosystem-level totals
 questions exposed by `list_supply_chain_impact_findings`. It re-uses the
 existing partial indexes on `fact_records` for
 `reducer_supply_chain_impact_finding` (status, priority bucket, CVE,
-package + repository + subject digest).
+package + repository + subject digest). With the winners gate on, a scoped-token count or inventory reads `supply_chain_impact_finding_supports` instead (#10880 PR-B2a): grant first through the scope and repository indexes, canonical copy picked among the granted copies, rank filters after, 503 while the table is not ready, no winners or fact fallback.
 
 Workload, service, and environment filters accept only a current active
 repository mapping resolved at read time. Reducer-baked arrays remain evidence

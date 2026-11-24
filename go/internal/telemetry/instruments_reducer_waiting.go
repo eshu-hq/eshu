@@ -13,8 +13,8 @@ import (
 // MetricDimensionWaitingWakeSite labels eshu_dp_reducer_waiting_wake_total
 // with where the #10876 waiting wake ran. The value set is closed:
 // in-tx provider saves, the audit, the #11104 exact-phase wake inside and
-// after the phase publish, and the #11228 projector Ack re-wake after its
-// commit. On eshu_dp_reducer_waiting_fallback_resolved_total it carries the
+// after the phase publish, the #11228 projector Ack re-wake after its
+// commit, and the #11256 park rendezvous. On eshu_dp_reducer_waiting_fallback_resolved_total it carries the
 // reason's registered wake site from the waiting registry instead (in_tx,
 // completion_event, audit, or unregistered), also a closed set (#11228).
 const MetricDimensionWaitingWakeSite = "wake_site"
@@ -35,6 +35,13 @@ const (
 	// phase publish committed (#11104), covering a waiter that parked inside
 	// the publisher's open window.
 	WaitingWakeSitePhaseExactPostCommit = "phase_exact_post_commit"
+	// WaitingWakeSiteParkRendezvous is a generation-activation wait that
+	// found an activation of its provider scope in flight while parking
+	// (#11256). The park stood behind that activation's commit before its
+	// satisfaction check, so the activation's wake could not miss it. Outcomes
+	// are WaitingWakeOutcomeWaited, WaitingWakeOutcomeTimeout and
+	// WaitingWakeOutcomeError; an uncontended park records nothing.
+	WaitingWakeSiteParkRendezvous = "park_rendezvous"
 	// WaitingWakeSiteAckPostCommit is the projector Ack's re-wake after its
 	// transaction committed (#11228), covering a waiter that parked inside
 	// the Ack's open window: the generation_active, producer-terminal, and
@@ -51,8 +58,17 @@ const (
 	WaitingWakeOutcomeNoop = "noop"
 	// WaitingWakeOutcomeError means the wake statement failed; the providing
 	// save rolls back (in-tx), the post-commit caller logs and keeps the
-	// committed outcome (#11016), or the audit logs and retries next cycle.
+	// committed outcome (#11016), or the audit logs and retries next cycle. On
+	// the park_rendezvous site it means a rendezvous statement failed; the park
+	// proceeds to its satisfaction check and the audit bounds a missed wake.
 	WaitingWakeOutcomeError = "error"
+	// WaitingWakeOutcomeWaited means a parking wait stood behind an in-flight
+	// activation of its provider scope and proceeded after it committed.
+	WaitingWakeOutcomeWaited = "waited"
+	// WaitingWakeOutcomeTimeout means the park stopped waiting for the
+	// activation at its bound and parked as before; the audit and the backstop
+	// bound the wake.
+	WaitingWakeOutcomeTimeout = "timeout"
 )
 
 // Outcomes of eshu_dp_reducer_waiting_fallback_resolved_total (#11228), the
@@ -90,7 +106,7 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	var err error
 	if inst.ReducerWaitingWake, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_wake_total",
-		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit; phase_exact_in_tx and phase_exact_post_commit: the #11104 exact-phase wake inside and after the phase publish; ack_post_commit: the #11228 projector Ack re-wake after its commit) and outcome (reopened, noop, error) (#10876)"),
+		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit; phase_exact_in_tx and phase_exact_post_commit: the #11104 exact-phase wake inside and after the phase publish; ack_post_commit: the #11228 projector Ack re-wake after its commit; park_rendezvous: a generation-activation wait that stood behind an in-flight activation of its provider while parking, #11256) and outcome (reopened, noop, error; waited, timeout, error for park_rendezvous) (#10876)"),
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingWake counter: %w", err)
 	}
@@ -99,6 +115,12 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 		metric.WithDescription("Reducer waits the audit reopened a full audit interval after they parked, meaning an earlier pass should have caught them (#10876)"),
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingMissedWake counter: %w", err)
+	}
+	if inst.ReducerWaitingKeyBounded, err = meter.Int64Counter(
+		"eshu_dp_reducer_waiting_key_bounded_total",
+		metric.WithDescription("Narrowed corpus waits whose key could not carry the full blocking or read scope set inside the reducer_waiting_items primary-key btree row limit, by reason (cut: parked with a sorted prefix; unrepresentable: nothing parked and the queue's 10-minute backstop retries; index_row_rejected: Postgres still rejected the park INSERT with SQLSTATE 54000 and Fail logged it and returned nil). A parked wait still wakes on its retained scopes and the retried handler re-checks the full fence (#11297)"),
+	); err != nil {
+		return fmt.Errorf("register ReducerWaitingKeyBounded counter: %w", err)
 	}
 	if inst.ReducerWaitingFallbackResolved, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_fallback_resolved_total",

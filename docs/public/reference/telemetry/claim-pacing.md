@@ -44,6 +44,19 @@ still slowed, and loud. The claim-hot consult path probes one source at
 a time (bounded per-source read, S0 verdict); the grouped scan serves
 status publication only.
 
+Each process exports these series from its own scrape, and only the process
+whose consult moved the latch row records the transition. The claim-grant
+leg of the hosted `collector-component-extension` records them, and so does
+every collector generated from the claimed-collector template, when it claims
+through core Postgres and has per-source backpressure enabled (the
+`ESHU_SOURCE_BACKPRESSURE_*` thresholds are set; with them unset the leg never
+consults and records nothing) (#10882). Before that fix these processes held
+a control store without instruments, so a source-backpressure engage or
+release they made left no series in any scrape. A collector that claims
+through the workflow claim plane has no consult route and records nothing
+here. `collector-cicd-run` does not enable the consult today, so it records
+nothing here either.
+
 - `eshu_dp_workflow_claim_pacing_engaged_total` — counter of latch
   engagements, labeled `pacing_signal` and, for the domain signal,
   `domain`. One latch transition adds exactly 1 to the sum across

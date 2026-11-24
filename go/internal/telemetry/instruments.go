@@ -1530,10 +1530,15 @@ type Instruments struct {
 	// registerSupplyChainImpactSupportsInstruments.
 	SupplyChainImpactSupportsRows                 metric.Int64Counter
 	SupplyChainImpactSupportsBackfillSteps        metric.Int64Counter
+	SupplyChainImpactSupportsReads                metric.Int64Counter
 	SupplyChainImpactSupportsBackfillReady        metric.Int64Gauge
 	SupplyChainImpactSupportsDirtyScopes          metric.Int64Gauge
 	SupplyChainImpactSupportsBackfillLastSuccess  metric.Int64Gauge
 	SupplyChainImpactSupportsBackfillStepDuration metric.Float64Histogram
+	// The bounded verification slices of the supports backfill (#10880
+	// decision 6), registered by registerSupplyChainImpactSupportsInstruments.
+	SupplyChainImpactSupportsVerifySlices        metric.Int64Counter
+	SupplyChainImpactSupportsVerifySliceDuration metric.Float64Histogram
 	// The keyed-resweep signals of #9805, registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
 	// keyed tick, dirty-log identifiers consumed, consumed rows by capture
@@ -1950,6 +1955,23 @@ type Instruments struct {
 	// that pages are larger than the ownership budget at the callers' grant
 	// sizes, so answers come back truncated.
 	QueryImpactScopedPathsWithheld metric.Int64Counter
+	// SupplyChainImpactReadRoute counts every supply-chain impact list, count,
+	// inventory, grouped-inventory and explain read statement by the read model its
+	// route function chose (#10880 PR-B2a): winners, winners_supplement (unscoped
+	// precise), supports_grant, supports_image, supports_finding_id (the public-id
+	// explain), or legacy (gate off, and the explain selector and identity reads that
+	// stay on the fact table). The label is bounded to those six values. A refused
+	// list, count, inventory or grouped call still counts the route it tried, so an
+	// operator reads which route 503s; an explain counts only the statements it runs
+	// (a refused explain counts nothing). With the route span attribute it also names
+	// which statement shape ran.
+	SupplyChainImpactReadRoute metric.Int64Counter
+	// SupplyChainImpactReadDuration observes the wall time of one supply-chain
+	// impact read statement by the same route label, so a slow read is attributed
+	// to the read model that ran it and the QA reading (candidate counts and skew)
+	// can be tied to a route (#10880 PR-B2a). The duration covers the statement and
+	// the scan of its rows, plus the jit-off transaction on the routes that open one.
+	SupplyChainImpactReadDuration metric.Float64Histogram
 	// QueryImpactOwnershipCheckDuration observes one impact ownership
 	// statement's wall time (one chunk of at most ownership.ChunkSize = 50
 	// keys), labelled by route, node_label (WorkloadInstance, CloudResource,
@@ -3810,6 +3832,14 @@ type Instruments struct {
 	// audit interval after they parked. Registered by
 	// registerReducerWaitingInstruments.
 	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingKeyBounded counts #11297 narrowed corpus waits whose
+	// waits_for_key could not carry the full blocking or read scope set inside
+	// the btree row limit, by reason: cut (parked with a sorted prefix),
+	// unrepresentable (nothing parked; the queue's 10-minute backstop
+	// retries), or index_row_rejected (Postgres still refused the park INSERT
+	// with SQLSTATE 54000; Fail logged it and returned nil). Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingKeyBounded metric.Int64Counter
 	// ReducerWaitingFallbackResolved counts parked waits a fallback
 	// resolved instead of a wake (#11228): the #10876 slow audit (outcome
 	// reopened or reconciled) or the reducer claim at the 10-minute
@@ -3850,6 +3880,13 @@ type Instruments struct {
 	// noop, error), once per transaction. Registered by
 	// registerCompletionWakeInstruments.
 	ReducerCompletionWake metric.Int64Counter
+	// CrossScopeCompletionMarkersSkipped is a census: the manifest markers in
+	// an eligible state at an active generation when a cross-scope completion
+	// fan-out for a producer that feeds supply_chain_impact committed (#10972),
+	// added once per fan-out, by producer domain. It is an upper bound on the
+	// re-pends avoided, not a measured saving, and a fan-out that scheduled
+	// nothing still adds it. Registered by registerCrossScopeCompletionInstruments.
+	CrossScopeCompletionMarkersSkipped metric.Int64Counter
 	// ReducerAdmissionDepthReads counts #11233 ingester reducer admission
 	// depth lookups per decision by operation (the depth signal) and outcome
 	// (read, shared, held, error, cancelled). Registered by
@@ -6288,6 +6325,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register QueryImpactScopedPathsWithheld counter: %w", err)
 	}
 
+	inst.SupplyChainImpactReadRoute, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_read_route_total",
+		metric.WithDescription(
+			"Total supply-chain impact list, count, inventory, grouped-inventory and explain read statements by the read model the route function chose "+
+				"(route: winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactReadRoute counter: %w", err)
+	}
+
+	inst.SupplyChainImpactReadDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_read_duration_seconds",
+		metric.WithDescription("Wall time of one supply-chain impact list, count, inventory, grouped-inventory or explain read statement, by route (winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactReadDuration histogram: %w", err)
+	}
+
 	inst.QueryImpactOwnershipCheckDuration, err = meter.Float64Histogram(
 		"eshu_dp_query_impact_ownership_check_duration_seconds",
 		metric.WithDescription("Wall time of one impact scoped-grant ownership statement chunk, by route, node_label, and outcome"),
@@ -7297,6 +7355,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCrossScopeCompletionInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerReducerAdmissionDepthInstruments(meter, inst); err != nil {

@@ -92,6 +92,9 @@ func buildClaimedService(
 	// by explicit carve-out below, never by falling through to whichever
 	// store serves claims. Installation selection reads the same rows.
 	controlStore := postgres.NewWorkflowControlStore(database)
+	// Instruments lets the claim-grant leg's latch transitions reach the
+	// eshu_dp_workflow_claim_pacing_* series; a nil value silences them (#10882).
+	controlStore.Instruments = instruments
 	// Host-minted App tokens are optional: when the operator configures all
 	// three GitHub App variables the host mints one installation token per
 	// claim for the security-alerts activation; otherwise the static config
@@ -210,6 +213,9 @@ func buildClaimedService(
 		// write-once for the vulnerability_intelligence kind only
 		// (#10037); it is nil for every other kind.
 		ClaimCommitPolicy: commitPolicy,
+		// Instruments counts NVD window claims by stamped transport
+		// (eshu-hq/eshu#11287); nil disables the seam.
+		Instruments: instruments,
 	})
 	if err != nil {
 		return collector.ClaimedService{}, err

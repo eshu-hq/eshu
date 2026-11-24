@@ -53,8 +53,35 @@ func grantedAgg(filter *impact.AggregateFilter) {
 func imageRefAgg(filter *impact.AggregateFilter) { filter.ImageRef = "registry.example/app:1" }
 func preciseAgg(filter *impact.AggregateFilter)  { filter.DetectionProfile = impact.ProfilePrecise }
 
+// supportsReady answers the supports readiness predicate as ready, so a
+// supports-served call reaches its read instead of refusing at the probe.
+func supportsReady(recorder *audit.Recorder) {
+	recorder.Rows = func(sql string) db.Rows {
+		if strings.Contains(sql, "supply_chain_impact_finding_supports_backfill") {
+			return audit.StaticRows([]any{true})
+		}
+		return nil
+	}
+}
+
+// explainReady answers the supports readiness predicate and a fresh winners
+// watermark, so the supplement route of the count, inventory and grouped reads
+// reaches its read statement.
+func explainReady(recorder *audit.Recorder) {
+	recorder.Rows = func(sql string) db.Rows {
+		switch {
+		case strings.Contains(sql, "supply_chain_impact_finding_supports_backfill"):
+			return audit.StaticRows([]any{true})
+		case sql == impact.SelectWinnersWatermarkQuery:
+			return audit.StaticRows([]any{time.Now().UTC()})
+		}
+		return nil
+	}
+}
+
 func listProbe(variant string, gate bool, mutate func(*impact.FindingFilter)) probe {
 	return probe{"supply_chain.impact_findings.list", variant, func(ctx context.Context, recorder *audit.Recorder) {
+		supportsReady(recorder)
 		store := impact.NewPostgresFindingStoreWithReadStore(recorder, gate)
 		_, _ = store.ListSupplyChainImpactFindings(ctx, impactFilter(mutate))
 		// The list handler reads the winners watermark for the truth envelope's
@@ -126,6 +153,7 @@ func readinessProbes(capability string) []probe {
 
 func aggregateProbe(variant string, gate bool, mutate func(*impact.AggregateFilter)) probe {
 	return probe{"supply_chain.impact_findings.aggregate", variant, func(ctx context.Context, recorder *audit.Recorder) {
+		explainReady(recorder) // supports readiness and a fresh winners watermark, so the supplement route reaches its statement
 		store := impact.NewPostgresAggregateStoreWithReadStore(recorder, gate)
 		_, _ = store.CountSupplyChainImpactFindings(ctx, aggregateFilter(mutate))
 		_, _ = store.SupplyChainImpactInventory(ctx, aggregateFilter(mutate), impact.InventoryByStatus, 10, 0)
@@ -144,11 +172,14 @@ func coreProbes() []probe {
 		listProbe("gate off", false, nil),
 		listProbe("gate on, ungranted", true, nil),
 		listProbe("gate on, scope grant", true, granted),
+		listProbe("gate on, scope grant, image_ref", true, func(f *impact.FindingFilter) { granted(f); imageRef(f) }),
+		listProbe("gate on, scope grant, precise profile", true, func(f *impact.FindingFilter) { granted(f); precise(f) }),
 		listProbe("gate on, image_ref", true, imageRef),
 		listProbe("gate on, precise profile", true, precise),
 		aggregateProbe("gate off", false, nil),
 		aggregateProbe("gate on, ungranted", true, nil),
 		aggregateProbe("gate on, repository grant", true, grantedAgg),
+		aggregateProbe("gate on, repository grant, image_ref", true, func(f *impact.AggregateFilter) { grantedAgg(f); imageRefAgg(f) }),
 		aggregateProbe("gate on, image_ref", true, imageRefAgg),
 		aggregateProbe("gate on, precise profile", true, preciseAgg),
 		{"supply_chain.impact_findings.aggregate", "grouped inventory", func(ctx context.Context, recorder *audit.Recorder) {
@@ -161,6 +192,42 @@ func coreProbes() []probe {
 			}
 			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
 				SupplyChainImpactGroupedInventory(ctx, aggregateFilter(nil), impact.GroupedInventoryByService, 10, 0)
+		}},
+		{"supply_chain.impact_findings.aggregate", "grouped inventory, precise profile", func(ctx context.Context, recorder *audit.Recorder) {
+			explainReady(recorder)
+			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
+				SupplyChainImpactGroupedInventory(ctx, aggregateFilter(preciseAgg), impact.GroupedInventoryByService, 10, 0)
+		}},
+		{"supply_chain.impact_findings.aggregate", "grouped inventory, image_ref", func(ctx context.Context, recorder *audit.Recorder) {
+			explainReady(recorder)
+			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
+				SupplyChainImpactGroupedInventory(ctx, aggregateFilter(imageRefAgg), impact.GroupedInventoryByService, 10, 0)
+		}},
+		{"supply_chain.impact_findings.aggregate", "grouped inventory, granted", func(ctx context.Context, recorder *audit.Recorder) {
+			supportsReady(recorder)
+			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
+				SupplyChainImpactGroupedInventory(ctx, aggregateFilter(func(f *impact.AggregateFilter) { grantedAgg(f); imageRefAgg(f) }),
+					impact.GroupedInventoryByService, 10, 0)
+		}},
+		{"supply_chain.impact_explanation.read", "granted selector, gate on", func(ctx context.Context, recorder *audit.Recorder) {
+			supportsReady(recorder)
+			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
+				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", RepositoryID: "repository:r", AllowedScopeIDs: []string{"scope:a"}})
+		}},
+		{"supply_chain.impact_explanation.read", "ungranted image selector, gate on", func(ctx context.Context, recorder *audit.Recorder) {
+			supportsReady(recorder)
+			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
+				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", ImageRef: "registry.example/a:1"})
+		}},
+		{"supply_chain.impact_explanation.read", "by public finding id, gate on", func(ctx context.Context, recorder *audit.Recorder) {
+			supportsReady(recorder)
+			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
+				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{FindingID: "finding:x"})
+		}},
+		{"supply_chain.advisory_evidence.list", "repository anchored, gate on", func(ctx context.Context, recorder *audit.Recorder) {
+			supportsReady(recorder)
+			_, _ = advisory.NewPostgresEvidenceStoreWithReadModel(recorder, true).
+				ListAdvisoryEvidence(ctx, advisory.EvidenceFilter{RepositoryID: "repository:r", Limit: 10})
 		}},
 		{"supply_chain.impact_explanation.read", "by public finding id", func(ctx context.Context, recorder *audit.Recorder) {
 			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, false).

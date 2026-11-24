@@ -28,7 +28,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -78,6 +77,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	defer func() { _ = tx.Rollback() }()
 
 	seedSupplyChainSuppressionAuthorityLiveFacts(t, ctx, tx)
+	fillSupplyChainImpactSupports(t, ctx, tx)
 	readAt := time.Date(2026, 7, 27, 12, 0, 10, 0, time.UTC)
 	now := func() time.Time { return readAt }
 	direct := impact.NewPostgresFindingStore(tx)
@@ -162,24 +162,11 @@ func rebuildSuppressionAuthorityWinners(
 	tx *sql.Tx,
 ) {
 	t.Helper()
-	store := storagepostgres.NewSupplyChainImpactWinnersStore(suppressionAuthorityWinnersTx{storagepostgres.SQLTx{Tx: tx}})
+	store := storagepostgres.NewSupplyChainImpactWinnersStore(runtimeFilterOwnTx{storagepostgres.SQLTx{Tx: tx}})
 	if err := store.RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("rebuild canonical winners: %v", err)
 	}
 }
-
-// suppressionAuthorityWinnersTx runs the resweep inside this proof's own
-// rolled-back transaction, the only place its seeded facts are visible. The
-// store begins and commits its own transaction, so this hands it the open one
-// and leaves the outer rollback in charge.
-type suppressionAuthorityWinnersTx struct{ storagepostgres.SQLTx }
-
-func (tx suppressionAuthorityWinnersTx) Begin(context.Context) (db.Transaction, error) {
-	return tx, nil
-}
-
-func (suppressionAuthorityWinnersTx) Commit() error   { return nil }
-func (suppressionAuthorityWinnersTx) Rollback() error { return nil }
 
 func seedSupplyChainSuppressionAuthorityLiveFacts(
 	t *testing.T,

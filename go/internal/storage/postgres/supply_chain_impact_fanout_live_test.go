@@ -17,6 +17,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	dbpkg "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -43,8 +44,60 @@ func fanOutLiveDB(t *testing.T) (context.Context, *sql.DB) {
 
 func fanOutLiveStore(db *sql.DB) postgres.SupplyChainImpactFanOutStore {
 	return postgres.SupplyChainImpactFanOutStore{
-		Beginner: postgres.SQLDB{DB: db}, DB: postgres.SQLDB{DB: db}, LeaseOwner: fanOutLiveOwner,
+		Beginner: supportsSettledBeginner{db: db}, DB: supportsSettledDB{SQLDB: postgres.SQLDB{DB: db}, db: db}, LeaseOwner: fanOutLiveOwner,
 	}
+}
+
+// settleSupportsWithBackfill runs the production backfill (RunStep) until it is
+// complete and the old-writer fence is drained (#11197). The holder reads and the
+// handler-entry gate answer from the supports table, and these proofs write
+// finding facts directly, which no maintainer mirrors; settling makes the table
+// hold exactly what a real writer would have maintained. The gate itself is not
+// stubbed: it still runs its readiness predicate against the settled table.
+func settleSupportsWithBackfill(ctx context.Context, db *sql.DB) error {
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 200}
+	for step := 0; ; step++ {
+		report, err := backfill.RunStep(ctx)
+		if err != nil {
+			return fmt.Errorf("settle supports: %w", err)
+		}
+		if report.Complete && report.DirtyScopes == 0 {
+			return nil
+		}
+		if step > 5000 {
+			return fmt.Errorf("settle supports: no convergence in %d steps", step)
+		}
+	}
+}
+
+// supportsSettledBeginner opens the holder-read transaction after settling the
+// supports table.
+type supportsSettledBeginner struct{ db *sql.DB }
+
+// Begin settles the supports, then opens the transaction.
+func (b supportsSettledBeginner) Begin(ctx context.Context) (dbpkg.Transaction, error) {
+	if err := settleSupportsWithBackfill(ctx, b.db); err != nil {
+		return nil, err
+	}
+	return postgres.SQLDB{DB: b.db}.Begin(ctx)
+}
+
+// supportsSettledDB settles the supports table before the readiness predicate
+// runs, so the handler-entry gate (which asks through the store's DB) sees a ready
+// table after a proof seeded finding facts directly.
+type supportsSettledDB struct {
+	postgres.SQLDB
+	db *sql.DB
+}
+
+// QueryContext settles the supports first when the statement is the readiness probe.
+func (d supportsSettledDB) QueryContext(ctx context.Context, query string, args ...any) (dbpkg.Rows, error) {
+	if strings.Contains(query, "supply_chain_impact_finding_supports_backfill") {
+		if err := settleSupportsWithBackfill(ctx, d.db); err != nil {
+			return nil, err
+		}
+	}
+	return d.SQLDB.QueryContext(ctx, query, args...)
 }
 
 func fanOutLiveQueue(db *sql.DB) postgres.ReducerQueue {

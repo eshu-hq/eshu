@@ -228,7 +228,11 @@ func (p *registrationFanOut) ReopenHolderDetailed(context.Context, string, suppl
 	return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutPendingNoop}, nil
 }
 
-func (p *registrationFanOut) FindInFlightScopes(context.Context, string) ([]string, error) {
+func (p *registrationFanOut) FindQueuedHolderScopes(context.Context, []string, []string) ([]string, error) {
+	return nil, nil
+}
+
+func (p *registrationFanOut) FindInFlightNonMarkerScopes(context.Context, string) ([]string, error) {
 	return nil, nil
 }
 

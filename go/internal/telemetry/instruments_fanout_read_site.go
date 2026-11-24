@@ -14,6 +14,9 @@ import (
 const (
 	// FanOutReadSiteHolders is the CVE/advisory/member holder lookup.
 	FanOutReadSiteHolders = "holders"
+	// FanOutReadSiteHolderPrefilter is the #10972 set read that drops holders
+	// whose active-generation item is already pending or retrying.
+	FanOutReadSiteHolderPrefilter = "holder_prefilter"
 	// FanOutReadSiteInFlight is the claimed-or-running queue-state read.
 	FanOutReadSiteInFlight = "in_flight"
 	// FanOutReadSiteManifestGeneration is the #9874 manifest generation read.

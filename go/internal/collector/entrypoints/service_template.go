@@ -76,10 +76,16 @@ func buildClaimedService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	committer.Instruments = instruments
+	// Instruments lets the grant leg's latch transitions reach the
+	// eshu_dp_workflow_claim_pacing_* series; a nil value silences them. The leg
+	// consults, and so records them, only when config.SourceBackpressure.Enabled()
+	// holds (#10882).
+	controlStore := postgres.NewWorkflowControlStore(database)
+	controlStore.Instruments = instruments
 	claimStore, err := store.New(context.Background(), store.Options{
 		Service:     "{{.RuntimeName}}",
 		Getenv:      getenv,
-		Postgres:    postgres.NewWorkflowControlStore(database),
+		Postgres:    controlStore,
 		Logger:      logger,
 		Instruments: instruments,
 	})

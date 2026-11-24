@@ -40,6 +40,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/incident"
@@ -61,6 +62,13 @@ func main() {
 			os.Exit(1)
 		}
 		return
+	}
+
+	// The out-of-rotation one-shot (eshu-hq/eshu#10002) runs before the
+	// reconciler and never starts it: one plan attempt for one repository,
+	// then the process exits with the outcome's code.
+	if code, handled := runOperatorCommand(os.Args[1:], os.Stdout, os.Stderr); handled {
+		os.Exit(code)
 	}
 
 	if err := run(context.Background()); err != nil {
@@ -276,7 +284,7 @@ func run(parent context.Context) error {
 		ComponentExtensionPlanner:         extension.WorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		GoModuleRepositoryReader:          gomodules.NewStore(goModuleRepositoriesDB),
-		GoEvidenceFencer:                  gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction),
+		GoEvidenceFencer:                  gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(goModulesFenceSupportsReadiness(instruments)),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
@@ -353,4 +361,13 @@ func run(parent context.Context) error {
 	defer stop()
 
 	return service.Run(ctx)
+}
+
+// goModulesFenceSupportsReadiness binds the supports readiness check the Go-modules
+// fence runs as its first statement after the timeouts (#11197): the shared helper,
+// the shared typed refusal and the shared counter, under the fence's reader label.
+func goModulesFenceSupportsReadiness(instruments *telemetry.Instruments) gomodules.SupportsReadiness {
+	return func(ctx context.Context, tx db.Queryer) error {
+		return postgres.RequireSupplyChainImpactSupportsReady(ctx, tx, instruments, telemetry.SupplyChainImpactSupportsReaderGoModulesFence)
+	}
 }

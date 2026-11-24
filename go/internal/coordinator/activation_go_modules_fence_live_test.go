@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/gomodules"
@@ -76,6 +78,21 @@ func TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive(t *testing.T) {
 		func(ctx context.Context, db *sql.DB) error {
 			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db})
 		})
+	// The fence refuses a supports table that is not ready (#11197); the real
+	// backfill marks this empty one ready, as it does on a deployed install.
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: database}, ChunkSize: 100}
+	for step := 0; ; step++ {
+		report, err := backfill.RunStep(t.Context())
+		if err != nil {
+			t.Fatalf("supports backfill step %d: %v", step, err)
+		}
+		if report.Complete && report.DirtyScopes == 0 {
+			break
+		}
+		if step > 100 {
+			t.Fatal("supports backfill did not settle in 100 steps")
+		}
+	}
 	now := time.Now().UTC()
 	scopeID, generationID := seedSkewedGoRepository(t, database, now)
 
@@ -87,7 +104,9 @@ func TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	store := gomodules.NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction)
+	store := gomodules.NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(func(ctx context.Context, tx db.Queryer) error {
+		return postgres.RequireSupplyChainImpactSupportsReady(ctx, tx, nil, "go_modules_fence")
+	})
 	service := Service{
 		Config: Config{
 			DeploymentMode: deploymentModeActive, ClaimsEnabled: true, ReconcileInterval: time.Hour,
@@ -132,6 +151,12 @@ func TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive(t *testing.T) {
 	err = service.scheduleComponentExtensionWork(t.Context(), now, []workflow.CollectorInstance{instance})
 	if err == nil || !strings.Contains(err.Error(), "fence stale go evidence") {
 		t.Fatalf("schedule error = %v, want the fence's lock timeout", err)
+	}
+	// A supports-not-ready refusal also carries the fence prefix, so pin the cause:
+	// the lock timeout (SQLSTATE 55P03), and not the readiness check.
+	if msg := err.Error(); strings.Contains(msg, "supports readiness") ||
+		(!strings.Contains(msg, "lock timeout") && !strings.Contains(msg, "55P03")) {
+		t.Fatalf("schedule error = %v, want the lock timeout and not a supports-not-ready refusal", err)
 	}
 	if got := countRuns(); got != 0 {
 		t.Fatalf("runs after a failed fence = %d, want 0", got)

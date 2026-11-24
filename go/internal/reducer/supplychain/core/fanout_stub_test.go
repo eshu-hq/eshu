@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -49,7 +50,18 @@ type stubFanOut struct {
 	inFlight      []string
 	inFlightErr   error
 	inFlightCalls int
-	owedRecorded  int
+	// inFlightMarkers names in-flight scopes whose claimed item is a manifest
+	// marker (#10972); FindInFlightNonMarkerScopes leaves them out.
+	inFlightMarkers []string
+	owedRecorded    int
+	// queued names the holders whose active-generation item is already pending
+	// or retrying with a covering next pass; queuedErr fails the prefilter
+	// read; queuedCalls and queuedStampOuts record the holder list and the
+	// stampOut of every FindQueuedHolderScopes call (#10972 PR-2).
+	queued          map[string]bool
+	queuedErr       error
+	queuedCalls     [][]string
+	queuedStampOuts [][]string
 	// mu guards every recording append below: split holder reads run
 	// concurrently, so unguarded appends race under -race.
 	mu sync.Mutex
@@ -108,7 +120,7 @@ func (r stubOwed) RecordFanOutOwed(context.Context, factwrite.Execer) error {
 	return nil
 }
 
-func (s *stubFanOut) FindInFlightScopes(_ context.Context, _ string) ([]string, error) {
+func (s *stubFanOut) FindInFlightNonMarkerScopes(_ context.Context, _ string) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.inFlightCalls++
@@ -116,7 +128,34 @@ func (s *stubFanOut) FindInFlightScopes(_ context.Context, _ string) ([]string, 
 	if s.inFlightErr != nil {
 		return nil, s.inFlightErr
 	}
-	return append([]string(nil), s.inFlight...), nil
+	var out []string
+	for _, scope := range s.inFlight {
+		if !slices.Contains(s.inFlightMarkers, scope) {
+			out = append(out, scope)
+		}
+	}
+	return out, nil
+}
+
+// FindQueuedHolderScopes serves the #10972 prefilter: it reports, in input
+// order, the holders the test marked queued, and records the stampOut the
+// handler passed.
+func (s *stubFanOut) FindQueuedHolderScopes(_ context.Context, holders, stampOut []string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reads = append(s.reads, "prefilter")
+	s.queuedCalls = append(s.queuedCalls, append([]string(nil), holders...))
+	s.queuedStampOuts = append(s.queuedStampOuts, append([]string(nil), stampOut...))
+	if s.queuedErr != nil {
+		return nil, s.queuedErr
+	}
+	var out []string
+	for _, id := range holders {
+		if s.queued[id] {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
 
 func (s *stubFanOut) OwedRecorder(reducercontract.Intent) FanOutOwedRecorder {

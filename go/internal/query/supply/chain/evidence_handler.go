@@ -4,6 +4,7 @@
 package chain
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -97,6 +98,10 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 		// retryable 503 envelope. The mapped verdict is not a handler-owned
 		// 500, so it returns before writeStageFailure.
 		if querycontract.WriteGraphReadError(w, r, err, advisory.EvidenceCapability) {
+			return
+		}
+		if errors.Is(err, advisory.ErrEvidenceSupportsUnavailable) {
+			h.writeAdvisoryEvidenceSupportsUnavailable(w, r)
 			return
 		}
 		writeStageFailure(w, r, evidenceTimer, err, advisoryEvidenceReadFailedMessage)

@@ -79,6 +79,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 
 	seedSupplyChainRuntimeFilterLiveFacts(t, ctx, tx)
+	fillSupplyChainImpactSupports(t, ctx, tx)
 
 	findingStore := impact.NewPostgresFindingStore(tx)
 	aggregateStore := impact.NewPostgresAggregateStore(tx)

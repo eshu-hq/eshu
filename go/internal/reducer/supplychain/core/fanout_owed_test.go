@@ -236,7 +236,8 @@ func TestInFlightReadFailureFailsThePassWithTheReadOutcomes(t *testing.T) {
 
 // TestInFlightReadRunsBeforeTheRowRead pins the order the race proof depends on:
 // a holder that acknowledges between the two reads has committed its rows by the
-// time the second read runs only if the in-flight read came first.
+// time the second read runs only if the in-flight read came first. The queued
+// prefilter (#10972) reads last, after both, at one snapshot of the queue.
 func TestInFlightReadRunsBeforeTheRowRead(t *testing.T) {
 	t.Parallel()
 
@@ -245,7 +246,7 @@ func TestInFlightReadRunsBeforeTheRowRead(t *testing.T) {
 	if _, err := fanOutHandler(port, writer, nil).Handle(context.Background(), fanOutIntent(1, nil)); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"in-flight", "rows"}; !reflect.DeepEqual(port.reads, want) {
+	if want := []string{"in-flight", "rows", "prefilter"}; !reflect.DeepEqual(port.reads, want) {
 		t.Fatalf("read order = %v, want %v", port.reads, want)
 	}
 }

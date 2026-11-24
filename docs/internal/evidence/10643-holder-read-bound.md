@@ -121,16 +121,16 @@ Plan pin. Under `force_generic_plan`, PostgreSQL 18.6 cannot see the
 fact_id bounds and reads them through `fact_records_pkey` (a Bitmap Index
 Scan with Index Cond `(fact_id >= $3) AND (fact_id < $4)`). On QA that would
 be a 1/16 slice of the whole table per statement. The store therefore pins
-`force_custom_plan` in the read transaction. `TestHolderKeyRangeStatementPlanLive`
-asserts, per Append arm, that the pinned plan reads that arm's own lookup
-index (`..._lookup_idx` for cve_id, `..._advisory_lookup_idx` for
-advisory_id) with the arm's lookup expression and both fact_id bounds in one
-`Index Cond:` line. No `Filter:` line may carry the lookup expression or
-fact_id, and the plan reads no sequential scan and no primary key. It names
-the index on purpose: `..._status_lookup_idx` has no cve_id column, so a plan
+`force_custom_plan` in the read transaction. `TestSupplyChainImpactSupportsHolderPlanShapeLive`
+(#11197 moved the statement to the supports table and replaced
+`TestHolderKeyRangeStatementPlanLive`) asserts that the pinned plan reads each arm's own lookup
+index (`supply_chain_impact_finding_supports_cve_idx`,
+`..._advisory_idx`, `..._tokens_idx`) and no sequential or primary-key scan; its
+seeded RED is the generic plan, which reads the range through the primary key. The retired
+fact_records test named the index on purpose: `..._status_lookup_idx` has no cve_id column, so a plan
 that reads the cve arm through it holds only the fact_id bounds in its Index
 Cond and filters cve_id on the heap, a 1/16 slice of every finding row per
-statement. The fixture seeds 5,000 findings for one other cve_id and
+statement. Its fixture seeded 5,000 findings for one other cve_id and
 advisory_id so the hot id is a minority of the table; with the hot id near the
 whole table the planner picked the status index. A scratch sweep of 0 to
 8,500 noise rows kept the custom plan on the lookup indexes and the generic

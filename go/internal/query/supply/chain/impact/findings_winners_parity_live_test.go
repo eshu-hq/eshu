@@ -24,7 +24,8 @@ import (
 // reader switch: for every filter below the winners read returns
 // exactly the rows the legacy fact read returns, including the
 // operator-suppression overlay (live and expired) and scoped-token
-// grants, even though it never joins fact_records for payloads.
+// grants (served since #10880 PR-B2a from the per-support table), even
+// though it never joins fact_records for payloads.
 func TestFindingsWinnersPayloadParityLive(t *testing.T) {
 	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(
 		t,
@@ -40,6 +41,8 @@ func TestFindingsWinnersPayloadParityLive(t *testing.T) {
 		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
 	}
+	// Granted calls read the per-support table, so fill it with the real backfill.
+	runSupportsBackfillToCompletion(t, ctx, database)
 
 	legacy := PostgresFindingStore{DB: database, ReadFromWinners: false}
 	winners := PostgresFindingStore{DB: database, ReadFromWinners: true}

@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -160,6 +161,12 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, ImpactFindingsCapability) {
 			return
 		}
+		// #10880 PR-B2a: a granted call the supports table cannot serve
+		// exactly answers 503, never the winners row or an approximate page.
+		if errors.Is(err, impact.ErrFindingSupportsUnavailable) {
+			h.writeImpactFindingsSupportsUnavailable(w, r)
+			return
+		}
 		writeStageFailure(w, r, findingsTimer, err, impactFindingsReadFailedMessage)
 		return
 	}
@@ -286,8 +293,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	// resweep cadence lag, an unpopulated table, or a probe failure is never
 	// served as fresh truth. The legacy live read is always current and leaves
 	// the envelope fresh; the probe costs nothing there.
-	if reader, ok := h.ImpactFindings.(supplyChainImpactWinnersFreshnessReader); ok {
-		watermark, freshnessErr := reader.SupplyChainImpactWinnersWatermark(r.Context())
+	if watermark, freshnessErr, ok := h.impactFindingsFreshness(r.Context(), filter); ok {
 		applyWinnersFreshness(truth, watermark, freshnessErr, time.Now())
 		if freshnessErr != nil {
 			// The findings page already succeeded; only the freshness probe
@@ -298,6 +304,29 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	}
 	span.SetAttributes(attribute.String("eshu.query.freshness_state", string(truth.Freshness.State)))
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
+}
+
+// supplyChainImpactRoutedFreshnessReader is the optional capability a store
+// exposes when it answers some calls from a read model that is always current
+// (the supports table, #10880 PR-B2a): it reports the freshness of the model that
+// answered the filter, so a supports-served call is not downgraded by the winners
+// watermark. A store without it keeps the unconditional winners probe below.
+type supplyChainImpactRoutedFreshnessReader interface {
+	SupplyChainImpactFreshness(context.Context, impact.FindingFilter) (impact.WinnersFreshness, error)
+}
+
+// impactFindingsFreshness reports the freshness of the read model that answered
+// filter. ok is false when the store reports no freshness at all.
+func (h *Handler) impactFindingsFreshness(ctx context.Context, filter impact.FindingFilter) (fr impact.WinnersFreshness, err error, ok bool) {
+	if routed, has := h.ImpactFindings.(supplyChainImpactRoutedFreshnessReader); has {
+		fr, err = routed.SupplyChainImpactFreshness(ctx, filter)
+		return fr, err, true
+	}
+	if reader, has := h.ImpactFindings.(supplyChainImpactWinnersFreshnessReader); has {
+		fr, err = reader.SupplyChainImpactWinnersWatermark(ctx)
+		return fr, err, true
+	}
+	return impact.WinnersFreshness{}, nil, false
 }
 
 // supplyChainImpactWinnersFreshnessReader is the optional capability the

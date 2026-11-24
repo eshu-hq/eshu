@@ -120,6 +120,7 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | repository-catalog-load-payload-bytes | 1024, 10240, 102400, 1048576, 10485760, 52428800, 104857600, 268435456 |
 | tfstate-parse-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
 | oci-registry-scan-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
+| supply-chain-impact-read-duration-seconds | 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10 |
 | dependency-list-seconds | 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
 | fetch-duration-seconds | 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60 |
 | queue-wait-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600 |

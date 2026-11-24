@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which stay on the legacy CTE, mirroring the list read); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which are served from the per-support table with it filled by the backfill, and return the same envelopes on this single-support seed); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -42,6 +42,8 @@ func TestAggregatesWinnersParityLive(t *testing.T) {
 		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
 	}
+	// Granted calls read the per-support table, so fill it with the real backfill.
+	runSupportsBackfillToCompletion(t, ctx, database)
 
 	fixedNow := time.Now().UTC()
 	legacy := NewPostgresAggregateStore(database)

@@ -59,6 +59,80 @@ const (
 	SupplyChainImpactSupportsBackfillStepContended = "contended"
 	// SupplyChainImpactSupportsBackfillStepFailed is a step that returned an error.
 	SupplyChainImpactSupportsBackfillStepFailed = "failed"
+	// SupplyChainImpactSupportsBackfillStepVerify is a verification slice that
+	// neither restarted the sweep nor set the marker: it moved the cursor, removed
+	// an orphan pair, or was a last slice the fence recheck held back. The slice
+	// counter's outcome label says which.
+	SupplyChainImpactSupportsBackfillStepVerify = "verify"
+)
+
+// Verification slice outcomes for
+// eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total and its
+// duration histogram. They are the closed set of the outcome label.
+const (
+	// SupplyChainImpactSupportsVerifySliceAdvance is a slice that found no
+	// missing support and no orphan and moved the cursor to its end.
+	SupplyChainImpactSupportsVerifySliceAdvance = "advance"
+	// SupplyChainImpactSupportsVerifySliceOrphan is a slice that found a support
+	// of a tombstoned fact; the step removed that pair's orphans and kept the
+	// cursor, so the slice runs again.
+	SupplyChainImpactSupportsVerifySliceOrphan = "orphan"
+	// SupplyChainImpactSupportsVerifySliceGap is a slice that found a live finding
+	// without a support and restarted the sweep.
+	SupplyChainImpactSupportsVerifySliceGap = "gap"
+	// SupplyChainImpactSupportsVerifySliceLast is the clean slice that reached the
+	// end of the key space and ran the completion statement.
+	SupplyChainImpactSupportsVerifySliceLast = "last"
+	// SupplyChainImpactSupportsVerifySliceFailed is a slice whose statement, or
+	// the restart, cleanup, advance or completion after it, returned an error (a
+	// statement timeout among them); the step fails and the slice runs again.
+	SupplyChainImpactSupportsVerifySliceFailed = "failed"
+)
+
+// Reducer reads of the per-support table (#10880 PR-B2) for the reader
+// label (carried as the source dimension, a closed set) and outcome of
+// eshu_dp_supply_chain_impact_supports_reads_total.
+const (
+	// SupplyChainImpactSupportsReaderSecurityAlertReconciliation is the
+	// security-alert reconciliation evidence loader.
+	SupplyChainImpactSupportsReaderSecurityAlertReconciliation = "security_alert_reconciliation"
+	// SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory is the
+	// service-catalog vulnerability loader.
+	SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory = "service_vulnerability_advisory"
+	// SupplyChainImpactSupportsReaderFanoutHolders is the impact pass's
+	// reopen fan-out holder read.
+	SupplyChainImpactSupportsReaderFanoutHolders = "fanout_holders"
+	// SupplyChainImpactSupportsReaderFanoutHoldersKeyRange is the fan-out's
+	// key-range holder read.
+	SupplyChainImpactSupportsReaderFanoutHoldersKeyRange = "fanout_holders_key_range"
+	// SupplyChainImpactSupportsReaderFanoutHolderMass is the fan-out's
+	// mass-probe holder read.
+	SupplyChainImpactSupportsReaderFanoutHolderMass = "fanout_holder_mass"
+	// SupplyChainImpactSupportsReaderRepositoryHolders is the repository
+	// holder read.
+	SupplyChainImpactSupportsReaderRepositoryHolders = "repository_holders"
+	// SupplyChainImpactSupportsReaderScopedPackages is the scoped-package
+	// holder read.
+	SupplyChainImpactSupportsReaderScopedPackages = "scoped_packages"
+	// SupplyChainImpactSupportsReaderOutOfStamp is the out-of-stamp holder
+	// read.
+	SupplyChainImpactSupportsReaderOutOfStamp = "out_of_stamp"
+	// SupplyChainImpactSupportsReaderGoModulesFence is the Go-modules fence's
+	// holder read.
+	SupplyChainImpactSupportsReaderGoModulesFence = "go_modules_fence"
+)
+
+// Outcomes of a reducer read of the per-support table. They are the closed set
+// of the outcome label of eshu_dp_supply_chain_impact_supports_reads_total.
+const (
+	// SupplyChainImpactSupportsReadServed is a read that loaded every page.
+	SupplyChainImpactSupportsReadServed = "served"
+	// SupplyChainImpactSupportsReadNotReady is a read the reader refused because
+	// the supports table was not ready; the intent retries.
+	SupplyChainImpactSupportsReadNotReady = "not_ready"
+	// SupplyChainImpactSupportsReadFailed is a read that failed on the readiness
+	// probe or a page load.
+	SupplyChainImpactSupportsReadFailed = "failed"
 )
 
 // supplyChainImpactSupportsBackfillStepBuckets spans a step from a few
@@ -83,8 +157,19 @@ var supplyChainImpactSupportsBackfillStepBuckets = []float64{0.005, 0.01, 0.025,
 //     ..._dirty_scopes and ..._last_success_timestamp_seconds: how long a step
 //     holds a lock, the old-writer fence depth, and when the loop last worked.
 //
+//   - eshu_dp_supply_chain_impact_supports_reads_total{source,outcome}: reducer
+//     reads of the supports table by reader (carried as source) and outcome
+//     (served, not_ready, failed). A rising not_ready count means a reducer
+//     intent is waiting on the backfill; it clears when the ready gauge reads 1.
+//
 //   - eshu_dp_supply_chain_impact_supports_backfill_ready: 1 once the readiness
 //     marker is set at the current contract version and the fence is empty, else 0.
+//
+//   - eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total{outcome}
+//     and ..._verify_slice_duration_seconds{outcome}: the bounded verification
+//     slices and the wall time of each slice statement. The count of advance
+//     slices is how far the verification got; the duration tail is the longest
+//     snapshot the verification holds.
 //
 // No label carries a scope, repository, canonical key or CVE.
 func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Instruments) error {
@@ -95,9 +180,15 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsRows counter: %w", err)
 	}
+	if inst.SupplyChainImpactSupportsReads, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_supports_reads_total",
+		metric.WithDescription("Reducer reads of the per-support table by reader (source label) and outcome (served, not_ready, failed). A rising not_ready count means a reducer intent is waiting on the supports backfill."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsReads counter: %w", err)
+	}
 	if inst.SupplyChainImpactSupportsBackfillSteps, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_supports_backfill_steps_total",
-		metric.WithDescription("Per-support backfill steps by outcome (chunk, verify_gap, complete, idle, contended, failed). A rising verify_gap count means supports went missing after the sweep passed them."),
+		metric.WithDescription("Per-support backfill steps by outcome (chunk, verify, verify_gap, drain, complete, idle, contended, failed). A rising verify_gap count means supports went missing after the sweep passed them."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsBackfillSteps counter: %w", err)
 	}
@@ -128,7 +219,38 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsBackfillReady gauge: %w", err)
 	}
+	if inst.SupplyChainImpactSupportsVerifySlices, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total",
+		metric.WithDescription("Per-support backfill verification slices by outcome (advance, orphan, gap, last, failed). Each slice checks one bounded key interval of supports and live findings in one snapshot."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsVerifySlices counter: %w", err)
+	}
+	if inst.SupplyChainImpactSupportsVerifySliceDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_supports_backfill_verify_slice_duration_seconds",
+		metric.WithDescription("Wall time of one per-support backfill verification slice statement, by outcome. The tail is the longest snapshot the verification holds open."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsBackfillStepBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsVerifySliceDuration histogram: %w", err)
+	}
 	return nil
+}
+
+// RecordSupplyChainImpactSupportsVerifySlice counts one verification slice under
+// outcome, which must be one of the SupplyChainImpactSupportsVerifySlice*
+// constants, and records the slice statement's wall time. It is safe on a nil
+// receiver.
+func (i *Instruments) RecordSupplyChainImpactSupportsVerifySlice(ctx context.Context, outcome string, spent time.Duration) {
+	if i == nil {
+		return
+	}
+	attrs := metric.WithAttributes(AttrOutcome(outcome))
+	if i.SupplyChainImpactSupportsVerifySlices != nil {
+		i.SupplyChainImpactSupportsVerifySlices.Add(ctx, 1, attrs)
+	}
+	if i.SupplyChainImpactSupportsVerifySliceDuration != nil {
+		i.SupplyChainImpactSupportsVerifySliceDuration.Record(ctx, spent.Seconds(), attrs)
+	}
 }
 
 // RecordSupplyChainImpactSupportsRows counts support rows written under action
@@ -138,6 +260,16 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRows(ctx context.Context, a
 		return
 	}
 	i.SupplyChainImpactSupportsRows.Add(ctx, rows, metric.WithAttributes(AttrAction(action), AttrSource(source)))
+}
+
+// RecordSupplyChainImpactSupportsRead counts one reducer read of the supports
+// table by reader and outcome, which must be one of the
+// SupplyChainImpactSupportsRead* constants. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactSupportsRead(ctx context.Context, reader, outcome string) {
+	if i == nil || i.SupplyChainImpactSupportsReads == nil {
+		return
+	}
+	i.SupplyChainImpactSupportsReads.Add(ctx, 1, metric.WithAttributes(AttrSource(reader), AttrOutcome(outcome)))
 }
 
 // RecordSupplyChainImpactSupportsBackfillStep counts one backfill step under

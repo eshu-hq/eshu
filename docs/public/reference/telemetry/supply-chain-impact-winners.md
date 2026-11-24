@@ -69,9 +69,13 @@ of the stored winners) runs the full rebuild in the same transaction instead,
 and records its sample under `path="full"`.
 
 One keyed tick is chunk-bounded (#9805): it reads the DB-clock tick stamp,
-admits the oldest 5,000 dirty-log
-rows as candidates, probes at most 200 post-expansion identifiers, then deletes
-exactly the rows it applied. A tick that stopped at the bound leaves the rest
+admits the 5,000 dirty-log rows with the oldest capture times (ordered by
+`captured_at`, then `seq`, #11075) as candidates, probes at most 200
+post-expansion identifiers, then deletes exactly the rows it applied. Admission
+follows capture time, not insert order, because the horizon is the oldest
+remaining capture: a converted scope remainder keeps its old capture time on a
+new `seq`, and admitting by `seq` left it behind every newer row while the
+watermark stood still. A tick that stopped at the bound leaves the rest
 queued, stamps the horizon over them, and counts
 `eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, so a backlog drains
 as short spaced ticks, never one long transaction, and the watermark advances on
@@ -210,6 +214,22 @@ any state other than `advisory_retracted`. Read the counter beside
 `eshu_dp_supply_chain_impact_fanout_total` and the watermark age to tell a
 working fan-out from a stalled one: with a rejected record in flight, a flat
 counter means no pass has flipped a copy yet, not that the holders converged.
+
+Before the fan-out slices its holder list to the 256 cap, one set read drops the
+holders whose supply-chain impact item is already `pending` or `retrying` with a
+next pass that covers the change: a full pass, or a scoped one whose stamp
+already names every changed id (#10972).
+`eshu_dp_supply_chain_impact_fanout_total{outcome="prefiltered_pending"}`
+counts them. A queued holder stamped for another change is kept, and the reopen
+merges the change into its stamp without moving its place in the queue,
+counted as `outcome="stamp_widened"`. A failing prefilter read counts
+`read_error` or `read_timeout` with `site="holder_prefilter"`, and the pass
+retries; every read is timed under
+`eshu_dp_supply_chain_impact_fanout_read_duration_seconds{kind="holder_prefilter"}`.
+A rising `prefiltered_pending` with `deferred` falling is the prefilter working,
+and `stamp_widened` should fall as stamps converge; a rising `deferred` with
+`prefiltered_pending` flat means the holders are not queued and the cap is
+doing real work.
 
 A manifest or lockfile change converges the same way (#9874): the git
 generation's marker pass reopens every scope holding advisory evidence for a
@@ -368,8 +388,10 @@ No label carries a canonical key, scope, repository, or CVE.
   first-stamp lag is not reader staleness.
 - Then read the dirty log. `dirty_log_depth` should return to near zero after
   each keyed tick, and `dirty_log_oldest_age_seconds` bounds how far a winner
-  can lag its facts. If either keeps climbing, no instance is running keyed
-  ticks: check the failure log line, the `supply_chain_impact_winners` lease, and
+  can lag its facts. Every tick admits the oldest captures first, so while
+  ticks run, `dirty_log_oldest_age_seconds` and `watermark_age_seconds` should
+  fall or hold, not climb one second per second. If either keeps climbing, no
+  instance is running keyed ticks: check the failure log line, the `supply_chain_impact_winners` lease, and
   the grants listed above (a missing maintainer grant fails the tick with
   `permission denied` and logs it). When the log is empty but work is pending,
   read `staging_depth`: captures stage there first, and a climbing staging
@@ -408,8 +430,9 @@ No label carries a canonical key, scope, repository, or CVE.
 - A rising `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` with a
   falling `dirty_log_depth` is a backlog draining in bounded ticks: healthy. A
   rising chunked-ticks counter with a flat or climbing depth means arrivals
-  outpace the 200-identifier bound; admit fewer changes per tick or raise the
-  bound, do not chase a faster tick. A bounded tick stamps the horizon over the
+  outpace the 200-identifier bound; look for what writes so many changes (and for
+  rewrites that change nothing) before touching the bound, and do not chase a
+  faster tick. A bounded tick stamps the horizon over the
   rows it leaves queued (#10706), so the watermark age stays bounded by the
   tick cadence while the drain runs; if the watermark age keeps climbing while
   the depth falls, ticks are not committing (check the failure log line and the

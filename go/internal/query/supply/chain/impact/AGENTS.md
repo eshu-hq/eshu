@@ -57,8 +57,25 @@ Read `doc.go` and `README.md` first.
   CTE whenever a winners-eligible call finds the winners watermark absent,
   stale, or unprobed: exact totals and buckets cannot be labeled partial, so
   an unavailable model fails visibly as 503 rather than serving an
-  approximate answer. The gate-off, scoped-token, and existence-filter paths
-  keep the legacy read and MUST NOT issue the watermark probe.
+  approximate answer. The gate-off and unscoped existence-filter paths keep the
+  legacy read and MUST NOT issue the watermark probe. A scoped-token call with the
+  gate on reads the per-support table (`aggregates_supports_queries.go`), probes
+  the supports readiness predicate instead of the watermark, and answers
+  `ErrAggregateReadModelUnavailable` that also matches
+  `ErrFindingSupportsUnavailable` while the table is not ready.
+- The supports reads (`findings_supports_queries.go`,
+  `aggregates_supports_queries.go`, `grouped_inventory_supports.go`,
+  `explain_supports.go`, #10880 PR-B2a) serve every scoped-token call and a public
+  `finding_id` explain. They are derived from the shipped legacy query by marker
+  surgery and MUST stay derived: a marker the legacy text loses fails package
+  initialization, and each marker has a test that loses it. They share one source
+  CTE builder (`supportsSourceCTE`). The list text is pinned byte-identical across
+  refactors. They MUST apply the grant to the support row first (two index arms),
+  pick the canonical copy among the granted copies, then apply rank filters
+  (ruling Q2), and MUST refuse with `ErrFindingSupportsUnavailable` while
+  `SupplyChainImpactSupportsReady` is false: no winners or fact fallback. Any new
+  supports read needs a plan-shape check in `supports_plan_shape_live_test.go`
+  that fails on a sequential scan of the table.
 - `PostgresGroupedInventoryStore` (`grouped_inventory_postgres.go`,
   `grouped_inventory_sql.go`) reads only the winners table. It MUST NOT
   join the operator-override facts per finding (the measured #9873 CTE cost)
@@ -66,8 +83,9 @@ Read `doc.go` and `README.md` first.
   `entity_keys` leg, because the `workload_id` filter matches through it. The
   map grant uses `COALESCE(..., FALSE)`, so an empty grant array bound as NULL
   still marks a hidden repository's bucket partial. A scoped request MUST use
-  the scoped variant (`groupedInventoryScopedQuery`). Its hidden-repositories
-  CTE MUST read the winners with only the static-winner and grant predicates.
+  the supports variant (`groupedInventorySupportsQuery`). Its hidden-bucket CTE
+  MUST read the supports with only the static-authority and grant predicates, so a
+  request filter cannot act as an oracle on hidden findings.
   A request filter there would let a caller flip completeness by varying the
   filter, an oracle on hidden findings. Counts stay granted and filtered, and
   a bucket with no granted finding MUST NOT appear. The live parity proof

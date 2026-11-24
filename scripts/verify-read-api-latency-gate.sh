@@ -478,7 +478,7 @@ require_findings_byte_identical "${work_dir}/findings-legacy.json" "${work_dir}/
 require_grouped_inventory 200 service_id
 require_grouped_inventory 200 workload_id
 require_grouped_inventory 200 environment
-# Default (precise) profile: 503 until PR-B2 serves it from supports; the pin makes that flip deliberate.
+# Default (precise) profile: 503 only while the stack's supports backfill is incomplete; red once it completes.
 require_grouped_inventory 503 service_id
 
 # The winners leg re-sweeps the same corpus into separate reports (never

@@ -20,6 +20,24 @@
 - Keep `FanoutCrossScopeCompletionQuery` exported: the staying root plan
   tests EXPLAIN the shipped constant. Do not hand-copy the SQL into a
   test.
+- The fanout never locks, re-pends, or flags a manifest marker
+  (`supply_chain_impact` payload `trigger=manifest_dependency`, #10972):
+  `manifestMarkerPredicate` is the one spelling, shared by the exclusion in
+  `current_consumers` and `manifestMarkerCountQuery`, which also share
+  `activeGenerationsCTE`, `activeGenerationJoin` and `consumerStatePredicate`.
+  The skipped-marker count is a separate statement `Fanout` runs after the
+  fan-out committed (autocommit, no FOR clause, no DML, bounded by
+  `defaultManifestMarkerCountTimeout`), only for a producer with a
+  `supply_chain_impact` edge. Never move it back into the fan-out statement
+  (the statement runs last with the lease, consumer and event rows locked, so
+  a counter would double the lock hold and delay producer acks), and never
+  count from a shared candidate CTE with the lock on an id join (that moves
+  the lock and owes a contention proof). Its failure is the one failure the
+  package tolerates: warn, counter not advanced, committed result returned.
+  Keep `TestFanoutQueryExcludesManifestMarkers`,
+  `TestManifestMarkerCountQueryIsAPlainRead`,
+  `TestFanoutMarkerCountFailureDoesNotFailTheCommittedFanout` and the live twin
+  `TestCrossScopeCompletionFanoutLeavesManifestMarkersSucceededLive` green.
 - Never import the parent `postgres` package from production code here:
   `cmd/reducer` and root `internal/storage/postgres` import this package
   directly, and importing back would be a cycle. Tests import it only for

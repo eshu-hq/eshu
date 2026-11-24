@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -59,5 +60,69 @@ func TestSupplyChainImpactFindingSupportsMigrationShape(t *testing.T) {
 		if strings.Contains(ddl, forbidden) {
 			t.Errorf("migration 338 keys the table by %q: (canonical_key, scope_id) is not unique among supports", forbidden)
 		}
+	}
+}
+
+// holderIndexStatements are the single statements of migrations 339 to 342
+// (#11197). 341 carries fastupdate = off and 342 carries no fastupdate option: the
+// members GIN's pending list flipped the mass probe to a sequential scan, and the
+// tokens GIN carried most of the writer WAL cost of turning the option off (the
+// W-A amendment of arbiter-b2b-w-a-return).
+var holderIndexStatements = map[string]string{
+	"339_supply_chain_impact_finding_supports_cve_idx.sql":      "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_cve_idx ON supply_chain_impact_finding_supports (cve_id, fact_id) WHERE cve_id <> '';",
+	"340_supply_chain_impact_finding_supports_advisory_idx.sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_advisory_idx ON supply_chain_impact_finding_supports (advisory_id, fact_id) WHERE advisory_id <> '';",
+	"341_supply_chain_impact_finding_supports_members_idx.sql":  "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_members_idx ON supply_chain_impact_finding_supports USING GIN ((payload #> '{provenance,advisory_group_members}')) WITH (fastupdate = off);",
+	"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_tokens_idx ON supply_chain_impact_finding_supports USING GIN (eshu_sci_foreign_member_tokens_v4(fact_id, payload));",
+}
+
+// migrationStatement returns the code of a migration file as one normalized
+// statement, comments dropped.
+func migrationStatement(raw string) string {
+	var code []string
+	for _, line := range strings.Split(raw, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+			code = append(code, line)
+		}
+	}
+	return strings.Join(strings.Fields(strings.Join(code, " ")), " ")
+}
+
+// holderIndexStatementViolation returns why stmt (a migration's normalized
+// statement) is not the pinned statement of file, or "".
+func holderIndexStatementViolation(file, stmt string) string {
+	want, ok := holderIndexStatements[file]
+	if !ok {
+		return "no pinned statement for " + file
+	}
+	if stmt != want {
+		return fmt.Sprintf("%s statement = %q, want %q", file, stmt, want)
+	}
+	return ""
+}
+
+// TestSupplyChainImpactHolderIndexMigrationsShape pins migrations 339 to 342
+// (#11197): one concurrent build per file, the two btrees partial on a non-blank
+// id, the members GIN with fastupdate = off and the tokens GIN with no
+// fastupdate option. The check is exercised in both directions: a members GIN
+// without the option and a tokens GIN with it are each reported.
+func TestSupplyChainImpactHolderIndexMigrationsShape(t *testing.T) {
+	t.Parallel()
+	for file := range holderIndexStatements {
+		raw, err := os.ReadFile("migrations/" + file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		if v := holderIndexStatementViolation(file, migrationStatement(string(raw))); v != "" {
+			t.Error(v)
+		}
+	}
+	// Seeded violations: the pinned text with the option flipped is reported.
+	members := "341_supply_chain_impact_finding_supports_members_idx.sql"
+	if holderIndexStatementViolation(members, strings.Replace(holderIndexStatements[members], " WITH (fastupdate = off)", "", 1)) == "" {
+		t.Error("a members GIN without fastupdate = off is accepted")
+	}
+	tokens := "342_supply_chain_impact_finding_supports_tokens_idx.sql"
+	if holderIndexStatementViolation(tokens, strings.Replace(holderIndexStatements[tokens], ";", " WITH (fastupdate = off);", 1)) == "" {
+		t.Error("a tokens GIN with fastupdate = off is accepted")
 	}
 }

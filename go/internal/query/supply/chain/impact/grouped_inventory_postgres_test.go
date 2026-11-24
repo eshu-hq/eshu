@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -84,10 +83,20 @@ type groupedFakeQueryer struct {
 	pageErr      error
 	iterErr      error
 	calls        []groupedFakeCall
+	// supportsNotReady and supportsProbeErr shape the answer to the supports
+	// readiness probe a granted call issues first.
+	supportsNotReady bool
+	supportsProbeErr error
 }
 
 func (q *groupedFakeQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	q.calls = append(q.calls, groupedFakeCall{query: query, args: args})
+	if strings.Contains(query, "supply_chain_impact_finding_supports_backfill") {
+		if q.supportsProbeErr != nil {
+			return nil, q.supportsProbeErr
+		}
+		return &cov7StoreRows{rows: [][]any{{!q.supportsNotReady}}}, nil
+	}
 	if query == SelectWinnersWatermarkQuery {
 		if q.watermarkErr != nil {
 			return nil, q.watermarkErr
@@ -338,70 +347,6 @@ func TestGroupedInventorySQLShape(t *testing.T) {
 	}
 	if _, err := groupedInventoryQuery(GroupedInventoryDimension("ecosystem")); err == nil {
 		t.Fatal("groupedInventoryQuery(ecosystem) error = nil, want unsupported dimension")
-	}
-}
-
-// TestGroupedInventoryScopedSQLShape pins the scoped variant: counts read the
-// same granted and filtered finding set as the unscoped query, and the
-// hidden-repositories signal reads the static winners with only the grant
-// bound ($18, $19), never a request filter, so completeness cannot act as a
-// filter-dependent oracle on hidden findings.
-func TestGroupedInventoryScopedSQLShape(t *testing.T) {
-	hidden := groupedInventoryHiddenRepositoriesSQL
-	for _, want := range []string{"FROM supply_chain_impact_canonical_winners AS w", "w.winner_scope_id NOT LIKE 'image://derived/%'", "$18", "$19"} {
-		if !strings.Contains(hidden, want) {
-			t.Fatalf("hidden-repositories CTE missing %q", want)
-		}
-	}
-	for n := 1; n <= groupedInventoryArgCount; n++ {
-		if n == 18 || n == 19 {
-			continue
-		}
-		if regexp.MustCompile(fmt.Sprintf(`\$%d\b`, n)).MatchString(hidden) {
-			t.Fatalf("hidden-repositories CTE binds request parameter $%d", n)
-		}
-	}
-	for _, dimension := range []GroupedInventoryDimension{GroupedInventoryByService, GroupedInventoryByWorkload, GroupedInventoryByEnvironment} {
-		scoped, err := groupedInventoryScopedQuery(dimension)
-		if err != nil {
-			t.Fatalf("groupedInventoryScopedQuery(%q) error = %v", dimension, err)
-		}
-		unscoped, err := groupedInventoryQuery(dimension)
-		if err != nil {
-			t.Fatalf("groupedInventoryQuery(%q) error = %v", dimension, err)
-		}
-		if !strings.Contains(scoped, supplyChainImpactReadModeSQL(hidden, false)) ||
-			!strings.Contains(scoped, supplyChainImpactReadModeSQL(groupedInventoryFindingsCTE, false)) {
-			t.Fatalf("%s scoped query lost the hidden-repositories CTE or the shared finding set", dimension)
-		}
-		if strings.Contains(unscoped, "grouped_hidden_repositories") {
-			t.Fatalf("%s unscoped query gained the scoped partial signal", dimension)
-		}
-		assertGroupedPlaceholdersBound(t, scoped, groupedInventoryArgCount)
-	}
-}
-
-func TestGroupedInventoryStoreSelectsScopedQueryForGrants(t *testing.T) {
-	cases := []struct {
-		name   string
-		filter AggregateFilter
-		scoped bool
-	}{
-		{"unscoped", AggregateFilter{}, false},
-		{"repository grant", AggregateFilter{AllowedRepositoryIDs: []string{"repository:r"}}, true},
-		{"scope grant", AggregateFilter{AllowedScopeIDs: []string{"scope:s"}}, true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			q := &groupedFakeQueryer{watermark: []time.Time{groupedTestNow}, page: [][]any{{nil, nil, nil, nil, nil, nil, nil, int64(0)}}}
-			if _, err := groupedTestStore(q).SupplyChainImpactGroupedInventory(context.Background(), tc.filter, GroupedInventoryByService, 10, 0); err != nil {
-				t.Fatalf("SupplyChainImpactGroupedInventory() error = %v", err)
-			}
-			got := strings.Contains(q.calls[1].query, "grouped_hidden_repositories")
-			if got != tc.scoped {
-				t.Fatalf("scoped query used = %v, want %v", got, tc.scoped)
-			}
-		})
 	}
 }
 

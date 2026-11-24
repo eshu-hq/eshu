@@ -45,6 +45,12 @@ type EvidenceFactRow struct {
 type PostgresEvidenceStore struct {
 	DB     EvidenceQueryer
 	reader db.Queryer
+	// ReadFromWinners mirrors ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ. When true, a
+	// repository, service, or workload anchored call derives its advisory anchors
+	// from supply_chain_impact_finding_supports (#10880 PR-B2a) and answers
+	// ErrEvidenceSupportsUnavailable while that table is not ready; when false
+	// every call keeps the legacy fact read.
+	ReadFromWinners bool
 }
 
 // NewPostgresEvidenceStore creates the Postgres-backed advisory
@@ -57,6 +63,13 @@ func NewPostgresEvidenceStore(db EvidenceQueryer) PostgresEvidenceStore {
 // query-only port.
 func NewPostgresEvidenceStoreWithReadStore(reader db.Queryer) PostgresEvidenceStore {
 	return PostgresEvidenceStore{reader: reader}
+}
+
+// NewPostgresEvidenceStoreWithReadModel is NewPostgresEvidenceStoreWithReadStore
+// with the winners read gate set; the serve wiring resolves readFromWinners from
+// the same operator gate as the impact list.
+func NewPostgresEvidenceStoreWithReadModel(reader db.Queryer, readFromWinners bool) PostgresEvidenceStore {
+	return PostgresEvidenceStore{reader: reader, ReadFromWinners: readFromWinners}
 }
 
 type legacyEvidenceQueryer struct{ database EvidenceQueryer }
@@ -85,9 +98,16 @@ func (s PostgresEvidenceStore) ListAdvisoryEvidence(
 	if queryer == nil {
 		queryer = legacyEvidenceQueryer{database: s.DB}
 	}
+	query := ListEvidenceQuery
+	if s.readsFromSupports(filter) {
+		if err := requireSupportsReady(ctx, queryer); err != nil {
+			return nil, err
+		}
+		query = ListEvidenceFromSupportsQuery
+	}
 	rows, err := queryer.QueryContext(
 		ctx,
-		ListEvidenceQuery,
+		query,
 		array.Of(advisoryEvidenceFactKinds),
 		array.Of(EvidenceLookupIDs(filter)),
 		array.Of(advisoryEvidencePackageIDs(filter)),

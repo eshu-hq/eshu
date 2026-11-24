@@ -132,7 +132,7 @@ func insertWaitingItem(
 		strings.TrimSpace(intent.ScopeID), strings.TrimSpace(intent.GenerationID),
 		string(intent.Domain), entry.FailureClass, now,
 	); err != nil {
-		return fmt.Errorf("park waiting reducer work: %w", err)
+		return classifyWaitingInsertError(err, intent.IntentID, string(entry.WaitsForKind), keyJSON)
 	}
 	return nil
 }

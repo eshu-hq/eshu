@@ -5,7 +5,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -175,7 +174,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		h.observeFanOutRead(ctx, telemetry.FanOutReadKindMassProbe, time.Since(start), err)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
-			return nil, stats, fanOutError{fmt.Errorf("estimate supply chain impact holder mass: %w", err)}
+			return nil, stats, fanOutReadFailure(err, "estimate supply chain impact holder mass")
 		}
 		planned = planHolderReadStatements(chunk, masses)
 		for _, id := range chunk {
@@ -211,7 +210,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		found, err := h.findHolderScopes(ctx, ownScopeID, statements[0].ids)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
-			return nil, stats, fanOutError{fmt.Errorf("find supply chain impact holders: %w", err)}
+			return nil, stats, fanOutReadFailure(err, "find supply chain impact holders")
 		}
 		set := make(map[string]struct{}, len(found))
 		for _, id := range found {
@@ -273,7 +272,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	wg.Wait()
 	if firstErr != nil {
 		h.countFanOutRead(ctx, cause, firstErr, telemetry.FanOutReadSiteHolders)
-		return nil, stats, fanOutError{fmt.Errorf("find supply chain impact holders: %w", firstErr)}
+		return nil, stats, fanOutReadFailure(firstErr, "find supply chain impact holders")
 	}
 	return set, stats, nil
 }

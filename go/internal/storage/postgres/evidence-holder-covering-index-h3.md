@@ -10,7 +10,8 @@ planner generates no index-only path for a query that filters on an
 indexed expression, so the prescribed pair cannot remove the heap fetches
 it exists for. Guard test: `holder_covering_index_decision_test.go`
 (no-build pin); mechanism guard:
-`TestHolderCoveringExpressionBlocksIndexOnlyLive`.
+`TestHolderCoveringExpressionBlocksIndexOnlyLive` (retired by #11197: the holder reads moved
+to the supports table, whose indexes `TestSupplyChainImpactSupportsHolderPlanShapeLive` pins).
 
 The #10564 section below is kept verbatim as the history of the first
 no-build gate: its need analysis and cost census still stand, and the
