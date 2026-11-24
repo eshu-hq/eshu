@@ -281,3 +281,26 @@ first-ready full fires on a real marker is owed to a coordinator slot.
 Observability Evidence: `eshu_dp_supply_chain_impact_winners_supports_not_ready_total`,
 `full_resweeps_total{reason="supports_ready"}` and the waiting/resumed log lines,
 documented in `docs/public/reference/telemetry/supply-chain-impact-winners.md`.
+
+## Live proofs to run (R5 and section 3)
+
+Written, not yet run. Environment, for a disposable server only:
+`ESHU_POSTGRES_TEST_DSN=<dsn>`, `ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN=<admin dsn of the same server>`,
+`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1`, `ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF=1`. Command, from `go/`:
+`go test -count=1 -v -run '<name>' ./internal/storage/postgres/`.
+
+- `TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive`: the supports-backed stored read equals
+  the frozen fact read on one seed, including a NULL support key with a twin, with no twin and with an
+  empty twin key, and a support key that differs from its twin.
+- `TestSupplyChainImpactSupportsRecoveryReadEqualsLegacyReadLive`: the three-leg recovery reads equal the
+  frozen fact statement after a retraction, and the supports and retracted-keys legs alone still name every
+  retracted finding (a retry after a committed retraction).
+- `TestSupplyChainImpactSupportsScopeDeleteCaptureStagesTheFactSetLive`: migration 352 stages the fact set when
+  the scope is deleted, and when a retired generation is deleted first.
+- `TestSupplyChainImpactWinnersResweepSupportsGateLive`: the maintainer gate on a real marker.
+- `TestSupplyChainImpactWinnersResweepSupportsDifferentialLive`: the winners select over the facts against the
+  supports, `EXCEPT ALL` both ways, and the supports-driven winners table against the facts select.
+
+The statements come from the writer's package through two small proof seams
+(`core.ProofStoredFindingsQuery` and the recovery equivalents, `postgres.WinnersProofSelects`), so the proof runs
+the statements the writer and the maintainer run. The ledger and the reducer-contention inventory name both files.
