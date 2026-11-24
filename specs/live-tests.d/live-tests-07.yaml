@@ -629,6 +629,11 @@ tests:
     class: dedicated_ci
     reason: "#9805: reducer-contention enrolled 2 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_admission_order_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11075: reducer-contention covers 1 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; RED on main by design (admission is FIFO by seq), not yet run against disposable PostgreSQL by this lane"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_audit_live_test.go
     tag: ~
     class: dedicated_ci
