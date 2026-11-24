@@ -683,6 +683,16 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the supports backfill fills, verifies, restarts on a gap, and waits for the writer's conflict-domain lock"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_stored_read_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1 R5: reducer-contention proof that the supports-backed stored read and the three-leg recovery read equal their frozen fact statements on one seed (a NULL key with a twin, with no twin, with an empty twin key, and a support key that differs from its twin; a committed retraction still named without the fact leg), and that the scope-delete capture stages the fact set whatever the delete order"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1 R2 and section 3: reducer-contention proof of the maintainer's supports gate on a real backfill marker (a not-ready period runs nothing and keeps the watermark, the first ready tick runs exactly one full, a restart runs none) and of the winners select over the facts against the supports (EXCEPT ALL both ways empty, and the supports-driven winners table equal to the facts select)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_supports_fence_live_test.go
     tag: ~
     class: dedicated_ci
