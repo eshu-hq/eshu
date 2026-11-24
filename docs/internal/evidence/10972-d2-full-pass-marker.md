@@ -27,9 +27,20 @@ The linked probe (`hasLinkedOutOfStampActiveSupplyChainImpactRowsQuery`) runs
 on the same `(scope_id, generation_id)` access path as the out-of-stamp probe,
 with the advisory and group-member arms the holder read already uses as
 residual filters, and LIMIT 1. LIMIT 1 stops only at a match: a probe that
-finds none, the common case, reads every support row of the holder's
-generation through that index. The coordinator's QA EXPLAIN decides whether
-the members arm needs its own LIMIT 1 EXISTS.
+finds none, the common case, reads the holder's supports rows for its
+generation through that index.
+
+Measured on the QA environment's read replica (read-only, 2026-11-24, ten
+real stamped items, stamps of up to 191 ids, 5 to 3,426 supports rows per
+scope and generation): the linked probe took 0.13 to 7.1 ms (5.9 ms on a
+second run of the 3,426-row scope). Every plan was an Index Scan on
+`supply_chain_impact_finding_supports_scope_generation_idx` with the arms as
+a Filter, and no Seq Scan. All ten items had 0 linked out-of-stamp rows. Two
+of them held 290 rows outside their stamp and 0 linked, so D2 keeps those
+reruns scoped where #10415 ran them full. No rewrite of the members arm is
+needed. Caveat: the 11-run alert item itself was not in the sample. By
+design, any item whose rows outside the stamp link to the stamp through an
+advisory id or group members still runs full: that is the rekey protection.
 
 A complete full pass resets the marker, and a scoped pass adds one to its
 count. A partial full pass leaves the marker alone because it retracted
@@ -54,23 +65,25 @@ worker's wall clock in UTC.
 ## No-Regression Evidence:
 
 - Statement count per pass: unchanged. A stamped rerun with a fresh marker
-  runs the linked probe in place of the out-of-stamp probe (one bounded
-  LIMIT 1 read either way; `TestStampedRerunOfAHolderWithOtherRowsStaysScoped`
+  runs the linked probe in place of the out-of-stamp probe (one LIMIT 1
+  read either way; `TestStampedRerunOfAHolderWithOtherRowsStaysScoped`
   asserts the out-of-stamp probe is not called). Every other pass runs the
-  same statements as before. The linked probe's plan is NOT_CHECKED here (no
-  Postgres in this lane). The state update
+  same statements as before. The linked probe costs about 7 ms at 3.4k
+  supports rows on the QA environment replica (see above). The state update
   carries one more bound jsonb parameter on a row it already locks and
   rewrites.
 - Lock behavior: unchanged. The marker rides the existing UPDATE, with the
   same fence (lease owner, live lease, `last_attempt_at`) and the same single
   row.
 - Payload size: one small object (three keys) per item.
-- Runtime measurement is NOT_CHECKED in this lane (no Postgres here). The
-  coordinator runs the live proofs on PostgreSQL 18.3:
+- The linked probe's plan and latency were measured on the QA environment
+  replica (above). The live proofs run on PostgreSQL 18.3:
   `TestUpdateFanOutStateStoresTheFullPassMarkerUnderTheLeaseLive` (the fence),
   `TestUpdateFanOutStateMarkerKeepsRowsOutsideTheStampLive` (a scoped rerun
-  leaves rows outside the stamp at their xmin), and
-  `TestScopedFallbackConvergesLive` (marker due, must stay green).
+  leaves rows outside the stamp at their xmin),
+  `TestSupplyChainImpactSupportsLinkedOutOfStampProbeArmsLive` (the linked
+  probe's arms on real supports rows), and `TestScopedFallbackConvergesLive`
+  (marker due, must stay green).
 
 ## Observability Evidence:
 
