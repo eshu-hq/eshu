@@ -18,7 +18,7 @@ cost of the four new indexes, the readiness rule and the equality tests.
 | Repository holders | `findRepositoryFindingHoldersQuery` | existing `supply_chain_impact_finding_supports_repository_idx` |
 | Scoped seed | `listScopedSupplyChainImpactFindingPackagesQuery` | existing `(scope_id, generation_id)` index |
 | Out-of-stamp probe | `hasOutOfStampActiveSupplyChainImpactRowsQuery` | existing `(scope_id, generation_id)` index |
-| Go-modules fence | `fenceFindHoldersQuery` | existing repository index |
+| Go-modules fence | `HolderStatement` (`fenceHolderStatement*`, readiness embedded) | existing repository index |
 
 Equality details the tests pin: the supports `ecosystem` column is lowercased for
 filtering, so the seed read takes `ecosystem`, `purl` and `package_name` from the
@@ -142,19 +142,21 @@ check is the shared B2c commit's `RequireSupplyChainImpactSupportsReady`; it run
 as the first statement of the transaction of each repeatable-read read (the key-range
 read, the mass probe, the holder statement and the repository holder read), in the
 snapshot of the read, so a table that goes not-ready cannot be read half-way. The
-go-modules fence is the exception: it runs at READ COMMITTED, so its check and its
-holder read are not one snapshot. It runs the check twice, before the detach and again
-after the holder read and before any reopen, and rolls back when either says not ready.
-An old writer's finding writes no support row, only a dirty mark that commits atomically
-with it, and the backfill drain writes the support and then clears the mark. A finding the
-holder read missed is therefore seen by the second check unless it commits after that
-check's snapshot, or the backfill drains its scope (writes the support and clears the
-mark) between the holder read and the check. A committed fence does not re-run for that
-generation, so that window is stated, not closed. The closing option, not taken here, is
-to evaluate the readiness predicate inside the holder-read statement so both share one
-snapshot; it needs its own proof. The unit test
-`TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack` pins the order of the two
-checks around the read. A table that is
+go-modules fence runs at READ COMMITTED, one snapshot per statement, so its holder
+statement carries the readiness predicate as its first FROM item (the constant embedded
+byte-for-byte, holder parameters $3 and $4) and the verdict and the holders are read in
+one snapshot (#11197). The fence still runs the predicate on its own once, before the
+detach, as a fail-fast. An old writer's finding writes no support row, only a dirty mark
+that commits with it, and the backfill drain commits a scope's supports before its mark
+clear, so a snapshot that sees the mark cleared also sees the supports, and a snapshot
+that sees the mark reports not ready; the fence rolls back on `ok = false` even when
+holder rows came back. The old two-statement form (check, holder read, recheck) could
+miss a holder when the drain ran between the holder read and the recheck; that sliver
+is gone. What stays: a finding that commits after the holder statement's snapshot is
+not seen, the race the fact read already had. It affects a scope with no support for the
+repository at its active generation in that snapshot whose pass loaded Go evidence before
+the fence commit; that scope keeps the retracted verdict until its next
+`supply_chain_impact` pass, and nothing schedules one (#11327, P2 edge case). A table that is
 not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`; there is
 no fall back to the finding facts.
 
@@ -167,9 +169,11 @@ no fall back to the finding facts.
   read runs the pass full (the seed-failure warning carries `supports_not_ready`).
 - The go-modules fence takes the check right after its timeouts and before the
   pointer detach (`Store.WithSupportsReadiness`, required by
-  `FenceStaleGoEvidence`), and again after the holder read and before any reopen,
-  so a table that is not ready at either check rolls the fence back with
-  nothing retracted, and the coordinator retries the page.
+  `FenceStaleGoEvidence`), and its holder statement carries the same predicate, so a
+  table that is not ready at the check or in the holder statement's snapshot rolls
+  the fence back with nothing retracted, and the coordinator retries the page. A
+  holder-statement error (a lock or statement timeout included) counts `failed` for
+  `go_modules_fence`, because the predicate is part of that statement.
 - The supply-chain impact handler asks its fan-out port for the same check
   before the manifest marker, any evidence load, the fencing token, the writer or
   any holder read (`SupplyChainImpactSupportsGate`, `beforeEvidenceLoad`), so a

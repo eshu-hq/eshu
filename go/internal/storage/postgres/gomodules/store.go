@@ -123,8 +123,8 @@ ORDER BY candidate.scope_id
 type Store struct {
 	database     db.Queryer
 	reopenHolder HolderReopener
-	// supportsReady checks that the supports table the holder read answers from
-	// is ready (#11197); the composition root binds it with WithSupportsReadiness.
+	// supportsReady binds the supports readiness predicate the holder read answers
+	// under (#11197); the composition root binds it with WithSupportsReadiness.
 	supportsReady SupportsReadiness
 }
 

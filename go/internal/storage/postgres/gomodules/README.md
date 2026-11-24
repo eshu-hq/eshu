@@ -17,8 +17,8 @@ migration.
 ## Exported surface
 
 - `Store`, `NewStore`, `Store.ListGoModuleRepositories`, `Store.WithHolderReopener`,
-  `Store.WithSupportsReadiness`, `Store.FenceStaleGoEvidence`, `HolderReopener`, and
-  `SupportsReadiness`.
+  `Store.WithSupportsReadiness`, `Store.FenceStaleGoEvidence`, `HolderReopener`,
+  `SupportsReadiness` and `HolderStatement`.
 
 ## Dependencies
 
@@ -74,10 +74,11 @@ count the fence returns.
   `FenceStaleGoEvidence` writes the verdict.
 - A fence takes the scope row, checks that the supports table is ready (check 1, before the
   pointer detach), detaches the pointer, supersedes the generation, finds the holders on
-  `supply_chain_impact_finding_supports_repository_idx` (#11197), checks readiness again (check 2,
-  after the holder read and before any reopen), and reopens each holder, in one
-  transaction with a 2s `lock_timeout`. A table that is not ready at either check rolls the fence
-  back, with nothing retracted, and the coordinator retries the page. A successor's ack in either order ends on the
+  `supply_chain_impact_finding_supports_repository_idx` with one statement that also carries the
+  readiness predicate (#11197, one snapshot), and reopens each holder, in one
+  transaction with a 2s `lock_timeout`. A table that is not ready at check 1 or in the holder
+  statement's snapshot rolls the fence back, with nothing retracted, and the coordinator retries
+  the page. A successor's ack in either order ends on the
   successor. A fence that loses the race changes nothing and counts nothing. Evidence:
   (#10055). It reopens the holders in the `work_item_id COLLATE "C"` order of their
   `supply_chain_impact` items, the order the admin replay, the recovery drain, and
