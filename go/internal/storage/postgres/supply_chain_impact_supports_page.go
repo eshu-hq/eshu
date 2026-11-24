@@ -302,6 +302,9 @@ func (d supplyChainImpactSupportsDrain) page(
 		if err != nil {
 			return 0, "", nil, fmt.Errorf("decode supply chain impact support payload: %w", err)
 		}
+		// A read-side carrier: FactID is the id of the stored impact-finding fact that this
+		// supports row mirrors, scanned from the table, so the page mints no id. The fact id
+		// producer guard lists this function as a forwarder (go/internal/facts).
 		active = append(active, facts.Envelope{
 			FactID:           factID,
 			ScopeID:          scopeID,
