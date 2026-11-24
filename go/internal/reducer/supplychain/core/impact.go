@@ -279,7 +279,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 
 	phaseStarted = time.Now()
 	write := h.impactWrite(intent, findings, loaded, fencingToken)
-	writeResult, err := h.writeFindingsWithSuppressionDiff(ctx, intent, write)
+	writeResult, err := h.writeFindingsWithSuppressionDiff(ctx, intent, loaded, write)
 	if err != nil {
 		h.emitWriteSuperseded(ctx, intent, fencingToken, err)
 		return reducercontract.Result{}, err

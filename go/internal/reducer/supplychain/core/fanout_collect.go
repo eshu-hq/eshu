@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // collectFanOutHolders gathers the holders one fan-out claim owes: the stored
@@ -25,6 +26,7 @@ func (h SupplyChainImpactHandler) collectFanOutHolders(
 	intent reducercontract.Intent,
 	early inFlightAtLoadEnd,
 	lookupIDs, remaining []string,
+	times *fanOutSiteTimes,
 ) ([]string, fanOutSplitStats, inFlightNarrowing, error) {
 	var split fanOutSplitStats
 	inFlight := newInFlightNarrowing(early)
@@ -36,12 +38,17 @@ func (h SupplyChainImpactHandler) collectFanOutHolders(
 	// why, and which in-flight claims it flags (#10972 D4b).
 	if len(lookupIDs) > 0 {
 		var err error
-		if inFlight, err = h.addInFlightHolders(ctx, intent, cause, early, holders, span); err != nil {
+		done := times.begin(telemetry.SupplyChainImpactFanOutSiteInFlightRead)
+		inFlight, err = h.addInFlightHolders(ctx, intent, cause, early, holders, span)
+		done()
+		if err != nil {
 			return nil, split, inFlight, err
 		}
 	}
 	for _, chunk := range chunkStrings(lookupIDs, fanOutHolderReadChunk) {
+		done := times.begin(telemetry.SupplyChainImpactFanOutSiteHolderReads)
 		found, stats, err := h.readHolderScopesSplit(ctx, cause, intent.ScopeID, chunk)
+		done()
 		split.add(stats)
 		if err != nil {
 			span.RecordError(err)

@@ -1482,6 +1482,21 @@ type Instruments struct {
 	// Read scoped against full to see the rollout's share,
 	// and scoped_fallback_sentinel to see how often the cap binds.
 	SupplyChainImpactPassTotal metric.Int64Counter
+	// SupplyChainImpactPassOutcomeTotal counts completed supply-chain impact
+	// findings passes by domain, mode, re-pend cause, whether the pass
+	// changed output, and change class (#10972). Unlike pass_total it fires
+	// right after the writer commit and before the holder fan-out, because
+	// whether a pass changed anything is known only once the write returns.
+	// A pass whose fan-out later fails is still counted once. Registered by
+	// registerSupplyChainImpactPassOutcomeInstruments.
+	SupplyChainImpactPassOutcomeTotal metric.Int64Counter
+	// SupplyChainImpactFanOutSiteDuration records, per holder fan-out pass,
+	// the total seconds spent in each site the pass entered (in_flight_early,
+	// inflight_read, holder_reads, holder_prefilter, reopen_loop,
+	// state_update; #10972). in_flight_early is measured before the writer and
+	// credited to the fan-out it feeds. Registered by
+	// registerSupplyChainImpactFanOutSiteInstruments.
+	SupplyChainImpactFanOutSiteDuration metric.Float64Histogram
 	// SupplyChainSuppressionDiffTotal counts suppression diff decisions per
 	// supply-chain impact pass (#10019). Labels: domain
 	// (supply_chain_impact), outcome (ran, skipped_kind, skipped_duplicate,
@@ -7382,6 +7397,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerFanOutReadDurationInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactPassOutcomeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactFanOutSiteInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerWorkflowClaimStatsInstruments(meter, inst); err != nil {

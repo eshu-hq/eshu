@@ -440,7 +440,9 @@ func (r suppressionDiffReport) mergeSubSignals(subSignals map[string]float64) {
 // writeFindingsWithSuppressionDiff runs the writer under the suppression-diff
 // span and reports the diff outcome. A write error also records the fail-closed
 // diff counter before the caller maps it, so Handle stays under the funlen cap.
-func (h SupplyChainImpactHandler) writeFindingsWithSuppressionDiff(ctx context.Context, intent reducercontract.Intent, write SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error) {
+// A committed write also records the #10972 pass outcome here, right after the
+// commit, so a pass whose fan-out later fails is still counted once.
+func (h SupplyChainImpactHandler) writeFindingsWithSuppressionDiff(ctx context.Context, intent reducercontract.Intent, loaded supplyChainImpactLoadedEvidence, write SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error) {
 	diffCtx, diffSpan := suppressionDiffSpanForWrite(h, ctx, intent, write)
 	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(diffCtx, write)
 	h.emitSuppressionDiff(ctx, intent, writeResult.suppressionDiff)
@@ -450,5 +452,6 @@ func (h SupplyChainImpactHandler) writeFindingsWithSuppressionDiff(ctx context.C
 		return writeResult, fmt.Errorf("write supply chain impact findings: %w", err)
 	}
 	h.emitStaleCopyRepairs(ctx, writeResult.StaleCopyRepairs)
+	h.emitPassOutcome(ctx, intent, loaded, writeResult)
 	return writeResult, nil
 }

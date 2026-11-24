@@ -89,6 +89,10 @@ type recordingSupplyChainImpactWriter struct {
 	// repairs is echoed back as StaleCopyRepairs so handler tests can drive
 	// the #10765 stale-copy repair telemetry.
 	repairs StaleCopyRepairs
+	// changed is echoed back as ChangedCVEIDs and touched as TouchedGroupIDs
+	// so handler tests can drive the #10972 pass-outcome signals.
+	changed []string
+	touched []string
 }
 
 func (w *recordingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
@@ -102,6 +106,8 @@ func (w *recordingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		FactsWritten:     len(write.Findings),
 		FactsRetracted:   w.retracted,
 		StaleCopyRepairs: w.repairs,
+		ChangedCVEIDs:    w.changed,
+		TouchedGroupIDs:  w.touched,
 	}, nil
 }
 

@@ -266,3 +266,107 @@ Read the line in this order:
 The diagnostic changes nothing the pass does. A test runs a seeded pass cut at
 round 8 with and without the diagnostic read and compares the writer input
 byte for byte against what the code wrote before the diagnostic existed.
+
+## Re-pend cause and pass outcome
+
+`eshu_dp_supply_chain_impact_pass_outcome_total` (#10972) counts each findings
+pass that committed its write, with the reason the pass ran and whether it
+changed anything. It exists to answer one question in the QA environment: of
+the passes the queue re-runs, how many ran again for nothing?
+
+It fires after the writer commit and before the holder fan-out, because whether
+a pass changed output is known only then. A pass whose write fails records
+nothing here; `eshu_dp_supply_chain_impact_pass_total` still counts it at its
+evidence load, so the two can differ by the failed passes.
+
+| Label | Values | Meaning |
+| --- | --- | --- |
+| `domain` | `supply_chain_impact` | Reducer domain. |
+| `mode` | `full`, `scoped`, `scoped_fallback_sentinel`, `scoped_fallback_out_of_stamp` | How the pass ran, as on `pass_total`. |
+| `pass_reason` | `scoped`, `no_stamp`, `sentinel`, `no_seed`, `out_of_stamp`, `engaged_protection` | Why the pass ran scoped or full. |
+| `repend_cause` | `first`, `retry`, `drain`, `fanout_rerun`, `other_repend`, `unknown` | Why the pass was claimed. |
+| `changed` | `changed`, `unchanged` | `changed` when the commit changed or retracted a finding row, changed a suppression, or touched an advisory group. |
+| `change_class` | `none`, `unknown` | `none` on an unchanged pass; `unknown` on a changed one. |
+
+The pass derives `repend_cause` from what the claim already loaded, with no new
+query. The checks run in this order:
+
+1. `retry`: the attempt count is above one. A retry in a non-counting failure
+   class (a readiness or attachment deferral) keeps its attempt count at one,
+   so the pass that finally commits reads as `first` or `fanout_rerun`.
+2. `drain`: the item carries a `fanout_remaining` holder list.
+3. `fanout_rerun`: the item carries a `fanout_origin` stamp, the attempt count
+   is one, and no owed marker is set. A reopen of a succeeded item and the
+   replay of an item that was in flight when the stamp landed leave identical
+   payloads, so this value covers both. Splitting them needs the reopen
+   statement to record the prior status, which is a separate change.
+4. `other_repend`: the item's cycle start is later than its enqueue time, so
+   it was re-pended and is not a one-hop rerun: an unstamped re-pend (a
+   completion fan-out or an operator replay), or a stamped first attempt that
+   also carries the owed marker.
+5. `first`: the cycle start equals the enqueue time.
+6. `unknown`: the claim carried no usable timestamps.
+
+`change_class` stays `unknown` for every changed pass. Separating a change that
+touched only the EPSS and KEV derived fields (`epss_probability`,
+`epss_percentile`, `priority_contributions`,
+`provenance.selected_epss_score_date`) from any other change needs the stored
+row's fields, and the writer's digest read returns only the digest. Reading the
+fields would add to the hot path, so the split is left for a change that
+measures that cost.
+
+`pass_reason` splits the `full` mode that `pass_total` lumps together. The
+checks run in this order:
+
+1. `scoped`: the load scoped to the stamp.
+2. `out_of_stamp`: the pass qualified to scope but the holder carries active
+   finding rows outside the stamp (#10415), so it ran full.
+3. `sentinel`: a one-hop stamp that names an unbounded change.
+4. `no_stamp`: nothing bounded to scope by: a genuine pass, an unstamped or
+   empty stamp, or a retry.
+5. `engaged_protection`: a bounded stamp, but the load ran the engaged
+   protected path, which never scopes. The pass reads this from the load (the
+   authorized snapshot is set), not from the handler's wiring: production always
+   wires the protected loader, and when protection is not engaged (the QA
+   environment, where the role policy state has no rows) the load returns the
+   static result and the pass reads `no_seed` instead.
+6. `no_seed`: a bounded stamp that nothing seeded: no finding row and no local
+   stamped advisory, a loader without the seed seam, or a failed seed read
+   (that case also logs `supply chain impact scoped seed read failed`).
+
+The same fields ride on one INFO line per pass, `supply chain impact pass
+complete`, with `scope_id`, `generation_id`, `intent_id`, `attempt_count` and
+the pass `mode`, and as attributes `repend_cause`, `changed` and `change_class`
+on the span that wraps the pass (`reducer.run`). Ids are log fields only; no id
+is a metric label, and the series count is at most 72: `pass_reason` fixes the `mode` (six
+mode and reason pairs), times 6 causes, times 2 for `changed`, which fixes
+`change_class`.
+
+Read it as a rate. The share of `changed="unchanged"` among
+`repend_cause="fanout_rerun"` is the useless re-run share of the fan-out loop;
+the same share among `drain` shows how much of the self-drain feeds it. Query
+the 3-hour QA window, not a single reading.
+
+## Fan-out time by site
+
+`eshu_dp_supply_chain_impact_fanout_site_duration_seconds` (#10972) records,
+for each holder fan-out pass, the total time spent in each of six sites, one
+histogram sample per site the pass entered. Labels are `domain` and
+`fanout_site`; no scope, holder or CVE id is a label.
+
+| `fanout_site` | What it times |
+| --- | --- |
+| `in_flight_early` | The load-end in-flight read (set A of the D4b narrowing) that runs before the writer. The fan-out reports its measured duration; a one-hop rerun takes no set A read and reports nothing for it. |
+| `inflight_read` | The claimed-or-running queue read at fan-out (set B) and the narrowing against set A that picks the holders to flag. |
+| `holder_reads` | Every holder lookup statement of the pass, summed. The per-statement view stays on `eshu_dp_supply_chain_impact_fanout_read_duration_seconds`. |
+| `holder_prefilter` | The one set read that drops holders whose queued pass already covers the stamp (#10972). Its per-read view stays on the read-duration histogram under kind `holder_prefilter`. |
+| `reopen_loop` | The per-holder reopen or replay-flag writes, summed. |
+| `state_update` | The replay-flag clear and the calling item's fan-out state write. |
+
+The same totals ride on the `supply_chain_impact.fanout` span as
+`in_flight_early_seconds`, `inflight_read_seconds`, `holder_reads_seconds`, `holder_prefilter_seconds`, `reopen_loop_seconds` and
+`state_update_seconds`. A pass that fails inside a site still reports the time
+it spent there, so a timed-out read shows up. A pass with nothing to fan out
+enters no site and reports nothing; that early branch's write that consumes the
+stamp or clears the owed marker is not timed. The sites do not cover the writer commit or
+the advisory-group enqueue, which run before the fan-out.

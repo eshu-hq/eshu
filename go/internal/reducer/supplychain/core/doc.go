@@ -109,6 +109,13 @@
 // containerimage precedent; family-local test doubles live in
 // cross_scope_test_doubles_test.go.
 //
+// Every pass that commits its write also reports why it ran and whether it
+// changed anything (repend_cause.go, #10972): the re-pend cause is read from
+// the claim's attempt count, fanout_remaining list, fanout_origin stamp, owed
+// marker and enqueue and cycle timestamps, with no new query, and the
+// counter, the pass-complete log line and the span attributes carry the same
+// closed label values.
+//
 // No-Regression Evidence: skipping the startup full resweep when a committed
 // watermark exists (#10706, since decided every tick from the persisted winners
 // contract by #11117) removes an hours-long one-shot pass, not per-tick

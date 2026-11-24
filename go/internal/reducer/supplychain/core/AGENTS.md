@@ -362,3 +362,21 @@ claim in set B); a failed set A read counts `read_error` or `read_timeout` with
 gains `kind=in_flight_early`; the fan-out span and summary log line carry
 `in_flight_early_read`, `in_flight_kept`, and `in_flight_narrowed`, and the log
 line `in_flight_early_read_seconds`.
+
+The pass-outcome signals (`repend_cause.go`, #10972) are observation only. A
+`repend_cause` value comes from the intent the claim already loaded
+(`AttemptCount`, `fanout_remaining`, `fanout_origin`, `fanout_owed`,
+`EnqueuedAt`, `CycleStartedAt`); never add a read to learn it. The value sets
+live in `internal/telemetry` and stay closed: no scope, generation, intent or
+CVE id may become a label. `fanout_rerun` covers both a reopen and an in-flight
+replay because the payload is the same; splitting them needs the reopen SQL to
+record the prior status, which is its own change. `change_class` stays
+`unknown` for a changed pass until the stored row's enrichment fields are read
+at a measured cost.
+
+`pass_reason` is read the same way: from `loaded`, the stamp and the handler's
+protection wiring, never from a read. `fanOutSiteTimes` (`fanout_signals.go`)
+times six fan-out sites for the `fanout_site` histogram and the fan-out span;
+it only observes, and `writeFanOutState` exists so `fanOutHolders` stays under
+the funlen cap. The `fanout_site` values are the closed
+`telemetry.SupplyChainImpactFanOutSites` set: add a site there first.
