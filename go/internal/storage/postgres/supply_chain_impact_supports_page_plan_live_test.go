@@ -243,8 +243,9 @@ func TestSupplyChainImpactSupportsPagePlanGuardLive(t *testing.T) {
 			t.Fatalf("no partial (%s_id, fact_id) btree on the supports table: the guard has nothing to prove", col)
 		}
 	}
-	// The guard proves the arms on these indexes by name; the -v output records which
-	// (each is a migration's index).
+	// The guard proves the arms on these indexes by name; the -v output records which.
+	// On a fresh database each is a migration's index; on the B2C_PLAN_GUARD_DSN path
+	// they are whatever the lab corpus holds.
 	t.Logf("plan guard indexes: package=%s repository=%s cve=%s advisory=%s",
 		indexes["package"], indexes["repository"], indexes["cve"], indexes["advisory"])
 	var cursor string

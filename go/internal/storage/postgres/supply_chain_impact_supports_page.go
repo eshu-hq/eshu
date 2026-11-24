@@ -179,8 +179,9 @@ const (
 
 // recordSupplyChainImpactSupportsDrain records one sample of the drain signals for
 // reader: the raw-rows and duration histograms and, at 100,000 raw rows or more
-// (or on a failed drain that read any), the large-drain log line. scope says what
-// the sample covers (the sample field of the line) (supplyChainImpactSupportsSample*). A sample is one drain for
+// (or on a failed drain that read any), the large-drain log line. scope is the sample
+// field of that line, supplyChainImpactSupportsSampleDrain or ...SampleCall, and says
+// what the sample covers. A sample is one drain for
 // the reconciliation loader and one whole GetSupplyChainAdvisoriesForRepos call
 // (every repository it drains) for the service-catalog loader, so the per-call
 // return triggers of the ruling (a call past 1,000,000 raw rows, a call near half

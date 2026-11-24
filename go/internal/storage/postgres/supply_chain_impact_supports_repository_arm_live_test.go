@@ -217,11 +217,14 @@ func TestServiceCatalogSupportsShapesLive(t *testing.T) {
 // builds, for the arms of both loaders.
 //
 // The name deliberately does not start with TestSupplyChainImpactSupports: that prefix is
-// selected by the reducer contention gate's supply-chain -run filter, and this proof seeds
-// 160,000 supports (about three minutes on the lab without -race). It belongs to the live
-// Postgres readiness shards, which the readiness header above registers it in, not to the
-// contention gate. TestServiceCatalogSupportsShapesLive is named the same way and skips
-// without the lab corpus.
+// selected by the reducer contention gate's supply-chain -run filter, and this proof
+// seeds 160,000 supports. It belongs to the live Postgres readiness shards, which the
+// readiness header above registers it in, not to the contention gate. On a fresh
+// database it seeds its own repository (15.0 s on a fresh 2 GB container); against an
+// existing lab corpus (B2C_REPO_ARM_DSN) it skips the seed and rewrites 8,000 rows of
+// the large table (182.9 s on the b2c_hot lab database). CI takes the fresh-seed path.
+// TestServiceCatalogSupportsShapesLive is named the same way, skips without the lab
+// corpus, and so does not run in the shards.
 func TestRepositoryArmBoundsLive(t *testing.T) {
 	var db *sql.DB
 	var ctx context.Context
