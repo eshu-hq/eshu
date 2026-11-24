@@ -56,6 +56,20 @@ image re-runs the full pass about every 60 s per intent until the rollout ends. 
 pod older than C0 does not know the class: it counts the attempt and dead-letters.
 Roll old pods to zero before C2 arms the trigger.
 
+Trigger contract for C2: the classifier fires only when Postgres reports both
+SQLSTATE 55000 and the diagnostic constraint name
+`fact_records_reject_supply_chain_impact_finding`. The C2 trigger must therefore
+raise with `RAISE EXCEPTION ... USING ERRCODE = '55000', CONSTRAINT =
+'fact_records_reject_supply_chain_impact_finding', TABLE = 'fact_records'`. The
+repo's other triggers (for example migrations 088 and 250) raise with `ERRCODE`
+alone, which leaves `PgError.ConstraintName` empty; a C2 trigger written in that
+style would make this classifier silently never fire and an old pod's impact
+intents would dead-letter. The C0 tests script the `PgError` by hand, so they
+cannot catch that. C2 owes a live test that reads the real `PgError` raised by the
+installed trigger and asserts the constraint name, and the C2 review checks the
+`USING CONSTRAINT` clause. The binding design is
+`.claude/arbiter-prc-design.md` section 2.
+
 Write-path census: `eshu_security.publish_impact_publication_v1` (migration 269)
 inserts only `scanner_*` tables and never `fact_records`, so it cannot raise this
 error. The impact writer and `cmd/ifa` both write through
