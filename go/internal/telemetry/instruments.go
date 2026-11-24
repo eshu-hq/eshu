@@ -299,8 +299,8 @@ type Instruments struct {
 	// so a counter rate plus the row query gives the operator both the
 	// pace of admission retries and which items approach the budget.
 	ProjectorAdmissionWaitRetries metric.Int64Counter
-	// ProjectorIdleWakes counts the times a projector worker that claimed work
-	// after an idle spell woke its sleeping sibling workers out of the idle poll
+	// ProjectorIdleWakes counts the times the first claim after the whole
+	// projector process was idle woke its sleeping workers out of the idle poll
 	// backoff (#11186). No labels: one series per process.
 	ProjectorIdleWakes metric.Int64Counter
 
@@ -4181,7 +4181,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.ProjectorIdleWakes, err = meter.Int64Counter(
 		"eshu_dp_projector_idle_wakes_total",
-		metric.WithDescription("Times a projector worker that claimed work after an idle spell woke its sleeping sibling workers out of the idle poll backoff (#11186); at most one per poll interval per process"),
+		metric.WithDescription("Times the first claim after the whole projector process was idle (no claim for 5 s) woke its sleeping workers out of the idle poll backoff (#11186); at most one per poll interval per process"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProjectorIdleWakes counter: %w", err)

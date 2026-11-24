@@ -138,7 +138,7 @@ func TestIdleWorkersWakeWhenASiblingClaimsAfterAnIdleSpell(t *testing.T) {
 func TestIdleWorkerWakeIsDebounced(t *testing.T) {
 	t.Parallel()
 
-	wake := newIdleWake(time.Hour)
+	wake := newIdleWake(time.Hour, time.Now)
 	first := wake.channel()
 	if !wake.broadcast() {
 		t.Fatal("first broadcast was suppressed, want it sent")
