@@ -78,7 +78,10 @@ type supplyChainImpactTxOutcome struct {
 	// pass's changed rows, changed suppressions, and (on recovery) every
 	// stored row name. See SupplyChainImpactWriteResult.TouchedGroupIDs.
 	touchedGroups []string
-	suppression   suppressionDiffReport
+	// identityChangedCVEs and identityTouchedGroups are changedCVEs and
+	// touchedGroups judged on the identity digest (D7, fanout_identity_gate.go).
+	identityChangedCVEs, identityTouchedGroups []string
+	suppression                                suppressionDiffReport
 	// passStateSkipped reports the generation fence held (#10422): the
 	// pass's generation was stale, so the per-scope pass-state row was
 	// left untouched.
@@ -205,12 +208,17 @@ func commitSupplyChainImpactRows(
 	// joins the union because a suppression-only change rewrites rows the
 	// meta below already carries; naming its ids twice is harmless.
 	derived := unionSortedStrings(derivedCVEIDs(meta, stored, write.GenerationID, write.FencingToken, !write.PartialEvidence, write.ScopedCVEIDs), suppMembers)
+	idMeta, idStored := identityChangedRows(meta, stored)
+	idChanged := unionSortedStrings(changedCVEIDs(idMeta, idStored, write.GenerationID, write.FencingToken, !write.PartialEvidence), suppMembers)
+	idTouched := unionSortedStrings(touchedGroupIDs(idMeta, idStored, write.GenerationID, write.FencingToken, !write.PartialEvidence), supp.cveIDs)
 	outcome := supplyChainImpactTxOutcome{
-		changedCVEs:     rowChanged,
-		derivedCVEs:     derived,
-		suppressionCVEs: supp.cveIDs,
-		touchedGroups:   touchedGroups,
-		suppression:     supp,
+		identityChangedCVEs:   idChanged,
+		identityTouchedGroups: idTouched,
+		changedCVEs:           rowChanged,
+		derivedCVEs:           derived,
+		suppressionCVEs:       supp.cveIDs,
+		touchedGroups:         touchedGroups,
+		suppression:           supp,
 	}
 	// The genuine identity-change subset rides alongside the touched set so
 	// the D6 counter fires only on real re-keys, never on commit shape

@@ -43,10 +43,10 @@ func contentDigestOf(payload reducerderivedv1.SupplyChainImpactFinding) string {
 	payload.Cause = ""
 	payload.GenerationID = ""
 	payload.EvidenceFactIDs = nil
-	if _, has := payload.Provenance[contentDigestProvenanceKey]; has {
+	if hasDigestProvenanceKey(payload.Provenance) {
 		trimmed := make(map[string]any, len(payload.Provenance))
 		for key, value := range payload.Provenance {
-			if key != contentDigestProvenanceKey {
+			if !isDigestProvenanceKey(key) {
 				trimmed[key] = value
 			}
 		}
@@ -64,7 +64,7 @@ func contentDigestOf(payload reducerderivedv1.SupplyChainImpactFinding) string {
 type changedRow struct {
 	factID    string
 	stableKey string
-	digest    string
+	digest    string // the full content digest; identityDigest leaves out EPSS and KEV (D7)
 	cveID     string
 	// advisoryID is the row's advisory id, carried so touchedGroupIDs can
 	// name CVE-less groups (#10411). It never joins the CVE-keyed sets.
@@ -75,8 +75,8 @@ type changedRow struct {
 	// set helpers fall back to the row's own id.
 	members []string
 	// ident names the row's canonical key for the winners dirty log (#9805).
-	ident            WinnersDirtyIdentifier
-	suppressionState string // the state the row is written in (#10765)
+	ident                            WinnersDirtyIdentifier
+	suppressionState, identityDigest string // the written state (#10765); the D7 identity digest
 	// evidenceFactIDs is the sorted evidence fact id set the row is written
 	// with: digest-excluded but served from the stored winner payload, so
 	// the capture secondary-compares it (#10880 ruling decision 4).
@@ -112,7 +112,7 @@ const listStoredSupplyChainImpactFindingsQuery = `
 SELECT fact_id,
        generation_id,
        stable_fact_key,
-       COALESCE(payload #>> '{provenance,content_digest}', ''),
+       COALESCE(payload #>> '{provenance,content_digest}', ''), COALESCE(payload #>> '{provenance,identity_digest}', ''),
        COALESCE(payload ->> 'cve_id', ''),
        COALESCE(payload ->> 'advisory_id', ''),
        fencing_token,
@@ -154,8 +154,8 @@ type storedFinding struct {
 	// members is the advisory-group member id set the stored row's
 	// provenance carries (#10408). Nil when the finding was ungrouped.
 	members []string
-	// suppressionState is the stored suppression_state, active if absent (#10765).
-	suppressionState string
+	// suppressionState is the stored suppression_state, active if absent (#10765); identityDigest is provenance.identity_digest (D7), empty before it existed.
+	suppressionState, identityDigest string
 	// evidenceFactIDs is the stored row's evidence fact id set, read for
 	// the capture secondary comparison (#10880 ruling decision 4).
 	evidenceFactIDs []string
@@ -178,7 +178,7 @@ func readStoredSupplyChainImpactFindings(
 	for rows.Next() {
 		var row storedFinding
 		var membersRaw, evidenceRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
+		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
 			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
 		}
 		members, err := parseAdvisoryGroupMembers(membersRaw)

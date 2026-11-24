@@ -382,3 +382,19 @@ times six fan-out sites for the `fanout_site` histogram and the fan-out span;
 it only observes, and `writeFanOutState` exists so `fanOutHolders` stays under
 the funlen cap. The `fanout_site` values are the closed
 `telemetry.SupplyChainImpactFanOutSites` set: add a site there first.
+
+## The identity gate on the fan-out origin (#10972 D7)
+
+A finding row carries two digests in provenance: `content_digest` (the full
+digest) and `identity_digest` (`identityDigestOf` in `fanout_identity_gate.go`:
+the full digest with `enrichmentPayloadKeys` zeroed and
+`enrichmentProvenanceKeys` dropped). The full digest still decides the row
+write, the winners dirty capture and the advisory-group enqueue; never move
+those to the identity digest. `fanOutOriginIDs` decides what a pass's own
+changes fan out for: an enrichment origin (its scope facts hold an EPSS or KEV
+kind) or a writer that did not report the identity sets uses the full sets;
+every other pass uses the identity sets. A payload field not named in
+`enrichmentPayloadKeys` is identity, and
+`TestIdentityDigestClassifiesEveryPayloadField` fails until a new field is
+classified on purpose. Add a field to the enrichment class only when every
+non-EPSS, non-KEV input it is derived from is itself an identity field.

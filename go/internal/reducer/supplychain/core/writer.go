@@ -76,11 +76,12 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	meta := make([]changedRow, 0, len(write.Findings))
 	for _, finding := range write.Findings {
 		typed := supplyChainImpactTypedPayload(write, finding)
-		digest := contentDigestOf(typed)
+		digest, identity := contentDigestOf(typed), identityDigestOf(typed)
 		if typed.Provenance == nil {
 			typed.Provenance = map[string]any{}
 		}
 		typed.Provenance[contentDigestProvenanceKey] = digest
+		typed.Provenance[identityDigestProvenanceKey] = identity
 		payload, err := factschema.EncodeReducerSupplyChainImpactFinding(typed)
 		if err != nil {
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("encode supply chain impact payload: %w", err)
@@ -90,7 +91,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("marshal supply chain impact payload: %w", err)
 		}
 		factID := supplyChainImpactFactID(write, finding)
-		meta = append(meta, changedRow{factID: factID, stableKey: supplyChainImpactStableFactKey(write, finding), digest: digest, cveID: finding.CVEID, advisoryID: finding.AdvisoryID, members: finding.AdvisoryGroupMembers, ident: dirtyIdentifierOf(typed), suppressionState: string(supplyChainImpactSuppressionState(finding.Suppression)), evidenceFactIDs: typed.EvidenceFactIDs})
+		meta = append(meta, changedRow{factID: factID, stableKey: supplyChainImpactStableFactKey(write, finding), digest: digest, identityDigest: identity, cveID: finding.CVEID, advisoryID: finding.AdvisoryID, members: finding.AdvisoryGroupMembers, ident: dirtyIdentifierOf(typed), suppressionState: string(supplyChainImpactSuppressionState(finding.Suppression)), evidenceFactIDs: typed.EvidenceFactIDs})
 		rows = append(rows, factwrite.VersionedRow{
 			FactID:           factID,
 			ScopeID:          write.ScopeID,
@@ -119,20 +120,23 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	retracted := outcome.retracted
 	canonicalWrites := supplyChainImpactCanonicalWrites(write.Findings)
 	return SupplyChainImpactWriteResult{
-		CanonicalWrites:   canonicalWrites,
-		FactsWritten:      len(write.Findings),
-		FactsRetracted:    retracted,
-		ChangedCVEIDs:     outcome.changedCVEs,
-		DerivedCVEIDs:     outcome.derivedCVEs,
-		TouchedGroupIDs:   outcome.touchedGroups,
-		ScopedCVEIDs:      write.ScopedCVEIDs,
-		EvidenceComplete:  !write.PartialEvidence,
-		RecoveryCVEIDs:    outcome.recoveryCVEs,
-		SuppressionCVEIDs: outcome.suppressionCVEs,
-		Rekey:             outcome.rekey,
-		StaleCopyRepairs:  outcome.staleCopyRepairs,
-		suppressionDiff:   outcome.suppression,
-		PassStateSkipped:  outcome.passStateSkipped,
+		CanonicalWrites:         canonicalWrites,
+		FactsWritten:            len(write.Findings),
+		FactsRetracted:          retracted,
+		ChangedCVEIDs:           outcome.changedCVEs,
+		IdentityChangedCVEIDs:   outcome.identityChangedCVEs,
+		IdentityTouchedGroupIDs: outcome.identityTouchedGroups,
+		IdentityReported:        true,
+		DerivedCVEIDs:           outcome.derivedCVEs,
+		TouchedGroupIDs:         outcome.touchedGroups,
+		ScopedCVEIDs:            write.ScopedCVEIDs,
+		EvidenceComplete:        !write.PartialEvidence,
+		RecoveryCVEIDs:          outcome.recoveryCVEs,
+		SuppressionCVEIDs:       outcome.suppressionCVEs,
+		Rekey:                   outcome.rekey,
+		StaleCopyRepairs:        outcome.staleCopyRepairs,
+		suppressionDiff:         outcome.suppression,
+		PassStateSkipped:        outcome.passStateSkipped,
 		EvidenceSummary: fmt.Sprintf(
 			"wrote supply chain impact findings=%d canonical_writes=%d retracted=%d",
 			len(write.Findings), canonicalWrites, retracted,

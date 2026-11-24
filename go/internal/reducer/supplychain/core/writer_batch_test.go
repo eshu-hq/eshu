@@ -98,6 +98,8 @@ func TestPostgresSupplyChainImpactWriterPersistsBatchedFacts(t *testing.T) {
 			wantMap["provenance"] = wantProvenance
 		}
 		wantProvenance["content_digest"] = supplyChainImpactContentDigest(write, finding)
+		// The D7 identity digest rides beside it (#10972, fanout_identity_gate.go).
+		wantProvenance["identity_digest"] = identityDigestOf(supplyChainImpactTypedPayload(write, finding))
 		wantPayload, err := json.Marshal(wantMap)
 		if err != nil {
 			t.Fatalf("marshal expected payload: %v", err)

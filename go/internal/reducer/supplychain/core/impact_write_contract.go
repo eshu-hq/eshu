@@ -150,6 +150,20 @@ type SupplyChainImpactWriteResult struct {
 	// (nextFullPassMarker, #10972 D2), carried to the fan-out state update.
 	// Writers never set it.
 	fullPassMarker map[string]any
+	// IdentityChangedCVEIDs and IdentityTouchedGroupIDs are ChangedCVEIDs and
+	// TouchedGroupIDs judged on the identity digest, which leaves out the
+	// fields computed only from EPSS and KEV facts (#10972 D7,
+	// fanout_identity_gate.go). A non-enrichment pass originates its holder
+	// fan-out from these; the row write, the dirty capture and the
+	// advisory-group enqueue keep the full sets.
+	IdentityChangedCVEIDs   []string
+	IdentityTouchedGroupIDs []string
+	// IdentityReported is true when the writer computed the identity sets.
+	// A writer that leaves it false fans out on the full sets (fail closed).
+	IdentityReported bool
+	// enrichmentOrigin is set by the handler (withFanOutOrigin) when the
+	// pass's own scope facts include an EPSS or KEV kind. Writers never set it.
+	enrichmentOrigin bool
 }
 
 // SupplyChainImpactWriter persists reducer-owned impact findings.
