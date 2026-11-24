@@ -469,3 +469,25 @@ All on disposable PostgreSQL 18.6 (512 MB, one test at a time, nice 19).
 
 The new live tests run in the live-postgres-readiness runner, not the reducer
 contention filter, so they add nothing to the supply-chain half's 1200 s cap.
+
+No-Regression Evidence: baseline is the retired separate holder statement at
+`b3085189ad`; after is the one-statement form, both on PostgreSQL 18.6 (512 MB
+container, `shared_buffers=128MB`), the 3-holder fixture of
+`TestFenceReopensHoldersInDeadLetterLockOrderLive` (one repository, three holder scopes,
+one dead-letter and one succeeded item, one scope with no item). Both read
+`supply_chain_impact_finding_supports_repository_idx`; execution 0.052 ms before and
+0.075 ms after (one run each, which is the cost of the readiness InitPlans, not a
+performance claim). The fence runs once per retracted generation and takes no row lock
+in this statement; the reopen order and the lock order are unchanged and the 40-round
+`TestFenceAndAckRaceEndOnTheSuccessorLive` and the 40-round drain interleaving pass.
+Terminal counts: the three-state test ends with 1 fenced, 1 holder reopened (drained
+holder), 1 fenced with 0 holders, and 0 fenced with the typed refusal.
+
+Observability Evidence: the readiness outcome of the fence keeps
+`eshu_dp_supply_chain_impact_supports_reads_total{source="go_modules_fence"}` with
+`outcome=not_ready` for a table that is not ready at check 1 or in the holder
+statement's snapshot, and `outcome=failed` for a statement error (a lock or statement
+timeout included, since the predicate runs inside that statement). The refusal is the
+typed non-counting `SupplyChainImpactSupportsNotReadyError`, reachable through
+`errors.As` from the coordinator's `fence stale go evidence` error;
+`TestSupportsReadyBindingObserveClassifiesLikeTheSharedReaders` pins the counters.
