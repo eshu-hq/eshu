@@ -161,9 +161,15 @@ on a next page, the cursor) in it. Its current run on the fresh seed
 reconciliation and the service-catalog statement, both plan cache modes, first and next
 page) and six seeded violations that each fail it (package or repository index dropped,
 package or repository guard literal removed, active join inside the lateral, cursor
-written as an `OR`). Its CVE and advisory arms use test-named copies of PR-B2b's
-btrees until this branch is rebased onto B2b. The hot-corpus run of the current guard
-was not repeated; the committed hot-corpus run predates the repository arm.
+written as an `OR`). On the rebased tree, with PR-B2b's migrations 339 and 340 present,
+the guard proves the CVE and advisory arms on those migrations' own indexes
+(`supply_chain_impact_finding_supports_cve_idx` and `..._advisory_idx`, named in the
+run's `-v` output) together with the package and repository btrees of migrations 345
+and 346: all 8 greens and all six violations hold, 31.3 s and 32.2 s in two runs
+([plan_guard_post_rebase_raw.txt](plan_guard_post_rebase_raw.txt)). The test no longer
+builds stand-in indexes: it fails when migration 339 or 340 stops building one. The
+hot-corpus run of the current guard was not repeated; the committed hot-corpus run
+predates the repository arm.
 
 Drain of the hot key on a built binary (`ListActiveSecurityAlertReconciliationFacts`,
 package filter only): 3,201 supports pages, 1,600,000 raw rows, all active.
@@ -282,8 +288,11 @@ Where these two proofs run. The raw files above name the tests as
 `TestSupplyChainImpactSupportsServiceCatalogShapesLive`; they are now
 `TestRepositoryArmBoundsLive` and `TestServiceCatalogSupportsShapesLive`. The old
 prefix is selected by the reducer contention gate's supply-chain `-run` filter, and
-the first test seeds 160,000 supports (182.9 s on the lab without `-race`), which
-the contention half cannot absorb. Neither new name matches either contention
+the first test seeds 160,000 supports. It took 182.9 s on the loaded lab host
+without `-race` ([repository_arm_bounds_raw.txt](repository_arm_bounds_raw.txt)) and
+15.0 s on a fresh 2 GB container
+([contention_tests_seconds_raw.txt](contention_tests_seconds_raw.txt)), so its CI
+cost sits between the two. Neither new name matches either contention
 filter (checked against both `-run` patterns in
 `.github/workflows/reducer-contention-gate.yml`), and both files keep their
 `live-postgres-readiness` header, so the proofs run in the readiness shards. The

@@ -61,15 +61,12 @@ SELECT md5(i::text) || md5((i*7)::text), 'k'||i, 'pg-scope-'||(1+i%300), 'pg-gen
 FROM generate_series(1, 400000) i`); err != nil {
 		t.Fatalf("seed supports: %v", err)
 	}
-	// PR-B2b's partial btrees for the CVE and advisory arms. They live in that
-	// PR's migrations; until this branch is rebased onto it the guard builds the
-	// same shape under a test-only name so the arms have an index to prove.
+	// The CVE and advisory arms are served by PR-B2b's migrations 339 and 340. The
+	// guard proves the plans on those indexes, so it fails when a migration stops
+	// building one instead of building a stand-in that would hide the loss.
 	for _, col := range []string{"cve_id", "advisory_id"} {
-		if planGuardIndexName(t, ctx, db, col) != "" {
-			continue
-		}
-		if _, err := db.ExecContext(ctx, fmt.Sprintf(`CREATE INDEX zz_b2c_guard_%s_idx ON supply_chain_impact_finding_supports (%s, fact_id) WHERE %s <> ''`, col, col, col)); err != nil {
-			t.Fatalf("create guard index for %s: %v", col, err)
+		if planGuardIndexName(t, ctx, db, col) == "" {
+			t.Fatalf("no partial (%s, fact_id) btree on the supports table: migrations 339 and 340 must build it", col)
 		}
 	}
 	if _, err := db.ExecContext(ctx, `VACUUM (ANALYZE) supply_chain_impact_finding_supports`); err != nil {
@@ -247,7 +244,7 @@ func TestSupplyChainImpactSupportsPagePlanGuardLive(t *testing.T) {
 		}
 	}
 	// The guard proves the arms on these indexes by name; the -v output records which
-	// (a zz_b2c_guard_* name is the test-built stand-in, any other is a migration's).
+	// (each is a migration's index).
 	t.Logf("plan guard indexes: package=%s repository=%s cve=%s advisory=%s",
 		indexes["package"], indexes["repository"], indexes["cve"], indexes["advisory"])
 	var cursor string

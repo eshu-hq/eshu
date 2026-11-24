@@ -1,0 +1,22 @@
+# Non-race lab seconds for the live proofs the contention gate selects, and for the renamed repository-bounds proof (PostgreSQL 18.6, 2 GB container, go test -p 1 -v, GOMAXPROCS 3, 01:0xZ).
+# The three small proofs and the two that no filter selects:
+--- PASS: TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive (2.00s)
+--- PASS: TestSupplyChainImpactSupportsDrainConcurrentWithWritesLive (1.88s)
+--- PASS: TestSupplyChainImpactSupportsDrainEqualsFactReadOnAdversarialSeedsLive (2.54s)
+--- PASS: TestSupplyChainAdvisoriesForReposManySmallRepositoriesLive (1.76s)
+--- PASS: TestSecurityAlertReconciliationAndAdvisoryLoadersEqualFactReadsLive (1.83s)
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	10.058s
+
+# TestRepositoryArmBoundsLive (seeds its own 160,000-support repository):
+--- PASS: TestRepositoryArmBoundsLive (15.01s)
+    --- PASS: TestRepositoryArmBoundsLive/after_vacuum (1.10s)
+    --- PASS: TestRepositoryArmBoundsLive/every_20th_row_rewritten,_no_vacuum (1.51s)
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	15.060s
+    supply_chain_impact_supports_repository_arm_live_test.go:253: reconciliation force_generic_plan: page 1 2017, midpoint 2016, last page 1009 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:253: reconciliation force_custom_plan: page 1 2017, midpoint 2016, last page 1009 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:253: service catalog force_generic_plan: page 1 2017, midpoint 2016, last page 1009 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:253: service catalog force_custom_plan: page 1 2017, midpoint 2016, last page 2001 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:253: reconciliation force_generic_plan: page 1 2296, midpoint 2282, last page 1143 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:253: reconciliation force_custom_plan: page 1 2296, midpoint 2282, last page 1143 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:253: service catalog force_generic_plan: page 1 2296, midpoint 2282, last page 1143 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:253: service catalog force_custom_plan: page 1 2296, midpoint 2282, last page 2135 buffers
