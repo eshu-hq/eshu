@@ -181,8 +181,10 @@ func TestSupplyChainImpactAttachmentWaitDecisionTable(t *testing.T) {
 				if len(got) != 0 {
 					t.Fatalf("outcomes = %v, want none recorded", got)
 				}
-				if logs.Len() != 0 {
-					t.Fatalf("logged %q, want nothing for a silent proceed", logs.String())
+				// The pass-complete line (#10972) is expected on a proceed; the
+				// wait itself must stay silent.
+				if strings.Contains(logs.String(), "attachment_wait_outcome") {
+					t.Fatalf("logged %q, want no attachment-wait line for a silent proceed", logs.String())
 				}
 			} else if len(got) != 1 || got[tc.wantOutcome] != 1 {
 				t.Fatalf("outcomes = %v, want exactly one %s", got, tc.wantOutcome)
