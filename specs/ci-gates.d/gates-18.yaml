@@ -1,0 +1,38 @@
+version: v1
+gates:
+  - id: queue-contract-coverage
+    name: Queue-contract coverage ledger
+    category: exactness
+    layer: contract
+    purpose: "Fails when a queue/claim/lease invariant loses its proving test, a covered SQL symbol leaves the code, or a live row runs without a live-Postgres runner."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/storage/postgres/reducer_queue*"
+      - "go/internal/storage/postgres/projector_queue*"
+      - "go/internal/storage/postgres/workflow_control*"
+      - "schema/data-plane/postgres/*fact_work*"
+      - "schema/data-plane/postgres/*phase_repair*"
+      - "specs/queue-contract-coverage.v1.yaml"
+      - "scripts/verify-queue-contract-coverage.sh"
+      - "scripts/lib/verify-queue-contract-coverage.py"
+      - "scripts/test-verify-queue-contract-coverage.sh"
+      - "specs/live-tests.d/**"
+      - "scripts/lib/reducer_contention_inventory.json"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+      - ".github/workflows/static-contract-gates.yml"
+    self_test_triggers:
+      - "scripts/verify-queue-contract-coverage.sh"
+      - "scripts/lib/verify-queue-contract-coverage.py"
+      - "scripts/test-verify-queue-contract-coverage.sh"
+      - "specs/queue-contract-coverage.v1.yaml"
+    local:
+      command: "bash scripts/verify-queue-contract-coverage.sh"
+      test_command: "bash scripts/test-verify-queue-contract-coverage.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify queue-contract coverage gate"
+    requirements: []
+    ci_only_reason: ""

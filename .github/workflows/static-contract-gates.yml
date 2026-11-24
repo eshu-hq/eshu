@@ -78,6 +78,7 @@ jobs:
       workflowscriptcheckout: ${{ steps.filter.outputs.workflowscriptcheckout }}
       readinessderive: ${{ steps.filter.outputs.readinessderive }}
       templatecollectorcaller: ${{ steps.filter.outputs.templatecollectorcaller }}
+      queuecontract: ${{ steps.filter.outputs.queuecontract }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -192,6 +193,7 @@ jobs:
           # envelope covers that recorded sweep, bounded restore, setup/cleanup, and
           # at least 25% sweep reserve. This cell restores but never saves.
           append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh && python3 scripts/ci/test-tagged-build-budget.py" "bash scripts/verify-tagged-builds.sh --all" "tagged-builds" 40
+          append_gate "${{ steps.filter.outputs.queuecontract }}" "queuecontract" "Verify queue-contract coverage gate" "bash scripts/test-verify-queue-contract-coverage.sh" "bash scripts/verify-queue-contract-coverage.sh" "queue-contract-coverage"
 
           printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
           printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
