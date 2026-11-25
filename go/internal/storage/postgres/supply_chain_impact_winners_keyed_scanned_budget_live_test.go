@@ -15,7 +15,9 @@ import (
 // stop admitting identifiers once the scanned-copies budget is spent, so a
 // scope-expanded backlog drains as short bounded ticks instead of one
 // unbounded probe. Identifier atomicity holds throughout: no identifier's
-// copies split across ticks, and the first identifier always completes.
+// copies split across ticks, and the first identifier is always admitted
+// and never split (it completes iff its probe finishes within
+// ResweepStatementTimeout; see eshu-hq/eshu#11442).
 //
 // The backlog mirrors the Dec 6(i) RED vehicle at representative fan-out: 120
 // kept copies per identifier with one retired copy per live copy (240 scanned
@@ -138,14 +140,15 @@ func TestSupplyChainImpactWinnersResweepScannedBudgetFirstIdentifierCompletesLiv
 	const keys = 1
 	wantKept, wantScanned := seedScannedBudgetBacklog(h, keys)
 
-	// One identifier alone scans past the budget: it must still complete.
+	// One identifier alone scans past the budget: it must still be admitted
+	// whole (guard-sized probes assumed; see eshu-hq/eshu#11442).
 	h.store.ChunkMaxScannedCopies = scannedBudgetScannedPerIdent - 1
 	first := chunkedTick(h)
 	if first.Path != telemetry.SupplyChainImpactWinnersPathKeyed {
 		t.Fatalf("first tick ran on path %q, want %q", first.Path, telemetry.SupplyChainImpactWinnersPathKeyed)
 	}
 	if first.ChunkIdentifiers != 1 {
-		t.Fatalf("first tick probed %d identifiers, want exactly the first (it always completes)", first.ChunkIdentifiers)
+		t.Fatalf("first tick probed %d identifiers, want exactly the first (always admitted, never split)", first.ChunkIdentifiers)
 	}
 	if first.ChunkScannedCopies != scannedBudgetScannedPerIdent {
 		t.Errorf("first tick scanned %d copies, want the whole first identifier (%d: never split)", first.ChunkScannedCopies, scannedBudgetScannedPerIdent)

@@ -337,33 +337,57 @@ func TestResweepWinnersKeyedRecordsScannedCopies(t *testing.T) {
 
 // TestWinnersScannedCopiesProbeMatchesActiveFactsProbe pins that the
 // pre-filter scan count attributes the same copies as the keyed active-facts
-// build (#11308, single-probe 2026-11-24): the five index equalities plus the
-// finding-kind and tombstone filters must read byte-identical in the narrow
-// probe, and the scanned-copies count must read the narrow table the build
-// persisted — never a second probe — so a later edit to the probe cannot
-// silently split what the tick builds from what it attributes.
+// build (#11308, single-probe 2026-11-24): the five index equalities must
+// read byte-identical in the narrow probe, and the scanned-copies count must
+// read the narrow table the build persisted — never a second probe — so a
+// later edit to the probe cannot silently split what the tick builds from
+// what it attributes. Since #10880 PR-C1 the production probe reads the
+// finding supports instead of fact_records, so the supports-swapped shapes
+// carry no finding-kind or tombstone filter (a support exists only for a
+// live finding); the legacy base keeps both filters for the audit shapes
+// that still read fact_records.
 func TestWinnersScannedCopiesProbeMatchesActiveFactsProbe(t *testing.T) {
 	t.Parallel()
 
-	// Every budgeted per-identifier probe derives from the same body, so the
-	// tick cannot silently split from the whole-chunk build the audit and
-	// the contract pin run.
+	// The production narrow shapes — the whole-chunk supports build and the
+	// budgeted per-identifier probes — must carry the same five index
+	// equalities over the supports table, so the tick cannot silently split
+	// from the whole-chunk build the audit and the contract pin run.
 	for _, stmt := range map[string]string{
-		"whole-chunk build": buildWinnersKeyedNarrowSQL,
-		"budgeted probe":    insertWinnersKeyedNarrowBatchSQL,
+		"whole-chunk supports build": buildWinnersKeyedNarrowFromSupportsSQL,
+		"budgeted probe":             insertWinnersKeyedNarrowBatchSQL,
 	} {
 		for _, frag := range []string{
+			"FROM " + winnersSupportsTable + " AS f",
 			"(f.payload->>'package_id') = ident.package_id",
 			"(f.payload->>'repository_id') = ident.repository_id",
 			"(f.payload->>'subject_digest') = ident.subject_digest",
 			"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
 			"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
-			"f.fact_kind = 'reducer_supply_chain_impact_finding'",
-			"f.is_tombstone = FALSE",
 		} {
 			if !strings.Contains(stmt, frag) {
 				t.Errorf("narrow probe lost the probe fragment %q", frag)
 			}
+		}
+		if strings.Contains(stmt, "f.fact_kind") || strings.Contains(stmt, "f.is_tombstone") {
+			t.Errorf("supports narrow probe carries a fact_records-only filter")
+		}
+	}
+	// The budgeted probe derives from the same legacy body as the
+	// whole-chunk build: reversing the supports swaps must restore every
+	// legacy fragment, so a later edit cannot silently split the two shapes.
+	for _, frag := range []string{
+		"FROM fact_records AS f",
+		"(f.payload->>'package_id') = ident.package_id",
+		"(f.payload->>'repository_id') = ident.repository_id",
+		"(f.payload->>'subject_digest') = ident.subject_digest",
+		"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
+		"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
+		"f.fact_kind = 'reducer_supply_chain_impact_finding'",
+		"f.is_tombstone = FALSE",
+	} {
+		if reversed := reverseWinnersSupportsInput(insertWinnersKeyedNarrowBatchSQL); !strings.Contains(reversed, frag) {
+			t.Errorf("budgeted probe reversed to legacy lost the probe fragment %q", frag)
 		}
 	}
 	if !strings.Contains(buildWinnersKeyedNarrowSQL, winnersKeyedIdentsTable) {

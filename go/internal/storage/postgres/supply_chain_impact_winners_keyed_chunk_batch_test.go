@@ -314,7 +314,7 @@ func TestBuildWinnersKeyedChunkFirstIdentifierCompletesOverBudget(t *testing.T) 
 		t.Fatalf("buildWinnersKeyedChunk: %v", err)
 	}
 	if outcome.identifiers != 1 {
-		t.Fatalf("identifiers = %d, want exactly the first (it always completes)", outcome.identifiers)
+		t.Fatalf("identifiers = %d, want exactly the first (always admitted, never split)", outcome.identifiers)
 	}
 	if outcome.truncated || !outcome.budgetTruncated {
 		t.Fatalf("outcome = %+v, want {truncated:false budgetTruncated:true} (budget-only trip)", outcome)

@@ -187,7 +187,9 @@ type SupplyChainImpactWinnersStore struct {
 	// ChunkMaxScannedCopies bounds one keyed transaction by the pre-filter
 	// copies the probe scans (Dec 6(ii)): the tick admits the oldest-first
 	// budgeted prefix of the identifier set and leaves the rest queued. The
-	// first identifier always completes. Zero means the default in
+	// first identifier is always admitted and never split, and completes
+	// iff its probe finishes within ResweepStatementTimeout below
+	// (eshu-hq/eshu#11442). Zero means the default in
 	// supply_chain_impact_winners_keyed_chunk.go.
 	ChunkMaxScannedCopies int
 	// ResweepStatementTimeout bounds every statement of a keyed tick

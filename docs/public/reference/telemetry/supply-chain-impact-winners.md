@@ -11,30 +11,29 @@ far behind it runs.
 
 ## How a resweep writes
 
-A full resweep (run when the stored contract is missing, NULL or lower), a
-keyed tick that passes the cap, and the audit's read
-recompute every winner from the active facts; an ordinary keyed tick recomputes
-only the keys in the dirty log (see "Keyed resweeps and the audit"). Whichever
-keys a resweep recomputes, it writes only the rows that are new or changed,
-deletes rows that are no longer winners, and
-stamps the read watermark: the DB-clock tick stamp when the dirty log drained,
-or the horizon over the rows still queued (#10706) — the earliest queued
-capture time minus one microsecond, so every capture at or under the watermark
-is applied, except the documented one-tick late-commit residual, which the
-next tick applies. A full resweep also consumes what it covers (#11117):
-in its own transaction it reads the DB clock, deletes the dirty-log and staged
-marks it can see, then rebuilds, and stamps that clock reading capped under
-any mark still queued. A mark committed after that delete stays queued for the
-next keyed tick. A winner row that did not change is not locked,
-versioned, or written to the write-ahead log. Freshness comes from the
-singleton watermark, which every committed resweep stamps, so a resweep that wrote nothing still tells readers the model is current.
+A full resweep (stored contract missing, NULL or lower), a keyed tick that
+passes the cap, and the audit's read recompute every winner from the active
+facts; an ordinary keyed tick recomputes only the dirty-log keys (see "Keyed
+resweeps and the audit"). Any resweep writes only new or changed rows,
+deletes rows that are no longer winners, and stamps the read watermark: the
+DB-clock tick stamp when the dirty log drained, or the horizon over queued
+rows (#10706) — earliest queued capture time minus one microsecond, so every
+capture at or under the watermark is applied except the documented one-tick
+late-commit residual, which the next tick applies. A full resweep also
+consumes what it covers (#11117): in its own transaction it reads the DB
+clock, deletes the visible dirty-log and staged marks, rebuilds, and stamps
+that reading capped under any still-queued mark; a later-committed mark stays
+queued for the next keyed tick. An unchanged winner row is not locked,
+versioned, or WAL-written. Freshness comes from the singleton watermark,
+which every committed resweep stamps, so even a no-op resweep tells readers
+the model is current.
 
-Only one resweep runs at a time across all reducer instances. The lease is not
-renewed during a resweep, so its 60 second TTL can lapse under a long statement
-and let a second instance start. That instance finds the first one's lock, skips,
-and stamps nothing: comparing against a table the first resweep has not committed
-could otherwise put a fresh watermark over a missing winner. The next tick runs
-normally. If the backend running a resweep dies, the lock goes with it.
+Only one resweep runs at a time across reducer instances. The lease is not
+renewed during a resweep, so its 60 second TTL can lapse under a long
+statement and let a second instance start; that instance finds the first
+one's lock, skips, and stamps nothing (comparing against an uncommitted
+table could watermark over a missing winner). The next tick runs normally.
+If the backend running a resweep dies, the lock goes with it.
 
 On a winner row, `materialized_at` means the last content change. Do not use it
 for freshness; read the watermark.
@@ -51,22 +50,23 @@ full. With a higher stored version (a newer binary already committed) this
 binary stands down: no full, keyed tick or audit. Rolling back to a binary
 that predates the contract, or across a contract version bump, must set both
 contract columns to NULL as a runbook step, so the next binary that reads them
-runs one full. A keyed tick works this way: the changes that can move a winner append the canonical keys
-they touched to a dirty log, in the same transaction as the change. Two kinds of
-capture exist. The impact writer names its own changes in application code, for
-findings it inserts, rewrites or retracts. Database triggers (migration 272, plus 272a
-for the scanner tables) cover the rest: a move of `ingestion_scopes.active_generation_id` (the projector
-Ack and Fail, the collector scope upsert, the retirement fence, the operator
-suppression store), a delete of an `ingestion_scopes` row (the retirement
-purge), and inserts, updates and deletes on the scanner classification and
-association tables. The delete trigger runs before the foreign keys cascade the
-scope's facts away, and appends every finding identifier the scope held, so a
+runs one full. A keyed tick works this way: changes that can move a winner
+append the canonical keys they touched to a dirty log, in the same
+transaction as the change. Two captures exist: the impact writer names its
+own changes in application code (inserted, rewritten or retracted findings),
+and database triggers (migration 272, plus 272a for scanner tables) cover
+the rest — a move of `ingestion_scopes.active_generation_id` (projector Ack
+and Fail, collector scope upsert, retirement fence, operator suppression
+store), a delete of an `ingestion_scopes` row (retirement purge), and
+inserts, updates and deletes on the scanner classification and association
+tables. The delete trigger runs before foreign keys cascade the scope's
+facts away and appends every finding identifier the scope held, so a
 retirement that fences and purges a scope before the next tick still repairs
-its winners. A keyed tick consumes the log and recomputes only those keys. Its cost follows the number of changed keys,
-not the size of the table. A tick that consumed nothing only stamps the
-watermark. A tick whose consumed keys pass a cap (50,000 identifiers, or half
-of the stored winners) runs the full rebuild in the same transaction instead,
-and records its sample under `path="full"`.
+its winners. A keyed tick consumes the log and recomputes only those keys;
+cost follows changed keys, not table size. An empty tick only stamps the
+watermark. Consumed keys past a cap (50,000 identifiers, or half the stored
+winners) run the full rebuild in the same transaction instead, sampled
+under `path="full"`.
 
 One keyed tick is chunk-bounded (#9805, Dec 6(ii)): it reads the DB-clock tick stamp,
 admits the 5,000 dirty-log rows with the oldest capture times (ordered by
@@ -76,8 +76,9 @@ and at most 10,000 pre-filter scanned copies (the primary bound against
 scope-expanded fan-out; one scanned-copies unit bounds both, since kept facts
 cost a subset of the scanned copies' heap fetches). The tick probes identifiers
 one at a time and stops admitting new ones once the budget is spent (the
-current identifier always completes, never split), then deletes exactly the
-rows it applied. Admission follows capture time, not insert order,
+current identifier is always admitted and never split, completing iff its
+probe stays within the 120 s statement guard — see #11442), then deletes
+exactly the rows it applied. Admission follows capture time, not insert order,
 because the horizon is the oldest remaining capture: a converted scope
 remainder keeps its old capture time on a new `seq`, and admitting by `seq`
 left it behind every newer row while the watermark stood still. A tick that
@@ -98,8 +99,14 @@ Every keyed tick transaction pins a statement-timeout guard (Dec 7):
 `statement_timeout` is set to 120 s, so a runaway statement aborts with the
 distinct `statement_timeout` failure class instead of holding the
 single-flight lock. The guard is sized from the post-fix tick maximum and is
-never the fix; the over-cap full fallback lifts it, since a full recompute's
-legitimate duration is unbounded by the tick bar.
+never the fix; the over-cap full fallback lifts it. The guard also bounds
+the hot-identifier promise: the first identifier is always admitted and
+never split, but completes only within the guard — past ~401k warm
+(~124k cold) copies for one identifier the tick aborts with no progress and
+re-ticks identically, and the over-cap fallback never rescues it (#11442).
+At 3 AM a climbing watermark with `build_active_facts` at the guard plus a
+`statement_timeout` rate means diagnosing the probe plan on the oldest
+identifier. The timeout is a store field only; there is no env knob.
 
 No-Regression Evidence: the scanned-copies probe was measured read-only on
 the QA replica (PostgreSQL 18.6, 86,765 canonical winners) with 30
@@ -109,10 +116,9 @@ with no sequential scan: 314 copies in 93.9 ms total (about 3.1 ms per
 identifier, 277 shared hits plus 195 reads). The statement text matches the
 shipped probe's five equalities; a VALUES list stood in for the tick's temp
 idents table, which only feeds those same equalities. At 3 ms per identifier
-against a 17.1 s p95 build on 200 identifiers, the extra COUNT is noise, and
-the kept-row contract is unchanged (the phase test pins kept rows while the
-count varies). The replica read ran during primary migration load, so the
-timing is conservative.
+against a 17.1 s p95 build on 200 identifiers the extra COUNT is noise
+(during primary migration load, so conservative), and the kept-row contract
+is unchanged (the phase test pins kept rows while the count varies).
 
 Observability Evidence: `chunk_scanned_copies` rides the existing resweep
 span attribute and tick log line beside `chunk_kept_rows`; the
@@ -127,75 +133,70 @@ stamp uses is always exact.
 
 When the chunk applies only part of an activation's scope row, the tick turns
 the unapplied rest into fact rows and deletes the scope row in the same
-transaction (#11145). Each converted row keeps the scope row's capture time, and
-merging into a fact row that is already queued keeps the earlier time. The
-horizon therefore stays under that activation's scope mark until every one of
-its identifiers is applied. A conversion does not wake a `winners_watermark`
-waiter enqueued after the activation early (the staging collapse has a
-separate late-commit gap, #11149), and `dirty_log_oldest_age_seconds` keeps
-reporting the activation's real age while it drains. The commit log line
-carries `remainder_rows_converted`, and
+transaction (#11145), each converted row keeping the scope row's capture time
+(merging into an already-queued fact row keeps the earlier time). The horizon
+stays under that activation's scope mark until every one of its identifiers
+is applied. A conversion does not wake a later-enqueued `winners_watermark`
+waiter early (separate late-commit gap in the staging collapse, #11149), and
+`dirty_log_oldest_age_seconds` keeps reporting the activation's real age
+while it drains. The commit log line carries `remainder_rows_converted`, and
 `eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total`
 counts the rows.
 
 An audit runs beside the keyed ticks every
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (default 10 minutes; `0`
 turns it off). It recomputes the whole table without taking the resweep lock,
-verifies each key that differs under the lock, and queues the stale ones for the
-next keyed tick. Where it runs, the audit is the backstop for a change that left
-no dirty-log row, so its repair count should stay at zero. With
-`ESHU_POSTGRES_READ_ROUTING=staged-audits` the audit is a sweep of identifier
-ranges with a persisted cursor (#11131). Each range is one standby statement
-over the next `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_BUDGET` keyed-index
-rows (default 10,000) and one writer transaction that verifies the range's
-differing keys and advances the cursor. An audit tick runs ranges back to back
-for up to `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET` (default 5
-minutes), so the sweep spans many ticks and resumes after a roll from the
-stored cursor. After a range whose verify took the resweep lock, the next
-range that needs the lock waits for a keyed commit (a moved watermark, at most
-one keyed interval), so back-to-back locked ranges cannot starve keyed ticks.
-`audit_last_success_age_seconds` restarts only when a sweep
-completes: one range is not a completed audit. Watch
-`audit_sweep_ranges_total` (flat while the audit is allowed means the sweep is
-stuck), `staged_audit_deferrals_total{reason}` for why, and
+verifies each differing key under the lock, and queues the stale ones for the
+next keyed tick: the backstop for a change that left no dirty-log row, so its
+repair count should stay at zero. With
+`ESHU_POSTGRES_READ_ROUTING=staged-audits` the audit sweeps identifier
+ranges with a persisted cursor (#11131): each range is one standby statement
+over the next `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_BUDGET`
+keyed-index rows (default 10,000) plus one writer transaction verifying the
+range's differing keys and advancing the cursor. Ranges run back to back for
+up to `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET` (default 5
+minutes), so the sweep spans ticks and resumes after a roll; after a
+lock-taking range, the next one waits for a keyed commit (moved watermark,
+at most one keyed interval), so locked ranges cannot starve keyed ticks.
+`audit_last_success_age_seconds` restarts only on a completed sweep.
+Watch `audit_sweep_ranges_total` (flat while allowed means stuck),
+`staged_audit_deferrals_total{reason}`, and
 `audit_sweep_last_completed_age_seconds` against the 24 h bar.
 
-Role-bound logins need grants for the application-code capture only. The pointer,
-scope-delete and scanner trigger functions run as their owner (`SECURITY
-DEFINER` with a pinned `search_path`), so the projector, collector, retirement
-fence, suppression store and scanner publisher logins need no privilege on the
-dirty log or the staging table. A database that uses least-privilege writer logins
-must grant `INSERT` on `supply_chain_impact_winners_dirty_staging` and `USAGE` on
-its `supply_chain_impact_winners_dirty_staging_seq` sequence to the login that
-runs the impact writer (the reducer), and `SELECT`, `INSERT` and `DELETE` on the
-staging table plus the same sequence `USAGE` to the winners maintainer, which
-also keeps its `SELECT`, `INSERT` and `DELETE` on `supply_chain_impact_winners_dirty_log`
-(the collapse merge-upsert and the settle drain both write it) and needs `SELECT`,
-`INSERT`, `UPDATE` and `DELETE` on `supply_chain_impact_winners_dirty_tally`:
-its four drain statements keep per-minute buckets, held for three hours, of
-the NVD-proxy, GHSA-proxy (#11078), and NVD scope rows they delete there, so the NVD baseline trip sampler (the coordinator login) can read
-inflow instead of survivors and needs `SELECT` on that table and on the dirty
-log (#10767, #11078). Each tally row is one capture minute of drained inflow:
-`nvd_proxy_rows` counts the CVE-% fact marks, `ghsa_proxy_rows` the GHSA-%
-fact marks, and `nvd_scope_rows` the NVD scope marks the maintainer deleted
-in that minute, each summed over `dirty_version` so one log row counts every
-mark it collapsed. The keyed tick and the audit
-also create `ON COMMIT DROP` temporary tables, so the maintainer login needs
-`TEMPORARY` on the database; `PUBLIC` holds it by default, and a database that
-revoked it fails the tick with `permission denied`. Without the writer grant the
-impact write fails with `permission denied` and the reducer retries it; nothing
-is skipped silently.
+Role-bound logins need grants for the application-code capture only: the
+pointer, scope-delete and scanner trigger functions run as their owner
+(`SECURITY DEFINER` with a pinned `search_path`), so the projector,
+collector, retirement fence, suppression store and scanner publisher logins
+need no privilege on the dirty log or staging table. A least-privilege
+database grants the impact-writer (reducer) login `INSERT` on
+`supply_chain_impact_winners_dirty_staging` plus `USAGE` on
+`supply_chain_impact_winners_dirty_staging_seq`, and the winners maintainer `SELECT`/`INSERT`/`DELETE` on
+the staging table plus the same sequence `USAGE`, keeping its
+`SELECT`/`INSERT`/`DELETE` on `supply_chain_impact_winners_dirty_log`
+(collapse merge-upsert and settle drain both write it) and needing
+`SELECT`/`INSERT`/`UPDATE`/`DELETE` on
+`supply_chain_impact_winners_dirty_tally`: its four drain statements keep
+per-minute buckets, held for three hours, of the deleted NVD-proxy,
+GHSA-proxy (#11078) and NVD scope rows, so the trip sampler (coordinator
+login) reads inflow instead of survivors and needs `SELECT` on that table
+and the dirty log (#10767, #11078). Each tally row is one capture minute:
+`nvd_proxy_rows` the CVE-% fact marks, `ghsa_proxy_rows` the GHSA-% fact
+marks, `nvd_scope_rows` the NVD scope marks deleted that minute, each
+summed over `dirty_version`. The keyed tick and audit also create
+`ON COMMIT DROP` temp tables, so the maintainer needs `TEMPORARY` on the
+database (`PUBLIC` holds it by default; revoked means the tick fails with
+`permission denied`). Without the writer grant the impact write fails with
+`permission denied` and the reducer retries; nothing is skipped silently.
 
 The winners path is forward-only across the staging change (#10837,
-migrations 309-311): the capture triggers stage every activation, operator,
-scanner, and scope-delete mark, and only the new maintainer tick collapses
-staging into the dirty log. A binary older than that change running against
-the new schema still writes fact captures straight to the log, but its tick
-consumes only the dirty log, so trigger-sourced marks sit staged and invisible
-until re-upgrade (the audit, where it can run, re-queues some via the log path, not all).
-Never run an old maintainer or old triggers against the new schema except
-transiently during the roll; roll back by re-upgrading and letting the new
-tick collapse the backlog, not by downgrading the binary alone.
+migrations 309-311): capture triggers stage every mark and only the new
+maintainer tick collapses staging into the dirty log. An older binary against
+the new schema writes fact captures straight to the log but its tick reads
+only the dirty log, so staged trigger marks sit invisible until re-upgrade
+(the audit re-queues some via the log path, not all). Never run an old
+maintainer or old triggers against the new schema except transiently during
+the roll; roll back by re-upgrading and letting the new tick collapse the
+backlog, not by downgrading the binary alone.
 
 ## Enrichment freshness
 
@@ -390,40 +391,25 @@ No label carries a canonical key, scope, repository, or CVE.
   findings really are changing; check the findings counters before blaming the
   maintainer.
 - Then read the resweep duration by `path`. A keyed tick follows the number of
-  changed keys. The synthetic scale harness measured about 0.36 seconds for one
-  keyed tick at its 1x corpus, and about 5.6 seconds for the full resweep on the
-  same corpus (#9805). On
-  the QA baseline, a different corpus on a different host, the full resweep took
-  about 40 seconds per statement before this change (#9774), nearly all of it
-  the read. Do not
-  compare those two scales with each other. What carries over is the gap: a
-  `full` or `audit` duration is expected to be long, because it reads every
-  finding, and a `keyed` duration close to the full-resweep time is an incident.
-  Look for a plan change on the winners query and for `keys_per_sweep` near the
-  cap. Raising the cadence is not the fix.
+  changed keys. Scale anchors do not compare across corpora (#9805 synthetic:
+  0.36 s keyed, 5.6 s full; #9774 QA baseline: ~40 s per statement, nearly
+  all read). What carries over is the gap: `full`/`audit` is expected long
+  (reads every finding); `keyed` near full-resweep time is an incident. Look
+  for a plan change and `keys_per_sweep` near the cap, not the cadence.
 - When a keyed tick is slow, split it by phase with
-  `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds{phase}`, for
-  example `histogram_quantile(0.95, sum by (le, phase) (rate(eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds_bucket[15m])))`.
-  Time in `build_idents` or `build_active_facts` is the read side, the probe into
-  `fact_records`, so look at buffer reads and CPU throttling on the database
-  host. Time in `apply` or `commit` is the write side. Time in `collapse` is the
-  staging drain: the GROUP BY merge-upsert plus the seq-bounded delete, so look
-  at the staged-row count that tick (the `staging_collapsed_rows_total` rate)
-  and the collapse budget. Time in `consume` points
-  at the dirty-log delete. A `full_rebuild` phase means the tick went over the
-  cap. A rising `claim` means the transaction begin or the try-lock round trip
-  is slow, not the work. The phases of one tick add up to nearly its
-  `resweep_duration_seconds` sample, and the histogram does not tie a sample to
-  one tick, so match a slow tick to its phase by the time of the jump in the
-  bucket counts. The `build_active_facts` probe cost model is one index descent
-  on `fact_records_supply_chain_impact_winners_keyed_idx` plus the kept facts'
-  heap rows per dirty identifier (about 13 kept facts per identifier on the QA
-  corpus), so a slow `build_active_facts` at ordinary identifier counts means
-  the probe lost its index (check the plan) or the kept set itself grew, not
-  that untouched triples are being fetched. Any peak-watermark verdict reads
-  the peak as the maximum over the window of the per-instant `min()` across
-  instances, never one instance's maximum: a starting or dying instance's
-  first-stamp lag is not reader staleness.
+  `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds{phase}`.
+  `build_idents`/`build_active_facts` is the read side (the supports probe
+  since #10880 PR-C1): check buffer reads and CPU throttling.
+  `apply`/`commit` is the write side; `collapse` is the staging drain (see
+  its staged-row rate and budget); `consume` points at the dirty-log delete.
+  `full_rebuild` means over the cap; rising `claim` means a slow begin or
+  try-lock round trip, not slow work. Match a slow tick to its phase by the
+  jump time in the bucket counts. The `build_active_facts` cost model is one
+  index descent plus the kept facts' heap rows per dirty identifier (~13 kept
+  facts per identifier on QA), so slowness at ordinary counts means a lost
+  index (check the plan) or a grown kept set. Peak-watermark verdicts read
+  the maximum over the window of the per-instant `min()` across instances,
+  never one instance's maximum.
 - Then read the dirty log. `dirty_log_depth` should return to near zero after
   each keyed tick, and `dirty_log_oldest_age_seconds` bounds how far a winner
   can lag its facts. Every tick admits the oldest captures first, so while
