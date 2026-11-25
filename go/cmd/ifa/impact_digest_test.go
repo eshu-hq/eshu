@@ -4,10 +4,13 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	impactdigest "github.com/eshu-hq/eshu/go/internal/ifa/impact/digest"
@@ -62,5 +65,109 @@ func TestImpactDigestFlagsRejectTwoPins(t *testing.T) {
 	}
 	if got, err := expectedImpactDigest(impactDigestOptions{expectFile: pin}); err != nil || got != "abc123" {
 		t.Fatalf("expectedImpactDigest(pinned file) = %q, %v, want abc123", got, err)
+	}
+}
+
+// TestImpactDigestErrorPathsAreHermetic pins the flag-before-backend ordering
+// the AGENTS.md invariants require of every verb: a bad flag, a missing pin
+// file, and a missing Postgres DSN each fail before any database is opened,
+// so these tests run with no Docker, no Postgres, and no network.
+func TestImpactDigestErrorPathsAreHermetic(t *testing.T) {
+	t.Parallel()
+
+	t.Run("bad flag", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := parseImpactDigestFlags([]string{"-bogus-flag"}, io.Discard); err == nil {
+			t.Fatal("parseImpactDigestFlags(-bogus-flag) = nil error, want a flag error")
+		}
+		var stdout, stderr bytes.Buffer
+		err := runImpactDigestCommand(context.Background(), []string{"-bogus-flag"}, &stdout, &stderr)
+		if err == nil {
+			t.Fatal("runImpactDigestCommand(-bogus-flag) = nil error, want a flag error")
+		}
+	})
+
+	t.Run("valid flags parse", func(t *testing.T) {
+		t.Parallel()
+
+		o, err := parseImpactDigestFlags([]string{"-expect", "abc123"}, io.Discard)
+		if err != nil {
+			t.Fatalf("parseImpactDigestFlags(-expect) error = %v", err)
+		}
+		if o.expect != "abc123" {
+			t.Fatalf("parseImpactDigestFlags(-expect) expect = %q, want abc123", o.expect)
+		}
+	})
+
+	t.Run("expect is trimmed", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := expectedImpactDigest(impactDigestOptions{expect: "  abc123\n"})
+		if err != nil || got != "abc123" {
+			t.Fatalf("expectedImpactDigest(padded expect) = %q, %v, want abc123", got, err)
+		}
+	})
+
+	t.Run("missing pin file", func(t *testing.T) {
+		t.Parallel()
+
+		missing := filepath.Join(t.TempDir(), "does-not-exist.txt")
+		if _, err := expectedImpactDigest(impactDigestOptions{expectFile: missing}); err == nil {
+			t.Fatal("expectedImpactDigest(missing file) = nil error, want a read error")
+		} else if !strings.Contains(err.Error(), missing) {
+			t.Fatalf("error = %v, want it to name the missing pin file %q", err, missing)
+		}
+		var stdout, stderr bytes.Buffer
+		err := runImpactDigestCommand(context.Background(), []string{"-expect-file", missing}, &stdout, &stderr)
+		if err == nil {
+			t.Fatal("runImpactDigestCommand(missing pin file) = nil error, want a read error")
+		} else if !strings.Contains(err.Error(), "read -expect-file") {
+			t.Fatalf("error = %v, want it to wrap the pin-file read", err)
+		}
+	})
+
+	t.Run("exclusive pins", func(t *testing.T) {
+		t.Parallel()
+
+		var stdout, stderr bytes.Buffer
+		err := runImpactDigestCommand(context.Background(),
+			[]string{"-expect", "abc", "-expect-file", "x"}, &stdout, &stderr)
+		if err == nil {
+			t.Fatal("runImpactDigestCommand(two pins) = nil error, want the exclusivity error")
+		} else if !strings.Contains(err.Error(), "exclusive") {
+			t.Fatalf("error = %v, want the -expect/-expect-file exclusivity error", err)
+		}
+	})
+}
+
+// TestRunImpactDigestCommandRequiresPostgresDSN proves the verb opens Postgres
+// only after its inputs check out, and names the missing DSN when no database
+// is configured. It unsets the DSN keys so it stays hermetic even on a machine
+// with a live database configured.
+func TestRunImpactDigestCommandRequiresPostgresDSN(t *testing.T) {
+	for _, key := range []string{"ESHU_FACT_STORE_DSN", "ESHU_CONTENT_STORE_DSN", "ESHU_POSTGRES_DSN"} {
+		t.Setenv(key, "")
+	}
+
+	var stdout, stderr bytes.Buffer
+	err := runImpactDigestCommand(context.Background(), []string{"-expect", "abc123"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("runImpactDigestCommand without a DSN = nil error, want the missing-DSN error")
+	} else if !strings.Contains(err.Error(), "open postgres") {
+		t.Fatalf("error = %v, want it to name the postgres open", err)
+	}
+}
+
+// TestRunDispatchesImpactDigest pins the main dispatch entry for the verb: a
+// bad flag through the top-level run still reaches runImpactDigestCommand and
+// fails on the flag, proving the case arm is wired without opening a backend.
+func TestRunDispatchesImpactDigest(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+	err := run(context.Background(), []string{"impact-digest", "-bogus-flag"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("run(impact-digest -bogus-flag) = nil error, want a flag error")
 	}
 }

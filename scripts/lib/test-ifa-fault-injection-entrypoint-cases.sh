@@ -155,6 +155,7 @@ run_ifa_fault_cell_catalog_cases() {
 			restartbackend) label="restart-backend-between-phase-groups" ;;
 			duplicatedelivery) label="duplicate-delivery" ;;
 			deltaretract) label="delta-retract" ;;
+			impact_family) label="impact-family" ;;
 			*) fail "no catalog-label translation for dispatched cell ${cell}; extend the roster check, not just the catalog" ;;
 		esac
 		actual_title="$(sed -n "s/^${pos}\\. \\([^ ]*\\) .*/\\1/p" "${catalog}" | head -n 1)"
