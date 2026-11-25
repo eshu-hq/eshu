@@ -145,15 +145,15 @@ rows:
 
   - contract_ref: conflict:one-per-group-committed/pending
     surface: reducer conflict-key fencing across concurrent claimers
-    class: env_gated
-    runners: [manual-dsn]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "Concurrent claimers on a shared conflict key fence to one holder while disjoint keys proceed and the fenced sibling becomes claimable after ack, proved on disposable Postgres but only with an operator DSN; the 10879 lease mirror pins the one-per-group uniqueness the same way"
+    reason: "Concurrent claimers on a shared conflict key fence to one holder while disjoint keys proceed and the fenced sibling becomes claimable after ack; the 10879 lease mirror pins the one-per-group uniqueness the same way; enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/reducer_queue_conflict_claim_proof_test.go
+      - file: go/internal/storage/postgres/reducer_queue_conflict_claim_proof_live_test.go
         tests: [TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey, TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys, TestReducerClaimFencedSiblingBecomesClaimableAfterAck]
-      - file: go/internal/storage/postgres/reducer_queue_10879_lease_test.go
+      - file: go/internal/storage/postgres/reducer_queue_10879_lease_live_test.go
         tests: [TestReducerQueue10879OnePerGroupLeaseUnique]
 
   - contract_ref: batch:fail-batch

@@ -59,6 +59,11 @@ tests:
     class: postgres_ci
     reason: "#9545 reducer lease-expiry startup-window proof: the immediate pre-heartbeat extends the 150 ms startup claim before the executor enters, so a concurrent reclaim sweep never sees an expired claim_until while the worker holds the intent; a rejected pre-heartbeat fails as executor-never-entered rather than a lease lost mid-execution; disposable PostgreSQL databases through postgresproof with the production claim token; enrolled in the live-postgres-readiness runner; TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres 4.77s on local PostgreSQL 18.6 on 2026-10-30"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_10879_lease_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "10879 lease-mirror one-per-group proof (a duplicate lease insert on the claimed conflict key fails as a live-lease conflict and exactly one mirror row survives), untagged and gated by the ESHU_REDUCER_CLAIM_BENCH_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_advisory_coalescing_live_test.go
     tag: ~
     class: postgres_ci
@@ -98,6 +103,10 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "claim:batch fairness proof (a single ClaimBatch lane over two domains never lets an older continuously-regenerated high-volume backlog starve a newer lower-volume domain, and the fairness rank excludes non-claimable inactive-generation rows so they cannot inflate a domain rank), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner"
+  - file: go/internal/storage/postgres/reducer_queue_conflict_claim_proof_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "reducer conflict-key fencing proof for issue #3558 (eight concurrent claimers on one shared key hold at most one live lease, disjoint keys both claim concurrently so the fence never serializes, and the fenced sibling drains after ack), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go
     tag: ~
