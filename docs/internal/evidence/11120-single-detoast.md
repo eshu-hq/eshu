@@ -47,6 +47,24 @@ Same heap buffers on both arms in every pair (313); the gap is CPU (detoast).
   plus the c0/priority/flag/suppression derivations match on every row, and
   the CASE guard returns NULLs instead of erroring on non-objects.
 
+## Evidence markers
+
+- Performance Evidence: local PG18.6, baseline 74.9 ms vs 16.4 ms after on
+  5,000 x ~3.4 KB toasted payloads (warm cache, identical 313-buffer heap
+  reads on both arms; 5,000 rows in and out). The full body select list
+  (~19 distinct fields, ~25 reads) drives the win; the 5-field ident list
+  measures 17.9 ms vs 10.3 ms. Same-machine relative improvement only; the
+  end-to-end keyed-tick proof is criterion 1's bounded replay in its own
+  lane.
+- Observability Evidence: no new signals. The improvement is visible in the
+  existing maintainer tick telemetry: per-tick duration and the
+  scanned/kept-copy counts in the tick result and logs, plus the keyed-tick
+  duty and dirty-depth gauges the QA live reading (criterion 4) samples
+  after deploy. The change is safe by construction of the differential:
+  hermetic reversal proves the shipped text differs from the legacy text
+  only by the live-proven field pairs, every rewritten statement plans on
+  PG18, and the probe, bucket, and array exceptions are pinned by tests.
+
 ## Falsifiers checked
 
 - Non-object payloads: `jsonb_to_record` ERRORS on scalars (`cannot call

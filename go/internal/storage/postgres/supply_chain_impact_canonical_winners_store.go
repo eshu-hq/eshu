@@ -147,7 +147,8 @@ const supplyChainImpactSourceCandidateEligibilitySQL = `FROM active_facts AS fac
 
 // supplyChainImpactWinnerBodySQL is the select after the active_facts CTE. It
 // starts with the comma that joins it to a preceding WITH clause (#11120:
-// candidate CTEs extract every text field once; see winners_detoast.go).
+// candidate CTEs extract every text field once; see the detoast section of
+// supply_chain_impact_winners_supports_input.go).
 var supplyChainImpactWinnerBodySQL = `,
 source_candidates AS (
     SELECT
