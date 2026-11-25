@@ -48,8 +48,13 @@ func (s SupplyChainImpactWinnersStore) pinResweepStatementTimeout(ctx context.Co
 }
 
 // formatWinnersResweepTimeout renders a timeout for Postgres set_config,
-// following the winners wake lock_timeout precedent.
+// following the winners wake lock_timeout precedent. A positive timeout
+// below one millisecond clamps up to 1 ms: Postgres reads "0ms" as no
+// timeout, which would silently disable a guard the operator set.
 func formatWinnersResweepTimeout(timeout time.Duration) string {
+	if timeout > 0 && timeout < time.Millisecond {
+		timeout = time.Millisecond
+	}
 	return fmt.Sprintf("%dms", timeout.Milliseconds())
 }
 
