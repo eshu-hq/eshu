@@ -56,17 +56,17 @@ func seedSupHolderSecondCVE(t *testing.T, c *convergence) {
 	)
 }
 
-// supStatesByCVE returns the holder scope's active finding state per CVE.
+// supStatesByCVE returns the holder scope's active finding state per CVE,
+// read from the supports table the writer maintains (#10880 PR-C2).
 func supStatesByCVE(t *testing.T, c *convergence, holder string, cves ...string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	for _, cve := range cves {
 		var state string
 		if err := c.db.QueryRowContext(c.ctx, `
-SELECT COALESCE(f.payload->>'suppression_state','') FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1 AND f.payload->>'cve_id' = $2`, holder, cve).Scan(&state); err != nil {
+SELECT s.suppression_state FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1 AND s.cve_id = $2`, holder, cve).Scan(&state); err != nil {
 			t.Fatalf("read %s state: %v", cve, err)
 		}
 		out[cve] = state
@@ -384,14 +384,16 @@ func supConcurrentDrain(t *testing.T, c *convergence, rt *reducer.Runtime, worke
 	return time.Since(started)
 }
 
+// supCountScopeRows counts one CVE's active finding rows in the scopes the
+// pattern names, read from the supports table the writer maintains
+// (#10880 PR-C2).
 func supCountScopeRows(t *testing.T, c *convergence, like, cve, state string) int {
 	t.Helper()
 	var n int
 	if err := c.db.QueryRowContext(c.ctx, `
-SELECT count(*) FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id LIKE $1 AND f.payload->>'cve_id' = $2 AND COALESCE(f.payload->>'suppression_state','') = $3`, like, cve, state).Scan(&n); err != nil {
+SELECT count(*) FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id LIKE $1 AND s.cve_id = $2 AND s.suppression_state = $3`, like, cve, state).Scan(&n); err != nil {
 		t.Fatalf("count finding rows: %v", err)
 	}
 	return n

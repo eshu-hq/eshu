@@ -11,7 +11,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
@@ -213,9 +212,9 @@ func runQuiesceAfterOneChange(t *testing.T, seeded bool) quiesceResult {
 	// (dirtyIdentifiersToCapture compares within a generation only). Anything
 	// beyond that came from a pass the rescan should not have caused.
 	var ownRows int
-	if err := c.db.QueryRowContext(c.ctx, `SELECT count(*) FROM fact_records
-WHERE scope_id = $1 AND generation_id = $2 AND fact_kind = $3 AND NOT is_tombstone`,
-		convergenceSource, fanOutGen(convergenceSource, "g2"), facts.ReducerSupplyChainImpactFindingFactKind).Scan(&ownRows); err != nil {
+	if err := c.db.QueryRowContext(c.ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2`,
+		convergenceSource, fanOutGen(convergenceSource, "g2")).Scan(&ownRows); err != nil {
 		t.Fatalf("count rescanned rows: %v", err)
 	}
 	if staged := c.stagedFactMarks(watermark); staged > ownRows {

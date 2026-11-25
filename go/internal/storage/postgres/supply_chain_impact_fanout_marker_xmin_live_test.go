@@ -47,8 +47,8 @@ func TestUpdateFanOutStateMarkerKeepsRowsOutsideTheStampLive(t *testing.T) {
 		t.Helper()
 		var v string
 		if err := c.db.QueryRowContext(c.ctx, `
-SELECT xmin::text FROM fact_records WHERE scope_id = $1 AND fact_kind = $2 AND NOT is_tombstone AND payload->>'cve_id' = $3`,
-			holder, facts.ReducerSupplyChainImpactFindingFactKind, cve).Scan(&v); err != nil {
+SELECT xmin::text FROM supply_chain_impact_finding_supports WHERE scope_id = $1 AND cve_id = $2`,
+			holder, cve).Scan(&v); err != nil {
 			t.Fatalf("fixture: the holder holds no active row for %s: %v", cve, err)
 		}
 		return v

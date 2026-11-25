@@ -221,9 +221,15 @@ func TestSupplyChainImpactCappedScopeConvergesLive(t *testing.T) {
 		`{"package_id":"pkg:npm/example","relationship_kind":"consumption","repository_id":"repo://example/api",
 		  "dependency_range":"1.2.3","canonical_writes":1,"evidence_fact_ids":["manifest-lock-1"]}`)
 	// The stale row: an earlier pass's finding the current evidence no longer
-	// derives. Same (scope, generation, kind) as the pass under test.
+	// derives. Same (scope, generation, kind) as the pass under test. The
+	// writer maintains supports, not finding facts (#10880 PR-C2), so the
+	// proof syncs the planted fact to its support afterwards: the stale
+	// support is what the pass under test must retire.
 	replaceSetPlantRow(t, ctx, db, "stale-finding:7154", replaceSetLiveScope, replaceSetLiveGeneration,
 		facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("sync supports from the planted facts: %v", err)
+	}
 
 	capture := &capturingImpactWriter{inner: replaceSetWriter(db)}
 	handler := supplychaincore.SupplyChainImpactHandler{
@@ -251,21 +257,29 @@ func TestSupplyChainImpactCappedScopeConvergesLive(t *testing.T) {
 	if capture.write.PartialEvidence {
 		t.Fatalf("PartialEvidence = true for a scope that pages to completion (%d targets): the stale finding would stay forever", targets)
 	}
-	var tombstoned bool
+	// Retraction deletes supports (#10880 PR-C2 i): the stale support must be
+	// gone after a pass over a scope larger than one reader page. The frozen
+	// fact row stays as history; it is the support the pass retires.
+	var staleSupports int
+	if err := db.QueryRowContext(ctx,
+		`SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = 'stale-finding:7154'`,
+	).Scan(&staleSupports); err != nil || staleSupports != 0 {
+		t.Fatalf("stale finding supports = %d (err %v), want 0: a capped scope must converge (#7154)", staleSupports, err)
+	}
+	var staleTombstoned bool
 	if err := db.QueryRowContext(ctx,
 		`SELECT is_tombstone FROM fact_records WHERE fact_id = 'stale-finding:7154'`,
-	).Scan(&tombstoned); err != nil {
-		t.Fatalf("read stale row: %v", err)
+	).Scan(&staleTombstoned); err != nil {
+		t.Fatalf("read stale fact row: %v", err)
 	}
-	if !tombstoned {
-		t.Fatal("stale finding is still active after a pass over a scope larger than one reader page; a capped scope must converge (#7154)")
+	if staleTombstoned {
+		t.Fatal("the frozen stale fact row was tombstoned: retraction deletes the support and leaves history alone")
 	}
 	var lateOSFindings int
 	if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM fact_records
-WHERE fact_kind = $1 AND scope_id = $2 AND generation_id = $3 AND is_tombstone = FALSE
-  AND payload->>'cve_id' = 'CVE-2026-71542'`,
-		facts.ReducerSupplyChainImpactFindingFactKind, replaceSetLiveScope, replaceSetLiveGeneration,
+SELECT count(*) FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2 AND cve_id = 'CVE-2026-71542'`,
+		replaceSetLiveScope, replaceSetLiveGeneration,
 	).Scan(&lateOSFindings); err != nil {
 		t.Fatalf("count late OS findings: %v", err)
 	}
@@ -274,9 +288,9 @@ WHERE fact_kind = $1 AND scope_id = $2 AND generation_id = $3 AND is_tombstone =
 	}
 	var active int
 	if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM fact_records
-WHERE fact_kind = $1 AND scope_id = $2 AND generation_id = $3 AND is_tombstone = FALSE`,
-		facts.ReducerSupplyChainImpactFindingFactKind, replaceSetLiveScope, replaceSetLiveGeneration,
+SELECT count(*) FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2`,
+		replaceSetLiveScope, replaceSetLiveGeneration,
 	).Scan(&active); err != nil {
 		t.Fatalf("count active findings: %v", err)
 	}
