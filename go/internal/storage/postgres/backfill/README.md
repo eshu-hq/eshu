@@ -176,6 +176,41 @@ existing `eshu_dp_deferred_backfill_duration_seconds` histogram and the
 read, and the `catalog_load` block (#8138) times the whole catalog loader
 call.
 
+## Bounded backfill reads (#11460)
+
+The anchor-scoped and ArgoCD config loads page by the
+`(observed_at, fact_id)` keyset with a bounded LIMIT (5,000 rows). Each page
+runs in its own short transaction carrying `SET LOCAL statement_timeout`
+(300s on the unbounded loaders, 120s per deferred partition) and a
+path-distinct `application_name` (`eshu-backfill-per-commit`,
+`eshu-backfill-deferred`, `eshu-backfill-targeted`), committed before the
+next page begins; the overall load ctx is 330s. No read transaction is held
+across client-side processing and no cursor `WITH HOLD` exists on these
+paths. The per-commit fact load and discovery run on the store connection
+outside the barrier transaction, which covers only the evidence write.
+
+Performance Evidence: disposable PostgreSQL 18.6, 12,000 matching content
+facts plus 50 non-matching noise rows, one shared `observed_at`. Three full
+anchor loads return all 12,000 facts exactly once in 0.13 s each (0.39 s
+total; 1,428,000 payload bytes per pass). `EXPLAIN (ANALYZE, BUFFERS)` of
+both page shapes carries the `Limit` into the plan with the row comparison
+as an index condition (cursor page: 13.8 ms, 460 shared hits). A concurrent
+`CREATE INDEX CONCURRENTLY` completes in 0.04 s while the loader runs: no
+page holds a snapshot the build must wait out.
+
+No-Regression Evidence: the two shipped corpus query texts are
+byte-identical after the body split (pinned by the pages-derive-from-base
+test plus reviewer byte-compare), so the pages select exactly the rows the unpaged
+query did. The hermetic anchor parity suite (paged loads through a
+keyset-emulating fake) and the live parity proofs pass unchanged:
+discovery over the paged loads equals the fleet answer with zero lost rows.
+
+Observability Evidence: each path stamps its `application_name` per page
+transaction; the per-commit name was sampled live from `pg_stat_activity`
+while the loader ran, and zero non-idle backfill backends remain after the
+loads return. Existing block telemetry (the `fact_load` block, the
+per-partition duration and fact-count histograms) is unchanged.
+
 ## Gotchas / invariants
 
 - Batches publish nothing partition-wide. Readiness and memo rows come

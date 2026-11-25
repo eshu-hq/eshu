@@ -68,11 +68,11 @@ func TestLoadOnboardedRepoScopedRelationshipFactsPassesAnchorsAndScans(t *testin
 		t.Fatalf("issued %d queries, want 1", len(queryer.queries))
 	}
 	call := queryer.queries[0]
-	if call.query != ListOnboardedRepoScopedRelationshipFactRecordsQuery {
+	if call.query != ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery {
 		t.Fatalf("unexpected query:\n%s", call.query)
 	}
-	if len(call.args) != 1 {
-		t.Fatalf("query args = %d, want 1", len(call.args))
+	if len(call.args) != 2 {
+		t.Fatalf("query args = %d, want 2 (LIKE terms + LIMIT)", len(call.args))
 	}
 	likeArgs, ok := call.args[0].(array.StringArray)
 	if !ok {
@@ -80,6 +80,9 @@ func TestLoadOnboardedRepoScopedRelationshipFactsPassesAnchorsAndScans(t *testin
 	}
 	if len(likeArgs) != 1 || likeArgs[0] != "%payments-service%" {
 		t.Fatalf("LIKE args = %v, want [%%payments-service%%]", []string(likeArgs))
+	}
+	if limit, ok := call.args[1].(int); !ok || limit != backfillFactPageSize {
+		t.Fatalf("LIMIT arg = %#v, want %d", call.args[1], backfillFactPageSize)
 	}
 }
 
@@ -152,7 +155,7 @@ func TestLoadOnboardedRepoScopedRelationshipFactsBudgetFailsLoudly(t *testing.T)
 	}
 
 	loaded, stats, err := loadOnboardedRepoScopedRelationshipFactsBudget(
-		context.Background(), queryer, []string{"payments-service"}, RelationshipFactLoadBudget{MaxBytes: 1})
+		context.Background(), queryer, []string{"payments-service"}, RelationshipFactLoadBudget{MaxBytes: 1}, backfillFactPageSize)
 	if !errors.Is(err, ErrRelationshipFactLoadBudgetExceeded) {
 		t.Fatalf("err = %v, want ErrRelationshipFactLoadBudgetExceeded", err)
 	}
@@ -181,7 +184,7 @@ func TestLoadOnboardedRepoScopedRelationshipFactsBudgetUnboundedReportsStats(t *
 	}
 
 	loaded, stats, err := loadOnboardedRepoScopedRelationshipFactsBudget(
-		context.Background(), queryer, []string{"payments-service"}, RelationshipFactLoadBudget{})
+		context.Background(), queryer, []string{"payments-service"}, RelationshipFactLoadBudget{}, backfillFactPageSize)
 	if err != nil {
 		t.Fatalf("err = %v, want nil", err)
 	}

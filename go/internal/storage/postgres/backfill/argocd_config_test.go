@@ -42,11 +42,11 @@ func TestLoadArgoCDGeneratorConfigFactsPassesRepoIDsAndScans(t *testing.T) {
 		t.Fatalf("issued %d queries, want 1", len(queryer.queries))
 	}
 	call := queryer.queries[0]
-	if call.query != ListArgoCDGeneratorConfigFactRecordsQuery {
+	if call.query != ListArgoCDGeneratorConfigFactRecordsFirstPageQuery {
 		t.Fatalf("unexpected query:\n%s", call.query)
 	}
-	if len(call.args) != 1 {
-		t.Fatalf("query args = %d, want 1", len(call.args))
+	if len(call.args) != 2 {
+		t.Fatalf("query args = %d, want 2 (repo ids + LIMIT)", len(call.args))
 	}
 	repoArgs, ok := call.args[0].(array.StringArray)
 	if !ok {
@@ -54,6 +54,9 @@ func TestLoadArgoCDGeneratorConfigFactsPassesRepoIDsAndScans(t *testing.T) {
 	}
 	if len(repoArgs) != 1 || repoArgs[0] != "repo:gitops-config" {
 		t.Fatalf("repo args = %v, want [repo:gitops-config]", []string(repoArgs))
+	}
+	if limit, ok := call.args[1].(int); !ok || limit != backfillFactPageSize {
+		t.Fatalf("LIMIT arg = %#v, want %d", call.args[1], backfillFactPageSize)
 	}
 }
 

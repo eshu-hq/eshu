@@ -79,6 +79,7 @@ func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 	catalog []relationships.CatalogEntry,
 	instruments *telemetry.Instruments,
 ) ([]facts.Envelope, map[string]string, map[ScopeGenerationPartition]struct{}, error) {
+	ctx = ensureBackfillApplicationName(ctx, BackfillApplicationNameDeferred)
 	if queryer == nil {
 		return nil, nil, nil, nil
 	}
@@ -168,6 +169,10 @@ func (s Store) LoadDeferredScopedFactsAcrossPartitions(
 	partitions []ScopeGenerationPartition,
 	instruments *telemetry.Instruments,
 ) ([]facts.Envelope, map[ScopeGenerationPartition]struct{}, error) {
+	// Both production callers are the targeted-maintenance closure and pass,
+	// so the partition loads default to the targeted path name; a name set
+	// upstream still wins (issue #11460).
+	ctx = ensureBackfillApplicationName(ctx, BackfillApplicationNameTargeted)
 	loadPartitions, skippedPartitions := s.applyDeferredMemoGate(ctx, params, partitions, instruments)
 	merged, _, err := s.loadDeferredScopedFactsForPartitions(
 		ctx, queryer, params, partitions, loadPartitions, instruments,

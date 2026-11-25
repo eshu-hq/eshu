@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -252,10 +253,14 @@ func parityEnvelopes(t *testing.T, corpus []parityFact) []facts.Envelope {
 	return envelopes
 }
 
-// parityQueryer answers the two read statements the anchor-scoped load issues by
-// evaluating their predicates over the corpus. A statement it does not recognize
-// fails the test, so the harness cannot quietly drop a new read. It records the
-// row counts so a test can show what each predicate returned.
+// parityQueryer answers the four page statements the anchor-scoped load
+// issues by evaluating their predicates over the corpus and applying the
+// keyset cursor and LIMIT in memory, exactly as the database would. A
+// statement it does not recognize fails the test, so the harness cannot
+// quietly drop a new read. It records the row counts so a test can show what
+// each predicate returned. Every corpus row shares one observed_at, so the
+// harness cursor advances on fact_id alone, mirroring ORDER BY
+// (observed_at, fact_id).
 type parityQueryer struct {
 	t      *testing.T
 	corpus []parityFact
@@ -264,27 +269,87 @@ type parityQueryer struct {
 	configRows int
 }
 
+// parityObservedAt is the observed_at every corpus row carries, matching the
+// timestamp parityRows scans.
+var parityObservedAt = time.Unix(0, 0).UTC()
+
 func (q *parityQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	q.t.Helper()
-	if len(args) != 1 {
-		q.t.Fatalf("query takes %d args, want 1", len(args))
-	}
-	values, ok := args[0].(array.StringArray)
-	if !ok {
-		q.t.Fatalf("query arg is %T, want array.StringArray", args[0])
-	}
 	var matched []parityFact
 	switch query {
-	case backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery:
-		matched = q.matchAnchors(values)
+	case backfill.ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery:
+		terms, _, _, limit := q.pageArgs(args, false)
+		matched = applyFactCursor(q.matchAnchors(terms), time.Time{}, "", limit)
 		q.anchorRows += len(matched)
-	case backfill.ListArgoCDGeneratorConfigFactRecordsQuery:
-		matched = q.matchConfig(values)
+	case backfill.ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery:
+		terms, cursorAt, cursorID, limit := q.pageArgs(args, true)
+		matched = applyFactCursor(q.matchAnchors(terms), cursorAt, cursorID, limit)
+		q.anchorRows += len(matched)
+	case backfill.ListArgoCDGeneratorConfigFactRecordsFirstPageQuery:
+		repoIDs, _, _, limit := q.pageArgs(args, false)
+		matched = applyFactCursor(q.matchConfig(repoIDs), time.Time{}, "", limit)
+		q.configRows += len(matched)
+	case backfill.ListArgoCDGeneratorConfigFactRecordsCursorPageQuery:
+		repoIDs, cursorAt, cursorID, limit := q.pageArgs(args, true)
+		matched = applyFactCursor(q.matchConfig(repoIDs), cursorAt, cursorID, limit)
 		q.configRows += len(matched)
 	default:
 		q.t.Fatalf("unexpected statement:\n%s", query)
 	}
 	return &parityRows{t: q.t, facts: matched}, nil
+}
+
+// pageArgs splits one page's bind parameters: the string-array predicate plus,
+// on cursor pages, the (observed_at, fact_id) cursor. LIMIT is always last.
+func (q *parityQueryer) pageArgs(args []any, cursor bool) (values []string, cursorAt time.Time, cursorID string, limit int) {
+	q.t.Helper()
+	want := 2
+	if cursor {
+		want = 4
+	}
+	if len(args) != want {
+		q.t.Fatalf("query takes %d args, want %d (predicate, cursor, LIMIT)", len(args), want)
+	}
+	arrayArgs, ok := args[0].(array.StringArray)
+	if !ok {
+		q.t.Fatalf("query arg is %T, want array.StringArray", args[0])
+	}
+	values = []string(arrayArgs)
+	offset := 1
+	if cursor {
+		at, ok := args[1].(time.Time)
+		if !ok {
+			q.t.Fatalf("cursor observed_at arg is %T, want time.Time", args[1])
+		}
+		id, ok := args[2].(string)
+		if !ok {
+			q.t.Fatalf("cursor fact_id arg is %T, want string", args[2])
+		}
+		cursorAt, cursorID, offset = at, id, 3
+	}
+	limitArg, ok := args[offset].(int)
+	if !ok {
+		q.t.Fatalf("LIMIT arg is %T, want int", args[offset])
+	}
+	return values, cursorAt, cursorID, limitArg
+}
+
+// applyFactCursor emulates the keyset page the database serves: rows after
+// the cursor in (observed_at, fact_id) order, cut at LIMIT. The corpus shares
+// one observed_at, so the filter advances on fact_id alone.
+func applyFactCursor(rows []parityFact, cursorAt time.Time, cursorID string, limit int) []parityFact {
+	out := make([]parityFact, 0, len(rows))
+	for _, fact := range rows {
+		if parityObservedAt.After(cursorAt) ||
+			(parityObservedAt.Equal(cursorAt) && fact.factID > cursorID) {
+			out = append(out, fact)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].factID < out[j].factID })
+	if limit >= 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
 }
 
 // ExecContext satisfies db.ExecQueryer. The read path issues no writes.

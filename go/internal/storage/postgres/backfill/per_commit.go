@@ -24,6 +24,12 @@ import (
 // The scope bounding contract is unchanged from the root implementation:
 // discovery runs over the onboarding delta plus its inbound GCP sources and
 // ArgoCD config repos (see BackfillScopedCatalog), never the whole fleet.
+//
+// The fact load and discovery run through DiscoverNewRepositoryEvidence,
+// which on the PageConnProvider leg never holds a read transaction across
+// client-side processing (issue #11460): production callers run the load on
+// a dedicated connection outside any long-lived transaction, so the evidence
+// write below is the only work that holds the caller's transaction.
 func BackfillRelationshipEvidenceForNewRepositories(
 	ctx context.Context,
 	queryer db.Queryer,
@@ -36,16 +42,47 @@ func BackfillRelationshipEvidenceForNewRepositories(
 	if evidenceStore == nil || len(currentGenerationRepoIDs) == 0 {
 		return nil
 	}
-
-	newRepoIDs := make(map[string]struct{})
-	for repoID := range currentGenerationRepoIDs {
-		if _, exists := knownRepoIDs[repoID]; exists {
-			continue
-		}
-		newRepoIDs[repoID] = struct{}{}
-	}
-	if len(newRepoIDs) == 0 {
+	if len(newBackfillRepoIDs(currentGenerationRepoIDs, knownRepoIDs)) == 0 {
 		return nil
+	}
+
+	evidence, err := DiscoverNewRepositoryEvidence(
+		ctx, queryer, catalog, knownRepoIDs, currentGenerationRepoIDs,
+	)
+	if err != nil {
+		return err
+	}
+	if len(evidence) == 0 {
+		return nil
+	}
+	if err := evidenceStore.UpsertEvidenceFacts(ctx, generationID, evidence); err != nil {
+		return fmt.Errorf("persist backfilled relationship evidence: %w", err)
+	}
+
+	return nil
+}
+
+// DiscoverNewRepositoryEvidence discovers the relationship evidence for
+// repositories the current generation newly onboarded, without persisting
+// it. It is the read half of BackfillRelationshipEvidenceForNewRepositories,
+// split out so the per-commit path can run the bounded fact load and the
+// in-memory discovery outside any long-lived transaction (issue #11460): the
+// unbounded loaders page through short per-page transactions and release
+// each one before the next page begins, so no snapshot is ever held across
+// the client-side DiscoverEvidence pass. Callers run the returned evidence
+// through their own short write transaction.
+func DiscoverNewRepositoryEvidence(
+	ctx context.Context,
+	queryer db.Queryer,
+	catalog []relationships.CatalogEntry,
+	knownRepoIDs map[string]struct{},
+	currentGenerationRepoIDs map[string]struct{},
+) ([]relationships.EvidenceFact, error) {
+	ctx = ensureBackfillApplicationName(ctx, BackfillApplicationNamePerCommit)
+
+	newRepoIDs := newBackfillRepoIDs(currentGenerationRepoIDs, knownRepoIDs)
+	if len(newRepoIDs) == 0 {
+		return nil, nil
 	}
 
 	// Derive payload anchors from only the newly onboarded repositories' catalog
@@ -61,10 +98,10 @@ func BackfillRelationshipEvidenceForNewRepositories(
 	newRepoCatalog := RepositoryScopedCatalog(catalog, newRepoIDs)
 	activeFacts, err := LoadAnchorScopedRelationshipFacts(ctx, queryer, newRepoCatalog, catalog)
 	if err != nil {
-		return fmt.Errorf("load anchor-scoped facts for relationship backfill: %w", err)
+		return nil, fmt.Errorf("load anchor-scoped facts for relationship backfill: %w", err)
 	}
 	if len(activeFacts) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Scope the catalog matcher to only the repositories this generation
@@ -82,19 +119,27 @@ func BackfillRelationshipEvidenceForNewRepositories(
 	// fleet.
 	scopedCatalog := BackfillScopedCatalog(catalog, activeFacts, newRepoIDs)
 	if len(scopedCatalog) == 0 {
-		return nil
+		return nil, nil
 	}
-	evidence := relationships.DedupeEvidenceFacts(
+	return relationships.DedupeEvidenceFacts(
 		relationships.DiscoverEvidence(activeFacts, scopedCatalog),
-	)
-	if len(evidence) == 0 {
-		return nil
-	}
-	if err := evidenceStore.UpsertEvidenceFacts(ctx, generationID, evidence); err != nil {
-		return fmt.Errorf("persist backfilled relationship evidence: %w", err)
-	}
+	), nil
+}
 
-	return nil
+// newBackfillRepoIDs returns the onboarded repository IDs the current
+// generation newly introduces: present in the current generation, absent from
+// the known set.
+func newBackfillRepoIDs(
+	currentGenerationRepoIDs, knownRepoIDs map[string]struct{},
+) map[string]struct{} {
+	newRepoIDs := make(map[string]struct{})
+	for repoID := range currentGenerationRepoIDs {
+		if _, exists := knownRepoIDs[repoID]; exists {
+			continue
+		}
+		newRepoIDs[repoID] = struct{}{}
+	}
+	return newRepoIDs
 }
 
 // BackfillScopedCatalog returns the catalog entries the per-commit relationship

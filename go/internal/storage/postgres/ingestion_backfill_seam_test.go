@@ -139,8 +139,21 @@ func TestIngestionStoreCommitScopeGenerationExcludesBackfillFromMainTransaction(
 	if !strings.Contains(commitTx.queries[2].query, "INSERT INTO fact_records") {
 		t.Fatalf("transaction query[2] = %q, want fact_records upsert", commitTx.queries[2].query)
 	}
-	if got, want := len(database.queries), 0; got != want {
-		t.Fatalf("base connection query count = %d, want %d (catalog must not use a second connection)", got, want)
+	// The post-commit backfill runs its bounded fact load and discovery on the
+	// base connection OUTSIDE any long-lived transaction (issue #11460), so
+	// the only query the base connection sees here is the repository-catalog
+	// reload — an empty catalog that short-circuits the anchor load. The
+	// barrier transaction below stays write-only: it must see no fact reads.
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("base connection query count = %d, want %d (the catalog reload runs outside the barrier transaction)", got, want)
+	}
+	if !strings.Contains(database.queries[0].query, "fact_kind = 'repository'") {
+		t.Fatalf("base connection query = %q, want the repository catalog reload", database.queries[0].query)
+	}
+	for _, query := range backfillTx.queries {
+		if strings.Contains(query.query, "FROM fact_records") {
+			t.Fatalf("post-commit backfill transaction issued a fact read %q: the load runs outside the barrier transaction", query.query)
+		}
 	}
 
 	// The post-commit backfill transaction runs separately, after commitTx

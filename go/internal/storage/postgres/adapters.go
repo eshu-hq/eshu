@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -284,6 +285,53 @@ func (database SQLDB) BeginReadOnlyRepeatableRead(ctx context.Context) (db.Trans
 	}
 
 	return SQLTx{Tx: tx}, nil
+}
+
+// OpenBackfillPageConn opens a dedicated connection for one bounded backfill
+// page (issue #11460). The backfill page runner opens one connection per page,
+// runs the page in its own short transaction on it, and closes it when the
+// page finishes. A dedicated connection is what lets the runner stamp SET
+// LOCAL statement_timeout and application_name per page without touching the
+// pooled session state and without opening extra counted transactions on the
+// store handle.
+func (database SQLDB) OpenBackfillPageConn(ctx context.Context) (backfill.PageConn, error) {
+	conn, err := database.DB.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &backfillPageConn{conn: conn}, nil
+}
+
+// backfillPageConn is one dedicated connection for a bounded backfill load.
+// Its transactions are plain read-committed page transactions: each one lives
+// only for its page, so no snapshot is ever held across client-side
+// processing.
+type backfillPageConn struct {
+	conn *sql.Conn
+}
+
+// QueryContext implements Queryer against the dedicated connection.
+func (c *backfillPageConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return c.conn.QueryContext(ctx, query, args...)
+}
+
+// ExecContext implements Executor against the dedicated connection.
+func (c *backfillPageConn) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return c.conn.ExecContext(ctx, query, args...)
+}
+
+// Begin opens a page transaction on the dedicated connection.
+func (c *backfillPageConn) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := c.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return SQLTx{Tx: tx}, nil
+}
+
+// Close returns the dedicated connection to the pool.
+func (c *backfillPageConn) Close() error {
+	return c.conn.Close()
 }
 
 // SQLTx adapts a *sql.Tx into the storage transaction surface.

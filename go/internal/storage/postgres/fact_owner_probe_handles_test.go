@@ -82,6 +82,7 @@ func factOwnerNotWriteHandles() map[string]string {
 	return map[string]string{
 		"instrumentedTransaction":  "a db.Queryer itself; wraps SQLTx for telemetry",
 		"schemaConnectionExecutor": "runs schema bootstrap DDL on a dedicated connection; no reducer writer receives it",
+		"backfillPageConn":         "runs bounded backfill page reads (issue #11460) on a dedicated connection; no reducer writer receives it",
 	}
 }
 

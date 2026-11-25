@@ -77,6 +77,9 @@ func (s Store) resolveTargetedMaintenanceClosure(
 	hasAnchors bool,
 	active map[backfill.ScopeGenerationPartition]struct{},
 ) (targetedMaintenanceClosure, backfill.RelationshipFactLoadStats, error) {
+	// The inbound anchor load and the owned-partition loads below run the
+	// shared backfill loaders; name them as the targeted path (#11460).
+	ctx = backfill.WithBackfillApplicationName(ctx, backfill.BackfillApplicationNameTargeted)
 	closure := targetedMaintenanceClosure{owed: make(map[backfill.ScopeGenerationPartition]struct{}, len(active))}
 	for partition := range active {
 		closure.owed[partition] = struct{}{}

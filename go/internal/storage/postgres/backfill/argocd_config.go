@@ -5,6 +5,8 @@ package backfill
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -35,7 +37,11 @@ import (
 // file argocdGeneratorPathMatches could select has one of them. repo_id ANY($1)
 // bounds the load to the resolved config repos, and the latest-generation join
 // matches the other relationship-fact loaders.
-const ListArgoCDGeneratorConfigFactRecordsQuery = LatestGenerationCTE + `
+// argoCDGeneratorConfigFactSelectBody is the shared SELECT body behind the
+// ArgoCD config-repo fact reads. The unpaged query and both keyset pages
+// derive from it by appending their own tail, so the three statements cannot
+// drift apart (issue #11460).
+const argoCDGeneratorConfigFactSelectBody = LatestGenerationCTE + `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -64,8 +70,28 @@ WHERE latest.generation_id IS NOT NULL
         lower(COALESCE(fact.payload->>'content_path', fact.payload->>'relative_path', '')) LIKE '%.yaml'
      OR lower(COALESCE(fact.payload->>'content_path', fact.payload->>'relative_path', '')) LIKE '%.yml'
      OR lower(COALESCE(fact.payload->>'content_path', fact.payload->>'relative_path', '')) LIKE '%.json'
-      )
+      )`
+
+const ListArgoCDGeneratorConfigFactRecordsQuery = argoCDGeneratorConfigFactSelectBody + `
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
+`
+
+// ListArgoCDGeneratorConfigFactRecordsFirstPageQuery is the first keyset page
+// of the config reload: the shipped query with a bounded LIMIT. Later pages
+// use the cursor variant below.
+const ListArgoCDGeneratorConfigFactRecordsFirstPageQuery = argoCDGeneratorConfigFactSelectBody + `
+ORDER BY fact.observed_at ASC, fact.fact_id ASC
+LIMIT $2
+`
+
+// ListArgoCDGeneratorConfigFactRecordsCursorPageQuery is the follow-on keyset
+// page: the shipped query narrowed to rows after the ($2, $3) cursor with a
+// bounded LIMIT. It stays a separate statement from the first page so the row
+// comparison is a plain predicate under a generic plan (the #6154 lesson).
+const ListArgoCDGeneratorConfigFactRecordsCursorPageQuery = argoCDGeneratorConfigFactSelectBody + `
+AND ((fact.observed_at, fact.fact_id) > ($2, $3))
+ORDER BY fact.observed_at ASC, fact.fact_id ASC
+LIMIT $4
 `
 
 // LoadArgoCDGeneratorConfigFacts loads the latest-generation .yaml/.yml/.json
@@ -73,38 +99,96 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 // IDs. It returns nil without querying when configRepoIDs is empty, so the
 // per-commit backfill skips phase two when no ApplicationSet targets a config
 // repo.
+//
+// The load pages by the (observed_at, fact_id) keyset with a bounded LIMIT
+// (issue #11460): every page runs in its own short transaction carrying the
+// caller's statement timeout and application_name, committed before the next
+// page begins. A page that dies to statement_timeout — or an overall load
+// that outlives its context deadline — fails loudly, never silently
+// truncating the config set.
 func LoadArgoCDGeneratorConfigFacts(
 	ctx context.Context,
 	queryer db.Queryer,
 	configRepoIDs []string,
 ) ([]facts.Envelope, error) {
+	return loadArgoCDGeneratorConfigFactsPaged(ctx, queryer, configRepoIDs, backfillFactPageSize)
+}
+
+// loadArgoCDGeneratorConfigFactsPaged is LoadArgoCDGeneratorConfigFacts with
+// an explicit page size, so tests can force multi-page loads.
+func loadArgoCDGeneratorConfigFactsPaged(
+	ctx context.Context,
+	queryer db.Queryer,
+	configRepoIDs []string,
+	pageSize int,
+) ([]facts.Envelope, error) {
 	if queryer == nil || len(configRepoIDs) == 0 {
 		return nil, nil
 	}
-
-	rows, err := queryer.QueryContext(
-		ctx,
-		ListArgoCDGeneratorConfigFactRecordsQuery,
-		array.StringArray(configRepoIDs),
-	)
-	if err != nil {
-		return nil, err
+	if pageSize <= 0 {
+		pageSize = backfillFactPageSize
 	}
-	defer func() { _ = rows.Close() }()
+
+	ctx, cancel := context.WithTimeout(ctx, anchorScopedOverallTimeout)
+	defer cancel()
+	appName := backfillApplicationName(ctx, backfillApplicationNameFallback)
 
 	var loaded []facts.Envelope
-	for rows.Next() {
-		envelope, scanErr := ScanFactEnvelope(rows)
-		if scanErr != nil {
-			return nil, scanErr
+	var cursorSet bool
+	var cursorAt time.Time
+	var cursorID string
+	for {
+		var query string
+		var args []any
+		if !cursorSet {
+			query = ListArgoCDGeneratorConfigFactRecordsFirstPageQuery
+			args = []any{array.StringArray(configRepoIDs), pageSize}
+		} else {
+			query = ListArgoCDGeneratorConfigFactRecordsCursorPageQuery
+			args = []any{array.StringArray(configRepoIDs), cursorAt, cursorID, pageSize}
 		}
-		loaded = append(loaded, envelope)
+		var page []facts.Envelope
+		pageErr := runGuardedBackfillQuery(
+			ctx, queryer, anchorScopedStatementTimeout, appName,
+			func(q db.Queryer) error {
+				rows, err := q.QueryContext(ctx, query, args...)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = rows.Close() }()
+				for rows.Next() {
+					envelope, scanErr := ScanFactEnvelope(rows)
+					if scanErr != nil {
+						return scanErr
+					}
+					page = append(page, envelope)
+				}
+				return rows.Err()
+			},
+		)
+		if pageErr != nil {
+			if ctx.Err() != nil {
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					return nil, backfillTimeoutExceeded(
+						"argocd generator config fact load", anchorScopedOverallTimeout, pageErr,
+					)
+				}
+				return nil, pageErr
+			}
+			if isBackfillTimeoutError(pageErr) {
+				return nil, backfillTimeoutExceeded(
+					"argocd generator config fact load", anchorScopedStatementTimeout, pageErr,
+				)
+			}
+			return nil, pageErr
+		}
+		loaded = append(loaded, page...)
+		if len(page) < pageSize {
+			return loaded, nil
+		}
+		last := page[len(page)-1]
+		cursorAt, cursorID, cursorSet = last.ObservedAt, last.FactID, true
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return loaded, nil
 }
 
 // MergeRelationshipFacts appends the secondary facts to the primary facts,

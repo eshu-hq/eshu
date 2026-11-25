@@ -123,7 +123,9 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 			usedDeferredQuery = true
 			assertDeferredSelfExclusionArgs(t, q.args)
 		}
-		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery {
+		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery ||
+			q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery ||
+			q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery {
 			usedPerCommitQuery = true
 		}
 	}
@@ -408,7 +410,9 @@ func TestBackfillAllRelationshipEvidenceUsesScopedFactQuery(t *testing.T) {
 			usedDeferredQuery = true
 			assertDeferredSelfExclusionArgs(t, q.args)
 		}
-		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery {
+		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery ||
+			q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery ||
+			q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery {
 			usedPerCommitQuery = true
 		}
 		if q.query == listLatestRelationshipFactRecordsQuery {
@@ -462,6 +466,8 @@ func TestBackfillAllRelationshipEvidenceShortCircuitsWithoutAnchors(t *testing.T
 
 	for _, q := range inner.queries {
 		if q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery ||
+			q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery ||
+			q.query == backfill.ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery ||
 			q.query == listLatestRelationshipFactRecordsQuery ||
 			q.query == backfill.ListDeferredScopedRelationshipFactRecordsQuery {
 			t.Fatalf("deferred backfill issued a fact query with no usable anchors: %s", q.query)
