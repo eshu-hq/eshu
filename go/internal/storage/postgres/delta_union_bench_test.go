@@ -37,12 +37,20 @@ func BenchmarkFactStoreLoadProjectionFactsUnion(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		// #11432: stage the per-fetch statement_timeout row, then page the
+		// 2,001-row base into 500-row keyset pages like listFactsPages does.
+		responses := []queueFakeRows{
+			{},
 			{rows: deltaRows},
 			{rows: [][]any{deltaUnionBenchTargetRow()}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
-			{rows: baseRows},
-		}}
+			{},
+		}
+		for start := 0; start < len(baseRows); start += 500 {
+			end := min(start+500, len(baseRows))
+			responses = append(responses, queueFakeRows{rows: baseRows[start:end]})
+		}
+		db := &fakeExecQueryer{queryResponses: responses}
 		if _, err := NewFactStore(db).LoadProjectionFacts(context.Background(), work); err != nil {
 			b.Fatalf("LoadProjectionFacts() = %v", err)
 		}

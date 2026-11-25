@@ -24,9 +24,11 @@ func TestFactStoreLoadProjectionFactsNamesUnionBase(t *testing.T) {
 	t.Parallel()
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -45,8 +47,8 @@ func TestFactStoreLoadProjectionFactsNamesUnionBase(t *testing.T) {
 	if !generations["gen-base-1"] || !generations["gen-delta-1"] || len(generations) != 2 {
 		t.Fatalf("loaded generations = %v, want exactly the delta and its base", generations)
 	}
-	if got, want := len(db.queries), 4; got != want {
-		t.Fatalf("query count = %d, want %d (no second resolve)", got, want)
+	if got, want := len(db.queries), 6; got != want {
+		t.Fatalf("query count = %d, want %d (two timeouts, two fact pages, target, base lookup; no second resolve)", got, want)
 	}
 	if loaded.UnionChained {
 		t.Fatal("a delta whose union base is its baseline loaded as chained")
@@ -59,9 +61,11 @@ func TestFactStoreLoadProjectionFactsMarksChainedDelta(t *testing.T) {
 	t.Parallel()
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-active-delta", "commit-base"}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -76,6 +80,7 @@ func TestFactStoreLoadProjectionFactsFullGenerationNamesNoBase(t *testing.T) {
 	t.Parallel()
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{false, "", ""}}},
 		},
@@ -96,9 +101,11 @@ func TestFactStoreLoadProjectionFactsReportsScopeMismatch(t *testing.T) {
 	t.Parallel()
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionNonDeltaScopeRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
