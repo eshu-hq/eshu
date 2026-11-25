@@ -40,7 +40,11 @@ var (
 	}
 	winnersScopeIdentsSwaps = []winnersSupportsInputSwap{
 		{"JOIN fact_records AS fact\n  ON fact.scope_id = pending.scope_id", "JOIN " + winnersSupportsTable + " AS fact\n  ON fact.scope_id = pending.scope_id"},
-		{" AND fact.generation_id = pending.generation_id\nWHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'\n  AND fact.is_tombstone = FALSE", " AND fact.generation_id = pending.generation_id"},
+		// The lateral rides the ON clause in both row sources (the supports
+		// table is aliased AS fact, so fact.payload resolves there too); only
+		// the kind and tombstone filters drop out (#11120 keeps the lateral
+		// verbatim on both sides).
+		{" AND fact.generation_id = pending.generation_id" + winnersDetoastFactLateral + "\nWHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'\n  AND fact.is_tombstone = FALSE", " AND fact.generation_id = pending.generation_id" + winnersDetoastFactLateral},
 	}
 	winnersKeyedActiveSwaps = []winnersSupportsInputSwap{
 		{"FROM fact_records AS f\n        WHERE (f.payload", "FROM " + winnersSupportsTable + " AS f\n        WHERE (f.payload"},

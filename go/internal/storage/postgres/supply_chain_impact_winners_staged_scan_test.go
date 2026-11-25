@@ -23,16 +23,27 @@ func TestStagedBatchDerivesFromShippedWinnerSelect(t *testing.T) {
 	t.Parallel()
 
 	// The finding_id fallback rides only the source arm: the operator arm
-	// selects '' on the same struct.
+	// selects '' on the same struct. The staged batch keeps the legacy
+	// per-field reads (it is the oracle); the shipped body renders the same
+	// helpers through the detoast replacer (#11120), so each shared semantic
+	// fragment must appear detoasted in the body and legacy in the batch.
+	// The row source is the shared eligibility tail with the lateral spliced
+	// in; the staged batch keeps the tail verbatim (oracle).
+	if !strings.Contains(supplyChainImpactWinnerBodySQL, winnersDetoastEligibilityFromActiveFacts) {
+		t.Fatalf("shipped winner body lost the detoasted eligibility tail:\n%s", supplyChainImpactWinnerBodySQL)
+	}
+	if !strings.Contains(stagedWinnersSourceBatchSQL, supplyChainImpactSourceCandidateEligibilitySQL) {
+		t.Fatalf("source batch lost the shared eligibility tail:\n%s", stagedWinnersSourceBatchSQL)
+	}
 	sourceOnly := []string{
-		supplyChainImpactSourceCandidateEligibilitySQL,
 		"COALESCE(\n            NULLIF(fact.payload->>'finding_id', ''),",
 	}
 	for _, frag := range sourceOnly {
-		for _, query := range []string{supplyChainImpactWinnerBodySQL, stagedWinnersSourceBatchSQL} {
-			if !strings.Contains(query, frag) {
-				t.Fatalf("source query lost fragment %q:\n%s", frag, query)
-			}
+		if got := winnersDetoastFieldReplacer.Replace(frag); !strings.Contains(supplyChainImpactWinnerBodySQL, got) {
+			t.Fatalf("shipped winner body lost detoasted fragment %q", got)
+		}
+		if !strings.Contains(stagedWinnersSourceBatchSQL, frag) {
+			t.Fatalf("source batch lost fragment %q:\n%s", frag, stagedWinnersSourceBatchSQL)
 		}
 	}
 	shared := []string{
@@ -42,8 +53,8 @@ func TestStagedBatchDerivesFromShippedWinnerSelect(t *testing.T) {
 		"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state",
 	}
 	for _, frag := range shared {
-		if !strings.Contains(supplyChainImpactWinnerBodySQL, frag) {
-			t.Fatalf("shipped winner body drifted away from shared staged-scan fragment %q", frag)
+		if got := winnersDetoastFieldReplacer.Replace(frag); !strings.Contains(supplyChainImpactWinnerBodySQL, got) {
+			t.Fatalf("shipped winner body drifted away from shared staged-scan fragment %q (want detoasted %q)", frag, got)
 		}
 		for _, query := range []string{stagedWinnersSourceBatchSQL, stagedWinnersOperatorBatchSQL} {
 			if !strings.Contains(query, frag) {
@@ -51,8 +62,8 @@ func TestStagedBatchDerivesFromShippedWinnerSelect(t *testing.T) {
 			}
 		}
 	}
-	if !strings.Contains(supplyChainImpactWinnerBodySQL, supplyChainImpactOperatorSuppressionPredicate) {
-		t.Fatalf("shipped winner body drifted away from the operator suppression predicate")
+	if !strings.Contains(supplyChainImpactWinnerBodySQL, winnersDetoastOperatorPredicate) {
+		t.Fatalf("shipped winner body drifted away from the derived operator suppression predicate")
 	}
 	if !strings.Contains(stagedWinnersOperatorBatchSQL, supplyChainImpactOperatorSuppressionPredicate) {
 		t.Fatalf("operator batch lost the suppression predicate:\n%s", stagedWinnersOperatorBatchSQL)

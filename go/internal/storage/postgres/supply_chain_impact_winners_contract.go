@@ -84,7 +84,19 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// reduce, by reversing the declared swaps alone, to the statements the previous
 	// version-2 hash (25e4d891...) pinned; a live byte-identity differential of the
 	// stored winners on a seed is owed with the live proofs.
-	2: "119ae48d12b861062f1f7b76acc7936d3251e294ccfbe425bcb40c7ce5defa30",
+	//
+	// Re-pinned under the same version for #11120 single-detoast extraction:
+	// the candidate CTEs extract every text field once through a guarded
+	// LATERAL jsonb_to_record and the final projection reads the carried
+	// columns. Winner output is byte-identical for the same facts: the
+	// hermetic reversal (TestWinnersDetoastReversesToLegacy, chained in
+	// TestWinnersContractRepinnedForSupportsInputs back to the 25e4d891 pin)
+	// proves the shipped text differs from the legacy text only by the field
+	// pairs, and TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive proves every pair
+	// equivalent on PG18 over edge-case payloads; see
+	// docs/internal/evidence/11120-single-detoast.md. No full resweep is
+	// triggered by this re-pin.
+	2: "26f08bc84b8b3c39b63d069f3d98e01a2e3bb149a2bfe59a899d74aa69ad4d8b",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the

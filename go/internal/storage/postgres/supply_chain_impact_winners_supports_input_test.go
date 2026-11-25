@@ -139,13 +139,19 @@ func TestWinnersSupportsInputReadsOnlyColumnsTheSupportsTableHas(t *testing.T) {
 // The winner output for the same rows is unchanged by construction here (the
 // supports payload is the fact payload verbatim); the live byte-identity proof on
 // a seed is owed with the live proofs.
+//
+// Single-detoast (#11120) chains a second reversal: reverseWinnersDetoast
+// restores the legacy `->>` reads, so the doubly reversed statements hash to
+// the same pre-supports pin. The field pairs the reversal inverts are covered
+// live per field (TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive), which is the
+// byte-identity proof the re-pin rests on.
 func TestWinnersContractRepinnedForSupportsInputs(t *testing.T) {
 	t.Parallel()
 
 	shipped := supplyChainImpactWinnersContractStatements()
 	reversed := make([]string, len(shipped))
 	for i, stmt := range shipped {
-		reversed[i] = reverseWinnersSupportsInput(stmt)
+		reversed[i] = reverseWinnersDetoast(reverseWinnersSupportsInput(stmt))
 	}
 	if got := supplyChainImpactWinnersContractHashOf(reversed); got != winnersLegacyContractPin {
 		t.Fatalf("the contract statements with the supports swaps reversed hash to %s, want the previous version-2 pin %s", got, winnersLegacyContractPin)
