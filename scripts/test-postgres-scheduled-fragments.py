@@ -210,7 +210,7 @@ class InventoryFragmentTest(unittest.TestCase):
                  "harness"),
                 ("  - " + source + "\n", "", "PR paths"),
                 ("  - go/internal/storage/postgres/"
-                 "reducer_queue_domain_fairness_test.go\n", "", "PR paths"),
+                 "reducer_queue_domain_fairness_live_test.go\n", "", "PR paths"),
                 ('ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p3"',
                  'ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p8b"', "freshness"),
                 ('ESHU_7127_W11_COST: "1"',

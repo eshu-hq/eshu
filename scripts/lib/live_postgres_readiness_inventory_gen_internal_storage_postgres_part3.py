@@ -231,6 +231,12 @@ TABLE = {
         "go/internal/storage/postgres/projector_queue_slot_scope_ack_live_test.go": (
             "TestProjectorAckLeavesOneActiveGenerationPerSlotScope",
         ),
+        "go/internal/storage/postgres/projector_queue_source_fairness_live_test.go": (
+            "TestProjectorQueueClaimOrdersBySourceFairness",
+            "TestProjectorQueueClaimDoesNotFillWorkersFromOneNoisySource",
+            "TestReducerQueueBatchClaimOrdersBySourceFairnessWithinDomain",
+            "TestReducerQueueBatchDoesNotStarveNewerSourceWithinDomain",
+        ),
         "go/internal/storage/postgres/projector_queue_source_paced_live_test.go": (
             "TestProjectorQueueSourcePacedLiveCycle",
             "TestProjectorQueueSourcePacedKeepsAdmissionBudgetLive",

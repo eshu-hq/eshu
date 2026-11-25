@@ -23,7 +23,7 @@ import (
 // fact_work_items/shared_projection_intents/webhook_refresh_triggers DDL, and
 // returns a single-connection handle pinned to that schema. Mirrors
 // openFactCrossBatchFencingSchema (facts_cross_batch_fencing_proof_test.go)
-// and openReducerFairnessDBWithSchema (reducer_queue_domain_fairness_test.go)
+// and openReducerFairnessDBWithSchema (reducer_queue_domain_fairness_live_test.go)
 // so this proof follows the package's established live-Postgres pattern.
 func openRepositoryFreshnessDBIntegrationSchema(t *testing.T, ctx context.Context, dsn string) *sql.DB {
 	t.Helper()

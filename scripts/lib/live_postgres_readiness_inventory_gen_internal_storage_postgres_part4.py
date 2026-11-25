@@ -62,6 +62,10 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go": (
             "TestCodeCallDeltaScopeUnusableDeadLettersOnFirstAttemptLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go": (
+            "TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog",
+            "TestClaimBatchFairnessRankExcludesNonClaimableRows",
+        ),
         "go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go": (
             "TestOwnGateWaitsThroughRefinalizeReResolutionLive",
         ),
