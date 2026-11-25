@@ -68,13 +68,40 @@ func TestSupplyChainImpactFilterSeedsGoModPackageIDsFromContentEntities(t *testi
 
 // TestSupplyChainImpactFilterSkipsNonGoManifestPackageIDs pins the negative
 // half of the shape (A) contract: a non-go manifest row and a go.sum
-// checksum-only row seed no package identity. The npm row keeps its
-// repository arm; the checksum row is not dependency evidence at all.
+// checksum-only row seed no package identity, and go-ecosystem rows with a
+// blank or unparseable name seed nothing (fail closed). The npm row keeps
+// its repository arm; the checksum row is not dependency evidence at all.
 func TestSupplyChainImpactFilterSkipsNonGoManifestPackageIDs(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC)
 	envelopes := []facts.Envelope{
+		packageManifestDependencyFactWithMetadata(
+			goModFilterTestRepository,
+			"go-service",
+			"go.mod",
+			"   ",
+			"go",
+			"v0.3.7",
+			observedAt,
+			map[string]any{
+				"section":           "require",
+				"direct_dependency": true,
+			},
+		),
+		packageManifestDependencyFactWithMetadata(
+			goModFilterTestRepository,
+			"go-service",
+			"go.mod",
+			"!!!",
+			"go",
+			"v0.3.7",
+			observedAt,
+			map[string]any{
+				"section":           "require",
+				"direct_dependency": true,
+			},
+		),
 		packageManifestDependencyFactWithMetadata(
 			goModFilterTestRepository,
 			"go-service",

@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"golang.org/x/mod/module"
 )
 
 func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
@@ -123,10 +124,18 @@ func canonicalGoManifestPackageIdentity(dependency correlation.PackageManifestDe
 	if packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(dependency.PackageManager)) != packageidentity.EcosystemGoModule {
 		return "", ""
 	}
+	name := strings.TrimSpace(dependency.DependencyName)
+	// module.CheckPath is the go tool's own module-path rule: it accepts
+	// every real module shape (dotted hosts, uppercase orgs, /vN suffixes)
+	// and rejects garbage Normalize would otherwise pass through, so an
+	// unparseable name seeds nothing (fail closed).
+	if err := module.CheckPath(name); err != nil {
+		return "", ""
+	}
 	identity, err := packageidentity.Normalize(packageidentity.RawIdentity{
 		Ecosystem: packageidentity.EcosystemGoModule,
 		Registry:  packageidentity.DefaultRegistry(packageidentity.EcosystemGoModule),
-		RawName:   strings.TrimSpace(dependency.DependencyName),
+		RawName:   name,
 	})
 	if err != nil || identity.PackageID == "" || identity.PURL == "" {
 		return "", ""
