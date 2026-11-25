@@ -81,6 +81,10 @@ type fakeStoredFinding struct {
 	// evidenceFactIDs is the evidence fact id set the row's payload carries
 	// (#10880 ruling decision 4), rendered the same way as members.
 	evidenceFactIDs []string
+	// packageID, repositoryID and subjectDigest render the stored row's
+	// canonical winners-key components the way the production select
+	// projects them (#11411).
+	packageID, repositoryID, subjectDigest string
 }
 
 // fakeImpactSuppressionState renders a stored suppression state the way the
@@ -174,7 +178,7 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
 		for _, row := range t.state.stored {
-			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, "", row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState), fakeImpactMembersJSON(row.evidenceFactIDs)})
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, "", row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState), fakeImpactMembersJSON(row.evidenceFactIDs), row.packageID, row.repositoryID, row.subjectDigest})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactCVEIDsQuery:
