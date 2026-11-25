@@ -41,11 +41,13 @@ cost to measure). Each statement then gains an entry in `explainKeyLegs`; nothin
 `explain_key_first_test.go`: `planShapeViolations` parses a plain EXPLAIN and fails a supports node that is a Seq Scan, a probe from the active scopes
 (`..._scope_generation_idx`), or a node that carries the route's key only as a Filter (or not at all) instead of as the Index Cond; a primary-key fetch by fact
 id and the operator-override probe by canonical key are the only other supports nodes allowed, each only with its own Index Cond.
-- **Red (the first item f statement):** `testdata/explain_item_f_{cve,package}_plain_qa_replica.red.txt` are the real plans the first item f statement got on the QA
+- **Red (the first item f statement):** `testdata/explain_item_f_cve_plain_qa_replica.red.txt` and
+  `testdata/explain_item_f_package_plain_qa_replica.red.txt` are the real plans the first item f statement got on the QA
   replica (2026-11-24T15:36Z). `TestPlanShapeCheckerRejectsTheScopeDrivenItemFPlan` asserts they fail with "supports probed from the active scopes" and "key only as a
   Filter".
-- **Green (the decide-first statements):** `testdata/explain_item_f_*_qa_replica.green.txt` are the supports-node projections of the real plain EXPLAIN of each
-  statement on the QA replica (2026-11-24T18:20Z, custom plan and `plan_cache_mode = force_generic_plan`); each fixture header carries the sha256 of the
+- **Green (the decide-first statements):** `go/internal/query/supply/chain/impact/explain_key_first_test.go::TestKeyFirstPlansOnTheQAReplicaPassTheShapeCheck`
+  runs the 12 supports-node projections of the real plain EXPLAIN of each statement on the QA replica (2026-11-24T18:20Z,
+  custom plan and `plan_cache_mode = force_generic_plan`), kept beside the test in its `testdata/` directory; each fixture header carries the sha256 of the
   rendered statement and the test asserts it equals the hash of the statement in the code, so a changed statement fails until it is re-planned on the replica.
 
 ## Replica plans (plain EXPLAIN, read-only, replica, 18:20Z)
