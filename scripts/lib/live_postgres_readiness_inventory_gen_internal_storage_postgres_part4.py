@@ -15,6 +15,10 @@ TABLE = {
         "go/internal/storage/postgres/recovery_replay_lock_order_live_test.go": (
             "TestRecoveryReplayConcurrentReplaysNeverDeadlockLive",
         ),
+        "go/internal/storage/postgres/reducer_claim_lane_theory_shim_live_test.go": (
+            "TestLaneTheoryDerivedPrefixMatchesProduction",
+            "TestClaimLaneTheoryShim",
+        ),
         "go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go": (
             "TestReducerClaimSweepAndReplayBlockOneWayLive",
             "TestReducerClaimSweepHeldRowRaceLive",
