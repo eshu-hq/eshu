@@ -78,11 +78,12 @@ if REPO_ROOT="${repo_root}" LEDGER_PATH="${probe}/bad-live-runner.yaml" "${scrip
 	fail "validator passed with a live row on a non-live runner"
 fi
 
-# The anchor reason carries no '#' or colon, so unquoting it is YAML-safe;
-# appending ' #' then reproduces the #7425 truncation the validator rejects.
+# The anchor reason carries no '#', so unquoting it is YAML-safe; appending
+# ' #' then reproduces the #7425 truncation the validator rejects. The tail
+# anchor tracks the enrolled reason text (#11445: #11438 rewrote the tail).
 cp "${ledger}" "${probe}/bad-hash.yaml"
 sub 's/^    reason: "Admission-timeout Fail/    reason: Admission-timeout Fail/' "${probe}/bad-hash.yaml"
-sub 's/proved against a recording execer with no live Postgres"$/proved against a recording execer with no live Postgres #planted truncation/' "${probe}/bad-hash.yaml"
+sub 's/pins counter reset to (pending, 0, 0); enrolled in the live-postgres-readiness runner"$/pins counter reset to (pending, 0, 0); enrolled in the live-postgres-readiness runner #planted truncation/' "${probe}/bad-hash.yaml"
 if REPO_ROOT="${repo_root}" LEDGER_PATH="${probe}/bad-hash.yaml" "${script}" >/dev/null 2>&1; then
 	fail "validator passed with an unquoted '#' truncation"
 fi
