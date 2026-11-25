@@ -118,9 +118,11 @@ func WinnersProofDataColumns() []string {
 // WinnersProofStagingTable returns the winners dirty-capture staging table name.
 func WinnersProofStagingTable() string { return winnersStagingTable }
 
-// WinnersProofKeyedProbeSQL returns the keyed active_facts probe statement the winners
-// maintainer runs over the supports table.
-func WinnersProofKeyedProbeSQL() string { return buildWinnersKeyedActiveFactsFromSupportsSQL }
+// WinnersProofKeyedProbeSQL returns the keyed narrow probe statement the winners
+// maintainer runs over the supports table. The probe moved verbatim into the
+// narrow statement in the watermark-stall split; the final fetch reads the
+// persisted narrow rows and equates nothing.
+func WinnersProofKeyedProbeSQL() string { return buildWinnersKeyedNarrowFromSupportsSQL }
 
 // WinnersProofKeyedIdentsTable returns the session table the keyed probe reads its
 // identifiers from.

@@ -400,7 +400,7 @@ WHERE c.relname = 'supply_chain_impact_finding_supports_keyed_probe_idx'`).Scan(
 }
 
 // TestSupplyChainImpactSupportsKeyedProbePlanLive is the plan proof of ruling 15 (ii): with
-// migration 354 built from the embedded text and the table analyzed, the keyed active_facts
+// migration 354 built from the embedded text and the table analyzed, the keyed narrow
 // probe the winners maintainer runs chooses supply_chain_impact_finding_supports_keyed_probe_idx
 // with all five identifier equalities as index conditions and no Seq Scan on supports, under no
 // planner override (no enable_* setting, no plan_cache_mode change). The statement is
