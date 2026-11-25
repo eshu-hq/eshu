@@ -118,9 +118,6 @@ func TestWriterReportsChangesAgainstThePreviousGenerationLive(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE scope_id = 'source' AND generation_id = $1`, fanOutGen("source", "g2")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE scope_id = 'source' AND generation_id = $1`, fanOutGen("source", "g2")); err != nil {
-		t.Fatal(err)
-	}
 	if got := write("g2", false, "CVE-A", "CVE-C").ChangedCVEIDs; !reflect.DeepEqual(got, []string{"CVE-B", "CVE-C"}) {
 		t.Fatalf("changed rescan = %v, want the dropped CVE-B and the new CVE-C", got)
 	}
