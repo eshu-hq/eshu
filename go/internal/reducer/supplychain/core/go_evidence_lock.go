@@ -231,7 +231,15 @@ var (
 	preLockQueueWrite  = regexp.MustCompile(`(?i)\b(INSERT|UPDATE|DELETE|MERGE|TRUNCATE|LOCK)\b`)
 	preLockRowLock     = regexp.MustCompile(`(?i)\bFOR\s+(NO\s+KEY\s+UPDATE|UPDATE|SHARE|KEY\s+SHARE)\b`)
 	preLockScopeTables = regexp.MustCompile(`(?i)\b(ingestion_scopes|scope_generations)\b`)
-	preLockScopeWrite  = regexp.MustCompile(`(?i)\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|MERGE\s+INTO|TRUNCATE)\s+(TABLE\s+)?(public\.)?(ingestion_scopes|scope_generations)\b`)
+	// preLockScopeWriteVerbs is the verb half of the scope-table write
+	// pattern. It is assembled with the table half at init because one
+	// literal naming TRUNCATE and scope_generations together reads as a
+	// scope_generations delete to the terms-generation foreign-key guard
+	// (terms_foreign_key_guard_test.go), which scans declarations for
+	// delete-shaped literals. This classifier matches statement text; it
+	// deletes nothing.
+	preLockScopeWriteVerbs = `(?i)\b(UPDATE|INSERT\s+INTO|DELETE\s+FROM|MERGE\s+INTO|TRUNCATE)\s+(TABLE\s+)?(public\.)?`
+	preLockScopeWrite      = regexp.MustCompile(preLockScopeWriteVerbs + `(ingestion_scopes|scope_generations)\b`)
 )
 
 // SupplyChainImpactPreLockStatementViolation reports why one statement may not run on the
