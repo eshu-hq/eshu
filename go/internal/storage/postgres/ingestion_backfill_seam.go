@@ -222,10 +222,10 @@ func (s IngestionStore) runPostCommitRelationshipBackfill(
 	s.logCommitStage(ctx, scopeValue, generation, "post_commit_relationship_backfill", start)
 }
 
-// commitPostCommitRelationshipBackfillTx takes the deferred-maintenance shared
-// barrier for scopeValue's repository partition and runs the new-repository
-// relationship backfill, all inside one short transaction separate from the
-// caller's main ingestion commit.
+// commitPostCommitRelationshipBackfillTx discovers the new-repository
+// evidence outside any long-lived transaction and persists it under the
+// deferred-maintenance shared barrier (issue #11460). The barrier
+// transaction below covers only the evidence write, never the corpus read.
 func (s IngestionStore) commitPostCommitRelationshipBackfillTx(
 	ctx context.Context,
 	scopeValue scope.IngestionScope,
@@ -233,6 +233,15 @@ func (s IngestionStore) commitPostCommitRelationshipBackfillTx(
 	knownRepoIDs map[string]struct{},
 	newRepoIDs map[string]struct{},
 ) error {
+	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, s.database)
+	if err != nil {
+		return fmt.Errorf("reload repository catalog for relationship backfill: %w", err)
+	}
+	evidence, err := backfill.DiscoverNewRepositoryEvidence(ctx, s.database, catalog, knownRepoIDs, newRepoIDs)
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin post-commit relationship backfill transaction: %w", err)
@@ -248,14 +257,10 @@ func (s IngestionStore) commitPostCommitRelationshipBackfillTx(
 		return fmt.Errorf("acquire deferred maintenance shared barrier: %w", err)
 	}
 
-	catalog, _, err := backfill.LoadRepositoryCatalog(ctx, tx)
-	if err != nil {
-		return fmt.Errorf("reload repository catalog for relationship backfill: %w", err)
-	}
-	if err := backfill.BackfillRelationshipEvidenceForNewRepositories(
-		ctx, tx, NewRelationshipStore(tx), generation.GenerationID, catalog, knownRepoIDs, newRepoIDs,
-	); err != nil {
-		return err
+	if len(evidence) > 0 {
+		if err := NewRelationshipStore(tx).UpsertEvidenceFacts(ctx, generation.GenerationID, evidence); err != nil {
+			return fmt.Errorf("persist backfilled relationship evidence: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

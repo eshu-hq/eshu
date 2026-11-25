@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -67,7 +68,11 @@ var ErrRelationshipFactLoadBudgetExceeded = errors.New(
 // Unlike the full-corpus query, this one's row count scales with the onboarding
 // delta's alias surface rather than the fleet size, so per-commit backfill no
 // longer ships and iterates every repository's facts.
-const ListOnboardedRepoScopedRelationshipFactRecordsQuery = LatestGenerationCTE + `
+// anchorScopedRelationshipFactSelectBody is the shared SELECT body behind the
+// anchor-scoped relationship fact reads. The unpaged corpus query and both
+// keyset pages derive from it by appending their own tail, so the three
+// statements cannot drift apart (issue #11460).
+const anchorScopedRelationshipFactSelectBody = LatestGenerationCTE + `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -91,8 +96,29 @@ JOIN latest_generations AS latest
  AND latest.generation_id = fact.generation_id
 WHERE latest.generation_id IS NOT NULL
   AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
-  AND lower(fact.payload::text) LIKE ANY($1)
+  AND lower(fact.payload::text) LIKE ANY($1)`
+
+const ListOnboardedRepoScopedRelationshipFactRecordsQuery = anchorScopedRelationshipFactSelectBody + `
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
+`
+
+// ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery is the first
+// keyset page of the anchor-scoped load: the shipped corpus query with a
+// bounded LIMIT. Later pages use the cursor variant below.
+const ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery = anchorScopedRelationshipFactSelectBody + `
+ORDER BY fact.observed_at ASC, fact.fact_id ASC
+LIMIT $2
+`
+
+// ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery is the
+// follow-on keyset page: the shipped corpus query narrowed to rows after the
+// ($2, $3) cursor with a bounded LIMIT. It is a separate statement from the
+// first page — not a folded NULL-guard OR — so the row comparison stays a
+// plain indexable predicate under a generic plan (the #6154 lesson).
+const ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery = anchorScopedRelationshipFactSelectBody + `
+AND ((fact.observed_at, fact.fact_id) > ($2, $3))
+ORDER BY fact.observed_at ASC, fact.fact_id ASC
+LIMIT $4
 `
 
 // backfillRelationshipAnchorTerms returns the lowercase payload anchors the
@@ -170,12 +196,20 @@ func LoadAnchorScopedRelationshipFactsBudget(
 	configResolveCatalog []relationships.CatalogEntry,
 	budget RelationshipFactLoadBudget,
 ) ([]facts.Envelope, RelationshipFactLoadStats, error) {
+	// The per-commit path is the default caller; the targeted closure names
+	// itself upstream and that name wins here.
+	ctx = ensureBackfillApplicationName(ctx, BackfillApplicationNamePerCommit)
+	ctx, cancel := context.WithTimeout(ctx, anchorScopedOverallTimeout)
+	defer cancel()
+
 	anchors := backfillRelationshipAnchorTerms(anchorCatalog)
 	if len(anchors) == 0 {
 		return nil, RelationshipFactLoadStats{}, nil
 	}
 
-	activeFacts, stats, err := loadOnboardedRepoScopedRelationshipFactsBudget(ctx, queryer, anchors, budget)
+	activeFacts, stats, err := loadOnboardedRepoScopedRelationshipFactsBudget(
+		ctx, queryer, anchors, budget, backfillFactPageSize,
+	)
 	if err != nil {
 		return nil, stats, err
 	}
@@ -204,15 +238,14 @@ func LoadAnchorScopedRelationshipFactsBudget(
 // supplied anchor, escaping each anchor as a wrapped LIKE term. It returns nil
 // without querying when anchors is empty: no fact can match an empty predicate,
 // so the per-commit backfill short-circuits instead of issuing a query that
-// would return nothing. It is the unbounded form of
-// loadOnboardedRepoScopedRelationshipFactsBudget.
+// would return nothing. It pages exactly like the budgeted form below.
 func loadOnboardedRepoScopedRelationshipFacts(
 	ctx context.Context,
 	queryer db.Queryer,
 	anchors []string,
 ) ([]facts.Envelope, error) {
 	loaded, _, err := loadOnboardedRepoScopedRelationshipFactsBudget(
-		ctx, queryer, anchors, RelationshipFactLoadBudget{},
+		ctx, queryer, anchors, RelationshipFactLoadBudget{}, backfillFactPageSize,
 	)
 	return loaded, err
 }
@@ -222,11 +255,21 @@ func loadOnboardedRepoScopedRelationshipFacts(
 // row/byte report. It counts raw payload bytes as it scans and returns
 // ErrRelationshipFactLoadBudgetExceeded as soon as they exceed budget.MaxBytes,
 // so a caller that sets a budget never holds an unbounded slice.
+//
+// The load pages by the (observed_at, fact_id) keyset with a bounded LIMIT
+// (issue #11460): every page runs in its own short transaction carrying the
+// caller's statement timeout and application_name, committed before the next
+// page begins, so no page ever holds a snapshot across client-side
+// processing. A page that dies to statement_timeout — or an overall load that
+// outlives its context deadline — fails with
+// ErrRelationshipFactLoadBudgetExceeded and the rows and bytes read so far,
+// never a silent truncation.
 func loadOnboardedRepoScopedRelationshipFactsBudget(
 	ctx context.Context,
 	queryer db.Queryer,
 	anchors []string,
 	budget RelationshipFactLoadBudget,
+	pageSize int,
 ) ([]facts.Envelope, RelationshipFactLoadStats, error) {
 	if queryer == nil || len(anchors) == 0 {
 		return nil, RelationshipFactLoadStats{}, nil
@@ -236,36 +279,83 @@ func loadOnboardedRepoScopedRelationshipFactsBudget(
 	if len(likeTerms) == 0 {
 		return nil, RelationshipFactLoadStats{}, nil
 	}
-
-	rows, err := queryer.QueryContext(
-		ctx,
-		ListOnboardedRepoScopedRelationshipFactRecordsQuery,
-		array.StringArray(likeTerms),
-	)
-	if err != nil {
-		return nil, RelationshipFactLoadStats{}, err
+	if pageSize <= 0 {
+		pageSize = backfillFactPageSize
 	}
-	defer func() { _ = rows.Close() }()
+	appName := backfillApplicationName(ctx, BackfillApplicationNamePerCommit)
 
 	var loaded []facts.Envelope
 	var stats RelationshipFactLoadStats
-	for rows.Next() {
-		envelope, size, scanErr := ScanFactEnvelopeWithPayloadSize(rows)
-		if scanErr != nil {
-			return nil, stats, scanErr
+	var cursorSet bool
+	var cursorAt time.Time
+	var cursorID string
+	for {
+		query, args := anchorScopedPageQuery(likeTerms, pageSize, cursorSet, cursorAt, cursorID)
+		var page []facts.Envelope
+		pageErr := runGuardedBackfillQuery(
+			ctx, queryer, anchorScopedStatementTimeout, appName,
+			func(q db.Queryer) error {
+				rows, err := q.QueryContext(ctx, query, args...)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = rows.Close() }()
+				for rows.Next() {
+					envelope, size, scanErr := ScanFactEnvelopeWithPayloadSize(rows)
+					if scanErr != nil {
+						return scanErr
+					}
+					stats.Rows++
+					stats.Bytes += int64(size)
+					if budget.MaxBytes > 0 && stats.Bytes > budget.MaxBytes {
+						return ErrRelationshipFactLoadBudgetExceeded
+					}
+					page = append(page, envelope)
+				}
+				return rows.Err()
+			},
+		)
+		if pageErr != nil {
+			if errors.Is(pageErr, ErrRelationshipFactLoadBudgetExceeded) {
+				return nil, stats, pageErr
+			}
+			if ctx.Err() != nil {
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					return nil, stats, backfillTimeoutExceeded(
+						"anchor-scoped relationship fact load", anchorScopedOverallTimeout, pageErr,
+					)
+				}
+				return nil, stats, pageErr
+			}
+			if isBackfillTimeoutError(pageErr) {
+				return nil, stats, backfillTimeoutExceeded(
+					"anchor-scoped relationship fact load", anchorScopedStatementTimeout, pageErr,
+				)
+			}
+			return nil, stats, pageErr
 		}
-		stats.Rows++
-		stats.Bytes += int64(size)
-		if budget.MaxBytes > 0 && stats.Bytes > budget.MaxBytes {
-			return nil, stats, ErrRelationshipFactLoadBudgetExceeded
+		loaded = append(loaded, page...)
+		if len(page) < pageSize {
+			return loaded, stats, nil
 		}
-		loaded = append(loaded, envelope)
+		last := page[len(page)-1]
+		cursorAt, cursorID, cursorSet = last.ObservedAt, last.FactID, true
 	}
-	if err := rows.Err(); err != nil {
-		return nil, stats, err
-	}
+}
 
-	return loaded, stats, nil
+// anchorScopedPageQuery builds one keyset page of the anchor-scoped load: the
+// first page without a cursor, follow-on pages narrowed to rows after the
+// cursor. The rows share the loader's ORDER BY, so paging never drops or
+// repeats a row.
+func anchorScopedPageQuery(
+	likeTerms []string, pageSize int, cursorSet bool, cursorAt time.Time, cursorID string,
+) (string, []any) {
+	if !cursorSet {
+		return ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery,
+			[]any{array.StringArray(likeTerms), pageSize}
+	}
+	return ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery,
+		[]any{array.StringArray(likeTerms), cursorAt, cursorID, pageSize}
 }
 
 // buildPayloadAnchorLikeTerms lowercases each anchor, escapes the LIKE

@@ -161,33 +161,44 @@ func loadDeferredScopedRelationshipFactsForPartition(
 		regexParam = sql.NullString{String: regex, Valid: true}
 	}
 
-	rows, err := queryer.QueryContext(
-		ctx,
-		ListDeferredScopedRelationshipFactRecordsQuery,
-		params.NonRepoIDLike,
-		params.RepoIDValues,
-		scopeID,
-		generationID,
-		regexParam,
-		ownRepoID,
-		repoIDReferenceKeys,
-		params.NonRepoIDRawAnchors,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
+	// Each partition load runs in its own short transaction carrying the
+	// deferred statement timeout and application_name (issue #11460): a
+	// regressed partition plan fails loudly at 120s instead of holding its
+	// snapshot for the whole pass, and the transaction is gone before the
+	// caller merges the partition's facts.
+	appName := backfillApplicationName(ctx, BackfillApplicationNameDeferred)
 	var loaded []facts.Envelope
-	for rows.Next() {
-		envelope, scanErr := ScanFactEnvelope(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		loaded = append(loaded, envelope)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	pageErr := runGuardedBackfillQuery(
+		ctx, queryer, deferredPartitionStatementTimeout, appName,
+		func(q db.Queryer) error {
+			rows, err := q.QueryContext(
+				ctx,
+				ListDeferredScopedRelationshipFactRecordsQuery,
+				params.NonRepoIDLike,
+				params.RepoIDValues,
+				scopeID,
+				generationID,
+				regexParam,
+				ownRepoID,
+				repoIDReferenceKeys,
+				params.NonRepoIDRawAnchors,
+			)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = rows.Close() }()
+			for rows.Next() {
+				envelope, scanErr := ScanFactEnvelope(rows)
+				if scanErr != nil {
+					return scanErr
+				}
+				loaded = append(loaded, envelope)
+			}
+			return rows.Err()
+		},
+	)
+	if pageErr != nil {
+		return nil, pageErr
 	}
 	return loaded, nil
 }

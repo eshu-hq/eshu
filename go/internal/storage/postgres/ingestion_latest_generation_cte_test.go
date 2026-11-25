@@ -18,15 +18,19 @@ import (
 // embeds the CTE must use the rewritten shape so none retains the misestimated
 // correlated subplan.
 var latestGenerationCTEQueries = map[string]string{
-	"listLatestRelationshipFactRecordsQuery":                       listLatestRelationshipFactRecordsQuery,
-	"backfill.ActiveRepositoryGenerationsQuery":                    backfill.ActiveRepositoryGenerationsQuery,
-	"backfill.ActiveScopeGenerationPartitionsQuery":                backfill.ActiveScopeGenerationPartitionsQuery,
-	"backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery": backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery,
-	"backfill.ListDeferredScopedRelationshipFactRecordsQuery":      backfill.ListDeferredScopedRelationshipFactRecordsQuery,
-	"resolveRepoActiveGenerationsQuery":                            resolveRepoActiveGenerationsQuery,
-	"backfill.ListArgoCDGeneratorConfigFactRecordsQuery":           backfill.ListArgoCDGeneratorConfigFactRecordsQuery,
-	"listScopeGenerationWorkQuery":                                 listScopeGenerationWorkQuery,
-	"repositoryFreshnessResolveQuery":                              repositoryFreshnessResolveQuery,
+	"listLatestRelationshipFactRecordsQuery":                                 listLatestRelationshipFactRecordsQuery,
+	"backfill.ActiveRepositoryGenerationsQuery":                              backfill.ActiveRepositoryGenerationsQuery,
+	"backfill.ActiveScopeGenerationPartitionsQuery":                          backfill.ActiveScopeGenerationPartitionsQuery,
+	"backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery":           backfill.ListOnboardedRepoScopedRelationshipFactRecordsQuery,
+	"backfill.ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery":  backfill.ListOnboardedRepoScopedRelationshipFactRecordsFirstPageQuery,
+	"backfill.ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery": backfill.ListOnboardedRepoScopedRelationshipFactRecordsCursorPageQuery,
+	"backfill.ListDeferredScopedRelationshipFactRecordsQuery":                backfill.ListDeferredScopedRelationshipFactRecordsQuery,
+	"resolveRepoActiveGenerationsQuery":                                      resolveRepoActiveGenerationsQuery,
+	"backfill.ListArgoCDGeneratorConfigFactRecordsQuery":                     backfill.ListArgoCDGeneratorConfigFactRecordsQuery,
+	"backfill.ListArgoCDGeneratorConfigFactRecordsFirstPageQuery":            backfill.ListArgoCDGeneratorConfigFactRecordsFirstPageQuery,
+	"backfill.ListArgoCDGeneratorConfigFactRecordsCursorPageQuery":           backfill.ListArgoCDGeneratorConfigFactRecordsCursorPageQuery,
+	"listScopeGenerationWorkQuery":                                           listScopeGenerationWorkQuery,
+	"repositoryFreshnessResolveQuery":                                        repositoryFreshnessResolveQuery,
 }
 
 // TestLatestGenerationCTEHasNoCorrelatedSubquery is the #3704 regression gate.

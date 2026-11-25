@@ -338,6 +338,13 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		// (issue #3481 shared cache) instead of the per-commit transaction, so
 		// the outer harness connection must serve the catalog read too.
 		return newProofRows(proofRepositoryCatalogRows(database.state.facts)), nil
+	case strings.Contains(query, "WITH latest_generations AS"):
+		// The per-commit backfill load and discovery run on the base
+		// connection outside any long-lived transaction (issue #11460), so
+		// the outer harness connection must serve the anchor-scoped read
+		// exactly as the transaction did: the latest-generation
+		// content/file facts, unfiltered by anchor.
+		return newProofRows(proofLatestRelationshipFactRows(database.state)), nil
 	case strings.Contains(query, "COALESCE(delta_baseline_commit_sha, '')"):
 		// Delta-base union target read (#7797): serve the generation's delta
 		// identity from harness state. Proof generations are full, so the

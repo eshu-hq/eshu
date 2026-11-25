@@ -149,6 +149,11 @@ tests:
     class: postgres_ci
     reason: "#7666 disposable PostgreSQL 18 plan proof of the aws_cloud_runtime_drift ARN-keyed state join: 320 state scopes x 3 generations and 120 requested ARNs in an isolated schema, fresh and stale planner statistics, custom and generic plans; asserts the migration 180 ARN index is probed per ARN (never walked), no fact_records node loops past the ARN count, and root buffers stay linear in the ARN count; enrolled in the live-postgres-readiness runner; 3.5-6.7 s locally on PostgreSQL 18.6 including two bootstraps; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/backfill/bounded_pages_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11460 disposable PostgreSQL 18 proof that the keyset-paged anchor load returns the whole matching corpus through bounded pages (EXPLAIN ANALYZE BUFFERS of both page shapes, loader mean/total), stamps the per-commit application_name on the wire, releases every snapshot before the next page, and lets a concurrent CREATE INDEX CONCURRENTLY build — the migration-354 shape — complete while the loader runs; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/backfill/targeted/closure_theory_live_test.go
     tag: ~
     class: postgres_ci
