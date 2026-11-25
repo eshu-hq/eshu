@@ -349,13 +349,21 @@ SELECT *, now() AS age_captured_at, 0 AS age_seq FROM narrow_proof_idents`)
 	h.exec(`ANALYZE ` + postgres.WinnersKeyedIdentsTableForTest)
 	// The shipped tick persists the identifier probe to the narrow temp
 	// table before the active-facts build reads it; the probe measures all
-	// three shipped statements in one transaction, mirroring runKeyedOrFull
-	// (post-#11400 the build errors on the missing relation otherwise, and
-	// ON COMMIT DROP tables do not survive autocommit execs).
+	// three shipped supports-twin statements in one transaction, mirroring
+	// runKeyedOrFull (post-#11400 the build errors on the missing relation
+	// otherwise, and ON COMMIT DROP tables do not survive autocommit execs).
+	// The shipped arm must be the supports twins the tick runs: a
+	// fact_records statement here would measure a probe the maintainer
+	// never executes, and the bar below would be calibrated to dead code.
+	for _, stmt := range []string{postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest, postgres.WinnersKeyedActiveFactsBuildFromSupportsSQLForTest} {
+		if strings.Contains(stmt, "fact_records") {
+			t.Fatalf("shipped arm still reads fact_records; the tick runs the supports twins")
+		}
+	}
 	shippedBlocks := narrowStatioProbe(t, h,
-		postgres.WinnersKeyedNarrowBuildSQLForTest,
+		postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest,
 		postgres.WinnersKeyedNarrowAnalyzeSQLForTest,
-		postgres.WinnersKeyedActiveFactsSQLForTest)
+		postgres.WinnersKeyedActiveFactsBuildFromSupportsSQLForTest)
 	// The bar counts first-pass block touches (buffer hits plus reads) from
 	// the statistics views around a real execution of each probe, per shape:
 	// each shape must touch at most one quarter of the shipped probe's
