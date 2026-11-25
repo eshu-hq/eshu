@@ -274,6 +274,11 @@ tests:
     class: postgres_ci
     reason: "#7978 disposable PostgreSQL 18 proof of the projector dead-letter guard (rulings a9-130, a9-130.1): only an unacknowledged reconcile re-open on the canonical projector row keeps an active generation and its scope pointer; a stamp-free, acknowledged, never-activated, or refinalize dead letter fails the generation and clears the pointer; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_duplicate_enqueue_proof_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "claim:duplicate-enqueue collapse proof (eight concurrent Enqueue calls for one scope generation collapse to exactly one pending row via ON CONFLICT (work_item_id) DO NOTHING with no error, and disjoint scope generations both land concurrently), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 5s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_slot_scope_ack_live_test.go
     tag: ~
     class: postgres_ci

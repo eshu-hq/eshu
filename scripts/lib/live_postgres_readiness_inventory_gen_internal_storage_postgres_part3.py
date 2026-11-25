@@ -224,6 +224,10 @@ TABLE = {
         "go/internal/storage/postgres/projector_queue_dead_letter_live_test.go": (
             "TestProjectorDeadLetterGuardCellsLive",
         ),
+        "go/internal/storage/postgres/projector_queue_duplicate_enqueue_proof_live_test.go": (
+            "TestProjectorEnqueueCollapsesConcurrentDuplicateWorkItems",
+            "TestProjectorEnqueueAdmitsDisjointGenerationsConcurrently",
+        ),
         "go/internal/storage/postgres/projector_queue_slot_scope_ack_live_test.go": (
             "TestProjectorAckLeavesOneActiveGenerationPerSlotScope",
         ),

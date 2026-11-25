@@ -169,13 +169,13 @@ rows:
 
   - contract_ref: claim:duplicate-enqueue
     surface: projector enqueue collapse of concurrent duplicate work items
-    class: env_gated
-    runners: [manual-dsn]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "Eight concurrent Enqueue calls for one scope generation collapse to exactly one pending row via ON CONFLICT (work_item_id) DO NOTHING with no error, and disjoint scope generations both land concurrently, proved on disposable Postgres but only with an operator DSN (ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN); no enrolled runner selects these files"
+    reason: "Eight concurrent Enqueue calls for one scope generation collapse to exactly one pending row via ON CONFLICT (work_item_id) DO NOTHING with no error, and disjoint scope generations both land concurrently; enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/projector_queue_duplicate_enqueue_proof_test.go
+      - file: go/internal/storage/postgres/projector_queue_duplicate_enqueue_proof_live_test.go
         tests: [TestProjectorEnqueueCollapsesConcurrentDuplicateWorkItems, TestProjectorEnqueueAdmitsDisjointGenerationsConcurrently]
 
 symbols:
