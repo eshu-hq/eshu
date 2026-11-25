@@ -340,3 +340,46 @@ func TestClaimBatchGatePriorityBoostsOlderBaselineWindowLive(t *testing.T) {
 		t.Fatalf("newer window must keep its ordinary place (one boosted slot per batch), got %v", keysOf(got))
 	}
 }
+
+// TestClaimBatchGatePriorityIgnoresCompletedYearLive pins the complete-year
+// fence of the #11366 older-window arm (review follow-up on eshu-hq/eshu#11372:
+// expiry-proof-gap): a year whose checkpoint is complete drops out of the
+// gating set even with a live row, so ordinary backlog keeps its order. A
+// mutant dropping the WHERE NOT c.year_complete fence would boost the
+// completed year's row into the first slot and fail this test.
+func TestClaimBatchGatePriorityIgnoresCompletedYearLive(t *testing.T) {
+	t.Parallel()
+
+	db := openGatePriorityProofDB(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	now := time.Date(2026, time.November, 19, 22, 0, 0, 0, time.UTC)
+	const (
+		runID    = "test-gate-completed-year"
+		scopeOrd = "vuln-intel://test-gate-completed-year/ordinary"
+		scopeOld = "vuln-intel://nvd/_baseline/test-gate-completed-year/2026/1767225600000000"
+		genOld   = "vulnerability_intelligence:test-gate-completed-year:old"
+		scopeNew = "vuln-intel://nvd/_baseline/test-gate-completed-year/2026/1781691075297000"
+		genNew   = "vulnerability_intelligence:test-gate-completed-year:new"
+		genOrd   = "gen:gate-completed-year-ord"
+	)
+	// Ordinary backlog older than the completed year's live row: without a
+	// fence it would lose the boosted slot.
+	seedGatePriorityWorkItem(t, ctx, db, "reducer_gate_completed_ord", scopeOrd, genOrd, now.Add(-4*time.Hour), "pending", nil)
+	// The year is complete with the checkpoint on the newest window, but an
+	// older window still has a live row (e.g. a retry leftover that outlived
+	// the settlement). The live row is not the checkpoint's last generation,
+	// so only the year_complete fence (not the last-generation exclusion)
+	// keeps it out of the gating set.
+	seedGatePriorityCheckpoint(t, ctx, db, runID, 2026, true, scopeNew, genNew, now.Add(-time.Hour))
+	seedGatePriorityWorkItem(t, ctx, db, "reducer_gate_completed_old", scopeOld, genOld, now.Add(-2*time.Hour), "pending", nil)
+
+	intents, err := gatePriorityClaimer(db, now).ClaimBatch(ctx, 1)
+	if err != nil {
+		t.Fatalf("ClaimBatch() error = %v", err)
+	}
+	if len(intents) != 1 || intents[0].GenerationID != genOrd {
+		t.Fatalf("batch of 1 must claim the ordinary row, got generations %v", intents)
+	}
+}
