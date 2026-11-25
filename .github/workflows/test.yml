@@ -36,6 +36,9 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
       go_race: ${{ steps.go_race.outputs.go_race == 'true' || steps.go_race_include.outputs.include == 'true' }}
+      go_race_scope: ${{ steps.go_race_scope.outputs.scope }}
+      go_race_shards: ${{ steps.go_race_scope.outputs.shards }}
+      go_race_packages: ${{ steps.go_race_scope.outputs.packages }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -74,7 +77,15 @@ jobs:
               - 'specs/replay-coverage-manifest.v1.yaml'
               - 'specs/language-feature-parity-ledger.v1.yaml'
               - 'specs/query-budgets.v1.yaml'
+              - 'scripts/ci/resolve-go-race-scope.sh'
+              - 'scripts/ci/run-go-race-shard.sh'
+              - 'scripts/ci/test-resolve-go-race-scope.sh'
               - '.github/workflows/test.yml'
+      - name: Verify Go race scope contract
+        run: bash scripts/ci/test-resolve-go-race-scope.sh
+      - name: Resolve Go race scope
+        id: go_race_scope
+        run: bash scripts/ci/resolve-go-race-scope.sh >> "$GITHUB_OUTPUT"
   pr-plan:
     runs-on: ubuntu-24.04
     permissions: {checks: read, contents: read, pull-requests: read, statuses: read}
@@ -339,9 +350,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: ${{ fromJSON(needs.changes.outputs.go_race_shards || '[1,2,3,4,5,6,7,8]') }}
     runs-on: ubuntu-24.04
-    # Eight shards (~163 pkgs each); per-package -timeout 900s bounds hangs.
+    # Eight shards in full mode (~163 pkgs each) or 1 shard in changed-tests mode; -timeout 900s bounds hangs.
     timeout-minutes: 60
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
@@ -390,17 +401,10 @@ jobs:
         env:
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_TOTAL: ${{ strategy.job-total }}
+          GO_RACE_SCOPE: ${{ needs.changes.outputs.go_race_scope }}
+          GO_RACE_PACKAGES: ${{ needs.changes.outputs.go_race_packages }}
           ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
-        run: |
-          set -euo pipefail
-          pkgs="$(go list ./... | awk -v n="${SHARD_TOTAL}" -v k="${SHARD_INDEX}" 'NR % n == (k % n)')"
-          if [ -z "${pkgs}" ]; then
-            echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: no packages selected — nothing to test"
-            exit 0
-          fi
-          count="$(printf '%s\n' "${pkgs}" | wc -l | tr -d ' ')"
-          echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
-          printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
+        run: bash ../scripts/ci/run-go-race-shard.sh
       # The eight shards share one key; the first to finish saves it and the
       # others log a reserve warning, as before the restore/save split.
       - name: Save Go build cache

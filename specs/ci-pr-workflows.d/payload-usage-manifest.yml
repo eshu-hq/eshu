@@ -20,6 +20,11 @@ workflows:
   - scripts/ci/go-mod-download-retry.sh
   - .github/workflows/payload-usage-manifest.yml
   - specs/ci-pr-workflows.d/payload-usage-manifest.yml
+  # Exclude unrelated Go module tests; re-include only the packages and drift test this workflow runs.
+  - '!go/**/*_test.go'
+  - go/internal/payloadusage/**
+  - go/cmd/payload-usage-manifest/**
+  - go/internal/reducer/payload_usage_manifest_test.go
   jobs:
   - gate
   - test-mirror
