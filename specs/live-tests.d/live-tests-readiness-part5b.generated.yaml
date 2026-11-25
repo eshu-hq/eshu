@@ -99,14 +99,15 @@ tests:
     class: postgres_ci
     reason: "#10023 code_call_materialization fails closed on an unusable delta file scope through the real ReducerQueue claim/Fail SQL: the handler's non-retryable self-classified error dead-letters the work item on attempt 1 with failure_class code_call_delta_scope_unusable and triage input_invalid with a non_retryable disposition that agrees with the retry authority, and the dead-lettered row is never re-claimed; isolated schema with the full production bootstrap, 9 to 42 s across three local runs (the bootstrap dominates); enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "claim:batch fairness proof (a single ClaimBatch lane over two domains never lets an older continuously-regenerated high-volume backlog starve a newer lower-volume domain, and the fairness rank excludes non-claimable inactive-generation rows so they cannot inflate a domain rank), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner"
   - file: go/internal/storage/postgres/reducer_queue_conflict_claim_proof_live_test.go
     tag: ~
     class: postgres_ci
     reason: "reducer conflict-key fencing proof for issue #3558 (eight concurrent claimers on one shared key hold at most one live lease, disjoint keys both claim concurrently so the fence never serializes, and the fenced sibling drains after ack), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "claim:batch fairness proof (a single ClaimBatch lane over two domains never lets an older continuously-regenerated high-volume backlog starve a newer lower-volume domain, and the fairness rank excludes non-claimable inactive-generation rows so they cannot inflate a domain rank), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go
     tag: ~
