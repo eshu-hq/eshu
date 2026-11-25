@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"sync"
 	"testing"
 
@@ -223,5 +224,56 @@ func TestInstrumentedDBForwardsArgoCDPageGuards(t *testing.T) {
 	assertBackfillPageGuards(t, provider, "300s", "eshu-backfill")
 	if len(loaded) != 1 {
 		t.Fatalf("loaded %d facts, want 1", len(loaded))
+	}
+}
+
+// nonProviderInner implements db.ExecQueryer but deliberately does NOT
+// implement backfill.PageConnProvider: it stands in for a mis-wired inner
+// handle that cannot open a guarded page connection.
+type nonProviderInner struct {
+	queries int
+	execs   int
+}
+
+var _ db.ExecQueryer = (*nonProviderInner)(nil)
+
+func (n *nonProviderInner) QueryContext(
+	_ context.Context, _ string, _ ...any,
+) (db.Rows, error) {
+	n.queries++
+	return &queueFakeRows{}, nil
+}
+
+func (n *nonProviderInner) ExecContext(
+	_ context.Context, _ string, _ ...any,
+) (sql.Result, error) {
+	n.execs++
+	return fakeResult{}, nil
+}
+
+// TestInstrumentedDBRefusesNonProviderInner requires the loud-error leg: an
+// inner handle without the page-conn capability must fail with an error
+// naming the inner type, and a paged loader through that wrapper must return
+// the error instead of silently running unguarded fallback queries.
+func TestInstrumentedDBRefusesNonProviderInner(t *testing.T) {
+	t.Parallel()
+
+	inner := &nonProviderInner{}
+	wrapped := &InstrumentedDB{Inner: inner, StoreName: "ingester"}
+
+	if _, err := wrapped.OpenBackfillPageConn(context.Background()); err == nil {
+		t.Fatal("OpenBackfillPageConn() = nil error, want loud failure naming the inner type")
+	} else if !strings.Contains(err.Error(), "does not support backfill page connections") ||
+		!strings.Contains(err.Error(), "nonProviderInner") {
+		t.Fatalf("OpenBackfillPageConn() error = %q, want it to name the non-provider inner type", err)
+	}
+
+	if _, err := backfill.LoadArgoCDGeneratorConfigFacts(context.Background(), wrapped, []string{"cfg-repo"}); err == nil {
+		t.Fatal("paged loader through non-provider wrapper = nil error, want loud failure, not silent fallback")
+	} else if !strings.Contains(err.Error(), "does not support backfill page connections") {
+		t.Fatalf("paged loader error = %q, want the loud page-conn failure", err)
+	}
+	if inner.queries != 0 || inner.execs != 0 {
+		t.Fatalf("fallback queries ran: queries=%d execs=%d, want 0 (no silent unguarded reads)", inner.queries, inner.execs)
 	}
 }
