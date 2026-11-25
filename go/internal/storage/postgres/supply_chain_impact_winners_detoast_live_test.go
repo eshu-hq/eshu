@@ -101,6 +101,15 @@ func TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive(t *testing.T) {
 	if mismatches != 0 {
 		t.Fatalf("field-equivalence differential found %d mismatching rows: the record diverges from ->>", mismatches)
 	}
+	// Row presence: the guarded lateral must not drop scalar or NULL rows.
+	// A count-only differential would pass on a shrunken table.
+	var total int
+	if err := conn.QueryRowContext(ctx, `SELECT count(*) FROM detoast_seed`).Scan(&total); err != nil {
+		t.Fatalf("seed row count: %v", err)
+	}
+	if total != 18 {
+		t.Fatalf("seed holds %d rows, want the 18 seeded fixtures: a dropped row would hide a lateral row loss", total)
+	}
 
 	// The array exception: `->` keeps a JSON null as jsonb null, while a
 	// record maps it to SQL NULL. Pin the legacy semantics the body keeps.
