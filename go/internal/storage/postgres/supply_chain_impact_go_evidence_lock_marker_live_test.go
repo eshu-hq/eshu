@@ -142,23 +142,27 @@ func TestGoEvidenceRealHandlerPassFootprintLive(t *testing.T) {
 }
 
 // pausedPassRound runs one changed pass of an existing holder with a seam between its
-// recheck and its owed marker, and returns the pass error. seam runs on the pass's own
-// goroutine while it holds the shared go-evidence lock.
+// recheck and its owed marker, and returns the pass error. seam runs once on the hooked
+// pass's own goroutine while it holds the shared go-evidence lock; any follow-up replay
+// pass inside c.drain() runs without re-firing the seam.
 func pausedPassRound(c *convergence, seam func(ctx context.Context)) (hookReturned, committedAt time.Time, passErr error) {
 	var mu sync.Mutex
+	var seamOnce sync.Once
 	c.handler.Writer = hookingWriter{
 		inner: supplychaincore.PostgresSupplyChainImpactWriter{DB: recheckHookBeginner{
 			inner: postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: c.db}},
 			hook: func(ctx context.Context) {
-				seam(ctx)
-				mu.Lock()
-				hookReturned = time.Now()
-				mu.Unlock()
+				seamOnce.Do(func() {
+					seam(ctx)
+					mu.Lock()
+					hookReturned = time.Now()
+					mu.Unlock()
+				})
 			},
 			onEnd: func(_ []string, ok bool) {
 				mu.Lock()
 				defer mu.Unlock()
-				if ok {
+				if ok && !hookReturned.IsZero() && committedAt.IsZero() {
 					committedAt = time.Now()
 				}
 			},
@@ -183,9 +187,11 @@ func TestGoEvidenceFenceQueuesBehindPassPausedBeforeItsMarkerLive(t *testing.T) 
 	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 40; round++ {
 		c.handler.Writer = plainWriter
-		seed := seedGoEvidenceChain(c, fmt.Sprintf("pm%02d", round), 1)
+		tag := fmt.Sprintf("pm%02d", round)
+		seed := seedGoEvidenceChain(c, tag, 1)
 		c.drain()
 		settleSupplyChainImpactSupports(c.t, c.ctx, c.db)
+		addHolderSecondAdvisory(c, seed, tag)
 		c.rerun(seed.holder)
 
 		var wg sync.WaitGroup
@@ -242,9 +248,11 @@ func TestGoEvidenceMarkerWaitsBehindAFenceStyleReopenLive(t *testing.T) {
 	plainWriter := c.handler.Writer // every round starts from the production writer, never a prior round's seam
 	for round := 0; round < 40; round++ {
 		c.handler.Writer = plainWriter
-		seed := seedGoEvidenceChain(c, fmt.Sprintf("dr%02d", round), 1)
+		tag := fmt.Sprintf("dr%02d", round)
+		seed := seedGoEvidenceChain(c, tag, 1)
 		c.drain()
 		settleSupplyChainImpactSupports(c.t, c.ctx, c.db)
+		addHolderSecondAdvisory(c, seed, tag)
 		c.rerun(seed.holder)
 
 		var held dbpkg.Transaction
@@ -278,6 +286,7 @@ func TestGoEvidenceMarkerWaitsBehindATableLockWithoutDeadlockLive(t *testing.T) 
 	seed := seedGoEvidenceChain(c, "tl", 1)
 	c.drain()
 	settleSupplyChainImpactSupports(c.t, c.ctx, c.db)
+	addHolderSecondAdvisory(c, seed, "tl")
 	c.rerun(seed.holder)
 
 	var wg sync.WaitGroup
@@ -318,6 +327,7 @@ func TestGoEvidenceMarkerRowHeldThreeSecondsFenceTimesOutLive(t *testing.T) {
 	seed := seedGoEvidenceChain(c, "hd", 1)
 	c.drain()
 	settleSupplyChainImpactSupports(c.t, c.ctx, c.db)
+	addHolderSecondAdvisory(c, seed, "hd")
 	c.rerun(seed.holder)
 
 	var wg sync.WaitGroup

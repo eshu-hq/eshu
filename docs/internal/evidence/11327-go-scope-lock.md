@@ -375,3 +375,9 @@ fails the recheck with SQLSTATE 42501 and the pass rolls back. The protected-pub
 grants `SELECT ON ingestion_scopes` in `grantImpactWriterPregrants`, and the least-privilege
 section of `supply-chain-impact-supports.md` names the requirement. The advisory lock functions
 need no grant.
+
+## File-cap relocation addendum
+
+No-Regression Evidence: Moving the conflict-domain advisory lock helpers (`lockSupplyChainImpactConflictDomainQuery`, `supplyChainImpactConflictDomainKey`, `SupplyChainImpactConflictDomainLockQuery`, `SupplyChainImpactConflictDomainKey`) from `go/internal/reducer/supplychain/core/writer_retract.go` to `go/internal/reducer/supplychain/core/writer_admission.go` keeps both files under the 500-line cap (472 and 168 lines) in the same `core` package with identical generated SQL, lock keys, statement order, and compiled symbols. Baseline and after behavior are identical (`go test -race -count=1 ./internal/reducer/supplychain/core` passes in 14.4s; no SQL, lock-order, queue, or row-count change).
+
+No-Observability-Change: Pure intra-package source file relocation; all existing metrics, spans, logs, and status signals in `go/internal/reducer/supplychain/core` are untouched.

@@ -9,12 +9,12 @@ package postgres_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,18 +36,17 @@ type goEvidenceChain struct {
 	generations []string
 }
 
+// goEvidenceTestRepoID returns a deterministic canonical repository ID
+// (`repository:r_<8 hex chars>`) so ParseGoReachabilityScopeID accepts the
+// derived go-reachability:// scope in live fence and evidence-load proofs.
+func goEvidenceTestRepoID(seed string) string {
+	sum := sha256.Sum256([]byte(seed))
+	return fmt.Sprintf("repository:r_%08x", sum[:4])
+}
+
 // seedGoEvidenceChain seeds a holder scope with one package consumption fact per
 // repository and an active go-reachability scope per repository holding not_called
 // evidence. tag keeps every id unique within one database.
-// goEvidenceSeedRepos hands out the repository suffixes the chain seed uses.
-// The fence only accepts canonical repository ids (`r_` plus 8 hex chars), so
-// the seed cannot embed its text tag the way the holder scope does.
-var goEvidenceSeedRepos atomic.Uint32
-
-func canonicalSeedRepository() string {
-	return fmt.Sprintf("repository:r_%08x", goEvidenceSeedRepos.Add(1))
-}
-
 func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenceChain {
 	c.t.Helper()
 	chainSeed := goEvidenceChain{
@@ -56,14 +55,6 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 	}
 	module := "example.com/ge-" + tag
 	pkg := "gomod://proxy.golang.org/" + module
-	// One canonical repository id per index, shared by the consumption facts
-	// below and the go scopes after them: the loader joins consumption to
-	// evidence on repository id, so handing each loop its own ids would
-	// resolve zero pairs and let every race proof pass vacuously.
-	repos := make([]string, repositories)
-	for i := range repos {
-		repos[i] = canonicalSeedRepository()
-	}
 	fanOutSeedScope(c.t, c.ctx, c.db, chainSeed.holder, "g1")
 	holderGeneration := fanOutGen(chainSeed.holder, "g1")
 	envelopes := []facts.Envelope{
@@ -80,7 +71,7 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 		}),
 	}
 	for i := 0; i < repositories; i++ {
-		repository := repos[i]
+		repository := goEvidenceTestRepoID(fmt.Sprintf("11327:%s:%d", tag, i))
 		envelopes = append(envelopes, c.envelope(chainSeed.holder, holderGeneration, fmt.Sprintf("fact:11327:%s:consumption:%d", tag, i),
 			factschema.FactKindReducerPackageConsumptionCorrelation, map[string]any{
 				"package_id": pkg, "relationship_kind": "consumption", "repository_id": repository,
@@ -90,7 +81,7 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 	c.upsert(envelopes...)
 	chainSeed.item = fanOutSeedItem(c.t, c.ctx, c.db, chainSeed.holder, "g1")
 	for i := 0; i < repositories; i++ {
-		repository := repos[i]
+		repository := goEvidenceTestRepoID(fmt.Sprintf("11327:%s:%d", tag, i))
 		goScope := "go-reachability://" + repository
 		fanOutSeedScope(c.t, c.ctx, c.db, goScope, "g1")
 		generation := fanOutGen(goScope, "g1")
@@ -111,6 +102,31 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 		chainSeed.generations = append(chainSeed.generations, generation)
 	}
 	return chainSeed
+}
+
+// addHolderSecondAdvisory inserts a second CVE + affected-package pair into
+// seed.holder's active generation so a subsequent c.rerun(seed.holder) produces
+// a changed finding set (owed == true) and therefore runs the owed marker after
+// the shared go-evidence lock.
+func addHolderSecondAdvisory(c *convergence, seed goEvidenceChain, tag string) {
+	c.t.Helper()
+	holderGeneration := fanOutGen(seed.holder, "g1")
+	advisory2 := "GO-2026-2-" + strings.ToUpper(tag)
+	module := "example.com/ge-" + tag
+	pkg := "gomod://proxy.golang.org/" + module
+	c.upsert(
+		c.envelope(seed.holder, holderGeneration, "fact:11327:"+tag+":cve2", chain.VulnerabilityCVEFactKind, map[string]any{
+			"advisory_id": advisory2, "cve_id": advisory2, "source": "osv", "cvss_score": 8.0,
+			"aliases": []any{advisory2},
+		}),
+		c.envelope(seed.holder, holderGeneration, "fact:11327:"+tag+":affected2", chain.VulnerabilityAffectedPackageFactKind, map[string]any{
+			"advisory_id": advisory2, "cve_id": advisory2, "package_id": pkg, "ecosystem": "gomod",
+			"package_name": module, "purl": "pkg:golang/" + module, "fixed_versions": []any{"1.2.0"},
+			"affected_ranges": []any{map[string]any{"type": "SEMVER", "events": []any{
+				map[string]any{"introduced": "0"}, map[string]any{"fixed": "1.2.0"},
+			}}},
+		}),
+	)
 }
 
 // holderVerdictNotCalled reports whether the holder's active finding still carries the
@@ -362,16 +378,13 @@ func TestGoEvidenceMultiRepositoryPassWithParallelFencesLive(t *testing.T) {
 func TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive(t *testing.T) {
 	c := newGoEvidenceConvergence(t)
 	seed := seedGoEvidenceChain(c, "pr", 2)
-	dormantRepository := "repository:r_11327prdormant"
+	dormantRepository := goEvidenceTestRepoID("11327:pr:dormant")
 	dormantScope := "go-reachability://" + dormantRepository
 	fanOutSeedScope(c.t, c.ctx, c.db, dormantScope, "g1")
 	if _, err := c.db.ExecContext(c.ctx, `UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = $1`, dormantScope); err != nil {
 		t.Fatalf("clear the dormant pointer: %v", err)
 	}
-	repositories := []string{dormantRepository}
-	for _, goScope := range seed.goScopes {
-		repositories = append(repositories, strings.TrimPrefix(goScope, "go-reachability://"))
-	}
+	repositories := []string{goEvidenceTestRepoID("11327:pr:0"), goEvidenceTestRepoID("11327:pr:1"), dormantRepository}
 	evidence, err := postgres.NewFactStore(postgres.SQLDB{DB: c.db}).ListActiveGoReachabilityEvidence(c.ctx,
 		supplychaincore.GoReachabilityFactFilter{RepositoryIDs: repositories})
 	if err != nil {
