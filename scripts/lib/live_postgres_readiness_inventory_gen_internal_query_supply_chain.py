@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain": {
+        "go/internal/query/supply/chain/runtime_context_outside_closure_live_test.go": (
+            "TestSupplyChainImpactRuntimeContextOutsideClosureLive",
+        ),
         "go/internal/query/supply/chain/runtime_filter_live_test.go": (
             "TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive",
         ),
