@@ -40,6 +40,10 @@ var findingWriteStopCallers = map[string]string{
 	"internal/query/supply/chain/runtime_filter_plan_live_test.go":                       "the query-plan proof plants frozen finding facts inside its rolled-back transaction on the shared DSN (whole-test disarm; a scoped re-arm would wait on the test's own uncommitted fact writes)",
 	"internal/query/supply/chain/runtime_filter_workload_id_shape_live_test.go":          "the workload-id shape proof plants a frozen finding fact inside its rolled-back transaction on the shared DSN (whole-test disarm; a scoped re-arm would wait on the test's own uncommitted fact writes)",
 	"internal/query/supply/chain/suppression_authority_live_test.go":                     "the suppression-authority parity proof plants frozen finding facts inside its rolled-back transaction on the shared DSN (whole-test disarm; a scoped re-arm would wait on the test's own uncommitted fact writes)",
+	"internal/storage/postgres/gomodules/fence_holders_live_test.go":                     "seedFindingHolder plants holder finding facts in a scoped window (the fence's supports-readiness backfill then fills supports; the fence and the reopen run armed)",
+	"internal/storage/postgres/repository_retirements_derived_live_test.go":              "the winners-dirty capture proof plants one derived finding fact in a scoped window (the fence and the purge run armed)",
+	"cmd/ifa/enqueue_advisory_groups_supports_live_test.go":                              "the contrast cell's facts-only admission plants finding facts in a scoped window (the supports admission and the dirty-fence assertions run armed)",
+	"internal/storage/postgres/nvd_window_ownership_live_test.go":                        "the window commits stream finding envelopes as the winners fence input in a scoped window (the trigger gates only the finding inserts; ownership, cursor and skip logic run armed)",
 }
 
 var disarmCall = regexp.MustCompile(`\b(SeedFindingFacts|DisarmFindingWriteStopForTest|DisarmFindingWriteStop|ArmFindingWriteStop)\(`)

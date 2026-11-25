@@ -10,8 +10,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -74,6 +76,59 @@ func advisoryCellCount(t *testing.T, ctx context.Context, database *sql.DB, quer
 	return count
 }
 
+// advisoryCellSupportsEqualLiveRows proves every live cassette finding row
+// has exactly one support in the scope and that each support's payload is the
+// row's payload verbatim. The comparison parses both sides: the supports
+// table stores JSONB (whose text form orders keys its own way) while the rows
+// carry the cassette's re-marshaled bytes, so a text comparison would be
+// order-sensitive where the contract is content.
+func advisoryCellSupportsEqualLiveRows(t *testing.T, ctx context.Context, database *sql.DB, rows []factwrite.VersionedRow) {
+	t.Helper()
+	live := map[string]json.RawMessage{}
+	for _, row := range rows {
+		if !row.IsTombstone {
+			live[row.FactID] = json.RawMessage(row.Payload)
+		}
+	}
+	stored, err := database.QueryContext(ctx,
+		`SELECT fact_id, payload::text FROM supply_chain_impact_finding_supports WHERE scope_id = $1`, advisoryCellScope)
+	if err != nil {
+		t.Fatalf("read supports: %v", err)
+	}
+	defer func() { _ = stored.Close() }()
+	seen := map[string]bool{}
+	for stored.Next() {
+		var factID, payload string
+		if err := stored.Scan(&factID, &payload); err != nil {
+			t.Fatalf("scan support: %v", err)
+		}
+		if seen[factID] {
+			t.Fatalf("duplicate support for fact %s: one live row must have one support", factID)
+		}
+		seen[factID] = true
+		wantRaw, ok := live[factID]
+		if !ok {
+			t.Fatalf("support for fact %s names no live cassette row", factID)
+		}
+		var want, got any
+		if err := json.Unmarshal(wantRaw, &want); err != nil {
+			t.Fatalf("decode cassette payload %s: %v", factID, err)
+		}
+		if err := json.Unmarshal([]byte(payload), &got); err != nil {
+			t.Fatalf("decode support payload %s: %v", factID, err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("support payload for fact %s differs from the cassette finding payload", factID)
+		}
+	}
+	if err := stored.Err(); err != nil {
+		t.Fatalf("iterate supports: %v", err)
+	}
+	if len(seen) != len(live) {
+		t.Fatalf("supports with a live cassette row = %d, want %d", len(seen), len(live))
+	}
+}
+
 // TestAdvisoryGroupCellAdmitsFindingsWithSupportsLive proves #11201 on the
 // committed cassette: the admission writes a support for every live finding
 // fact in the same transaction and leaves the old-writer fence empty.
@@ -104,13 +159,11 @@ func TestAdvisoryGroupCellAdmitsFindingsWithSupportsLive(t *testing.T) {
 	if got := advisoryCellCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE scope_id = $1`, advisoryCellScope); got != live {
 		t.Fatalf("supports rows = %d, want %d (one per live finding fact)", got, live)
 	}
-	// The payload is the fact payload verbatim, and every support names a live fact.
-	if got := advisoryCellCount(t, ctx, database, `
-SELECT count(*) FROM supply_chain_impact_finding_supports AS s
-JOIN fact_records AS f ON f.fact_id = s.fact_id
-WHERE s.scope_id = $1 AND f.is_tombstone = FALSE AND s.payload::text = f.payload::text`, advisoryCellScope); got != live {
-		t.Fatalf("supports with a byte-equal live fact = %d, want %d", got, live)
-	}
+	// The payload is the finding payload verbatim: since PR-C2 the admission
+	// writes supports only and no finding fact, so the check compares each
+	// live cassette row's payload against its support's payload in Go (parsed
+	// JSON, keyed by fact id) instead of joining the frozen fact table.
+	advisoryCellSupportsEqualLiveRows(t, ctx, database, rows)
 	if got := advisoryCellCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_finding_supports_dirty`); got != 0 {
 		t.Fatalf("dirty fence scopes = %d, want 0: the admission must run under the supports writer setting", got)
 	}
@@ -149,9 +202,14 @@ func TestAdvisoryGroupCellFactsOnlyAdmissionMarksTheScopeDirtyLive(t *testing.T)
 	if err != nil {
 		t.Fatalf("cassetteFindingRows() error = %v, want nil", err)
 	}
-	if err := factwrite.BatchInsertVersionedFacts(ctx, database, rows); err != nil {
-		t.Fatalf("facts-only admission: %v", err)
-	}
+	// The facts-only path is the cell's previous admission: it plants frozen
+	// finding history, so the plant runs in a scoped SeedFindingFacts window
+	// on the armed database while the dirty-fence assertion runs armed.
+	postgresproof.SeedFindingFacts(t, database, func() {
+		if err := factwrite.BatchInsertVersionedFacts(ctx, database, rows); err != nil {
+			t.Fatalf("facts-only admission: %v", err)
+		}
+	})
 	if got := advisoryCellCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE scope_id = $1`, advisoryCellScope); got != 0 {
 		t.Fatalf("supports after the facts-only admission = %d, want 0", got)
 	}

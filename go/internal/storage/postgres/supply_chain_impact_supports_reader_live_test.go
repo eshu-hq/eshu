@@ -183,10 +183,11 @@ func b2cSeed(t *testing.T, ctx context.Context, db *sql.DB) {
 }
 
 // b2cImpactFactIDs lists the live impact fact ids in the database's order.
+// Since PR-C2 the production writer stores findings as supports only, so the
+// ids read the supports table: one row per live finding.
 func b2cImpactFactIDs(t *testing.T, ctx context.Context, db *sql.DB) []string {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, `SELECT fact_id FROM fact_records WHERE fact_kind = $1 AND is_tombstone = FALSE ORDER BY fact_id`,
-		facts.ReducerSupplyChainImpactFindingFactKind)
+	rows, err := db.QueryContext(ctx, `SELECT fact_id FROM supply_chain_impact_finding_supports ORDER BY fact_id`)
 	if err != nil {
 		t.Fatalf("list impact fact ids: %v", err)
 	}
