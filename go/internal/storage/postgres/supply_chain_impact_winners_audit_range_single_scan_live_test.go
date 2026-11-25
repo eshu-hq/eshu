@@ -16,11 +16,12 @@ import (
 )
 
 // The #10972 single-scan proofs: the new renderer keeps the shipped range
-// contract (RED 1 equivalence over the fixture corpus), costs less than half
-// the shipped buffers (RED 2), and the stored side rides the new canonical
-// identifier index whose expressions match the code byte for byte (RED 3).
-// All three fail before the renderer exists: they reference the single-scan
-// statement pair the new file renders.
+// contract (RED 1 equivalence over the fixture corpus) within the 1.25x
+// parity bound the cost test pins (RED 2 sub-half bound void per arbiter),
+// and the stored side rides the new canonical identifier index whose
+// expressions match the code byte for byte (RED 3). All three fail before
+// the renderer exists: they reference the single-scan statement pair the
+// new file renders.
 
 // singleScanRangeSnapshot is one range read for old-versus-new comparison.
 type singleScanRangeSnapshot struct {
