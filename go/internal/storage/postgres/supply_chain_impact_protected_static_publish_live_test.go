@@ -38,11 +38,16 @@ type protectedPublishProof struct {
 // that can reach publish_impact_publication_v1 only through the contract.
 func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 	t.Helper()
-	adminDSN := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	optIn := os.Getenv("ESHU_POSTGRES_DISPOSABLE")
-	if adminDSN == "" {
+	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the protected publish proof")
 	}
+	// The family DSN names the proof's working database (for example "eshu" in
+	// the reducer contention gate); the disposable helpers require the
+	// administrative "postgres" database, so derive it the way
+	// openIsolatedLiveDB does instead of passing the family DSN through.
+	adminDSN := disposableAdminDSN(t, dsn)
 	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
 	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
 		postgresproof.FlavourPublicBootstrap,

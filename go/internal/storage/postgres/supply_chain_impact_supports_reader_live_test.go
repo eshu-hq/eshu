@@ -154,11 +154,14 @@ func b2cSeed(t *testing.T, ctx context.Context, db *sql.DB) {
 		b2cFinding("repo:r5", "pkg:npm/p7", "CVE-2026-0007", "", "7.0.0")))
 	write(b2cWrite(b2cScopeC, b2cGenC, "intent:c-2", b2cFinding("repo:r5", "pkg:npm/p7", "CVE-2026-0007", "", "7.0.0")))
 
-	// Alert and consumption facts get ids that interleave with the impact fact
-	// ids, so the merged statement's order is tested, not a concatenation.
-	impactIDs := b2cImpactFactIDs(t, ctx, db)
+	// Alert and consumption facts get ids that interleave with the impact
+	// support ids, so the merged statement's order is tested, not a
+	// concatenation. The seed reads the supports table, not fact_records: the
+	// C2 writer keeps findings in supports only, so no finding fact exists to
+	// interleave with on an armed database.
+	impactIDs := b2cSupportIDs(t, ctx, db)
 	if len(impactIDs) < 4 {
-		t.Fatalf("seeded %d impact facts, want at least 4", len(impactIDs))
+		t.Fatalf("seeded %d impact supports, want at least 4", len(impactIDs))
 	}
 	store := NewFactStore(SQLDB{DB: db})
 	if err := store.UpsertFacts(ctx, []facts.Envelope{
@@ -182,14 +185,15 @@ func b2cSeed(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 }
 
-// b2cImpactFactIDs lists the live impact fact ids in the database's order.
-// Since PR-C2 the production writer stores findings as supports only, so the
-// ids read the supports table: one row per live finding.
-func b2cImpactFactIDs(t *testing.T, ctx context.Context, db *sql.DB) []string {
+// b2cSupportIDs lists the impact support ids in the database's order. The
+// alert and consumption facts the seed mints from them only need stable,
+// ordered ids that interleave with the supports stream, so the supports table
+// is the source: finding facts no longer exist on an armed database.
+func b2cSupportIDs(t *testing.T, ctx context.Context, db *sql.DB) []string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `SELECT fact_id FROM supply_chain_impact_finding_supports ORDER BY fact_id`)
 	if err != nil {
-		t.Fatalf("list impact fact ids: %v", err)
+		t.Fatalf("list impact support ids: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var ids []string

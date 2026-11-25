@@ -378,7 +378,14 @@ func (f *impactFamily) requireFaultFree() {
 		f.t.Fatalf("%d handler executions failed in a fault-free run: %v", len(failures), failures)
 	}
 	if executions, items := f.totalExecutions(), f.impactItems(); executions != items {
-		f.t.Fatalf("handler executions = %d for %d impact work items, want one each in a fault-free run", executions, items)
+		f.mu.Lock()
+		breakdown := make([]string, 0, len(f.executions))
+		for id, n := range f.executions {
+			breakdown = append(breakdown, fmt.Sprintf("%s=%d", id, n))
+		}
+		f.mu.Unlock()
+		sort.Strings(breakdown)
+		f.t.Fatalf("handler executions = %d for %d impact work items, want one each in a fault-free run; per intent: %v", executions, items, breakdown)
 	}
 }
 

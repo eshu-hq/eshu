@@ -4,12 +4,13 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 PR-B2 supports not-ready deferral on the real ReducerQueue claim, fail and retry SQL, the real FactStore loader and the real SecurityAlertReconciliationHandler: a reconciliation whose supports table is not ready defers with the non-counting class across four claim cycles with attempt_count frozen at 1, nothing written and no dead letter, then, once the supports backfill reaches ready, runs at attempt 1 and writes exactly the decisions the finding-fact read control writes
+//eshu:readiness:reason #10880 PR-B2 supports not-ready deferral on the real ReducerQueue claim, fail and retry SQL, the real FactStore loader and the real SecurityAlertReconciliationHandler: a reconciliation whose supports table is not ready defers with the non-counting class across four claim cycles with attempt_count frozen at 1, nothing written and no dead letter, then, once the supports backfill reaches ready, runs at attempt 1 and writes exactly the decisions the plain-supports-SQL control writes (no finding-fact control exists: the C2 writer keeps findings in supports only)
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_POSTGRES_DISPOSABLE
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"reflect"
 	"sync"
 	"testing"
@@ -77,35 +78,93 @@ func walBytesBetween(t *testing.T, ctx context.Context, database *sql.DB, from, 
 	return bytes
 }
 
-// supportsControlLoader is the control: the same store, but the active evidence
-// is read from facts, impact findings included (the statement the loader ran
-// before #11198), so its decisions are what the finding-fact read produces.
+// supportsControlLoader is the control: the same store, but the impact
+// findings come from a plainly written supports SELECT instead of the
+// production supports drain. The alert and consumption facts come from the
+// shipped fact statement, which no longer selects the impact kind, so the
+// fact stream is byte-identical to production's; only the impact stream is an
+// independent spelling (active-generation join, the four filter arms over the
+// derived columns, verbatim payload, fact-id order). Equal decisions then
+// prove the production drain matches the plain supports read. A finding-fact
+// control is impossible: the C2 writer keeps findings in supports only, so no
+// finding fact exists on an armed database.
 type supportsControlLoader struct {
 	FactStore
 	db *sql.DB
-	t  *testing.T
 }
+
+// supportsControlImpactsQuery is the control's impact stream: the four
+// reconciliation filter arms over the supports derived columns, restricted to
+// the active generation, in fact-id order. It mirrors
+// securityAlertReconciliationSupportsArms (repository, package, CVE, advisory,
+// with the partial-btree guards) without the paging machinery.
+const supportsControlImpactsQuery = `
+SELECT s.fact_id, s.scope_id, s.generation_id, s.source_confidence, s.payload
+FROM supply_chain_impact_finding_supports AS s
+JOIN ingestion_scopes AS sc
+  ON sc.scope_id = s.scope_id
+ AND sc.active_generation_id = s.generation_id
+JOIN scope_generations AS g
+  ON g.scope_id = s.scope_id
+ AND g.generation_id = s.generation_id
+ AND g.status = 'active'
+WHERE (s.repository_id = ANY($1::text[]) AND s.repository_id <> '')
+   OR (s.package_id = ANY($2::text[]) AND s.package_id <> '')
+   OR (s.cve_id = ANY($3::text[]) AND s.cve_id <> '')
+   OR (s.advisory_id = ANY($4::text[]) AND s.advisory_id <> '')
+ORDER BY s.fact_id ASC`
 
 func (l supportsControlLoader) ListActiveSecurityAlertReconciliationFacts(
 	ctx context.Context,
 	filter securityalert.SecurityAlertReconciliationFactFilter,
 ) ([]facts.Envelope, error) {
-	rows, err := l.db.QueryContext(ctx, legacyReconciliationOracleQuery(l.t),
-		cleanStringFilterValues(filter.RepositoryIDs), cleanStringFilterValues(filter.PackageIDs),
-		cleanStringFilterValues(filter.CVEIDs), cleanStringFilterValues(filter.GHSAIDs), "", 100000)
+	repos := cleanStringFilterValues(filter.RepositoryIDs)
+	packages := cleanStringFilterValues(filter.PackageIDs)
+	cves := cleanStringFilterValues(filter.CVEIDs)
+	ghsas := cleanStringFilterValues(filter.GHSAIDs)
+	if len(repos) == 0 && len(packages) == 0 && len(cves) == 0 && len(ghsas) == 0 {
+		return nil, nil
+	}
+	rows, err := l.db.QueryContext(ctx, listActiveSecurityAlertReconciliationFactsQuery,
+		repos, packages, cves, ghsas, "", 100000)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
 	var out []facts.Envelope
 	for rows.Next() {
 		envelope, err := backfill.ScanFactEnvelope(rows)
 		if err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
 		out = append(out, envelope)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	_ = rows.Close()
+	supportRows, err := l.db.QueryContext(ctx, supportsControlImpactsQuery, repos, packages, cves, ghsas)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = supportRows.Close() }()
+	for supportRows.Next() {
+		var envelope facts.Envelope
+		var rawPayload []byte
+		if err := supportRows.Scan(&envelope.FactID, &envelope.ScopeID, &envelope.GenerationID,
+			&envelope.SourceConfidence, &rawPayload); err != nil {
+			return nil, err
+		}
+		envelope.FactKind = facts.ReducerSupplyChainImpactFindingFactKind
+		var payload map[string]any
+		if err := json.Unmarshal(rawPayload, &payload); err != nil {
+			return nil, err
+		}
+		envelope.Payload = payload
+		out = append(out, envelope)
+	}
+	return out, supportRows.Err()
 }
 
 func supportsDeferConsumptions(
@@ -124,7 +183,9 @@ func supportsDeferConsumptions(
 // table is not ready the reconciliation is claimed, refused and deferred four
 // times with attempt_count frozen at 1, nothing written, no dead letter; when
 // the backfill reaches ready (through the production RunStep) it runs at attempt
-// 1 and writes the decisions the finding-fact control writes.
+// 1 and writes the decisions the plain-supports-SQL control writes (the control
+// reads the shipped fact stream plus a hand-written supports SELECT, since the
+// C2 writer leaves no finding fact for a fact-read control).
 func TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive(t *testing.T) {
 	db, ctx := openIsolatedLiveDB(t, "b2c_queue_defer",
 		workflowControlIntegrationDSNEnv+" is not set; skipping Postgres integration test")
@@ -215,7 +276,7 @@ func TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive(t *testing.T) {
 
 	controlWriter := &supportsDeferWriter{}
 	control := securityalert.SecurityAlertReconciliationHandler{
-		FactLoader: supportsControlLoader{FactStore: *store, db: db, t: t}, Writer: controlWriter,
+		FactLoader: supportsControlLoader{FactStore: *store, db: db}, Writer: controlWriter,
 		ExtractManifestConsumptions: supportsDeferConsumptions, Now: func() time.Time { return clock },
 	}
 	if _, err := control.Handle(ctx, intent); err != nil {

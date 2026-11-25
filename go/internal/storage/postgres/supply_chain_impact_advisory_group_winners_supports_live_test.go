@@ -24,11 +24,16 @@ import (
 // read took both from fact_records, so every new winner came back with an empty purl and no members and no error.
 // It complements TestAdvisoryGroupWinnersQualifyingLive, which seeds finding facts with the stop disarmed.
 func TestSupplyChainImpactSupportsAdvisoryGroupWinnersReadLive(t *testing.T) {
-	adminDSN := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	optIn := os.Getenv("ESHU_POSTGRES_DISPOSABLE")
-	if adminDSN == "" {
+	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the supports-only advisory group winners proof")
 	}
+	// The family DSN names the proof's working database (for example "eshu" in
+	// the reducer contention gate); the disposable helpers require the
+	// administrative "postgres" database, so derive it the way
+	// openIsolatedLiveDB does instead of passing the family DSN through.
+	adminDSN := disposableAdminDSN(t, dsn)
 	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
 		postgresproof.FlavourPublicBootstrap,
 		func(ctx context.Context, database *sql.DB) error {
