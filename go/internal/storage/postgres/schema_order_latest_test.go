@@ -214,4 +214,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 355 (#10880 PR-C1) redefines the scope-delete capture over
 	// finding facts and supports so a pre-backfill retirement still stages.
 	"supply_chain_impact_winners_scope_capture_facts_and_supports",
+	// Migration 356 (#10972) adds the stored-side identifier index for the
+	// staged-audit single-scan range, built CONCURRENTLY.
+	"supply_chain_impact_winners_canonical_ident_idx",
 }

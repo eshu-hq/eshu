@@ -394,9 +394,13 @@ import (
 // 355 (#10880 PR-C1) redefines the scope-delete capture over facts and supports
 // so a scope retired before its facts are backfilled still stages its keys.
 // Count 381 is 380 plus that one.
+// 356_supply_chain_impact_winners_canonical_ident_idx.sql (#10972) adds the
+// stored-side identifier index for the staged-audit single-scan range.
+// Count 382 is 381 plus 356; the digest is this test's own derivation on
+// the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "bc079bc9f91b1643039a66fef8e9c604e7d47af2658fe7db02540dee6fa6290a"
-	goldenBootstrapDefinitionsCount  = 381
+	goldenBootstrapDefinitionsDigest = "bbfa8b3891e9d5294801aac2aa2928424e1ca2934a0582bf3d7cbb929d589224"
+	goldenBootstrapDefinitionsCount  = 382
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
