@@ -12,7 +12,6 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-golden-corpus-gate.sh"
 fixture_lib="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"
 workflow="${repo_root}/.github/workflows/golden-corpus-gate.yml"
-workflow_paths="${repo_root}/specs/ci-pr-workflows.d/golden-corpus-gate.yml"
 snapshot="${repo_root}/testdata/golden/e2e-20repo-snapshot.json"
 sql_drop_fixture="${repo_root}/tests/fixtures/ecosystems/sql_comprehensive/migrations/V2__drop_legacy_tables.sql"
 ci_gates_dir="$(mktemp -d)"
@@ -29,7 +28,6 @@ ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${ci_gates}" "${repo_r
 	|| fail "verify-golden-corpus-gate.sh must stay under 500 lines"
 [[ -f "${fixture_lib}" ]] || fail "missing ${fixture_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
-[[ -f "${workflow_paths}" ]] || fail "missing ${workflow_paths}"
 [[ -f "${snapshot}" ]] || fail "missing ${snapshot}"
 [[ -f "${sql_drop_fixture}" ]] || fail "missing ${sql_drop_fixture}"
 [[ -f "${ci_gates}" ]] || fail "missing ${ci_gates}"
@@ -62,24 +60,21 @@ bash -n "${matcher_guard_cases_lib}" || fail "golden-corpus-matcher-guard-cases.
 [[ "${matcher_guard_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-matcher-guard-cases.sh did not run to completion (gutted, or returned early)"
 
-# The frozen PR fragment must select every B-7 source path. The sourced
-# mirror holds the detailed path rationale (#5596, #5538).
-workflow_paths_lib="${repo_root}/scripts/lib/golden-corpus-mirror-workflow-paths.sh"
-[[ -f "${workflow_paths_lib}" ]] || fail "missing workflow paths lib: ${workflow_paths_lib}"
-bash -n "${workflow_paths_lib}" || fail "golden-corpus-mirror-workflow-paths.sh has a syntax error"
-# shellcheck source=scripts/lib/golden-corpus-mirror-workflow-paths.sh
-. "${workflow_paths_lib}"
-# The workflow is only one of THREE lists that must carry these paths. Assert the
-# other two as well, or "the gap cannot reopen" is true for a third of the gap.
-# Scoped to each gate's OWN trigger block: a file-wide grep passes while the path
-# is present in either gate, so deleting it from one silently un-selects that
-# gate and the local half of the gap reopens.
-for gate_id in golden-corpus-mirror golden-corpus-gate golden-corpus-gate-neo4j; do
-	for gate_path in 'scripts/lib/golden-corpus-*.sh' 'scripts/lib/test-golden-corpus-*.sh' 'scripts/lib/live-gate-lock.sh' 'tests/fixtures/ecosystems/**'; do
-		require_in_region "ci-gates gate ${gate_id} trigger ${gate_path}" "${ci_gates}" \
-			"/^  - id: ${gate_id}\$/,/^    local:/" "- \"${gate_path}\""
-	done
-done
+# #7362: the pre-pr live step must run the blocking Neo4j leg.
+golden_step_opener='^[[:space:]]*run_or_defer golden-corpus[[:space:]]'
+golden_step_openers="$(sed -n "/${golden_step_opener}/=" "${prepr}" | wc -l | tr -d ' ')"
+[[ "${golden_step_openers}" == 1 ]] ||
+	fail "pre-pr golden-corpus step opener must appear exactly once in $(basename "${prepr}"), found ${golden_step_openers} (#7362)"
+require_in_region "pre-pr golden-corpus live step runs the blocking Neo4j leg (#7362)" "${prepr}" \
+	"/${golden_step_opener}/,/|| rc=1/" \
+	'env ESHU_GRAPH_BACKEND=neo4j bash "${repo_root}/scripts/verify-golden-corpus-gate.sh"'
+capture_leg_cases_lib="${repo_root}/scripts/lib/golden-corpus-capture-leg-cases.sh"
+[[ -f "${capture_leg_cases_lib}" ]] || fail "missing capture leg cases lib: ${capture_leg_cases_lib}"
+bash -n "${capture_leg_cases_lib}" || fail "golden-corpus-capture-leg-cases.sh has a syntax error"
+# shellcheck source=scripts/lib/golden-corpus-capture-leg-cases.sh
+. "${capture_leg_cases_lib}"
+[[ "${capture_leg_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-capture-leg-cases.sh did not run to completion (gutted, or returned early)"
 # Anchored to the golden-corpus selector line, not the whole file: the fragment
 # could otherwise be moved onto an unrelated selector and still pass. The
 # leading `^(?!\s*#)` keeps a commented-out selector from standing in for the
@@ -99,11 +94,7 @@ require_matches "the pre-pr golden-corpus selector must match static ecosystem c
 # trigger this gate -- a false green. Assert the glob entry is present, and
 # that every golden-corpus lib file actually on disk still matches its naming
 # convention, so a future rename or an added lib outside that convention
-# reopens the gap loudly here instead of silently in CI. This mirror's own
-# matcher lib takes the same golden-corpus-*.sh name deliberately: it inherits
-# every trigger list below without a new path entry to keep in sync, at the cost
-# of counting toward this floor.
-require_workflow_path "golden-corpus lib helpers (#5817)" "scripts/lib/golden-corpus-*.sh"
+# reopens the gap loudly here instead of silently in CI.
 shopt -s nullglob
 golden_corpus_libs=("${repo_root}"/scripts/lib/golden-corpus-*.sh)
 shopt -u nullglob

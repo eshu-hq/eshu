@@ -99,7 +99,7 @@ func openSupportsEqualityDatabase(t *testing.T) (context.Context, *sql.DB) {
 // facts seeded before the backfill fills the supports table.
 func openSupportsEqualityDatabaseWith(t *testing.T, extra func(*testing.T, context.Context, *sql.DB)) (context.Context, *sql.DB) {
 	t.Helper()
-	ctx, database := openMultiSupportDatabase(t)
+	ctx, database := openMultiSupportSeededDatabase(t)
 	seedSupportsEqualityExtras(t, ctx, database)
 	if extra != nil {
 		extra(t, ctx, database)
@@ -116,6 +116,10 @@ func openSupportsEqualityDatabaseWith(t *testing.T, extra func(*testing.T, conte
 		if step > 200 {
 			t.Fatal("backfill did not complete")
 		}
+	}
+	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
+		RebuildAllWinners(ctx); err != nil {
+		t.Fatalf("RebuildAllWinners: %v", err)
 	}
 	var supports, live int
 	if err := database.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports`).Scan(&supports); err != nil {

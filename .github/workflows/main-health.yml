@@ -29,33 +29,6 @@ name: Main Health
 # Dry run: Actions -> Main Health -> Run workflow (dry_run defaults to true)
 # prints the decision and the writes it would make, and makes none.
 on:
-  workflow_run:
-    workflows:
-      - Build Test
-      - End-to-end Tests
-      - Fact Schema Diff
-      - Frontend
-      - Golden Corpus Gate
-      - Ifa Determinism Gate
-      - Live Backend Tests
-      - Live PostgreSQL Migrations
-      - Live PostgreSQL Readiness
-      - MCP Schema Drift
-      - Payload Usage Manifest
-      - Product Claim Ledger
-      - Publish Image
-      - Race Graph Writes
-      - Reducer Contention Gate
-      - Replay Coverage Gate
-      - Replay Tier (offline Neo4j)
-      - Scorecard Example Conformance
-      - SDK Go Modules
-      - Security Scan
-      - Static Contract Gates
-      - Verify Agent Hygiene
-      - Verify CI Gate Registry
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -63,7 +36,7 @@ on:
         type: boolean
         default: true
   schedule:
-    - cron: "47 */6 * * *"
+    - cron: "*/15 * * * *"
 
 permissions:
   actions: read
@@ -74,27 +47,41 @@ permissions:
 # #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
 # bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept
 # because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
+#
+# MAIN_HEALTH_WORKFLOWS is the single judged list on main (read by
+# scripts/lib/main-health-policy.sh). Polling every 15 minutes avoids the
+# workflow_run completion storm (~1,100 runs/day, ~450 cancelled) while still
+# catching a red main promptly.
 env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
+  MAIN_HEALTH_WORKFLOWS: |
+    Build Test
+    End-to-end Tests
+    Fact Schema Diff
+    Frontend
+    Ifa Determinism Gate
+    Live Backend Tests
+    Live PostgreSQL Migrations
+    MCP Schema Drift
+    Payload Usage Manifest
+    Product Claim Ledger
+    Publish Image
+    Race Graph Writes
+    Replay Coverage Gate
+    Replay Tier (offline Neo4j)
+    Scorecard Example Conformance
+    SDK Go Modules
+    Security Scan
+    Static Contract Gates
+    Verify Agent Hygiene
+    Verify CI Gate Registry
 
 jobs:
   watch:
-    # Allow-list, not deny-list: only the schedule, a manual dispatch, or a
-    # completed push, schedule or workflow_run (Security Scan's image scan)
-    # run of main in this repository wakes the watcher. A run of a fork
-    # branch named `main`, and any pull_request, pull_request_target,
-    # or issue_comment run, never matches.
-    # scripts/test-main-health.sh evaluates this expression against each of
-    # those contexts. For a workflow_run-type run head_branch is always main
-    # (the default branch at creation), so that test is a floor, not the
-    # filter: the script judges main's tip whatever woke it.
+    # Allow-list, not deny-list: only the 15-minute schedule or a manual
+    # dispatch wakes the watcher; push/PR/fork events never match.
     if: >-
-      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.head_branch == 'main' &&
-      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule' ||
-      github.event.workflow_run.event == 'workflow_run'))
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     # Concurrency is on the JOB, not the workflow. GitHub documents a
     # workflow-level group as applying to the whole run, so a run whose only
     # job the guard skips could take the one pending slot and evict a queued

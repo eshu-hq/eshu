@@ -6,24 +6,15 @@
 check_ci_gate_workflow_shapes() {
 	local mirrored_scripts mirrored_count mirrored_script
 
-	# dorny/paths-filter needs pull-request read permission, matrix context is
-	# invalid at jobs.<job_id>.if, and main pushes retain the all-gates
-	# backstop (required-gates.yml selects a pull request's gates from its
-	# own diff, so every gate it can select must have run).
+	# Static Contract Gates runs the consumer-facing product-contract verifiers
+	# serially in one job (no matrix fanout, no dorny/paths-filter).
 	[[ -f "${static_contract_workflow}" ]] || fail "missing ${static_contract_workflow}"
-	require "paths-filter PR permission" "pull-requests: read" "${static_contract_workflow}"
+	require "static-contract PR permission" "pull-requests: read" "${static_contract_workflow}"
 	if rg --quiet '^    if:.*matrix\.' "${static_contract_workflow}"; then
 		fail "static-contract-gates.yml must not use matrix context in jobs.<job_id>.if"
 	fi
-	require "main-push all-gates selector" \
-		'[[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]' \
-		"${static_contract_workflow}"
-	require "selected gate matrix" \
-		"fromJSON(needs.changes.outputs.matrix)" \
-		"${static_contract_workflow}"
-	require "empty-selection job guard" \
-		"needs.changes.outputs.any == 'true'" \
-		"${static_contract_workflow}"
+	require "single serial product-contract job" "name: Product Contract Gates" "${static_contract_workflow}"
+	require "restore-only PR cache transport" "actions/cache/restore@v4" "${static_contract_workflow}"
 
 	# Build Test exposes separately timed contract, core, race, and docs/Helm
 	# surfaces. A monolithic build job would hide which surface timed out.

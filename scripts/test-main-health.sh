@@ -241,8 +241,8 @@ check "verdict is sanitised (no raw @user mention)" "$(called '@some-user' && ec
 listed="$(MAIN_HEALTH_REPO_ROOT="${repo_root}" "${target}" --print-required)"
 check "real repo: derived required list is non-empty" "$([ -n "${listed}" ] && echo 0 || echo 1)"
 check "real repo: derived list names the sentinel Build Test" "$(printf '%s\n' "${listed}" | rg -qx 'Build Test' && echo 0 || echo 1)"
-expected_n="$(yq '.on.workflow_run.workflows | length' "${repo_root}/.github/workflows/main-health.yml")"
-check "real repo: derived list covers the watcher's wake list" "$([ "$(printf '%s\n' "${listed}" | wc -l | tr -d ' ')" -eq "${expected_n}" ] && echo 0 || echo 1)"
+expected_n="$(yq '.env.MAIN_HEALTH_WORKFLOWS // ""' "${repo_root}/.github/workflows/main-health.yml" | awk 'NF' | wc -l | tr -d ' ')"
+check "real repo: derived list covers the watcher's judged list" "$([ "$(printf '%s\n' "${listed}" | wc -l | tr -d ' ')" -eq "${expected_n}" ] && echo 0 || echo 1)"
 # #8354: the workflow_run file list must not depend on the installed yq's
 # string-escape handling (yq < 4.49 kept a "\t" literal, emptied the list, and
 # the watcher then never read Security Scan's workflow_run image scan).

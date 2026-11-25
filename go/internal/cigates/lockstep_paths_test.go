@@ -36,7 +36,6 @@ var probePaths = []string{
 	"docs/public/reference/capability-catalog.md",
 	"docs/public/reference/ci-gates.md",
 	"docs/public/reference/code-coverage-shield.json",
-	"docs/public/reference/code-coverage.md",
 	"docs/public/reference/environment-compose-tests.md",
 	"docs/public/reference/investigation-evidence-packet.md",
 	"docs/public/reference/local-testing.md",

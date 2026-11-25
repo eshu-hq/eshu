@@ -101,10 +101,10 @@ fi
 
 # Case 7: a CI-only gate (no local: block) falls back to its ci_only_reason
 # in the command cell instead of an unexplained em dash.
-if rg -q '^\| `reducer-contention` \|.*CI-only: needs Postgres' "${expected_path}"; then
+if rg -q '^\| `e2e-tests` \|.*CI-only: requires Docker Compose service stack' "${expected_path}"; then
 	record_pass "a CI-only registry entry explains itself in the command cell"
 else
-	record_fail "reducer-contention did not render its ci_only_reason"
+	record_fail "e2e-tests did not render its ci_only_reason"
 fi
 
 # Case 8: a command containing a literal "|" (the authz-scoped-route-tests

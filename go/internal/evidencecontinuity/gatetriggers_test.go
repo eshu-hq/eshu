@@ -442,3 +442,36 @@ func TestValidatorGateTriggerCoverage_AnchorsCheckedWithoutGoTestRefs(t *testing
 		}
 	}
 }
+
+func TestValidatorGateTriggerCoverage_PushPathsWorkflowCoveredAndUncovered(t *testing.T) {
+	root := writeGateTriggerFixture(t, fullyCoveredTriggers("go/internal/query/**"), nil)
+	var wf strings.Builder
+	wf.WriteString("on:\n  push:\n    branches: [main]\n    paths:\n")
+	for _, p := range fullyCoveredTriggers("go/internal/query/**") {
+		wf.WriteString("      - '" + p + "'\n")
+	}
+	wf.WriteString("jobs:\n  gate:\n    steps:\n      - run: scripts/verify-evidence-continuity.sh\n")
+	mustWriteFile(t, filepath.Join(root, ".github", "workflows", "static-contract-gates.yml"), wf.String())
+
+	findings, err := validateGateTriggerCoverage(root, gateTriggerContract())
+	if err != nil {
+		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected no findings for covered on.push.paths workflow, got:\n%s", FormatFindings(findings))
+	}
+
+	mustWriteFile(t, filepath.Join(root, ".github", "workflows", "static-contract-gates.yml"),
+		"on:\n  push:\n    branches: [main]\n    paths:\n      - 'docs/**'\njobs:\n  gate:\n    steps:\n      - run: echo ok\n")
+	findings, err = validateGateTriggerCoverage(root, gateTriggerContract())
+	if err != nil {
+		t.Fatalf("validateGateTriggerCoverage() error = %v", err)
+	}
+	mustContainFinding(t, findings, FindingGateTriggerGap, "go/internal/query")
+
+	mustWriteFile(t, filepath.Join(root, ".github", "workflows", "static-contract-gates.yml"),
+		"on:\n  workflow_dispatch:\njobs:\n  gate:\n    steps:\n      - run: echo ok\n")
+	if _, err := validateGateTriggerCoverage(root, gateTriggerContract()); err == nil {
+		t.Fatal("expected error when workflow has neither dorny filters nor on.push.paths")
+	}
+}

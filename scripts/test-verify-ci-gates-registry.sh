@@ -198,7 +198,6 @@ parser-relationship-kit|scripts/lib/parser_relationship_language_ledger.sh|pre-p
 ifa-determinism|scripts/lib/ifa_sql_delta_live.sh|pre-pr|scripts/lib/ifa_*_live*.sh
 ifa-fault-injection|scripts/lib/ifa_determinism_common.sh|pre-pr|
 docs-build-changed|scripts/lib/test-verify-docs-build-changed-fake-uv.sh|pre-push|
-maturity-drift-guard|scripts/lib/golden-corpus-fixtures.sh|pre-pr
 ci-gate-registry|scripts/lib/test-verify-ci-gates-registry-telemetry-cases.sh|pre-pr
 SOURCED_LIB_GATES
 
@@ -209,14 +208,6 @@ check_telemetry_coverage_trigger_parity
 # shellcheck source=scripts/lib/test-verify-ci-gates-registry-performance-cases.sh
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-performance-cases.sh"
 check_performance_evidence_trigger_parity
-
-# shellcheck source=scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh
-. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-docs-cli-env-cases.sh"
-check_docs_cli_env_refs_trigger_parity
-
-# shellcheck source=scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh
-. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-ifa-filter-cases.sh"
-run_ci_gates_registry_ifa_filter_cases
 
 # The number of gates that trigger on every path ("**"). Derived by asking the
 # selector what a path no surface gate matches selects, rather than hardcoding
@@ -438,7 +429,6 @@ check_ci_gate_workflow_shapes
 
 # shellcheck source=scripts/lib/test-verify-ci-gates-registry-generator-cases.sh
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-generator-cases.sh"
-check_ci_gate_generator_input_coverage
 check_ci_gate_generator_input_coverage_capability_surface
 
 # ── 3. Live validate + drift — proves every script + workflow ref exists AND

@@ -5,10 +5,13 @@ package evidencecontinuity
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
@@ -324,30 +327,53 @@ func evidenceGateTriggers(repoRoot string) ([]string, error) {
 	return nil, fmt.Errorf("ci-gates registry %s has no %q gate; trigger coverage cannot be checked", registryPath, evidenceContinuityGateID)
 }
 
-// evidenceWorkflowFilter returns the "evidence" dorny path-filter globs from
-// the static-contract-gates workflow, failing loudly when the workflow, the
-// dorny step, or the filter key is missing — or when the step sets
-// `predicate-quantifier: every`. oneGlobMatchesAll proves coverage under
-// dorny's default "some" quantifier (ANY pattern selects the file); under
-// `every` a file is selected only when ALL patterns match, so the same proof
-// would report coverage it did not establish. Three sibling workflows already
-// set `every`, so refusing here keeps a copy-paste of that step from turning
-// this self-check false-green.
+// evidenceWorkflowFilter returns the workflow path-filter globs that select
+// the evidence-continuity gate in static-contract-gates.yml. When the workflow
+// uses a dorny/paths-filter step, it reads the "evidence" filter key and
+// rejects `predicate-quantifier: every` (because oneGlobMatchesAll proves
+// coverage only under ANY-pattern semantics). When the workflow runs its
+// product-contract checks serially without a dorny step, it falls back to
+// `on.push.paths`, failing loudly if neither path filter is present.
 func evidenceWorkflowFilter(repoRoot string) ([]string, error) {
 	workflowPath := filepath.Join(repoRoot, filepath.FromSlash(gateWorkflowPath))
 	filters, every, err := cigates.DornyFiltersFile(workflowPath)
 	if err != nil {
 		return nil, fmt.Errorf("workflow %s dorny filters: %w", workflowPath, err)
 	}
-	if filters == nil {
-		return nil, fmt.Errorf("workflow %s has no parsable dorny/paths-filter step; trigger coverage cannot be checked", workflowPath)
+	if filters != nil {
+		if every {
+			return nil, fmt.Errorf("workflow %s dorny step sets predicate-quantifier: every; this coverage check only proves coverage under the default ANY-pattern semantics — route the evidence filter through a step without `every`, or extend the check to model it", workflowPath)
+		}
+		paths, ok := filters[evidenceFilterKey]
+		if !ok || len(paths) == 0 {
+			return nil, fmt.Errorf("workflow %s dorny filters have no %q entry; trigger coverage cannot be checked", workflowPath, evidenceFilterKey)
+		}
+		return paths, nil
 	}
-	if every {
-		return nil, fmt.Errorf("workflow %s dorny step sets predicate-quantifier: every; this coverage check only proves coverage under the default ANY-pattern semantics — route the evidence filter through a step without `every`, or extend the check to model it", workflowPath)
+	pushPaths, err := workflowPushPaths(workflowPath)
+	if err != nil {
+		return nil, err
 	}
-	paths, ok := filters[evidenceFilterKey]
-	if !ok || len(paths) == 0 {
-		return nil, fmt.Errorf("workflow %s dorny filters have no %q entry; trigger coverage cannot be checked", workflowPath, evidenceFilterKey)
+	if len(pushPaths) == 0 {
+		return nil, fmt.Errorf("workflow %s has neither a parsable dorny/paths-filter step nor on.push.paths; trigger coverage cannot be checked", workflowPath)
 	}
-	return paths, nil
+	return pushPaths, nil
+}
+
+func workflowPushPaths(workflowPath string) ([]string, error) {
+	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- repo-confined workflow path.
+	if err != nil {
+		return nil, fmt.Errorf("read workflow %s: %w", workflowPath, err)
+	}
+	var wf struct {
+		On struct {
+			Push struct {
+				Paths []string `yaml:"paths"`
+			} `yaml:"push"`
+		} `yaml:"on"`
+	}
+	if err := yaml.Unmarshal(raw, &wf); err != nil {
+		return nil, fmt.Errorf("parse workflow %s: %w", workflowPath, err)
+	}
+	return wf.On.Push.Paths, nil
 }

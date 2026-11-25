@@ -238,59 +238,30 @@ class SourceGuardTest(unittest.TestCase):
 
 
 class RouteGuardTest(unittest.TestCase):
-    """Every new input must still reach both the live and hermetic B-7 jobs."""
+    """Scheduled/manual B-7 workflow must keep both owning jobs and steps mandatory."""
 
-    def test_missing_inputs_and_inactive_owners_fail(self) -> None:
+    def test_inactive_owners_and_activation_drift_fail(self) -> None:
         sys.path.insert(0, str(ROOT / "scripts/lib"))
         from golden_corpus_identity import verify_routes
 
-        inputs = ("scripts/lib/golden_corpus_identity.py",
-                  "scripts/test-golden-corpus-identity.py",
-                  "scripts/lib/verify-live-tests-ledger.py",
-                  "scripts/lib/live_tests_registry.py",
-                  "scripts/verify-live-tests-ledger.sh",
-                  "specs/live-tests.v1.yaml", "specs/live-tests.d/**")
-
-        relatives = [".github/workflows/golden-corpus-gate.yml",
-                     "specs/ci-pr-workflows.d/golden-corpus-gate.yml",
-                     "specs/ci-gates.d/gates-07.yaml", "specs/ci-gates.d/gates-08.yaml"]
+        relative = ".github/workflows/golden-corpus-gate.yml"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for relative in relatives:
-                path = root / relative
-                path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / relative, path)
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, path)
             verify_routes(root)
-            for relative in relatives:
-                path = root / relative
-                before = path.read_text()
-                for route in inputs:
-                    line = ("  - " + route + "\n" if "ci-pr-workflows.d" in relative
-                            else "      - \"" + route + "\"\n")
-                    for occurrence in range(before.count(line)):
-                        index = -1
-                        for _ in range(occurrence + 1):
-                            index = before.index(line, index + 1)
-                        if relative.endswith("gates-08.yaml"):
-                            owner = before[:index].rsplit("  - id: ", 1)[1].splitlines()[0]
-                            if owner not in {"golden-corpus-gate", "golden-corpus-gate-neo4j"}:
-                                continue
-                        path.write_text(before[:index] + before[index + len(line):])
-                        with self.subTest(relative=relative, route=route, index=occurrence):
-                            with self.assertRaises(ValueError):
-                                verify_routes(root)
-                path.write_text(before)
-            path = root / relatives[0]
             before = path.read_text()
-            seeds = [before.replace("    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'corpus-gate') }}\n", "", 1),
-                     before.replace("branches: [ main ]", "branches: [ other ]", 1),
-                     before.replace("  push:\n", "  workflow_dispatch:\n", 1),
-                     before.replace("  corpus-gate:\n", "  corpus-gate:\n    if: false\n"),
-                     before.replace("  static-mirror:\n", "  static-mirror:\n    continue-on-error: true\n"),
-                     before.replace("        run: bash scripts/verify-golden-corpus-gate.sh",
-                                    "        run: bash scripts/verify-golden-corpus-gate.sh || true"),
-                     before.replace("        run: bash scripts/test-verify-golden-corpus-gate.sh",
-                                    "        run: true")]
+            seeds = [
+                before.replace("  schedule:\n", "  pull_request:\n", 1),
+                before.replace("  workflow_dispatch:\n", "", 1),
+                before.replace("  corpus-gate:\n", "  corpus-gate:\n    if: false\n"),
+                before.replace("  static-mirror:\n", "  static-mirror:\n    continue-on-error: true\n"),
+                before.replace("        run: bash scripts/verify-golden-corpus-gate.sh",
+                               "        run: bash scripts/verify-golden-corpus-gate.sh || true"),
+                before.replace("        run: bash scripts/test-verify-golden-corpus-gate.sh",
+                               "        run: true"),
+            ]
             for index, seed in enumerate(seeds):
                 path.write_text(seed)
                 with self.subTest(seed=index), self.assertRaises(ValueError):

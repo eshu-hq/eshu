@@ -142,7 +142,6 @@ class EventProofTest(unittest.TestCase):
         def job(job_id: str, steps: str) -> str:
             return (
                 f"  {job_id}:\n"
-                "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), '" + job_id + "') }}\n"
                 "    name: gate\n"
                 "    runs-on: ubuntu-24.04\n"
                 "    timeout-minutes: 45\n"
@@ -254,26 +253,11 @@ class EventProofTest(unittest.TestCase):
                 MODULE.verify_inventory(root, inventory)
 
     def test_ci_wiring_selects_harness_changes(self) -> None:
-        """A harness-only change must select the owner job and its self-tests."""
+        """Scheduled contention workflow stays declared in ci-gates and runs its contract self-tests."""
         root = Path(__file__).resolve().parent.parent
-        registry = (root / "specs/ci-gates.d/gates-05.yaml").read_text()
-        owner = registry.split("  - id: reducer-contention\n", 1)[1].split(
-            "\n  - id:", 1
-        )[0]
+        registry = (root / "specs/ci-gates.v1.yaml").read_text()
+        self.assertIn("file: reducer-contention-gate.yml", registry)
         workflow = (root / MODULE.WORKFLOW).read_text()
-        required = (
-            "scripts/lib/reducer_contention_events.py",
-            "scripts/lib/reducer_contention_inventory.json",
-            "scripts/test-reducer-contention-events.py",
-            "scripts/test-reducer-contention-ledger-policy.py",
-            "scripts/lib/verify-live-tests-ledger.py",
-            "specs/live-tests.v1.yaml",
-            "specs/live-tests.d/**",
-            ".github/workflows/reducer-contention-gate.yml",
-        )
-        for path in required:
-            with self.subTest(path=path):
-                self.assertIn(path, owner)
         for command in (
             "python3 scripts/test-reducer-contention-events.py",
             "python3 scripts/test-reducer-contention-ledger-policy.py",

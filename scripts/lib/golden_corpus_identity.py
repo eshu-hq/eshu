@@ -39,48 +39,22 @@ INPUTS = (
 
 
 def verify_routes(root: Path) -> None:
-    """Require the existing PR, main push and merge-group B-7 execution routes.
+    """Require the scheduled/manual B-7 execution routes and mandatory steps.
 
     Args:
-        root: Checkout containing the workflow and gate registry fragments.
+        root: Checkout containing the workflow.
 
     Raises:
-        ValueError: An input is unselected or an owning job/step can be skipped.
-        OSError: A required workflow or registry fragment cannot be read.
+        ValueError: Activation changed or an owning job/step can be skipped.
+        OSError: The workflow cannot be read.
     """
     workflow = (root / ".github/workflows/golden-corpus-gate.yml").read_text()
-    activation = ("  workflow_call:\n    inputs:\n"
-                  "      plan_jobs:\n        required: true\n        type: string\n"
-                  "      plan_gates:\n        required: true\n        type: string\n"
-                  "      plan_mode:\n        required: true\n        type: string\n"
-                  "  push:\n    branches: [ main ]\n")
     uncommented = "\n".join(line for line in workflow.splitlines()
                               if not line.lstrip().startswith("#")) + "\n"
-    if "on:\n" + activation not in uncommented or "  pull_request:" in uncommented:
+    if ("on:\n  schedule:\n" not in uncommented
+            or "  workflow_dispatch:\n" not in uncommented
+            or "  pull_request:" in uncommented):
         raise ValueError("B-7 identity workflow activation changed")
-    fragment = (root / "specs/ci-pr-workflows.d/golden-corpus-gate.yml").read_text()
-    active = [line for line in fragment.splitlines()
-              if line.strip() and not line.lstrip().startswith("#")]
-    prefix = ["schema_version: 1", "workflows:",
-              "- file: golden-corpus-gate.yml", "  name: Golden Corpus Gate",
-              "  synchronize: true", "  branches:", "  - main", "  paths:"]
-    if active[:len(prefix)] != prefix or active.count("  paths:") != 1:
-        raise ValueError("B-7 identity fragment activation changed")
-    end = active.index("  jobs:") if "  jobs:" in active else -1
-    if end < len(prefix) or active[end + 1:] != [
-            "  - corpus-gate", "  - differential", "  - differential-capture",
-            "  - static-mirror", "  job_names:",
-            "    corpus-gate: corpus-gate (${{ matrix.graph_backend }})",
-            "    differential: differential nornicdb vs neo4j",
-            "    differential-capture: differential capture (pair ${{ matrix.pair }}, ${{ matrix.graph_backend }})",
-            "    static-mirror: static mirror"]:
-        raise ValueError("B-7 identity fragment jobs changed")
-    pr_paths = active[len(prefix):end]
-    if any(not line.startswith("  - ") for line in pr_paths):
-        raise ValueError("B-7 identity fragment paths changed")
-    for path in INPUTS:
-        if pr_paths.count(f"  - {path}") != 1:
-            raise ValueError(f"B-7 identity workflow input unselected: {path}")
     for job, step, command, extra in (
         ("static-mirror", "Validate orchestrator contract",
          "bash scripts/test-verify-golden-corpus-gate.sh", ""),
@@ -94,10 +68,8 @@ def verify_routes(root: Path) -> None:
         if body is None:
             raise ValueError(f"B-7 identity owner job missing: {job}")
         header = body.group(1).split("    steps:\n", 1)[0]
-        condition = ("    if: ${{ github.event_name != 'pull_request' || "
-                     f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job}') }}}}")
         if (re.findall(r"(?m)^    needs:.*$", header)
-                or re.findall(r"(?m)^    if:.*$", header) != [condition]
+                or re.findall(r"(?m)^    if:.*$", header)
                 or re.search(r"(?m)^    continue-on-error:", header)):
             raise ValueError(f"B-7 identity owner job inactive: {job}")
         expected = (f"      - name: {step}\n" + extra + f"        run: {command}\n")
@@ -105,20 +77,6 @@ def verify_routes(root: Path) -> None:
                             body.group(1))
         if len(actual) != 1 or actual[0].rstrip() != expected.rstrip():
             raise ValueError(f"B-7 identity owner step is not mandatory: {step}")
-    for fragment, gate in (("07", "golden-corpus-mirror"),
-                           ("08", "golden-corpus-gate"),
-                           ("08", "golden-corpus-gate-neo4j")):
-        text = (root / f"specs/ci-gates.d/gates-{fragment}.yaml").read_text()
-        blocks = re.findall(rf"(?ms)^  - id: {gate}\n(.*?)(?=^  - id:|\Z)", text)
-        if len(blocks) != 1:
-            raise ValueError(f"B-7 identity registry owner missing: {gate}")
-        triggers = blocks[0].split("    triggers:\n", 1)[1].split("    local:\n", 1)[0]
-        for path in INPUTS:
-            if triggers.splitlines().count(f'      - "{path}"') != 1:
-                raise ValueError(f"B-7 identity registry input unselected: {gate}: {path}")
-        if "      workflow: golden-corpus-gate.yml" not in blocks[0] and (
-                '      workflow: "golden-corpus-gate.yml"' not in blocks[0]):
-            raise ValueError(f"B-7 identity registry workflow changed: {gate}")
 
 
 def verify_inventory(root: Path) -> None:

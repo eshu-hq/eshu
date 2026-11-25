@@ -5,22 +5,12 @@ name: Golden Corpus Gate
 # phase (sync/discover/parse/collect/reduce/query), because those are exactly the
 # changes that can silently break end-to-end behaviour.
 on:
-  workflow_call:
-    inputs:
-      plan_jobs:
-        required: true
-        type: string
-      plan_gates:
-        required: true
-        type: string
-      plan_mode:
-        required: true
-        type: string
-  push:
-    branches: [ main ]
+  schedule:
+    - cron: '20 6 * * *'
+  workflow_dispatch:
 concurrency:
-  group: ci-leaf-golden-corpus-gate-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-scheduled-golden-corpus-gate-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 # Least privilege: the gate only checks out and reads the repo.
 permissions:
   contents: read
@@ -37,7 +27,6 @@ env:
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 jobs:
   static-mirror:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
     name: static mirror
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -54,7 +43,6 @@ jobs:
       - name: Validate failure diagnostics staging
         run: bash scripts/test-stage-failure-diagnostics.sh
   corpus-gate:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'corpus-gate') }}
     name: corpus-gate (${{ matrix.graph_backend }})
     runs-on: ubuntu-24.04
     # #10505: measured success runs reach 28.4m here (captures reach 29.7m,
@@ -153,7 +141,6 @@ jobs:
   # backend/pairing retains its own capture; a failed leg or upload blocks the
   # required join even though the backend comparison itself stays advisory.
   differential-capture:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential-capture') }}
     name: differential capture (pair ${{ matrix.pair }}, ${{ matrix.graph_backend }})
     runs-on: ubuntu-24.04
     # #10505: same measured distribution as corpus-gate (capture success
@@ -254,7 +241,7 @@ jobs:
           overwrite: 'true'
 
   differential:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'differential')) && (always()) }}
+    if: ${{ always() }}
     name: differential nornicdb vs neo4j
     needs: differential-capture
     runs-on: ubuntu-24.04

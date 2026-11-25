@@ -42,7 +42,6 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
-      - ".github/static-contract-filters.yml"
       - "go/internal/query/**"
       - "go/internal/mcp/**"
       - "go/internal/serviceintelhttp/**"
@@ -65,7 +64,7 @@ gates:
       test_command: "bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify OpenAPI gate"
+      job: "Product Contract Gates"
     # #6615 review: verify-openapi.sh and its test mirrors only grep/rg-parse
     # HandleFunc registrations and OpenAPI fragments; nothing in this gate's
     # command or test_command chain (traced two levels, including sourced
@@ -81,7 +80,6 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
-      - ".github/static-contract-filters.yml"
       - "go/internal/relationships/**"
       - "go/internal/collector/**"
       - "go/internal/reducer/crossrepo/cross_repo_evidence_type.go"
@@ -97,7 +95,7 @@ gates:
       test_command: "bash scripts/test-verify-edge-source-tool-coverage.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify edge source-tool coverage gate"
+      job: "Product Contract Gates"
     # #6615 review: verify-edge-source-tool-coverage.sh auto-discovers
     # EvidenceKind constants via rg and cross-references the classifier
     # source directly; no go toolchain invocation in its command/test_command
@@ -128,7 +126,6 @@ gates:
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
       - "specs/evidence-continuity.v1.yaml"
       - "specs/capability-matrix.v1.yaml"
       - "specs/capability-matrix/**"
@@ -152,71 +149,9 @@ gates:
       pre_push: floor
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify evidence continuity gate"
+      job: "Product Contract Gates"
     requirements:
       - go
-    ci_only_reason: ""
-
-  - id: skill-roundtrip
-    name: Verify Skill Roundtrip
-    category: exactness
-    layer: contract
-    purpose: "Fails when generated skill fragments no longer match their committed baseline output."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - ".github/static-contract-filters.yml"
-      - "go/cmd/skillgen/**"
-      # The package is under internal/extensions/; the previous
-      # internal/skillgen/** never matched a real path, so edits to the
-      # adapters did not select the gate that guards them (#4059).
-      - "go/internal/extensions/skillgen/**"
-      # The gate compares fragments against the committed baseline, so a
-      # change to either input is exactly when it needs to run.
-      - "skill-fragments/**"
-      - "expected/**"
-      - ".agent-kit-version"
-      - "scripts/test-verify-skill-roundtrip.sh"
-      - "scripts/verify-skill-roundtrip.sh"
-    local:
-      command: "bash scripts/verify-skill-roundtrip.sh"
-      test_command: "bash scripts/test-verify-skill-roundtrip.sh"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify skillgen roundtrip gate"
-    requirements:
-      - go
-    ci_only_reason: ""
-
-  - id: skill-workflow-refs
-    name: Verify Skill Workflow References
-    category: exactness
-    layer: contract
-    purpose: "Fails when a skill references a GitHub workflow that doesn't exist, or vice versa."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - ".github/workflows/**"
-      - ".agent-kit-version"
-      # The gate scans the installed skills under .agents/skills/, and the REF
-      # in this script decides which kit revision installs them.
-      - "scripts/ci/install-eshu-agent-kit.sh"
-      - "scripts/verify-skill-workflow-refs.sh"
-      - "scripts/test-verify-skill-workflow-refs.sh"
-      # The real-tree case is a sourced companion, so it is a trigger path
-      # in its own right -- otherwise editing it alone would not select the
-      # gate that runs it.
-      - "scripts/lib/test-skill-workflow-refs-real-tree-cases.sh"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
-    local:
-      command: "bash scripts/verify-skill-workflow-refs.sh"
-      test_command: "bash scripts/test-verify-skill-workflow-refs.sh"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify skill workflow refs gate"
-    requirements: []
     ci_only_reason: ""
 
   - id: fact-kind-registry
@@ -227,7 +162,6 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
-      - ".github/static-contract-filters.yml"
       - "go/internal/facts/**"
       - "go/internal/reducer/**"
       - "go/cmd/fact-kind-registry/**"
@@ -241,7 +175,7 @@ gates:
       test_command: "bash scripts/test-verify-fact-kind-registry.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify contract source-of-truth gate"
+      job: "Product Contract Gates"
     requirements:
       - go
     ci_only_reason: ""
@@ -254,7 +188,6 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
-      - ".github/static-contract-filters.yml"
       - "go/internal/facts/**"
       - "go/internal/collector/conformance/contract/**"
       - "specs/fact-kind-registry.v1.yaml"
@@ -267,7 +200,7 @@ gates:
       test_command: "bash scripts/test-verify-contracttest.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify contract source-of-truth gate"
+      job: "Product Contract Gates"
     requirements:
       - go
     ci_only_reason: ""
@@ -405,82 +338,3 @@ gates:
     # this gate a PR could go all-green while the collector SDK module failed
     # to build/test, drifted from gofmt, or started importing go/internal
     # (which the SDK, shipped to external collectors, must never depend on).
-
-  - id: live-readiness-registration-drift
-    name: Verify Live-Readiness Registration Drift
-    category: exactness
-    layer: contract
-    purpose: "Fails when the readiness registration drifts from the test-file enrollment markers: stale output, an unregistered test, or an orphan row."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - ".github/static-contract-filters.yml"
-      - "scripts/generate-live-postgres-readiness.py"
-      - "scripts/test-generate-live-postgres-readiness.sh"
-      - "scripts/test-live-postgres-readiness-fragments.py"
-      - "scripts/test-live-postgres-readiness-child-env.py"
-      - "scripts/verify-live-postgres-readiness-drift.sh"
-      - "scripts/lib/live_postgres_readiness_gen_scan.py"
-      - "scripts/lib/live_postgres_readiness_gen_render.py"
-      - "scripts/lib/live_postgres_readiness_gen_fragments.py"
-      - "scripts/lib/live_postgres_readiness_env.sh"
-      - "scripts/lib/live_postgres_readiness_inventory_gen_*.py"
-      - "scripts/lib/live_postgres_readiness_inventory_generated.py"
-      - "scripts/lib/live_postgres_readiness_inventory_helpers.py"
-      - "scripts/lib/live_postgres_readiness_records.py"
-      - "scripts/lib/live_postgres_readiness_results.py"
-      - "scripts/lib/live_tests_registry.py"
-      - "scripts/verify-live-tests-ledger.sh"
-      - "scripts/lib/verify-live-tests-ledger.py"
-      - "scripts/run-live-postgres-readiness-tests.sh"
-      - "scripts/test-run-live-postgres-readiness-tests.sh"
-      - "specs/live-tests.v1.yaml"
-      - "specs/live-tests.d/**"
-      - ".github/workflows/live-postgres-readiness.yml"
-      # The generator reads readiness markers from go/**/*_test.go and checks
-      # each marker env var against the literals in every go/**/*.go file, so
-      # a non-test Go edit can fail it too (#9614); same glob as the gate's CI
-      # paths filter. TestReadinessRegistrationDriftTriggersCoverGeneratorInputs
-      # pins every input class the generator scans.
-      - "go/**/*.go"
-    # #9621: the machine-readable file classes whose changes can alter the
-    # regenerated ledger. The drift check fails when no trigger matches one.
-    generator_inputs:
-      - "go/**/*.go"
-      - "go/**/*_test.go"
-    self_test_triggers:
-      - "scripts/test-generate-live-postgres-readiness.sh"
-      - "scripts/test-live-postgres-readiness-fragments.py"
-      - "scripts/test-live-postgres-readiness-child-env.py"
-      - "scripts/generate-live-postgres-readiness.py"
-      - "scripts/lib/live_postgres_readiness_gen_scan.py"
-      - "scripts/lib/live_postgres_readiness_gen_render.py"
-      - "scripts/lib/live_postgres_readiness_gen_fragments.py"
-    local:
-      command: "bash scripts/verify-live-postgres-readiness-drift.sh"
-      pre_push: floor
-      test_command: "python3 scripts/test-live-postgres-readiness-child-env.py && bash scripts/test-generate-live-postgres-readiness.sh"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify live-readiness registration drift gate"
-    # #7859 P1: the generator, its test mirror, and every check above run on
-    # hermetic inputs only (bash, python3, git, cp); no Go toolchain, no
-    # Postgres, no NornicDB, no Docker, no network.
-    requirements: []
-    ci_only_reason: ""
-    # The keys mirror the GENERATED list in
-    # scripts/verify-live-postgres-readiness-drift.sh; the helper's test
-    # mirror asserts the two lists stay identical. The ledger and the workflow
-    # are mutate-in-place surfaces (hand prose around a generated block), so
-    # their commands take the base's copy first: regenerating over conflict
-    # markers would preserve the markers with the prose. Review the staged
-    # diff and re-apply any hand-owned prose the reset dropped.
-    regenerate:
-      "specs/live-tests.v1.yaml": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:specs/live-tests.v1.yaml > specs/live-tests.v1.yaml && python3 scripts/generate-live-postgres-readiness.py"
-      "specs/live-tests.d/live-tests-readiness.generated.yaml": "python3 scripts/generate-live-postgres-readiness.py"
-      "specs/live-tests.d/live-tests-readiness-part*.generated.yaml": "python3 scripts/generate-live-postgres-readiness.py"
-      "scripts/lib/live_postgres_readiness_inventory_generated.py": "python3 scripts/generate-live-postgres-readiness.py"
-      "scripts/lib/live_postgres_readiness_inventory_gen_*.py": "python3 scripts/generate-live-postgres-readiness.py"
-      "scripts/lib/live_postgres_readiness_inventory_helpers.py": "python3 scripts/generate-live-postgres-readiness.py"
-      "scripts/lib/live_postgres_readiness_env.sh": "python3 scripts/generate-live-postgres-readiness.py"
-      ".github/workflows/live-postgres-readiness.yml": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:.github/workflows/live-postgres-readiness.yml > .github/workflows/live-postgres-readiness.yml && python3 scripts/generate-live-postgres-readiness.py"

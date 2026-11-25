@@ -4,113 +4,16 @@ name: Live PostgreSQL Readiness
 # activation obligation, targeted-maintenance, reindex watermark and #7209
 # projector zombie-heal proofs listed in scripts/lib/live_postgres_readiness_inventory*.py
 # use EXPLAIN and correctness assertions against separately created disposable
-# databases. The merge queue retains the check and selects payload from the
-# registry; PR and main-push events use their existing path filters.
+# databases. Runs on a 4-hourly schedule and manual dispatch rather than on
+# every PR or push to main.
 on:
-  workflow_call:
-    inputs:
-      plan_jobs:
-        required: true
-        type: string
-      plan_gates:
-        required: true
-        type: string
-      plan_mode:
-        required: true
-        type: string
-  push:
-    branches: [main]
-    paths:
-      - 'go/internal/query/supply/chain/**'
-      - 'go/internal/query/supply/chain/impact/**'
-      - 'go/internal/query/admin/**'
-      - 'go/internal/query/iac/**'
-      - 'go/internal/query/content_reader_dead_code*.go'
-      - 'go/internal/query/code_topic*.go'
-      - 'go/internal/query/content_reader_code_topic.go'
-      - 'go/internal/query/content_reader_search_page.go'
-      - 'go/internal/query/codetopicparallel/**'
-      - 'go/internal/runtime/postgres/**'
-      - 'go/internal/query/status*.go'
-      - 'go/internal/query/search/unscoped/**'
-      - 'go/internal/query/content_reader_search*.go'
-      - 'go/internal/query/contentread/content_handler*.go'
-      - 'go/internal/status/**'
-      - 'go/internal/relationships/**'
-      - 'go/internal/storage/postgres/**'
-      - 'go/cmd/reducer/**'
-      - 'go/internal/reducer/maintenance/**'
-      - 'go/internal/reducer/freshness/links/**'
-      - 'go/internal/testutil/postgresproof/**'
-      - 'go/internal/reducer/status/**'
-      - 'go/internal/cigates/readiness_job_split_test.go'
-      - 'go/internal/cigates/readiness_matrix_test.go'
-      - 'go/go.mod'
-      - 'go/go.sum'
-      - 'specs/live-tests.v1.yaml'
-      - 'specs/live-tests.d/**'
-      - 'specs/ci-gates.v1.yaml'
-      - 'specs/ci-gates.d/**'
-      - 'scripts/run-live-postgres-readiness-tests.sh'
-      - 'scripts/test-run-live-postgres-readiness-tests.sh'
-      - 'scripts/lib/test-run-live-postgres-readiness-seed-cases.sh'
-      - 'scripts/lib/test-run-live-postgres-readiness-shards.sh'
-      - 'scripts/lib/test-run-live-postgres-readiness-tail-cases.sh'
-      - 'scripts/lib/live_postgres_readiness_results.py'
-      - 'scripts/lib/live_postgres_readiness_inventory*.py'
-      - 'scripts/lib/live_postgres_readiness_env.sh'
-      - 'scripts/lib/live_postgres_readiness_records.py'
-      - 'scripts/lib/live_postgres_readiness_shards.py'
-      - 'scripts/lib/live_postgres_readiness_weights*.py'
-      - 'scripts/lib/live_postgres_readiness_balance_cases.py'
-      - 'scripts/lib/live_postgres_readiness_v2.py'
-      - 'scripts/lib/live_postgres_readiness_v2_planner.py'
-      - 'scripts/lib/live_postgres_readiness_v2_cases.py'
-      - 'scripts/lib/live_postgres_readiness_row_split.py'
-      - 'scripts/lib/live_postgres_readiness_row_clock_cases.py'
-      - 'scripts/lib/live_postgres_readiness_reports.py'
-      - 'scripts/lib/live_postgres_readiness_refresh_v2.py'
-      - 'scripts/lib/live_postgres_readiness_refresh_v2_provenance.py'
-      - 'scripts/lib/live_postgres_readiness_refresh_v2_pool.py'
-      - 'scripts/test-live-postgres-readiness-refresh-v2.py'
-      - 'scripts/test-readiness-refit-evidence.py'
-      - 'scripts/lib/live_postgres_readiness_calibration*.py'
-      - 'scripts/test-live-postgres-readiness-calibration.py'
-      - 'specs/live-postgres-readiness-calibration.v1.json'
-      - '.github/workflows/live-postgres-readiness-calibration.yml'
-      - 'specs/live-postgres-readiness-weights.v1.json'
-      - 'specs/live-postgres-readiness-weights.v2.json'
-      - 'scripts/test-live-postgres-readiness-shards.py'
-      - 'scripts/test-live-postgres-readiness-helper.py'
-      - 'scripts/lib/live_postgres_readiness_gen_scan.py'
-      - 'scripts/lib/live_postgres_readiness_events.py'
-      - 'scripts/lib/live_postgres_readiness_proof_cases.py'
-      - 'scripts/lib/live_postgres_readiness_batch_mutant.py'
-      - 'scripts/lib/live_postgres_readiness_fake_go_events.py'
-      - 'scripts/test-live-postgres-readiness-fake-go-events.py'
-      - 'scripts/lib/test-run-live-postgres-readiness-proofs.sh'
-      - 'scripts/lib/test-run-live-postgres-readiness-pool.sh'
-      - 'scripts/test-live-postgres-readiness-pool.sh'
-      - 'scripts/lib/test-run-live-postgres-readiness-seed-pool.sh'
-      - 'scripts/test-live-postgres-readiness-seed-pool.sh'
-      - 'scripts/ci/live-postgres-readiness-job-summary.sh'
-      - 'scripts/ci/test-live-postgres-readiness-job-summary.sh'
-      - 'scripts/test-run-live-postgres-readiness-selftest-seeds.sh'
-      - 'scripts/lib/live_tests_registry.py'
-      - 'scripts/lib/verify-live-tests-ledger.py'
-      - 'scripts/test-live-tests-registry.py'
-      - 'scripts/verify-live-tests-ledger.sh'
-      - 'scripts/test-verify-live-tests-ledger.sh'
-      - 'scripts/ci/go-mod-download-retry.sh'
-      - 'scripts/ci/install-apt-packages.sh'
-      - 'scripts/ci/live-postgres-standby-fixture.sh'
-      - 'scripts/test-live-postgres-standby-fixture.sh'
-      - '.github/workflows/live-postgres-readiness.yml'
-      - '.github/workflows/required-gates.yml'
+  schedule:
+    - cron: '15 */4 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: ci-leaf-live-postgres-readiness-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-scheduled-live-postgres-readiness-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -124,7 +27,6 @@ env:
 
 jobs:
   hermetic:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}
     name: live-postgres-readiness hermetic
     runs-on: ubuntu-24.04
     # The fake-Go runner checks every ledger-selected proof and its fail-closed
@@ -204,7 +106,6 @@ jobs:
           bash "$script" finish || echo "::warning title=hermetic job summary failed::$script finish exited $?"
 
   readiness-plan:
-    if: ${{ github.event_name != 'pull_request' || (contains(fromJSON(inputs.plan_jobs || '[]'), 'readiness-plan') || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards')) }}
     name: live-postgres-readiness plan
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -229,7 +130,6 @@ jobs:
           printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
 
   live-postgres-readiness-shards:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards') }}
     needs: [readiness-plan]
     name: live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})
     runs-on: ubuntu-24.04
@@ -259,9 +159,12 @@ jobs:
           POSTGRES_DB: postgres
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: local-proof-only
+          POSTGRES_INITDB_ARGS: "--no-sync"
         ports:
           - 15432:5432
         options: >-
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --shm-size=512m
           --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s
           --health-timeout 5s
@@ -324,6 +227,14 @@ jobs:
 
       - name: Check physical-standby fixture fail-closed behavior
         run: bash scripts/test-live-postgres-standby-fixture.sh
+
+      - name: Tune ephemeral PostgreSQL for CI
+        run: >-
+          docker exec '${{ job.services.postgres.id }}' psql -v ON_ERROR_STOP=1 -U postgres -d postgres
+          -c "ALTER SYSTEM SET fsync = off;"
+          -c "ALTER SYSTEM SET synchronous_commit = off;"
+          -c "ALTER SYSTEM SET full_page_writes = off;"
+          -c "SELECT pg_reload_conf();"
 
       - name: Start disposable physical standby
         run: bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
@@ -483,7 +394,7 @@ jobs:
           bash "$script" finish || echo "::warning title=shard job summary failed::$script finish exited $?"
 
   live-postgres-readiness:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}
+    if: ${{ always() }}
     needs: [readiness-plan, live-postgres-readiness-shards]
     name: live-postgres-readiness (postgres18)
     runs-on: ubuntu-24.04

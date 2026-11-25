@@ -15,11 +15,9 @@
 # registry_yml to be set.
 
 # required_workflows prints the display names of every workflow whose verdict
-# on main counts, one per line: the watcher's own wake list. The wake list is
-# the judged list (`workflow_run` cannot take a computed list), and the static
-# mirror fails when the workflow file drifts from this derivation.
+# on main counts, one per line: the watcher's own MAIN_HEALTH_WORKFLOWS list.
 required_workflows() {
-	yq '.on.workflow_run.workflows[]' "${watcher_yml}" | awk 'NF && $0 != "null"' | sort -u
+	yq '.env.MAIN_HEALTH_WORKFLOWS // ""' "${watcher_yml}" | awk 'NF && $0 != "null"' | sort -u
 }
 
 # sentinel_workflow prints the display name of the sentinel workflow that

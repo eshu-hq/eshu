@@ -62,7 +62,7 @@ CONTRACT_COMMANDS = (
     "bash scripts/verify-live-tests-ledger.sh",
 )
 ROOT_KEYS = frozenset({"name", "on", "concurrency", "permissions", "jobs"})
-JOB_KEYS = frozenset({"if", "name", "runs-on", "timeout-minutes", "services", "steps"})
+JOB_KEYS = frozenset({"name", "runs-on", "timeout-minutes", "services", "steps"})
 # #9066: every workflow that compiles Go carries this one reviewed workflow-level
 # env entry (see scripts/lib/cgo-cflags.sh). It sets a C dialect flag and cannot
 # change job activation, so the owned-workflow grammars drop exactly this stanza
@@ -128,9 +128,7 @@ def workflow_steps(workflow: str) -> dict[str, str]:
             raise ValueError("inactive contention owner job: missing job")
         body = jobs[0].group("body")
         job_keys = canonical_keys(body, 4, JOB_KEYS)
-        if (set(job_keys) != JOB_KEYS or job_keys["if"] !=
-                "    if: ${{ github.event_name != 'pull_request' || "
-                f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job_id}') }}}}"
+        if (set(job_keys) != JOB_KEYS
                 or job_keys["services"] != "    services:"
                 or job_keys["steps"] != "    steps:"):
             raise ValueError("inactive or non-fail-closed contention owner job")

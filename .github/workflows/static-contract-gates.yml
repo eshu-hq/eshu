@@ -1,8 +1,9 @@
 name: Static Contract Gates
 
-# Consolidates credential-free static contract verifiers into one path-filtered
-# matrix. PR selection mirrors specs/ci-gates.v1.yaml; pushes to main select every
-# gate. Entries share one checkout and tool setup while retaining stable names.
+# Runs the repository's genuine consumer-facing product-contract verifiers
+# serially on a single runner (one checkout, one cache restore, one container).
+# Meta-policing, doc-citation, and script self-test checks were retired from
+# automatic PR/main runs; heavy build-tag sweeps run nightly in tagged-builds.yml.
 on:
   workflow_call:
     inputs:
@@ -15,12 +16,22 @@ on:
       plan_mode:
         required: true
         type: string
-  # Pushes to main select every gate through the all-gates backstop below;
-  # PR leaves select through the plan. Main has no merge queue since
-  # 2026-10-16 (#8288).
   push:
     branches:
       - main
+    paths:
+      - 'go/internal/**'
+      - 'go/cmd/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'specs/**'
+      - 'testdata/cassettes/**'
+      - 'docs/public/observability/**'
+      - 'docs/public/reference/env-registry*'
+      - 'docs/public/reference/env-registry/**'
+      - '.github/openapi-known-drift.txt'
+      - '.github/workflows/static-contract-gates.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ci-leaf-static-contract-gates-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
@@ -37,259 +48,74 @@ env:
   CGO_CFLAGS: "-O2 -g -std=gnu17"
 
 jobs:
-  changes:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes') }}
-    name: Detect changed gate paths
-    timeout-minutes: 10
-    runs-on: ubuntu-24.04
-    outputs:
-      openapi: ${{ steps.filter.outputs.openapi }}
-      edge: ${{ steps.filter.outputs.edge }}
-      evidence: ${{ steps.filter.outputs.evidence }}
-      skill: ${{ steps.filter.outputs.skill }}
-      skillworkflowrefs: ${{ steps.filter.outputs.skillworkflowrefs }}
-      telemetry: ${{ steps.filter.outputs.telemetry }}
-      dashboard: ${{ steps.filter.outputs.dashboard }}
-      envdoc: ${{ steps.filter.outputs.envdoc }}
-      contract: ${{ steps.filter.outputs.contract }}
-      bucketsync: ${{ steps.filter.outputs.bucketsync }}
-      ifa: ${{ steps.filter.outputs.ifa }}
-      ifaload: ${{ steps.filter.outputs.ifaload }}
-      ifareplaydrive: ${{ steps.filter.outputs.ifareplaydrive }}
-      cassetteauthor: ${{ steps.filter.outputs.cassetteauthor }}
-      heredoc: ${{ steps.filter.outputs.heredoc }}
-      parserrelationship: ${{ steps.filter.outputs.parserrelationship }}
-      changelogunreleased: ${{ steps.filter.outputs.changelogunreleased }}
-      docsrefs: ${{ steps.filter.outputs.docsrefs }}
-      docsclienvrefs: ${{ steps.filter.outputs.docsclienvrefs }}
-      mcpclientauthdoc: ${{ steps.filter.outputs.mcpclientauthdoc }}
-      querydoccommitrefs: ${{ steps.filter.outputs.querydoccommitrefs }}
-      doccitations: ${{ steps.filter.outputs.doccitations }}
-      movedfilerefs: ${{ steps.filter.outputs.movedfilerefs }}
-      measurementcite: ${{ steps.filter.outputs.measurementcite }}
-      remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
-      maturitydrift: ${{ steps.filter.outputs.maturitydrift }}
-      pgstatementreport: ${{ steps.filter.outputs.pgstatementreport }}
-      collectorcutoverrollback: ${{ steps.filter.outputs.collectorcutoverrollback }}
-      dockerpublish: ${{ steps.filter.outputs.dockerpublish }}
-      dockerhublogin: ${{ steps.filter.outputs.dockerhublogin }}
-      buildcacheprune: ${{ steps.filter.outputs.buildcacheprune }}
-      workflowscriptcheckout: ${{ steps.filter.outputs.workflowscriptcheckout }}
-      readinessderive: ${{ steps.filter.outputs.readinessderive }}
-      templatecollectorcaller: ${{ steps.filter.outputs.templatecollectorcaller }}
-      taggedbuilds: ${{ steps.filter.outputs.taggedbuilds }}
-      queuecontract: ${{ steps.filter.outputs.queuecontract }}
-      matrix: ${{ steps.gate-matrix.outputs.matrix }}
-      any: ${{ steps.gate-matrix.outputs.any }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-      # Push has no base diff, so dorny treats everything as changed and
-      # selects every gate.
-      - name: Filter changed paths against gate triggers
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          # On push (no base), dorny treats everything as changed → all gates run.
-          # Path sets mirror the gate triggers in specs/ci-gates.v1.yaml; the
-          # gate-registry-drift check keeps the two in lockstep. Every filter
-          # also includes this workflow + the registry so a change to either
-          # re-runs all gates. (Self-check paths are inlined per filter rather
-          # than via a YAML anchor — dorny's handling of an anchored *list* item
-          # is version-dependent, and inlining is unambiguous.)
-          filters: .github/static-contract-filters.yml
-      - name: Build selected gate matrix
-        id: gate-matrix
-        env:
-          PLAN_GATES: ${{ inputs.plan_gates }}
-        run: |
-          matrix_items=""
-          any=false
-
-          # $7 is the job timeout in minutes, defaulting to 15. It is per-gate
-          # because every gate in this matrix shares one job definition, so a
-          # blanket raise would also stop a genuine hang in the other 25 from
-          # being cancelled.
-          append_gate() {
-            local selected="$1"
-            local key="$2"
-            local display="$3"
-            local test="$4"
-            local gate="$5"
-            local gate_ids="$6"
-            local timeout="${7:-15}"
-            local run_gate=true
-
-            if [[ "${test}" == "${gate}" ]]; then
-              run_gate=false
-            fi
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              local id allowed=false
-              IFS=',' read -r -a ids <<< "${gate_ids}"
-              for id in "${ids[@]}"; do
-                if jq -e --arg id "${id}" 'index($id) != null' <<< "${PLAN_GATES}" > /dev/null; then
-                  allowed=true
-                  break
-                fi
-              done
-              [[ "${allowed}" == true ]] || return 0
-            fi
-
-            if [[ "${{ github.event_name }}" == "push" || "${selected}" == "true" ]]; then
-              local item="{\"key\":\"${key}\",\"display\":\"${display}\",\"test\":\"${test}\",\"gate\":\"${gate}\",\"run_gate\":${run_gate},\"timeout\":${timeout}}"
-              if [[ -n "${matrix_items}" ]]; then
-                matrix_items="${matrix_items},${item}"
-              else
-                matrix_items="${item}"
-              fi
-              any=true
-            fi
-          }
-
-          append_gate "${{ steps.filter.outputs.openapi }}" "openapi" "Verify OpenAPI gate" "bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh" "scripts/verify-openapi.sh" "openapi-surface"
-          append_gate "${{ steps.filter.outputs.edge }}" "edge" "Verify edge source-tool coverage gate" "bash scripts/test-verify-edge-source-tool-coverage.sh" "scripts/verify-edge-source-tool-coverage.sh" "edge-source-tool-coverage"
-          append_gate "${{ steps.filter.outputs.evidence }}" "evidence" "Verify evidence continuity gate" "scripts/test-verify-evidence-continuity.sh" "scripts/verify-evidence-continuity.sh" "evidence-continuity"
-          append_gate "${{ steps.filter.outputs.skill }}" "skill" "Verify skillgen roundtrip gate" "scripts/test-verify-skill-roundtrip.sh" "scripts/verify-skill-roundtrip.sh" "skill-roundtrip"
-          append_gate "${{ steps.filter.outputs.skillworkflowrefs }}" "skillworkflowrefs" "Verify skill workflow refs gate" "bash scripts/test-verify-skill-workflow-refs.sh" "bash scripts/verify-skill-workflow-refs.sh" "skill-workflow-refs"
-          append_gate "${{ steps.filter.outputs.telemetry }}" "telemetry" "Verify telemetry coverage gate" "scripts/test-verify-telemetry-coverage.sh" "scripts/verify-telemetry-coverage.sh" "telemetry-coverage"
-          append_gate "${{ steps.filter.outputs.dashboard }}" "dashboard" "Verify generate-operator-dashboard gate" "scripts/test-generate-operator-dashboard.sh" "scripts/generate-operator-dashboard.sh && git diff --exit-code -- docs/public/observability/dashboards/eshu-operator-overview.json" "operator-dashboard"
-          append_gate "${{ steps.filter.outputs.envdoc }}" "envdoc" "Verify environment registry reference gate" "scripts/test-generate-env-registry-doc.sh" "scripts/verify-env-registry-doc.sh" "env-registry-doc"
-          append_gate "${{ steps.filter.outputs.contract }}" "contract" "Verify contract source-of-truth gate" "scripts/test-verify-contracttest.sh && scripts/test-verify-fact-kind-registry.sh" "scripts/generate-contracttest.sh && scripts/generate-fact-kind-registry.sh && git diff --exit-code -- go/internal/collector/conformance/contract/data.go go/internal/facts/fact_kind_registry.generated.go go/internal/facts/FACT_KIND_REGISTRIES.md specs/fact-kind-registry.v1.yaml specs/fact-kind-registry-contracts.d" "contract-source-of-truth,fact-kind-registry"
-          append_gate "${{ steps.filter.outputs.bucketsync }}" "bucketsync" "Verify content-entity bucket sync gate" "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1" "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1" "content-entity-bucket-sync"
-          append_gate "${{ steps.filter.outputs.ifa }}" "ifa" "Verify Ifa contract-layer gate" "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1" "cd go && go test ./internal/ifa ./internal/ifa/materializededges ./cmd/ifa -count=1 && go test ./internal/reducer/... -count=1" "ifa-contract-layer,ifa-materialized-edge-coverage"
-          append_gate "${{ steps.filter.outputs.ifaload }}" "ifaload" "Verify Ifa P5 load/saturation gate" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1" "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1" "ifa-load-saturation"
-          append_gate "${{ steps.filter.outputs.ifareplaydrive }}" "ifareplaydrive" "Verify Ifa replay-drive mirror gate" "cd go && go test ./cmd/ifa -run TestIfaReplayDriveMirrorContract -count=1" "cd go && go test ./cmd/ifa -run TestIfaReplayDriveMirrorContract -count=1" "ifa-replay-drive"
-          append_gate "${{ steps.filter.outputs.cassetteauthor }}" "cassetteauthor" "Verify cassette author gate" "bash scripts/test-verify-cassette-author.sh" "bash scripts/verify-cassette-author.sh" "cassette-author"
-          append_gate "${{ steps.filter.outputs.heredoc }}" "heredoc" "Verify heredoc budget gate" "cd go && go test ./cmd/heredoc-budget -count=1" "cd go && go test ./cmd/heredoc-budget -count=1" "heredoc-budget"
-          append_gate "${{ steps.filter.outputs.parserrelationship }}" "parserrelationship" "Verify parser relationship kit gate" "bash scripts/test-verify-parser-relationship-kit.sh" "bash scripts/verify-parser-relationship-kit.sh" "parser-relationship-kit"
-          append_gate "${{ steps.filter.outputs.changelogunreleased }}" "changelogunreleased" "Verify changelog-unreleased gate" "bash scripts/test-verify-changelog-unreleased.sh && bash scripts/test-changelog-union-merge.sh" "bash scripts/verify-changelog-unreleased.sh" "changelog-unreleased"
-          append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh" "docs-refs"
-          append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh" "docs-cli-env-refs"
-          append_gate "${{ steps.filter.outputs.mcpclientauthdoc }}" "mcpclientauthdoc" "Verify MCP client-auth doc gate" "bash scripts/test-verify-mcp-client-auth-doc.sh" "bash scripts/verify-mcp-client-auth-doc.sh" "mcp-client-auth-doc"
-          append_gate "${{ steps.filter.outputs.querydoccommitrefs }}" "querydoccommitrefs" "Verify query-doc-commit-refs gate" "bash scripts/test-verify-query-doc-commit-refs.sh" "bash scripts/verify-query-doc-commit-refs.sh" "query-doc-commit-refs"
-          append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh" "doc-citations"
-          append_gate "${{ steps.filter.outputs.movedfilerefs }}" "movedfilerefs" "Verify moved-file-refs gate" "bash scripts/test-verify-moved-file-refs.sh" "bash scripts/verify-moved-file-refs.sh" "moved-file-refs"
-          append_gate "${{ steps.filter.outputs.measurementcite }}" "measurementcite" "Verify measurement-citations gate" "bash scripts/test-verify-measurement-citations.sh && bash scripts/test-verify-measurement-citations-wrapper.sh" "bash scripts/verify-measurement-citations.sh" "measurement-citations"
-          append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh && bash scripts/test-verify-k8s-two-team-governance-proof.sh" "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh" "remote-validation-artifacts"
-          append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh" "maturity-drift-guard"
-          append_gate "${{ steps.filter.outputs.pgstatementreport }}" "pgstatementreport" "Verify pg-statement-report gate" "cd go && go test ./internal/cigates -run TestPgStatementReportContract -count=1" "cd go && go test ./internal/cigates -run TestPgStatementReportContract -count=1" "pg-statement-report"
-          append_gate "${{ steps.filter.outputs.collectorcutoverrollback }}" "collectorcutoverrollback" "Verify collector-cutover-rollback gate" "cd go && go test ./internal/cigates -run TestCollectorCutoverRollbackContract -count=1" "cd go && go test ./internal/cigates -run TestCollectorCutoverRollbackContract -count=1" "collector-cutover-rollback"
-          append_gate "${{ steps.filter.outputs.dockerpublish }}" "dockerpublish" "Verify docker-publish shape gate" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh" "docker-publish-shape"
-          # 30, not the default 15: the 142-check suite (bash scripts/test-verify-
-          # dockerhub-login.sh) forks awk, rg and yq per case. Measured on loaded
-          # 18-core Macs (three suites at once, load average 25 to 50): 688 to
-          # 1004 s wall under BSD awk, 655 to 1088 s under gawk, 548 to 676 s under
-          # mawk. The slowest sample is over the 900 s default, so a cell on the
-          # default would be cancelled; 30 minutes (1800 s) leaves 1.65x margin
-          # over the slowest sample.
-          append_gate "${{ steps.filter.outputs.dockerhublogin }}" "dockerhublogin" "Verify Docker Hub login gate" "bash scripts/test-verify-dockerhub-login.sh && bash scripts/test-ci-image-compose.sh && bash scripts/ci/test-image-overrides.sh && bash scripts/ci/test-build-reproducibility-image.sh && bash scripts/ci/test-mirror-images.sh && python3 scripts/ci/test-tools-workflow.py" "bash scripts/verify-dockerhub-login.sh" "dockerhub-login" 30
-          append_gate "${{ steps.filter.outputs.buildcacheprune }}" "buildcacheprune" "Verify GHCR build cache prune gate" "bash scripts/ci/test-prune-ghcr-buildcache.sh" "bash scripts/ci/test-prune-ghcr-buildcache.sh" "ghcr-buildcache-prune"
-          append_gate "${{ steps.filter.outputs.workflowscriptcheckout }}" "workflowscriptcheckout" "Verify workflow script checkout gate" "bash scripts/test-verify-workflow-script-checkout.sh" "bash scripts/verify-workflow-script-checkout.sh" "workflow-script-checkout"
-          append_gate "${{ steps.filter.outputs.readinessderive }}" "readinessderive" "Verify live-readiness registration drift gate" "python3 scripts/test-live-postgres-readiness-child-env.py && bash scripts/test-generate-live-postgres-readiness.sh" "bash scripts/verify-live-postgres-readiness-drift.sh" "live-readiness-registration-drift"
-          append_gate "${{ steps.filter.outputs.templatecollectorcaller }}" "templatecollectorcaller" "Verify template-collector-caller gate" "bash scripts/ci/test-template-collector-caller.sh" "bash scripts/ci/test-template-collector-caller.sh" "template-collector-caller"
-          # The observed cold sweep took 25m31s for 73 configurations. Its old
-          # 30m job expired during a 3m35s cache save, after vet passed. A 40m
-          # envelope covers that recorded sweep, bounded restore, setup/cleanup, and
-          # at least 25% sweep reserve. This cell restores but never saves.
-          append_gate "${{ steps.filter.outputs.taggedbuilds }}" "taggedbuilds" "Verify tagged-builds gate" "bash scripts/test-verify-tagged-builds.sh && python3 scripts/ci/test-tagged-build-budget.py" "bash scripts/verify-tagged-builds.sh --all" "tagged-builds" 40
-          append_gate "${{ steps.filter.outputs.queuecontract }}" "queuecontract" "Verify queue-contract coverage gate" "bash scripts/test-verify-queue-contract-coverage.sh" "bash scripts/verify-queue-contract-coverage.sh" "queue-contract-coverage"
-
-          printf 'matrix={"include":[%s]}\n' "${matrix_items}" >>"${GITHUB_OUTPUT}"
-          printf 'any=%s\n' "${any}" >>"${GITHUB_OUTPUT}"
-
   gate:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gate')) && (needs.changes.outputs.any == 'true') }}
-    name: ${{ matrix.display }}
-    needs: [changes]
-    # `any` is true when the matrix holds at least one gate; the explicit
-    # arm keeps the job from scheduling an empty matrix.
-    timeout-minutes: ${{ matrix.timeout }}
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gate') }}
+    name: Product Contract Gates
+    timeout-minutes: 25
     runs-on: ubuntu-24.04
     defaults: {run: {shell: bash}}
     container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     env:
       GOTOOLCHAIN: local
       GOCACHE: /tmp/eshu-ci/go-build
       GOMODCACHE: /tmp/eshu-ci/go-mod
-      ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
-      # Repointed contract tests (census, read-api-latency-gate override)
-      # read deploy assets from the pinned eshu-deploy checkout and fail
-      # closed without ESHU_DEPLOY_CHECKOUT (#8871).
-      - name: Check out eshu-deploy at the pinned extraction commit
-        uses: actions/checkout@v5
-        with:
-          repository: eshu-hq/eshu-deploy
-          ref: 0a645a87b45e876dc7b4de14935fbae794b8dcf9
-          path: eshu-deploy
-      # Restore-only on pull requests: this entry is 724 MB, and a PR-scoped
-      # save per workflow_call run churns the 10 GB store whose evictions
-      # emptied main's gobuild entries (#9648). A main push saves a fresh
-      # copy on a miss in the last step.
+
+      # Restore-only on pull requests (#9648). A main push saves a fresh copy
+      # on a miss in the last step.
       - name: Restore static-contract cache
         id: static-cache
-        if: ${{ matrix.key != 'taggedbuilds' }}
         uses: actions/cache/restore@v4
-        with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
-      # Cache transport is acceleration, not proof. Tagged builds must run on a
-      # cache miss and must not archive its large cache after the assertions.
-      - name: Restore tagged-build cache
-        id: tagged-cache
-        if: ${{ matrix.key == 'taggedbuilds' }}
-        uses: actions/cache/restore@v4
-        timeout-minutes: 2
-        continue-on-error: true
-        with: {path: /tmp/eshu-ci, key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"}
-      - name: Report tagged-build cache outcome
-        id: tagged-cache-outcome
-        if: ${{ !cancelled() && matrix.key == 'taggedbuilds' }}
-        env:
-          CACHE_OUTCOME: ${{ steps.tagged-cache.outcome }}
-          CACHE_HIT: ${{ steps.tagged-cache.outputs.cache-hit }}
-        run: |
-          set -euo pipefail
-          if [[ "${CACHE_OUTCOME}" != success ]]; then
-            echo "::warning::Tagged-build cache restore failed or timed out; discard partial cache and run the full cold proof."
-            # Go module-cache directories are read-only after extraction.
-            for cache_dir in "${GOCACHE}" "${GOMODCACHE}"; do
-              if [[ -d "${cache_dir}" ]]; then
-                chmod -R u+w "${cache_dir}"
-              fi
-            done
-            rm -rf -- "${GOCACHE}" "${GOMODCACHE}"
-          elif [[ "${CACHE_HIT}" != true ]]; then
-            echo "::notice::Tagged-build cache miss; run the full cold proof."
-          else
-            echo "Tagged-build cache restored; run the full proof."
-          fi
+        with:
+          path: /tmp/eshu-ci
+          key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"
+
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
-      # The shared skills live in the eshu-agent-kit, not in this repo, and
-      # the skill-workflow-refs gate reads them. Install the pinned kit so
-      # that gate has a census to scan.
-      - name: Install the eshu-agent-kit
-        run: scripts/ci/install-eshu-agent-kit.sh
-      - name: Run test mirror (${{ matrix.key }})
-        run: ${{ matrix.test }}
+
+      - name: Verify OpenAPI surface
+        run: scripts/verify-openapi.sh
+
+      - name: Verify edge source-tool coverage
+        run: scripts/verify-edge-source-tool-coverage.sh
+
+      - name: Verify evidence continuity
+        run: scripts/verify-evidence-continuity.sh
+
+      - name: Verify contract source-of-truth and fact-kind registry
+        run: |
+          scripts/generate-contracttest.sh
+          scripts/generate-fact-kind-registry.sh
+          git diff --exit-code -- \
+            go/internal/collector/conformance/contract/data.go \
+            go/internal/facts/fact_kind_registry.generated.go \
+            go/internal/facts/FACT_KIND_REGISTRIES.md \
+            specs/fact-kind-registry.v1.yaml \
+            specs/fact-kind-registry-contracts.d
+
+      - name: Verify parser relationship kit
+        run: bash scripts/verify-parser-relationship-kit.sh
+
+      - name: Verify telemetry coverage
+        run: scripts/verify-telemetry-coverage.sh
+
+      - name: Verify operator dashboard parity
+        run: |
+          scripts/generate-operator-dashboard.sh
+          git diff --exit-code -- docs/public/observability/dashboards/eshu-operator-overview.json
+
+      - name: Verify environment registry reference
+        run: scripts/verify-env-registry-doc.sh
+
       # #6979: feed the cassette-author identifier check from a repository
-      # secret on same-repo PRs and main pushes.
-      # Fork PRs cannot read secrets, so this step is skipped there and the
-      # gate runs canary-only with its warning. (push is main-only per this
-      # workflow's on.push.branches, so the bare event check is correctly
-      # scoped; without push coverage a post-PR secret change would pass
-      # the push gate unnoticed.)
-      # After the test mirror on purpose: the mirror asserts the
-      # unset/canary-only behavior, which exported vars would mask. The
-      # secret value is never echoed; the gate prints only the loaded count.
+      # secret on same-repo PRs and main pushes. Fork PRs cannot read secrets,
+      # so this step is skipped there and the gate runs canary-only.
       - name: Provide private identifiers for cassette-author gate
-        if: ${{ matrix.key == 'cassetteauthor' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu') }}
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'eshu-hq/eshu' }}
         env:
           ESHU_PRIVATE_IDENTIFIERS: ${{ secrets.ESHU_PRIVATE_IDENTIFIERS }}
         run: |
@@ -299,18 +125,12 @@ jobs:
           printf '%s\n' "${ESHU_PRIVATE_IDENTIFIERS}" > "${identifiers_file}"
           echo "ESHU_PRIVATE_IDENTIFIERS_FILE=${identifiers_file}" >> "${GITHUB_ENV}"
           echo "ESHU_PRIVATE_IDENTIFIERS_REQUIRED=1" >> "${GITHUB_ENV}"
-      - name: Run gate (${{ matrix.key }})
-        timeout-minutes: ${{ matrix.key == 'taggedbuilds' && 35 || matrix.timeout }}
-        if: ${{ matrix.run_gate }}
-        run: ${{ matrix.gate }}
-      # Save the entry future runs restore, only when a main push missed
-      # the exact key (#9648, the #9598 pattern). Pull requests restore
-      # main's entry through the default-branch fallback and save nothing
-      # of their own. Matrix legs upload identical content for one key;
-      # the first finisher wins and the rest is bounded main-push-only
-      # upload waste.
+
+      - name: Verify cassette author
+        run: bash scripts/verify-cassette-author.sh
+
       - name: Save static-contract cache
-        if: ${{ matrix.key != 'taggedbuilds' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.static-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.static-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: /tmp/eshu-ci

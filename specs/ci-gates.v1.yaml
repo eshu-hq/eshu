@@ -44,7 +44,6 @@ gate_fragments:
   - ci-gates.d/gates-16.yaml
   - ci-gates.d/gates-15.yaml
   - ci-gates.d/gates-17.yaml
-  - ci-gates.d/gates-18.yaml
 
 # Merge-group slim lane (#7859 P3): the owner-fixed ordered set of blocking
 # gate IDs selected on the merge_group event, ignoring changed paths. Source:
@@ -59,9 +58,7 @@ merge_group_slim_gates:
   - slim-go-build
   - slim-go-vet
   - slim-go-filecap
-  - tagged-builds
   - markdown-file-cap
-  - doc-citations
   - scripts-file-cap
   - ci-gate-registry
   - capability-inventory
@@ -73,6 +70,8 @@ merge_group_slim_gates:
   - slim-doc-split
 
 hygiene_hooks:
+  - id: go-measurement-citations
+    reason: "local pre-commit measurement-citation hygiene hook; retired from automatic CI static-contract-gates"
   - id: codex-spawn-guard
     reason: "pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI"
   - id: goal-role-routing
@@ -123,3 +122,13 @@ non_gate_workflows:
     reason: "daily CI cost census telemetry (#8617); reports run counts, cancelled share, and duration percentiles to a job summary, posts no merge-relevant status"
   - file: seed-publish.yml
     reason: "dispatch-only #8877 seed image publish (buildx provenance+SBOM, push, in-image smoke, digest output); never a PR or main-push acceptance gate"
+  - file: live-postgres-readiness.yml
+    reason: "4-hourly/manual deep PostgreSQL readiness EXPLAIN & correctness proofs; moved off per-PR and per-push main runs to eliminate CI burn and broken-window advisory noise"
+  - file: reducer-contention-gate.yml
+    reason: "4-hourly/manual deep PostgreSQL reducer contention & supply-chain proofs; moved off per-PR and per-push main runs"
+  - file: golden-corpus-gate.yml
+    reason: "nightly/manual B-7 golden corpus and differential capture suite; moved off per-PR and per-push main runs"
+  - file: code-coverage-report.yml
+    reason: "nightly/manual advisory Go coverage report and module floor ranking; moved off per-PR and per-push main runs"
+  - file: tagged-builds.yml
+    reason: "nightly/manual 73-configuration //go:build sweep; moved out of static-contract-gates.yml"

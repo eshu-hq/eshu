@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -279,10 +277,10 @@ func globsCover(globs []string, path string) bool {
 }
 
 // TestCassettePathsAreContractLayerTriggers: a change to the recording alone
-// must schedule the ifa-contract-layer gate, in the registry and in the
-// workflow's path filter. Neither lists the vulnerability collector's cassette
-// directory otherwise, so a cassette-only change would skip the gate that reads
-// it. A mismatch between the two lists once stalled required-gates-complete.
+// must schedule the ifa-contract-layer gate, in the registry and in CI
+// (test.yml's go-core runs on every non-docs-set path). Neither lists the
+// vulnerability collector's cassette directory accidentally; a mismatch once
+// stalled required-gates-complete.
 func TestCassettePathsAreContractLayerTriggers(t *testing.T) {
 	t.Parallel()
 
@@ -297,27 +295,13 @@ func TestCassettePathsAreContractLayerTriggers(t *testing.T) {
 			triggers = gate.Triggers
 		}
 	}
-	raw, err := os.ReadFile(filepath.Join(repoRoot, ".github", "static-contract-filters.yml"))
-	if err != nil {
-		t.Fatal(err)
+	if len(triggers) == 0 {
+		t.Fatal("the registry triggers of ifa-contract-layer are empty; the lookup found nothing")
 	}
-	var filters map[string][]string
-	if err := yaml.Unmarshal(raw, &filters); err != nil {
-		t.Fatalf("parse static-contract-filters.yml: %v", err)
+	if !globsCover(triggers, vulnCollectorCassetteRelPath) {
+		t.Errorf("the registry triggers of ifa-contract-layer do not select %s", vulnCollectorCassetteRelPath)
 	}
-
-	for _, list := range []struct {
-		label string
-		globs []string
-	}{
-		{"the registry triggers of ifa-contract-layer", triggers},
-		{"the ifa filter group of static-contract-filters.yml", filters["ifa"]},
-	} {
-		if len(list.globs) == 0 {
-			t.Fatalf("%s is empty; the lookup found nothing", list.label)
-		}
-		if !globsCover(list.globs, vulnCollectorCassetteRelPath) {
-			t.Errorf("%s does not select %s", list.label, vulnCollectorCassetteRelPath)
-		}
+	if cigates.IsDocsSetPath(vulnCollectorCassetteRelPath) {
+		t.Errorf("%s is classified as docs-set, so test.yml go-core would skip ifa-contract-layer on cassette-only edits", vulnCollectorCassetteRelPath)
 	}
 }

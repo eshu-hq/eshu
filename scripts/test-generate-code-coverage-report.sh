@@ -370,8 +370,7 @@ require "workflow writes coverage profile at workspace root" 'ESHU_CODE_COVERAGE
 require "workflow uploads report artifact" "code-coverage-report" "${workflow}"
 require "workflow safe for forks" "permissions:" "${workflow}"
 
-require "ci gate registry entry" "id: code-coverage-report" "${registry}"
-require "ci gate registry workflow ref" "code-coverage-report.yml" "${registry}"
+require "ci gate registry workflow ref" "file: code-coverage-report.yml" "${registry}"
 
 # Coverage ratchet (#10983, part of #9315): per-package no-regression floors
 # on the PR path, a rising whole-module floor in the scheduled report, and a
@@ -388,20 +387,12 @@ require "PR-path floors job" "package-floors" "${workflow}"
 require "PR-path floors job runs the changed-packages check" "scripts/ci/check-changed-coverage-floors.sh" "${workflow}"
 require "scheduled job checks the whole-module floor" "scripts/verify-coverage-floors.sh" "${workflow}"
 require "scheduled job publishes the package ranking" "coverage-ranking.tsv" "${workflow}"
-require "floors gate registry entry" "id: code-coverage-floors" "${registry}"
-floors_gate_block="$(awk '/- id: code-coverage-floors/{ on=1 } on { print } on && /ci_only_reason:/{ exit }' "${registry}")"
-if printf '%s\n' "${floors_gate_block}" | rg --fixed-strings --quiet -- "blocking: true"; then
-	record_pass "floors gate blocks"
-else
-	record_fail "floors gate must set blocking: true"
-fi
-if printf '%s\n' "${floors_gate_block}" | rg --fixed-strings --quiet -- 'job: "Package coverage floors"'; then
-	record_pass "floors gate owns the PR-path floors job"
-else
-	record_fail "floors gate must own the Package coverage floors job"
-fi
 require "floors data file" "whole_module_floor:" "${floors_data}"
-require "floors PR fragment job" "package-floors" "${repo_root}/specs/ci-pr-workflows.d/code-coverage-report.yml"
+if [[ ! -f "${repo_root}/specs/ci-pr-workflows.d/code-coverage-report.yml" ]]; then
+	record_pass "code-coverage-report is scheduled/manual only (no PR fragment)"
+else
+	record_fail "code-coverage-report must not have a PR fragment"
+fi
 # The new self-tests must stay green: they are the hermetic proof the floors
 # gate's local command runs.
 if bash "${floors_selftest}" >/dev/null 2>&1; then
