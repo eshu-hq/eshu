@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason reducer conflict-key fencing proof for issue #3558 (eight concurrent claimers on one shared key hold at most one live lease, disjoint keys both claim concurrently so the fence never serializes, and the fenced sibling drains after ack), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"fmt"

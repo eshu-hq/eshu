@@ -34,6 +34,16 @@ TABLE = {
         "go/internal/storage/postgres/reducer_heartbeat_startup_window_live_test.go": (
             "TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres",
         ),
+        "go/internal/storage/postgres/reducer_queue_10879_lease_live_test.go": (
+            "TestReducerQueue10879LeaseTableBackfillsLiveLeases",
+            "TestReducerQueue10879ClaimInsertsLeaseMirror",
+            "TestReducerQueue10879HeartbeatRefreshesLeaseMirror",
+            "TestReducerQueue10879TerminalOpsClearLeaseMirror",
+            "TestReducerQueue10879StaleWorkerFenceHoldsOnMirror",
+            "TestReducerQueue10879OnePerGroupLeaseUnique",
+            "TestReducerQueue10879BackfillReconcilesTerminalizedRows",
+            "TestReducerQueue10879ReconcileCleansPreexistingOrphan",
+        ),
         "go/internal/storage/postgres/reducer_queue_advisory_coalescing_live_test.go": (
             "TestAdvisoryCoalescingLifecycleLive",
             "TestAdvisoryCoalescingTerminalReopenLive",
@@ -61,6 +71,11 @@ TABLE = {
         ),
         "go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go": (
             "TestCodeCallDeltaScopeUnusableDeadLettersOnFirstAttemptLive",
+        ),
+        "go/internal/storage/postgres/reducer_queue_conflict_claim_proof_live_test.go": (
+            "TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey",
+            "TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys",
+            "TestReducerClaimFencedSiblingBecomesClaimableAfterAck",
         ),
         "go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go": (
             "TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog",
