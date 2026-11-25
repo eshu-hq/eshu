@@ -37,12 +37,13 @@ func TestFindingsWinnersPayloadParityLive(t *testing.T) {
 		},
 	)
 	seedGroupedInventoryLive(t, ctx, database)
+	// The winners build reads the supports table, so fill it with the real
+	// backfill before the rebuild; granted calls read it too.
+	runSupportsBackfillToCompletion(t, ctx, database)
 	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
 		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
 	}
-	// Granted calls read the per-support table, so fill it with the real backfill.
-	runSupportsBackfillToCompletion(t, ctx, database)
 
 	legacy := PostgresFindingStore{DB: database, ReadFromWinners: false}
 	winners := PostgresFindingStore{DB: database, ReadFromWinners: true}
@@ -100,6 +101,9 @@ func TestFindingsWinnersPayloadBackfillServesWithoutResweepLive(t *testing.T) {
 		},
 	)
 	seedGroupedInventoryLive(t, ctx, database)
+	// The winners build reads the supports table: fill it first so the
+	// rebuild has winners for the 331 reset and the 332 migration to backfill.
+	runSupportsBackfillToCompletion(t, ctx, database)
 	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
 		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
