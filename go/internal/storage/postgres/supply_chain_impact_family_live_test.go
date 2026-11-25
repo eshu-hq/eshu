@@ -392,6 +392,10 @@ var (
 // baseline returns the fault-free single-worker digest the faulted runs must equal. It runs in its own database.
 func familyBaseline(t *testing.T) (digest string, executions int) {
 	t.Helper()
+	// Gate on the live DSN before the Once: newImpactFamily skips without one, and a
+	// skip inside Once.Do marks it done with an empty digest, turning every later
+	// caller into a "baseline did not run" failure instead of a clean skip.
+	_ = supplyChainImpactLiveDSN(t, "#10880 PR-C2 impact family baseline")
 	familyBaselineOnce.Do(func() {
 		inner := newImpactFamily(t)
 		inner.drain(1, time.Minute, nil)
