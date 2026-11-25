@@ -214,6 +214,11 @@ tests:
     class: postgres_ci
     reason: "#10828 disposable PostgreSQL proof of the NVD baseline per-year plan table (migration 312): the upsert is last-writer-wins and stamps one database-clock time per statement that is later than the transaction start, the keyed read reports in_flight for exactly the queue's open statuses and only for the vulnerability_intelligence collector kind, and the table is a bare primary-key table with no secondary index"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_same_stamp_drain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11350 TEST4 (Collector #199 core half, eshu-hq/eshu#10809): a same-stamp group larger than one chunk cut drains across chunks to year-complete on disposable PostgreSQL instead of re-minting one scope forever; disposable database per test, about 5 s locally"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_live_test.go
     tag: ~
     class: postgres_ci
