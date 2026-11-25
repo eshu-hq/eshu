@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason claim:batch source-fairness proof (the projector claim orders by source fair rank so a quiet source is served while a noisy source is in flight, and a reducer ClaimBatch within one domain never lets an older noisy-source backlog starve a newer quiet source; hermetic query-shape guards pin the source-fairness ORDER BY fragments without a database), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

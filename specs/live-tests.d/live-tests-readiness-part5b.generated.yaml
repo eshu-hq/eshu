@@ -79,6 +79,11 @@ tests:
     class: postgres_ci
     reason: "eshu-hq/eshu#11380 the batch-claim gate set and the checkpoint family read name the same undrained generations: both list the checkpoint lasts and the orphaned older window of an incomplete year while excluding ordinary rows, terminal windows, completed years, and other runs, so a re-split of either definition fails; disposable PostgreSQL through postgresproof with the production batch claim query and the shared set"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "rank-once rewrite differential proof (the new candidate SELECT returns the identical work_item_id set as the pre-rewrite correlated-subquery candidate SELECT, in the identical order up to the intentional reclaim-first reorder, on multiple pending siblings sharing a conflict key, an expired claimed holder over an older pending sibling, and multi-domain fairness competition), gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go
     tag: ~
     class: postgres_ci
@@ -88,6 +93,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#10023 code_call_materialization fails closed on an unusable delta file scope through the real ReducerQueue claim/Fail SQL: the handler's non-retryable self-classified error dead-letters the work item on attempt 1 with failure_class code_call_delta_scope_unusable and triage input_invalid with a non_retryable disposition that agrees with the retry authority, and the dead-lettered row is never re-claimed; isolated schema with the full production bootstrap, 9 to 42 s across three local runs (the bootstrap dominates); enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "claim:batch fairness proof (a single ClaimBatch lane over two domains never lets an older continuously-regenerated high-volume backlog starve a newer lower-volume domain, and the fairness rank excludes non-claimable inactive-generation rows so they cannot inflate a domain rank), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_producer_refinalize_live_test.go
     tag: ~

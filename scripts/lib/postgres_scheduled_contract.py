@@ -114,7 +114,7 @@ PR_PATHS = {
     "go/internal/storage/postgres/projector_queue_supersession_live_test.go",
     "go/internal/storage/postgres/queue_observer_test.go",
     "go/internal/storage/postgres/reducer_queue_cross_scope_readiness_gate_coverage_test.go",
-    "go/internal/storage/postgres/reducer_queue_domain_fairness_test.go",
+    "go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go",
     "go/internal/storage/postgres/reducer_queue_supersede_readiness_test.go",
     "go/internal/storage/postgres/testdata/**",
     "go/internal/storage/postgres/workload_candidate_precondition.go",

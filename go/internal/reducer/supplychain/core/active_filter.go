@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -16,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"golang.org/x/mod/module"
 )
 
 func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
@@ -110,6 +112,37 @@ func missingStringValues(current []string, initial []string) []string {
 	return payloadcore.MissingStrings(current, initial)
 }
 
+// canonicalGoManifestPackageIdentity projects one manifest dependency onto
+// the canonical go package identity the vulnerability.affected_package rows
+// carry (eshu-hq/eshu#10032 shape A): gomod://proxy.golang.org/<module> and
+// the versionless pkg:golang/<module> purl. Only the go ecosystem seeds the
+// package arms; every other ecosystem keeps the repository-only behavior,
+// and an unparseable name seeds nothing (fail closed). The identity is
+// versionless on purpose: advisory rows carry no @version, so a versioned
+// purl would never match the exact-match key probes.
+func canonicalGoManifestPackageIdentity(dependency correlation.PackageManifestDependency) (string, string) {
+	if packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(dependency.PackageManager)) != packageidentity.EcosystemGoModule {
+		return "", ""
+	}
+	name := strings.TrimSpace(dependency.DependencyName)
+	// module.CheckPath is the go tool's own module-path rule: it accepts
+	// every real module shape (dotted hosts, uppercase orgs, /vN suffixes)
+	// and rejects garbage Normalize would otherwise pass through, so an
+	// unparseable name seeds nothing (fail closed).
+	if err := module.CheckPath(name); err != nil {
+		return "", ""
+	}
+	identity, err := packageidentity.Normalize(packageidentity.RawIdentity{
+		Ecosystem: packageidentity.EcosystemGoModule,
+		Registry:  packageidentity.DefaultRegistry(packageidentity.EcosystemGoModule),
+		RawName:   name,
+	})
+	if err != nil || identity.PackageID == "" || identity.PURL == "" {
+		return "", ""
+	}
+	return identity.PackageID, identity.PURL
+}
+
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {
 	var packageIDs, purls, cveIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
 	// advisoryIDs is collected separately from cveIDs because
@@ -173,6 +206,10 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			dependencies := correlation.ExtractPackageManifestDependencies([]facts.Envelope{envelope})
 			for _, dependency := range dependencies {
 				repositoryIDs = append(repositoryIDs, dependency.RepositoryID)
+				if packageID, purl := canonicalGoManifestPackageIdentity(dependency); packageID != "" {
+					packageIDs = append(packageIDs, packageID)
+					purls = append(purls, purl)
+				}
 			}
 		case chain.SBOMComponentFactKind:
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))

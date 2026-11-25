@@ -156,7 +156,7 @@ workflows:
   - go/internal/storage/postgres/reducer_queue_ack_lock_order_postgres_live_test.go
   - go/internal/storage/postgres/reducer_queue_cross_scope_readiness_gate_coverage_test.go
   - go/internal/storage/postgres/reducer_queue_cross_scope_readiness_live_test.go
-  - go/internal/storage/postgres/reducer_queue_domain_fairness_test.go
+  - go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go
   - go/internal/storage/postgres/reducer_queue_failure_evidence_live_test.go
   - go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go
   - go/internal/storage/postgres/reducer_queue_pre_activation_live_test.go

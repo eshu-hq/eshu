@@ -144,3 +144,24 @@ integer values on the line, no sentinel content) and pinned in the
 domain, or log line: the existing
 `eshu_dp_component_extension_results_total` still counts the served claim,
 and the seed pair is read off the result log line.
+
+## Bar1 seed-read pin (#11386)
+
+`seed_bar1.go` holds the corrected Bar1 reading as pure predicates over the
+relayed `SeedFigures` (`SeedReadMeetsBar1` for decision 1, `SeedReadFitsFloor`
+for decision 3), pinned by `TestSeedReadMeetsBar1PinsCorrectedReading` and
+`TestSeedReadFitsFloorPinsDeadlineProof` with the QA canary pair (67,303 B)
+as the regression case.
+
+No-Regression Evidence (#11386): baseline is the package suite green before
+the pin with no Bar1 evaluator in tree; after is `go vet` clean plus the full
+`extensionhost` package suite green with the 11 new pin subtests, and a
+mutation check proving sensitivity (a rate-only redefinition of the bar fails
+exactly the canary small-bucket cases). The predicates have no production
+caller — only the tests call them — so no served-claim, parse, or commit path
+changes cost or behavior; wiring them into a QA check later is a separate,
+reviewed step.
+
+No-Observability-Change (#11386): the predicates return booleans and touch no
+metric, span, log line, or status record; the recorded pair still surfaces
+only through the existing seed relay above.

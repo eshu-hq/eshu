@@ -34,26 +34,17 @@ const WinnersKeyedActiveFactsTableForTest = winnersKeyedActiveFactsTable
 const WinnersKeyedIdentsTableForTest = winnersKeyedIdentsTable
 
 // WinnersKeyedNarrowBuildSQLForTest exposes the statement that persists the
-// probe to the narrow temp table the active-facts build reads, so a plan
-// proof can run the same setup the tick runs.
+// identifier probe to the narrow temp table, which the active-facts build
+// reads; a proof must run it first, mirroring runKeyedOrFull.
 const WinnersKeyedNarrowBuildSQLForTest = buildWinnersKeyedNarrowSQL
 
-// WinnersKeyedNarrowAnalyzeSQLForTest exposes the analyze of the narrow temp
-// table, mirroring the tick before the active-facts build.
+// WinnersKeyedNarrowAnalyzeSQLForTest exposes the ANALYZE of the narrow
+// temp table, so the active-facts build plans on real statistics.
 const WinnersKeyedNarrowAnalyzeSQLForTest = analyzeWinnersKeyedNarrowSQL
 
-// WinnersKeyedNarrowTableForTest names the narrow temp table, so a plan proof
-// can drop and rebuild it between explains on one connection.
+// WinnersKeyedNarrowTableForTest names the narrow probe temp table, so a
+// test can drop it before an EXPLAIN of the build that creates it.
 const WinnersKeyedNarrowTableForTest = winnersKeyedNarrowTable
-
-// WinnersKeyedNarrowBuildFromSupportsSQLForTest exposes the shipped supports
-// twin of the narrow probe: the statement the tick actually runs. A plan
-// proof must explain this twin, never the legacy fact_records statement.
-var WinnersKeyedNarrowBuildFromSupportsSQLForTest = buildWinnersKeyedNarrowFromSupportsSQL
-
-// WinnersKeyedActiveFactsBuildFromSupportsSQLForTest exposes the shipped
-// supports twin of the active-facts fetch.
-var WinnersKeyedActiveFactsBuildFromSupportsSQLForTest = buildWinnersKeyedActiveFactsFromSupportsSQL
 
 // ActivationPointerMoveSQLForTest exposes the projector Ack statement that
 // moves a scope's active pointer and appends the old and new generation to the

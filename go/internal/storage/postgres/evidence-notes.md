@@ -598,7 +598,7 @@ The live `-race` proof run against a Postgres DSN has NOT been re-executed in
 this environment after the per-claimer-connection fix because no Postgres
 (`ESHU_POSTGRES_DSN` / `ESHU_REDUCER_FAIRNESS_PROOF_DSN`) or Docker daemon was
 available here; the proofs compile and skip, and require a live DSN to assert
-the fence. The proofs reuse the existing `reducer_queue_domain_fairness_test.go`
+the fence. The proofs reuse the existing `reducer_queue_domain_fairness_live_test.go`
 schema/seed helpers, so they add no new DDL or fixtures.
 
 No-Observability-Change: #3558 adds no queue domain, conflict domain, graph

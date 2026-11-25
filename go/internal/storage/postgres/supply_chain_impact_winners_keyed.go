@@ -16,10 +16,16 @@ import (
 
 // Defaults of the keyed resweep's fallback to the full rebuild (#9805). They are
 // the ruling's starting values, not tuned numbers: a keyed tick that would
-// recompute more than 50,000 identifiers, or more than half the stored winners,
-// is no cheaper than the full rebuild and runs it instead.
+// recompute more than MaxIdentifiers identifiers, or more than half the stored
+// winners, is no cheaper than the full rebuild and runs it instead.
+//
+// TEMPORARY (#10972): MaxIdentifiers is squeezed to
+// 5,000 (from 50,000) so the current ~6,400-identifier expansions trip the
+// over-cap guard and every tick takes the existing guarded full path until
+// the backlog drains. Revert immediately after the drain; the revert restores
+// this constant and its comment together.
 const (
-	defaultWinnersKeyedMaxIdentifiers = 50000
+	defaultWinnersKeyedMaxIdentifiers = 5000
 	defaultWinnersKeyedMaxKeyFraction = 0.5
 )
 

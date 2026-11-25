@@ -77,6 +77,12 @@ type producerSettleFakeTx struct {
 func (tx *producerSettleFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "AND work.domain = $1"):
+		// The config-leg drift listing shares the drift domain but has no
+		// staged intersection in this test's world: it always lists empty
+		// so the state leg alone drives the reopen counts.
+		if strings.Contains(query, "split_part(state_fact.scope_id") {
+			return &producerSettleFakeRows{}, nil
+		}
 		domain, _ := args[0].(string)
 		ids := tx.dependentsByDom[domain]
 		out := make([][]any, 0, len(ids))
@@ -98,6 +104,10 @@ func (tx *producerSettleFakeTx) QueryContext(_ context.Context, query string, ar
 		return &producerSettleFakeRows{}, nil
 	case strings.Contains(query, "SELECT DISTINCT state_fact.payload->'attributes'->>'arn'"):
 		return &producerSettleFakeRows{rows: [][]any{{sql.NullString{String: "arn:aws:ec2:us-east-1:123456789012:instance/i-1", Valid: true}}}}, nil
+	case strings.Contains(query, "backend.value->>'backend_kind'"):
+		// Config-kinds probe (#11392): this test stages no config linkage,
+		// so the owed generation carries no backend kinds.
+		return &producerSettleFakeRows{}, nil
 	default:
 		return nil, errors.New("unexpected query: " + query)
 	}
