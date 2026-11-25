@@ -290,6 +290,10 @@ type serviceRuntimeCalls struct {
 	binary     string
 	args       []string
 	env        []string
+	// inheritEnv merges the live process env into the stubbed Environ so
+	// os.Setenv calls by the code under test are observable in calls.env.
+	// Opt-in per test; default keeps the fixed hermetic slice.
+	inheritEnv bool
 }
 
 func stubServiceRuntime() (func(), *serviceRuntimeCalls) {
@@ -326,6 +330,9 @@ func stubServiceRuntime() (func(), *serviceRuntimeCalls) {
 		return calls.exec(binary, args, env)
 	}
 	procexec.Environ = func() []string {
+		if calls.inheritEnv {
+			return append([]string{"PATH=/tmp"}, os.Environ()...)
+		}
 		return []string{"PATH=/tmp"}
 	}
 

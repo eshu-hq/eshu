@@ -56,7 +56,7 @@ By default the script installs to `GOBIN`, or to `$(go env GOPATH)/bin` when
 
 The script installs:
 
-- owner and API binaries: `eshu`, `eshu-api` (`eshu-mcp-server` ships with the satellite `eshu-hq/eshu-mcp`)
+- owner and API binaries: `eshu`, `eshu-api`, `eshu-core-api` (`eshu-mcp-server` ships with the satellite `eshu-hq/eshu-mcp`)
 - indexing and runtime binaries: `eshu-bootstrap-index`, `eshu-ingester`,
   `eshu-reducer`, `eshu-projector`
 - collector and control-plane binaries: `eshu-workflow-coordinator`,
@@ -72,6 +72,7 @@ telemetry, Postgres, the graph backend, queues, or HTTP listeners:
 ```bash
 eshu --version
 eshu-api --version
+eshu-core-api -version
 eshu-ingester -v
 eshu-reducer -v
 ```

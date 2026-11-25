@@ -50,6 +50,7 @@ main() {
 
     go build "${ESHU_BUILD_TAG_ARGS[@]}" -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu" ./cmd/eshu
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-api" ./cmd/api
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-core-api" ./cmd/core-api
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-index" ./cmd/bootstrap-index
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-ingester" ./cmd/ingester
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-reducer" ./cmd/reducer

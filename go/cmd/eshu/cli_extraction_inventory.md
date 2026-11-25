@@ -24,7 +24,7 @@ survives) · **DECIDE** (needs an owner ruling before the move).
 | `admin` | RETAIN | Whole family (`collector-failure`, `facts`, `initial-credential`, `reindex`, `repository`, `reset-initial-credential`, `tuning-report`) opens core Postgres/schema state directly (`admin.go` imports `storage/postgres`). Core-only repair. |
 | `analyze` | EXTRACT | Read-only graph analysis client (`callers`, `calls`, `chain`, `complexity`, `dead-code`, `deps`, `divergence`, `overrides`, `tree`, `variable`). |
 | `answer-quality-scorecard` | EXTRACT | Offline evidence scorer over captured envelopes. |
-| `api` | RUNTIME | `start` launches the HTTP runtime; follows `eshu-api` (#8872). |
+| `api` | RUNTIME | `start` launches the HTTP runtime; follows `eshu-core-api`. |
 | `assistant` | EXTRACT | Project-scoped guidance files; no graph writes. |
 | `change` | EXTRACT | Read-only impact/plan client; exit codes via `changeExitCode`. |
 | `clean` | STUB | Removed stub pointing at admin cleanup flows (which stay). |
@@ -65,7 +65,7 @@ survives) · **DECIDE** (needs an owner ruling before the move).
 | `query` | EXTRACT | Core read-path client. |
 | `report` | EXTRACT | Offline operator-digest renderer (`capture`, `validate`); no graph access by design. |
 | `scan` | EXTRACT | Index-and-wait client with readiness polling (`--wait`, `--timeout`, `--allow-partial`). |
-| `serve` | RUNTIME | `start` launches the combined runtime; follows `eshu-api` (#8872). |
+| `serve` | RUNTIME | `start` launches the combined runtime; follows `eshu-core-api`. |
 | `service-report` | EXTRACT | Offline composer over a captured service-story response (stdin/`--from`). |
 | `stats` | EXTRACT | Read-only indexing statistics client. |
 | `trace` | EXTRACT | Code-to-runtime evidence client; owns the shared `traceExitCode` table. |

@@ -11,7 +11,7 @@ operator/admin workflows, and hosts the `doctor` diagnostic.
 
 This binary owns the Cobra command tree, flag parsing, and local Eshu service
 orchestration. It does not own service runtime internals:
-`eshu api start` and `eshu mcp start` exec `eshu-api` and `eshu-mcp-server`.
+`eshu api start` execs `eshu-core-api` and `eshu mcp start` execs `eshu-mcp-server`.
 `eshu graph start` owns the local-authoritative supervisor and discovers
 `eshu-reducer` and `eshu-ingester` via `PATH`.
 
