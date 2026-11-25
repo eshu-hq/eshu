@@ -21,9 +21,10 @@ const (
 	// per-statement bar. The same budget caps a multi-id statement's combined
 	// mass, so no statement of two or more ids can rebuild the timed-out
 	// shape out of sub-threshold ids. A singleton hot id may exceed the
-	// threshold alone; on a port with HolderKeyRangeReader it runs as
-	// fanOutHolderKeyRangeCount fact_id key-range statements instead
-	// (#10643), so no statement reads all of its rows.
+	// threshold alone; it still runs one shipped holder statement (#11430:
+	// the QA guard proved the single statement under the 10 s guard on the
+	// worst holder id, and the phase shim measured it ~4x the key-range
+	// fan-out it replaces).
 	fanOutHolderHotMassRows = 10000
 	// fanOutHolderReadParallelism bounds how many holder-read statements of
 	// one pass run concurrently (#10643). Holder reads are I/O-read dominated
@@ -92,6 +93,9 @@ type fanOutSplitStats struct {
 	// keyRangeStatements the key-range statements they ran. Each key-range
 	// statement carries the member arm as its foreign-member token arm
 	// (#10643 PR 2), so there is no separate member statement to count.
+	// Routing sends no key-range statements since #11430 (a hot singleton
+	// runs the shipped single statement); the counters stay, always zero,
+	// so the sub-signal keys and their consumers are unchanged.
 	keyRangedIDs       int
 	keyRangeStatements int
 }
@@ -142,22 +146,22 @@ func planHolderReadStatements(chunk []string, masses map[string]int64) [][]strin
 	return out
 }
 
-// holderStatement is one planned holder-read statement: its ids and whether
-// it runs as a key-range read (#10643: a hot singleton on a port with the
-// HolderKeyRangeReader seam).
+// holderStatement is one planned holder-read statement: its lookup ids. Every
+// statement runs the already-shipped single holder statement
+// (FindSupplyChainImpactHoldersQuery) once (#11430).
 type holderStatement struct {
-	ids    []string
-	ranged bool
+	ids []string
 }
 
 // readHolderScopesSplit runs one chunk's holder read as the planned
-// statements: one direct call when the plan is a single unranged statement
-// (the cold common case, byte-identical to the legacy call), otherwise the
-// statements with bounded parallelism under the same per-statement guard. A
-// hot singleton id runs as a key-range read when the port has the seam. It
-// returns the union of the scopes every statement found. A failed probe or
-// statement fails closed with the existing read-error classification and
-// counter, so the pass retries instead of proceeding without its holders.
+// statements: one direct call when the plan is a single statement (the common
+// case, byte-identical to the legacy call), otherwise the statements with
+// bounded parallelism under the same per-statement guard. A hot singleton id
+// runs the shipped single holder statement like every other statement
+// (#11430). It returns the union of the scopes every statement found. A
+// failed probe or statement fails closed with the existing read-error
+// classification and counter, so the pass retries instead of proceeding
+// without its holders.
 func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	ctx context.Context,
 	cause string,
@@ -183,20 +187,22 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 			}
 		}
 	}
-	rangeReader, canRange := h.FanOut.(HolderKeyRangeReader)
-	ranges := HolderKeyRanges()
+	// #11430: every planned statement — a hot singleton included — runs the
+	// already-shipped single holder statement
+	// (FindSupplyChainImpactHoldersQuery) once. The QA guard proved the
+	// single statement at a warm median under 1.2 s under the 10 s guard on
+	// the worst holder id (101,377 cve-arm rows, generic and custom plans),
+	// and the holder-read-phase shim measured it ~4x the 16 key-range
+	// statements, so the key-range fan-out no longer runs. A lookup id over
+	// 1,024 bytes reads the same shipped statement (the foreign-member token
+	// function never stores one for it), so the long-id fallback is
+	// preserved by resting on the shipped shape. The key-range store read
+	// stays implemented with its fallback branch, but routing sends it no
+	// statements.
 	statements := make([]holderStatement, 0, len(planned))
 	for _, ids := range planned {
-		stmt := holderStatement{ids: ids}
-		if canRange && len(ids) == 1 && masses[ids[0]] > fanOutHolderHotMassRows {
-			stmt.ranged = true
-			stats.keyRangedIDs++
-			stats.keyRangeStatements += len(ranges)
-			stats.statements += len(ranges)
-		} else {
-			stats.statements++
-		}
-		statements = append(statements, stmt)
+		statements = append(statements, holderStatement{ids: ids})
+		stats.statements++
 	}
 	if len(planned) > 1 {
 		stats.splitChunks = 1
@@ -206,7 +212,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 			}
 		}
 	}
-	if len(statements) == 1 && !statements[0].ranged {
+	if len(statements) == 1 {
 		found, err := h.findHolderScopes(ctx, ownScopeID, statements[0].ids)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
@@ -229,33 +235,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		go func(stmt holderStatement) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			var found []string
-			var err error
-			if stmt.ranged {
-				var read HolderKeyRangeRead
-				start := time.Now()
-				read, err = rangeReader.FindHolderScopesByKeyRange(ctx, ownScopeID, stmt.ids, ranges)
-				h.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
-				nonCVE := lookupHoldsNonCVEID(stmt.ids)
-				count := len(ranges)
-				if read.Fallback {
-					// One shipped statement ran instead of the key ranges
-					// (a lookup id over 1,024 bytes, arbiter ruling 10643m).
-					count = 1
-					mu.Lock()
-					stats.keyRangedIDs--
-					stats.keyRangeStatements -= len(ranges)
-					stats.statements -= len(ranges) - 1
-					mu.Unlock()
-				}
-				for _, done := range read.Statements {
-					h.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
-					h.noteKeyRangeStatement(ctx, done, count, nonCVE, read.Fallback)
-				}
-				found = read.Scopes
-			} else {
-				found, err = h.findHolderScopes(ctx, ownScopeID, stmt.ids)
-			}
+			found, err := h.findHolderScopes(ctx, ownScopeID, stmt.ids)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

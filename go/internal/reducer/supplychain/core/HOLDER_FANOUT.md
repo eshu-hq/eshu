@@ -62,23 +62,24 @@ rules, the outcomes, and the open residual are in
   three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
   before while a hot id still reads hot; a mid-band cheap count saturates
   to the cap and runs singleton, which only splits more).
-- A hot singleton id still read all of its rows in one statement: on QA the
-  hottest id holds 83,642 cve-arm rows and its read spent 7.7 s of I/O against
-  the 10 s guard, so committed passes dead-lettered with `fanout_owed` set
-  (#10643). On a port with the key-range seam, a hot singleton now runs as 16
-  fact_id key-range statements, each with the 10 s guard. The cve_id and
-  advisory_id arms read the partial lookup index with `fact_id` in the index
-  condition. All 16 run in one read-only REPEATABLE READ transaction, so their
-  union is the shipped read on one snapshot, a generation flip included. The
-  ranges partition the whole text key space, so any fact_id falls in exactly
-  one. Rows read are unchanged; the snapshot is held for at most 16 statement
-  guards. Ordered keyset pages were rejected: each row is a random heap fetch,
-  about 10x the shipped cost cold (`docs/internal/evidence/10643-holder-read-bound.md`).
-- Member arm (#10643 PR 2), the third arm of each statement: the frozen
-  `eshu_sci_foreign_member_tokens_v4` tokens each foreign member of at most
-  1,024 bytes as `bucket:member` in a partial GIN index (migrations 336, 337);
-  statement k asks bucket k, statement 1 also bucket 0. A longer lookup id has
-  no token, so that read runs the shipped statement (`fallback` on the signal).
+- A hot singleton id reads all of its rows in one shipped holder statement
+  (#11430): on QA the hottest id holds 101,377 cve-arm rows and the single
+  statement runs at a warm median under 1.2 s under the 10 s guard (generic
+  and custom plans), so no key-range fan-out runs. The 16 fact_id key-range
+  statements (#10643) were retired as routing because the single statement
+  measured ~4x the whole 16-statement phase on QA-shaped data; the key-range
+  store read stays implemented with its fallback branch but routing sends it
+  no statements. Rows read are unchanged and no long snapshot is held.
+  Ordered keyset pages were rejected: each row is a random heap fetch, about
+  10x the shipped cost cold (`docs/internal/evidence/10643-holder-read-bound.md`).
+  Proof: `docs/internal/evidence/11430-single-statement-holder-reads.md`.
+- Member arm (#10643 PR 2), the third arm of the shipped statement: the
+  frozen `eshu_sci_foreign_member_tokens_v4` tokens each foreign member of at
+  most 1,024 bytes as `bucket:member` in a partial GIN index (migrations 336,
+  337); the key-range fan-out used to ask bucket k on statement k (statement
+  1 also bucket 0). A longer lookup id has no token; it reads the same
+  shipped statement, so the long-id fallback is preserved by resting on the
+  shipped shape.
   Proof: `docs/internal/evidence/10643-foreign-member-token-index.md`.
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,

@@ -119,67 +119,12 @@ func TestHolderKeyRangeCountDividesTheDigits(t *testing.T) {
 	}
 }
 
-// TestHotSingletonHolderReadRunsAsKeyRanges is the #10643 regression: a hot
-// singleton id (mass over the split threshold) must not run as one holder
-// statement over all its rows. It runs as one bounded statement per fact_id
-// key range, each carrying the member arm as its foreign-member token arm
-// (PR 2), the union of their holders is what the pass reopens, and cold ids
-// keep the single packed statement.
-func TestHotSingletonHolderReadRunsAsKeyRanges(t *testing.T) {
-	t.Parallel()
-
-	ranges := HolderKeyRanges()
-	port := &rangeStubFanOut{
-		stubFanOut: &stubFanOut{
-			holders: []string{"cold-holder"},
-			masses:  map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
-		},
-		rangeHolders: map[HolderKeyRange][]string{
-			ranges[0]:             {"holder-a"},
-			ranges[len(ranges)-1]: {"holder-lone"},
-			ranges[len(ranges)/2]: {"holder-a", "holder-b"},
-			// A foreign-member holder comes back through a statement's token
-			// arm, which has no key-range bound of its own.
-			ranges[3]: {"holder-member"},
-		},
-	}
-	ids := []string{"CVE-2026-hot", "CVE-2026-c1", "CVE-2026-c2"}
-	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: ids}}
-	result, err := fanOutHandler(port, writer, nil).Handle(context.Background(), fanOutIntent(1, nil))
-	if err != nil {
-		t.Fatalf("Handle() error = %v", err)
-	}
-	for _, call := range port.findCalls {
-		for _, id := range call {
-			if id == "CVE-2026-hot" {
-				t.Fatalf("hot id ran as an unbounded holder statement %v", call)
-			}
-		}
-	}
-	if len(port.findCalls) != 1 || !reflect.DeepEqual(port.findCalls[0], []string{"CVE-2026-c1", "CVE-2026-c2"}) {
-		t.Fatalf("cold statements = %v, want one packed [c1 c2]", port.findCalls)
-	}
-	got := append([]HolderKeyRange(nil), port.rangeCalls...)
-	sort.Slice(got, func(i, j int) bool { return got[i].Lower < got[j].Lower })
-	if !reflect.DeepEqual(got, ranges) {
-		t.Fatalf("ranged statements = %v, want every key range once %v", got, ranges)
-	}
-	for _, call := range port.rangeIDs {
-		if !reflect.DeepEqual(call, []string{"CVE-2026-hot"}) {
-			t.Fatalf("ranged statement ids = %v, want the hot id alone", call)
-		}
-	}
-	want := []string{"cold-holder", "holder-a", "holder-b", "holder-lone", "holder-member"}
-	if !reflect.DeepEqual(port.reopened, want) {
-		t.Fatalf("reopened = %v, want the union %v", port.reopened, want)
-	}
-	if got := result.SubSignals["fanout_holder_key_range_statements"]; got != float64(len(ranges)) {
-		t.Fatalf("fanout_holder_key_range_statements = %v, want %d", got, len(ranges))
-	}
-	if got := result.SubSignals["fanout_holder_statements"]; got != float64(1+len(ranges)) {
-		t.Fatalf("fanout_holder_statements = %v, want cold + ranges = %d (the member arm rides inside each range, #10643 PR 2)", got, 1+len(ranges))
-	}
-}
+// TestHotSingletonHolderReadRunsAsKeyRanges was the #10643 routing pin: a
+// hot singleton ran one statement per fact_id key range. #11430 reroutes the
+// hot singleton to the already-shipped single holder statement, so this pin
+// is superseded by TestHotSingletonHolderReadRunsAsSingleStatement
+// (fanout_hot_single_statement_test.go), which proves the hot singleton, the
+// cold pack, their union, and the holder statement counts.
 
 // TestHotSingletonWithoutRangeReaderKeepsSingleton proves a port without the
 // key-range seam keeps the shipped singleton statement, so a decorator or
@@ -200,10 +145,10 @@ func TestHotSingletonWithoutRangeReaderKeepsSingleton(t *testing.T) {
 	}
 }
 
-// TestHotSingletonKeyRangeFailureFailsClosed proves a timed-out ranged
-// statement fails the pass with the retryable fan-out class, counts as a
-// holders-site read timeout, and reopens nothing.
-func TestHotSingletonKeyRangeFailureFailsClosed(t *testing.T) {
+// TestHotSingletonSingleStatementFailureFailsClosed proves a timed-out hot
+// singleton single statement (#11430) fails the pass with the retryable
+// fan-out class, counts as a holders-site read timeout, and reopens nothing.
+func TestHotSingletonSingleStatementFailureFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	reader := sdkmetric.NewManualReader()
@@ -211,13 +156,10 @@ func TestHotSingletonKeyRangeFailureFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
-	ranges := HolderKeyRanges()
-	port := &rangeStubFanOut{
-		stubFanOut: &stubFanOut{
-			holders: []string{"holder-a"},
-			masses:  map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
-		},
-		rangeErr: map[HolderKeyRange]error{ranges[3]: ErrFanOutReadTimeout},
+	port := &stubFanOut{
+		holders: []string{"holder-a"},
+		masses:  map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+		findErr: ErrFanOutReadTimeout,
 	}
 	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot"}}}
 	_, err = fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil))
@@ -229,17 +171,20 @@ func TestHotSingletonKeyRangeFailureFailsClosed(t *testing.T) {
 		t.Fatalf("error %v is not the counting fan-out class", err)
 	}
 	if len(port.reopened) != 0 {
-		t.Fatalf("reopened = %v after a failed ranged read, want none", port.reopened)
+		t.Fatalf("reopened = %v after a failed single-statement read, want none", port.reopened)
 	}
 	if got := fanOutCount(t, reader)["read_timeout"]; got != 1 {
 		t.Fatalf("read_timeout count = %d, want 1", got)
 	}
 }
 
-// TestKeyRangeReadRecordsDurationByKind proves the #10643 read-duration
-// histogram: one sample per statement, by kind and outcome, so an operator
-// reads per-statement p95 and the timeout share per read kind.
-func TestKeyRangeReadRecordsDurationByKind(t *testing.T) {
+// TestSingleStatementReadRecordsDurationByKind proves the read-duration
+// histogram after #11430: one sample per shipped holder statement (the hot
+// singleton reads as one holders statement, not key-range statements), by
+// kind and outcome, so an operator reads per-statement p95 and the timeout
+// share per read kind. The DeepEqual also pins that no holders_key_range
+// sample is recorded.
+func TestSingleStatementReadRecordsDurationByKind(t *testing.T) {
 	t.Parallel()
 
 	reader := sdkmetric.NewManualReader()
@@ -247,13 +192,9 @@ func TestKeyRangeReadRecordsDurationByKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
-	ranges := HolderKeyRanges()
-	port := &rangeStubFanOut{
-		stubFanOut: &stubFanOut{
-			holders: []string{"cold-holder"},
-			masses:  map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
-		},
-		rangeHolders: map[HolderKeyRange][]string{ranges[0]: {"holder-a"}},
+	port := &stubFanOut{
+		holders: []string{"cold-holder"},
+		masses:  map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
 	}
 	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot", "CVE-2026-c1"}}}
 	if _, err := fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil)); err != nil {
@@ -261,10 +202,8 @@ func TestKeyRangeReadRecordsDurationByKind(t *testing.T) {
 	}
 	got := fanOutReadDurationCounts(t, reader)
 	want := map[string]uint64{
-		telemetry.FanOutReadKindMassProbe + "/ok":           1,
-		telemetry.FanOutReadKindHolders + "/ok":             1,
-		telemetry.FanOutReadKindHoldersKeyRange + "/ok":     uint64(len(ranges)),
-		telemetry.FanOutReadKindHoldersKeyRangeRead + "/ok": 1,
+		telemetry.FanOutReadKindMassProbe + "/ok": 1,
+		telemetry.FanOutReadKindHolders + "/ok":   2,
 		// The #10972 queued-holder prefilter runs once per claim with holders.
 		telemetry.FanOutReadKindHolderPrefilter + "/ok": 1,
 		// The genuine pass's load-end in-flight claim read (#10972 D4b).
