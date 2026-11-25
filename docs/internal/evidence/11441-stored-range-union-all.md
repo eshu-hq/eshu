@@ -13,9 +13,12 @@ capture/lease/queue/clock paths are untouched, and there is no new
 migration or index.
 
 No-Regression Evidence: the RED 2 cost test still passes on the padded
-1500-identifier fixture (budget 2000: shipped total 141457 blocks vs
-single-scan 143443; budget 10000: 775218 vs 777141, inside the 1.25x
-parity bound). Old-vs-new first-range statements on the 50k-row padded
+1500-identifier fixture (about +1.4% at budget 2000 and +0.2% at budget
+10000, inside the committed 1.25x parity bound; latest HEAD run: shipped
+totals 141463 and 775217 vs single-scan 143447 and 776562 — exact block
+counts drift a few blocks run to run with ANALYZE sampling and temp
+spill, so the bound the test pins is the durable claim, not the
+snapshot). Old-vs-new first-range statements on the 50k-row padded
 fixture read byte-identical totals under the natural planner (893 vs
 893 shared blocks, execution time within 1% across 5 reps), and the new
 equivalence test proves byte-identical row multisets plus disjoint arms
