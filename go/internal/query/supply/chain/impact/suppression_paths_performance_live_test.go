@@ -73,12 +73,12 @@ ALTER TABLE supply_chain_impact_canonical_winners
 	}
 
 	winners := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: db})
+	// The winners build reads the supports table, so fill it with the real
+	// backfill before the rebuild; route V reads it too.
+	runSupportsBackfillWithChunk(t, ctx, db, 10_000)
 	if err := winners.RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("initial winners rebuild: %v", err)
 	}
-	// An unscoped precise call reads the winners table plus the supports table
-	// (route V), which refuses until the supports backfill is complete.
-	runSupportsBackfillWithChunk(t, ctx, db, 10_000)
 	var winnerCount int
 	if err := db.QueryRowContext(
 		ctx,

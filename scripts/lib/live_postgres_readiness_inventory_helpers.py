@@ -12,7 +12,7 @@ HELPER_PROOFS = {
         "consumer_file": "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionPathsPerformanceLive",
         "helper_sha256": "be5a316245add75a72f0c9364f582a34c49bdae144ee959c96f2f3c6e6ec4fb4",
-        "consumer_sha256": "16f36a2d3839278146b4145f862d535a639c4385de501fbf102811311ca4e27e",
+        "consumer_sha256": "18c1b064e9a4ff602e393e403333350defdfce343c8f4858ce3421fc07327623",
     },
     "go/internal/query/supply/chain/runtime_context_scope_live_test.go": {
         "helper_sha256": "fcc2b6acd87a5014d100a3023cc5aeceee28b49bb41d9ec5d85cbf2d1893ef21",
