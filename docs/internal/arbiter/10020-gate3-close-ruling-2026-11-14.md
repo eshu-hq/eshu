@@ -78,3 +78,19 @@ retained-generations-per-id; warm ≤ 2.4s; cold-first inside the 30s cap with a
 - Treat cycle-4 as a steady-state cycle in any record.
 - Block on the event-timestamp lag or the `count_rows` 637s.
 - Accept the KEV re-measure run against a partially drained `known_exploited` scope.
+
+## Pointer note (2026-11-25, coordinator ruling)
+
+The Q3 procedure citation above
+(`9914-os-advisory-upstream-grouping.md:253`) pointed at
+`docs/internal/evidence/9914-os-advisory-upstream-grouping.md`, which the
+#10990 evidence audit later deleted (commit `b8664b9882`). The original
+verdict is unchanged; only the pointer is repaired. The cited baseline
+text and the 2026-11-14 re-measure sentence survive verbatim in git
+history at `b8664b9882^:docs/internal/evidence/9914-os-advisory-upstream-grouping.md`
+(the baseline at blob line 253; the re-measure with 6,000 rows / 25 gens,
+cold 2.14 s, warm 0.06 s beside it), and the before/after figures also
+survive in the eshu-hq/eshu#10020 close comment. No text of this ruling was
+rewritten: a re-anchor would partially revert the reviewed #10990 deletion,
+and a GitHub comment is not a committed-evidence location, so the pointer is
+annotated, not moved.
