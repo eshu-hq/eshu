@@ -46,14 +46,14 @@ no per-site stamp — only `reopened_at` + `status='pending'`. Per-site
 attribution therefore rests on:
 
 - Supply-chain fanout: `payload.fanout_origin`
-  (`PayloadKeyFanOutOrigin`, `go/internal/reducer/supplychain/core/fanout.go:48`),
+  (`PayloadKeyFanOutOrigin`, `go/internal/reducer/supplychain/core/fanout.go`),
   written by `reopenSupplyChainImpactHolderQuery`
   (`go/internal/storage/postgres/supply_chain_impact_fanout_reopen.go`) on
   the succeeded→pending move (and merged on widenings, which do not move
   `reopened_at` — so `reopened_at`-in-window + stamp = genuine fanout reopen).
 - Waiting wakes: keep `status='retrying'`
   (`waitingWakeReopenSetClause`,
-  `go/internal/storage/postgres/reducer_waiting_store.go:254`; winners
+  `go/internal/storage/postgres/reducer_waiting_store.go`; winners
   watermark variant sets `reopened_at` to the covering stamp). Never
   succeeded→pending, so they are disjoint from the pending-reopen buckets.
   Post-hoc trace is the `reducer_waiting_items` park row per `work_item_id`;

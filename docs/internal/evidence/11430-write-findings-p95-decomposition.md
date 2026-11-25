@@ -35,7 +35,7 @@ Suppression diff and fan-out stamp I/O are EXONERATED as write-tail causes.
 
 ## Code trace (write path phase ordering)
 
-- `SupplyChainImpactHandler.Handle` (`go/internal/reducer/supplychain/core/impact.go:200`):
+- `SupplyChainImpactHandler.Handle` (`go/internal/reducer/supplychain/core/impact.go`):
   `:280-287` starts `phaseStarted`, calls `writeFindingsWithSuppressionDiff`,
   records `timing.writeFindingsDuration` — the span covers the writer
   transaction ONLY. `:298` `enqueueAdvisoryGroupProjections` and `:304`

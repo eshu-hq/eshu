@@ -23,9 +23,9 @@ handler's own graph transaction.
 
 ### 1.1 Claim (single statement, one implicit transaction)
 
-Entry: `ReducerQueue.ClaimBatch` (`go/internal/storage/postgres/reducer_queue_batch.go:20`)
+Entry: `ReducerQueue.ClaimBatch` (`go/internal/storage/postgres/reducer_queue_batch.go`)
 renders `claimReducerWorkBatchQuery`
-(`go/internal/storage/postgres/reducer_queue_batch_query.go:286`), executed
+(`go/internal/storage/postgres/reducer_queue_batch_query.go`), executed
 once per claimer poll. Shape, in order:
 
 1. Snapshot CTEs (`reducer_source_inflight`, `reducer_domain_inflight`, gate
@@ -87,7 +87,7 @@ heartbeat. For `supply_chain_impact` the handler spends ~39s median in:
 - Postgres holder key-range reads (~2.2–2.6s each, ~16 per pass — the p50),
   plain `SELECT`s, no locks held across them;
 - Neo4j graph writes through one shared `BackpressureGate`
-  (`go/internal/storage/cypher/backpressure_executor.go:64`,
+  (`go/internal/storage/cypher/backpressure_executor.go`,
   `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=6` on the vuln lane). The gate is an
   in-process semaphore: at most 6 graph transactions in flight across all 8
   workers. Two workers always park at the gate while six hold graph
