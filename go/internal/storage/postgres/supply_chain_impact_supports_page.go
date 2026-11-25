@@ -35,11 +35,13 @@ import (
 //     fact_id order with an is_active flag and the payload only when active.
 //
 // The reader appends only active rows, advances its cursor on the last RAW fact
-// id, and stops only when the raw page holds fewer than N rows, so a page full
-// of superseded-generation rows never reads as the end of the drain. Each page is
-// its own autocommit statement: no cursor and no transaction stays open between
-// pages. At a package with 1,600,000 supports a page reads 5,958 buffers and
-// takes 3.8 ms warm, with no temp, under both plan_cache_mode settings
+// id, and stops when the raw page holds fewer than N rows or at the active-row
+// cap (supplyChainImpactSupportsDrainMaxActiveRows, a truncation error with the
+// resume cursor), so a page full of superseded-generation rows never reads as
+// the end of the drain and a hot key never grows the working set without bound.
+// Each page is its own autocommit statement: no cursor and no transaction stays
+// open between pages. At a package with 1,600,000 supports a page reads 5,958
+// buffers and takes 3.8 ms warm, with no temp, under both plan_cache_mode settings
 // (docs/internal/evidence/10880-b2c/reader_plans.md).
 
 // supplyChainImpactSupportsPackageIndexPredicate is the partial-index predicate
@@ -72,6 +74,61 @@ type supplyChainImpactSupportsArm struct {
 // supplyChainImpactSupportsDrainLogRows is the raw-row count at which a drain
 // logs one structured line, so a hot key is findable without a dashboard.
 const supplyChainImpactSupportsDrainLogRows = 100000
+
+// supplyChainImpactSupportsDrainDefaultMaxActiveRows bounds one drain's working
+// set: the drain stops with a resume cursor past this many ACTIVE envelopes
+// instead of appending every active envelope, with its full JSON payload, into
+// one slice. Inactive raw rows carry no payload and never materialize one, so
+// the cap counts active rows only. The value matches the large-drain log
+// threshold's number, not its unit (that line counts raw rows; the cap counts
+// actives, so the log line fires first and the cap trips at the same time or
+// later): what that line used to only observe now also stops. A 152,000
+// finding repository measured about 365 MB through this path, so 100,000 rows
+// bounds a single drain to hundreds of megabytes; past it the hot key fails
+// fast and retryable with a resume cursor instead of OOMKilling the engine
+// (11 OOMKills of the general engine, 7.6 GB heap, ~91% under encoding/json
+// from drain via page).
+const supplyChainImpactSupportsDrainDefaultMaxActiveRows = 100000
+
+// supplyChainImpactSupportsDrainMaxActiveRows is the live cap, a package var
+// (not a const) so tests can model a hot key with three pages instead of two
+// hundred; the shipped binary keeps the default.
+var supplyChainImpactSupportsDrainMaxActiveRows = supplyChainImpactSupportsDrainDefaultMaxActiveRows
+
+// SupplyChainImpactSupportsDrainTruncatedError is the refusal a supports drain
+// returns when it stops at the active-row cap. The drain serves nothing on this
+// path (nil envelopes): a prefix served as complete would silently drop
+// findings from a decision, a retraction, or a reopen. ResumeCursorFactID is
+// the last delivered fact id, so a resume re-reads from `s.fact_id >
+// ResumeCursorFactID` with no loss and no duplication. The refusal is retryable
+// under its own failure class, but the class is deliberately NOT in the
+// non-counting set: a deterministically-over-cap hot key would never converge,
+// so each retry spends an attempt and dead-letters at maxAttempts under a clear
+// name instead of retrying forever. The engine stays alive to serve everything
+// else, which is the fix: the OOMKilled engine served nothing.
+type SupplyChainImpactSupportsDrainTruncatedError struct {
+	// Reader names the reader whose drain truncated (the reader label of
+	// eshu_dp_supply_chain_impact_supports_reads_total).
+	Reader string
+	// ResumeCursorFactID is the last delivered fact id to resume after.
+	ResumeCursorFactID string
+	// Stats counts what the drain read before it stopped.
+	Stats supplyChainImpactSupportsDrainStats
+}
+
+// Error implements error.
+func (e *SupplyChainImpactSupportsDrainTruncatedError) Error() string {
+	return fmt.Sprintf("supply chain impact supports drain for reader %q stopped at the active-row cap (%d active rows over %d pages): resume from fact_id %q",
+		e.Reader, e.Stats.activeRows, e.Stats.pages, e.ResumeCursorFactID)
+}
+
+// Retryable marks the truncation retryable: the hot key is deferred, not dropped.
+func (*SupplyChainImpactSupportsDrainTruncatedError) Retryable() bool { return true }
+
+// FailureClass names the truncation class for the queue.
+func (*SupplyChainImpactSupportsDrainTruncatedError) FailureClass() string {
+	return "supply_chain_impact_supports_drain_truncated"
+}
 
 // supplyChainImpactSupportsPageQuery renders the page statement for arms. A
 // cursorParam of zero renders the first-page text, which carries no cursor
@@ -151,11 +208,14 @@ func newSupplyChainImpactSupportsDrain(
 // supplyChainImpactSupportsDrainStats is what one drain, or one call of several
 // drains, read: the page and row counts, the keys it filtered on and its wall time.
 // failed marks a drain or call that stopped on an error; its counts are what it read
-// before stopping.
+// before stopping. truncated marks a drain or call that stopped at the
+// active-row cap; its counts are what it delivered (active) and read (raw)
+// before stopping, and the resume cursor lives on the truncation error.
 type supplyChainImpactSupportsDrainStats struct {
 	pages, rawRows, activeRows, keys int
 	elapsed                          time.Duration
 	failed                           bool
+	truncated                        bool
 }
 
 // add folds another drain's counts into the call total. Wall time is the caller's:
@@ -179,7 +239,9 @@ const (
 
 // recordSupplyChainImpactSupportsDrain records one sample of the drain signals for
 // reader: the raw-rows and duration histograms and, at 100,000 raw rows or more
-// (or on a failed drain that read any), the large-drain log line. scope is the sample
+// (or on a failed drain that read any, or on any truncation), the large-drain
+// log line. A truncation always logs, whatever it read, so the hot key it
+// stopped on is findable from the log on the dead-letter path. scope is the sample
 // field of that line, supplyChainImpactSupportsSampleDrain or ...SampleCall, and says
 // what the sample covers. A sample is one drain for
 // the reconciliation loader and one whole GetSupplyChainAdvisoriesForRepos call
@@ -196,9 +258,12 @@ func recordSupplyChainImpactSupportsDrain(
 ) {
 	instruments.RecordSupplyChainImpactSupportsDrainRawRows(ctx, reader, int64(stats.rawRows))
 	instruments.RecordSupplyChainImpactSupportsDrainDuration(ctx, reader, stats.elapsed)
-	if stats.rawRows >= supplyChainImpactSupportsDrainLogRows || (stats.failed && stats.rawRows > 0) {
+	if stats.rawRows >= supplyChainImpactSupportsDrainLogRows || (stats.failed && stats.rawRows > 0) || stats.truncated {
 		outcome := "served"
-		if stats.failed {
+		switch {
+		case stats.truncated:
+			outcome = "truncated"
+		case stats.failed:
 			outcome = "failed"
 		}
 		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s sample=%s outcome=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
@@ -220,19 +285,58 @@ func (d supplyChainImpactSupportsDrain) run(ctx context.Context, queryer db.Quer
 
 // drain reads every page without recording a sample, for a caller that records
 // one sample over several drains. The cursor advances on the last raw id of each
-// page and the drain stops on a raw page shorter than the page size. On an error
-// it returns the stats of what it read so far, marked failed.
+// page and the drain stops on a raw page shorter than the page size or at the
+// active-row cap (a truncation error with the resume cursor, nil envelopes).
+// On an error it returns the stats of what it read so far, marked failed.
+// Under the cap the drain serves exactly what the unbounded drain served.
 func (d supplyChainImpactSupportsDrain) drain(
 	ctx context.Context,
 	queryer db.Queryer,
 ) ([]facts.Envelope, supplyChainImpactSupportsDrainStats, error) {
-	started := time.Now()
 	var loaded []facts.Envelope
-	var cursorFactID string
-	pages, rawRows := 0, 0
-	stats := func(failed bool) supplyChainImpactSupportsDrainStats {
+	stats, err := d.drainPages(ctx, queryer, func(page []facts.Envelope) error {
+		loaded = append(loaded, page...)
+		return nil
+	})
+	if err != nil {
+		return nil, stats, err
+	}
+	return loaded, stats, nil
+}
+
+// drainPages is the bounded streaming core every supports reader drains
+// through: it reads page by page on the last-raw-id cursor and hands each
+// page's active envelopes, in fact_id order, to yield before reading the next,
+// so no caller holds more than one page of envelopes plus its own folded
+// output. Inactive raw rows are read and dropped per page and never count
+// toward the cap: they carry no payload. The drain stops, without serving a
+// prefix as complete, when delivering the next active row would pass the
+// active-row cap: it returns the stats of what it delivered and read,
+// truncated, with the resume cursor (the last delivered fact id) on a
+// *SupplyChainImpactSupportsDrainTruncatedError. A yield error stops the drain
+// like a page error, marked failed.
+func (d supplyChainImpactSupportsDrain) drainPages(
+	ctx context.Context,
+	queryer db.Queryer,
+	yield func([]facts.Envelope) error,
+) (supplyChainImpactSupportsDrainStats, error) {
+	started := time.Now()
+	max := supplyChainImpactSupportsDrainMaxActiveRows
+	if max < 1 {
+		max = supplyChainImpactSupportsDrainDefaultMaxActiveRows
+	}
+	var cursorFactID, lastDelivered string
+	pages, rawRows, delivered := 0, 0, 0
+	stats := func(failed, truncated bool) supplyChainImpactSupportsDrainStats {
 		return supplyChainImpactSupportsDrainStats{
-			pages: pages, rawRows: rawRows, activeRows: len(loaded), keys: d.keyCount(), elapsed: time.Since(started), failed: failed,
+			pages: pages, rawRows: rawRows, activeRows: delivered, keys: d.keyCount(),
+			elapsed: time.Since(started), failed: failed, truncated: truncated,
+		}
+	}
+	truncate := func() (supplyChainImpactSupportsDrainStats, error) {
+		truncated := stats(false, true)
+		return truncated, &SupplyChainImpactSupportsDrainTruncatedError{
+			Reader: d.reader, ResumeCursorFactID: lastDelivered, Stats: truncated,
 		}
 	}
 	for {
@@ -242,20 +346,42 @@ func (d supplyChainImpactSupportsDrain) drain(
 		}
 		pageRaw, lastRawID, active, err := d.page(ctx, queryer, query, args)
 		if err != nil {
-			return nil, stats(true), err
+			return stats(true, false), err
 		}
-		loaded = append(loaded, active...)
 		pages++
 		rawRows += pageRaw
 		if d.afterPage != nil {
 			d.afterPage(pages)
 		}
+		if len(active) == 0 {
+			if pageRaw < listFactsByKindPageSize {
+				return stats(false, false), nil
+			}
+			cursorFactID = lastRawID
+			continue
+		}
+		if delivered >= max {
+			return truncate()
+		}
+		serve := active
+		if delivered+len(serve) > max {
+			serve = serve[:max-delivered]
+		}
+		if yield != nil {
+			if err := yield(serve); err != nil {
+				return stats(true, false), err
+			}
+		}
+		delivered += len(serve)
+		lastDelivered = serve[len(serve)-1].FactID
+		if len(serve) < len(active) {
+			return truncate()
+		}
 		if pageRaw < listFactsByKindPageSize {
-			break
+			return stats(false, false), nil
 		}
 		cursorFactID = lastRawID
 	}
-	return loaded, stats(false), nil
 }
 
 // keyCount is the number of keys the drain filters on, summed over its arms.
