@@ -144,6 +144,11 @@ func TestProducerListingsDeriveFromShipped(t *testing.T) {
 			derived:  listProducerDependentDriftItemsQuery,
 			conjunct: producerDriftLinkageConjunct,
 		},
+		{
+			name:     "drift dependents bounded by config two-hop linkage",
+			derived:  listProducerDependentDriftItemsByConfigQuery,
+			conjunct: producerConfigLinkageConjunct,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

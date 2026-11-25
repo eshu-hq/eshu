@@ -38,12 +38,17 @@ import (
 //     same shared loader. Pod image_refs, container images and CRI-resolved
 //     digests are parsed with the ParseContainerImageRef mirror.
 //   - aws_cloud_runtime_drift. Producer: the activated generation carries
-//     terraform_state_resource facts with a joinable ARN. Linkage: the drift
+//     terraform_state_resource facts with a joinable ARN (state leg) or
+//     terraform_backends parser facts (config leg, #11392: a repo snapshot
+//     moving the anchor the drift reader resolves). Linkage: the drift
 //     item's own generation holds aws_resource ARNs intersecting the owed
-//     ARNs. Readiness defers drift only before success, so the post-success
-//     race still needs this reopen; the staleness conjunct keeps readiness
-//     from paying twice (an item that completed after the obligation already
-//     read the new state).
+//     ARNs on the state leg; on the config leg the two-hop in
+//     ingestion_producer_activation_config.go (owed backend kinds, owned
+//     state scopes, intersecting drift ARNs) with the same intersection
+//     semantics. Readiness defers drift only before success, so the
+//     post-success race still needs this reopen; the staleness conjunct
+//     keeps readiness from paying twice (an item that completed after the
+//     obligation already read the new state).
 //   - deployable_unit_correlation. No producer obligation. DU reads active
 //     resolved relationships touching its candidate repos as source OR
 //     target, and the #7584 consumer's targeted pass already reopens those
@@ -277,6 +282,10 @@ func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, wor
 	if err != nil {
 		return nil, "", err
 	}
+	configKinds, err := listProducerOwedConfigKinds(ctx, settle.Tx(), work.ScopeID, work.GenerationID)
+	if err != nil {
+		return nil, "", err
+	}
 	dependents := []struct {
 		domain reducercontract.Domain
 		query  string
@@ -293,6 +302,10 @@ func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, wor
 		{
 			reducer.DomainAWSCloudRuntimeDrift, listProducerDependentDriftItemsQuery,
 			[]any{work.CreatedAt, driftARNs},
+		},
+		{
+			reducer.DomainAWSCloudRuntimeDrift, listProducerDependentDriftItemsByConfigQuery,
+			[]any{work.CreatedAt, configKinds},
 		},
 	}
 	counts := make(map[string]int)
