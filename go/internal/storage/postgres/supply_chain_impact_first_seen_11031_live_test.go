@@ -230,7 +230,7 @@ func firstSeenLiveWrite(t *testing.T, ctx context.Context, db *sql.DB, scopeID s
 	}
 }
 
-func TestSupplyChainImpactFirstSeenStampLive11031(t *testing.T) {
+func TestSupplyChainImpactFirstSeenStamp11031Live(t *testing.T) {
 	_ = supplyChainImpactLiveDSN(t, "#11031 first-seen stamp proof")
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	t.Cleanup(cancel)

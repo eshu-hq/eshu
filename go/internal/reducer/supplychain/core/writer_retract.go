@@ -152,8 +152,10 @@ func commitSupplyChainImpactRowsTimed(
 		}
 	}
 	// Claim the #11031 first-seen stamps after admission (a rejected stale
-	// pass never stamps) and marshal each payload with its resolved stamp.
-	// The store is optional: only the production transaction implements it,
+	// pass never stamps). Rows already carry the pre-stamp marshal, so
+	// remarshal only when the claim resolved stamps: stamping passes pay a
+	// second marshal per row, unstamped passes keep the single one. The
+	// store is optional: only the production transaction implements it,
 	// so unit-test transactions keep writing stamp-free payloads the cohort
 	// classifier excludes as no-stamp.
 	stamps := map[string]FirstSeenStamp{}
@@ -164,8 +166,10 @@ func commitSupplyChainImpactRowsTimed(
 			return supplyChainImpactTxOutcome{suppression: supp}, fmt.Errorf("claim supply chain impact first seen: %w", err)
 		}
 	}
-	if err := marshalStampedPayloads(rows, payloads, stamps); err != nil {
-		return supplyChainImpactTxOutcome{suppression: supp}, err
+	if len(stamps) > 0 {
+		if err := marshalStampedPayloads(rows, payloads, stamps); err != nil {
+			return supplyChainImpactTxOutcome{suppression: supp}, err
+		}
 	}
 	// Read what the pass is about to overwrite, after the lock (no concurrent
 	// pass of this conflict domain can change it) and before the upsert, so the

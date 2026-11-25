@@ -78,10 +78,14 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	}
 	rows := make([]factwrite.VersionedRow, 0, len(write.Findings))
 	meta := make([]changedRow, 0, len(write.Findings))
-	// payloads rides alongside rows: the encoded payload maps, marshaled
-	// again in-transaction with their resolved first-seen stamps. The
-	// pre-transaction marshal above stays byte-identical so the protected
-	// publication set sees the same bytes it always did.
+	// payloads rides alongside rows: the encoded payload maps. Each row's
+	// Payload is marshaled here (pre-stamp, byte-identical to the pre-#11031
+	// build) so the pre-transaction protected-scan publication set sees the
+	// same bytes it always did; after the in-transaction first-seen claim the
+	// payloads remarshal with their resolved stamps. Stamping passes pay a
+	// second marshal per row; unstamped passes keep the single marshal.
+	// Digests are computed from the typed struct before the stamp keys exist,
+	// so they never cover the stamp.
 	payloads := make([]map[string]any, 0, len(write.Findings))
 	for _, finding := range write.Findings {
 		typed := supplyChainImpactTypedPayload(write, finding)

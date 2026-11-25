@@ -112,12 +112,11 @@ func publishSourcesForWrite(findings []SupplyChainImpactFinding) []string {
 
 // FirstSeenClaimsForRows builds one claim per row, keyed on the row's stable
 // fact key. Sources override by index (the commit path credits the finding
-// that built the row); a nil entry falls back to the payload's own
-// selected_publish_source, and rows the normal build just made carry no
-// payload yet and offer nothing. The offered instant rides a pre-stamped
-// payload when the row already carries one (cassette admission): the raw
-// offer passes through and each store resolves it against now with
-// ResolveFirstSeenOffer, so a future offer clamps to the write time.
+// that built the row); a nil entry falls back to the row's pre-stamp
+// payload selected_publish_source. A pre-stamped payload's own offered
+// instant rides through (cassette admission): the raw offer passes and each
+// store resolves it against now with ResolveFirstSeenOffer, so a future
+// offer clamps to the write time.
 func FirstSeenClaimsForRows(rows []factwrite.VersionedRow, sources []string) []SupplyChainImpactFirstSeenClaim {
 	claims := make([]SupplyChainImpactFirstSeenClaim, 0, len(rows))
 	for i := range rows {
@@ -177,10 +176,11 @@ func parseFirstSeenPayloadOffer(payloadJSON string) (time.Time, bool) {
 	return offered.UTC(), true
 }
 
-// marshalStampedPayloads marshals each encoded payload map to its row with
-// the resolved stamp block set on its provenance. It is the only marshal the
-// writer does per row, so the stamp costs two map inserts, not a remarshal
-// loop. Both stamp keys are set together, never one without the other.
+// marshalStampedPayloads remarshals each encoded payload map to its row with
+// the resolved stamp block set on its provenance. Rows already carry the
+// pre-stamp marshal for the pre-transaction publication set, so stamping
+// passes pay a second marshal per row; the stamp itself costs two map
+// inserts. Both stamp keys are set together, never one without the other.
 // Rows whose key resolved no stamp (no store on the transaction, which unit
 // tests exercise) marshal stamp-free, byte-identical to the unstamped build.
 // Digests were computed from the typed struct before the stamp keys existed,
