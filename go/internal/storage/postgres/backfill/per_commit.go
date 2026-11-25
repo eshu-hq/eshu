@@ -26,10 +26,10 @@ import (
 // ArgoCD config repos (see BackfillScopedCatalog), never the whole fleet.
 //
 // The fact load and discovery run through DiscoverNewRepositoryEvidence,
-// which never holds a read transaction across client-side processing (issue
-// #11460): production callers run the load on a dedicated connection outside
-// any long-lived transaction, so the evidence write below is the only work
-// that holds the caller's transaction.
+// which on the PageConnProvider leg never holds a read transaction across
+// client-side processing (issue #11460): production callers run the load on
+// a dedicated connection outside any long-lived transaction, so the evidence
+// write below is the only work that holds the caller's transaction.
 func BackfillRelationshipEvidenceForNewRepositories(
 	ctx context.Context,
 	queryer db.Queryer,

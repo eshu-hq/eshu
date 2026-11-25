@@ -199,8 +199,8 @@ as an index condition (cursor page: 13.8 ms, 460 shared hits). A concurrent
 page holds a snapshot the build must wait out.
 
 No-Regression Evidence: the two shipped corpus query texts are
-byte-identical after the body split (verified programmatically against the
-pre-change constants), so the pages select exactly the rows the unpaged
+byte-identical after the body split (pinned by the pages-derive-from-base
+test plus reviewer byte-compare), so the pages select exactly the rows the unpaged
 query did. The hermetic anchor parity suite (paged loads through a
 keyset-emulating fake) and the live parity proofs pass unchanged:
 discovery over the paged loads equals the fleet answer with zero lost rows.
