@@ -56,6 +56,14 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 	}
 	module := "example.com/ge-" + tag
 	pkg := "gomod://proxy.golang.org/" + module
+	// One canonical repository id per index, shared by the consumption facts
+	// below and the go scopes after them: the loader joins consumption to
+	// evidence on repository id, so handing each loop its own ids would
+	// resolve zero pairs and let every race proof pass vacuously.
+	repos := make([]string, repositories)
+	for i := range repos {
+		repos[i] = canonicalSeedRepository()
+	}
 	fanOutSeedScope(c.t, c.ctx, c.db, chainSeed.holder, "g1")
 	holderGeneration := fanOutGen(chainSeed.holder, "g1")
 	envelopes := []facts.Envelope{
@@ -72,7 +80,7 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 		}),
 	}
 	for i := 0; i < repositories; i++ {
-		repository := canonicalSeedRepository()
+		repository := repos[i]
 		envelopes = append(envelopes, c.envelope(chainSeed.holder, holderGeneration, fmt.Sprintf("fact:11327:%s:consumption:%d", tag, i),
 			factschema.FactKindReducerPackageConsumptionCorrelation, map[string]any{
 				"package_id": pkg, "relationship_kind": "consumption", "repository_id": repository,
@@ -82,7 +90,7 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 	c.upsert(envelopes...)
 	chainSeed.item = fanOutSeedItem(c.t, c.ctx, c.db, chainSeed.holder, "g1")
 	for i := 0; i < repositories; i++ {
-		repository := canonicalSeedRepository()
+		repository := repos[i]
 		goScope := "go-reachability://" + repository
 		fanOutSeedScope(c.t, c.ctx, c.db, goScope, "g1")
 		generation := fanOutGen(goScope, "g1")
