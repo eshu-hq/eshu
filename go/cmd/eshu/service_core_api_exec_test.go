@@ -19,6 +19,7 @@ func TestRunAPIStartExecsCoreAPIWithAddr(t *testing.T) {
 
 	restore, calls := stubServiceRuntime()
 	defer restore()
+	calls.inheritEnv = true
 
 	const resolved = "/tmp/eshu-core-api"
 	calls.lookPath = func(binary string) (string, error) {
@@ -53,6 +54,7 @@ func TestRunAPIStartExecsCoreAPIWithAddr(t *testing.T) {
 		t.Fatalf("exec argv[0] = %#v, want eshu-core-api", calls.args)
 	}
 	assertArgValue(t, calls.args, "--addr", "127.0.0.1:9090")
+	assertEnvValue(t, calls.env, "ESHU_API_ADDR", "127.0.0.1:9090")
 }
 
 // TestRunServeStartExecsCoreAPIWithAddr proves the `eshu serve start`
@@ -62,6 +64,7 @@ func TestRunServeStartExecsCoreAPIWithAddr(t *testing.T) {
 
 	restore, calls := stubServiceRuntime()
 	defer restore()
+	calls.inheritEnv = true
 
 	const resolved = "/tmp/eshu-core-api"
 	calls.lookPath = func(binary string) (string, error) {
@@ -96,6 +99,7 @@ func TestRunServeStartExecsCoreAPIWithAddr(t *testing.T) {
 		t.Fatalf("exec argv[0] = %#v, want eshu-core-api", calls.args)
 	}
 	assertArgValue(t, calls.args, "--addr", "127.0.0.1:9091")
+	assertEnvValue(t, calls.env, "ESHU_API_ADDR", "127.0.0.1:9091")
 }
 
 // TestRunAPIStartCoreAPIMissingFromPath proves a missing core binary fails
@@ -114,6 +118,25 @@ func TestRunAPIStartCoreAPIMissingFromPath(t *testing.T) {
 	err := runAPIStart(newAPIStartTestCommand(), nil)
 	if err == nil || !strings.Contains(err.Error(), "eshu-core-api") {
 		t.Fatalf("runAPIStart() error = %v, want eshu-core-api complaint", err)
+	}
+}
+
+// TestRunServeStartCoreAPIMissingFromPath proves a missing core binary fails
+// the serve delegate before any exec, mirroring the api-delegate coverage.
+func TestRunServeStartCoreAPIMissingFromPath(t *testing.T) {
+	restore, calls := stubServiceRuntime()
+	defer restore()
+	calls.lookPath = func(string) (string, error) {
+		return "", errors.New("executable file not found in $PATH")
+	}
+	calls.exec = func(string, []string, []string) error {
+		t.Fatal("exec called, want missing-binary error instead")
+		return nil
+	}
+
+	err := runServeStart(newServeStartTestCommand(), nil)
+	if err == nil || !strings.Contains(err.Error(), "eshu-core-api") {
+		t.Fatalf("runServeStart() error = %v, want eshu-core-api complaint", err)
 	}
 }
 
