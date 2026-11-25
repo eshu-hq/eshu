@@ -536,10 +536,11 @@ var migrationShippedChecksums = map[string]string{
 	// #10880 PR-C1 e: the winners dirty-capture functions that read finding facts
 	// now read the supports table (352 the scope delete, 353 the scanner pair).
 	// #10880 PR-C1 g: the keyed probe index on the supports table.
-	"354_supply_chain_impact_supports_keyed_probe_idx.sql":         "4246408e80e74397f912c3af7d32f6300d4882431e45d2e2809c1f03dbb5c80f",
-	"352_supply_chain_impact_winners_supports_scope_capture.sql":   "f23383da86bfe3a234aa6b07bb10ad9c63c0475230aae46ac963121b4e242ba6",
-	"353_supply_chain_impact_winners_supports_scanner_capture.sql": "4b4237a659e753e35d4e13b6d1b2c813a4d96c548598ef7ffa8676d307b26549",
-	"351_supply_chain_impact_retracted_finding_keys.sql":           "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
+	"354_supply_chain_impact_supports_keyed_probe_idx.sql":                 "4246408e80e74397f912c3af7d32f6300d4882431e45d2e2809c1f03dbb5c80f",
+	"352_supply_chain_impact_winners_supports_scope_capture.sql":           "f23383da86bfe3a234aa6b07bb10ad9c63c0475230aae46ac963121b4e242ba6",
+	"353_supply_chain_impact_winners_supports_scanner_capture.sql":         "4b4237a659e753e35d4e13b6d1b2c813a4d96c548598ef7ffa8676d307b26549",
+	"351_supply_chain_impact_retracted_finding_keys.sql":                   "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
+	"355_supply_chain_impact_winners_scope_capture_facts_and_supports.sql": "4c26b6ad8070147fa1eeb75dabe68fd7e0ae1613bbf34313b7458f17aa44b642",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

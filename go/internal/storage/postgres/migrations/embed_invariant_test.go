@@ -391,9 +391,12 @@ import (
 // the supports-reading capture functions and the keyed probe index. Count 380 is
 // 375 plus those five; the digest is this test's own derivation, re-derived when
 // the header comments of 352 and 354 were corrected before the release.
+// 355 (#10880 PR-C1) redefines the scope-delete capture over facts and supports
+// so a scope retired before its facts are backfilled still stages its keys.
+// Count 381 is 380 plus that one.
 const (
-	goldenBootstrapDefinitionsDigest = "104c2090a3256cfd1c076770a2339395880efb0860e97fd386218ab4e3690068"
-	goldenBootstrapDefinitionsCount  = 380
+	goldenBootstrapDefinitionsDigest = "bc079bc9f91b1643039a66fef8e9c604e7d47af2658fe7db02540dee6fa6290a"
+	goldenBootstrapDefinitionsCount  = 381
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
