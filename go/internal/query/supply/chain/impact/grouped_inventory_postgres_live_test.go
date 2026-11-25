@@ -339,14 +339,21 @@ func groupedLiveFact(t *testing.T, ctx context.Context, database *sql.DB, factID
 	if err != nil {
 		t.Fatalf("marshal %s: %v", factID, err)
 	}
-	if _, err := database.ExecContext(ctx, `
+	// The finding write stop refuses reducer_supply_chain_impact_finding
+	// fact_records writes on an armed proof database (#10880 PR-C2 k). Plant
+	// the frozen row inside a scoped window; the code under test then runs
+	// armed. Correlation rows of other kinds pass through the same window
+	// unharmed, and the window never runs the code under test.
+	postgresproof.SeedFindingFacts(t, database, func() {
+		if _, err := database.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
   schema_version, collector_kind, fencing_token, source_confidence, source_system,
   source_fact_key, observed_at, ingested_at, payload)
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', 1, 'observed', 'synthetic', $1, NOW(), NOW(), $5::jsonb)`,
-		factID, scopeID, generationID, kind, string(body)); err != nil {
-		t.Fatalf("insert fact %s: %v", factID, err)
-	}
+			factID, scopeID, generationID, kind, string(body)); err != nil {
+			t.Fatalf("insert fact %s: %v", factID, err)
+		}
+	})
 }
 
 // seedGroupedInventoryCentralCatalogLive adds a central catalog scope whose

@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -374,7 +375,12 @@ INSERT INTO scope_generations (
 		}
 	}
 
-	if _, err := db.ExecContext(ctx, `
+	// The finding write stop refuses reducer_supply_chain_impact_finding
+	// fact_records writes on an armed proof database (#10880 PR-C2 k): plant
+	// the frozen source rows inside a scoped window. The backfill, the
+	// winners rebuild, and every read under test then run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (
   fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
   schema_version, collector_kind, fencing_token, source_confidence,
@@ -408,11 +414,14 @@ SELECT
     'evidence_fact_ids', '[]'::jsonb
   )
 FROM generate_series(1, $1::integer) AS n`,
-		suppressionPathsSourceRows,
-	); err != nil {
-		t.Fatalf("seed source findings: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `
+			suppressionPathsSourceRows,
+		); err != nil {
+			t.Fatalf("seed source findings: %v", err)
+		}
+	})
+	// The same scoped window for the frozen operator overlay rows.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (
   fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
   schema_version, collector_kind, fencing_token, source_confidence,
@@ -451,10 +460,11 @@ SELECT
     'evidence_fact_ids', '[]'::jsonb
   )
 FROM generate_series(1, $1::integer) AS n`,
-		suppressionPathsOperatorRows,
-	); err != nil {
-		t.Fatalf("seed operator findings: %v", err)
-	}
+			suppressionPathsOperatorRows,
+		); err != nil {
+			t.Fatalf("seed operator findings: %v", err)
+		}
+	})
 	if _, err := db.ExecContext(ctx, `
 ANALYZE fact_records;
 ANALYZE ingestion_scopes;
