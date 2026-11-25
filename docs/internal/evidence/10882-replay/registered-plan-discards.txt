@@ -11,9 +11,9 @@
 #
 # CROSS-CHECK against ~/.cache/replay/scratch/m3/plan-discards.txt (mtime 2026-11-23T22:58:20Z):
 #   That scratch file mixes multiple run sets and labels NONE of its rows with a build.
-#   Its first block is committed here as neo4j-plan-discards.txt lines 3-20 with the header
-#   "# results root: results-fixbuild-9e63e08c11"; its second block as lines 23-34 with the
-#   header "# results root: results-3980a07cad". NEITHER block is the registered build
+#   Its first block is committed here in neo4j-plan-discards.txt under the header
+#   "# results root: results-fixbuild-9e63e08c11"; its second block under the header
+#   "# results root: results-3980a07cad". NEITHER block is the registered build
 #   2aa64f624f (registered slot ran 2026-11-25, two days after the scratch file's mtime).
 #   So NO row of the scratch file can be attributed to the registered build 2aa64f624f:
 #   every scratch row below is NOT-REGISTERED. In particular the comment's registered-set
