@@ -48,6 +48,7 @@ jobs:
           key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"
 
       - name: Report tagged-build cache outcome
+        id: tagged-cache-outcome
         if: ${{ !cancelled() }}
         env:
           CACHE_OUTCOME: ${{ steps.tagged-cache.outcome }}

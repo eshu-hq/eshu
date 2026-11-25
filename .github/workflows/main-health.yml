@@ -3,26 +3,24 @@ name: Main Health
 # Post-merge watcher (#7111 F2). Nothing used to notice a required workflow
 # going red on `main` after two green PRs merged: the guard-test red sat 4h44m
 # and was found by PR authors, and the scheduled ruleset verifier failed every
-# scheduled run with no owner. This workflow judges the NEWEST main commit after every
-# required workflow finishes (and every 6 hours as a backstop), keeps exactly
-# one pinned `main is red @<sha>` issue in step with the verdict, posts a
-# `main-health` commit status, and closes the issue when main is green. Only
-# jobs the registry marks blocking make main red; advisory failures are
-# listed. The scheduled `Required Gates` ruleset verification
-# (verify-live-ruleset) routes into the same issue.
+# scheduled run with no owner. This workflow polls the NEWEST main commit every
+# 15 minutes (and on manual dispatch), keeps exactly one pinned
+# `main is red @<sha>` issue in step with the verdict, posts a `main-health`
+# commit status, and closes the issue when main is green. Only jobs the registry
+# marks blocking make main red; advisory failures are listed. The scheduled
+# `Required Gates` ruleset verification (verify-live-ruleset) routes into the
+# same issue.
 #
-# Like required-gates.yml this is a trusted publisher: workflow_run always
-# runs the default-branch version, it checks out only the default branch, and
-# it never executes pull-request code. The logic and its decisions live in
-# scripts/ci/main-health.sh, exercised hermetically by
-# scripts/test-main-health.sh. The workflow_run list below IS the judged
-# list: the script derives the required workflows from it
-# (`main-health.sh --print-required`), and that test fails when the two
-# differ. `Required Gates` itself is deliberately NOT a trigger: every one of its
-# publisher runs, PR and merge-queue ones included, reports head_branch main
-# (about 18 a minute measured), so it would flood this workflow. Its scheduled
-# ruleset verification (cron 17 */6) is read on every evaluation, and this
-# workflow's own schedule (cron 47 */6) runs 30 minutes after it.
+# Like required-gates.yml this is a trusted publisher: schedule and manual
+# dispatch always run the default-branch version, check out only the default
+# branch, and never execute pull-request code. The logic and its decisions live
+# in scripts/ci/main-health.sh, exercised hermetically by
+# scripts/test-main-health.sh. env.MAIN_HEALTH_WORKFLOWS below IS the judged
+# list: scripts/lib/main-health-policy.sh reads it directly
+# (`main-health.sh --print-required`), and that test fails when the list drifts.
+# `Required Gates` itself is deliberately NOT in MAIN_HEALTH_WORKFLOWS: its
+# scheduled ruleset verification (cron 17 */6) is read on every 15-minute
+# evaluation instead.
 #
 # Reading the result: this job succeeds whenever the evaluation completed,
 # red main or not, so the watcher never adds a red row of its own to main.

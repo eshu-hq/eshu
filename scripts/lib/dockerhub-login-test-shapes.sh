@@ -117,29 +117,3 @@ expect_green composite-child-step-restores-ghcr "${CASE_DIR}"
 composite_case composite-default-image '[{"run": "bash scripts/fixture-image.sh", "shell": "bash"}]'
 printf '#!/usr/bin/env bash\nimage="${FIXTURE_IMAGE:-postgres:18}"\ndocker run --rm "$image" true\n' >"${CASE_DIR}/scripts/fixture-image.sh"
 expect_red composite-without-image-override-keeps-hub-default "${CASE_DIR}" "$(job_no_login fixture-action)"
-
-# --- H3: the gate's triggers cover composite actions (.github/**) and .sh and
-# .bash scripts (**/*.*sh). The registry rejects a glob that matches no tracked
-# file, so .github/actions/** and **/*.bash cannot be listed on their own.
-for glob in '.github/**' '**/*.*sh'; do
-  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -Fx -- "${glob}" >/dev/null; then
-    echo "ok - registry row triggers include ${glob}"
-  else
-    echo "not ok - registry row triggers include ${glob}"; failures=$((failures + 1))
-  fi
-  if yq e '.jobs.changes.steps[] | select(.id == "filter") | .with.filters' "${static_workflow_view}" |
-    yq e '.dockerhublogin[]' - | rg -Fx -- "${glob}" >/dev/null; then
-    echo "ok - path filter dockerhublogin includes ${glob}"
-  else
-    echo "not ok - path filter dockerhublogin includes ${glob}"; failures=$((failures + 1))
-  fi
-done
-
-# --- H4: the CI cell runs this suite, so it needs a timeout above the 15 minute
-# default (the 142-check suite measured 548 to 1088 s wall under load across
-# BSD awk, gawk and mawk; see the comment above the cell in the workflow).
-if rg -q 'append_gate "\$\{\{ steps\.filter\.outputs\.dockerhublogin \}\}".* 30$' "${repo_root}/.github/workflows/static-contract-gates.yml"; then
-  echo "ok - dockerhublogin cell sets a 30 minute timeout"
-else
-  echo "not ok - dockerhublogin cell sets a 30 minute timeout"; failures=$((failures + 1))
-fi

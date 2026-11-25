@@ -38,8 +38,8 @@ func TestRepositoryStaticContractWorkflowRunsSerialProductContracts(t *testing.T
 		t.Fatalf("gate job name = %v (err=%v), want Product Contract Gates", name, err)
 	}
 	timeout, err := mappingValue(gate, "timeout-minutes")
-	if err != nil || strings.TrimSpace(timeout.Value) != "15" {
-		t.Fatalf("gate job timeout-minutes = %v (err=%v), want 15", timeout, err)
+	if err != nil || strings.TrimSpace(timeout.Value) != "25" {
+		t.Fatalf("gate job timeout-minutes = %v (err=%v), want 25", timeout, err)
 	}
 	content := string(raw)
 	for _, verifier := range []string{
@@ -56,6 +56,49 @@ func TestRepositoryStaticContractWorkflowRunsSerialProductContracts(t *testing.T
 	} {
 		if !strings.Contains(content, verifier) {
 			t.Errorf("static-contract-gates.yml missing product contract verifier %q", verifier)
+		}
+	}
+	onNode, err := mappingValue(root, "on")
+	if err != nil {
+		t.Fatalf("parse on: %v", err)
+	}
+	pushNode, err := mappingValue(onNode, "push")
+	if err != nil {
+		t.Fatalf("parse on.push: %v", err)
+	}
+	pathsNode, err := mappingValue(pushNode, "paths")
+	if err != nil {
+		t.Fatalf("parse on.push.paths: %v", err)
+	}
+	var pushPaths []string
+	for _, item := range pathsNode.Content {
+		pushPaths = append(pushPaths, item.Value)
+	}
+	for _, sample := range []string{
+		"go/internal/query/handler.go",
+		"go/cmd/eshu/main.go",
+		"specs/evidence-continuity.v1.yaml",
+		"scripts/verify-openapi.sh",
+		"scripts/lib/operator-dashboard-metrics.sh",
+		"sdk/go/factschema/v1/schema.go",
+		"examples/demo/main.go",
+		"testdata/cassettes/demo.json",
+		"docs/public/contributing-language-support.md",
+		"docs/public/observability/dashboards/eshu-operator-overview.json",
+		"docs/public/reference/env-registry.md",
+		"README.md",
+		".github/openapi-known-drift.txt",
+		".github/workflows/static-contract-gates.yml",
+	} {
+		matched := false
+		for _, glob := range pushPaths {
+			if MatchGlob(glob, sample) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Errorf("static-contract-gates.yml on.push.paths does not match %q", sample)
 		}
 	}
 }

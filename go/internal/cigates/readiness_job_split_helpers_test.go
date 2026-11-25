@@ -151,6 +151,15 @@ func checkReadinessNoDockerHubLogin(job readinessJob) string {
 	return ""
 }
 
+func jobRuns(steps []readinessStep, command string) bool {
+	for _, step := range steps {
+		if strings.TrimSpace(step.Run) == "bash "+command {
+			return true
+		}
+	}
+	return false
+}
+
 const (
 	readinessSummaryScript = "scripts/ci/live-postgres-readiness-job-summary.sh"
 	readinessSummaryTest   = "bash scripts/ci/test-live-postgres-readiness-job-summary.sh"

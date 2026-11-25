@@ -383,8 +383,11 @@ floors_data="${repo_root}/specs/coverage-floors.v1.yaml"
 [[ -f "${floors_verifier}" && -x "${floors_verifier}" ]] && record_pass "floors verifier exists and is executable" || record_fail "floors verifier must exist and be executable"
 bash -n "${floors_verifier}" 2>/dev/null && record_pass "floors verifier has valid shell syntax" || record_fail "floors verifier shell syntax is invalid"
 [[ -f "${floors_glue}" && -x "${floors_glue}" ]] || record_fail "floors PR glue must exist and be executable"
-require "PR-path floors job" "package-floors" "${workflow}"
-require "PR-path floors job runs the changed-packages check" "scripts/ci/check-changed-coverage-floors.sh" "${workflow}"
+if ! rg -q '^[[:space:]]*package-floors:' "${workflow}"; then
+	record_pass "scheduled coverage workflow has no unreachable PR package-floors job"
+else
+	record_fail "scheduled coverage workflow must not keep unreachable package-floors job"
+fi
 require "scheduled job checks the whole-module floor" "scripts/verify-coverage-floors.sh" "${workflow}"
 require "scheduled job publishes the package ranking" "coverage-ranking.tsv" "${workflow}"
 require "floors data file" "whole_module_floor:" "${floors_data}"

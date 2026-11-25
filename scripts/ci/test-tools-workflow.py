@@ -23,10 +23,11 @@ def workflow() -> dict[str, object]:
 
 
 # Workflows that joined the tools image after static-contract-gates.yml.
-# The ledger repin checklist is: these 5 container sites + ledger digest +
+# The ledger repin checklist is: these 6 container sites + ledger digest +
 # test hardcode + per-platform inventories.
 NEW_PIN_WORKFLOWS = (
     "sdk-go.yml",
+    "tagged-builds.yml",
     "verify-ci-gate-registry.yml",
 )
 
@@ -34,6 +35,7 @@ NEW_PIN_JOBS = {
     "sdk-go.yml#sdk-go-collector",
     "sdk-go.yml#sdk-go-apicontract",
     "sdk-go.yml#sdk-go-factschema",
+    "tagged-builds.yml#tagged-builds",
     "verify-ci-gate-registry.yml#test-verify",
     "verify-ci-gate-registry.yml#verify",
 }

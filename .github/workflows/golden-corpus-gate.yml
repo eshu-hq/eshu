@@ -1,9 +1,7 @@
 name: Golden Corpus Gate
 # B-7 golden end-to-end corpus gate (#3800). Runs the full pipeline over a
 # minimal repo corpus with the B-10 cassette collectors and diffs the result
-# against the B-12 golden snapshot. Required on every PR that touches a pipeline
-# phase (sync/discover/parse/collect/reduce/query), because those are exactly the
-# changes that can silently break end-to-end behaviour.
+# against the B-12 golden snapshot on a nightly schedule and manual dispatch.
 on:
   schedule:
     - cron: '20 6 * * *'

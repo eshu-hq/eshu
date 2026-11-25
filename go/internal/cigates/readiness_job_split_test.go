@@ -165,6 +165,80 @@ func checkReadinessSplit(workflow []byte) string {
 	if problem := checkReadinessCleanup(shards); problem != "" {
 		return problem
 	}
+	counts := map[string]int{}
+	for _, job := range map[string]readinessJob{"hermetic": hermetic, "shards": shards} {
+		for _, step := range job.Steps {
+			for _, script := range []string{
+				"scripts/test-run-live-postgres-readiness-tests.sh",
+				readinessSelfTestSeeds[len("bash "):],
+				readinessShardContract,
+				readinessShardRunner,
+			} {
+				if strings.Contains(step.Run, script) {
+					if strings.TrimSpace(step.Run) != script &&
+						strings.TrimSpace(step.Run) != "bash "+script {
+						return "proof runner must be a standalone command"
+					}
+					if step.If != "" || step.ContinueOnError != "" {
+						return "proof runner must run unconditionally without waiving failure"
+					}
+					counts[script]++
+				}
+			}
+		}
+	}
+	if counts["scripts/test-run-live-postgres-readiness-tests.sh"] != 1 ||
+		counts[readinessSelfTestSeeds[len("bash "):]] != 1 ||
+		counts[readinessShardContract] != 1 || counts[readinessShardRunner] != 1 {
+		return "hermetic and shard proof runners must each execute exactly once"
+	}
+	if !jobRuns(hermetic.Steps, "scripts/test-run-live-postgres-readiness-tests.sh") ||
+		!jobRuns(hermetic.Steps, readinessSelfTestSeeds[len("bash "):]) ||
+		!jobRuns(shards.Steps, readinessShardRunner[len("bash "):]) {
+		return "proof runners must be in their designated jobs"
+	}
+	checkoutCount, tunedPG, uploaded := 0, false, false
+	for _, step := range shards.Steps {
+		if strings.TrimSpace(step.Run) == "bash scripts/run-live-postgres-readiness-tests.sh" {
+			return "a shard leg must not run the unsharded suite"
+		}
+		if step.Uses == "actions/checkout@v5" {
+			checkoutCount++
+			if step.With["persist-credentials"] != "false" || step.With["ref"] != "${{ github.sha }}" {
+				return "shard checkout must use this run's commit without persisted credentials"
+			}
+		}
+		if strings.Contains(step.Run, "ALTER SYSTEM SET fsync = off") &&
+			strings.Contains(step.Run, "pg_reload_conf()") {
+			tunedPG = true
+		}
+		if step.Uses == "actions/upload-artifact@v4" {
+			return "shard legs must route uploads through retry-upload-artifact"
+		}
+		if step.Uses != "./.github/actions/retry-upload-artifact" {
+			continue
+		}
+		if step.With["path"] == ".readiness-debug/" &&
+			strings.Contains(step.With["name"], "readiness-debug-") &&
+			strings.Contains(step.If, "!cancelled()") {
+			continue
+		}
+		if step.With["path"] != "readiness-shard-report.json" ||
+			step.With["if-no-files-found"] != "error" ||
+			!strings.Contains(step.With["name"], "${{ matrix.shard }}") {
+			return "shard legs must upload the current-attempt report or fail"
+		}
+		uploaded = true
+	}
+	if checkoutCount != 1 {
+		return "shard leg must check out the repository once"
+	}
+	if !tunedPG {
+		return "shard leg must tune ephemeral PostgreSQL (fsync=off + pg_reload_conf)"
+	}
+	if !uploaded {
+		return "each shard leg must upload its coverage report for the aggregate"
+	}
 	if problem := checkReadinessAggregate(aggregate); problem != "" {
 		return problem
 	}
