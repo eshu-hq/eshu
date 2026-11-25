@@ -228,12 +228,12 @@ func planBuffers(t *testing.T, raw json.RawMessage) explainBuffers {
 	}
 }
 
-// explainRangeFirst runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) over the
-// first-range statement at budget and returns the root-node touched buffers.
-// The root node is the whole-statement total; summing every node would
-// double-count, because EXPLAIN reports each parent's buffers cumulatively
-// with its children.
-func explainRangeFirst(t *testing.T, h *keyedHarness, stmt string, budget int) explainBuffers {
+// explainRangeFirstText runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) over the
+// first-range statement at budget and returns the raw plan text. It is the
+// one seam every first-range plan proof reads through, so a plan-shape
+// assertion covers the rendered statement itself instead of a hand-written
+// proxy.
+func explainRangeFirstText(t *testing.T, h *keyedHarness, stmt string, budget int) string {
 	t.Helper()
 	rows, err := h.db.QueryContext(h.ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+stmt, budget)
 	if err != nil {
@@ -251,7 +251,63 @@ func explainRangeFirst(t *testing.T, h *keyedHarness, stmt string, budget int) e
 	if err := rows.Err(); err != nil {
 		t.Fatalf("explain range: %v", err)
 	}
-	return planBuffers(t, json.RawMessage(text))
+	return text
+}
+
+// explainRangeFirst runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) over the
+// first-range statement at budget and returns the root-node touched buffers.
+// The root node is the whole-statement total; summing every node would
+// double-count, because EXPLAIN reports each parent's buffers cumulatively
+// with its children.
+func explainRangeFirst(t *testing.T, h *keyedHarness, stmt string, budget int) explainBuffers {
+	t.Helper()
+	return planBuffers(t, json.RawMessage(explainRangeFirstText(t, h, stmt, budget)))
+}
+
+// decodeExplainPlan decodes the single plan tree of one EXPLAIN
+// (ANALYZE, BUFFERS, FORMAT JSON) text from the explainRangeFirst seam.
+func decodeExplainPlan(t *testing.T, text string) map[string]any {
+	t.Helper()
+	var plans []struct {
+		Plan map[string]any `json:"Plan"`
+	}
+	if err := json.Unmarshal([]byte(text), &plans); err != nil {
+		t.Fatalf("decode explain plan: %v", err)
+	}
+	if len(plans) != 1 {
+		t.Fatalf("explain json has %d plans, want 1", len(plans))
+	}
+	return plans[0].Plan
+}
+
+// planNodeMatches reports whether the plan tree rooted at node holds a node
+// of the given type on the given relation (an empty relation matches any).
+func planNodeMatches(node map[string]any, nodeType, relation string) bool {
+	if node["Node Type"] == nodeType && (relation == "" || node["Relation Name"] == relation) {
+		return true
+	}
+	kids, _ := node["Plans"].([]any)
+	for _, kid := range kids {
+		if child, ok := kid.(map[string]any); ok && planNodeMatches(child, nodeType, relation) {
+			return true
+		}
+	}
+	return false
+}
+
+// planIndexScansOn reports whether the plan tree scans relation through the
+// named index: an Index Scan node carrying that Index Name on the relation.
+func planIndexScansOn(node map[string]any, index, relation string) bool {
+	if node["Node Type"] == "Index Scan" && node["Relation Name"] == relation && node["Index Name"] == index {
+		return true
+	}
+	kids, _ := node["Plans"].([]any)
+	for _, kid := range kids {
+		if child, ok := kid.(map[string]any); ok && planIndexScansOn(child, index, relation) {
+			return true
+		}
+	}
+	return false
 }
 
 // TestSupplyChainImpactWinnersResweepSingleScanCostLive is the #10972 RED 2 cost
@@ -339,8 +395,9 @@ func splitTopLevelCommas(s string) []string {
 // TestSupplyChainImpactWinnersResweepCanonicalIdentIndexLive is the #10972 RED 3
 // proof: migration 356's index expressions are byte-identical to the stored
 // identifier expressions (after stripping the `w.` qualifier and the
-// index-syntax parentheses), and the stored side of a range rides an index
-// scan on the new index instead of a sequential scan.
+// index-syntax parentheses), and the rendered first-range statement's own
+// plan rides an index scan on the new index instead of sequentially scanning
+// the winners table.
 func TestSupplyChainImpactWinnersResweepCanonicalIdentIndexLive(t *testing.T) {
 	_, migrationSQL := canonicalIdentIndexDef(t)
 	created := regexp.MustCompile(`(?m)CREATE INDEX CONCURRENTLY IF NOT EXISTS (\S+)`).FindStringSubmatch(migrationSQL)
@@ -388,18 +445,18 @@ func TestSupplyChainImpactWinnersResweepCanonicalIdentIndexLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10972 canonical ident index")
 	auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
 	h.exec(`ANALYZE supply_chain_impact_canonical_winners`)
-	plan := h.explain(`EXPLAIN SELECT w.*
-FROM supply_chain_impact_canonical_winners AS w
-WHERE w.package_id > 'a' AND w.repository_id > 'a'
-ORDER BY w.package_id, w.repository_id, w.subject_digest,
-    COALESCE(NULLIF(w.cve_id, ''), NULLIF(w.advisory_id, ''), ''),
-    w.advisory_id
-LIMIT 10`)
-	t.Logf("stored-side plan:\n%s", plan)
-	if !strings.Contains(plan, "Index Scan using "+indexName) {
-		t.Errorf("stored-side plan does not scan %s:\n%s", indexName, plan)
+	// The EXPLAINed text IS the rendered single-scan first-range statement at
+	// a mid-size budget, read through the explainRangeFirst seam, so the pin
+	// covers the range's own stored-side access. A hand-written
+	// scalar-predicate proxy could pass while the rendered statement
+	// sequentially scans the winners table.
+	renderedText := explainRangeFirstText(t, h, postgres.WinnersAuditSingleScanFirstRangeSQLForTest, 200)
+	rendered := decodeExplainPlan(t, renderedText)
+	t.Logf("rendered first-range plan:\n%s", renderedText)
+	if !planIndexScansOn(rendered, indexName, "supply_chain_impact_canonical_winners") {
+		t.Errorf("rendered first range does not index-scan %s:\n%s", indexName, renderedText)
 	}
-	if strings.Contains(plan, "Seq Scan") {
-		t.Errorf("stored-side plan scans sequentially:\n%s", plan)
+	if planNodeMatches(rendered, "Seq Scan", "supply_chain_impact_canonical_winners") {
+		t.Errorf("rendered first range sequentially scans supply_chain_impact_canonical_winners:\n%s", renderedText)
 	}
 }
