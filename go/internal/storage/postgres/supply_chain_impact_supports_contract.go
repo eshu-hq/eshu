@@ -57,8 +57,9 @@ var supplyChainImpactSupportsContractPins = map[int]string{
 	// in-memory upsert: the support rows for the same facts are unchanged, and
 	// TestSupportRowsUpsertDiffersFromFactDerivedOnlyInTheSource proves the
 	// appended statement differs from the fact-derived upsert only in the row
-	// source. RE-DERIVE: hash below is the C2-branch value, re-derive on rebase.
-	1: "dd281a54212eb63c647d3042c563cbf8ee31c1ca6fecf43582b8c6afda6dfd23",
+	// source. Re-derived on the lane-E rebase onto main (which carries B3a's
+	// guard strip): the covered upserts are the guarded ones.
+	1: "562247bd8c5b9f2d4a22083b7d9a707818df86611ee8be2f87a96945a5cb45f3",
 }
 
 // supplyChainImpactSupportsContractStatements returns, in a fixed order, the

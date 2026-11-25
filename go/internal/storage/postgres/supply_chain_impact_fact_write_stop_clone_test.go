@@ -20,7 +20,7 @@ func TestProofCloneDisarmNamesTheMigrationsTrigger(t *testing.T) {
 	t.Parallel()
 
 	for _, def := range postgres.BootstrapDefinitions() {
-		if path.Base(def.Path) != "355_supply_chain_impact_finding_fact_write_stop.sql" {
+		if path.Base(def.Path) != "357_supply_chain_impact_finding_fact_write_stop.sql" {
 			continue
 		}
 		if !strings.Contains(def.SQL, "CREATE TRIGGER "+postgresproof.FindingWriteStopTrigger+"\n") {

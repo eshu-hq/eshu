@@ -70,6 +70,7 @@ func advisoryGroupWinnerEffectiveStateSQL() string {
 // a winner whose support the backfill has not yet copied (the two carry the same payload). Both joins are
 // primary-key lookups on the winner fact id. The fallback leaves with the fact_records join when the
 // legacy readers go (#10880 PR-C2 m).
+// #nosec G101 -- SQL COALESCE over row payload columns, not credentials; the name trips the hardcoded-credentials pattern.
 const advisoryGroupWinnerPayloadSQL = "COALESCE(s.payload, f.payload)"
 
 // advisoryGroupWinnersQuery selects the qualifying canonical winners behind
