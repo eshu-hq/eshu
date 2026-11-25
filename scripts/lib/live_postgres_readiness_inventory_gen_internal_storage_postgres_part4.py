@@ -53,6 +53,9 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_batch_gate_undrained_set_live_test.go": (
             "TestClaimGateAndCheckpointNameTheSameUndrainedSetLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_live_test.go": (
+            "TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder",
+        ),
         "go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go": (
             "TestFailBatchWideBlockingSetParksCleanlyLive",
         ),

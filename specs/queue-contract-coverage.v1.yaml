@@ -99,13 +99,13 @@ rows:
 
   - contract_ref: batch:rank-once-equivalence
     surface: reducer ClaimBatch rank-once rewrite candidate equality
-    class: env_gated
-    runners: [manual-dsn]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "The rank-once rewrite differential proves the pre/post-rewrite candidate set and order match on disposable Postgres, but only with an operator DSN (ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN); hermetic shape and derive guards pin the window constructs without a database"
+    reason: "The rank-once rewrite differential proves the pre/post-rewrite candidate set and order match on disposable Postgres; enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_test.go
+      - file: go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_live_test.go
         tests: [TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder]
 
   - contract_ref: batch:fairness-order
