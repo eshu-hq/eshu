@@ -37,7 +37,7 @@ class ScheduledRunnerTest(unittest.TestCase):
         """The combined enrollment keeps ACK in the hosted proof bundle."""
         inventory = MODULE.load_inventory()
         self.assertEqual(len(inventory), 145)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 301)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 302)
         self.assertIn("ack_family", MODULE.PACKAGES)
         self.assertEqual(
             sum(row["group"] == "ack_family" for row in inventory.values()), 22
@@ -47,7 +47,7 @@ class ScheduledRunnerTest(unittest.TestCase):
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
         self.assertEqual(len(inventory), 145)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 301)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 302)
         self.assertNotIn(
             "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
         )
@@ -66,7 +66,7 @@ class ScheduledRunnerTest(unittest.TestCase):
             ("liveness", 7, 18),
             ("fanout", 3, 3),
             ("search", 5, 8),
-            ("readiness", 5, 7),
+            ("readiness", 5, 8),
             ("containerimage", 8, 15),
             ("freshness_links_scale", 4, 4),
             ("freshness_links_a", 10, 35),
