@@ -163,9 +163,11 @@ func (t *supplyChainImpactTx) Commit() error {
 	if err == nil {
 		t.flushCapture()
 		t.flushSupports()
+		t.flushStoredKeyMissing()
 	} else {
 		t.pendingCapture = nil
 		t.pendingSupports = nil
+		t.pendingStoredKeyMissing = 0
 		t.recordWinnersWriteConflict(telemetry.SupplyChainImpactWinnersConflictSiteWriterCommit, err)
 	}
 	return err
@@ -190,6 +192,7 @@ func (t *supplyChainImpactTx) recordWinnersWriteConflict(site string, err error)
 func (t *supplyChainImpactTx) Rollback() error {
 	t.pendingCapture = nil
 	t.pendingSupports = nil
+	t.pendingStoredKeyMissing = 0
 	return t.tx.Rollback()
 }
 

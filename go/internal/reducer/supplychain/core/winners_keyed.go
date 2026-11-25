@@ -144,6 +144,13 @@ type SupplyChainImpactWinnersContractStore interface {
 	// under the resweep lock, is already at or above this binary's. Then it
 	// writes nothing and returns Skipped with ContractCurrent set.
 	ResweepWinnersUnlessCurrent(ctx context.Context) (SupplyChainImpactWinnersResweep, error)
+	// ResweepWinnersUnlessNewer runs the full resweep, recording this binary's
+	// contract in its transaction, unless the stored version, read under the
+	// resweep lock, is above this binary's. Then it writes nothing and returns
+	// Skipped with StoodDown set. A current contract still runs: the
+	// supports-ready full (#10880 PR-C1) rebuilds the same contract from the
+	// supports table.
+	ResweepWinnersUnlessNewer(ctx context.Context) (SupplyChainImpactWinnersResweep, error)
 }
 
 // SupplyChainImpactWinnersAuditDomain names the audit's single-owner lease

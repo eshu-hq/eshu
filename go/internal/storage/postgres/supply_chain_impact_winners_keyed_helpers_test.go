@@ -76,6 +76,18 @@ func (h *keyedHarness) exec(query string, args ...any) {
 	winnersLiveExec(h.t, h.ctx, h.db, query, args...)
 }
 
+// syncSupports brings the supports table to what the impact writer would have left
+// for the finding facts as they are now, with the writer's own statements (#10880
+// PR-C1). The winners maintainer reads supports; a proof that writes or changes finding
+// facts with raw SQL, as a change no capture saw, calls this afterwards, because in
+// production the writer changes the facts and the supports in one transaction.
+func (h *keyedHarness) syncSupports() {
+	h.t.Helper()
+	if err := postgres.ProofSyncSupportsFromFacts(h.ctx, postgres.SQLDB{DB: h.db}); err != nil {
+		h.t.Fatalf("sync supports from facts: %v", err)
+	}
+}
+
 func (h *keyedHarness) count(query string, args ...any) int {
 	h.t.Helper()
 	var n int
@@ -218,6 +230,9 @@ INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fa
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'eshu_policy', $1, now(), now(), false, $5::jsonb)`,
 			id+"/"+generation, keyedOperatorScope, generation, facts.ReducerSupplyChainImpactFindingFactKind, string(body))
 	}
+	// The impact writer writes an operator finding with its support in one
+	// transaction; the raw inserts above stand in for that write.
+	h.syncSupports()
 	if from == "" {
 		h.exec(`UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1`, keyedOperatorScope, generation)
 		return

@@ -1556,9 +1556,23 @@ type Instruments struct {
 	SupplyChainImpactWinnersFullResweeps        metric.Int64Counter
 	SupplyChainImpactWinnersStandDowns          metric.Int64Counter
 	supplyChainImpactWinnersContract            *winnersContractState
+	// SupplyChainImpactWinnersSupportsNotReady counts winners maintainer ticks
+	// (and audit ticks) refused because the supports table is not ready
+	// (#10880 PR-C1); registered with the supports signals.
+	SupplyChainImpactWinnersSupportsNotReady metric.Int64Counter
+	// The stable_fact_key fill's signals (#10880 PR-C1k): steps by outcome, rows
+	// by outcome, pauses by reason, and the marker-complete gauge.
+	SupplyChainImpactStableKeyFillSteps    metric.Int64Counter
+	SupplyChainImpactStableKeyFillRows     metric.Int64Counter
+	SupplyChainImpactStableKeyFillPauses   metric.Int64Counter
+	SupplyChainImpactStableKeyFillComplete metric.Int64Gauge
 	// SupplyChainImpactFactWriteRejected counts impact-finding fact writes the
 	// PR-C reject trigger refused (#10880); registered with the supports signals.
 	SupplyChainImpactFactWriteRejected metric.Int64Counter
+	// SupplyChainImpactStoredKeyMissing counts stored findings the writer read
+	// with no stable key on the support or its fact twin (#10880 PR-C1 b);
+	// registered with the supports signals.
+	SupplyChainImpactStoredKeyMissing metric.Int64Counter
 	// The go-evidence lock signals of #11327, registered with the supports
 	// signals: passes aborted before their write because the Go evidence they
 	// loaded went stale, and the Go-modules fence's wait on the exclusive lock.
@@ -2005,8 +2019,9 @@ type Instruments struct {
 	// inventory, grouped-inventory and explain read statement by the read model its
 	// route function chose (#10880 PR-B2a): winners, winners_supplement (unscoped
 	// precise), supports_grant, supports_image, supports_finding_id (the public-id
-	// explain), or legacy (gate off, and the explain selector and identity reads that
-	// stay on the fact table). The label is bounded to those six values. A refused
+	// explain), supports_selector (the ungranted explain selector read of a CVE or an advisory, driven from
+	// its own key's index), or legacy (the gate off, and the explain reads that have no
+	// supports index to drive from). The label is bounded to those seven values. A refused
 	// list, count, inventory or grouped call still counts the route it tried, so an
 	// operator reads which route 503s; an explain counts only the statements it runs
 	// (a refused explain counts nothing). With the route span attribute it also names
@@ -6405,7 +6420,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_supply_chain_impact_read_route_total",
 		metric.WithDescription(
 			"Total supply-chain impact list, count, inventory, grouped-inventory and explain read statements by the read model the route function chose "+
-				"(route: winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)",
+				"(route: winners, winners_supplement, supports_grant, supports_image, supports_finding_id, supports_selector, legacy)",
 		),
 	)
 	if err != nil {
@@ -6414,7 +6429,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SupplyChainImpactReadDuration, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_read_duration_seconds",
-		metric.WithDescription("Wall time of one supply-chain impact list, count, inventory, grouped-inventory or explain read statement, by route (winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)"),
+		metric.WithDescription("Wall time of one supply-chain impact list, count, inventory, grouped-inventory or explain read statement, by route (winners, winners_supplement, supports_grant, supports_image, supports_finding_id, supports_selector, legacy)"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10),
 	)

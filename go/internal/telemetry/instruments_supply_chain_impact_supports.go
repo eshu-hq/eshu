@@ -149,21 +149,6 @@ var supplyChainImpactSupportsDrainRowBuckets = []float64{0, 1, 10, 100, 1000, 10
 // milliseconds (one page) to the hour a drain of a very hot key could take.
 var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 3600}
 
-// goFenceAdvisoryLockWaitBuckets spans a fence wait from an uncontended grant
-// (microseconds) to its 2 s lock timeout and a little past, so a timeout lands in
-// the last finite bucket.
-var goFenceAdvisoryLockWaitBuckets = []float64{0.0005, 0.001, 0.005, 0.025, 0.1, 0.25, 0.5, 1, 1.5, 2, 2.5, 5}
-
-// supplyChainImpactWriteTxBuckets spans an impact write transaction from a few
-// milliseconds (an unchanged replay) to past the minute a pass takes on a loaded
-// database, so the tail that decides the fence's wait and the abort cost is visible.
-var supplyChainImpactWriteTxBuckets = []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300}
-
-// supplyChainImpactGoEvidenceLockWaitBuckets spans a pass's wait for the shared
-// go-evidence lock from an uncontended grant to a wait behind a fence and a few of
-// the passes that queued ahead of it.
-var supplyChainImpactGoEvidenceLockWaitBuckets = []float64{0.0005, 0.001, 0.005, 0.025, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60}
-
 // registerSupplyChainImpactSupportsInstruments registers the per-support table
 // signals of #10880 PR-B1 on inst.
 //
@@ -205,6 +190,18 @@ var supplyChainImpactGoEvidenceLockWaitBuckets = []float64{0.0005, 0.001, 0.005,
 //     slices is how far the verification got; the duration tail is the longest
 //     snapshot the verification holds.
 //
+//   - eshu_dp_supply_chain_impact_stored_key_missing_total (#10880 PR-C1 b): stored
+//     rows the writer's supports-backed read found with no stable key on the support
+//     or its fact twin, counted at commit. Each one reads as changed, so a steady
+//     rate means supports written before migration 350 have not been filled.
+//
+//   - eshu_dp_supply_chain_impact_winners_supports_not_ready_total{path} (#10880
+//     PR-C1 R2): winners maintainer and audit ticks refused because the supports
+//     table is not ready, by path (full, keyed, audit). A refused tick writes nothing.
+//
+//   - eshu_dp_supply_chain_impact_fact_write_rejected_total: finding fact writes the
+//     PR-C reject trigger refused; above zero means an old reducer image still runs.
+//
 // No label carries a scope, repository, canonical key or CVE.
 func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
@@ -226,41 +223,23 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactFactWriteRejected counter: %w", err)
 	}
-	if inst.SupplyChainImpactGoEvidenceRecheckAborts, err = meter.Int64Counter(
-		"eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total",
-		metric.WithDescription("Supply-chain impact passes aborted at the end of their write transaction, so their writes rolled back, because the Go evidence they loaded no longer names its go scope's active generation (reason generation_changed) or the shared go-evidence lock timed out behind a fence (reason lock_timeout). Each one retries without spending an attempt; the retry reloads the evidence."),
+	if inst.SupplyChainImpactStoredKeyMissing, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_stored_key_missing_total",
+		metric.WithDescription("Stored supply-chain impact findings the writer read with no stable_fact_key on the support and none on its fact row. Each is treated as a changed finding for that pass. Counted when the writer transaction commits. No labels. A steady non-zero rate means supports written before migration 350 whose facts are gone, or a writer that does not fill the key."),
 	); err != nil {
-		return fmt.Errorf("register SupplyChainImpactGoEvidenceRecheckAborts counter: %w", err)
+		return fmt.Errorf("register SupplyChainImpactStoredKeyMissing counter: %w", err)
 	}
-	if inst.GoFenceAdvisoryLockTimeouts, err = meter.Int64Counter(
-		"eshu_dp_go_fence_advisory_lock_timeouts_total",
-		metric.WithDescription("Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight supply-chain impact pass. Nothing was detached; the coordinator retries the page. No labels."),
+	if inst.SupplyChainImpactWinnersSupportsNotReady, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_supports_not_ready_total",
+		metric.WithDescription("Supply-chain impact winners maintainer ticks refused because the supports table its inputs read is not ready (marker incomplete, a higher contract version, or the old-writer fence set), by path (full, keyed, audit). A refused tick claims no lease, writes nothing and leaves the watermark alone; a count that keeps rising after a roll means the supports backfill has not completed"),
 	); err != nil {
-		return fmt.Errorf("register GoFenceAdvisoryLockTimeouts counter: %w", err)
+		return fmt.Errorf("register SupplyChainImpactWinnersSupportsNotReady counter: %w", err)
 	}
-	if inst.GoFenceAdvisoryLockWait, err = meter.Float64Histogram(
-		"eshu_dp_go_fence_advisory_lock_wait_seconds",
-		metric.WithDescription("Wall time the Go-modules fence waited for the exclusive go-evidence advisory lock, granted or timed out. The tail is the longest supply-chain impact pass write transaction that held the shared lock. No labels."),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(goFenceAdvisoryLockWaitBuckets...),
-	); err != nil {
-		return fmt.Errorf("register GoFenceAdvisoryLockWait histogram: %w", err)
+	if err = registerSupplyChainImpactStableKeyFillInstruments(meter, inst); err != nil {
+		return err
 	}
-	if inst.SupplyChainImpactWriteTxDuration, err = meter.Float64Histogram(
-		"eshu_dp_supply_chain_impact_write_tx_duration_seconds",
-		metric.WithDescription("Wall time of one supply-chain impact write transaction, begin to commit or rollback, by outcome: committed, rolled_back (any failure) or recheck_aborted (the go-evidence recheck refused it, so the whole transaction was spent for nothing). The tail is how long a Go-modules fence can wait behind a pass and how much work an abort throws away."),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(supplyChainImpactWriteTxBuckets...),
-	); err != nil {
-		return fmt.Errorf("register SupplyChainImpactWriteTxDuration histogram: %w", err)
-	}
-	if inst.SupplyChainImpactGoEvidenceLockWait, err = meter.Float64Histogram(
-		"eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds",
-		metric.WithDescription("Wall time a supply-chain impact pass spent in the closing statements that follow its first shared go-evidence advisory lock: taking the locks, granted or refused, and its owed marker, which can wait on its work-item row. A tail means passes queue behind a Go-modules fence or a stalled marker, and is the time a fence can wait behind the pass. Passes with no resolved Go scope record nothing. No labels."),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(supplyChainImpactGoEvidenceLockWaitBuckets...),
-	); err != nil {
-		return fmt.Errorf("register SupplyChainImpactGoEvidenceLockWait histogram: %w", err)
+	if err = registerSupplyChainImpactFenceInstruments(meter, inst); err != nil {
+		return err
 	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
@@ -353,48 +332,6 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRows(ctx context.Context, a
 	i.SupplyChainImpactSupportsRows.Add(ctx, rows, metric.WithAttributes(AttrAction(action), AttrSource(source)))
 }
 
-// RecordSupplyChainImpactGoEvidenceRecheckAbort counts one pass aborted at the end of its
-// write transaction (its writes rolled back) because its loaded Go evidence went stale (#11327). reason is one of the
-// supplychaincore.GoEvidenceCause values; it is a closed set, so no scope or
-// generation reaches the metric. It is safe on a nil receiver.
-func (i *Instruments) RecordSupplyChainImpactGoEvidenceRecheckAbort(ctx context.Context, reason string) {
-	if i == nil || i.SupplyChainImpactGoEvidenceRecheckAborts == nil {
-		return
-	}
-	i.SupplyChainImpactGoEvidenceRecheckAborts.Add(ctx, 1, metric.WithAttributes(AttrReason(reason)))
-}
-
-// RecordGoFenceAdvisoryLockWait records how long the Go-modules fence waited for the
-// exclusive go-evidence lock and, when the wait ended in the lock timeout, counts it.
-// It carries no label. It is safe on a nil receiver.
-func (i *Instruments) RecordGoFenceAdvisoryLockWait(ctx context.Context, wait time.Duration, timedOut bool) {
-	if i == nil {
-		return
-	}
-	if i.GoFenceAdvisoryLockWait != nil {
-		i.GoFenceAdvisoryLockWait.Record(ctx, wait.Seconds())
-	}
-	if timedOut && i.GoFenceAdvisoryLockTimeouts != nil {
-		i.GoFenceAdvisoryLockTimeouts.Add(ctx, 1)
-	}
-}
-
-// RecordSupplyChainImpactWriteTx records the wall time of one impact write
-// transaction by outcome (committed, rolled_back, recheck_aborted) and, when the pass
-// took the shared go-evidence lock, how long taking it waited. It is safe on a nil
-// receiver and on an Instruments that did not register the instruments.
-func (i *Instruments) RecordSupplyChainImpactWriteTx(ctx context.Context, outcome string, duration time.Duration, lockTaken bool, lockWait time.Duration) {
-	if i == nil {
-		return
-	}
-	if i.SupplyChainImpactWriteTxDuration != nil {
-		i.SupplyChainImpactWriteTxDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(AttrOutcome(outcome)))
-	}
-	if lockTaken && i.SupplyChainImpactGoEvidenceLockWait != nil {
-		i.SupplyChainImpactGoEvidenceLockWait.Record(ctx, lockWait.Seconds())
-	}
-}
-
 // RecordSupplyChainImpactFactWriteRejected counts one impact-finding fact write
 // the reject trigger refused. It carries no label, so no scope, generation or fact
 // id can reach the metric. It is safe on a nil receiver and on an Instruments that
@@ -404,6 +341,16 @@ func (i *Instruments) RecordSupplyChainImpactFactWriteRejected(ctx context.Conte
 		return
 	}
 	i.SupplyChainImpactFactWriteRejected.Add(ctx, 1)
+}
+
+// RecordSupplyChainImpactStoredKeyMissing counts stored findings read with no
+// stable key. It carries no label, ignores a zero or negative count, and is safe
+// on a nil receiver and on an Instruments that did not register the counter.
+func (i *Instruments) RecordSupplyChainImpactStoredKeyMissing(ctx context.Context, rows int64) {
+	if i == nil || i.SupplyChainImpactStoredKeyMissing == nil || rows <= 0 {
+		return
+	}
+	i.SupplyChainImpactStoredKeyMissing.Add(ctx, rows)
 }
 
 // RecordSupplyChainImpactSupportsRead counts one reducer read of the supports
@@ -476,4 +423,21 @@ func (i *Instruments) RecordSupplyChainImpactSupportsBackfillReady(ctx context.C
 		value = 1
 	}
 	i.SupplyChainImpactSupportsBackfillReady.Record(ctx, value)
+}
+
+// SupplyChainImpactWinnersFullReasonSupportsReady is the start reason of a full
+// resweep that ran because the supports table became ready after the last
+// committed resweep (#10880 PR-C1), one of the closed set of reasons on
+// eshu_dp_supply_chain_impact_winners_full_resweeps_total.
+const SupplyChainImpactWinnersFullReasonSupportsReady = "supports_ready"
+
+// RecordSupplyChainImpactWinnersSupportsNotReady counts one winners maintainer
+// tick or audit tick refused because the supports table is not ready, on path
+// (one of the SupplyChainImpactWinnersPath* constants). It is safe on a nil
+// receiver and on an Instruments that did not register the counter.
+func (i *Instruments) RecordSupplyChainImpactWinnersSupportsNotReady(ctx context.Context, path string) {
+	if i == nil || i.SupplyChainImpactWinnersSupportsNotReady == nil {
+		return
+	}
+	i.SupplyChainImpactWinnersSupportsNotReady.Add(ctx, 1, metric.WithAttributes(AttrPath(path)))
 }

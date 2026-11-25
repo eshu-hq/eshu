@@ -285,6 +285,13 @@ func grantImpactWriterPregrants(t *testing.T, ctx context.Context, admin *sql.DB
 		// owner (migration 338), and this writer's transaction sets the
 		// supports_v1 setting so the trigger skips its rows anyway.
 		`GRANT SELECT, INSERT, UPDATE, DELETE ON supply_chain_impact_finding_supports TO "` + roleName + `"`,
+		// The writer's two retraction statements record the keys they retract in the same
+		// transaction (#10880 PR-C1, migration 351): the record is read for the keys it
+		// already holds (NOT EXISTS) and inserted into. An ordinary base table, so a DBA
+		// pregrant like the supports table; rows leave it through the generation foreign key
+		// cascade, which the owner runs. The scope-delete and scanner capture functions
+		// (migrations 352, 353) are SECURITY DEFINER and need no grant for any login.
+		`GRANT SELECT, INSERT ON supply_chain_impact_retracted_finding_keys TO "` + roleName + `"`,
 		// The change set behind the holder fan-out (#9695) reads scope_generations
 		// inside the write transaction to find the previous generation. The
 		// runtime-writer login already needs this SELECT on main, for every

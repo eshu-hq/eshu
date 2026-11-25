@@ -31,6 +31,12 @@ const (
 	// caller: the per-support table probed by its finding id index. Only explain
 	// calls take it.
 	RouteSupportsFindingID ReadRoute = "supports_finding_id"
+	// RouteSupportsSelector is the explain selector or identity lookup of an
+	// ungranted caller without an image reference that names a CVE or an advisory:
+	// the key's own btree streamed and decided before any winner is computed
+	// (#10880 PR-C1 f). Only explain calls take it; a finding id with no CVE or
+	// advisory counts RouteLegacy.
+	RouteSupportsSelector ReadRoute = "supports_selector"
 )
 
 // routeFor decides the read model of one call. With the winners gate on, no call

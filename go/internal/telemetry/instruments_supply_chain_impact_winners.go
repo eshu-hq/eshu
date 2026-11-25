@@ -232,7 +232,9 @@ func newWinnersContractState() *winnersContractState {
 //     last contract read. No value until the first read.
 //   - eshu_dp_supply_chain_impact_winners_full_resweeps_total{reason}:
 //     committed fulls by start reason (no_watermark, contract_version,
-//     keyed_cap). A matching-version roll adds nothing.
+//     keyed_cap, supports_ready). A matching-version roll adds nothing unless
+//     the supports marker completed after the last committed resweep, which
+//     adds one supports_ready full (#10880 PR-C1).
 //   - eshu_dp_supply_chain_impact_winners_stand_downs_total: ticks this binary
 //     stood down because a newer contract is stored.
 //
@@ -301,13 +303,13 @@ func registerSupplyChainImpactWinnersContractInstruments(meter metric.Meter, ins
 	}
 	if inst.SupplyChainImpactWinnersFullResweeps, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_full_resweeps_total",
-		metric.WithDescription("Committed supply-chain impact winners full resweeps, by start reason (no_watermark, contract_version, keyed_cap). A reducer roll with an unchanged contract adds nothing."),
+		metric.WithDescription("Committed supply-chain impact winners full resweeps, by start reason (no_watermark, contract_version, keyed_cap, supports_ready). A reducer roll with an unchanged contract adds nothing, except one supports_ready full when the supports marker completed after the last committed resweep."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersFullResweeps counter: %w", err)
 	}
 	if inst.SupplyChainImpactWinnersStandDowns, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_stand_downs_total",
-		metric.WithDescription("Supply-chain impact winners maintainer ticks that stood down because the stored contract version is above this binary's, at the decision read or under the resweep lock on a keyed tick: no full, keyed tick or audit ran. Any rate means an older binary is running beside a newer one."),
+		metric.WithDescription("Supply-chain impact winners maintainer ticks that stood down because the stored contract version is above this binary's, at the decision read or under the resweep lock on a keyed tick or a supports_ready full: no full, keyed tick or audit ran. Any rate means an older binary is running beside a newer one."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersStandDowns counter: %w", err)
 	}

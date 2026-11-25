@@ -22,6 +22,7 @@ func TestSupplyChainImpactWinnersResweepAuditRepairsAMissedCaptureLive(t *testin
 	// path sees.
 	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '99')
 WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
+	h.syncSupports() // the writer would have updated the support with the fact
 	audit, err := h.store.AuditWinners(h.ctx)
 	if err != nil || audit.Skipped {
 		t.Fatalf("audit = %+v, %v", audit, err)

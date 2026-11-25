@@ -176,6 +176,27 @@ func TestCensusClassifiesSupplyChainImpactScopePassState(t *testing.T) {
 	}
 }
 
+// TestCensusClassifiesRetractedFindingKeys pins the retracted-keys record's row (migration
+// 351, #10880 PR-C1): generation-keyed with a cascading foreign key, removed with the batch's
+// generations at 2d, so the live census, which matches its scope_id column, finds it classified.
+func TestCensusClassifiesRetractedFindingKeys(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_retracted_finding_keys")
+	if !ok {
+		t.Fatal("supply_chain_impact_retracted_finding_keys has no census row; the live census fails on it")
+	}
+	if entry.Disposition != "2d" || len(entry.RemoveSteps) != 1 || entry.RemoveSteps[0] != "2d" {
+		t.Fatalf("disposition = %q, remove steps = %v, want 2d and [2d]", entry.Disposition, entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 2 || entry.KeyColumns[0] != "scope_id" || entry.KeyColumns[1] != "generation_id" {
+		t.Fatalf("key columns = %v, want [scope_id generation_id]", entry.KeyColumns)
+	}
+	if entry.InvisibleToScan {
+		t.Fatal("InvisibleToScan = true, want false: the schema scan sees scope_id")
+	}
+}
+
 // TestCensusClassifiesSupplyChainImpactWriteAdmission pins the #7142 admission
 // watermark table's row (#10800): scope-keyed with no foreign key, deleted by
 // the purge at 2e. Unlike the pass-state row, the delete must run BEFORE the

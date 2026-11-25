@@ -19,6 +19,7 @@ reads probe before each call, and how the reducer-side readers used it.
 | --- | --- | --- | --- |
 | `eshu_dp_supply_chain_impact_supports_rows_total` | counter | `action`, `source` | Support rows written. `action` is `inserted`, `updated`, `unchanged` (the write-on-change guard left a replayed finding alone) or `deleted` (the row followed a retracted fact). `source` is `writer` (counted after the writer's transaction commits, so a rollback adds nothing) or `backfill`. The backfill reports one count for supports it inserted or changed, so `source=backfill` counts both under `inserted` and never emits `updated`. A `writer` series with `inserted` and `updated` flat while findings are written is a maintainer that stopped. |
 | `eshu_dp_supply_chain_impact_supports_reads_total` | counter | `source`, `outcome` | Reducer reads of the supports table, one series per reader. `source` is one of `security_alert_reconciliation`, `service_vulnerability_advisory`, `fanout_holders`, `fanout_holders_key_range`, `fanout_holder_mass`, `repository_holders`, `scoped_packages`, `out_of_stamp` or `go_modules_fence`. `outcome` is `served` (the read ran), `not_ready` (the reader refused because the table was not ready) or `failed` (the readiness probe failed, or, for `security_alert_reconciliation` and `service_vulnerability_advisory`, the supports read failed; a probe failure keeps its own classification and never takes the not-ready class; for `go_modules_fence` the predicate runs inside the fence's holder statement, so a holder-statement error, a lock or statement timeout included, also counts `failed`). For the impact fan-out sources (`fanout_holders`, `fanout_holders_key_range`, `fanout_holder_mass`, `repository_holders`) a statement error or timeout after a ready probe records nothing here. For `fanout_holders`, `fanout_holders_key_range` and `fanout_holder_mass` it shows on the fan-out read histogram (`eshu_dp_supply_chain_impact_fanout_read_duration_seconds`, outcome `read_timeout` or `read_error`); for `repository_holders` it shows on `eshu_dp_supply_chain_impact_fanout_total` (site `repository`, outcome `read_timeout` or `read_error`), because that read is not a histogram kind. Both end as the dead-letter class `supply_chain_impact_fanout_failed`. A lookup with an empty id list runs no read and records nothing, and the holder, key-range and mass reads drop blank ids first, so an all-blank mass lookup also records nothing. A rising `not_ready` count means reducer work is waiting on the backfill; it stops when `eshu_dp_supply_chain_impact_supports_backfill_ready` reads 1. |
+| `eshu_dp_supply_chain_impact_stored_key_missing_total` | counter | none | Stored findings the impact writer read with no `stable_fact_key` on the support and none on its fact row. The writer reads its stored baseline from the supports table and links a finding across generations by that key; a row with neither key is treated as a changed finding for that pass. Counted when the writer transaction commits. It should be 0 once the supports written before migration 350 have been rewritten or their facts still exist; a steady non-zero rate means a writer that does not fill the key, or supports whose fact rows are gone. |
 | `eshu_dp_supply_chain_impact_supports_drain_raw_rows` | histogram | `source` | Raw supports rows one drain read (one whole call for the service-catalog reader; every row the ordered key scans returned, active or not, and the rows a failed drain read before it stopped), by reader (`source`, the same closed set as the reads counter). Raw rows far above the active rows mean the key sits mostly in superseded generations. A drain in the hundred thousands is a hot key. |
 | `eshu_dp_supply_chain_impact_supports_drain_duration_seconds` | histogram | `source` | Wall time of one drain of the supports table (one whole call for the service-catalog reader), by reader. A drain near half the domain's handler timeout means a hot key is paging too slowly; the raw-rows histogram above says how large the key was. |
 | `eshu_dp_supply_chain_impact_fact_write_rejected_total` | counter | none | Impact-finding fact writes the PR-C reject trigger refused (SQLSTATE 55000, constraint `fact_records_reject_supply_chain_impact_finding`), one per refused statement. It carries no label. It stays 0 until the trigger exists; after that, a rising count means a reducer pod runs an image older than the schema. The intent retries without spending an attempt (class `supply_chain_impact_fact_write_stopped`). |
@@ -28,6 +29,10 @@ reads probe before each call, and how the reducer-side readers used it.
 | `eshu_dp_supply_chain_impact_supports_backfill_verify_slice_duration_seconds` | histogram | `outcome` | Wall time of one verification slice statement. The tail is the longest snapshot the verification holds open (QA, 11.6M live findings: 4.6 to 6.0 s cold, 20.3 s for a slice that starts inside the largest scope and generation). A `failed` sample is a slice that hit an error, often a statement timeout; a slice cut short by shutdown records nothing. |
 | `eshu_dp_supply_chain_impact_supports_dirty_scopes` | gauge | none | Scopes the old-writer fence marked dirty that the backfill has not drained, capped at 1000. Non-zero holds the table not ready. A count that never falls means a writer without the maintainer is still running. |
 | `eshu_dp_supply_chain_impact_supports_backfill_last_success_timestamp_seconds` | gauge | none | Unix time of the last backfill step that finished without error. A value that stops moving while the gauge below reads 0 means the loop is stuck. |
+| `eshu_dp_supply_chain_impact_stable_key_fill_steps_total` | counter | `outcome` | Stable-key fill steps (#10880 PR-C1k): `chunk`, `verify`, `gap` (a verification slice found a keyless support whose fact twin has a key and restarted the sweep), `complete`, `failed`. A chunk updates at most 500 supports of one scope generation under its conflict-domain lock. |
+| `eshu_dp_supply_chain_impact_stable_key_fill_rows_total` | counter | `outcome` | Supports the fill gave a key (`filled`) or left keyless because their fact twin has no key (`skipped`). |
+| `eshu_dp_supply_chain_impact_stable_key_fill_pauses_total` | counter | `reason` | Passes held back by a pause condition: `replay_lag` (a replica over the limit), `free_disk` (under the limit), `disk_unreadable` (a limit is set and no reading is wired), `index_build` (`pg_stat_progress_create_index` not empty), `probe_error` (a condition could not be read, never taken as clear). |
+| `eshu_dp_supply_chain_impact_stable_key_fill_complete` | gauge | none | 1 once the fill marker is set: a clean verification found no keyless support whose twin has a key. 0 until then, and while the fill is off (the default). |
 | `eshu_dp_supply_chain_impact_supports_backfill_ready` | gauge | none | 1 once the backfill finished and verified at the current contract version and the fence is empty, else 0. A reader of the table refuses a grant-scoped call while it is 0. |
 | `eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total` | counter | `reason` | Impact passes aborted at the end of their write transaction (their writes roll back) because the Go evidence they loaded no longer names its go scope's active generation (`generation_changed`: a Go-modules fence retracted it or a successor activated) or the shared go-evidence lock timed out behind a fence (`lock_timeout`). Each retries without spending an attempt (class `supply_chain_impact_go_evidence_changed`) and the retry reloads the evidence. A sustained rate means fences and passes keep colliding on one repository. |
 | `eshu_dp_go_fence_advisory_lock_timeouts_total` | counter | none | Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight impact pass. Nothing was detached; the coordinator retries the page next tick. Three consecutive ticks timing out on the same scope returns to the owner of #11327. |
@@ -80,6 +85,14 @@ passes, security-alert reconciliation, service-catalog correlation and the Go-mo
 until the backfill completes. On QA the window is zero because the deploy waits for the
 supports marker.
 
+The supported upgrade path is to reach supports-ready
+(`eshu_dp_supply_chain_impact_supports_backfill_ready` reads 1) on a #10880 PR-B image before
+rolling to the PR-C1 image, whose winners maintainer reads the supports table. On a direct
+jump from an image older than migration 338, an old reducer's winners maintainer does not
+wait for the marker and can stamp the winners watermark after the marker completes; the
+winners audit on facts re-queues the keys it left stale, so the result converges, but only
+on a later audit pass.
+
 Alert on `eshu_dp_supply_chain_impact_supports_backfill_ready == 0` while
 `eshu_dp_supply_chain_impact_supports_backfill_last_success_timestamp_seconds` is more than 30
 minutes old: the backfill stopped, and every deferred intent is waiting on it. There is no
@@ -95,6 +108,8 @@ has become a fault.
   facts without the maintainer. Each such write marks its scope dirty (the dirty
   gauge rises) and the table reads not ready; the backfill drains the marks
   (`drain` steps) and the gauge returns to 1 once the old reducers are gone.
+  Roll from a PR-B image that already reads ready, not straight from an image
+  older than migration 338 (see the upgrade path above).
 - The marker is set only after a verification found no live finding fact
   without a support and no support of a tombstoned fact. The verification is
   resumable: each step checks one bounded slice, and the end of the last clean
@@ -114,6 +129,17 @@ has become a fault.
   (the impact writer's lock) for one chunk of at most 500 supports, so a writer
   waits for at most one chunk.
 
+## What the stored `intent_id` and `cause` mean
+
+The stored payload of a support is the impact finding's payload, which every reducer pass stamps with
+its own `intent_id` and `cause`. The write-on-change guard compares the payload without those two
+keys, so a pass that confirms a finding without changing it leaves the support untouched. After that,
+the stored `intent_id` and `cause` of a support name the pass that last changed the row, not the pass
+that last confirmed it. The pass that last confirmed it is the work item: the reducer uses the
+intent's id as the work item id, and its time is `last_pass_at` on the scope's pass-state row. The
+API and MCP never serve either key. A replay that changes nothing shows up as the `unchanged` action
+of the supports rows counter instead of `updated`.
+
 ## Least-privilege logins
 
 Migration 338 creates the tables and grants nothing. A database that uses
@@ -128,6 +154,11 @@ findings:
   `supply_chain_impact_finding_supports_backfill`, the marker and cursor table.
 - `SELECT` and `DELETE` on `supply_chain_impact_finding_supports_dirty`, which
   the backfill drain reads and clears.
+- `SELECT` and `INSERT` on `supply_chain_impact_retracted_finding_keys`
+  (migration 351), which the writer's two retraction statements read for the keys
+  they already recorded and insert into, and the recovery reads select from. Rows
+  leave it through the generation foreign key cascade, which the owner runs, so the
+  login needs neither `UPDATE` nor `DELETE`.
 
 A pass that loaded Go evidence also rechecks, at the end of its write transaction,
 that each go scope it read is still active (#11327). That recheck is a plain `SELECT`
@@ -136,10 +167,17 @@ for every claim; a login that lacks either fails the recheck with `permission de
 (SQLSTATE 42501), and the pass rolls back and retries. The advisory lock functions
 need no grant (PUBLIC execute).
 
-None of the three tables has a sequence. Until the first grant exists, the new
+None of the four tables has a sequence. Until the first grant exists, the new
 reducer's impact writes fail with `permission denied for table
 supply_chain_impact_finding_supports` (SQLSTATE 42501), and each pass rolls back
 and retries.
+
+The scope-delete and scanner capture functions (migrations 352 and 353) run as their
+owner (`SECURITY DEFINER`, a pinned search_path, PUBLIC execute revoked), like the
+fence trigger below: they read the supports table as the owner and the login needs no
+grant for them. Without the new table's grant the writer's retraction fails with
+`permission denied for table supply_chain_impact_retracted_finding_keys` (SQLSTATE
+42501).
 
 The old-writer fence trigger needs no grant for any login. Its function runs as
 its owner (`SECURITY DEFINER`, with a search_path pinned to `pg_catalog`, its own
@@ -149,3 +187,17 @@ through a least-privilege login still marks its scope dirty during a rolling
 upgrade, with no privilege on the dirty table. This is proven by live tests
 against a login that holds `INSERT` and `UPDATE` on `fact_records` and nothing on
 the dirty table. It is not proven on a deployed least-privilege database.
+
+## Stable-key fill
+
+The fill (#10880 PR-C1k) copies the fact twin's `stable_fact_key` into the supports no
+rewrite has keyed, so the writer's stored read can leave `fact_records`. It is off unless
+`ESHU_SUPPLY_CHAIN_IMPACT_STABLE_KEY_FILL_ENABLED=true`, because it must not run inside a
+counted window or before the lab run. One elected reducer runs it, in chunks of at most 500
+supports, paced to `ESHU_SUPPLY_CHAIN_IMPACT_STABLE_KEY_FILL_WAL_BYTES_PER_HOUR` (default
+8 GB) using an estimate of `..._WAL_BYTES_PER_ROW` per filled row. It pauses on replica
+replay lag, free disk and a running index build (see `pauses_total`). Free disk is not
+readable through SQL, so with the default limit and no reading wired it pauses with
+`disk_unreadable`; set `..._MIN_FREE_DISK_BYTES=0` only when disk is watched elsewhere.
+The replay-lag read needs the `pg_monitor` role. Read the fill with the `complete` gauge, the
+`rows_total{outcome="filled"}` rate against the WAL budget, and `pauses_total` by reason.

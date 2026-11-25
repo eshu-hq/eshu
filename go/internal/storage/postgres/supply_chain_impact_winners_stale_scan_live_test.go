@@ -127,6 +127,7 @@ func TestSupplyChainImpactWinnersResweepStaleScanQueuesVerifiedTrueLive(t *testi
 
 	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '99')
 WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
+	h.syncSupports() // the writer would have updated the support with the fact
 	audit, err := staleAuditStore(h, postgres.SQLDB{DB: h.db}, nil).AuditWinners(h.ctx)
 	if err != nil || audit.Skipped || audit.Deferred {
 		t.Fatalf("stale audit = %+v, %v", audit, err)

@@ -683,6 +683,31 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the supports backfill fills, verifies, restarts on a gap, and waits for the writer's conflict-domain lock"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_stable_key_fill_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1k: reducer-contention proof that the stable key fill keys only keyless supports from their twin (never overwriting, skipping an empty twin key), in chunks of at most 500, completes the marker only after a clean verification, waits for the pair's conflict-domain lock beside a writer pass with no lost update, and resumes from its stored cursor after a restart"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_stable_key_fill_lab_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1k lab harness at a default scale of 5,000 rows (ESHU_LAB_FILL_ROWS sets the lab scale): the fill's WAL bytes per row, HOT share, dead tuples and step time, the migration 354 index build (seconds, WAL, temp bytes, size, validity), the keyed probe plan under migration 354 (the keyed probe index with five index conditions and no Seq Scan, no planner override), and the EXPLAIN proof that the lazy stored read probes fact_records not at all for a keyed pair and once per row for a keyless pair, both equal to the fact read"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_stored_read_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1 R5: reducer-contention proof that the supports-backed stored read and the three-leg recovery read equal their frozen fact statements on one seed (a NULL key with a twin, with no twin, with an empty twin key, and a support key that differs from its twin; a committed retraction still named without the fact leg), and that the scope-delete capture stages the fact set whatever the delete order"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_supports_fence_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1 Q7: reducer-contention proof that a finding written without the supports writer setting (an old writer) marks its scope dirty, a scanner classification retracting it lands while the scope is dirty, and after the backfill drain and one keyed tick the stored winners equal the winners select over the finding facts"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C1 R2 and section 3: reducer-contention proof of the maintainer's supports gate on a real backfill marker (a not-ready period runs nothing and keeps the watermark, the first ready tick runs exactly one full, a restart runs none) and of the winners select over the facts against the supports (EXCEPT ALL both ways empty, and the supports-driven winners table equal to the facts select)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_supports_fence_live_test.go
     tag: ~
     class: dedicated_ci
@@ -697,6 +722,11 @@ tests:
     tag: ~
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the per-support table follows the real writer and survives racing writers"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_guard_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 B3a: reducer-contention proof that the supports write-on-change guard ignores the per-pass payload keys intent_id and cause: an identical replay rewrites none of 10,000 supports, a content or evidence change rewrites exactly the changed rows, and old and new statements alternate without churn"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_supports_verify_live_test.go
     tag: ~

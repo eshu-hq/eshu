@@ -42,6 +42,10 @@ func (c *countingWinners) ResweepWinnersUnlessCurrent(ctx context.Context) (supp
 	return c.countFull(c.store.ResweepWinnersUnlessCurrent(ctx))
 }
 
+func (c *countingWinners) ResweepWinnersUnlessNewer(ctx context.Context) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
+	return c.countFull(c.store.ResweepWinnersUnlessNewer(ctx))
+}
+
 func (c *countingWinners) ResweepWinnersKeyed(ctx context.Context) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
 	r, err := c.store.ResweepWinnersKeyed(ctx)
 	if err == nil && !r.Skipped {

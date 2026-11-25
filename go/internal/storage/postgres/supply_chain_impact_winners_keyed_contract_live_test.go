@@ -355,6 +355,9 @@ FROM generate_series(1, 3000) AS g`)
 	if !strings.Contains(countPlan, "winners_keyed_narrow") {
 		t.Errorf("the scanned-copies count does not read the persisted narrow probe output:\n%s", countPlan)
 	}
+	if !strings.Contains(countPlan, "winners_keyed_narrow") {
+		t.Errorf("the scanned-copies count does not read the persisted narrow probe output:\n%s", countPlan)
+	}
 	if strings.Contains(countPlan, "fact_records") {
 		t.Errorf("the scanned-copies count touches fact_records; it must read only the persisted narrow table:\n%s", countPlan)
 	}

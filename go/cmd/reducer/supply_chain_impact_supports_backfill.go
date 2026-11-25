@@ -167,6 +167,12 @@ func recordSupportsBackfillStep(ctx context.Context, instruments *telemetry.Inst
 // steps run on the normal pool, each under the conflict-domain locks that keep
 // them safe against writers. A contending reducer skips the pass.
 func withSupportsBackfillLeadership(ctx context.Context, database *sql.DB, fn func(context.Context) error) (ran bool, err error) {
+	return withAdvisoryLeadership(ctx, database, supportsBackfillAdvisoryLockClass, supportsBackfillAdvisoryLockID, fn)
+}
+
+// withAdvisoryLeadership is the election both reducer-owned supports jobs use (the
+// backfill and the stable-key fill, #10880), each under its own advisory lock id.
+func withAdvisoryLeadership(ctx context.Context, database *sql.DB, lockClass, lockID int, fn func(context.Context) error) (ran bool, err error) {
 	conn, err := database.Conn(ctx)
 	if err != nil {
 		return false, fmt.Errorf("open supports backfill lock connection: %w", err)
@@ -175,7 +181,7 @@ func withSupportsBackfillLeadership(ctx context.Context, database *sql.DB, fn fu
 
 	var locked bool
 	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1, $2)",
-		supportsBackfillAdvisoryLockClass, supportsBackfillAdvisoryLockID).Scan(&locked); err != nil {
+		lockClass, lockID).Scan(&locked); err != nil {
 		// The server may have granted the lock before the response failed.
 		// Discard this session rather than return an uncertain lock to the pool.
 		_ = conn.Raw(func(any) error { return driver.ErrBadConn })
@@ -189,7 +195,7 @@ func withSupportsBackfillLeadership(ctx context.Context, database *sql.DB, fn fu
 		defer cancel()
 		var unlocked bool
 		unlockErr := conn.QueryRowContext(unlockCtx, "SELECT pg_advisory_unlock($1, $2)",
-			supportsBackfillAdvisoryLockClass, supportsBackfillAdvisoryLockID).Scan(&unlocked)
+			lockClass, lockID).Scan(&unlocked)
 		if unlockErr != nil || !unlocked {
 			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 			if unlockErr != nil {

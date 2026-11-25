@@ -387,9 +387,16 @@ import (
 // holder read (numbered 347/349, 348 held by main's verify cursor). Count 375
 // is main's 373 plus the pair; the digest is this test's own derivation on
 // the merged tree.
+// 350 to 354 (#10880 PR-C1) add the supports stable key, the retracted-keys table,
+// the supports-reading capture functions and the keyed probe index. Count 380 is
+// 375 plus those five; the digest is this test's own derivation, re-derived when
+// the header comments of 352 and 354 were corrected before the release.
+// 355 (#10880 PR-C1) redefines the scope-delete capture over facts and supports
+// so a scope retired before its facts are backfilled still stages its keys.
+// Count 381 is 380 plus that one.
 const (
-	goldenBootstrapDefinitionsDigest = "765e9c779dc5a93272bad6f5366a0ef93d1cbb0b7c13800f0239d6b79beefc9c"
-	goldenBootstrapDefinitionsCount  = 375
+	goldenBootstrapDefinitionsDigest = "bc079bc9f91b1643039a66fef8e9c604e7d47af2658fe7db02540dee6fa6290a"
+	goldenBootstrapDefinitionsCount  = 381
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

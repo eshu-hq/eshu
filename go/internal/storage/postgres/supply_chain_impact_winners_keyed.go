@@ -335,13 +335,14 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		// identifier table above: no per-triple statements, and the
 		// scanned-copies count reads the persisted narrow table instead
 		// of re-running the probe, so the probe runs once per tick.
-		if _, err := tx.ExecContext(ctx, buildWinnersKeyedNarrowSQL); err != nil {
+		// The probe reads the supports table (#10880 PR-C1 d).
+		if _, err := tx.ExecContext(ctx, buildWinnersKeyedNarrowFromSupportsSQL); err != nil {
 			return fmt.Errorf("build supply chain impact winners keyed narrow probe: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedNarrowSQL); err != nil {
 			return fmt.Errorf("analyze supply chain impact winners keyed narrow probe: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, buildWinnersKeyedActiveFactsSQL); err != nil {
+		if _, err := tx.ExecContext(ctx, buildWinnersKeyedActiveFactsFromSupportsSQL); err != nil {
 			return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
 		}
 		if kept, err = countWinnersKeyedKeptFacts(ctx, tx); err != nil {
@@ -353,7 +354,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		if scanned, err = countWinnersKeyedScannedCopies(ctx, tx); err != nil {
 			return err
 		}
-		for _, stmt := range []string{addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
+		for _, stmt := range []string{addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
 			}
@@ -401,7 +402,8 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 
 // countWinnersKeyedScannedCopies counts the pre-filter copies the identifier
 // probe scanned, before the active-generation join discards the retired and
-// superseded ones (#11308).
+// superseded ones (#11308). It reads the persisted narrow table, which holds
+// the supports probe output under #10880 PR-C1, so it reads no fact_records.
 func countWinnersKeyedScannedCopies(ctx context.Context, tx db.Transaction) (int64, error) {
 	return scanWinnersInt64(ctx, tx, countWinnersKeyedScannedCopiesSQL, "count scanned winner copies")
 }

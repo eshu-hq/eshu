@@ -266,6 +266,8 @@ type supplyChainImpactTx struct {
 	captureCtx     context.Context
 	// pendingSupports holds support rows written, by action, until Commit counts them.
 	pendingSupports map[string]int64
+	// pendingStoredKeyMissing holds the stored rows read with no stable key until Commit counts them.
+	pendingStoredKeyMissing int64
 }
 
 var (

@@ -42,7 +42,17 @@ const setSupplyChainImpactSupportsWriterSQL = `SELECT set_config('` + supplyChai
 // supplyChainImpactSupportsContractPins pins each supports contract version to
 // the hash of the statements it names. A version maps to exactly one hash.
 var supplyChainImpactSupportsContractPins = map[int]string{
-	1: "3f720ba20fc6f6ef850cd00b72d36992bd7357291b1f4c6b77cfa442865a6184",
+	// Re-pinned, not bumped, when #10880 PR-C1 a added the fill-only stable_fact_key
+	// column: TestStableFactKeyDoesNotChangeTheVersion1Statements proves the covered
+	// statements differ from the previous pin only by that column.
+	//
+	// Re-pinned again, not bumped, when #10880 B3a made the write-on-change guard
+	// ignore the per-pass payload keys intent_id and cause on both sides of its
+	// payload compare: TestSupportsGuardDoesNotChangeTheVersion1Statements proves the
+	// covered statements differ from the C1 pin only by that two-key strip, and the
+	// stored payload and every derived column are unchanged, so no support row changes
+	// and no backfill is owed.
+	1: "6b89c4b096c58c65a649ff24e4dd90201b34d9ad9da00c585189c891eca10713",
 }
 
 // supplyChainImpactSupportsContractStatements returns, in a fixed order, the

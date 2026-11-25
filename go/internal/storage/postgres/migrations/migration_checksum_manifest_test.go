@@ -528,6 +528,19 @@ var migrationShippedChecksums = map[string]string{
 	"347_fact_records_vuln_pkg_eco_scope_gen_active_idx.sql":              "8b8699d0e2ee0154c9705498bc42012099f2a6010ffde4fb107277e5d0640814",
 	"348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql": "b329d635afe998a087c2faef1295156935583d95b5002b6ca7b3328e0e2d8edf",
 	"349_fact_records_vuln_pkg_eco_stats.sql":                             "9b739659bcd23e5efb2cb390b4722ca16ced88c04878ef18e5bf9dbf54756d26",
+	// #10880 PR-C1 a: the nullable stable_fact_key the upsert fills outside its
+	// write-on-change guard (349 is #11376's eco stats on main).
+	"350_supply_chain_impact_finding_supports_stable_fact_key.sql": "ccc38b897b2e04bfed6fc0df1401d55e43a8e765da3cd1f4945a8030d83d62a1",
+	// #10880 PR-C1 c: the retracted-keys table the recovery reads take over from
+	// tombstoned fact rows.
+	// #10880 PR-C1 e: the winners dirty-capture functions that read finding facts
+	// now read the supports table (352 the scope delete, 353 the scanner pair).
+	// #10880 PR-C1 g: the keyed probe index on the supports table.
+	"354_supply_chain_impact_supports_keyed_probe_idx.sql":                 "4246408e80e74397f912c3af7d32f6300d4882431e45d2e2809c1f03dbb5c80f",
+	"352_supply_chain_impact_winners_supports_scope_capture.sql":           "f23383da86bfe3a234aa6b07bb10ad9c63c0475230aae46ac963121b4e242ba6",
+	"353_supply_chain_impact_winners_supports_scanner_capture.sql":         "4b4237a659e753e35d4e13b6d1b2c813a4d96c548598ef7ffa8676d307b26549",
+	"351_supply_chain_impact_retracted_finding_keys.sql":                   "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
+	"355_supply_chain_impact_winners_scope_capture_facts_and_supports.sql": "4c26b6ad8070147fa1eeb75dabe68fd7e0ae1613bbf34313b7458f17aa44b642",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

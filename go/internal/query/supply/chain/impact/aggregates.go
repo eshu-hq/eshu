@@ -263,9 +263,9 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
 	query := AggregateCombinedCountQuery
 	switch route {
-	case RouteLegacy, RouteSupportsFindingID:
+	case RouteLegacy, RouteSupportsFindingID, RouteSupportsSelector:
 		// the legacy fact read stays the default statement (gate off); the
-		// finding-id route is an explain label no list or aggregate takes
+		// finding-id and selector routes are explain labels no list or aggregate takes
 	case RouteSupportsGrant:
 		query = AggregateSupportsCombinedCountQuery
 	case RouteSupportsImage:
@@ -365,9 +365,9 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	defer timeRoute(ctx, s.Instruments, route)()
 	q := InventoryQuery(groupExpr)
 	switch route {
-	case RouteLegacy, RouteSupportsFindingID:
+	case RouteLegacy, RouteSupportsFindingID, RouteSupportsSelector:
 		// the legacy fact read stays the default statement (gate off); the
-		// finding-id route is an explain label no list or aggregate takes
+		// finding-id and selector routes are explain labels no list or aggregate takes
 	case RouteSupportsGrant:
 		q = InventorySupportsQuery(groupExpr)
 	case RouteSupportsImage:

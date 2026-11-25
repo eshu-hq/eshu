@@ -198,4 +198,20 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// the eco arm on its partial index (CREATE STATISTICS plus ANALYZE),
 	// like migrations 283 and 290.
 	"fact_records_vuln_pkg_eco_stats",
+	// Migration 350 (#10880 PR-C1 a) adds the nullable stable_fact_key column to
+	// the supports table (an ALTER, no new relation: this names its migration file).
+	"supply_chain_impact_finding_supports_stable_fact_key",
+	// Migration 351 (#10880 PR-C1 c) adds the retracted finding keys table the
+	// recovery reads take over from tombstoned fact rows.
+	"supply_chain_impact_retracted_finding_keys",
+	// Migrations 352 and 353 (#10880 PR-C1 e) replace the winners dirty-capture
+	// functions that read finding facts with supports-reading ones.
+	"supply_chain_impact_winners_supports_scope_capture",
+	"supply_chain_impact_winners_supports_scanner_capture",
+	// Migration 354 (#10880 PR-C1 index set g) adds the keyed probe btree on
+	// the supports table.
+	"supply_chain_impact_supports_keyed_probe_idx",
+	// Migration 355 (#10880 PR-C1) redefines the scope-delete capture over
+	// finding facts and supports so a pre-backfill retirement still stages.
+	"supply_chain_impact_winners_scope_capture_facts_and_supports",
 }

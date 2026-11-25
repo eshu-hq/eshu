@@ -3,8 +3,6 @@
 
 package postgres
 
-import "strings"
-
 // SQL of the keyed resweep and the audit of the #3389 canonical winners read
 // model (#9805). The keyed path consumes the dirty log under the resweep's
 // single-flight lock, builds a keyed active_facts through the keyed winners
@@ -213,7 +211,7 @@ const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 // statistics. runKeyedOrFull and the explain export both run this list, so
 // the explained plans are the plans the tick gets.
 var winnersKeyedBuildIdentsStmts = []string{
-	buildWinnersKeyedScopeIdentsSQL,
+	buildWinnersKeyedScopeIdentsFromSupportsSQL,
 	indexWinnersKeyedScopeIdentsSQL,
 	analyzeWinnersKeyedScopeIdentsSQL,
 	buildWinnersKeyedIdentsSQL,
@@ -372,7 +370,9 @@ SELECT count(*) FROM ` + winnersKeyedActiveFactsTable
 // narrow temp table the build persisted instead of re-running the probe, so a
 // keyed tick probes once: the build and this count read the same rows from
 // the same transaction and snapshot, and the tick writes no fact_records
-// between them, so the count is exact. It is deliberately not part of the
+// between them, so the count is exact. Under #10880 PR-C1 the narrow table
+// holds the supports probe output, so the count reads no fact_records either.
+// It is deliberately not part of the
 // contract pin: it reads nothing the resweep writes.
 const countWinnersKeyedScannedCopiesSQL = `
 SELECT count(*) FROM ` + winnersKeyedNarrowTable + `
@@ -382,78 +382,6 @@ SELECT count(*) FROM ` + winnersKeyedNarrowTable + `
 // active_facts temp table. The body is byte-identical to the full path's.
 var winnersKeyedSelectSQL = `WITH active_facts AS (SELECT * FROM ` + winnersKeyedActiveFactsTable + `)` +
 	supplyChainImpactWinnerBodySQL
-
-// winnersStoredIdentMatch matches stored winner rows (alias w) to the
-// identifier table; the winners table keeps the same coalesced columns.
-const winnersStoredIdentMatch = `(w.package_id, w.repository_id, w.subject_digest,
-        COALESCE(NULLIF(w.cve_id, ''), NULLIF(w.advisory_id, ''), ''), w.advisory_id)
-       IN (SELECT package_id, repository_id, subject_digest, c0, advisory_id FROM ` + winnersKeyedIdentsTable + `)`
-
-// applyWinnersKeyedSQL recomputes the identifier set's winners and writes only
-// the rows that are new or changed, deletes stored winners of the identifier
-// set that are no longer produced, and stamps the watermark. It is the keyed
-// twin of rebuildSupplyChainImpactWinnersSQL: the same changed/upserted/deleted
-// shape and the same row comparison, restricted to the identifier set. $1 is
-// the stamp candidate: the DB-clock tick stamp S when the log drained, or
-// the horizon H = min(captured_at) of the remainder minus 1us when rows are
-// still queued (#10706). The stamp is GREATEST(previous, candidate), so the
-// watermark never regresses. It returns inserted, updated, deleted,
-// unchanged, the keys recomputed (winners now produced plus winners deleted),
-// and the previous watermark.
-var applyWinnersKeyedSQL = applyWinnersKeyedBodySQL + `
-INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
-VALUES (1, $1)
-ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)
-RETURNING
-    (SELECT count(*) FROM changed WHERE is_new),
-    (SELECT count(*) FROM changed WHERE NOT is_new),
-    (SELECT count(*) FROM deleted),
-    (SELECT count(*) FROM winners_now) - (SELECT count(*) FROM changed),
-    (SELECT count(*) FROM winners_now) + (SELECT count(*) FROM deleted),
-    (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
-`
-
-var applyWinnersKeyedBodySQL = `
-WITH winners_now AS (` + winnersKeyedSelectSQL + `),
-changed AS MATERIALIZED (
-    SELECT n.*, (w.canonical_key IS NULL) AS is_new
-    FROM winners_now AS n
-    LEFT JOIN supply_chain_impact_canonical_winners AS w
-      ON w.canonical_key = n.canonical_key
-    WHERE w.canonical_key IS NULL
-       OR ` + supplyChainImpactWinnerRowExpr("n") + ` IS DISTINCT FROM ` + supplyChainImpactWinnerRowExpr("w") + `
-),
-upserted AS (
-    INSERT INTO supply_chain_impact_canonical_winners (
-        canonical_key, ` + strings.Join(supplyChainImpactWinnerDataColumns, ", ") + `, materialized_at
-    )
-    SELECT
-        canonical_key, ` + strings.Join(supplyChainImpactWinnerDataColumns, ", ") + `, $1
-    FROM changed
-    ON CONFLICT (canonical_key) DO UPDATE SET
-        ` + supplyChainImpactWinnerConflictSet() + `
-),
-deleted AS (
-    DELETE FROM supply_chain_impact_canonical_winners AS w
-    WHERE ` + winnersStoredIdentMatch + `
-      AND NOT EXISTS (SELECT 1 FROM winners_now AS n WHERE n.canonical_key = w.canonical_key)
-    RETURNING 1
-)
-`
-
-// stampWinnersWatermarkSQL stamps the watermark candidate for a tick that
-// consumed nothing: $1 is the DB-clock tick stamp S when the log is empty, or
-// the horizon H = min(captured_at) minus 1us when rows landed after admission
-// (#10706). A watermark that only moves when something changed would make an
-// idle table read as stale. The stamp is GREATEST(previous, candidate), so the
-// watermark never regresses; it returns the one it replaced.
-// #nosec G101 -- SQL statement text, not a credential.
-const stampWinnersWatermarkSQL = `
-INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
-VALUES (1, $1)
-ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)
-RETURNING (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
-`
 
 // winnersKeyedStoredEstimateSQL estimates the stored winner count from the
 // planner statistics (reltuples is -1 until the table is first analyzed) and

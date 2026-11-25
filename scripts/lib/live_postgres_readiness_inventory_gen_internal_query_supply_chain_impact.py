@@ -24,6 +24,10 @@ TABLE = {
         "go/internal/query/supply/chain/impact/blank_repository_grant_live_test.go": (
             "TestBlankRepositoryGrantMatchesLegacyLive",
         ),
+        "go/internal/query/supply/chain/impact/explain_decide_first_live_test.go": (
+            "TestExplainUngrantedDecideFirstEqualsLegacyLive",
+            "TestExplainSelectorJITOffRevertsAfterTheExplainLive",
+        ),
         "go/internal/query/supply/chain/impact/explain_supports_live_test.go": (
             "TestExplainFromSupportsLive",
             "TestExplainFromSupportsSelectorAndPublicIDLive",

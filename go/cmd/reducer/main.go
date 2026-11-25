@@ -511,7 +511,10 @@ func buildReducerService(
 			DirtyLogReader:  postgres.NewSupplyChainImpactWinnersStore(database),
 			// #11117: every tick decides from the persisted winners contract,
 			// so a roll with an unchanged contract runs no full resweep.
-			Contract:     postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),
+			Contract: postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),
+			// #10880 PR-C1: the maintainer's inputs read the supports table, so
+			// every tick and the audit wait for its readiness.
+			SupportsGate: postgres.NewSupplyChainImpactWinnersStore(database),
 			LeaseManager: intentStore,
 			LeaseOwner:   defaultSupplyChainImpactWinnersLeaseOwner(),
 			Logger:       logger,

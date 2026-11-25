@@ -98,43 +98,13 @@ const priorGenerationSupplyChainImpactSQL = `(
     LIMIT 1
 )`
 
-// listStoredSupplyChainImpactFindingsQuery reads the active finding rows of the
-// generation being written and of the scope's previous generation: the rows the
-// pass may rewrite unchanged, the rows its retraction may tombstone, and the
-// baseline of a first pass. Tombstoned rows are deliberately absent, so a row a
-// pass derives again after a retraction looks new and counts as changed. No
-// array parameter: a generic plan turns a large keep set into a linear scan (see
-// retractSupersededSupplyChainImpactFindingsQuery). The fact kind is a literal,
-// not a parameter, so the planner can prove the predicate of the partial finding
-// indexes under a generic plan too. Arguments: $1 scope id, $2 generation id.
-const listStoredSupplyChainImpactFindingsQuery = `
-SELECT fact_id,
-       generation_id,
-       stable_fact_key,
-       COALESCE(payload #>> '{provenance,content_digest}', ''), COALESCE(payload #>> '{provenance,identity_digest}', ''),
-       COALESCE(payload ->> 'cve_id', ''),
-       COALESCE(payload ->> 'advisory_id', ''),
-       fencing_token,
-       COALESCE(payload #>> '{provenance,advisory_group_members}', '[]'),
-       COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active'),
-       COALESCE(payload #>> '{evidence_fact_ids}', '[]'),
-       COALESCE(payload ->> 'package_id', ''),
-       COALESCE(payload ->> 'repository_id', ''),
-       COALESCE(payload ->> 'subject_digest', '')
-FROM fact_records
-WHERE fact_kind = '` + supplyChainImpactFactKind + `'
-  AND scope_id = $1
-  AND is_tombstone = FALSE
-  AND generation_id IN ($2, ` + priorGenerationSupplyChainImpactSQL + `)
-`
-
-// listSupplyChainImpactCVEIDsQuery lists every CVE id the finding rows of the
-// generation being written and of the previous generation name, tombstoned rows
-// included, plus each row's advisory group member set (#10408). It runs only
-// for a recovery write: a retry cannot know what the attempt that died
-// retracted or what the new generation dropped. Arguments: $1 scope id,
-// $2 generation id.
-const listSupplyChainImpactCVEIDsQuery = `
+// listSupplyChainImpactCVEIDsFactsLegQuery lists every CVE id the finding fact
+// rows of the generation being written and of the previous generation name,
+// tombstoned rows included, plus each row's advisory group member set (#10408).
+// It is the transition leg of listSupplyChainImpactCVEIDsQuery (writer_retracted_keys.go):
+// the facts a retraction tombstoned before the retracted-keys table existed.
+// Arguments: $1 scope id, $2 generation id.
+const listSupplyChainImpactCVEIDsFactsLegQuery = `
 SELECT DISTINCT COALESCE(payload ->> 'cve_id', ''),
        COALESCE(payload #>> '{provenance,advisory_group_members}', '[]')
 FROM fact_records
@@ -166,44 +136,6 @@ type storedFinding struct {
 	// keys it tombstones, so the upsert capture skips the keys the same
 	// pass retires and one pass stages one dirty row per key (#11411).
 	packageID, repositoryID, subjectDigest string
-}
-
-// readStoredSupplyChainImpactFindings returns the active rows of the generation
-// being written and of the scope's previous generation.
-func readStoredSupplyChainImpactFindings(
-	ctx context.Context,
-	tx SupplyChainImpactTx,
-	scopeID string,
-	generationID string,
-) ([]storedFinding, error) {
-	rows, err := tx.QueryContext(ctx, listStoredSupplyChainImpactFindingsQuery, scopeID, generationID)
-	if err != nil {
-		return nil, fmt.Errorf("read stored supply chain impact findings: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var stored []storedFinding
-	for rows.Next() {
-		var row storedFinding
-		var membersRaw, evidenceRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw, &row.packageID, &row.repositoryID, &row.subjectDigest); err != nil {
-			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
-		}
-		members, err := parseAdvisoryGroupMembers(membersRaw)
-		if err != nil {
-			return nil, fmt.Errorf("decode stored supply chain impact finding members: %w", err)
-		}
-		row.members = members
-		evidence, err := parseEvidenceFactIDs(evidenceRaw)
-		if err != nil {
-			return nil, fmt.Errorf("decode stored supply chain impact finding evidence fact ids: %w", err)
-		}
-		row.evidenceFactIDs = evidence
-		stored = append(stored, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate stored supply chain impact findings: %w", err)
-	}
-	return stored, nil
 }
 
 // changedCVEIDs returns the sorted CVE ids a pass changed, unioned with the
@@ -450,15 +382,15 @@ func readSupplyChainImpactCVEIDs(ctx context.Context, tx SupplyChainImpactTx, sc
 	return sortedSetKeys(ids), nil
 }
 
-// listSupplyChainImpactGroupIDsQuery lists the (cve_id, advisory_id) pair
-// of every finding row of the generation being written and of the previous
-// generation, tombstoned rows included. It is the recovery companion of
-// listSupplyChainImpactCVEIDsQuery for the advisory-group projection
-// (#10411): a retry whose fan-out died with the previous attempt owes a
-// projection for every group the scope's rows name, including CVE-less
-// groups the CVE-only recovery read cannot name. Arguments: $1 scope id,
-// $2 generation id.
-const listSupplyChainImpactGroupIDsQuery = `
+// listSupplyChainImpactGroupIDsFactsLegQuery lists the (cve_id, advisory_id)
+// pair of every finding fact row of the generation being written and of the
+// previous generation, tombstoned rows included. It is the transition leg of
+// listSupplyChainImpactGroupIDsQuery (writer_retracted_keys.go), the recovery
+// companion of the CVE read for the advisory-group projection (#10411): a retry
+// whose fan-out died with the previous attempt owes a projection for every group
+// the scope's rows name, including CVE-less groups the CVE-only recovery read
+// cannot name. Arguments: $1 scope id, $2 generation id.
+const listSupplyChainImpactGroupIDsFactsLegQuery = `
 SELECT DISTINCT COALESCE(payload ->> 'cve_id', ''), COALESCE(payload ->> 'advisory_id', '')
 FROM fact_records
 WHERE fact_kind = '` + supplyChainImpactFactKind + `'

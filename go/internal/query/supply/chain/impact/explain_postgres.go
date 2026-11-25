@@ -139,6 +139,7 @@ func (s PostgresFindingStore) explanationSnapshot(
 			return s, nil, fmt.Errorf("begin supply chain impact explanation snapshot: %w", err)
 		}
 		s.reader = tx
+		s.inSnapshot = true
 		return s, func(success bool) error {
 			if success {
 				return tx.Commit()
@@ -152,6 +153,7 @@ func (s PostgresFindingStore) explanationSnapshot(
 			return s, nil, fmt.Errorf("begin supply chain impact explanation snapshot: %w", err)
 		}
 		s.reader = legacyFindingQueryer{database: tx}
+		s.inSnapshot = true
 		return s, func(success bool) error {
 			if success {
 				return tx.Commit()
@@ -173,7 +175,32 @@ func (s PostgresFindingStore) loadExplanationFindingsByRoute(
 	args []any,
 ) ([]supplyChainImpactExplanationCandidate, error) {
 	defer observeRoute(ctx, s.Instruments, route)()
+	if route == RouteSupportsSelector && s.inSnapshot {
+		// The decide-first statement does 2 to a few dozen rows of work, but its plan cost is an
+		// estimate over branches that never run and can pass jit_above_cost; JIT then spends more
+		// compiling than the statement runs (lab: 106 ms of 117 ms). Off for this transaction only,
+		// set in the snapshot already open, right before this statement, and gone at its commit or
+		// rollback (arbiter ruling item-f-identity 4.1). The other explain statements are untouched.
+		if err := s.switchSnapshotJITOff(ctx); err != nil {
+			return nil, err
+		}
+	}
 	return s.loadSupplyChainImpactExplanationFindings(ctx, query, args)
+}
+
+// switchSnapshotJITOff runs the transaction-local jit switch on the explain snapshot.
+func (s PostgresFindingStore) switchSnapshotJITOff(ctx context.Context) error {
+	rows, err := s.queryer().QueryContext(ctx, jitOffSQL)
+	if err != nil {
+		return fmt.Errorf("set jit off for the explain snapshot: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("set jit off for the explain snapshot: %w", err)
+	}
+	return nil
 }
 
 func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(

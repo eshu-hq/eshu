@@ -25,8 +25,9 @@ import (
 //   - Any other granted lookup drives from the grant, as two index arms, so a
 //     selector over a large grant never scans the table.
 //
-// An ungranted selector or identity lookup without an image reference has no
-// supports read yet (the table has no selector index) and stays on the legacy read.
+// An ungranted selector lookup that names a CVE, advisory, repository or package
+// drives from that key's own index (ExplainFindingUngrantedByKeyQuery); an ungranted
+// lookup with no indexed selector keeps the legacy read.
 
 // supportsExplainOverrideLateral is the operator override probe of the explain
 // reads. Unlike the list's, it returns the override payload, which the explain
@@ -173,6 +174,46 @@ var ExplainFindingByPublicIDFromSupportsQuery = mustBuildExplainFromSupportsQuer
 var ExplainFindingFromSupportsQuery = mustBuildExplainFromSupportsQuery(
 	supportsExplainGrantArms, "", "", supportsExplainIdentityPredicate)
 
+// explainDrivingKey names the selector an ungranted explain drives its read from.
+type explainDrivingKey string
+
+const (
+	explainKeyNone     explainDrivingKey = ""
+	explainKeyCVE      explainDrivingKey = "cve"
+	explainKeyAdvisory explainDrivingKey = "advisory"
+)
+
+// ExplainFindingUngrantedByKeyQuery is the ungranted selector or identity explain, one
+// statement per driving key (explain_decide_first.go): it streams the narrow support tuples
+// of the key's own partial btree and decides none, one or ambiguous before it computes any
+// winner. Two canonical keys return the two hit rows and nothing else; one key ranks its copies
+// and runs the winner CTEs over the best authorized copy. A key without an entry has no index to
+// drive from and keeps the legacy read.
+var ExplainFindingUngrantedByKeyQuery = func() map[explainDrivingKey]string {
+	queries := make(map[explainDrivingKey]string, len(explainKeyLegs))
+	for key := range explainKeyLegs {
+		queries[key] = mustBuildExplainDecideFirstQuery(key)
+	}
+	return queries
+}()
+
+// ungrantedExplainDrivingKey picks the selector an ungranted explain drives from, in a fixed
+// order (CVE, advisory-or-CVE). It returns explainKeyNone for every other call, which keeps the
+// legacy selector read: a call with a finding id and a package, repository or subject digest but no
+// CVE or advisory, a bare finding id, and a subject digest alone. The handler needs a CVE or an
+// advisory unless it is given a finding id, so a repository- or package-driven statement would be
+// reachable only as the identity fallback; that fallback reads its whole fence and stays on the
+// legacy read until the identity-first statement and its canonical-key index land (separate PR).
+func ungrantedExplainDrivingKey(filter packet.ExplanationFilter) explainDrivingKey {
+	switch {
+	case filter.CVEID != "":
+		return explainKeyCVE
+	case filter.AdvisoryID != "":
+		return explainKeyAdvisory
+	}
+	return explainKeyNone
+}
+
 // supportsExplainImageFence is the ungranted selector lookup with an image
 // reference: the candidates come from the image partial index through a
 // MATERIALIZED fetch, the same fence the list read pins, so the planner cannot
@@ -211,18 +252,20 @@ type explainRoute struct {
 //     pick across scopes and cannot answer a grant, and a finding id a granted
 //     list returned must explain with the same payload;
 //   - an ungranted public-id lookup probes supports by finding id; a miss
-//     falls back to the legacy identity read, or to the image read when the call
-//     names an image reference, because supports has no index for an ungranted
-//     fact-id or canonical-key lookup (the identity read moves to supports in
-//     PR-C on its own measured index);
+//     falls back to the selector read below, or to the image read when the call
+//     names an image reference;
 //   - an ungranted selector lookup with an image reference reads supports through
 //     the image partial index, filter then pick;
-//   - an ungranted selector lookup without one keeps the legacy read. The
-//     arbiter's contract S reads it from supports through the cve and advisory
-//     indexes of PR-B2b, so it lands after those migrations; the winners table
-//     cannot name its candidates (a mixed cve_id key, a second key that matches
-//     only on a lower copy, and a replaced winning support each give a wrong
-//     answer).
+//   - an ungranted selector lookup without one that names a CVE or an advisory drives from
+//     that key: it streams the narrow support tuples matching the key and decides none, one or
+//     ambiguous before any winner is computed (explain_decide_first.go); every other selector,
+//     the identity filter and the per-candidate authority probe apply to those candidates (the
+//     winners table cannot name its candidates: a mixed cve_id key, a second key that matches only
+//     on a lower copy, and a replaced winning support each give a wrong answer). It runs under a
+//     transaction-local jit = off inside the snapshot already open. Every other ungranted selector
+//     or identity call keeps the legacy read: a finding id with a package, repository or subject
+//     digest and no CVE or advisory, a bare finding id, a subject digest alone. With the gate on,
+//     such a call counts the legacy route.
 func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) explainRoute {
 	legacy := explainRoute{
 		publicID: ExplainFindingByPublicIDQuery, selector: ExplainFindingQuery,
@@ -238,9 +281,14 @@ func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) expl
 		}
 	}
 	route := explainRoute{
-		supports: filter.FindingID != "" || filter.ImageRef != "",
+		supports: true,
 		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingQuery,
 		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteLegacy,
+	}
+	// A selector with an index drives from it (key-first); without one the lookup
+	// keeps the legacy read.
+	if key := ungrantedExplainDrivingKey(filter); key != explainKeyNone {
+		route.selector, route.selectorRoute = ExplainFindingUngrantedByKeyQuery[key], RouteSupportsSelector
 	}
 	// One exception to "the identity lookup stays legacy": a finding id that misses
 	// the public-id probe on a call that also names an image reference runs the image
@@ -250,9 +298,6 @@ func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) expl
 	// supports_image; legacy counts only statements that read the fact table.
 	if filter.ImageRef != "" {
 		route.selector, route.selectorRoute = ExplainFindingFromImageQuery, RouteSupportsImage
-	}
-	if filter.FindingID == "" && filter.ImageRef == "" {
-		return legacy
 	}
 	return route
 }

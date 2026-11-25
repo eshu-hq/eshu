@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,12 +71,27 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), false, $5::j
 		id, scope, scope+"/active", facts.ReducerSupplyChainImpactFindingFactKind, string(body)); err != nil {
 		t.Fatalf("seed fact %s: %v", id, err)
 	}
+	winnersLiveSyncSupports(t, ctx, db)
+}
+
+// winnersLiveSyncSupports brings the supports table to what the impact writer would
+// have left for the finding facts as they are now (#10880 PR-C1): the winners
+// maintainer reads supports, and in production the writer changes facts and supports
+// in one transaction, so a proof that changes facts with raw SQL syncs afterwards.
+func winnersLiveSyncSupports(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("sync supports from facts: %v", err)
+	}
 }
 
 func winnersLiveExec(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) {
 	t.Helper()
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		t.Fatalf("exec %q: %v", query, err)
+	}
+	if strings.Contains(query, "fact_records") {
+		winnersLiveSyncSupports(t, ctx, db)
 	}
 }
 
