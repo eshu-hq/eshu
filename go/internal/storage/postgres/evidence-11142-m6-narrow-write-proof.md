@@ -98,6 +98,35 @@ held-lease tick reports Skipped and writes nothing); three writer passes
 racing the tick lose no update (parity with a fresh recompute); deadlocks 0
 with no serialization (writers and ticks overlap).
 
+## RED-first provenance (Box 1 bars)
+
+The bars the write-bar test enforces were each observed to fail before
+they were observed to pass; nothing below is retyped from memory:
+
+- Mutation control (near-miss RED): the control rewrite (no-op) is
+  asserted to keep the digest stable while a single flipped ranking
+  input must move it with the winner count unchanged. The lane's RED
+  run exited 1 on the no-op rewrite mutant; the committed test
+  (`TestSupplyChainImpactWinnersNarrowNearMissSingleFlipLive`) asserts
+  both directions live on every run, and the seeded pair below covers
+  the comparators.
+- Blindness guard (statio RED): the shipped probe asserts a nonzero
+  statio delta and fails loud otherwise —
+  `shipped probe recorded 0 statio block touches: the statistics-view
+  measurement is blind` — observed firing (exit 1) on a legacy
+  `pg_stat_io_*` measurement path before the test was fixed to read
+  `pg_stat_database` blks plus `pg_stat_force_next_flush`.
+- Shipped-shape drift (CI RED, PR #11404 contention gate): after the
+  #11400 two-step build landed, the un-mirrored test failed with
+  `ERROR: relation "winners_keyed_narrow" does not exist
+  (SQLSTATE 42P01)`; the fix mirrors `runKeyedOrFull` (narrow build +
+  analyze in the explaining transaction).
+- Seeded pair (committed, in-repo): `TestNarrowWriteBarSeededRedGreen`
+  trips the 4x comparator on an over-budget shape and on a blind zero
+  measurement, trips the deadlock bar on a nonzero count, and passes
+  the in-bar cases — a comparator that cannot fail, or one broken to
+  pass everything, fails this test.
+
 ## Observability Evidence:
 
 No new telemetry stages: the proof exercises the already-instrumented keyed
