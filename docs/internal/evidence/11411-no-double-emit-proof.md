@@ -8,7 +8,7 @@ drops retired keys from `CaptureWinnersDirtyFacts`, mirroring the retract
 tombstone predicate. No production query, lock, metric, or tick-shape change.
 
 - Performance Evidence: failing-first RED then GREEN on the post-#11400 tree.
-  RED pre-fix: `TestSupplyChainImpactWinnersDirtyStagesOneDirtyRow` fails
+  RED pre-fix: `TestWriteStagesOneDirtyRowWhenOnePassAddsAndRetiresTheSameKey` fails
   with the doubled capture (upsert names K while production retract stages K:
   2 dirty rows, one pass). GREEN post-fix: 4/4 subtests pass; mirror test
   `TestExcludeRetiredWinnersDirtyIdentifiersMirrorsTheRetraction` 7/7.
@@ -17,8 +17,9 @@ tombstone predicate. No production query, lock, metric, or tick-shape change.
   pair; full package suite green (`go test
   ./internal/reducer/supplychain/core/ -count=1` ok 2.35s, reducer tree ok
   7.29s), `go vet` clean. Terminal counts: zero deadlocks, zero production
-  diff beyond the writer exclusion (9 files, all under
-  `go/internal/reducer/supplychain/core/`). Why safe: the exclusion mirrors
+  diff beyond the writer exclusion (9 files under
+  `go/internal/reducer/supplychain/core/`, the live-test expectation update
+  in `go/internal/storage/postgres/`, plus this note). Why safe: the exclusion mirrors
   the retract predicate on all six tombstone axes (generation, keep set,
   fencing token, scoped stamp, active-only, partial evidence); key derivation
   matches the SQL RETURNING rule; independent review verdict MERGE-READY with
