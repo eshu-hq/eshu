@@ -3,6 +3,8 @@
 
 import re
 
+from postgres_scheduled_contract import EXPECTED_POSTGRES_SERVICE
+
 ROOT_KEYS = frozenset({"name", "on", "permissions", "concurrency", "jobs"})
 JOB_KEYS = frozenset({"if", "runs-on", "timeout-minutes", "services", "steps", "needs"})
 STEP_KEYS = frozenset({"uses", "with", "run", "env", "working-directory", "if"})
@@ -145,6 +147,14 @@ ALWAYS_STEPS = frozenset({
 })
 
 
+def active_lines(text: str) -> list[str]:
+    """Return non-empty, non-comment lines in order."""
+    return [
+        line for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
 def canonical_keys(text: str, indent: int, allowed: frozenset[str]) -> dict[str, str]:
     """Read literal keys at one indentation level and reject YAML aliases."""
     entries: dict[str, str] = {}
@@ -221,11 +231,16 @@ def verify_canonical_workflow(workflow: str) -> None:
                      f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job}') }}}}")
         if keys.get("if") != condition:
             raise ValueError(f"conditional scheduled live job: {job}")
+        if keys.get("runs-on") != "    runs-on: ubuntu-24.04":
+            raise ValueError(f"non-fail-closed workflow runner: {job}")
         if job in SERVICE_JOBS:
             if set(keys) != {"if", "runs-on", "timeout-minutes", "services", "steps"}:
                 raise ValueError(f"non-fail-closed workflow job: {job}")
             if block.count("    services:\n") != 1:
                 raise ValueError(f"non-fail-closed workflow services: {job}")
+            svc = block.split("    services:\n", 1)[1].split("    steps:\n", 1)[0]
+            if active_lines(svc) != EXPECTED_POSTGRES_SERVICE:
+                raise ValueError(f"pinned PostgreSQL service block mismatch: {job}")
         elif job == "scheduled-aggregate":
             if set(keys) != {"if", "runs-on", "timeout-minutes", "steps", "needs"}:
                 raise ValueError(f"non-fail-closed workflow job: {job}")
@@ -253,6 +268,25 @@ def verify_canonical_workflow(workflow: str) -> None:
                     if name == "Retain hosted proof bundle":
                         raise ValueError("non-fail-closed artifact workflow step")
                     raise ValueError(f"non-fail-closed conditional workflow step: {name}")
+            if name == "Check out repository":
+                if active_lines(step) != [
+                    "        uses: actions/checkout@v5",
+                    "        with:",
+                    "          persist-credentials: false",
+                ]:
+                    raise ValueError("non-fail-closed checkout step")
+            if name == "Set up Go":
+                if active_lines(step) != [
+                    "        uses: actions/setup-go@v6",
+                    "        with:",
+                    "          go-version-file: go/go.mod",
+                    "          cache-dependency-path: go/go.sum",
+                    "          cache: false",
+                ]:
+                    raise ValueError("non-fail-closed Go setup action")
+            if name == "Pre-warm Go modules":
+                if active_lines(step) != ["        run: scripts/ci/go-mod-download-retry.sh"]:
+                    raise ValueError("non-fail-closed Go module pre-warm step")
 
 
 def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]],
@@ -289,3 +323,177 @@ def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]],
         raise ValueError("scheduled workflow needs the same live job")
     if re.search(r"(?m)^\s*continue-on-error:", jobs[1]):
         raise ValueError("scheduled live job cannot use continue-on-error")
+
+
+def verify_setup_steps(setup_steps: list[str]) -> None:
+    """Require exact harness commands and hosted manifest recording."""
+    bootstrap = [
+        step for step in setup_steps
+        if step.startswith(" Check exact enrollment and negative cases\n")
+    ]
+    if len(bootstrap) != 1:
+        raise ValueError("scheduled runner harness step missing")
+    expected_harness = [
+        " Check exact enrollment and negative cases",
+        "        run: |",
+        "          python3 scripts/test-postgres-scheduled-runner.py",
+        "          python3 scripts/test-postgres-scheduled-rerun.py",
+        "          python3 scripts/test-postgres-scheduled-matrix.py",
+        "          python3 scripts/test-postgres-scheduled-fragments.py",
+        "          python3 scripts/test-postgres-scheduled-ledger-policy.py",
+        "          python3 scripts/lib/postgres_scheduled_runner.py",
+    ]
+    bootstrap_lines = [
+        line for line in bootstrap[0].splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if bootstrap_lines != expected_harness:
+        raise ValueError("scheduled runner harness command missing or altered")
+    if re.search(r"(?m)^\s*if:", bootstrap[0]):
+        raise ValueError("conditional scheduled runner harness step")
+    _, manifest_step = named_step(setup_steps, "Record hosted proof manifest")
+    expected_manifest = [
+        " Record hosted proof manifest",
+        "        env:",
+        "          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}",
+        "          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
+        "        run: |",
+        "          set -euo pipefail",
+        '          checkout_sha="$(git rev-parse HEAD)"',
+        '          reviewed_head_sha="${PR_HEAD_SHA:-$checkout_sha}"',
+        "          postgres_identity=\"$(docker exec \"$POSTGRES_CONTAINER\" "
+        "psql -v ON_ERROR_STOP=1 -At -U eshu -d postgres -c 'SELECT version()')\"",
+        "          python3 scripts/lib/postgres_scheduled_runner.py \\",
+        '            --write-manifest "${RUNNER_TEMP}/manifest.json" \\',
+        '            --event "${GITHUB_EVENT_NAME}" \\',
+        '            --run-id "${GITHUB_RUN_ID}" \\',
+        '            --run-attempt "${GITHUB_RUN_ATTEMPT}" \\',
+        "            --run-url \"https://github.com/${GITHUB_REPOSITORY}/actions/"
+        "runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}\" \\",
+        '            --reviewed-head-sha "$reviewed_head_sha" \\',
+        '            --checkout-sha "$checkout_sha" \\',
+        '            --event-sha "${GITHUB_SHA}" \\',
+        '            --backend-identity "$postgres_identity"',
+    ]
+    manifest_actual = [
+        line for line in manifest_step.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if manifest_actual != expected_manifest:
+        raise ValueError("hosted proof manifest command or identity missing")
+    if re.search(r"(?m)^\s*if:", manifest_step):
+        raise ValueError("conditional hosted proof manifest step")
+
+
+FRESHNESS_SCALE_PREAMBLE = (
+    "          ESHU_RETENTION_TIMING_MODE=build go test -race -p=1 -count=1 "
+    "-timeout=10m ./internal/storage/postgres/freshness/links -run '^TestRetentionTimingP8$'",
+    "          docker exec \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-U eshu -d postgres -c 'DROP DATABASE IF EXISTS eshu_freshness_scale WITH (FORCE)'",
+    "          docker exec \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-U eshu -d postgres -c 'CREATE DATABASE eshu_freshness_scale'",
+    "          docker exec -i \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/001_ingestion_scopes.sql",
+    "          docker exec -i \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/002_scope_generations.sql",
+    "          python3 -c 'import re; path=\"internal/storage/postgres/migrations/003_fact_records.sql\"; "
+    "statements=[s.strip() for s in open(path).read().split(\";\")]; "
+    "keep=[s for s in statements if s and not re.match(r\"(?is)^(--[^\\n]*\\n\\s*)*CREATE\\s+(UNIQUE\\s+)?INDEX\", s)]; "
+    "print(\";\\n\".join(keep) + \";\")' | docker exec -i \"${{ job.services.postgres.id }}\" "
+    "psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale",
+    "          docker exec -i \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/136_changed_since_link_ledger.sql",
+    "          docker exec -i \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-q -U eshu -d eshu_freshness_scale < internal/storage/postgres/freshness/links/testdata/7127-link-writer-fixture.sql",
+    "          docker exec \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-U eshu -d eshu_freshness_scale -c \"CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx "
+    "ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC)\"",
+    "          docker exec \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-U eshu -d eshu_freshness_scale -c \"CREATE INDEX IF NOT EXISTS fact_records_scope_generation_keyset_idx "
+    "ON fact_records (scope_id, generation_id, observed_at, fact_id)\"",
+    "          docker exec \"${{ job.services.postgres.id }}\" psql -v ON_ERROR_STOP=1 "
+    "-U eshu -d eshu_freshness_scale -c 'ANALYZE'",
+)
+
+GROUP_EXTRA_ENVS: dict[str, tuple[tuple[str, str], ...]] = {
+    "admin": (("ESHU_ADMIN_REPLAY_FENCE_LIVE", '"1"'),),
+    "crossplane": (("ESHU_CROSSPLANE_REDRIVE_PROOF_DISPOSABLE", "'1'"),),
+    "claim": (
+        ("ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE", "'1'"),
+        ("ESHU_POSTGRES_DSN", "postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable"),
+        ("ESHU_REDUCER_FAIRNESS_PROOF_DSN", "postgres://eshu:change-me@localhost:15432/eshu_claim_scheduled?sslmode=disable"),
+    ),
+    "fanout": (
+        ("ESHU_REDUCER_FAIRNESS_PROOF_DSN", "postgres://eshu:change-me@localhost:15432/eshu_fanout_scheduled?sslmode=disable"),
+    ),
+    "search": (("ESHU_SEARCH_INDEX_PARTITION_LIVE", '"1"'),),
+    "readiness": (
+        ("ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE", "'1'"),
+        ("ESHU_POSTGRES_DSN", "postgres://eshu:change-me@localhost:15432/eshu_readiness_scheduled?sslmode=disable"),
+    ),
+    "ack_family": (
+        ("ESHU_POSTGRES_DSN", "postgres://eshu:change-me@localhost:15432/eshu_ack_scheduled?sslmode=disable"),
+    ),
+    "freshness_links_a": (("ESHU_7127_W11_COST", '"1"'),),
+    "freshness_links_scale": (
+        ("ESHU_7127_W11_COST", '"1"'),
+        ("ESHU_RETENTION_TIMING_DSN", "postgres://eshu:change-me@localhost:15432/eshu_freshness_scheduled?sslmode=disable"),
+        ("ESHU_RETENTION_TIMING_LABEL", '"freshness-links-scheduled"'),
+        ("ESHU_RETENTION_TIMING_FIXTURES", '"link"'),
+        ("ESHU_RETENTION_TIMING_FIXTURE", '"link"'),
+        ("ESHU_RETENTION_TIMING_MODE", '"run"'),
+        ("ESHU_CHANGED_SINCE_LINK_SCALE_DSN", "postgres://eshu:change-me@localhost:15432/eshu_freshness_scale?sslmode=disable"),
+        ("ESHU_CHANGED_SINCE_LINK_SCALE_BASE_REF", '"HEAD"'),
+        ("ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS", '"1"'),
+        ("ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS", '"1"'),
+        ("ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE", '"30m"'),
+        ("ESHU_CHANGED_SINCE_LINK_SCALE_PROOF", '"p3"'),
+    ),
+}
+
+
+def verify_proof_step_exact(
+    group: str, step: str, package_path: str, timeout: str, arguments: str,
+    dsns: dict[str, str], databases: dict[str, str], admin_envs: dict[str, tuple[str, ...]],
+) -> None:
+    """Require exact working-directory, env map, and run lines for a proof step."""
+    lines = active_lines(step)
+    if len(lines) < 4 or lines[1] != "        working-directory: go" or lines[2] != "        env:":
+        raise ValueError(f"non-fail-closed proof step header for {group}")
+    try:
+        run_index = lines.index("        run: |")
+    except ValueError as err:
+        raise ValueError(f"non-fail-closed proof step run block for {group}") from err
+    expected_env: set[str] = set()
+    if group in dsns:
+        dsn = f"postgres://eshu:change-me@localhost:15432/{databases[group]}?sslmode=disable"
+        expected_env.add(f"          {dsns[group]}: {dsn}")
+        for key, value in GROUP_EXTRA_ENVS.get(group, ()):
+            expected_env.add(f"          {key}: {value}")
+    else:
+        for prefix in admin_envs[group]:
+            expected_env.add(f"          {prefix}_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable")
+            expected_env.add(f'          {prefix}_DISPOSABLE: "1"')
+    actual_env = lines[3:run_index]
+    if len(actual_env) != len(set(actual_env)) or set(actual_env) != expected_env:
+        raise ValueError(f"non-fail-closed proof step env for {group}")
+    expected_run = [
+        "          set -euo pipefail",
+        '          test -z "${GOFLAGS:-}"',
+        '          test -z "${GOWORK:-}"',
+        '          effective_config="$(go env GOFLAGS GOWORK)"',
+        '          test -z "$effective_config"',
+        '          proof_status="$(git -C .. status --porcelain --untracked-files=all)"',
+        '          test -z "$proof_status"',
+        *(FRESHNESS_SCALE_PREAMBLE if group == "freshness_links_scale" else ()),
+        f'          selector="$(python3 ../scripts/lib/postgres_scheduled_runner.py --selector --group {group})"',
+        f"          go test -json -race -p=1 -count=1 -timeout={timeout} {package_path} "
+        f'-run "${{selector}}"{arguments} | tee "${{RUNNER_TEMP}}/{group}.jsonl"',
+        f'          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${{RUNNER_TEMP}}/{group}.jsonl" --group {group}',
+        '          effective_config="$(go env GOFLAGS GOWORK)"',
+        '          test -z "$effective_config"',
+        '          proof_status="$(git -C .. status --porcelain --untracked-files=all)"',
+        '          test -z "$proof_status"',
+    ]
+    if lines[run_index + 1:] != expected_run:
+        raise ValueError(f"non-fail-closed proof step command body for {group}")

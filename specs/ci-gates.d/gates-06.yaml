@@ -272,9 +272,9 @@ gates:
     name: MCP client-auth doc lockstep guard
     category: exactness
     layer: contract
-    purpose: "Checks the MCP client-auth doc stays word-for-word in step with the mcpsetup Go source; advisory, wired into the static-contract matrix."
+    purpose: "Checks the MCP client-auth doc stays word-for-word in step with the mcpsetup Go source; wired into the static-contract matrix."
     tier: pre-pr
-    blocking: false
+    blocking: true
     triggers:
       - "docs/public/operate/mcp-client-auth.md"
       - "go/internal/cli/mcpsetup/doc_lockstep_test.go"

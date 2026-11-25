@@ -87,6 +87,47 @@ IMAGE = (
     "77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"
 )
 
+# Monotonic non-shrinkage floors: adding new proofs passes with zero churn;
+# consistently deleting a reviewed proof from both Go source and its JSON
+# fragment fails closed in verify_inventory.
+MIN_GROUP_COUNTS: dict[str, tuple[int, int]] = {
+    "admin": (6, 8),
+    "completion": (1, 1),
+    "reachability": (1, 6),
+    "secret_lines": (10, 30),
+    "crossplane": (5, 9),
+    "infra_inventory": (21, 36),
+    "disposable_gate": (1, 1),
+    "disposable_query": (9, 9),
+    "disposable_storage": (5, 8),
+    "ack_family": (22, 46),
+    "claim": (13, 36),
+    "liveness": (7, 18),
+    "fanout": (3, 3),
+    "search": (5, 8),
+    "readiness": (5, 8),
+    "containerimage": (8, 15),
+    "freshness_links_scale": (4, 4),
+    "freshness_links_a": (10, 35),
+    "freshness_links_b": (9, 21),
+}
+
+EXPECTED_POSTGRES_SERVICE = [
+    "      postgres:",
+    f"        image: {IMAGE}",
+    "        env:",
+    "          POSTGRES_DB: eshu",
+    "          POSTGRES_USER: eshu",
+    "          POSTGRES_PASSWORD: change-me",
+    "        ports:",
+    "          - 15432:5432",
+    "        options: >-",
+    '          --health-cmd "pg_isready -U eshu -d eshu"',
+    "          --health-interval 5s",
+    "          --health-timeout 5s",
+    "          --health-retries 20",
+]
+
 PR_PATHS = {
     ".github/actions/postgres-scheduled-bulk/action.yml",
     ".github/actions/postgres-scheduled-storage/action.yml",

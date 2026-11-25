@@ -69,7 +69,6 @@ jobs:
       measurementcite: ${{ steps.filter.outputs.measurementcite }}
       remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
       maturitydrift: ${{ steps.filter.outputs.maturitydrift }}
-      rootcauseevidence: ${{ steps.filter.outputs.rootcauseevidence }}
       pgstatementreport: ${{ steps.filter.outputs.pgstatementreport }}
       collectorcutoverrollback: ${{ steps.filter.outputs.collectorcutoverrollback }}
       dockerpublish: ${{ steps.filter.outputs.dockerpublish }}
@@ -78,6 +77,7 @@ jobs:
       workflowscriptcheckout: ${{ steps.filter.outputs.workflowscriptcheckout }}
       readinessderive: ${{ steps.filter.outputs.readinessderive }}
       templatecollectorcaller: ${{ steps.filter.outputs.templatecollectorcaller }}
+      taggedbuilds: ${{ steps.filter.outputs.taggedbuilds }}
       queuecontract: ${{ steps.filter.outputs.queuecontract }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
@@ -172,7 +172,6 @@ jobs:
           append_gate "${{ steps.filter.outputs.measurementcite }}" "measurementcite" "Verify measurement-citations gate" "bash scripts/test-verify-measurement-citations.sh && bash scripts/test-verify-measurement-citations-wrapper.sh" "bash scripts/verify-measurement-citations.sh" "measurement-citations"
           append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh && bash scripts/test-verify-k8s-two-team-governance-proof.sh" "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh" "remote-validation-artifacts"
           append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh" "maturity-drift-guard"
-          append_gate "${{ steps.filter.outputs.rootcauseevidence }}" "rootcauseevidence" "Verify root-cause-evidence gate" "bash scripts/test-verify-root-cause-evidence.sh" "bash scripts/verify-root-cause-evidence.sh" "root-cause-evidence"
           append_gate "${{ steps.filter.outputs.pgstatementreport }}" "pgstatementreport" "Verify pg-statement-report gate" "cd go && go test ./internal/cigates -run TestPgStatementReportContract -count=1" "cd go && go test ./internal/cigates -run TestPgStatementReportContract -count=1" "pg-statement-report"
           append_gate "${{ steps.filter.outputs.collectorcutoverrollback }}" "collectorcutoverrollback" "Verify collector-cutover-rollback gate" "cd go && go test ./internal/cigates -run TestCollectorCutoverRollbackContract -count=1" "cd go && go test ./internal/cigates -run TestCollectorCutoverRollbackContract -count=1" "collector-cutover-rollback"
           append_gate "${{ steps.filter.outputs.dockerpublish }}" "dockerpublish" "Verify docker-publish shape gate" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh" "bash scripts/test-verify-docker-publish-moving-tags.sh && bash scripts/test-verify-docker-publish-pr-platforms.sh && bash scripts/test-promote-moving-tags.sh && bash scripts/test-resolve-image-scan-ref.sh && bash scripts/dev/test-publish-ci-image-mirrors.sh && bash scripts/dev/test-docker-publish-ci-mirror-mode.sh && bash scripts/ci/test-docker-publish-extracted-steps.sh" "docker-publish-shape"

@@ -30,22 +30,20 @@ class InventoryFragmentTest(unittest.TestCase):
     """The index and every listed fragment form one closed source contract."""
 
     def test_committed_index_and_enrolled_groups(self) -> None:
-        """The reviewed inventory contains all 302 tests in 145 files."""
+        """The reviewed inventory covers every declared group without magic counts."""
         index = json.loads(runner.INVENTORY.read_text(encoding="utf-8"))
         self.assertEqual(index["version"], "postgres-scheduled-inventory/v1")
-        self.assertEqual(len(index["fragments"]), 19)
+        self.assertEqual(len(index["fragments"]), len(runner.PACKAGES))
         inventory = runner.load_inventory()
-        self.assertEqual(len(inventory), 145)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 302)
-        for group, files, tests in (
-            ("admin", 6, 8), ("secret_lines", 10, 30),
-            ("reachability", 1, 6), ("completion", 1, 1),
-            ("claim", 13, 36), ("liveness", 7, 18), ("fanout", 3, 3),
-            ("search", 5, 8), ("readiness", 5, 8),
-        ):
+        self.assertGreater(len(inventory), 0)
+        self.assertEqual(
+            {row["group"] for row in inventory.values()},
+            set(runner.PACKAGES),
+        )
+        for group in runner.PACKAGES:
             rows = [row for row in inventory.values() if row["group"] == group]
-            self.assertEqual((len(rows), sum(len(row["tests"]) for row in rows)),
-                             (files, tests))
+            self.assertGreater(len(rows), 0, group)
+            self.assertGreater(sum(len(row["tests"]) for row in rows), 0, group)
 
     def test_scale_drivers_live_beside_testdata_fixture(self) -> None:
         """#9391: the scale drivers moved with the fixture they drive."""
@@ -80,8 +78,8 @@ class InventoryFragmentTest(unittest.TestCase):
         inventory = runner.load_inventory()
         rows = {path: row for path, row in inventory.items()
                 if row["group"] == "containerimage"}
-        self.assertEqual(len(rows), 8)
-        self.assertEqual(sum(len(row["tests"]) for row in rows.values()), 15)
+        self.assertGreater(len(rows), 0)
+        self.assertGreater(sum(len(row["tests"]) for row in rows.values()), 0)
         fragment = (ROOT / runner.FRAGMENT).read_text()
         self.assertIn("go/internal/reducer/containerimage/*.go", fragment)
         action = (ROOT / runner.BULK_ACTION).read_text()
@@ -104,9 +102,7 @@ class InventoryFragmentTest(unittest.TestCase):
                     if path == ROOT / runner.BULK_ACTION:
                         return mutated
                     return original_read(path, *args, **kwargs)
-                digest = hashlib.sha256(mutated.encode()).hexdigest()
-                with mock.patch.object(Path, "read_text", read), \
-                     mock.patch.object(runner, "BULK_ACTION_SHA256", digest):
+                with mock.patch.object(Path, "read_text", read):
                     with self.assertRaises(ValueError):
                         runner.verify_inventory(ROOT, inventory)
 
@@ -191,15 +187,34 @@ class InventoryFragmentTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "source Test inventory"):
                 runner.verify_inventory(root, inventory)
             changed.write_bytes((ROOT / source).read_bytes())
+            # Consistent shrinkage (removing a test from both Go source and
+            # inventory) must fail closed via MIN_GROUP_COUNTS, while growth
+            # passes with zero count bumps.
+            multi = next(path for path, row in inventory.items()
+                         if len(row["tests"]) > 1)
+            multi_copy = root / multi
+            removed = inventory[multi]["tests"][-1]
+            shrunk = {
+                path: (dict(row, tests=row["tests"][:-1]) if path == multi else row)
+                for path, row in inventory.items()
+            }
+            multi_copy.write_text(
+                multi_copy.read_text().replace(f"func {removed}(", f"func helper_{removed}(", 1)
+            )
+            with self.assertRaisesRegex(ValueError, "shrank below floor"):
+                runner.verify_inventory(root, shrunk)
+            multi_copy.write_bytes((ROOT / multi).read_bytes())
             for old, new, message in (
                 ("CREATE DATABASE eshu_liveness_scheduled",
                  "CREATE DATABASE eshu_claim_scheduled", "fresh database"),
-                ("-run '^(TestFailBounds", "-run '^(TestMissing|TestFailBounds",
+                ("--selector --group claim", "--selector --group fanout",
                  "selector"),
                 ('ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"',
                  'ESHU_SEARCH_INDEX_PARTITION_LIVE: "0"', "search partition"),
                 ('${{ runner.temp }}/proof-bundle/readiness.jsonl\n', "", "artifact"),
-                ("--group fanout", "--group claim", "event verifier"),
+                ("--events \"${RUNNER_TEMP}/fanout.jsonl\" --group fanout",
+                 "--events \"${RUNNER_TEMP}/fanout.jsonl\" --group claim",
+                 "event verifier"),
                 ("    - name: Run claim proofs\n",
                  "    - name: Run claim proofs\n      if: false\n", "non-fail-closed"),
                 ("    - name: Run claim proofs\n",
@@ -239,11 +254,7 @@ class InventoryFragmentTest(unittest.TestCase):
                 self.assertIn(old, source)
                 changed_text = source.replace(old, new, 1)
                 subject.write_text(changed_text)
-                digest = hashlib.sha256(action.read_bytes()).hexdigest()
-                storage_digest = hashlib.sha256(storage.read_bytes()).hexdigest()
-                with self.subTest(message=message), mock.patch.object(
-                        runner, "BULK_ACTION_SHA256", digest), mock.patch.object(
-                        runner, "STORAGE_ACTION_SHA256", storage_digest), \
+                with self.subTest(message=message), \
                         self.assertRaisesRegex(ValueError, message):
                     runner.verify_inventory(root, inventory)
                 subject.write_text(source)
@@ -270,11 +281,8 @@ class InventoryFragmentTest(unittest.TestCase):
             # #9488: disposable_storage moved to the storage action.
             self.assertEqual(original.count(removed), 2)
             action.write_text(original.replace(removed, "", 1))
-            with mock.patch.object(
-                    runner, "BULK_ACTION_SHA256",
-                    hashlib.sha256(action.read_bytes()).hexdigest()):
-                with self.assertRaisesRegex(ValueError, "missing admin DSN"):
-                    runner.verify_inventory(root, inventory)
+            with self.assertRaisesRegex(ValueError, "missing admin DSN"):
+                runner.verify_inventory(root, inventory)
 
     def test_admin_replay_fence_opt_in_is_required(self) -> None:
         """The admin replay proof must run with its live fixture flag."""
@@ -294,11 +302,8 @@ class InventoryFragmentTest(unittest.TestCase):
             flag = '        ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"\n'
             self.assertEqual(original.count(flag), 1)
             action.write_text(original.replace(flag, "", 1))
-            with mock.patch.object(
-                    runner, "BULK_ACTION_SHA256",
-                    hashlib.sha256(action.read_bytes()).hexdigest()):
-                with self.assertRaisesRegex(ValueError, "admin replay fence opt-in missing"):
-                    runner.verify_inventory(root, inventory)
+            with self.assertRaisesRegex(ValueError, "admin replay fence opt-in missing"):
+                runner.verify_inventory(root, inventory)
 
     @mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "false"})
     def test_missing_new_stream_and_local_as_hosted_fail(self) -> None:
@@ -333,7 +338,13 @@ class InventoryFragmentTest(unittest.TestCase):
         """No setup command may change reviewed test bytes before proof."""
         workflow = (ROOT / runner.WORKFLOW).read_text(encoding="utf-8")
         mutations = (
+            ("    runs-on: ubuntu-24.04\n", "    runs-on: ubuntu-latest\n"),
+            ("          --health-retries 20\n",
+             "          --health-retries 20\n      sidecar:\n        image: alpine:latest\n"),
             ("        uses: actions/setup-go@v6\n", "        uses: actions/setup-go@v5\n"),
+            ("          cache: false\n", "          cache: true\n"),
+            ("          persist-credentials: false\n",
+             "          persist-credentials: false\n          ref: main\n"),
             ("        run: scripts/ci/go-mod-download-retry.sh\n",
              "        run: |\n          scripts/ci/go-mod-download-retry.sh\n"
              "          python3 -c 'print(1)'\n"),
@@ -346,6 +357,16 @@ class InventoryFragmentTest(unittest.TestCase):
             ("-c 'CREATE DATABASE eshu_crossplane_scheduled'\n",
              "-c 'CREATE DATABASE eshu_crossplane_scheduled'\n"
              "        run: python3 -c 'print(1)'\n"),
+            ("        ESHU_CROSSPLANE_REDRIVE_PROOF_DISPOSABLE: '1'\n",
+             "        ESHU_CROSSPLANE_REDRIVE_PROOF_DISPOSABLE: '1'\n"
+             "        BASH_ENV: /tmp/x\n"),
+            ("        set -euo pipefail\n        test -z \"${GOFLAGS:-}\"\n",
+             "        set -euo pipefail\n        set +e\n        test -z \"${GOFLAGS:-}\"\n"),
+            ("      shell: bash\n      run: |\n        set -euo pipefail\n",
+             "      run: |\n        set -euo pipefail\n"),
+            ('            --output-proof-bundle "${RUNNER_TEMP}/proof-bundle"\n',
+             '            --output-proof-bundle "${RUNNER_TEMP}/proof-bundle"\n'
+             "          python3 -c 'print(1)'\n"),
         )
         inventory = runner.load_inventory()
         with tempfile.TemporaryDirectory() as temporary:
@@ -375,7 +396,7 @@ class InventoryFragmentTest(unittest.TestCase):
         action = (ROOT / runner.BULK_ACTION).read_text(encoding="utf-8")
         match = re.search(
             r"(?ms)^    - name: Run Crossplane proofs\n.*?^      run: \|\n"
-            r"(.*?)(?=^        go test)", action)
+            r"(.*?)(?=^        selector=)", action)
         self.assertIsNotNone(match)
         script = "\n".join(line[8:] for line in match.group(1).splitlines())
         with tempfile.TemporaryDirectory() as temporary:

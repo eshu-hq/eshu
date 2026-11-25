@@ -108,17 +108,35 @@ class ToolsWorkflowTest(unittest.TestCase):
     def test_existing_blocking_cell_runs_image_regressions(self) -> None:
         """New image checks must run inside the unchanged Docker Hub gate cell."""
         source = WORKFLOW.read_text(encoding="utf-8")
-        # Non-image-check cells (ordinals are file order; older comments that
-        # numbered them differently went stale as cells were added/retired):
-        # mcpclientauthdoc (#10987), workflowscriptcheckout (#8008),
-        # readinessderive drift gate (#7859), collectorcutoverrollback test
-        # mirror (#8895), changelogunreleased (#9096), buildcacheprune (#9632,
-        # GHCR build-cache prune self-test), templatecollectorcaller (#10999,
-        # collector template thin-caller self-test), queuecontract (#11354,
-        # queue-contract coverage ledger gate).
-        # claudrules scope gate retired (#10448), not an image check, no longer counted.
-        # D13: route-coverage cell retired with the deleted go/cmd/api surface.
-        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 37)
+        wf = workflow()
+        filter_map = json.loads(subprocess.check_output(
+            ["yq", "-o=json", ".", str(ROOT / ".github/static-contract-filters.yml")],
+            text=True,
+        ))
+        gate_calls = [
+            line.strip() for line in source.splitlines()
+            if line.lstrip().startswith('append_gate "${{ steps.filter.outputs.')
+        ]
+        self.assertGreater(len(gate_calls), 0)
+        seen_keys: list[str] = []
+        changes_outputs = wf["jobs"]["changes"]["outputs"]
+        for call in gate_calls:
+            parts = call.split('"')
+            output_ref = parts[1]
+            key = parts[3]
+            expected_ref = "${{ steps.filter.outputs." + key + " }}"
+            self.assertEqual(output_ref, expected_ref, call)
+            self.assertIn(key, filter_map, f"missing filter entry for {key}")
+            self.assertIn(key, changes_outputs, f"missing changes output for {key}")
+            self.assertEqual(changes_outputs[key], expected_ref, key)
+            seen_keys.append(key)
+        self.assertEqual(len(seen_keys), len(set(seen_keys)), "duplicate append_gate keys")
+        self.assertEqual(set(seen_keys), set(filter_map), "filter keys and append_gate keys differ")
+        self.assertEqual(
+            set(changes_outputs) - {"matrix", "any"},
+            set(seen_keys),
+            "changes outputs and append_gate keys differ",
+        )
         cell = next(
             line for line in source.splitlines()
             if line.lstrip().startswith('append_gate "${{ steps.filter.outputs.dockerhublogin }}"')
@@ -134,15 +152,12 @@ class ToolsWorkflowTest(unittest.TestCase):
         self.assertIn('"Verify Docker Hub login gate"', cell)
         self.assertIn('"bash scripts/verify-dockerhub-login.sh"', cell)
 
-        changed_paths = workflow()["jobs"]["changes"]["steps"]
+        changed_paths = wf["jobs"]["changes"]["steps"]
         filter_step = next(step for step in changed_paths if step.get("id") == "filter")
         self.assertEqual(
             filter_step["with"]["filters"], ".github/static-contract-filters.yml"
         )
-        filters = json.loads(subprocess.check_output(
-            ["yq", "-o=json", ".", str(ROOT / ".github/static-contract-filters.yml")],
-            text=True,
-        ))["dockerhublogin"]
+        filters = filter_map["dockerhublogin"]
         for path in (
             "scripts/ci/tools.Dockerfile",
             "scripts/ci/test-tools-workflow.py",
