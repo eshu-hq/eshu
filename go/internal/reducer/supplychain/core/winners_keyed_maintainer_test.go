@@ -527,6 +527,7 @@ func TestWinnersMaintainerScannedCopiesSpanAndLogFields(t *testing.T) {
 	rebuilder := &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
 		Path: telemetry.SupplyChainImpactWinnersPathKeyed, Identifiers: 10, Keys: 12,
 		Bounded: true, Remaining: 7, ChunkIdentifiers: 10, ChunkKeptRows: 130, ChunkScannedCopies: 1870,
+		ChunkTruncatedBy: WinnersChunkTruncatedByScannedCopies,
 	}}
 	m := SupplyChainImpactWinnersMaintainer{
 		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
@@ -554,7 +555,22 @@ func TestWinnersMaintainerScannedCopiesSpanAndLogFields(t *testing.T) {
 	if !found {
 		t.Errorf("span attributes = %v, want chunk_scanned_copies", ended[0].Attributes())
 	}
+	var foundReason bool
+	for _, kv := range ended[0].Attributes() {
+		if string(kv.Key) == "chunk_truncated_by" {
+			foundReason = true
+			if got := kv.Value.AsString(); got != WinnersChunkTruncatedByScannedCopies {
+				t.Errorf("span attribute chunk_truncated_by = %q, want %q", got, WinnersChunkTruncatedByScannedCopies)
+			}
+		}
+	}
+	if !foundReason {
+		t.Errorf("span attributes = %v, want chunk_truncated_by (budget vs identifier-bound trips must be distinguishable)", ended[0].Attributes())
+	}
 	if line := logs.String(); !strings.Contains(line, `"chunk_scanned_copies":1870`) {
 		t.Errorf("log line %q is missing \"chunk_scanned_copies\":1870", line)
+	}
+	if line := logs.String(); !strings.Contains(line, `"chunk_truncated_by":"scanned_copies"`) {
+		t.Errorf("log line %q is missing \"chunk_truncated_by\":\"scanned_copies\"", line)
 	}
 }

@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"strings"
 	"testing"
 )
 
@@ -14,8 +13,10 @@ import (
 // lateral identifier probe twice — once to build the keyed active_facts and
 // again to count the pre-filter scanned copies — doubling the probe I/O on
 // the drain path while the dirty log held 50k+ rows. The scanned-copies count
-// must read the narrow temp table the build persisted, so the probe runs
-// once per tick and the #11308 signal reports the same number it always did.
+// must read the narrow temp table the build persisted, so each admitted
+// identifier's probe runs exactly once (Dec 6(ii) admits identifiers one at
+// a time into that same table) and the #11308 signal reports the same
+// number it always did.
 func TestKeyedTickScansIdentifierCopiesOnce(t *testing.T) {
 	t.Parallel()
 
@@ -25,14 +26,18 @@ func TestKeyedTickScansIdentifierCopiesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResweepWinnersKeyed() error = %v, want nil", err)
 	}
+	// The fake lists one identifier, so the budgeted admission probes
+	// exactly once. The whole-chunk CREATE the audit runs carries the same
+	// lateral body as DDL text (WITH NO DATA: never executed); only INSERTs
+	// into the narrow table are probe work.
 	probeRuns := 0
 	for _, q := range tx.queries {
-		if strings.Contains(q, "CROSS JOIN LATERAL") {
+		if isChunkNarrowProbeInsert(q) {
 			probeRuns++
 		}
 	}
 	if probeRuns != 1 {
-		t.Errorf("lateral identifier probe statements per tick = %d, want 1 (build persists narrow, count reads it)", probeRuns)
+		t.Errorf("narrow-probe INSERT statements per tick = %d, want 1 (one admitted identifier, one probe; the count reads the persisted rows)", probeRuns)
 	}
 	if res.ChunkScannedCopies != 187 {
 		t.Errorf("ChunkScannedCopies = %d, want 187 pre-filter copies the probe scanned", res.ChunkScannedCopies)

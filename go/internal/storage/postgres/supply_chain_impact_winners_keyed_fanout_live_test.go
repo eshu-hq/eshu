@@ -245,6 +245,13 @@ SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id FROM 
 		_ = tx.Rollback()
 		t.Fatalf("explain probe: %v", err)
 	}
+	plan := string(planJSON)
+	if strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
+		t.Errorf("the active-facts build touches the keyed winners index (the probe must run once, in the narrow build):\n%s", plan)
+	}
+	if hasSeqScanOn(t, planJSON, "fact_records") {
+		t.Errorf("the active-facts build seq-scans fact_records:\n%s", plan)
+	}
 	if err := tx.Commit(); err != nil {
 		t.Fatalf("commit probe transaction: %v", err)
 	}

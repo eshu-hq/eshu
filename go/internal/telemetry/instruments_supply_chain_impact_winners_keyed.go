@@ -405,11 +405,12 @@ func (i *Instruments) RecordSupplyChainImpactWinnersScopeRemainderConverted(ctx 
 }
 
 // RecordSupplyChainImpactWinnersWriteConflict counts one writer or tick
-// statement the database aborted with a write conflict (#10851). site must
-// be one of the SupplyChainImpactWinnersConflictSite* constants and class
-// one of deadlock or serialization_failure; an empty class records nothing,
-// and an unknown site is dropped so a typo'd caller cannot open a new
-// series. It is safe on a nil receiver and from any goroutine.
+// statement the database aborted with a write conflict (#10851) or with the
+// Dec 7 statement-timeout guard tripping. site must be one of the
+// SupplyChainImpactWinnersConflictSite* constants and class one of deadlock,
+// serialization_failure, or statement_timeout; an empty class records
+// nothing, and an unknown site is dropped so a typo'd caller cannot open a
+// new series. It is safe on a nil receiver and from any goroutine.
 func (i *Instruments) RecordSupplyChainImpactWinnersWriteConflict(ctx context.Context, site, class string) {
 	if i == nil || i.SupplyChainImpactWinnersWriteConflicts == nil || class == "" {
 		return

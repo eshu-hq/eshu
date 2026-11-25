@@ -39,11 +39,12 @@ stays 13,107; 200 x 5 = 1000 INSERT params).
 
 The diff touches no SQL and no settle predicate, so the sound S/H horizon,
 oldest-first chunk order, exact-applied delete, and scope-remainder conversion
-ordering are unchanged. Contract proof: `TestWinnersChunkDefaultBoundIs200`
-(failing-first: RED `{identifiers:1000}` before the revert, GREEN after) pins
-the 200 default, the parameter-ceiling headroom, and a saturated default-bound
-tick (200 admitted, truncated, one INSERT). The #10839 batch tests and the
-#11157 clamp tests, including the #11302 derived clamp assertion, pass
+ordering are unchanged. Contract proof: `TestWinnersChunkDefaults`
+(failing-first: RED `{identifiers:1000}` before the revert, GREEN after; renamed
+from `TestWinnersChunkDefaultBoundIs200` when Dec 6(ii) added the scanned-copies
+default) pins the 200 default, the parameter-ceiling headroom, and a saturated
+default-bound tick (200 admitted, truncated, one INSERT). The #10839 batch tests
+and the #11157 clamp tests, including the #11302 derived clamp assertion, pass
 unchanged.
 
 ## Observability Evidence (revert adds no telemetry):

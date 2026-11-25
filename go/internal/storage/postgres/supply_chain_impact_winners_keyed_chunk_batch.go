@@ -31,11 +31,21 @@ const maxWinnersKeyedChunkBatchIdents = 13107
 // order. An empty input is a caller bug: the chunk always inserts at least
 // the first identifier.
 func winnersKeyedChunkIdentBatch(idents []winnersKeyedChunkIdent) (string, []any, error) {
+	return winnersKeyedIdentBatch(insertWinnersKeyedChunkIdentPrefix, idents)
+}
+
+// winnersKeyedIdentBatch packs identifiers into one multi-row INSERT over
+// the prefix's temp table, with Postgres $n placeholders in row-major
+// order. The budgeted probe stages single identifiers through the same
+// builder, so the staged columns cannot drift from the chunk's. Above the
+// parameter ceiling it fails closed instead of sending an over-limit INSERT
+// to the server.
+func winnersKeyedIdentBatch(prefix string, idents []winnersKeyedChunkIdent) (string, []any, error) {
 	if len(idents) > maxWinnersKeyedChunkBatchIdents {
 		return "", nil, fmt.Errorf("winners keyed chunk identifiers %d exceeds Postgres parameter ceiling at %d rows", len(idents), maxWinnersKeyedChunkBatchIdents)
 	}
 	var query strings.Builder
-	query.WriteString(insertWinnersKeyedChunkIdentPrefix)
+	query.WriteString(prefix)
 	args := make([]any, 0, len(idents)*5)
 	for i, id := range idents {
 		if i > 0 {

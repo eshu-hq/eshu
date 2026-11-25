@@ -227,12 +227,14 @@ var winnersKeyedBuildIdentsStmts = []string{
 // the candidates the expansion reads, and the truncation decision is made on
 // identifiers.
 //
-// The chunk is the oldest-first prefix of the post-expansion identifier set
-// (#10706). The active_facts build probes per identifier over the 291
-// five-tuple keyed index (all five equalities are index conditions), and the
-// once-per-tick live_gens set keeps only live-generation copies (#10839),
-// so no candidate-row budget is needed. Per-triple probing has no access
-// path anymore: migration 293 retired that index.
+// The chunk is the oldest-first budgeted prefix of the post-expansion
+// identifier set (#10706, Dec 6(ii)): the identifier bound caps how many
+// identifiers a tick applies, and the scanned-copies budget caps how many
+// pre-filter copies the probe scans to apply them. The active_facts build
+// probes per identifier over the 291 five-tuple keyed index (all five
+// equalities are index conditions), and the once-per-tick live_gens set
+// keeps only live-generation copies (#10839). Per-triple probing has no
+// access path anymore: migration 293 retired that index.
 
 // buildWinnersKeyedActiveFactsSQL builds the keyed active_facts: the active
 // findings of exactly the identifiers in the identifier table.
@@ -286,15 +288,49 @@ var winnersKeyedBuildIdentsStmts = []string{
 // scanned-copies count reads rows instead of re-running the probe.
 const winnersKeyedNarrowTable = "winners_keyed_narrow"
 
-// buildWinnersKeyedNarrowSQL persists the identifier probe: one row per
-// pre-filter copy. The MATERIALIZED marker and OFFSET 0 guard are
-// load-bearing (an unguarded single-reference CTE inlines and flattens);
-// analyzeWinnersKeyedNarrowSQL plans the final fetch on real statistics.
-const buildWinnersKeyedNarrowSQL = `
-CREATE TEMP TABLE winners_keyed_narrow ON COMMIT DROP AS
-WITH narrow AS MATERIALIZED (
+// winnersKeyedBatchIdentsTable stages the one identifier the budgeted probe
+// admits next (Dec 6(ii)): probing from a one-row table keeps the shipped
+// lateral shape (same 291 index descent, same MATERIALIZED and OFFSET 0
+// guards) while the Go admission loop meters the scanned-copies budget one
+// identifier at a time.
+const winnersKeyedBatchIdentsTable = "winners_keyed_batch_idents"
+
+// createWinnersKeyedBatchIdentsSQL stages the next identifier's five-tuple
+// for the budgeted probe. Session-local to the tick transaction, like every
+// chunk table here.
+const createWinnersKeyedBatchIdentsSQL = `
+CREATE TEMP TABLE winners_keyed_batch_idents (
+    package_id text, repository_id text, subject_digest text, c0 text, advisory_id text
+) ON COMMIT DROP
+`
+
+// deleteWinnersKeyedBatchIdentsSQL empties the staging table before the next
+// identifier is staged, so each budgeted probe reads exactly one identifier.
+const deleteWinnersKeyedBatchIdentsSQL = `DELETE FROM ` + winnersKeyedBatchIdentsTable
+
+// insertWinnersKeyedBatchIdentPrefix heads the single-row INSERT that stages
+// the next identifier. One row never approaches the parameter ceiling; the
+// fail-closed batch builder below still packs it, so the staged columns
+// cannot drift from the chunk's.
+const insertWinnersKeyedBatchIdentPrefix = `INSERT INTO ` + winnersKeyedBatchIdentsTable + ` VALUES `
+
+// winnersKeyedNarrowColumns is the probe output column list: the copy
+// identity the active-facts build joins on. The narrow CREATE below declares
+// these same three columns (the DDL parity scan reads only literal SQL);
+// TestWinnersScannedCopiesProbeMatchesActiveFactsProbe pins the agreement.
+const winnersKeyedNarrowColumns = `fact_id, scope_id, generation_id`
+
+// winnersKeyedNarrowProbeSelect renders the identifier probe body over an
+// identifier source table: one row per pre-filter copy. The MATERIALIZED
+// marker and OFFSET 0 guard are load-bearing (an unguarded single-reference
+// CTE inlines and flattens). Every probe shape derives from this one
+// function, so the tick's budgeted per-identifier probes, the audit's
+// whole-chunk build, and the scanned-copies count attribution cannot
+// silently split (see TestWinnersScannedCopiesProbeMatchesActiveFactsProbe).
+func winnersKeyedNarrowProbeSelect(identsTable string) string {
+	return `WITH narrow AS MATERIALIZED (
     SELECT fact.fact_id, fact.scope_id, fact.generation_id
-    FROM ` + winnersKeyedIdentsTable + ` AS ident
+    FROM ` + identsTable + ` AS ident
     CROSS JOIN LATERAL (
         SELECT f.fact_id, f.scope_id, f.generation_id
         FROM fact_records AS f
@@ -308,8 +344,44 @@ WITH narrow AS MATERIALIZED (
         OFFSET 0
     ) AS fact
 )
-SELECT fact_id, scope_id, generation_id FROM narrow
+SELECT ` + winnersKeyedNarrowColumns + ` FROM narrow
 `
+}
+
+// buildWinnersKeyedNarrowSQL persists the identifier probe over the whole
+// identifier set: one row per pre-filter copy. The audit sweep, the staged
+// ident build, and the EXPLAIN export run this whole-chunk shape; the keyed
+// tick instead accumulates budgeted per-identifier probes below (same body,
+// staged source table). analyzeWinnersKeyedNarrowSQL plans the final fetch
+// on real statistics. The text is byte-identical to the pre-budget
+// statement: it stays in the winners contract pin unchanged.
+var buildWinnersKeyedNarrowSQL = `
+CREATE TEMP TABLE winners_keyed_narrow ON COMMIT DROP AS
+` + winnersKeyedNarrowProbeSelect(winnersKeyedIdentsTable)
+
+// createWinnersKeyedNarrowSQL creates the budgeted probe's empty narrow
+// table before the per-identifier accumulation fills it. Literal SQL (the
+// DDL parity scan reads only literals): the three TEXT columns are the
+// fact_records types of the probe output, pinned to
+// winnersKeyedNarrowColumns by
+// TestWinnersScannedCopiesProbeMatchesActiveFactsProbe.
+const createWinnersKeyedNarrowSQL = `
+CREATE TEMP TABLE winners_keyed_narrow (
+    fact_id text, scope_id text, generation_id text
+) ON COMMIT DROP
+`
+
+// insertWinnersKeyedNarrowBatchSQL probes exactly the staged identifier and
+// appends its copies to the narrow table. RowsAffected is that identifier's
+// scanned-copy count: the admission loop meters the scanned-copies budget
+// from it, so the probe runs once per identifier and no second count
+// statement re-reads the probe. The body is the same supports-swapped probe
+// the whole-chunk build runs (#10880 PR-C1), staged to the batch identifier
+// table, so the budgeted tick and the audit sweep cannot silently split.
+// applyWinnersSupportsInputSwaps panics at init unless each legacy fragment
+// matches exactly once.
+var insertWinnersKeyedNarrowBatchSQL = `INSERT INTO ` + winnersKeyedNarrowTable + `
+` + applyWinnersSupportsInputSwaps("keyed narrow probe (budgeted per-identifier)", winnersKeyedNarrowProbeSelect(winnersKeyedBatchIdentsTable), winnersKeyedActiveSwaps)
 
 // analyzeWinnersKeyedNarrowSQL gives the planner the real probe output size.
 const analyzeWinnersKeyedNarrowSQL = `ANALYZE ` + winnersKeyedNarrowTable
