@@ -133,8 +133,10 @@ func TestSupplyChainImpactWinnersResweepScannedBudgetBoundsTicksLive(t *testing.
 
 // TestSupplyChainImpactWinnersResweepScannedBudgetFirstIdentifierCompletesLive
 // pins the hot-identifier rule under the budget: a single identifier over the
-// budget still completes in one tick (never split, never stalled), and the
-// tick reports Bounded while identifiers stay queued.
+// budget is still admitted whole in one tick (never split, never stalled at
+// guard-sized probes — completion needs the probe inside
+// ResweepStatementTimeout, see eshu-hq/eshu#11442), and the tick reports
+// Bounded while identifiers stay queued.
 func TestSupplyChainImpactWinnersResweepScannedBudgetFirstIdentifierCompletesLive(t *testing.T) {
 	h := newKeyedHarness(t, "Dec 6(ii) first-identifier-completes under the scanned budget")
 	const keys = 1

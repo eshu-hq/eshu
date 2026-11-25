@@ -39,9 +39,10 @@ ticks 150-260 s at 200 identifiers with 50-61k kept rows and scanned about
 equal to kept. The 15 s per-tick bar over ~0.97 ms/kept fact admits order
 10k kept facts per tick; live scanned ~= kept, so one 10,000-copy
 scanned-copies budget bounds both heap terms (kept <= scanned always). A tick
-may admit one identifier past the budget (the current identifier always
-completes, never split); the tick log reports the actual scanned count, so the
-overshoot stays visible.
+may admit one identifier past the budget (the current identifier is always
+admitted and never split, completing iff its probe finishes within the 120 s
+statement guard — see eshu-hq/eshu#11442); the tick log reports the actual
+scanned count, so the overshoot stays visible.
 
 Backend: local disposable PostgreSQL 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1),
 full 375-migration bootstrap per test. No migration, no index, no stored-probe
