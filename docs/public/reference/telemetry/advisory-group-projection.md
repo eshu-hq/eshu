@@ -30,7 +30,10 @@ the counting class `advisory_group_winners_watermark_stale` and the intent
 can dead-letter: a watermark stuck that long past the first deferral means
 the maintainer is down, and the
 [Supply-Chain Impact Winners Resweep](supply-chain-impact-winners.md)
-signals say why. The first deferral's timestamp rides the queue row's
+signals say why. Both wait classes park on the winners-watermark wait: the
+row retries on the 10-minute backstop and the resweep commit reopens it
+in-transaction, so a long resweep wakes its waiters instead of churning the
+retry timer. The first deferral's timestamp rides the queue row's
 failure details, so the clock survives re-claims; a reopen restarts it.
 
 At a fresh watermark the handler reads the group's qualifying winners,
