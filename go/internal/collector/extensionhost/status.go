@@ -57,6 +57,7 @@ func (s *Source) recordResult(
 	origin ResultOrigin,
 	err error,
 	inputLimit *InputLimitFigures,
+	seed *SeedFigures,
 ) {
 	if s.resultRecorder == nil {
 		return
@@ -86,6 +87,13 @@ func (s *Source) recordResult(
 	// not log them on the complete claim (eshu-hq/eshu#9823).
 	if result.State != sdkcollector.ResultComplete && result.State != sdkcollector.ResultUnchanged {
 		record.InputLimit = inputLimit
+	}
+	// The seed gate is the mirror image: only a served window performed a
+	// seed read, so only a complete FINAL state carries seed figures. A
+	// failed, partial, or unchanged claim never logs them, even when an
+	// earlier page printed a record (eshu-hq/eshu#11387).
+	if result.State == sdkcollector.ResultComplete {
+		record.Seed = seed
 	}
 	record.FailureClass = failureClassFromStatus(result, "")
 	if failed {

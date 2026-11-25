@@ -71,6 +71,11 @@ type CallResult struct {
 	// is not complete or unchanged and the record carried all three
 	// allowlisted figures; raw stderr never leaves the runner (#9823).
 	InputLimit *InputLimitFigures
+	// Seed holds the typed NVD seed figures the runner parsed from the
+	// satellite's stderr record. It is set only when the call's result state
+	// is complete and the record carried all three allowlisted seed figures;
+	// raw stderr never leaves the runner (#11387).
+	Seed *SeedFigures
 }
 
 // PagedRunner is an optional Runner extension for satellites that speak the
@@ -205,6 +210,7 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 			// printed, so they are never reported against a verdict they did
 			// not accompany.
 			relay.inputLimit = call.InputLimit
+			relay.seed = call.Seed
 			return call.Result, nil
 		}
 		if !pinned {
@@ -227,6 +233,9 @@ func (s *Source) collectPages(ctx context.Context, runner PagedRunner, request R
 		}
 		if call.InputLimit != nil {
 			relay.inputLimit = call.InputLimit
+		}
+		if call.Seed != nil {
+			relay.seed = call.Seed
 		}
 		facts = append(facts, call.Result.Facts...)
 		statuses = append(statuses, call.Result.Statuses...)

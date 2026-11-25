@@ -94,6 +94,20 @@ const (
 	// the satellite had read when the budget broke (same relay and conditions
 	// as inflated_bytes).
 	LogKeyExtensionStatusCompressedBytes = "extension_status.compressed_bytes"
+	// LogKeyExtensionStatusSeedReadMS is the wall-clock milliseconds the
+	// satellite spent reading the NVD seed for a served window. It appears
+	// only on a complete result, relayed from the satellite's stderr record
+	// through a fixed numbers-only allowlist (#11387). It is the operator
+	// face of the Bar1 recorded pair the ruling in eshu-hq/eshu#11386
+	// tracks, beside seed_bytes.
+	LogKeyExtensionStatusSeedReadMS = "extension_status.nvd_seed_read_ms"
+	// LogKeyExtensionStatusSeedBuckets is the number of seed buckets the
+	// satellite read for a served window (same relay and conditions as
+	// nvd_seed_read_ms).
+	LogKeyExtensionStatusSeedBuckets = "extension_status.nvd_seed_buckets"
+	// LogKeyExtensionStatusSeedBytes is the seed bytes the satellite read for
+	// a served window (same relay and conditions as nvd_seed_read_ms).
+	LogKeyExtensionStatusSeedBytes = "extension_status.nvd_seed_bytes"
 )
 
 // Closed values of the origin log field.
