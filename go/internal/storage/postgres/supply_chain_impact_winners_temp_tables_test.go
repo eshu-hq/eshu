@@ -76,6 +76,7 @@ func TestWinnersTempTableDDLNamesMatchTheTableConstants(t *testing.T) {
 	cases := []struct{ sql, table string }{
 		{createWinnersKeyedConsumedSQL, winnersKeyedConsumedTable},
 		{buildWinnersKeyedIdentsSQL, winnersKeyedIdentsTable},
+		{buildWinnersKeyedNarrowSQL, winnersKeyedNarrowTable},
 		{buildWinnersKeyedActiveFactsSQL, winnersKeyedActiveFactsTable},
 		{createWinnersAuditCandidatesSQL, winnersAuditCandidatesTable},
 		{seedWinnersAuditIdentsSQL, winnersKeyedIdentsTable},

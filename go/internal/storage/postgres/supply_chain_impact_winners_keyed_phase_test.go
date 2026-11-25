@@ -336,11 +336,12 @@ func TestResweepWinnersKeyedRecordsScannedCopies(t *testing.T) {
 }
 
 // TestWinnersScannedCopiesProbeMatchesActiveFactsProbe pins that the
-// pre-filter scan count probes the same copies as the keyed active-facts
-// build (#11308): the five index equalities plus the finding-kind and
-// tombstone filters must read byte-identical in both statements, so a later
-// edit to the probe cannot silently split what the tick builds from what it
-// attributes.
+// pre-filter scan count attributes the same copies as the keyed active-facts
+// build (#11308, single-probe 2026-11-24): the five index equalities plus the
+// finding-kind and tombstone filters must read byte-identical in the narrow
+// probe, and the scanned-copies count must read the narrow table the build
+// persisted — never a second probe — so a later edit to the probe cannot
+// silently split what the tick builds from what it attributes.
 func TestWinnersScannedCopiesProbeMatchesActiveFactsProbe(t *testing.T) {
 	t.Parallel()
 
@@ -353,12 +354,18 @@ func TestWinnersScannedCopiesProbeMatchesActiveFactsProbe(t *testing.T) {
 		"f.fact_kind = 'reducer_supply_chain_impact_finding'",
 		"f.is_tombstone = FALSE",
 	} {
-		if !strings.Contains(buildWinnersKeyedActiveFactsSQL, frag) {
-			t.Errorf("active-facts build lost the probe fragment %q", frag)
+		if !strings.Contains(buildWinnersKeyedNarrowSQL, frag) {
+			t.Errorf("narrow probe lost the probe fragment %q", frag)
 		}
-		if !strings.Contains(countWinnersKeyedScannedCopiesSQL, frag) {
-			t.Errorf("scanned-copies count lost the probe fragment %q", frag)
-		}
+	}
+	if strings.Contains(countWinnersKeyedScannedCopiesSQL, "CROSS JOIN LATERAL") {
+		t.Errorf("scanned-copies count re-runs the lateral probe instead of reading the narrow table")
+	}
+	if !strings.Contains(countWinnersKeyedScannedCopiesSQL, winnersKeyedNarrowTable) {
+		t.Errorf("scanned-copies count does not read the narrow table %q", winnersKeyedNarrowTable)
+	}
+	if !strings.Contains(buildWinnersKeyedActiveFactsSQL, winnersKeyedNarrowTable) {
+		t.Errorf("active-facts build does not read the narrow table %q", winnersKeyedNarrowTable)
 	}
 }
 

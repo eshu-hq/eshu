@@ -63,7 +63,19 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// pinned sets (13,260 and 24,936 rows); see
 	// docs/internal/evidence/10839-live-gens-liveness-dedup.md. No full
 	// resweep is triggered by this re-pin.
-	2: "df97e2298306bf0bc8068acef44ca20753622d06f49ec473fd3c8762268c418e",
+	// Re-pinned under the same version for the 2026-11-24 watermark-stall
+	// fix: the five-tuple identifier probe persists to a narrow temp table
+	// once per tick instead of running inside the active-facts build and
+	// again for the scanned-copies count. Winner output is byte-identical
+	// for the same facts by construction: the narrow table holds the probe
+	// output verbatim (same text, same transaction and snapshot), the final
+	// fetch joins the same live generations to the same copies, and the
+	// winner differential is set-based (changed/deleted/unchanged counts),
+	// so temp row order cannot move it. Hermetic proof:
+	// TestKeyedTickScansIdentifierCopiesOnce (one probe pass, preserved
+	// scanned signal) and TestWinnersKeyedFanoutMatchesRecomputeLive in the
+	// coordinator's live slot. No full resweep is triggered by this re-pin.
+	2: "25e4d8910be1951ac76980f97de64e5d5f9b483e9151a459236dc0761175747a",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
@@ -77,6 +89,8 @@ func supplyChainImpactWinnersContractStatements() []string {
 	return append(stmts,
 		selectWinnersKeyedChunkIdentsSQL,
 		restrictWinnersKeyedIdentsToChunkSQL,
+		buildWinnersKeyedNarrowSQL,
+		analyzeWinnersKeyedNarrowSQL,
 		buildWinnersKeyedActiveFactsSQL,
 		addWinnersKeyedOperatorFactsSQL,
 		applyWinnersKeyedSQL,
