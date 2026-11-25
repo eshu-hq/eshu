@@ -9,7 +9,7 @@ convicted the two wake sites; the
 exact-equality gate. This shim names, per domain, what serializes today plus
 the conflict domain, and does the capacity arithmetic. All clocks UTC; QA reads
 via `sh /tmp/qa-read.sh <file>` (15s statement timeout, read-only txn);
-kubectl reads via `--context ops-qa -n eshu`. SQL files lived in /tmp only,
+kubectl reads via the QA cluster context and namespace. SQL files lived in /tmp only,
 never in the tree. Observation window ~14:13–14:55.
 
 ## Verdict
