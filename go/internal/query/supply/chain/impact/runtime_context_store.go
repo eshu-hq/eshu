@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
@@ -59,48 +62,26 @@ var RuntimeContextFactKinds = []string{
 // or the fact's direct ingestion scope to be granted, matching #5747's
 // filter-membership authorization boundary.
 //
+// The query is UNION ALL of one scope-closure arm over all four kinds (the
+// C1-proven Arm1 shape: envelope scope in the closure) plus one bounded
+// outside-closure arm per kind (envelope outside the closure over that
+// kind's partial anchor). The outside arms carry the contract-carried cells
+// the closure cannot see — payload repository_id/repo_id, payload-scope
+// alias, related-only, and raw-scope rows — with no new index: C1b census
+// (2026-11-25: wi 1345, pm 1331, svc 2, ci 20 active rows) bounds each scan,
+// and per-kind row counts ride the handler span (see the
+// eshu.query.runtime_context_rows_* attributes) so census growth is visible
+// at 3 AM. Re-proof trigger: any kind growing ~10x past its C1b census, or
+// total active scopes growing ~10x past 16.7k (the outside arms loop scopes
+// through the kind anchors), re-opens the per-arm ≤5s headroom proof before
+// deploy pressure lands.
+//
 // Bounded by len(candidates) (page-sized, at most the enforced findings page
 // limit of supplyChainImpactFindingMaxLimit = 200) and 4 kinds — this is the
 // exact join shape #5747's filter rework reuses, so it MUST hold the
-// performance contract at corpus scale (proven with EXPLAIN ANALYZE on the
-// worst-case 200-candidate partition).
-const selectSupplyChainImpactRuntimeContextQueryTemplate = `
-SELECT fact.fact_kind,
-       fact.scope_id,
-       fact.payload,
-       runtime_repository.repository_id
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-%s
-WHERE fact.fact_kind = ANY($1::text[])
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND (
-        (
-          COALESCE(cardinality($3::text[]), 0) = 0
-          AND COALESCE(cardinality($4::text[]), 0) = 0
-        )
-        OR runtime_repository.repository_id = ANY($3::text[])
-        OR fact.scope_id = ANY($4::text[])
-      )
-  AND runtime_repository.repository_id = ANY($2::text[])`
-
-// SelectRuntimeContextQuery is selectSupplyChainImpactRuntimeContextQueryTemplate
-// rendered with the repository-decoder join it needs; see that constant's
-// doc comment for the query's precedence, scoping, and performance contract.
-var SelectRuntimeContextQuery = fmt.Sprintf(
-	selectSupplyChainImpactRuntimeContextQueryTemplate,
-	supplyChainRuntimeRepositoryDecoderJoin(
-		"fact.payload",
-		"fact.scope_id",
-		"runtime_repository",
-	),
-)
+// performance contract at corpus scale (proven with EXPLAIN ANALYZE per arm
+// plus the combined statement on the worst-case 200-candidate partition).
+var SelectRuntimeContextQuery = buildSelectSupplyChainImpactRuntimeContextQuery()
 
 // ListSupplyChainImpactRuntimeContext resolves the CURRENT runtime context
 // (workloads, services, deployments, environments, catalog refs) for each
@@ -135,20 +116,36 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeContext(
 	rows, err := s.queryer().QueryContext(
 		ctx,
 		SelectRuntimeContextQuery,
-		array.Of(RuntimeContextFactKinds),
 		array.Of(repositoryIDs),
 		array.Of(allowedRepositoryIDs),
 		array.Of(allowedScopeIDs),
+		array.Of(supplyChainRuntimeContextClosureScopes(repositoryIDs)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact runtime context: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
+	// Per-kind scanned-row counts feed the census-growth watchpoint (#11447
+	// Plan C re-proof trigger): C1b baselines are wi 1345, pm 1331, svc 2,
+	// ci 20 active rows on 2026-11-25, with 16.7k total active scopes. The
+	// handler span carries them so growth toward ~10x is visible at 3 AM
+	// next to the runtime_context stage duration.
+	var workloadIdentityRows, serviceCatalogRows, platformMaterializationRows, cicdRunRows int
 	for rows.Next() {
 		var kind, scopeID, repositoryID string
 		var payloadBytes []byte
 		if err := rows.Scan(&kind, &scopeID, &payloadBytes, &repositoryID); err != nil {
 			return nil, fmt.Errorf("scan supply chain impact runtime context: %w", err)
+		}
+		switch kind {
+		case WorkloadIdentityFactKindQuery:
+			workloadIdentityRows++
+		case serviceCatalogCorrelationFactKind:
+			serviceCatalogRows++
+		case PlatformMaterializationFactKindQuery:
+			platformMaterializationRows++
+		case cicdRunCorrelationFactKind:
+			cicdRunRows++
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -159,6 +156,12 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeContext(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read supply chain impact runtime context: %w", err)
 	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.Int("eshu.query.runtime_context_rows_workload_identity", workloadIdentityRows),
+		attribute.Int("eshu.query.runtime_context_rows_service_catalog", serviceCatalogRows),
+		attribute.Int("eshu.query.runtime_context_rows_platform_materialization", platformMaterializationRows),
+		attribute.Int("eshu.query.runtime_context_rows_ci_cd_run", cicdRunRows),
+	)
 	return out, nil
 }
 

@@ -27,6 +27,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -141,16 +142,27 @@ FROM generate_series(1, 100000) AS sample`,
 	if len(contexts) != len(contextCandidates) {
 		t.Fatalf("runtime context repository count = %d, want %d", len(contexts), len(contextCandidates))
 	}
+	// The $4 closure mirrors the store's derivation in
+	// impact supplyChainRuntimeContextClosureScopes: each candidate plus
+	// its git-repository-scope envelope form.
+	contextClosure := make([]string, 0, 2*len(contextCandidates))
+	for _, candidate := range contextCandidates {
+		contextClosure = append(
+			contextClosure,
+			candidate,
+			scope.GitRepositoryScopePrefix+candidate,
+		)
+	}
 	explainSupplyChainRuntimeFilterPlan(
 		t,
 		ctx,
 		tx,
 		"runtime_context_200_candidates",
 		impact.SelectRuntimeContextQuery,
-		array.Of(impact.RuntimeContextFactKinds),
 		array.Of(contextCandidates),
 		array.Of(contextCandidates),
 		array.Of([]string{}),
+		array.Of(contextClosure),
 	)
 
 	baseFilter := impact.FindingFilter{

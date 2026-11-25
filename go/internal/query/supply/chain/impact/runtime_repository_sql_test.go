@@ -29,8 +29,11 @@ func TestSupplyChainRuntimeRepositoryDecoderIsSharedByFilterAndHydration(t *test
 	if !strings.Contains(SelectRuntimeContextQuery, hydrationJoin) {
 		t.Fatal("runtime-context hydration query does not contain the shared repository decoder")
 	}
+	// $1 is the candidate set: kinds are inline literals since #11447
+	// Plan C (the closure arm covers all four, each outside arm its own),
+	// so the planner can prove kind-partial index predicates at plan time.
 	if !strings.Contains(SelectRuntimeContextQuery,
-		"runtime_repository.repository_id = ANY($3::text[])") {
+		"runtime_repository.repository_id = ANY($1::text[])") {
 		t.Fatal("runtime-context hydration does not authorize the canonical decoded repository")
 	}
 	for _, want := range []string{
