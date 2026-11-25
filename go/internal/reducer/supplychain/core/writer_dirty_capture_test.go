@@ -106,11 +106,12 @@ func capturedIdentifier(finding SupplyChainImpactFinding) WinnersDirtyIdentifier
 
 // TestWriteCapturesWinnerIdentifiersOnlyForNewOrChangedRows proves the capture
 // filter of decision 1 of the #9805 ruling. A row is captured when it is new
-// (no own-generation stored row for its fact id), or its content digest differs
-// from the stored own-generation digest. A rerun that rewrites a row to the
-// same digest captures nothing. The first pass of a new generation captures
-// every row, even one whose stable key and digest match the previous
-// generation, because the new fact id makes the winner a different row.
+// (no stored baseline row: no own-generation row for its fact id on a rerun,
+// no previous-generation row for its stable key on a first pass), or its
+// content digest differs from the baseline digest. A rerun that rewrites a row
+// to the same digest captures nothing, and since #11414 neither does a first
+// pass whose stable key and digest match the previous generation: identical
+// content re-proves an already-computed winner and stages nothing.
 func TestWriteCapturesWinnerIdentifiersOnlyForNewOrChangedRows(t *testing.T) {
 	t.Parallel()
 
@@ -144,17 +145,20 @@ func TestWriteCapturesWinnerIdentifiersOnlyForNewOrChangedRows(t *testing.T) {
 		}
 	})
 
-	t.Run("a first pass of a new generation captures every row", func(t *testing.T) {
+	t.Run("a first pass of a new generation captures only what differs from the prior one", func(t *testing.T) {
 		t.Parallel()
 		writer, beginner, batches := captureWriter()
-		beginner.state.stored = []fakeStoredFinding{priorLike(write, same), priorLike(write, differs), priorLike(write, fresh)}
+		stale := priorLike(write, differs)
+		stale.digest = "a-digest-from-an-older-derivation"
+		// same is unchanged against the prior generation, differs moved, and
+		// fresh has no prior row: only the changed and the new row stage.
+		beginner.state.stored = []fakeStoredFinding{priorLike(write, same), stale}
 		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
 			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 		}
-		// The three findings share one identifier except for the CVE id.
-		want := [][]WinnersDirtyIdentifier{{capturedIdentifier(same), capturedIdentifier(differs), capturedIdentifier(fresh)}}
+		want := [][]WinnersDirtyIdentifier{{capturedIdentifier(differs), capturedIdentifier(fresh)}}
 		if !reflect.DeepEqual(*batches, want) {
-			t.Fatalf("captured = %+v, want every row (a new generation mints new fact ids)", *batches)
+			t.Fatalf("captured = %+v, want %+v (unchanged prior content stages nothing)", *batches, want)
 		}
 	})
 

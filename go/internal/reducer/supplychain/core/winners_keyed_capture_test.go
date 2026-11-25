@@ -36,9 +36,15 @@ func TestDirtyIdentifiersToCaptureStagesEvidenceOnlyChange(t *testing.T) {
 		{name: "identical rewrite skips", rows: []changedRow{row("ev-a")}, stored: stored("ev-a"), wantLen: 0},
 		{name: "new row stages", rows: []changedRow{row("ev-a")}, stored: nil, wantLen: 1},
 		{
-			name:    "prior generation baseline never skips",
-			rows:    []changedRow{row("ev-a")},
-			stored:  []storedFinding{{factID: "fact-1", generationID: "gen-0", digest: "digest-1", evidenceFactIDs: []string{"ev-a"}}},
+			name:    "first pass skips on identical prior generation baseline",
+			rows:    []changedRow{{factID: "fact-2", stableKey: "k-1", digest: "digest-1", ident: ident, evidenceFactIDs: []string{"ev-a"}}},
+			stored:  []storedFinding{{factID: "fact-1", generationID: "gen-0", stableKey: "k-1", digest: "digest-1", evidenceFactIDs: []string{"ev-a"}}},
+			wantLen: 0,
+		},
+		{
+			name:    "first pass stages on prior digest move",
+			rows:    []changedRow{{factID: "fact-2", stableKey: "k-1", digest: "digest-1", ident: ident, evidenceFactIDs: []string{"ev-a"}}},
+			stored:  []storedFinding{{factID: "fact-1", generationID: "gen-0", stableKey: "k-1", digest: "digest-0", evidenceFactIDs: []string{"ev-a"}}},
 			wantLen: 1,
 		},
 	} {

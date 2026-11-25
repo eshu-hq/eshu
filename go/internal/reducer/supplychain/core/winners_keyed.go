@@ -191,28 +191,43 @@ func dirtyIdentifierOf(payload reducerderivedv1.SupplyChainImpactFinding) Winner
 }
 
 // dirtyIdentifiersToCapture returns the distinct identifiers of the rows a pass
-// is about to write that are new or changed, in row order. A row is skipped only
-// when the pass's own generation already holds that fact id with an equal,
-// non-empty content digest and an equal evidence fact id set: a rewrite of
-// identical content leaves every input of the winners select unchanged (fact
-// id, scope, generation and tombstone state are fixed by the fact id; every
-// payload field the select reads is inside the digest). The evidence set is
-// the one served payload field outside the digest, so it is compared beside
-// the digest (#10880 arbiter ruling decision 4); the volatile excluded keys
-// are stripped from the stored payload and need no comparison. The prior
-// generation is never consulted: a new generation mints new fact ids, so an
-// unchanged finding is a changed winner row.
+// is about to write that are new or changed, in row order. A rerun of a
+// generation that already has rows of its own is judged against them, matched
+// by fact id: a row is skipped only when the pass's own generation already
+// holds that fact id with an equal, non-empty content digest and an equal
+// evidence fact id set. A rewrite of identical content leaves every input of
+// the winners select unchanged (fact id, scope, generation and tombstone
+// state are fixed by the fact id; every payload field the select reads is
+// inside the digest). The evidence set is the one served payload field
+// outside the digest, so it is compared beside the digest (#10880 arbiter
+// ruling decision 4); the volatile excluded keys are stripped from the stored
+// payload and need no comparison. The first pass of a generation has no rows
+// of its own, so it is judged against the scope's previous generation,
+// matched by stable key (#11414): identical content re-proves an
+// already-computed winner and stages nothing, instead of re-staging the whole
+// window on every re-match. The baseline switch mirrors changedCVEIDs: once
+// the generation has rows of its own they are the baseline and the previous
+// generation is not consulted.
 func dirtyIdentifiersToCapture(rows []changedRow, stored []storedFinding, generationID string) []WinnersDirtyIdentifier {
 	own := make(map[string]storedFinding, len(stored))
+	prior := make(map[string]storedFinding, len(stored))
 	for _, row := range stored {
 		if row.generationID == generationID {
 			own[row.factID] = row
+		} else {
+			prior[row.stableKey] = row
 		}
 	}
+	rerun := len(own) > 0
 	seen := make(map[WinnersDirtyIdentifier]struct{}, len(rows))
 	var out []WinnersDirtyIdentifier
 	for _, row := range rows {
-		if base, ok := own[row.factID]; ok && base.digest != "" && base.digest == row.digest &&
+		if rerun {
+			if base, ok := own[row.factID]; ok && base.digest != "" && base.digest == row.digest &&
+				memberSetsEqual(row.evidenceFactIDs, base.evidenceFactIDs) {
+				continue
+			}
+		} else if base, ok := prior[row.stableKey]; ok && base.digest != "" && base.digest == row.digest &&
 			memberSetsEqual(row.evidenceFactIDs, base.evidenceFactIDs) {
 			continue
 		}
