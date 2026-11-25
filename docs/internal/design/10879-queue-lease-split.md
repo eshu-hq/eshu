@@ -139,7 +139,7 @@ reclaim = 0 rows (including container-image epoch variants), expired-hold
 reclaim races, concurrent one-per-group claims, duplicate delivery,
 dead-letter/reopen leaving no orphan lease row, fairness order unchanged
 except the named heartbeat-`updated_at` delta — phase-1 mirror subset done
-in `reducer_queue_10879_lease_test.go`, epoch variants and true races open;
+in `reducer_queue_10879_lease_live_test.go`, epoch variants and true races open;
 (e) migration proof on a 264k-row copy plus 10x synthetic with
 `CONCURRENTLY` builds, batched backfill, every `ACCESS EXCLUSIVE` window
 timed, rollback rehearsed — done for phase 1, recorded in the phase-1

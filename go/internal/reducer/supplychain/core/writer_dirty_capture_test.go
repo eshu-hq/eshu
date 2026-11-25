@@ -187,6 +187,92 @@ func TestWriteCapturesAdvisoryOnlyFindingsAndDeduplicates(t *testing.T) {
 	}
 }
 
+// TestWriteStagesOneDirtyRowWhenOnePassAddsAndRetiresTheSameKey pins the
+// #11411 emission dedup: one writer pass stages each changed key once. When
+// the pass adds rows of a key under new fact ids and retires stored
+// same-generation rows of that key, the retraction's own staging insert names
+// the key, so the upsert capture must not name it again: the same triple
+// twice in one batch yields one dirty row, not one per emission statement.
+func TestWriteStagesOneDirtyRowWhenOnePassAddsAndRetiresTheSameKey(t *testing.T) {
+	t.Parallel()
+
+	newTwins := func() (retired, addedA, addedB SupplyChainImpactFinding) {
+		retired = changedTestFinding("CVE-2026-0400")
+		addedA = changedTestFinding("CVE-2026-0400")
+		addedB = changedTestFinding("CVE-2026-0400")
+		addedA.ObservedVersion = "2.0.0"
+		addedB.ObservedVersion = "3.0.0"
+		return retired, addedA, addedB
+	}
+
+	t.Run("retired key leaves the upsert capture", func(t *testing.T) {
+		t.Parallel()
+		retired, addedA, addedB := newTwins()
+		write := changedTestWrite(addedA, addedB)
+		writer, beginner, batches := captureWriter()
+		beginner.state.stored = []fakeStoredFinding{storedLike(write, retired)}
+		// Production tombstones the retired row and stages its key, so the
+		// canned counts report one tombstoned row and one marked key.
+		beginner.state.retractCounts = map[string][2]int64{retractSupersededSupplyChainImpactFindingsQuery: {1, 1}}
+		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
+		}
+		if len(*batches) != 0 {
+			t.Fatalf("captured = %+v, want no upsert capture: the retraction stages the retired key", *batches)
+		}
+	})
+
+	t.Run("row a fresher pass owns keeps the capture", func(t *testing.T) {
+		t.Parallel()
+		retired, addedA, addedB := newTwins()
+		write := changedTestWrite(addedA, addedB)
+		writer, beginner, batches := captureWriter()
+		owned := storedLike(write, retired)
+		owned.fencingToken = 99
+		beginner.state.stored = []fakeStoredFinding{owned}
+		// The fencing guard keeps the fresher row, so production retracts
+		// nothing and stages nothing.
+		beginner.state.retractCounts = map[string][2]int64{retractSupersededSupplyChainImpactFindingsQuery: {0, 0}}
+		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
+		}
+		if len(*batches) != 1 || len((*batches)[0]) != 1 {
+			t.Fatalf("captured = %+v, want one batch with the added key: no row is retired", *batches)
+		}
+	})
+
+	t.Run("partial evidence pass keeps the capture", func(t *testing.T) {
+		t.Parallel()
+		retired, addedA, addedB := newTwins()
+		write := changedTestWrite(addedA, addedB)
+		write.PartialEvidence = true
+		writer, beginner, batches := captureWriter()
+		beginner.state.stored = []fakeStoredFinding{storedLike(write, retired)}
+		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
+		}
+		if len(*batches) != 1 || len((*batches)[0]) != 1 {
+			t.Fatalf("captured = %+v, want one batch with the added key: a partial pass retracts nothing", *batches)
+		}
+	})
+
+	t.Run("scoped pass covering the key leaves the capture", func(t *testing.T) {
+		t.Parallel()
+		retired, addedA, addedB := newTwins()
+		write := changedTestWrite(addedA, addedB)
+		write.ScopedCVEIDs = []string{"CVE-2026-0400"}
+		writer, beginner, batches := captureWriter()
+		beginner.state.stored = []fakeStoredFinding{storedLike(write, retired)}
+		beginner.state.retractCounts = map[string][2]int64{retractSupersededSupplyChainImpactFindingsScopedQuery: {1, 1}}
+		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+			t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
+		}
+		if len(*batches) != 0 {
+			t.Fatalf("captured = %+v, want no upsert capture: the scoped retraction stages the retired key", *batches)
+		}
+	})
+}
+
 // TestRetractionCapturesRetractedFindingIdentifiers pins that the retract
 // statement itself stages one row per tombstoned key (#10837 direction C),
 // so no Go change is needed to name a retracted finding's key: the DISTINCT

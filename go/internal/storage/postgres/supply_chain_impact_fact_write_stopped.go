@@ -9,6 +9,9 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
 )
 
 // The finding-fact write stop (#10880 PR-C). When the stop lands, the database
@@ -94,4 +97,22 @@ func (t supplyChainImpactTx) classifyFactWriteStopped(ctx context.Context, err e
 		t.instruments.RecordSupplyChainImpactFactWriteRejected(ctx)
 	}
 	return classified
+}
+
+// classifyGoEvidenceLockTimeout maps a lock timeout (SQLSTATE 55P03) on the pass's
+// shared go-evidence lock statement to the typed non-counting refusal (#11327,
+// ruling 2.3). The statement acquired nothing, so the pass wrote nothing and the
+// retry reloads the evidence. Only that statement is mapped: a 55P03 on any other
+// statement of the write transaction, and any other error, comes back unchanged. An
+// error that is already the typed refusal is returned as it is.
+func classifyGoEvidenceLockTimeout(query string, err error) error {
+	var already *supplychaincore.SupplyChainImpactGoEvidenceChangedError
+	if err == nil || query != supplychaincore.SupplyChainImpactGoEvidenceSharedLockQuery ||
+		errors.As(err, &already) || !coordination.IsLockNotAvailable(err) {
+		return err
+	}
+	return &supplychaincore.SupplyChainImpactGoEvidenceChangedError{
+		Cause: supplychaincore.GoEvidenceCauseLockTimeout,
+		Err:   err,
+	}
 }

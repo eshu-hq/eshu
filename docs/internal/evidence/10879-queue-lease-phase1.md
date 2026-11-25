@@ -82,7 +82,7 @@ idempotent. Sizes: main 137 MB, lease table 28 MB.
 
 ## Concurrency proofs (committed tests)
 
-`reducer_queue_10879_lease_test.go`: backfill exactness + idempotent
+`reducer_queue_10879_lease_live_test.go`: backfill exactness + idempotent
 re-apply; claim/heartbeat mirror parity (owner + claim_until equal);
 ack/retry/dead-letter leave no orphan (plus a full-table orphan count);
 stale heartbeat AND stale ack rejected after expiry + reclaim with the lease

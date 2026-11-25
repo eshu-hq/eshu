@@ -60,7 +60,8 @@ func supplyChainImpactWriterFor(database db.ExecQueryer, instruments *telemetry.
 		return nil
 	}
 	return supplychaincore.PostgresSupplyChainImpactWriter{
-		DB: postgres.SupplyChainImpactBeginner{Beginner: beginner, Instruments: instruments},
+		DB:          postgres.SupplyChainImpactBeginner{Beginner: beginner, Instruments: instruments},
+		Instruments: instruments,
 	}
 }
 

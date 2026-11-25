@@ -17,6 +17,9 @@ import (
 // Every payload-derived column is the legacy expression over the support's
 // payload, which is the fact payload verbatim; cve_id and advisory_id are the
 // support's derived columns, the same COALESCE over the same payload keys.
+// package_id, repository_id and subject_digest ride along as payload reads so
+// the stored row still names its canonical winners key (#11411): the upsert
+// capture and the retraction stage the same key for the same row.
 // The identity digest (provenance.identity_digest, D7) rides alongside the
 // content digest so the fan-out origin gate judges identity change; a support
 // written before it existed reads empty and fails closed, as the fact read does.
@@ -45,7 +48,10 @@ SELECT s.fact_id,
        0::bigint,
        COALESCE(s.payload #>> '{provenance,advisory_group_members}', '[]'),
        COALESCE(NULLIF(s.payload ->> 'suppression_state', ''), 'active'),
-       COALESCE(s.payload #>> '{evidence_fact_ids}', '[]')
+       COALESCE(s.payload #>> '{evidence_fact_ids}', '[]'),
+       COALESCE(s.payload ->> 'package_id', ''),
+       COALESCE(s.payload ->> 'repository_id', ''),
+       COALESCE(s.payload ->> 'subject_digest', '')
 FROM supply_chain_impact_finding_supports AS s
 WHERE s.scope_id = $1
   AND s.generation_id IN ($2, ` + priorGenerationSupplyChainImpactSQL + `)
@@ -85,7 +91,7 @@ func readStoredSupplyChainImpactFindings(
 	for rows.Next() {
 		var row storedFinding
 		var membersRaw, evidenceRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
+		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw, &row.packageID, &row.repositoryID, &row.subjectDigest); err != nil {
 			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
 		}
 		if row.stableKey == "" {

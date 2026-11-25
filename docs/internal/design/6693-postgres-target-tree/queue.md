@@ -132,7 +132,7 @@ reducer_queue_claim_domains_test.go -> queue/reducer/claim_domains_test.go
 reducer_queue_claim_readiness_bench_test.go -> queue/reducer/claim_readiness_bench_test.go
 reducer_queue_clock_seam_test.go -> queue/reducer/clock_seam_test.go   # external test package + export_test.go shim: imports root
 reducer_queue_cloud_admission_readiness_test.go -> queue/reducer/cloud_admission_readiness_test.go
-reducer_queue_conflict_claim_proof_test.go -> queue/reducer/conflict_claim_proof_test.go   # external test package + export_test.go shim: imports root
+reducer_queue_conflict_claim_proof_live_test.go -> queue/reducer/conflict_claim_proof_test.go   # external test package + export_test.go shim: imports root
 reducer_queue_contention_gate_test.go -> queue/reducer/contention_gate_test.go   # external test package + export_test.go shim: imports root
 reducer_queue_contention_holder_test.go -> queue/reducer/contention_holder_test.go   # external test package + export_test.go shim: imports root
 reducer_queue_cross_scope_readiness_gate_coverage_test.go -> queue/reducer/cross_scope_readiness_gate_coverage_test.go

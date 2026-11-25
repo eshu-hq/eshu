@@ -13,8 +13,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
+
+// fenceGoEvidenceLockQuery is the exclusive go-evidence lock statement the fence takes
+// right after its timeouts (#11327).
+const fenceGoEvidenceLockQuery = supplychaincore.SupplyChainImpactGoEvidenceExclusiveLockQuery
 
 var fenceTestNow = time.Date(2026, time.November, 5, 12, 0, 0, 0, time.UTC)
 
@@ -66,6 +71,7 @@ type fakeFenceDB struct {
 	supersede  []int64
 	holders    []string
 	failOn     string
+	failErr    error
 	statements []string
 	args       [][]any
 	commits    int
@@ -116,6 +122,9 @@ func (t *fakeFenceTx) ExecContext(_ context.Context, query string, args ...any) 
 	t.db.statements = append(t.db.statements, query)
 	t.db.args = append(t.db.args, args)
 	if query == t.db.failOn {
+		if t.db.failErr != nil {
+			return nil, t.db.failErr
+		}
 		return nil, errors.New("statement failed")
 	}
 	pop := func(queue *[]int64) fakeResult {
@@ -139,6 +148,9 @@ func (t *fakeFenceTx) QueryContext(_ context.Context, query string, args ...any)
 	t.db.statements = append(t.db.statements, query)
 	t.db.args = append(t.db.args, args)
 	if query == t.db.failOn {
+		if t.db.failErr != nil {
+			return nil, t.db.failErr
+		}
 		return nil, errors.New("statement failed")
 	}
 	t.db.rowsClosed = false
@@ -221,7 +233,7 @@ func TestFenceOrderIsScopeThenGenerationThenHolders(t *testing.T) {
 		t.Fatalf("result = %+v, err = %v, want 1 fenced and 2 holders", result, err)
 	}
 	want := []string{
-		fenceTimeoutsQuery, fenceTestReadySQL, fenceDetachPointerQuery, fenceSupersedeGeneration, fenceTestHolderStatement,
+		fenceTimeoutsQuery, fenceGoEvidenceLockQuery, fenceTestReadySQL, fenceDetachPointerQuery, fenceSupersedeGeneration, fenceTestHolderStatement,
 		"reopen", "reopen",
 	}
 	if !slices.Equal(database.statements, want) {
@@ -231,14 +243,17 @@ func TestFenceOrderIsScopeThenGenerationThenHolders(t *testing.T) {
 		t.Fatalf("commits = %d, rollbacks = %d, want 1 and 0", database.commits, database.rollbacks)
 	}
 	scope, generation := testFences[0].ScopeID, testFences[0].GenerationID
-	if !slices.Equal(database.args[2], []any{scope, generation}) {
-		t.Fatalf("detach args = %v, want the read scope and generation", database.args[2])
+	if !slices.Equal(database.args[1], []any{supplychaincore.SupplyChainImpactGoEvidenceLockKey(scope)}) {
+		t.Fatalf("lock args = %v, want the go-evidence key of the fenced scope", database.args[1])
 	}
-	if !slices.Equal(database.args[3], []any{scope, generation, fenceTestNow}) {
-		t.Fatalf("supersede args = %v, want the read scope and generation and the observed time", database.args[3])
+	if !slices.Equal(database.args[3], []any{scope, generation}) {
+		t.Fatalf("detach args = %v, want the read scope and generation", database.args[3])
 	}
-	if !slices.Equal(database.args[4], []any{"marker", int64(1), "repository:r_00000001", scope}) {
-		t.Fatalf("holder read args = %v, want the repository and the fenced scope", database.args[4])
+	if !slices.Equal(database.args[4], []any{scope, generation, fenceTestNow}) {
+		t.Fatalf("supersede args = %v, want the read scope and generation and the observed time", database.args[4])
+	}
+	if !slices.Equal(database.args[5], []any{"marker", int64(1), "repository:r_00000001", scope}) {
+		t.Fatalf("holder read args = %v, want the repository and the fenced scope", database.args[5])
 	}
 	wantReopened := []string{"holder-a<-" + scope + "/" + generation, "holder-b<-" + scope + "/" + generation}
 	if !slices.Equal(database.reopened, wantReopened) {
@@ -309,7 +324,7 @@ func TestFenceStopsBeforeDetachingWhenSupportsAreNotReady(t *testing.T) {
 		t.Fatalf("result = %+v, commits = %d, rollbacks = %d, want nothing fenced, nothing committed, one rollback",
 			result, database.commits, database.rollbacks)
 	}
-	want := []string{fenceTimeoutsQuery, fenceTestReadySQL}
+	want := []string{fenceTimeoutsQuery, fenceGoEvidenceLockQuery, fenceTestReadySQL}
 	if !slices.Equal(database.statements, want) {
 		t.Fatalf("statements = %q, want %q (the check runs before the detach)", database.statements, want)
 	}

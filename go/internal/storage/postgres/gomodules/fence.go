@@ -18,14 +18,26 @@ import (
 // repository to re-derive. Both updates name the generation the page read, so a
 // successor activated after that read makes the fence a no-op.
 //
-// Lock order, in one transaction: the derived scope's ingestion_scopes row, then the
-// fenced generation's scope_generations row, then each holder's fact_work_items rows,
-// holders in scope_id order. Every blocking path takes the scope row first (#7389, see
-// ProjectorQueue.Ack): the ack, the failure path, the ingestion commit, and the
-// repository-retirement fence. A fence that took the generation first could deadlock
-// against an ack holding the scope row and wanting that generation. The fence never
-// takes a holder's scope row, a repository scope row, or any row of the successor's
-// work.
+// Lock order, in one transaction: the exclusive go-evidence advisory lock of the
+// derived scope (#11327; the supply-chain impact pass takes the shared form as the
+// closing statements of its write transaction and holds it until it commits, so the fence
+// waits for at most a recheck and a commit, and a pass that reaches its lock later waits
+// for the fence and then fails its recheck), then the derived
+// scope's ingestion_scopes row, then the fenced generation's scope_generations row,
+// then each holder's fact_work_items rows, holders in scope_id order. Every blocking
+// path takes the scope row first (#7389, see ProjectorQueue.Ack): the ack, the failure
+// path, the ingestion commit, and the repository-retirement fence; none of them takes
+// the advisory lock, and the pass holds no row the fence wants when it waits for the lock:
+// before it no statement writes to, row-locks or table-locks fact_work_items, or writes to or
+// explicitly row-locks a scope or generation row (a wholly read-only statement may read any of
+// them, and the suppression diff's candidate read does); its one fact_work_items update, the
+// owed marker, runs after the lock is granted. The implicit FOR KEY SHARE a fact insert takes on
+// its scope and generation rows is compatible with this fence: its updates touch non-key
+// columns (the unique indexes on active_generation_id and status are partial), so they take
+// NO KEY UPDATE. A fence that took the generation first could
+// deadlock against an ack holding the scope row and wanting that generation. The fence
+// never takes a holder's scope row, a repository scope row, or any row of the
+// successor's work.
 //
 // Against an ack of a successor, both orders end on the successor:
 //   - The ack commits first. The pointer predicate rechecks against the new pointer
@@ -44,12 +56,12 @@ import (
 //
 // The holder statement reads the supports readiness predicate and the holders in one snapshot
 // (#11197), so a backfill drain between a holder read and a separate recheck can no longer hide
-// a holder (with one drain runner). A finding that commits after that snapshot is not seen,
-// including an old-writer finding that commits between that snapshot and where the removed
-// recheck ran, which the recheck used to roll back: a scope with no support for the repository
-// at its active generation whose pass loaded Go evidence before the fence commit keeps the
-// retracted verdict until that scope's next supply_chain_impact pass, and nothing schedules one
-// (tracked in eshu-hq/eshu#11327). The same race exists in the fact read this statement replaced.
+// a holder (with one drain runner). A finding that commits after that snapshot is not seen by the
+// read, so the fence now takes the exclusive go-evidence advisory lock first (#11327): a pass that
+// loaded Go evidence holds the shared form from its recheck to its commit, so the fence either
+// waits for it and then sees its support, or commits first and the pass fails its recheck and
+// rolls back. The remaining window is the pass's owed marker between its recheck and its commit.
+// An old-writer finding takes no lock and stays outside this closure.
 const (
 	// fenceTimeoutsQuery bounds the waits, so a scope or work item held by another
 	// transaction cannot stall the reconcile loop, and a regressed holder read cannot
@@ -156,6 +168,14 @@ func (s Store) fenceOne(
 
 	if _, err := tx.ExecContext(ctx, fenceTimeoutsQuery); err != nil {
 		return false, 0, fmt.Errorf("set timeouts: %w", err)
+	}
+	// The exclusive go-evidence lock comes before every other lock and statement
+	// (#11327): it waits for an in-flight supply-chain impact pass that loaded this
+	// scope's evidence, whose commit the holder statement below then sees. A lock
+	// timeout (55P03) returns here with nothing detached and the coordinator
+	// retries the page.
+	if err := s.lockGoEvidence(ctx, tx, fence.ScopeID); err != nil {
+		return false, 0, err
 	}
 	// The holder read answers from the supports table, so a table that is not ready
 	// must stop the fence before it detaches anything: the transaction rolls back

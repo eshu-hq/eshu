@@ -224,3 +224,77 @@ func dirtyIdentifiersToCapture(rows []changedRow, stored []storedFinding, genera
 	}
 	return out
 }
+
+// excludeRetiredWinnersDirtyIdentifiers drops the identifiers this pass's own
+// retraction stages (#11411): one pass stages one dirty row per key. The
+// retired set mirrors the retraction's tombstone predicate exactly
+// (retractSupersededSupplyChainImpactFindingsQuery and its scoped twin: same
+// generation, fact id outside the pass's keep set, stored fencing token at or
+// below the pass's, and, on a scoped pass, a cve id inside the stamp), so a
+// key the capture drops is always staged by the retraction in the same
+// transaction. A partial-evidence pass retracts nothing, so it excludes
+// nothing: the flag must match the retraction gate in
+// commitSupplyChainImpactRows.
+func excludeRetiredWinnersDirtyIdentifiers(idents []WinnersDirtyIdentifier, stored []storedFinding, keep []string, generationID string, fencingToken int64, partialEvidence bool, scopedCVEIDs []string) []WinnersDirtyIdentifier {
+	if len(idents) == 0 || partialEvidence {
+		return idents
+	}
+	kept := make(map[string]struct{}, len(keep))
+	for _, id := range keep {
+		kept[id] = struct{}{}
+	}
+	var scoped map[string]struct{}
+	if len(scopedCVEIDs) > 0 {
+		scoped = make(map[string]struct{}, len(scopedCVEIDs))
+		for _, id := range scopedCVEIDs {
+			scoped[id] = struct{}{}
+		}
+	}
+	retired := make(map[WinnersDirtyIdentifier]struct{})
+	for _, row := range stored {
+		if row.generationID != generationID {
+			continue
+		}
+		if _, ok := kept[row.factID]; ok {
+			continue
+		}
+		if row.fencingToken > fencingToken {
+			continue
+		}
+		if scoped != nil {
+			if _, ok := scoped[row.cveID]; !ok {
+				continue
+			}
+		}
+		retired[storedWinnersDirtyIdentifier(row)] = struct{}{}
+	}
+	if len(retired) == 0 {
+		return idents
+	}
+	out := make([]WinnersDirtyIdentifier, 0, len(idents))
+	for _, ident := range idents {
+		if _, ok := retired[ident]; ok {
+			continue
+		}
+		out = append(out, ident)
+	}
+	return out
+}
+
+// storedWinnersDirtyIdentifier names the canonical winners key of a stored
+// finding row with the same empty-string and first-component rules as
+// dirtyIdentifierOf, so the upsert capture and the retraction stage the same
+// key for the same row (#11411).
+func storedWinnersDirtyIdentifier(row storedFinding) WinnersDirtyIdentifier {
+	c0 := row.cveID
+	if c0 == "" {
+		c0 = row.advisoryID
+	}
+	return WinnersDirtyIdentifier{
+		PackageID:     row.packageID,
+		RepositoryID:  row.repositoryID,
+		SubjectDigest: row.subjectDigest,
+		C0:            c0,
+		AdvisoryID:    row.advisoryID,
+	}
+}

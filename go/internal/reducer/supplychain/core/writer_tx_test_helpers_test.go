@@ -59,6 +59,12 @@ type fakeImpactTxState struct {
 	// report fence open, preserving every existing test's behavior.
 	passStateFenced   bool
 	passStateRecorded int64
+	// goEvidenceCurrent is how many of the loaded go-evidence pairs the recheck
+	// finds current (#11327). Zero reports none current.
+	goEvidenceCurrent int
+	// goEvidenceIsolation is the transaction_isolation the recheck reports; empty
+	// reports read committed.
+	goEvidenceIsolation string
 }
 
 // fakeStoredFinding is one ACTIVE fact_records row the changed-row read returns;
@@ -81,6 +87,10 @@ type fakeStoredFinding struct {
 	// evidenceFactIDs is the evidence fact id set the row's payload carries
 	// (#10880 ruling decision 4), rendered the same way as members.
 	evidenceFactIDs []string
+	// packageID, repositoryID and subjectDigest render the stored row's
+	// canonical winners-key components the way the production select
+	// projects them (#11411).
+	packageID, repositoryID, subjectDigest string
 }
 
 // fakeImpactSuppressionState renders a stored suppression state the way the
@@ -171,10 +181,20 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 		return nil, errFakeImpactStatement
 	}
 	switch query {
+	case supplyChainImpactGoEvidenceRecheckQuery:
+		rows := make([][]any, 0, t.state.goEvidenceCurrent)
+		for i := 0; i < t.state.goEvidenceCurrent; i++ {
+			isolation := t.state.goEvidenceIsolation
+			if isolation == "" {
+				isolation = "read committed"
+			}
+			rows = append(rows, []any{fmt.Sprintf("go-scope-%d", i), isolation})
+		}
+		return &fakeImpactRows{rows: rows}, nil
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
 		for _, row := range t.state.stored {
-			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, "", row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState), fakeImpactMembersJSON(row.evidenceFactIDs)})
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, "", row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState), fakeImpactMembersJSON(row.evidenceFactIDs), row.packageID, row.repositoryID, row.subjectDigest})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactCVEIDsQuery:

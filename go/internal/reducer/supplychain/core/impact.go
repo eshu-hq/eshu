@@ -413,6 +413,7 @@ func (h SupplyChainImpactHandler) impactWrite(
 		// publishes and retracts inside the stamp (#9779).
 		ScopedCVEIDs:   scopedWriteCVEIDs(loaded),
 		PartialCauses:  loaded.truncation.causes(),
+		GoEvidence:     loaded.goEvidence,
 		ScopeFactKinds: loaded.scopeFactKinds,
 		FencingToken:   fencingToken,
 		Recovery:       fanOutOwed(intent) && len(fanOutRemaining(intent)) == 0,

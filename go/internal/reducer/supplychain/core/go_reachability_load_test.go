@@ -90,6 +90,23 @@ func (s *goCrossScopeBackedLoader) ListActiveGoReachabilityFacts(
 	return append([]facts.Envelope(nil), s.goFacts...), nil
 }
 
+// ListActiveGoReachabilityEvidence is the pairs seam the writer's lock needs: the same
+// facts, with one pair per distinct (scope, generation) among them.
+func (s *goCrossScopeBackedLoader) ListActiveGoReachabilityEvidence(
+	ctx context.Context,
+	filter GoReachabilityFactFilter,
+) (GoReachabilityEvidence, error) {
+	loaded, err := s.ListActiveGoReachabilityFacts(ctx, filter)
+	if err != nil {
+		return GoReachabilityEvidence{}, err
+	}
+	pairs := make([]GoEvidenceGeneration, 0, len(loaded))
+	for _, envelope := range loaded {
+		pairs = append(pairs, GoEvidenceGeneration{ScopeID: envelope.ScopeID, GenerationID: envelope.GenerationID})
+	}
+	return GoReachabilityEvidence{Facts: loaded, Generations: sortedGoEvidencePairs(pairs)}, nil
+}
+
 // ListActivePackageManifestDependencyFactsWithRefusals keeps the #10095 stub
 // on the refusing seam (#10109): it holds no manifest rows, so it reports no
 // refusal, matching the pre-#10109 skip for these tests.

@@ -34,6 +34,11 @@ reads probe before each call, and how the reducer-side readers used it.
 | `eshu_dp_supply_chain_impact_stable_key_fill_pauses_total` | counter | `reason` | Passes held back by a pause condition: `replay_lag` (a replica over the limit), `free_disk` (under the limit), `disk_unreadable` (a limit is set and no reading is wired), `index_build` (`pg_stat_progress_create_index` not empty), `probe_error` (a condition could not be read, never taken as clear). |
 | `eshu_dp_supply_chain_impact_stable_key_fill_complete` | gauge | none | 1 once the fill marker is set: a clean verification found no keyless support whose twin has a key. 0 until then, and while the fill is off (the default). |
 | `eshu_dp_supply_chain_impact_supports_backfill_ready` | gauge | none | 1 once the backfill finished and verified at the current contract version and the fence is empty, else 0. A reader of the table refuses a grant-scoped call while it is 0. |
+| `eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total` | counter | `reason` | Impact passes aborted at the end of their write transaction (their writes roll back) because the Go evidence they loaded no longer names its go scope's active generation (`generation_changed`: a Go-modules fence retracted it or a successor activated) or the shared go-evidence lock timed out behind a fence (`lock_timeout`). Each retries without spending an attempt (class `supply_chain_impact_go_evidence_changed`) and the retry reloads the evidence. A sustained rate means fences and passes keep colliding on one repository. |
+| `eshu_dp_go_fence_advisory_lock_timeouts_total` | counter | none | Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight impact pass. Nothing was detached; the coordinator retries the page next tick. Three consecutive ticks timing out on the same scope returns to the owner of #11327. |
+| `eshu_dp_go_fence_advisory_lock_wait_seconds` | histogram | none | How long the fence waited for the exclusive go-evidence lock, granted or timed out. A pass holds the shared lock only for its recheck, its owed marker and its commit, so the expected wait is milliseconds; a tail means a pass stalled between its recheck and its commit. The lock timeout is 2 s. |
+| `eshu_dp_supply_chain_impact_write_tx_duration_seconds` | histogram | `outcome` (`committed`, `rolled_back`, `recheck_aborted`) | Wall time of one impact write transaction, begin to commit or rollback. `recheck_aborted` is a pass whose Go evidence went stale during its writes: the whole transaction was spent for nothing, so the abort cost is this histogram's `recheck_aborted` series. Buckets reach 300 s. Use the `committed` p99 to size how long a fence can wait behind a pass. |
+| `eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds` | histogram | none | How long a pass spent in the closing statements after its first shared go-evidence lock: taking the locks, granted or refused, plus its owed marker, which can wait on its work-item row. A tail means passes queue behind a fence or a stalled marker, and bounds how long a fence can wait behind the pass. Passes with no resolved Go scope record nothing. |
 
 No label carries a scope, repository, canonical key or CVE.
 
@@ -154,6 +159,13 @@ findings:
   they already recorded and insert into, and the recovery reads select from. Rows
   leave it through the generation foreign key cascade, which the owner runs, so the
   login needs neither `UPDATE` nor `DELETE`.
+
+A pass that loaded Go evidence also rechecks, at the end of its write transaction,
+that each go scope it read is still active (#11327). That recheck is a plain `SELECT`
+on `ingestion_scopes` and `scope_generations`, which the reducer login already needs
+for every claim; a login that lacks either fails the recheck with `permission denied`
+(SQLSTATE 42501), and the pass rolls back and retries. The advisory lock functions
+need no grant (PUBLIC execute).
 
 None of the four tables has a sequence. Until the first grant exists, the new
 reducer's impact writes fail with `permission denied for table

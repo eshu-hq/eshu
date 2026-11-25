@@ -300,6 +300,12 @@ func grantImpactWriterPregrants(t *testing.T, ctx context.Context, admin *sql.DB
 		// It is an ordinary base table, not a protected object; the inventory
 		// above is unchanged.
 		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
+		// The Go-evidence recheck at the end of the write transaction (#11327) reads
+		// the go scope's active pointer. The runtime-writer login already reads
+		// ingestion_scopes for every reducer claim, so this is the same ordinary
+		// base-table SELECT, listed here so a restricted login that lacks it fails
+		// the proof instead of production.
+		`GRANT SELECT ON ingestion_scopes TO "` + roleName + `"`,
 		// The writer stages the identifiers of the findings it wrote in the
 		// same transaction (#9805, #10837 direction C). Like fact_records,
 		// the staging queue is an ordinary base table whose privileges are a

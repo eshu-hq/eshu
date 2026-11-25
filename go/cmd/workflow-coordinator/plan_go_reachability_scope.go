@@ -127,7 +127,7 @@ func runPlanGoReachabilityScope(ctx context.Context, args []string, stdout, stde
 		Store:                          store,
 		GoModuleRepositoryReader:       gomodules.NewStore(goModuleRepositoriesDB),
 		GoModuleSingleRepositoryReader: gomodules.NewStore(goModuleRepositoriesDB),
-		GoEvidenceFencer:               gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(goModulesFenceSupportsReadiness(instruments)),
+		GoEvidenceFencer:               gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(goModulesFenceSupportsReadiness(instruments)).WithGoEvidenceLockObserver(goEvidenceLockObserver(instruments)),
 		TenantGrantReader:              tenantGrantReader{store: tenantGrantStore},
 		ActivationDerivedScopes:        instruments.ActivationDerivedScopesPlanned,
 		ActivationDerivedScopesFenced:  instruments.ActivationDerivedScopesFenced,

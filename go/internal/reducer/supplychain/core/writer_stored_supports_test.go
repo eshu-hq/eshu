@@ -16,6 +16,8 @@ import (
 // written and of the scope's previous generation, read from fact_records with the
 // row's own fencing token. It is kept, frozen and digest-pinned, as the oracle the
 // supports read is compared to (the live equality proof runs both on one seed).
+// The frozen text is the #11411 read: the winners-key components ride along so
+// the retraction stages the same key the upsert capture skips.
 const legacyStoredFindingsQueryFrozen = `
 SELECT fact_id,
        generation_id,
@@ -27,7 +29,10 @@ SELECT fact_id,
        fencing_token,
        COALESCE(payload #>> '{provenance,advisory_group_members}', '[]'),
        COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active'),
-       COALESCE(payload #>> '{evidence_fact_ids}', '[]')
+       COALESCE(payload #>> '{evidence_fact_ids}', '[]'),
+       COALESCE(payload ->> 'package_id', ''),
+       COALESCE(payload ->> 'repository_id', ''),
+       COALESCE(payload ->> 'subject_digest', '')
 FROM fact_records
 WHERE fact_kind = 'reducer_supply_chain_impact_finding'
   AND scope_id = $1
@@ -44,9 +49,9 @@ WHERE fact_kind = 'reducer_supply_chain_impact_finding'
 `
 
 // legacyStoredFindingsQueryDigest is the sha256 of the frozen text above: the
-// pre-supports fact read at the D7 base (identity digest column included). The
-// frozen text must still hash to it.
-const legacyStoredFindingsQueryDigest = "d631e62575e7340a712ba4636b4d3fbb717a4c342c0c4c4f608b702b2d1efb3d"
+// pre-supports fact read at the #11411 base (identity digest and winners-key
+// columns included). The frozen text must still hash to it.
+const legacyStoredFindingsQueryDigest = "4f4ae17263c2ea6a6d2bf4e5a5d49ed297c97fc3182bcb5a7321b02d810325ed"
 
 func TestLegacyStoredFindingsQueryStaysFrozen(t *testing.T) {
 	t.Parallel()

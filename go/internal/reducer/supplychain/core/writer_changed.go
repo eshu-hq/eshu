@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 )
@@ -132,6 +131,11 @@ type storedFinding struct {
 	// evidenceFactIDs is the stored row's evidence fact id set, read for
 	// the capture secondary comparison (#10880 ruling decision 4).
 	evidenceFactIDs []string
+	// packageID, repositoryID and subjectDigest are the stored row's
+	// canonical winners-key components: the pass's retraction stages the
+	// keys it tombstones, so the upsert capture skips the keys the same
+	// pass retires and one pass stages one dirty row per key (#11411).
+	packageID, repositoryID, subjectDigest string
 }
 
 // changedCVEIDs returns the sorted CVE ids a pass changed, unioned with the
@@ -265,16 +269,6 @@ func derivedCVEIDs(rows []changedRow, stored []storedFinding, generationID strin
 		}
 	}
 	return sortedSetKeys(derived)
-}
-
-// coalescedFindingGroupID returns the advisory-group id (#10411) a finding
-// row belongs to: its CVE id when it names one, else its advisory id, each
-// trimmed. An empty result names no group.
-func coalescedFindingGroupID(cveID string, advisoryID string) string {
-	if id := strings.TrimSpace(cveID); id != "" {
-		return id
-	}
-	return strings.TrimSpace(advisoryID)
 }
 
 // touchedGroupIDs returns the sorted advisory-group ids a pass changed

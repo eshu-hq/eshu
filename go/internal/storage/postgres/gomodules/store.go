@@ -204,6 +204,10 @@ var ErrGoModuleRepositoryNoActiveGeneration = errors.New("go module repository h
 type Store struct {
 	database     db.Queryer
 	reopenHolder HolderReopener
+	// observeGoEvidenceLock, when set, is told how long the fence waited for the
+	// exclusive go-evidence lock and whether the wait ended in the lock timeout
+	// (#11327). Nil records nothing.
+	observeGoEvidenceLock GoEvidenceLockObserver
 	// supportsReady binds the supports readiness predicate the holder read answers
 	// under (#11197); the composition root binds it with WithSupportsReadiness.
 	supportsReady SupportsReadiness

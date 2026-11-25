@@ -238,6 +238,9 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	if err = registerSupplyChainImpactStableKeyFillInstruments(meter, inst); err != nil {
 		return err
 	}
+	if err = registerSupplyChainImpactFenceInstruments(meter, inst); err != nil {
+		return err
+	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
 		metric.WithDescription("Raw per-support rows one drain read (one whole call for the service-catalog reader; active or not, and the rows a failed drain read before it stopped), by reader (source label). Raw rows far above the active rows mean the key's supports sit mostly in superseded generations; a drain in the hundred thousands is a hot key."),
