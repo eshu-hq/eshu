@@ -546,7 +546,7 @@ and `pending_projection` DB counts.
 
 ## Write-Conflict Handling Proof Under Concurrent Claimers (#3558)
 
-`reducer_queue_conflict_claim_proof_test.go` is the live-concurrency proof that
+`reducer_queue_conflict_claim_proof_live_test.go` is the live-concurrency proof that
 the reducer claim path handles MERGE / commit-time uniqueness / write-conflict
 races by partition-by-conflict-key fencing, not by serialization. The contested
 resource is the `(conflict_domain, conflict_key)` fence computed by
