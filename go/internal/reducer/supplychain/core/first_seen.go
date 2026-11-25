@@ -209,6 +209,35 @@ func marshalStampedPayloads(rows []factwrite.VersionedRow, payloads []map[string
 	return nil
 }
 
+// claimSupplyChainImpactFirstSeen claims the #11031 first-seen stamps for
+// the pass rows and remarshals stamped rows with their resolved stamps.
+// Rows already carry the pre-stamp marshal, so the remarshal runs only when
+// the claim resolved stamps; unstamped passes keep the single marshal.
+func claimSupplyChainImpactFirstSeen(
+	ctx context.Context,
+	tx SupplyChainImpactTx,
+	write SupplyChainImpactWrite,
+	rows []factwrite.VersionedRow,
+	payloads []map[string]any,
+	now time.Time,
+) error {
+	stamps := map[string]FirstSeenStamp{}
+	if store, ok := tx.(SupplyChainImpactFirstSeenStore); ok {
+		var err error
+		stamps, err = store.ClaimSupplyChainImpactFirstSeen(ctx, FirstSeenClaimsForRows(rows, publishSourcesForWrite(write.Findings)), now)
+		if err != nil {
+			return fmt.Errorf("claim supply chain impact first seen: %w", err)
+		}
+	}
+	if len(stamps) == 0 {
+		return nil
+	}
+	if err := marshalStampedPayloads(rows, payloads, stamps); err != nil {
+		return fmt.Errorf("marshal stamped supply chain impact payloads: %w", err)
+	}
+	return nil
+}
+
 // StampPrebuiltFindingPayloads patches prebuilt rows' payload JSON with
 // their resolved stamps. Only the cassette admission cell uses it: its rows
 // arrive with payload bytes already encoded, so unlike the writer (which
