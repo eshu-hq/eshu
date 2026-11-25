@@ -188,14 +188,15 @@ func scanFactsPage(
 }
 
 // classifyGenerationFetchError wraps a statement-timeout failure (SQLSTATE
-// 57014) or a context deadline in projector.ErrGenerationFetchTimeout,
-// mirroring classifyFanOutReadError. Any other failure keeps the operation
+// 57014) or a context deadline in a retryable generation-fetch timeout error
+// (same 57014/deadline condition as classifyFanOutReadError; this one also
+// reports Retryable). Any other failure keeps the operation
 // context. A dying page fails the fetch: returning a typed error here (and
 // never the rows read so far) is what forbids a partial page as success.
 func classifyGenerationFetchError(op string, err error) error {
 	var pgErr *pgconn.PgError
 	if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &pgErr) && pgErr.Code == "57014") {
-		return fmt.Errorf("%w: %v", projector.ErrGenerationFetchTimeout, err)
+		return projector.NewGenerationFetchTimeoutError(fmt.Errorf("%s: %w", op, err))
 	}
 	return fmt.Errorf("%s: %w", op, err)
 }

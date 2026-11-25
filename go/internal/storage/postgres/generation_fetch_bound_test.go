@@ -14,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // TestListFactsBoundsGenerationFetchStatementTimeout pins #11432: the
@@ -256,6 +258,71 @@ func TestListFactsGenerationFetchTimeoutClassifies57014(t *testing.T) {
 		}
 		if got := db.transactionCommitCalls; got != 0 {
 			t.Fatalf("transaction commits = %d, want 0 on page timeout", got)
+		}
+	}
+}
+
+// TestListFactsGenerationFetchTimeoutStaysRetryable pins the #11432 P1: a
+// 57014/deadline page failure must stay retryable through the normal Fail
+// path (failure.IsRetryable), keep its cause detectable (errors.Is/As), and
+// take the retry UPDATE rather than the dead-letter triage.
+func TestListFactsGenerationFetchTimeoutStaysRetryable(t *testing.T) {
+	t.Parallel()
+
+	for _, timeoutErr := range []error{
+		&pgconn.PgError{Code: "57014", Message: "canceling statement due to statement timeout"},
+		context.DeadlineExceeded,
+	} {
+		db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+			{}, // per-page statement_timeout: returned row closed unscanned.
+			{err: timeoutErr},
+			{rows: [][]any{{false, "", ""}}},
+		}}
+		store := NewFactStore(db)
+
+		_, err := store.ListFacts(context.Background(), "scope-1", "gen-1")
+		if !errors.Is(err, projector.ErrGenerationFetchTimeout) {
+			t.Fatalf("ListFacts() error = %v, want %v", err, projector.ErrGenerationFetchTimeout)
+		}
+		if !failure.IsRetryable(err) {
+			t.Fatalf("ListFacts() error = %v, want retryable through the Fail path", err)
+		}
+		if timeoutErr == context.DeadlineExceeded {
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("ListFacts() error = %v, want the deadline cause preserved", err)
+			}
+		} else {
+			var pgErr *pgconn.PgError
+			if !errors.As(err, &pgErr) || pgErr.Code != "57014" {
+				t.Fatalf("ListFacts() error = %v, want the 57014 cause preserved", err)
+			}
+		}
+
+		qdb := &recordingExecQueryer{}
+		queue := NewProjectorQueue(qdb, "projector-1", 30*time.Second)
+		queue.RetryDelay = 2 * time.Minute
+		queue.MaxAttempts = 3
+		work := projector.ScopeGenerationWork{
+			Scope:        scope.IngestionScope{ScopeID: "scope-1"},
+			Generation:   scope.ScopeGeneration{GenerationID: "gen-1"},
+			AttemptCount: 1,
+		}
+		if ferr := queue.Fail(context.Background(), work, err); ferr != nil {
+			t.Fatalf("Fail() error = %v, want nil", ferr)
+		}
+		if got, want := len(qdb.execs), 1; got != want {
+			t.Fatalf("Fail() exec count = %d, want %d (single retry UPDATE, no dead-letter)", got, want)
+		}
+		query := qdb.execs[0].query
+		for _, want := range []string{"UPDATE fact_work_items", "status = 'retrying'"} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("Fail() retry query missing %q:\n%s", want, query)
+			}
+		}
+		// No FailureClass method on the timeout error: the retry path keeps
+		// the fallback class, pinning the no-typed-class contract.
+		if got, want := qdb.execs[0].args[1], "projection_retryable"; got != want {
+			t.Fatalf("failure class = %v, want %v", got, want)
 		}
 	}
 }
