@@ -7,9 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
-	"syscall"
 
 	"github.com/eshu-hq/eshu/go/internal/cli/localsupervisor"
 	"github.com/eshu-hq/eshu/go/internal/cli/procexec"
@@ -173,7 +171,7 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 		printError("eshu-mcp-server binary not found in PATH.")
 		fmt.Println("\nThe satellite MCP server is a separate binary. Either:")
 		fmt.Println("  1. Install it with scripts/install-local-binaries.sh (pinned ESHU_MCP_REF build),")
-		fmt.Println("  2. Start an eshu-api and pass its URL with --core-base-url, or")
+		fmt.Println("  2. Start an eshu-core-api and pass its URL with --core-base-url, or")
 		fmt.Println("  3. Use --workspace-root so this command starts a session API for you.")
 		return fmt.Errorf("eshu-mcp-server not found")
 	}
@@ -245,38 +243,47 @@ func normalizeMCPTransport(raw string) (string, error) {
 	}
 }
 
+// serviceCoreAPIBinary is the pool-owner core binary the local `api start`
+// and `serve start` delegates exec. eshu-core-api reads its listen address
+// from --addr only, so both delegates carry the CLI's --host/--port there;
+// the ESHU_API_ADDR export stays as the runtime env contract readers outside
+// the exec'd binary rely on.
+const serviceCoreAPIBinary = "eshu-core-api"
+
 func runAPIStart(cmd *cobra.Command, args []string) error {
 	host, _ := cmd.Flags().GetString("host")
 	port, _ := cmd.Flags().GetInt("port")
 
-	binary, err := exec.LookPath("eshu-api")
+	binary, err := procexec.LookPath(serviceCoreAPIBinary)
 	if err != nil {
-		printError("eshu-api binary not found in PATH.")
-		return fmt.Errorf("eshu-api not found")
+		printError("eshu-core-api binary not found in PATH.")
+		return fmt.Errorf("eshu-core-api not found")
 	}
 
-	if err := os.Setenv("ESHU_API_ADDR", fmt.Sprintf("%s:%d", host, port)); err != nil {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	if err := os.Setenv("ESHU_API_ADDR", addr); err != nil {
 		return err
 	}
-	fmt.Printf("Starting Eshu HTTP API on %s:%d...\n", host, port)
-	return syscall.Exec(binary, []string{"eshu-api"}, os.Environ()) // #nosec G204 -- binary is LookPath("eshu-api"); args literal
+	fmt.Printf("Starting Eshu HTTP API on %s...\n", addr)
+	return procexec.Exec(binary, []string{serviceCoreAPIBinary, "--addr=" + addr}, procexec.Environ()) // #nosec G204 -- binary is LookPath("eshu-core-api"); args literal
 }
 
 func runServeStart(cmd *cobra.Command, args []string) error {
 	host, _ := cmd.Flags().GetString("host")
 	port, _ := cmd.Flags().GetInt("port")
 
-	binary, err := exec.LookPath("eshu-api")
+	binary, err := procexec.LookPath(serviceCoreAPIBinary)
 	if err != nil {
-		printError("eshu-api binary not found in PATH.")
-		return fmt.Errorf("eshu-api not found")
+		printError("eshu-core-api binary not found in PATH.")
+		return fmt.Errorf("eshu-core-api not found")
 	}
 
-	if err := os.Setenv("ESHU_API_ADDR", fmt.Sprintf("%s:%d", host, port)); err != nil {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	if err := os.Setenv("ESHU_API_ADDR", addr); err != nil {
 		return err
 	}
-	fmt.Printf("Starting Eshu service (HTTP API + MCP) on %s:%d...\n", host, port)
-	return syscall.Exec(binary, []string{"eshu-api"}, os.Environ()) // #nosec G204 -- binary is LookPath("eshu-api"); args literal
+	fmt.Printf("Starting Eshu service (HTTP API + MCP) on %s...\n", addr)
+	return procexec.Exec(binary, []string{serviceCoreAPIBinary, "--addr=" + addr}, procexec.Environ()) // #nosec G204 -- binary is LookPath("eshu-core-api"); args literal
 }
 
 func init() {
