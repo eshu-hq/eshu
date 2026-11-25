@@ -21,7 +21,7 @@ a retryable `SupplyChainImpactSupportsDrainTruncatedError`
 deliberately not in the non-counting set: a never-converging hot key spends an
 attempt per retry and dead-letters at maxAttempts instead of retrying forever.
 
-## Performance Evidence
+## Performance Evidence:
 
 Baseline (unbounded drain): working set grows with the hot key with no ceiling;
 observed 11 general-engine OOMKills and a 7.6 GB live heap in production, ~91% of
@@ -39,7 +39,7 @@ unbounded drain served (pinned by
 `TestSupplyChainImpactSupportsDrainServesUnderCapUnchanged`: fact_id order,
 active-only filtering, short-page stop).
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 - RED first: the new bound tests fail to build without the fix (new cap/error/
   stats API); a scratch probe on base symbols showed the old drain serving 1500
@@ -58,7 +58,7 @@ active-only filtering, short-page stop).
   contention hang (`TestStaleGate11234AcceptanceLive`) that passes in isolation.
 - `go vet`, `gofmt`: clean. Independent review: ready, zero P0/P1/blocking-P2.
 
-## Observability Evidence
+## Observability Evidence:
 
 Truncations log `event_name=supply_chain_impact_supports.large_drain` with
 `outcome=truncated` (the line prefers the truncated label when both flags are
