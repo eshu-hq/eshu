@@ -158,18 +158,8 @@ func commitSupplyChainImpactRowsTimed(
 	// store is optional: only the production transaction implements it,
 	// so unit-test transactions keep writing stamp-free payloads the cohort
 	// classifier excludes as no-stamp.
-	stamps := map[string]FirstSeenStamp{}
-	if store, ok := tx.(SupplyChainImpactFirstSeenStore); ok {
-		var err error
-		stamps, err = store.ClaimSupplyChainImpactFirstSeen(ctx, FirstSeenClaimsForRows(rows, publishSourcesForWrite(write.Findings)), now)
-		if err != nil {
-			return supplyChainImpactTxOutcome{suppression: supp}, fmt.Errorf("claim supply chain impact first seen: %w", err)
-		}
-	}
-	if len(stamps) > 0 {
-		if err := marshalStampedPayloads(rows, payloads, stamps); err != nil {
-			return supplyChainImpactTxOutcome{suppression: supp}, err
-		}
+	if err := claimSupplyChainImpactFirstSeen(ctx, tx, write, rows, payloads, now); err != nil {
+		return supplyChainImpactTxOutcome{suppression: supp}, err
 	}
 	// Read what the pass is about to overwrite, after the lock (no concurrent
 	// pass of this conflict domain can change it) and before the upsert, so the
@@ -301,6 +291,35 @@ func commitSupplyChainImpactRowsTimed(
 		return supplyChainImpactTxOutcome{goEvidenceLocked: locked, goEvidenceLockWait: wait}, err
 	}
 	return outcome, nil
+}
+
+// claimSupplyChainImpactFirstSeen claims the #11031 first-seen stamps for
+// the pass rows and remarshals stamped rows with their resolved stamps.
+// Rows already carry the pre-stamp marshal, so the remarshal runs only when
+// the claim resolved stamps; unstamped passes keep the single marshal.
+func claimSupplyChainImpactFirstSeen(
+	ctx context.Context,
+	tx SupplyChainImpactTx,
+	write SupplyChainImpactWrite,
+	rows []factwrite.VersionedRow,
+	payloads []map[string]any,
+	now time.Time,
+) error {
+	stamps := map[string]FirstSeenStamp{}
+	if store, ok := tx.(SupplyChainImpactFirstSeenStore); ok {
+		var err error
+		stamps, err = store.ClaimSupplyChainImpactFirstSeen(ctx, FirstSeenClaimsForRows(rows, publishSourcesForWrite(write.Findings)), now)
+		if err != nil {
+			return fmt.Errorf("claim supply chain impact first seen: %w", err)
+		}
+	}
+	if len(stamps) == 0 {
+		return nil
+	}
+	if err := marshalStampedPayloads(rows, payloads, stamps); err != nil {
+		return fmt.Errorf("marshal stamped supply chain impact payloads: %w", err)
+	}
+	return nil
 }
 
 // retractSupersededSupplyChainImpactFindingsQuery tombstones every active
