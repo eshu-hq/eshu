@@ -434,6 +434,15 @@ not yet run live, and "unit" marks a hermetic test, run on every commit.
 | The retracted-keys table is classified for retention (c) | `TestCensusClassifiesRetractedFindingKeys` | none: an unclassified table fails it | census | unit |
 | A protected publish captures winners dirty keys | `TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive` | none | behavior | 2 |
 
+## Deferred proof currency
+
+The fanout liveness-loops proof and the narrow-write proof shipped arm still
+explain the legacy fact_records active-facts statement while claiming shipped
+properties; the keyed probe plan proof above covers the shipped supports
+twins. Repointing those two proofs (or recording why they stay legacy) plus
+the cold pre-350 read accept-or-fill decision is tracked in
+eshu-hq/eshu#11415, owned as C1 follow-up work.
+
 ## File-size waiver
 
 `go/cmd/reducer/main.go` (595 lines on main, 598 here) and
