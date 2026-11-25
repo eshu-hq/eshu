@@ -63,14 +63,14 @@ func seedScannedBudgetBacklog(h *keyedHarness, keys int) (kept, scanned int64) {
 	return perKey * int64(keys), 2 * perKey * int64(keys)
 }
 
-// TestSupplyChainImpactWinnersKeyedScannedBudgetBoundsTicksLive is the Dec
+// TestSupplyChainImpactWinnersResweepScannedBudgetBoundsTicksLive is the Dec
 // 6(ii) RED: with more scanned copies queued than the budget allows, the
 // first tick must stop at the budget with the backlog still queued, every
 // tick must hold at or under the budget, the drain must take at least two
 // ticks, and the drained table must equal a fresh recompute (operator arm
 // included). Pre-fix the first tick eats the whole backlog in one unbounded
 // probe: not Bounded, scanned past the budget, one tick total.
-func TestSupplyChainImpactWinnersKeyedScannedBudgetBoundsTicksLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepScannedBudgetBoundsTicksLive(t *testing.T) {
 	h := newKeyedHarness(t, "Dec 6(ii) scanned-copies chunk budget")
 	const keys = 2
 	const budget = int64(scannedBudgetScannedPerIdent)
@@ -129,11 +129,11 @@ func TestSupplyChainImpactWinnersKeyedScannedBudgetBoundsTicksLive(t *testing.T)
 	h.assertParity("Dec 6(ii) scanned-copies budget")
 }
 
-// TestSupplyChainImpactWinnersKeyedScannedBudgetFirstIdentifierCompletesLive
+// TestSupplyChainImpactWinnersResweepScannedBudgetFirstIdentifierCompletesLive
 // pins the hot-identifier rule under the budget: a single identifier over the
 // budget still completes in one tick (never split, never stalled), and the
 // tick reports Bounded while identifiers stay queued.
-func TestSupplyChainImpactWinnersKeyedScannedBudgetFirstIdentifierCompletesLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepScannedBudgetFirstIdentifierCompletesLive(t *testing.T) {
 	h := newKeyedHarness(t, "Dec 6(ii) first-identifier-completes under the scanned budget")
 	const keys = 1
 	wantKept, wantScanned := seedScannedBudgetBacklog(h, keys)

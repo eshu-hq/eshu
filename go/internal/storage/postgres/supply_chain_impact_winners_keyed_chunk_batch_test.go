@@ -276,18 +276,21 @@ func TestBuildWinnersKeyedChunkBatchExactCeilingSucceeds(t *testing.T) {
 }
 
 // TestBuildWinnersKeyedChunkScannedBudgetTruncates is the Dec 6(ii) unit
-// proof: with 5 identifiers at 300 scanned copies each and a 1000-copy
-// budget, admission stops before the fifth (300, 600, 900 admitted, 1200
-// trips the check), the chunk carries exactly the admitted oldest-first
-// prefix in one INSERT, and the outcome names the budget.
+// proof: with 5 identifiers at 250 scanned copies each and a 1000-copy
+// budget, admission stops before the fifth (250, 500, 750, 1000 admitted,
+// then 1000 >= 1000 trips the check), the chunk carries exactly the
+// admitted oldest-first prefix in one INSERT, and the outcome names the
+// budget. The accumulation lands exactly on the budget, so the test also
+// pins the boundary: a spent budget stops admission (> would admit the
+// fifth).
 func TestBuildWinnersKeyedChunkScannedBudgetTruncates(t *testing.T) {
-	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(5), probeScanned: []int64{300, 300, 300, 300, 300}}
+	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(5), probeScanned: []int64{250, 250, 250, 250, 250}}
 	outcome, err := buildWinnersKeyedChunk(context.Background(), fake, winnersChunkBounds{dirtyRows: 5000, identifiers: 200, scannedCopies: 1000})
 	if err != nil {
 		t.Fatalf("buildWinnersKeyedChunk: %v", err)
 	}
 	if outcome.identifiers != 4 {
-		t.Fatalf("identifiers = %d, want 4 (budget 1000 at 300 scanned each)", outcome.identifiers)
+		t.Fatalf("identifiers = %d, want 4 (budget 1000 at 250 scanned each, boundary-exact)", outcome.identifiers)
 	}
 	if outcome.truncated || !outcome.budgetTruncated {
 		t.Fatalf("outcome = %+v, want {truncated:false budgetTruncated:true} (budget-only trip)", outcome)
