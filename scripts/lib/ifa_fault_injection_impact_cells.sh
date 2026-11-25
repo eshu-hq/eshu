@@ -55,7 +55,7 @@ cell_impact_family() {
 	local projector_pid reducer_pid
 	ifa_det_start_bg "${log_dir}" "projector-impactfamily" projector_pid "${bin_dir}/eshu-projector"
 	ifa_det_start_bg "${log_dir}" "reducer-impactfamily" reducer_pid "${bin_dir}/eshu-reducer"
-	run_drain_gate impactfamily
+	run_drain_gate_no_rationale impactfamily
 	assert_no_dead_letters impactfamily
 	ifa_impact_family_assert_armed_and_unrejected impact-family
 	local pin

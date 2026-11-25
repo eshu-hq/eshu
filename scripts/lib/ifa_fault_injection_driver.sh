@@ -172,6 +172,26 @@ assert_rationale_delta_truth() {
 # established naming convention for these drains (baseline Xpre,
 # "${cell}-pre"); no strict drain name ends in "pre".
 run_drain_gate() {
+	local cell="$1"
+	drain_gate_to_residual_bound "${cell}"
+	assert_rationale_truth "${cell}"
+}
+
+# run_drain_gate_no_rationale drains exactly like run_drain_gate but skips the
+# rationale oracle. cell_impact_family (#10880 PR-C2) drives only the three
+# impact cassettes, so the three-record rationale graph is never admitted and
+# assert_rationale_truth would fail on an empty graph, not on a wrong one. The
+# cell's own proof is the supports+winners digest against the shared pin, plus
+# the dead-letter and write-stop checks every cell keeps.
+run_drain_gate_no_rationale() {
+	local cell="$1"
+	drain_gate_to_residual_bound "${cell}"
+}
+
+# drain_gate_to_residual_bound is the rationale-free core shared by
+# run_drain_gate and run_drain_gate_no_rationale: poll the gate binary to the
+# B-12 residual bound (0), failing loudly on a dead reducer or a timeout.
+drain_gate_to_residual_bound() {
 	local cell="$1" drain_allow_readiness_deferred=()
 	log "${cell}: drain projector + reducer (gate polls to the B-12 residual bound)"
 	case "${cell}" in
@@ -203,7 +223,6 @@ run_drain_gate() {
 		tail -40 "${log_dir}/projector-${cell}.log" 2>/dev/null || true
 		die "${cell}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
 	fi
-	assert_rationale_truth "${cell}"
 }
 
 # _ifa_fault_reducer_exit_reason prints "<label>: <last log line>" and returns 0

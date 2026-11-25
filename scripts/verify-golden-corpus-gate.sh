@@ -219,6 +219,8 @@ export ESHU_EMIT_DATAFLOW=true
 log "query profile: ${ESHU_QUERY_PROFILE}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
+# #10880 PR-C2: serve the rebuilt canonical winners; post-C2 the read-time dedup over fact_records is empty for findings.
+export ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true
 # The SSM host inventory readback fails closed without freshness bounds
 # (#9558: the API/MCP handlers 503 when any bound is unset). The corpus
 # carries no SSM fixtures, so the gate asserts the empty shape served —
@@ -264,7 +266,7 @@ build_bin projector
 build_bin reducer
 build_bin api
 build_bin mcp-server
-build_bin golden-corpus-gate
+build_bin golden-corpus-gate; build_bin ifa # ifa: #10880 PR-C2 winners resweep (impact-digest -resweep) before query truth
 build_bin eshu; build_bin collector-git # collector-git: #10022 delta-reader leg
 build_bin mock-prometheus-mimir
 build_bin mock-openai-compatible
@@ -381,8 +383,7 @@ golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"
 log "start eshu-api for query truth"
 golden_metrics_source_start
 golden_ask_source_start
-start_bg api api_pid "${bin_dir}/eshu-api"
-wait_for_gate_http "eshu-api /readyz never returned on port ${GATE_API_PORT}" "http://localhost:${GATE_API_PORT}/readyz" "api"
+start_api_with_winners_resweep
 
 log "B-7 suppression producer truth: B-expired -> hidden -> A-expired"
 # #5837: this proof runs inside the phase_graph_query window but is assertion
