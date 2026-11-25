@@ -80,7 +80,9 @@ const supplyChainImpactSupportsDrainLogRows = 100000
 // instead of appending every active envelope, with its full JSON payload, into
 // one slice. Inactive raw rows carry no payload and never materialize one, so
 // the cap counts active rows only. The value matches the large-drain log
-// threshold: what that line used to only observe now also stops. A 152,000
+// threshold's number, not its unit (that line counts raw rows; the cap counts
+// actives, so the cap trips no later than the log line would have): what that
+// line used to only observe now also stops. A 152,000
 // finding repository measured about 365 MB through this path, so 100,000 rows
 // bounds a single drain to hundreds of megabytes; past it the hot key fails
 // fast and retryable with a resume cursor instead of OOMKilling the engine
@@ -99,8 +101,11 @@ var supplyChainImpactSupportsDrainMaxActiveRows = supplyChainImpactSupportsDrain
 // findings from a decision, a retraction, or a reopen. ResumeCursorFactID is
 // the last delivered fact id, so a resume re-reads from `s.fact_id >
 // ResumeCursorFactID` with no loss and no duplication. The refusal is retryable
-// under its own failure class so the queue defers the hot key without spending
-// it as a poisoned attempt and the engine stays alive to serve it.
+// under its own failure class, but the class is deliberately NOT in the
+// non-counting set: a deterministically-over-cap hot key would never converge,
+// so each retry spends an attempt and dead-letters at maxAttempts under a clear
+// name instead of retrying forever. The engine stays alive to serve everything
+// else, which is the fix: the OOMKilled engine served nothing.
 type SupplyChainImpactSupportsDrainTruncatedError struct {
 	// Reader names the reader whose drain truncated (the reader label of
 	// eshu_dp_supply_chain_impact_supports_reads_total).
@@ -256,10 +261,10 @@ func recordSupplyChainImpactSupportsDrain(
 	if stats.rawRows >= supplyChainImpactSupportsDrainLogRows || (stats.failed && stats.rawRows > 0) || stats.truncated {
 		outcome := "served"
 		switch {
-		case stats.failed:
-			outcome = "failed"
 		case stats.truncated:
 			outcome = "truncated"
+		case stats.failed:
+			outcome = "failed"
 		}
 		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s sample=%s outcome=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
 			reader, scope, outcome, stats.keys, stats.pages, stats.rawRows, stats.activeRows, stats.elapsed.Milliseconds())

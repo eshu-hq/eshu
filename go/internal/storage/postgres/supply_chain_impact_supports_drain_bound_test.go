@@ -127,3 +127,43 @@ func TestSupplyChainImpactSupportsDrainServesUnderCapUnchanged(t *testing.T) {
 		t.Fatalf("stats = %+v, want neither truncated nor failed", stats)
 	}
 }
+
+// TestSupplyChainImpactSupportsDrainTruncatesMidPageWithResumeCursor covers
+// the cut the page-boundary test never executes: the cap lands inside a page,
+// so the drain serves the page's head, stops on `len(serve) < len(active)`,
+// and reports the last DELIVERED fact id. A resume from that cursor re-reads
+// the page tail with no loss and no duplication.
+func TestSupplyChainImpactSupportsDrainTruncatesMidPageWithResumeCursor(t *testing.T) {
+	const head = 200
+	withDrainMaxActiveRows(t, 2*listFactsByKindPageSize+head)
+
+	database := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: boundTestActivePage(0)},
+		{rows: boundTestActivePage(500)},
+		{rows: boundTestActivePage(1000)},
+	}}
+	drain := newSupplyChainImpactSupportsDrain(nil, "bound-test",
+		supplyChainAdvisoriesForReposArms, []string{"hotspot"})
+
+	loaded, stats, err := drain.drain(context.Background(), database)
+
+	var truncated *SupplyChainImpactSupportsDrainTruncatedError
+	if !errors.As(err, &truncated) {
+		t.Fatalf("drain() error = %v, want *SupplyChainImpactSupportsDrainTruncatedError (the cap cuts page 3 mid-page)", err)
+	}
+	if loaded != nil {
+		t.Fatalf("drain() loaded = %d envelopes, want nil on truncation", len(loaded))
+	}
+	// Two full pages delivered plus the first `head` rows of page 3: the
+	// cursor is the last delivered id, inside the page, not its end.
+	if want := fmt.Sprintf("fact-%04d", 2*listFactsByKindPageSize+head-1); truncated.ResumeCursorFactID != want {
+		t.Fatalf("resume cursor = %q, want %q (last delivered fact id, mid-page)", truncated.ResumeCursorFactID, want)
+	}
+	if stats.activeRows != 2*listFactsByKindPageSize+head || stats.rawRows != 3*listFactsByKindPageSize {
+		t.Fatalf("stats = {active %d, raw %d}, want {active %d, raw %d}",
+			stats.activeRows, stats.rawRows, 2*listFactsByKindPageSize+head, 3*listFactsByKindPageSize)
+	}
+	if !stats.truncated || stats.pages != 3 {
+		t.Fatalf("stats = {truncated %v, pages %d}, want {truncated true, pages 3}", stats.truncated, stats.pages)
+	}
+}
