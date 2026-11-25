@@ -15,10 +15,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 )
 
-// Defaults of the chunked consume (#9805). The per-tick bound is on
-// post-expansion identifiers; the kept facts the 291 five-tuple probe builds
-// per identifier decide the heap and apply work, so no candidate-row budget
-// is needed. The identifier default is derived from the arbiter-required
+// Defaults of the chunked consume (#9805, Dec 6(ii)). The per-tick bound is
+// on post-expansion identifiers AND on the pre-filter copies the 291 probe
+// scans. The identifier-only bound was falsified on QA: at scope-expanded
+// fan-out one identifier fans out to hundreds of copies (50,123 scanned over
+// 200 identifiers on the replica; live ticks 150-260 s with 50-61k kept and
+// scanned about equal), so an identifier chunk still admits an unbounded
+// probe. The scanned-copies budget is the primary bound: kept facts always
+// cost a subset of the scanned copies' heap fetches (kept <= scanned), so
+// one scanned-copies unit bounds both heap terms with one in-statement
+// observable. The identifier default is derived from the arbiter-required
 // linearity probe (EXPLAIN ANALYZE BUFFERS of the apply statement at 400
 // vs 4,000 identifiers, stored scale 5,000 winners, warm cache, disposable
 // Postgres 18): 31.6ms vs 281.7ms, i.e. apply scales linearly at ~70us per
@@ -44,18 +50,30 @@ import (
 const (
 	defaultWinnersChunkMaxDirtyRows = 5000
 	defaultWinnersChunkMaxIdents    = 200
+	// defaultWinnersChunkMaxScannedCopies is the per-tick scanned-copies
+	// budget (Dec 6(ii)): about 10,000 pre-filter copies. Sized from the
+	// Dec 5(a) theory proof on the oldest-first representative chunk: the
+	// active-facts build costs about 0.97 ms per kept fact at cold I/O, so
+	// 10k kept facts fit the 15 s per-tick bar, and live scanned copies
+	// run about equal to kept facts, so one scanned-copies unit covers
+	// both heap terms. A tick may admit one identifier past the budget
+	// (the current identifier always completes, never split); the tick log
+	// reports the actual scanned count, so the overshoot stays visible.
+	defaultWinnersChunkMaxScannedCopies = 10000
 )
 
 // winnersChunkBounds is one keyed transaction's resolved chunk bounds.
 type winnersChunkBounds struct {
-	dirtyRows   int64
-	identifiers int64
+	dirtyRows     int64
+	identifiers   int64
+	scannedCopies int64
 }
 
 func (s SupplyChainImpactWinnersStore) chunkBounds() winnersChunkBounds {
 	b := winnersChunkBounds{
-		dirtyRows:   int64(s.ChunkMaxDirtyRows),
-		identifiers: int64(s.ChunkMaxIdentifiers),
+		dirtyRows:     int64(s.ChunkMaxDirtyRows),
+		identifiers:   int64(s.ChunkMaxIdentifiers),
+		scannedCopies: int64(s.ChunkMaxScannedCopies),
 	}
 	if b.dirtyRows <= 0 {
 		b.dirtyRows = defaultWinnersChunkMaxDirtyRows
@@ -63,14 +81,22 @@ func (s SupplyChainImpactWinnersStore) chunkBounds() winnersChunkBounds {
 	if b.identifiers <= 0 {
 		b.identifiers = defaultWinnersChunkMaxIdents
 	}
+	if b.scannedCopies <= 0 {
+		b.scannedCopies = defaultWinnersChunkMaxScannedCopies
+	}
 	return b
 }
 
 // winnersChunkOutcome is what one bounded build admitted: the identifiers it
-// applies and whether the identifier set continued past the chunk.
+// applies, whether the identifier set continued past the chunk, and which
+// bound stopped admission.
 type winnersChunkOutcome struct {
 	identifiers int64
 	truncated   bool
+	// budgetTruncated reports the scanned-copies budget stopped admission
+	// (as opposed to the identifier bound): the tick maps it to
+	// ChunkTruncatedBy so the log distinguishes the two.
+	budgetTruncated bool
 }
 
 // selectWinnersKeyedChunkIdentsSQL lists the identifier set's five-tuples
@@ -127,13 +153,15 @@ func winnersKeyedChunkIdentMatch(alias string) string {
 )`
 }
 
-// buildWinnersKeyedChunk admits the chunk: the oldest identifiers of the
-// post-expansion identifier set by producing dirty row (#10706
-// oldest-first), one batched statement into the chunk table, then restricts
-// the identifier table to them so the probe and the apply that follow are
-// bounded by the same chunk. The first identifier always completes, so a
-// single hot identifier still makes progress and the log always drains. It
-// reports whether the set continued past the chunk.
+// buildWinnersKeyedChunk admits the chunk: the oldest-first budgeted prefix
+// of the post-expansion identifier set (#10706 oldest-first), probed one
+// identifier at a time into the narrow table until the identifier bound or
+// the scanned-copies budget stops admission, then one batched statement into
+// the chunk table, then restricts the identifier table to the admitted prefix
+// so the active-facts build and the apply that follow are bounded by the
+// same chunk. The first identifier always completes, so a single hot
+// identifier still makes progress and the log always drains. It reports
+// whether the set continued past the chunk and which bound stopped it.
 func buildWinnersKeyedChunk(
 	ctx context.Context,
 	tx db.Transaction,
@@ -167,16 +195,65 @@ func buildWinnersKeyedChunk(
 	if _, err := tx.ExecContext(ctx, createWinnersKeyedChunkIdentsSQL); err != nil {
 		return outcome, fmt.Errorf("create supply chain impact winners chunk identifiers: %w", err)
 	}
-	// One batched INSERT carries the whole chunk (#10839): the admitted set
-	// is identical to the per-row loop it replaces (same rows, same
-	// oldest-first order), but a saturated tick spends one round trip here
-	// instead of one per identifier. The first identifier still always
-	// completes, so a single hot identifier keeps draining.
-	if len(idents) > 0 {
+	if _, err := tx.ExecContext(ctx, createWinnersKeyedBatchIdentsSQL); err != nil {
+		return outcome, fmt.Errorf("create supply chain impact winners batch identifiers: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, createWinnersKeyedNarrowSQL); err != nil {
+		return outcome, fmt.Errorf("create supply chain impact winners keyed narrow probe: %w", err)
+	}
+	// Budgeted admission (Dec 6(ii)): probe the identifiers oldest-first one
+	// at a time and stop admitting new ones once the scanned-copies budget
+	// is spent. RowsAffected of the per-identifier probe is that
+	// identifier's scanned-copy count, so the probe runs once per
+	// identifier and the budget binds admission instead of counting after
+	// the fact. The first identifier always completes, so a single hot
+	// identifier still makes progress and the log always drains; no
+	// identifier's copies split across ticks, because only wholly probed
+	// identifiers reach the chunk table below. A non-positive budget
+	// resolves to the default, the same rule as chunkBounds: admission is
+	// always bounded.
+	budget := bounds.scannedCopies
+	if budget <= 0 {
+		budget = defaultWinnersChunkMaxScannedCopies
+	}
+	var admitted []winnersKeyedChunkIdent
+	var scanned int64
+	for i, id := range idents {
+		if i > 0 && scanned >= budget {
+			outcome.budgetTruncated = true
+			break
+		}
 		if err := ctx.Err(); err != nil {
 			return outcome, fmt.Errorf("build supply chain impact winners chunk: %w", err)
 		}
-		query, args, err := winnersKeyedChunkIdentBatch(idents)
+		if _, err := tx.ExecContext(ctx, deleteWinnersKeyedBatchIdentsSQL); err != nil {
+			return outcome, fmt.Errorf("clear supply chain impact winners batch identifier: %w", err)
+		}
+		query, args, err := winnersKeyedIdentBatch(insertWinnersKeyedBatchIdentPrefix, []winnersKeyedChunkIdent{id})
+		if err != nil {
+			return outcome, fmt.Errorf("stage supply chain impact winners batch identifier: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			return outcome, fmt.Errorf("stage supply chain impact winners batch identifier: %w", err)
+		}
+		res, err := tx.ExecContext(ctx, insertWinnersKeyedNarrowBatchSQL)
+		if err != nil {
+			return outcome, fmt.Errorf("probe supply chain impact winners chunk scanned copies: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return outcome, fmt.Errorf("count supply chain impact winners chunk scanned copies: %w", err)
+		}
+		scanned += n
+		admitted = append(admitted, id)
+	}
+	// One batched INSERT carries the admitted chunk (#10839): the admitted
+	// set is the oldest-first budgeted prefix probed above, and a saturated
+	// tick spends one round trip here for the chunk write. The first
+	// identifier still always completes, so a single hot identifier keeps
+	// draining.
+	if len(admitted) > 0 {
+		query, args, err := winnersKeyedChunkIdentBatch(admitted)
 		if err != nil {
 			return outcome, fmt.Errorf("record supply chain impact winners chunk identifiers: %w", err)
 		}
@@ -184,14 +261,22 @@ func buildWinnersKeyedChunk(
 			return outcome, fmt.Errorf("record supply chain impact winners chunk identifiers: %w", err)
 		}
 	}
-	outcome.identifiers = int64(len(idents))
+	outcome.identifiers = int64(len(admitted))
+	// outcome.truncated keeps its identifier-bound meaning (the existing
+	// Bounded and restrict sites OR in budgetTruncated beside it); the
+	// reason mapping reads the pair, so a budget-only trip reports
+	// scanned_copies while a double trip reports both.
 	if _, err := tx.ExecContext(ctx, indexWinnersKeyedChunkIdentsSQL); err != nil {
 		return outcome, fmt.Errorf("index supply chain impact winners chunk identifiers: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedChunkIdentsSQL); err != nil {
 		return outcome, fmt.Errorf("analyze supply chain impact winners chunk identifiers: %w", err)
 	}
-	if outcome.truncated {
+	// Restrict on either truncation: identifiers outside the admitted prefix
+	// — past the identifier bound or past the spent budget — stay queued
+	// for the next tick, exactly like the identifier-bound restriction
+	// before it.
+	if outcome.truncated || outcome.budgetTruncated {
 		if _, err := tx.ExecContext(ctx, restrictWinnersKeyedIdentsToChunkSQL); err != nil {
 			return outcome, fmt.Errorf("restrict supply chain impact winners identifiers to chunk: %w", err)
 		}

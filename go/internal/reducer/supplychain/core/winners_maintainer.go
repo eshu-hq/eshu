@@ -68,6 +68,22 @@ type SupplyChainImpactWinnersWatermarkReader interface {
 	Watermark(ctx context.Context) (at time.Time, ok bool, err error)
 }
 
+// Chunk truncation reasons for SupplyChainImpactWinnersResweep.ChunkTruncatedBy
+// (Dec 6(ii)): which admission bound stopped a bounded keyed tick, so the
+// log distinguishes a budget trip from an identifier-bound trip.
+const (
+	// WinnersChunkTruncatedByIdentifiers means the post-expansion
+	// identifier bound stopped admission.
+	WinnersChunkTruncatedByIdentifiers = "identifiers"
+	// WinnersChunkTruncatedByScannedCopies means the scanned-copies budget
+	// stopped admission.
+	WinnersChunkTruncatedByScannedCopies = "scanned_copies"
+	// WinnersChunkTruncatedByBoth means the identifier set passed the
+	// identifier bound and the budgeted prefix then spent the
+	// scanned-copies budget too.
+	WinnersChunkTruncatedByBoth = "identifiers+scanned_copies"
+)
+
 // SupplyChainImpactWinnersResweep is what one resweep did. Inserted, Updated and
 // Deleted are the rows it wrote a version for; Unchanged is the count of current
 // winners it compared and skipped.
@@ -113,25 +129,28 @@ type SupplyChainImpactWinnersResweep struct {
 	// once the writer's transaction commits, and audit by the audit, so none of them is here.
 	TriggerCaptured WinnersTriggerCaptured
 	// Bounded is true when a keyed tick stopped at the chunk bound
-	// (post-expansion identifiers per transaction, #9805) with dirty-log
-	// rows still queued. A bounded tick commits the chunk it recomputed and
-	// stamps the horizon over the rows it leaves queued (#10706), so the
-	// gauge still advances on it. Remaining is the dirty-log depth the tick
-	// left; ChunkIdentifiers the post-expansion identifiers this tick probed,
+	// (post-expansion identifiers per transaction, #9805, or the
+	// scanned-copies budget, Dec 6(ii)) with dirty-log rows still queued. A
+	// bounded tick commits the chunk it recomputed and stamps the horizon
+	// over the rows it leaves queued (#10706), so the gauge still advances
+	// on it. Remaining is the dirty-log depth the tick left;
+	// ChunkIdentifiers the post-expansion identifiers this tick probed,
 	// ChunkKeptRows the kept facts the probe built for them, and
 	// ChunkScannedCopies the pre-filter copies the probe scanned before the
 	// active-generation filter discarded the retired and superseded ones
-	// (#11308). All five are zero on the full path, except Remaining, which
-	// a full resweep sets to the marks that committed after its drain (#11117).
-	// RemainingUpperBound is true when Remaining is an upper bound: its
-	// staging part passed the exact-count cap and is the visible seq span
-	// (#11129). Bounded and the stamp never depend on it.
+	// (#11308). ChunkTruncatedBy names which bound stopped admission ("" on
+	// a drained tick). All six are zero on the full path, except Remaining,
+	// which a full resweep sets to the marks that committed after its drain
+	// (#11117). RemainingUpperBound is true when Remaining is an upper
+	// bound: its staging part passed the exact-count cap and is the visible
+	// seq span (#11129). Bounded and the stamp never depend on it.
 	Bounded             bool
 	Remaining           int64
 	RemainingUpperBound bool
 	ChunkIdentifiers    int64
 	ChunkKeptRows       int64
 	ChunkScannedCopies  int64
+	ChunkTruncatedBy    string
 	// ScopeRemainderConverted is the dirty-log fact rows a keyed tick wrote
 	// when it converted the unapplied remainder of a partly applied scope
 	// row (#11145). Each keeps the scope row's capture time, so the
@@ -443,6 +462,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		attribute.Int64("chunk_identifiers", r.ChunkIdentifiers),
 		attribute.Int64("chunk_kept_rows", r.ChunkKeptRows),
 		attribute.Int64("chunk_scanned_copies", r.ChunkScannedCopies),
+		attribute.String("chunk_truncated_by", r.ChunkTruncatedBy),
 	)
 	// watermarkAge is -1 when the table had never been swept: there was no
 	// watermark to age.
@@ -492,6 +512,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		slog.Int64("chunk_identifiers", r.ChunkIdentifiers),
 		slog.Int64("chunk_kept_rows", r.ChunkKeptRows),
 		slog.Int64("chunk_scanned_copies", r.ChunkScannedCopies),
+		slog.String("chunk_truncated_by", r.ChunkTruncatedBy),
 		slog.Int64("remainder_rows_converted", r.ScopeRemainderConverted),
 	)
 }

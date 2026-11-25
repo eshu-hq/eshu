@@ -334,6 +334,12 @@ FROM generate_series(1, 3000) AS g`)
 		if err := json.Unmarshal(analyzed, &analyzedPlan); err != nil {
 			t.Fatalf("%s: analyzed plan is not JSON: %v", state, err)
 		}
+		if strings.Contains(string(analyzed), "fact_records_supply_chain_impact_winners_keyed_idx") {
+			t.Errorf("%s: the active-facts build touches the keyed winners index (the probe must run once, in the narrow build):\n%s", state, analyzed)
+		}
+		if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(string(analyzed)) {
+			t.Errorf("%s: the active-facts build seq-scans fact_records:\n%s", state, analyzed)
+		}
 		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE live_gens"`) {
 			t.Errorf("%s: the live generation set is not a materialized CTE node (it would recompute per row):\n%s", state, analyzed)
 		}

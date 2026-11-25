@@ -35,8 +35,11 @@ const WinnersKeyedIdentsTableForTest = winnersKeyedIdentsTable
 
 // WinnersKeyedNarrowBuildSQLForTest exposes the statement that persists the
 // identifier probe to the narrow temp table, which the active-facts build
-// reads; a proof must run it first, mirroring runKeyedOrFull.
-const WinnersKeyedNarrowBuildSQLForTest = buildWinnersKeyedNarrowSQL
+// reads; a proof must run it first, mirroring runKeyedOrFull. A var, not a
+// const: the shipped whole-chunk build is now composed by
+// winnersKeyedNarrowProbeSelect (shared with the budgeted per-identifier
+// probes), so it is not a compile-time constant. The value is unchanged.
+var WinnersKeyedNarrowBuildSQLForTest = buildWinnersKeyedNarrowSQL
 
 // WinnersKeyedNarrowAnalyzeSQLForTest exposes the ANALYZE of the narrow
 // temp table, so the active-facts build plans on real statistics.

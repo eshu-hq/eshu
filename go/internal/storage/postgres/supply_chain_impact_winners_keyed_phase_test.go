@@ -345,17 +345,43 @@ func TestResweepWinnersKeyedRecordsScannedCopies(t *testing.T) {
 func TestWinnersScannedCopiesProbeMatchesActiveFactsProbe(t *testing.T) {
 	t.Parallel()
 
-	for _, frag := range []string{
-		"(f.payload->>'package_id') = ident.package_id",
-		"(f.payload->>'repository_id') = ident.repository_id",
-		"(f.payload->>'subject_digest') = ident.subject_digest",
-		"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
-		"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
-		"f.fact_kind = 'reducer_supply_chain_impact_finding'",
-		"f.is_tombstone = FALSE",
+	// Every budgeted per-identifier probe derives from the same body, so the
+	// tick cannot silently split from the whole-chunk build the audit and
+	// the contract pin run.
+	for _, stmt := range map[string]string{
+		"whole-chunk build": buildWinnersKeyedNarrowSQL,
+		"budgeted probe":    insertWinnersKeyedNarrowBatchSQL,
 	} {
-		if !strings.Contains(buildWinnersKeyedNarrowSQL, frag) {
-			t.Errorf("narrow probe lost the probe fragment %q", frag)
+		for _, frag := range []string{
+			"(f.payload->>'package_id') = ident.package_id",
+			"(f.payload->>'repository_id') = ident.repository_id",
+			"(f.payload->>'subject_digest') = ident.subject_digest",
+			"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
+			"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
+			"f.fact_kind = 'reducer_supply_chain_impact_finding'",
+			"f.is_tombstone = FALSE",
+		} {
+			if !strings.Contains(stmt, frag) {
+				t.Errorf("narrow probe lost the probe fragment %q", frag)
+			}
+		}
+	}
+	if !strings.Contains(buildWinnersKeyedNarrowSQL, winnersKeyedIdentsTable) {
+		t.Errorf("whole-chunk build does not read the identifier table %q", winnersKeyedIdentsTable)
+	}
+	if !strings.Contains(insertWinnersKeyedNarrowBatchSQL, winnersKeyedBatchIdentsTable) {
+		t.Errorf("budgeted probe does not read the staging table %q", winnersKeyedBatchIdentsTable)
+	}
+	// The budgeted CREATE is literal SQL (the DDL parity scan reads only
+	// literals), so its columns are pinned to the probe output list here:
+	// each probe output column is declared with its fact_records type, and
+	// the probe selects each declared column from the copy side.
+	for _, col := range strings.Split(winnersKeyedNarrowColumns, ", ") {
+		if !strings.Contains(createWinnersKeyedNarrowSQL, col+" text") {
+			t.Errorf("narrow CREATE does not declare probe output column %q", col)
+		}
+		if !strings.Contains(insertWinnersKeyedNarrowBatchSQL, "fact."+col) {
+			t.Errorf("budgeted probe does not select probe output column %q", col)
 		}
 	}
 	if strings.Contains(countWinnersKeyedScannedCopiesSQL, "CROSS JOIN LATERAL") {

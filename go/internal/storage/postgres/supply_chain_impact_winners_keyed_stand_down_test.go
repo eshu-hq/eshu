@@ -15,7 +15,9 @@ import (
 // claim, so a newer binary's full can commit in between. Under the resweep
 // lock the keyed tick re-reads the stored version; above this binary's it
 // consumes, applies and stamps nothing (no keyed apply and no over-cap
-// rebuild with this binary's statements) and reports StoodDown.
+// rebuild with this binary's statements) and reports StoodDown. The Dec 7
+// statement-timeout pin runs before the claim (the tick's first statement),
+// so it is the only statement beside the claim and the contract re-read.
 func TestResweepWinnersKeyedStandsDownUnderTheLock(t *testing.T) {
 	t.Parallel()
 
@@ -30,8 +32,8 @@ func TestResweepWinnersKeyedStandsDownUnderTheLock(t *testing.T) {
 	if !got.Skipped || !got.StoodDown {
 		t.Fatalf("ResweepWinnersKeyed() = %+v, want Skipped and StoodDown under a newer stored contract", got)
 	}
-	if want := []string{tryClaimSupplyChainImpactWinnersResweepSQL, selectSupplyChainImpactWinnersContractSQL}; !slices.Equal(tx.queries, want) {
-		t.Fatalf("queries = %q, want only the claim and the contract re-read", tx.queries)
+	if want := []string{pinWinnersResweepStatementTimeoutSQL, tryClaimSupplyChainImpactWinnersResweepSQL, selectSupplyChainImpactWinnersContractSQL}; !slices.Equal(tx.queries, want) {
+		t.Fatalf("queries = %q, want the timeout pin, then the claim and the contract re-read", tx.queries)
 	}
 	if tx.rollbacks == 0 {
 		t.Fatal("the stood-down tick did not roll its transaction back")

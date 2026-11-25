@@ -174,8 +174,7 @@ type SupplyChainImpactWinnersStore struct {
 	// MaxIdentifiers and MaxKeyFraction cap a keyed resweep (#9805): a tick whose
 	// consumed dirty-log rows expand to more identifiers than MaxIdentifiers, or
 	// to more than MaxKeyFraction of the stored winners, runs the full rebuild in
-	// the same transaction. Zero means the defaults, 50,000 and 0.5
-	// (TEMPORARY #10972: 5,000 and 0.5 until the drain revert).
+	// the same transaction. Zero means the defaults, 50,000 and 0.5.
 	MaxIdentifiers int
 	MaxKeyFraction float64
 	// ChunkMaxDirtyRows and ChunkMaxIdentifiers bound one keyed transaction
@@ -185,6 +184,19 @@ type SupplyChainImpactWinnersStore struct {
 	// supply_chain_impact_winners_keyed_chunk.go.
 	ChunkMaxDirtyRows   int
 	ChunkMaxIdentifiers int
+	// ChunkMaxScannedCopies bounds one keyed transaction by the pre-filter
+	// copies the probe scans (Dec 6(ii)): the tick admits the oldest-first
+	// budgeted prefix of the identifier set and leaves the rest queued. The
+	// first identifier always completes. Zero means the default in
+	// supply_chain_impact_winners_keyed_chunk.go.
+	ChunkMaxScannedCopies int
+	// ResweepStatementTimeout bounds every statement of a keyed tick
+	// transaction (Dec 7 guard): a statement past the timeout aborts with
+	// the distinct statement_timeout failure class instead of holding the
+	// single-flight lock. The over-cap full fallback lifts it. Zero or
+	// negative means the default in
+	// supply_chain_impact_winners_keyed.go.
+	ResweepStatementTimeout time.Duration
 	// StagingCollapseMaxRows bounds one tick's staging collapse (#10837
 	// direction C): at most this many staged rows fold into the dirty log
 	// before admission. Zero means the default in

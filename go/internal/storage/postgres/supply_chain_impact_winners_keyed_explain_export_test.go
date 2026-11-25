@@ -171,9 +171,13 @@ func ExplainWinnersKeyedConvertSlowWindowForTest(ctx context.Context, database *
 			return "", "", fmt.Errorf("build identifiers for slow-window explain: %w", err)
 		}
 	}
+	// Explain-only: admit the whole caller-chosen chunk regardless of the
+	// scanned-copies budget, so the plans below cover the seeded alignment
+	// the caller asked for.
 	if _, err := buildWinnersKeyedChunk(ctx, tx, winnersChunkBounds{
-		dirtyRows:   defaultWinnersChunkMaxDirtyRows,
-		identifiers: chunkIdents,
+		dirtyRows:     defaultWinnersChunkMaxDirtyRows,
+		identifiers:   chunkIdents,
+		scannedCopies: 1 << 62,
 	}); err != nil {
 		return "", "", fmt.Errorf("build chunk for slow-window explain: %w", err)
 	}
