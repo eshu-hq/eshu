@@ -10,7 +10,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 
 | Page | Covers | Variables |
 | --- | --- | --- |
-| [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 56 |
+| [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 57 |
 | [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 66 |
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 121 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 48 |
@@ -20,7 +20,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 
 | Subsystem | Variables | Page |
 | --- | --- | --- |
-| [`api`](env-registry/api-and-auth.md#api) | 43 | API, auth, and MCP |
+| [`api`](env-registry/api-and-auth.md#api) | 44 | API, auth, and MCP |
 | [`auth`](env-registry/api-and-auth.md#auth) | 7 | API, auth, and MCP |
 | [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 13 | Runtime and storage |
 | [`collector`](env-registry/collectors-platform.md#collector) | 29 | Ingester and collector framework |
