@@ -157,6 +157,27 @@ func TestWinnersDirtyStratumFailsComposesGateAndNoise(t *testing.T) {
 	}
 }
 
+func TestWinnersDirtyShouldRetryMedianHealthyFailure(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                string
+		p50, p95, reference time.Duration
+		ratio, maxRatio     float64
+		wantRetry           bool
+	}{
+		{"median-healthy noisy p95 jitter retries once", 2040 * time.Microsecond, 4318 * time.Microsecond, 3890 * time.Microsecond, 4.51, 3.5, true},
+		{"median shift fails without retry", 4500 * time.Microsecond, 7000 * time.Microsecond, 3890 * time.Microsecond, 5.0, 3.5, false},
+		{"tail-stall noise already passes without retry", 1040 * time.Microsecond, 6600 * time.Microsecond, 3890 * time.Microsecond, 4.7, 3.5, false},
+		{"clean pass does not retry", 1000 * time.Microsecond, 2000 * time.Microsecond, 3890 * time.Microsecond, 1.4, 3.5, false},
+	}
+	for _, tc := range cases {
+		if got := winnersDirtyShouldRetryMedianHealthyFailure(tc.p50, tc.p95, tc.reference, tc.ratio, tc.maxRatio); got != tc.wantRetry {
+			t.Errorf("%s: shouldRetry = %v, want %v", tc.name, got, tc.wantRetry)
+		}
+	}
+}
+
 // TestWinnersDirtyContentionRatioIsQuotient pins the estimator the relative
 // gate depends on: stratum p95 over the same-run control p95. A non-positive
 // control is +Inf (fail-closed: a missing control never passes the gate).

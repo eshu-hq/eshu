@@ -187,6 +187,20 @@ func (t *recheckHookTx) DeleteRetractedImpactSupports(ctx context.Context, scope
 	return 0, nil
 }
 
+func (t *recheckHookTx) AuthorizeProtectedScanImpactResults(ctx context.Context, set supplychaincore.ProtectedScanImpactPublicationSet) error {
+	if authorizer, ok := t.tx.(supplychaincore.ProtectedScanImpactAuthorizer); ok {
+		return authorizer.AuthorizeProtectedScanImpactResults(ctx, set)
+	}
+	return errors.New("protected scan impact authorization transaction is required")
+}
+
+func (t *recheckHookTx) PublishProtectedScanImpactResults(ctx context.Context, set supplychaincore.ProtectedScanImpactPublicationSet) error {
+	if publisher, ok := t.tx.(supplychaincore.ProtectedScanImpactPublisher); ok {
+		return publisher.PublishProtectedScanImpactResults(ctx, set)
+	}
+	return errors.New("protected scan impact publication transaction is required")
+}
+
 // waitForAdvisoryWaiter polls pg_locks until at least want sessions wait for an advisory
 // lock that is not granted, so a proof knows the fence (or a second pass) is queued
 // behind the holder before it lets the holder continue.

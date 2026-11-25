@@ -262,13 +262,11 @@ reasoned read exemption (`statement-coverage` in `golden-corpus-gate.yml`,
 same blocking row as the differential oracle in `specs/ci-gates.v1.yaml`).
 Coverage is Neo4j-only: NornicDB is not a coverage target, and builders that
 run only on a NornicDB branch carry a manifest exemption with reason.
-Coverage also sees only what the capture legs execute: since the D13
-satellite cutover the legs run no live query phase (query truth moves to
-the cutover lane), so no query-path read is recorded and the manifest
-carries no query-path read exemptions (#11029 pruned the 35 orphaned
-rows). A read exemption must name a read the capture binaries still
-record; re-add query-path rows with the cutover lane's query capture, not
-before.
+Coverage also sees only what the capture legs execute: after #10890 was
+reverted (restoring live query-phase Cypher under differential capture),
+the manifest carries both the reducer/sweep/writer read exemptions and
+the active query-path read exemptions. Every read exemption must name a
+read the capture binaries still record, or it fails as `stale-exemption`.
 Unmatched executions are advisory (`unattributed`); writes that never carried
 Bolt counters are advisory (`write-without-counters`), since a MERGE that
 matched-existing legitimately reports zeros. An exemption excuses execution
