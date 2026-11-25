@@ -9,7 +9,7 @@ import (
 
 // TestSeedReadMeetsBar1PinsCorrectedReading pins the corrected Bar1 reading
 // from the arbiter ruling on eshu-hq/eshu#10817 (recorded in
-// docs/internal/arbiter/10817-canary-bar1-ruling-2026-11-23.md, decisions 1-3,
+// docs/internal/arbiter/10817-canary-bar1-ruling-2026-11-23.md, decision 1,
 // tracked by eshu-hq/eshu#11386): the floor measures bucket_bytes over
 // bucket-read time alone (open + gunzip + scan, nvd_seed_read_ms), the rate
 // bar >= 8 MiB/s applies only where the touched bucket bytes total >= 1 MiB,
@@ -94,8 +94,9 @@ func TestSeedReadFitsFloorPinsDeadlineProof(t *testing.T) {
 		fig  SeedFigures
 		want bool
 	}{
-		// The canary's ~4.3 s end-to-end window fits: the 67,303 B bucket
-		// earns ~16 ms of budget on top of the 75 s overhead allowance.
+		// A canary-scale read fits: the 67,303 B bucket earns ~16 ms of budget
+		// on top of the 75 s overhead allowance. (ReadMS is the bucket-read
+		// segment under test, not the ~4.3 s end-to-end satellite latency.)
 		"canary window fits floor": {
 			fig:  SeedFigures{ReadMS: 4300, Buckets: 1, Bytes: 67303},
 			want: true,
