@@ -5,7 +5,7 @@ package postgres
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:env ESHU_PROJECTOR_ADMISSION_PROOF_DSN
-//eshu:readiness:reason #10671 disposable PostgreSQL proof that an admission-timeout failure retries against the dedicated admission budget (attempt_count stays a monotonic fence, the admission counter increments exactly once per admission Fail including under a concurrent double-Fail race with the loser claim-rejected, a stale owner is rejected without touching the row), that generic retryable failures still spend the refunded projection budget to a retry_exhausted dead-letter, and that migration 325 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test
+//eshu:readiness:reason #10671 disposable PostgreSQL proof that an admission-timeout failure retries against the dedicated admission budget (attempt_count stays a monotonic fence, the admission counter increments exactly once per admission Fail including under a concurrent double-Fail race with the loser claim-rejected, a stale owner is rejected without touching the row), that exhausting the admission budget dead-letters with the admission_timeout class on the Nth wait, that generic retryable failures still spend the refunded projection budget to a retry_exhausted dead-letter, and that migration 325 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test
 
 import (
 	"context"
@@ -16,7 +16,10 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // admissionResetQueryer adapts *sql.DB to the reset package's narrow Queryer.
@@ -342,6 +345,92 @@ func TestProjectorQueueAdmissionRefinalizeCycleLive(t *testing.T) {
 	}
 	if status != "retrying" || attempts != 1 || waits != 1 {
 		t.Fatalf("after reopen fail = (%q, %d, %d), want (retrying, 1, 1)", status, attempts, waits)
+	}
+}
+
+// TestProjectorQueueAdmissionBudgetExhaustionDeadLettersLive proves the
+// admission budget is finite on live Postgres: with a budget of 2, the
+// first admission-timeout Fail retries on the claim fence (attempt 1,
+// admission counter exactly 1) and the second dead-letters with the
+// admission_timeout class while attempt_count stays on the claim fence
+// (2) and the admission counter stays at the granted retry (1): the
+// counter counts granted waits, and the exhausting Nth wait dead-letters
+// instead of incrementing (sibling projection-fence semantics — the
+// Nth wait dead-letters on counter N-1). The admission retry lands on
+// its own counter, never on the projection retry surge.
+// This closes the fake-only gap behind the
+// retry:non-counting-deferral ledger row: the fake suite proves the SQL
+// shape against a recorder, this proves the durable counters against
+// real Postgres.
+func TestProjectorQueueAdmissionBudgetExhaustionDeadLettersLive(t *testing.T) {
+	db := liveAdmissionProofDB(t)
+	provisionLivenessSchema(t, db, admissionProofSeedSQL)
+	ctx := context.Background()
+
+	now := time.Date(2026, time.November, 20, 20, 30, 0, 0, time.UTC)
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("admission-budget-exhaustion-live"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: db}, "live-proof", time.Minute)
+	// MaxAttempts 1 exhausts the projection budget on the first claim
+	// (projectionAttempts 1 < 1 is false), so the first admission retry
+	// below also pins the exhausted-projection-budget half of the row:
+	// admission retries despite a spent projection budget.
+	queue.MaxAttempts = 1
+	queue.AdmissionMaxAttempts = 2
+	queue.Instruments = instruments
+	queue.Now = func() time.Time { return now }
+	advance := func() { now = now.Add(2 * time.Hour) }
+
+	work, ok, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("Claim() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("Claim() ok = false, want true")
+	}
+	if work.AttemptCount != 1 || work.AdmissionWaitAttempts != 0 {
+		t.Fatalf("claimed counters = (%d, %d), want (1, 0)", work.AttemptCount, work.AdmissionWaitAttempts)
+	}
+
+	admissionCause := productionWrapAdmissionError(&admissionTimeoutBudgetTestError{message: "reducer admission wait timed out"})
+	if err := queue.Fail(ctx, work, admissionCause); err != nil {
+		t.Fatalf("first admission Fail() error = %v, want nil", err)
+	}
+	if status, attempts, waits := admissionProofRow(t, ctx, db); status != "retrying" || attempts != 1 || waits != 1 {
+		t.Fatalf("after first admission fail = (%q, %d, %d), want (retrying, 1, 1)", status, attempts, waits)
+	}
+
+	advance()
+	work, ok, err = queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("reclaim error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("reclaim ok = false, want true")
+	}
+	if work.AttemptCount != 2 || work.AdmissionWaitAttempts != 1 {
+		t.Fatalf("reclaimed counters = (%d, %d), want (2, 1)", work.AttemptCount, work.AdmissionWaitAttempts)
+	}
+	if err := queue.Fail(ctx, work, admissionCause); err != nil {
+		t.Fatalf("second admission Fail() error = %v, want nil", err)
+	}
+	var gotStatus, gotClass string
+	var gotAttempts, gotWaits int
+	if err := db.QueryRowContext(ctx, `SELECT status, attempt_count, admission_wait_attempts, failure_class FROM fact_work_items WHERE work_item_id = 'work-live'`).Scan(&gotStatus, &gotAttempts, &gotWaits, &gotClass); err != nil {
+		t.Fatalf("read exhausted row: %v", err)
+	}
+	if gotStatus != "dead_letter" || gotAttempts != 2 || gotWaits != 1 || gotClass != "admission_timeout" {
+		t.Fatalf("after budget-exhausting admission fail = (%q, %d, %d, %q), want (dead_letter, 2, 1, admission_timeout)", gotStatus, gotAttempts, gotWaits, gotClass)
+	}
+
+	if got := collectCounter(t, reader, "eshu_dp_projector_admission_wait_retries_total"); got != 1 {
+		t.Fatalf("admission wait retries = %d, want 1 (the retried first wait; the exhausting wait dead-letters)", got)
+	}
+	if got := collectCounter(t, reader, "eshu_dp_projector_retry_surge_total"); got != 0 {
+		t.Fatalf("retry surge after admission waits = %d, want 0", got)
 	}
 }
 

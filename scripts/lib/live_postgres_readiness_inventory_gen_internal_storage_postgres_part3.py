@@ -168,6 +168,7 @@ TABLE = {
             "TestProjectorQueueAdmissionBudgetLiveCycle",
             "TestProjectorQueueAdmissionFailAdmitsExactlyOnceUnderRace",
             "TestProjectorQueueAdmissionRefinalizeCycleLive",
+            "TestProjectorQueueAdmissionBudgetExhaustionDeadLettersLive",
             "TestProjectorQueueAdmissionMigration325AppliesLive",
         ),
         "go/internal/storage/postgres/projector_queue_claim_full_guard_contention_live_test.go": (
