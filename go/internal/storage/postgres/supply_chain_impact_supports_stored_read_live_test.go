@@ -24,8 +24,12 @@ import (
 // legacy statements below are the oracles; the supports statements come from the
 // writer's own package through the proof seam, so the proof runs what the writer runs.
 
-// supportsLegacyStoredRead is the stored read before C1 b, frozen. Its digest is the
-// one core's TestLegacyStoredFindingsQueryStaysFrozen pins.
+// supportsLegacyStoredRead is the stored read the writer ran before C1 b moved it
+// to the supports table, frozen: the #11411 read, which carries the D7 identity
+// digest and the winners-key components (package, repository, subject) every row
+// needs for the capture to stage the same key the upsert stages. It must stay
+// byte-identical to core's legacyStoredFindingsQueryFrozen (whose own digest pin
+// guards it); the digest below pins this copy.
 const supportsLegacyStoredRead = `
 SELECT fact_id,
        generation_id,
@@ -37,7 +41,10 @@ SELECT fact_id,
        fencing_token,
        COALESCE(payload #>> '{provenance,advisory_group_members}', '[]'),
        COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active'),
-       COALESCE(payload #>> '{evidence_fact_ids}', '[]')
+       COALESCE(payload #>> '{evidence_fact_ids}', '[]'),
+       COALESCE(payload ->> 'package_id', ''),
+       COALESCE(payload ->> 'repository_id', ''),
+       COALESCE(payload ->> 'subject_digest', '')
 FROM fact_records
 WHERE fact_kind = 'reducer_supply_chain_impact_finding'
   AND scope_id = $1
@@ -53,13 +60,17 @@ WHERE fact_kind = 'reducer_supply_chain_impact_finding'
 ))
 `
 
-const supportsLegacyStoredReadDigest = "d631e62575e7340a712ba4636b4d3fbb717a4c342c0c4c4f608b702b2d1efb3d"
+const supportsLegacyStoredReadDigest = "4f4ae17263c2ea6a6d2bf4e5a5d49ed297c97fc3182bcb5a7321b02d810325ed"
 
-// storedReadRow is one row of the stored read.
+// storedReadRow is one row of the stored read: the eleven columns the C1 proof
+// compared plus the three winners-key columns #11411 added to both reads, so the
+// one scan still serves the legacy and the supports queries and the equivalence
+// stays row-for-row on all fourteen.
 type storedReadRow struct {
 	FactID, GenerationID, Key, Digest, Identity, CVE, Advisory string
 	Token                                                      int64
 	Members, Suppression, Evidence                             string
+	PackageID, RepositoryID, SubjectDigest                     string
 }
 
 func scanStoredRead(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) map[string]storedReadRow {
@@ -72,7 +83,7 @@ func scanStoredRead(t *testing.T, ctx context.Context, db *sql.DB, query string,
 	out := map[string]storedReadRow{}
 	for rows.Next() {
 		var r storedReadRow
-		if err := rows.Scan(&r.FactID, &r.GenerationID, &r.Key, &r.Digest, &r.Identity, &r.CVE, &r.Advisory, &r.Token, &r.Members, &r.Suppression, &r.Evidence); err != nil {
+		if err := rows.Scan(&r.FactID, &r.GenerationID, &r.Key, &r.Digest, &r.Identity, &r.CVE, &r.Advisory, &r.Token, &r.Members, &r.Suppression, &r.Evidence, &r.PackageID, &r.RepositoryID, &r.SubjectDigest); err != nil {
 			t.Fatalf("scan stored read: %v", err)
 		}
 		out[r.FactID] = r
