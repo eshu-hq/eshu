@@ -33,6 +33,9 @@ func openMultiSupportDatabase(t *testing.T) (context.Context, *sql.DB) {
 		},
 	)
 	seedMultiSupportCorpus(t, ctx, database)
+	// The winners build reads the supports table: fill it from the seeded
+	// facts before the rebuild, or the rebuild sees an empty table.
+	runSupportsBackfillToCompletion(t, ctx, database)
 	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
 		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
