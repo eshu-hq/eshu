@@ -33,7 +33,7 @@ Do not build the winner as specified; the decision below belongs to the owner.
 | arm | result |
 |---|---|
 | narrow probe, 291 index serving | 13-20ms warm, 36k buffers, Index Scan, 200 searches, 35k rows |
-| active-facts build, 12k kept | 13-17ms warm, 48k buffers (12k PK probes + toast + temp write) |
+| active-facts build, 12k kept | 13-20ms warm, ~48-49k buffers (12k PK probes + toast + temp write) |
 | live_gens at 2M scope_generations | 0.4ms, planner flips to PK nested-loop probes (260 searches) |
 | scope expansion with a 200k-row generation | 107-198ms for 212k rows, index-driven |
 | identifier build + chunk select/insert/index/restrict | every statement under 20ms except the scope_idents build above |
