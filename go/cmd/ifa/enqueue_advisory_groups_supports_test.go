@@ -6,9 +6,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
@@ -129,5 +131,70 @@ func TestAdmitFindingRowsRefusesATransactionWithoutASupportsMaintainer(t *testin
 	err := admitFindingRows(context.Background(), recordingImpactBeginner{tx: tx}, "s", "g", findingRows())
 	if err == nil || !strings.Contains(err.Error(), "supports maintainer") {
 		t.Fatalf("error = %v, want a refusal naming the supports maintainer", err)
+	}
+}
+
+// stampingImpactTx is a recordingImpactTx that also serves the #11031
+// first-seen claim, so the cassette admission cell's stamp branch runs
+// without a database.
+type stampingImpactTx struct {
+	recordingImpactTx
+	stamps   map[string]supplychaincore.FirstSeenStamp
+	stampErr error
+}
+
+func (t *stampingImpactTx) ClaimSupplyChainImpactFirstSeen(_ context.Context, claims []supplychaincore.SupplyChainImpactFirstSeenClaim, _ time.Time) (map[string]supplychaincore.FirstSeenStamp, error) {
+	if t.stampErr != nil {
+		return nil, t.stampErr
+	}
+	out := make(map[string]supplychaincore.FirstSeenStamp, len(claims))
+	for _, claim := range claims {
+		if stamp, ok := t.stamps[claim.StableKey]; ok {
+			out[claim.StableKey] = stamp
+		}
+	}
+	return out, nil
+}
+
+// TestAdmitFindingRowsStampsReplayedPayloads pins the #11031 cassette
+// contract: a row whose payload already carries its stamp keeps it (the
+// resolved stamp wins, as the store computed it), an unstamped legacy row
+// is stamped, and a claim failure fails the admission.
+func TestAdmitFindingRowsStampsReplayedPayloads(t *testing.T) {
+	t.Parallel()
+
+	rows := []factwrite.VersionedRow{
+		{FactID: "fact-stamped", StableFactKey: "stamped", Payload: `{"provenance":{"selected_publish_source":"osv"}}`},
+		{FactID: "fact-legacy", StableFactKey: "legacy", Payload: `{"provenance":{}}`},
+	}
+	instant := time.Date(2026, 11, 24, 8, 0, 0, 0, time.UTC)
+	tx := &stampingImpactTx{stamps: map[string]supplychaincore.FirstSeenStamp{
+		"stamped": {FirstSeenAt: time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC), PublishSource: "osv"},
+		"legacy":  {FirstSeenAt: instant, PublishSource: "nvd"},
+	}}
+	if err := admitFindingRows(context.Background(), recordingImpactBeginner{tx: tx}, "s", "g", rows); err != nil {
+		t.Fatalf("admitFindingRows() error = %v, want nil", err)
+	}
+	for _, row := range rows {
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(row.Payload), &payload); err != nil {
+			t.Fatalf("unmarshal %s payload: %v", row.FactID, err)
+		}
+		provenance, _ := payload["provenance"].(map[string]any)
+		if _, ok := provenance["first_seen_at"]; !ok {
+			t.Fatalf("%s carries no first_seen_at: %v", row.FactID, provenance)
+		}
+	}
+	var kept map[string]any
+	if err := json.Unmarshal([]byte(rows[0].Payload), &kept); err != nil {
+		t.Fatalf("unmarshal kept payload: %v", err)
+	}
+	if kept["provenance"].(map[string]any)["first_seen_at"] != "2026-11-20T10:00:00Z" {
+		t.Fatalf("pre-stamped row lost its instant: %v", kept["provenance"])
+	}
+
+	failing := &stampingImpactTx{stampErr: errors.New("claim boom")}
+	if err := admitFindingRows(context.Background(), recordingImpactBeginner{tx: failing}, "s", "g", rows); err == nil || !strings.Contains(err.Error(), "claim supply chain impact first seen") {
+		t.Fatalf("error = %v, want the claim failure", err)
 	}
 }

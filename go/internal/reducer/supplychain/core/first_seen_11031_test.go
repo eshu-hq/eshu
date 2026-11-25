@@ -321,6 +321,160 @@ func (s *stubFirstSeenStore) ClaimSupplyChainImpactFirstSeen(_ context.Context, 
 	return out, nil
 }
 
+// TestFirstSeenClaimHelpers11031 pins the claim inputs: sources override by
+// index, a nil entry falls back to the row's pre-stamp payload source, an
+// empty stable key yields no claim, and a pre-stamped payload's offer rides
+// through.
+func TestFirstSeenClaimHelpers11031(t *testing.T) {
+	t.Parallel()
+
+	rows := []factwrite.VersionedRow{
+		{FactID: "fact-index", StableFactKey: "key-index", Payload: `{"provenance":{"selected_publish_source":"ghsa"}}`},
+		{FactID: "fact-fallback", StableFactKey: "key-fallback", Payload: `{"provenance":{"selected_publish_source":"osv","first_seen_at":"2026-11-20T10:00:00Z"}}`},
+		{FactID: "fact-empty", StableFactKey: "key-empty", Payload: `{}`},
+		{FactID: "fact-nokey", Payload: `{"provenance":{"selected_publish_source":"nvd"}}`},
+		{FactID: "fact-bad", StableFactKey: "key-bad", Payload: `not json`},
+	}
+	claims := FirstSeenClaimsForRows(rows, []string{"nvd", "", "", "", ""})
+	if len(claims) != 4 {
+		t.Fatalf("len(claims) = %d, want 4 (empty stable key skipped)", len(claims))
+	}
+	if claims[0].PublishSource != "nvd" {
+		t.Fatalf("index source = %q, want nvd (sources override payload)", claims[0].PublishSource)
+	}
+	if claims[1].PublishSource != "osv" {
+		t.Fatalf("fallback source = %q, want osv", claims[1].PublishSource)
+	}
+	if !claims[1].OfferedAt.Equal(time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("offered at = %v, want the pre-stamped instant", claims[1].OfferedAt)
+	}
+	if claims[2].PublishSource != "" || !claims[2].OfferedAt.IsZero() {
+		t.Fatalf("empty payload claim = %+v, want no source and no offer", claims[2])
+	}
+	if claims[3].PublishSource != "" || !claims[3].OfferedAt.IsZero() {
+		t.Fatalf("corrupt payload claim = %+v, want no source and no offer", claims[3])
+	}
+	if got := publishSourcesForWrite([]SupplyChainImpactFinding{{AdvisoryPublishSource: "cve_list"}, {}}); got[0] != "cve_list" || got[1] != "" {
+		t.Fatalf("publish sources = %q, want [cve_list \"\"]", got)
+	}
+}
+
+// TestFirstSeenPayloadParsers11031 pins the cassette-admission readers:
+// malformed JSON, missing provenance, and malformed instants all report
+// absent so the store resolves the claim to now.
+func TestFirstSeenPayloadParsers11031(t *testing.T) {
+	t.Parallel()
+
+	if got := parseFirstSeenPayloadSource(`{"provenance":{"selected_publish_source":"  ghsa "}}`); got != "ghsa" {
+		t.Fatalf("source = %q, want trimmed ghsa", got)
+	}
+	for _, payload := range []string{`not json`, `{}`, `{"provenance":{}}`, `{"provenance":{"selected_publish_source":42}}`} {
+		if got := parseFirstSeenPayloadSource(payload); got != "" {
+			t.Fatalf("source(%q) = %q, want absent", payload, got)
+		}
+		if _, ok := parseFirstSeenPayloadOffer(payload); ok {
+			t.Fatalf("offer(%q) reported present, want absent", payload)
+		}
+	}
+	if _, ok := parseFirstSeenPayloadOffer(`{"provenance":{"first_seen_at":"next thursday"}}`); ok {
+		t.Fatalf("malformed instant reported present, want absent")
+	}
+	if offered, ok := parseFirstSeenPayloadOffer(`{"provenance":{"first_seen_at":"2026-11-24T08:00:00Z"}}`); !ok || !offered.Equal(time.Date(2026, 11, 24, 8, 0, 0, 0, time.UTC)) {
+		t.Fatalf("offer = %v, %v; want the instant and true", offered, ok)
+	}
+}
+
+// TestMarshalStampedPayloads11031 pins the remarshal contract: stamps land
+// on provenance, unstamped rows marshal byte-identical to the pre-stamp
+// input, and a payload/row count mismatch fails instead of mis-stamping.
+func TestMarshalStampedPayloads11031(t *testing.T) {
+	t.Parallel()
+
+	mkRow := func(key string) factwrite.VersionedRow {
+		return factwrite.VersionedRow{FactID: "fact-" + key, StableFactKey: key}
+	}
+	mkPayload := func() map[string]any {
+		return map[string]any{"provenance": map[string]any{"selected_publish_source": "nvd"}}
+	}
+	rows := []factwrite.VersionedRow{mkRow("a"), mkRow("b")}
+	payloads := []map[string]any{mkPayload(), mkPayload()}
+	stamps := map[string]FirstSeenStamp{"a": {FirstSeenAt: time.Date(2026, 11, 24, 8, 0, 0, 0, time.UTC), PublishSource: "osv"}}
+	if err := marshalStampedPayloads(rows, payloads, stamps); err != nil {
+		t.Fatalf("marshalStampedPayloads() error = %v", err)
+	}
+	var stamped map[string]any
+	if err := json.Unmarshal([]byte(rows[0].Payload), &stamped); err != nil {
+		t.Fatalf("unmarshal stamped payload: %v", err)
+	}
+	provenance, _ := stamped["provenance"].(map[string]any)
+	if provenance["first_seen_at"] != "2026-11-24T08:00:00Z" || provenance["selected_publish_source"] != "osv" {
+		t.Fatalf("stamped provenance = %v, want stamp instant plus resolved source", provenance)
+	}
+	var plain map[string]any
+	if err := json.Unmarshal([]byte(rows[1].Payload), &plain); err != nil {
+		t.Fatalf("unmarshal unstamped payload: %v", err)
+	}
+	unstamped, _ := plain["provenance"].(map[string]any)
+	if _, ok := unstamped[firstSeenProvenanceKey]; ok {
+		t.Fatalf("unstamped payload carries a stamp key: %v", unstamped)
+	}
+	if err := marshalStampedPayloads(rows[:1], payloads, stamps); err == nil {
+		t.Fatal("length mismatch error = nil, want a failure")
+	}
+}
+
+// TestStampPrebuiltFindingPayloads11031 pins the cassette cell's stamping:
+// resolved stamps win (offer preservation happens at claim time through
+// ResolveFirstSeenOffer, not here), unstamped rows take the resolved stamp,
+// rows without payloads or stamps are untouched, and corrupt JSON fails
+// instead of stamping garbage.
+func TestStampPrebuiltFindingPayloads11031(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 24, 8, 0, 0, 0, time.UTC)
+	rows := []factwrite.VersionedRow{
+		{FactID: "fact-keep", StableFactKey: "keep", Payload: `{"provenance":{"first_seen_at":"2026-11-20T10:00:00Z","selected_publish_source":"osv"}}`},
+		{FactID: "fact-new", StableFactKey: "new", Payload: `{"provenance":{}}`},
+		{FactID: "fact-nopayload", StableFactKey: "nopayload"},
+		{FactID: "fact-nostamp", StableFactKey: "nostamp", Payload: `{"provenance":{}}`},
+	}
+	stamps := map[string]FirstSeenStamp{
+		"keep": {FirstSeenAt: time.Date(2026, 11, 21, 0, 0, 0, 0, time.UTC), PublishSource: "osv"},
+		"new":  {FirstSeenAt: now, PublishSource: "nvd"},
+	}
+	if err := StampPrebuiltFindingPayloads(rows, stamps); err != nil {
+		t.Fatalf("StampPrebuiltFindingPayloads() error = %v", err)
+	}
+	var keep map[string]any
+	if err := json.Unmarshal([]byte(rows[0].Payload), &keep); err != nil {
+		t.Fatalf("unmarshal kept payload: %v", err)
+	}
+	if keep["provenance"].(map[string]any)["first_seen_at"] != "2026-11-21T00:00:00Z" {
+		t.Fatalf("resolved stamp not applied: %v", keep["provenance"])
+	}
+	var fresh map[string]any
+	if err := json.Unmarshal([]byte(rows[1].Payload), &fresh); err != nil {
+		t.Fatalf("unmarshal fresh payload: %v", err)
+	}
+	if fresh["provenance"].(map[string]any)["first_seen_at"] != "2026-11-24T08:00:00Z" {
+		t.Fatalf("unstamped row not stamped: %v", fresh["provenance"])
+	}
+	if rows[2].Payload != "" {
+		t.Fatalf("payload-less row gained bytes: %q", rows[2].Payload)
+	}
+	var untouched map[string]any
+	if err := json.Unmarshal([]byte(rows[3].Payload), &untouched); err != nil {
+		t.Fatalf("unmarshal untouched payload: %v", err)
+	}
+	if _, ok := untouched["provenance"].(map[string]any)[firstSeenProvenanceKey]; ok {
+		t.Fatalf("stampless row gained a stamp: %v", untouched)
+	}
+	bad := []factwrite.VersionedRow{{FactID: "fact-bad", StableFactKey: "bad", Payload: `not json`}}
+	if err := StampPrebuiltFindingPayloads(bad, map[string]FirstSeenStamp{"bad": {FirstSeenAt: now}}); err == nil {
+		t.Fatal("corrupt payload error = nil, want a failure")
+	}
+}
+
 // mustFirstSeenNvdFinding builds one package-path finding from a single NVD
 // observation with distinct published and lastModified instants.
 func mustFirstSeenNvdFinding(t *testing.T, published, modified string) SupplyChainImpactFinding {
