@@ -4,9 +4,9 @@
 // Package localsupervisor runs the local Eshu service: it takes ownership of a
 // workspace, starts embedded Postgres and (in the authoritative profile) a
 // NornicDB graph backend, supervises the ingester and reducer as child
-// processes, serves MCP sessions (a loopback eshu-api plus the satellite
-// eshu-mcp-server with a stdio-to-HTTP bridge), and tears all of it down
-// again on exit.
+// processes, serves MCP sessions (a loopback eshu-core-api plus the
+// satellite eshu-mcp-server with a stdio-to-HTTP bridge), and tears all of
+// it down again on exit.
 //
 // One process owns one workspace at a time. RunOwnedHostWithLayout holds the
 // workspace owner lock for its whole run and writes an owner record naming the

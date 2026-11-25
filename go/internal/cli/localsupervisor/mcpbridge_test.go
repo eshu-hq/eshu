@@ -82,14 +82,15 @@ func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
 	}
 
 	if len(*starts) != 2 {
-		t.Fatalf("started %d children, want 2 (eshu-api, eshu-mcp-server)", len(*starts))
+		t.Fatalf("started %d children, want 2 (eshu-core-api, eshu-mcp-server)", len(*starts))
 	}
-	api := (*starts)[0]
-	if api.name != "eshu-api" {
-		t.Fatalf("first child = %q, want eshu-api", api.name)
+	core := (*starts)[0]
+	if core.name != "eshu-core-api" {
+		t.Fatalf("first child = %q, want eshu-core-api", core.name)
 	}
-	if got := localHostEnvValue(api.env, "ESHU_API_ADDR"); got != "127.0.0.1:19191" {
-		t.Fatalf("ESHU_API_ADDR = %q, want 127.0.0.1:19191", got)
+	assertArgEquals(t, core.args, "-addr", "127.0.0.1:19191")
+	if got := localHostEnvValue(core.env, "ESHU_API_ADDR"); got != "" {
+		t.Fatalf("ESHU_API_ADDR = %q, want unset (core takes -addr, reads no ESHU_API_ADDR)", got)
 	}
 
 	satellite := (*starts)[1]
@@ -113,7 +114,7 @@ func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
 		t.Fatalf("ESHU_MCP_ALLOW_UNAUTHENTICATED = %q, want true for loopback session", got)
 	}
 
-	wantWaits := []string{"http://127.0.0.1:19191/healthz", "http://127.0.0.1:19192/health"}
+	wantWaits := []string{"http://127.0.0.1:19191/health", "http://127.0.0.1:19192/health"}
 	if strings.Join(*waits, ",") != strings.Join(wantWaits, ",") {
 		t.Fatalf("waited on %v, want %v", *waits, wantWaits)
 	}
@@ -427,16 +428,16 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 		t.Fatalf("RunAttachedMCPHTTP() error = %v, want nil", err)
 	}
 
-	if len(starts) != 2 || starts[0].name != "eshu-api" || starts[1].name != "eshu-mcp-server" {
-		t.Fatalf("started = %v, want [eshu-api eshu-mcp-server]", starts)
+	if len(starts) != 2 || starts[0].name != "eshu-core-api" || starts[1].name != "eshu-mcp-server" {
+		t.Fatalf("started = %v, want [eshu-core-api eshu-mcp-server]", starts)
 	}
 	assertArgEquals(t, starts[1].args, "-addr", "127.0.0.1:8081")
 	assertArgEquals(t, starts[1].args, "-core-base-url", "http://127.0.0.1:19391")
-	if len(waitedURLs) != 1 || waitedURLs[0] != "http://127.0.0.1:19391/healthz" {
-		t.Fatalf("waited on %v, want [http://127.0.0.1:19391/healthz]", waitedURLs)
+	if len(waitedURLs) != 1 || waitedURLs[0] != "http://127.0.0.1:19391/health" {
+		t.Fatalf("waited on %v, want [http://127.0.0.1:19391/health]", waitedURLs)
 	}
-	if len(waited) != 2 || waited[0].name != "eshu-api" || waited[1].name != "eshu-mcp-server" {
-		t.Fatalf("waited children = %v, want [eshu-api eshu-mcp-server]", waited)
+	if len(waited) != 2 || waited[0].name != "eshu-core-api" || waited[1].name != "eshu-mcp-server" {
+		t.Fatalf("waited children = %v, want [eshu-core-api eshu-mcp-server]", waited)
 	}
 	if got := localHostEnvValue(starts[1].env, "ESHU_POSTGRES_DSN"); !strings.Contains(got, "port=15439") {
 		t.Fatalf("satellite ESHU_POSTGRES_DSN = %q, want recorded port", got)

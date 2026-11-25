@@ -23,12 +23,13 @@ import (
 )
 
 const (
-	// mcpSessionAPIBindAddress is the loopback address every session eshu-api
-	// binds. A session serves a single local MCP client, so it must never be
-	// reachable off the machine.
+	// mcpSessionAPIBindAddress is the loopback address every session
+	// eshu-core-api binds. A session serves a single local MCP client, so
+	// it must never be reachable off the machine.
 	mcpSessionAPIBindAddress = "127.0.0.1"
-	// mcpSessionStartupTimeout bounds the wait for a session eshu-api
-	// /healthz.
+	// mcpSessionStartupTimeout bounds the wait for a session eshu-core-api
+	// /health. Core mounts GET /health (shallow process check) plus the
+	// backend-gated GET /readyz; it has no /healthz.
 	mcpSessionStartupTimeout = 2 * time.Minute
 	// mcpSessionPollInterval is how often the session readiness wait re-checks.
 	mcpSessionPollInterval = 200 * time.Millisecond
@@ -45,33 +46,35 @@ const (
 	mcpBridgeRequestTimeout = 5 * time.Minute
 )
 
-// MCPSession is a running MCP session: a loopback eshu-api child that serves
-// the workspace stores plus the satellite eshu-mcp-server child that answers
-// MCP clients against it. Whoever serves an MCP session spawns one: the
-// owner-booted stdio path, the attach-stdio path, and the owner-attached HTTP
-// path each own their session and tear it down when the session ends. The
-// satellite holds no Postgres pool; the session eshu-api does.
+// MCPSession is a running MCP session: a loopback eshu-core-api child that
+// serves the workspace stores plus the satellite eshu-mcp-server child that
+// answers MCP clients against it. The session talks to core directly; the
+// api-satellite is not a middle hop. Whoever serves an MCP session spawns
+// one: the owner-booted stdio path, the attach-stdio path, and the
+// owner-attached HTTP path each own their session and tear it down when the
+// session ends. The satellite holds no Postgres pool; the session
+// eshu-core-api does.
 type MCPSession struct {
-	apiCmd              *exec.Cmd
+	coreCmd             *exec.Cmd
 	satelliteCmd        *exec.Cmd
 	apiBaseURL          string
 	satelliteMessageURL string
 	apiKey              string
 }
 
-// StartMCPSession spawns a session eshu-api on a kernel-reserved loopback
-// port, waits for its /healthz, then spawns the satellite eshu-mcp-server on
-// a second reserved loopback port against it. A failure after a child has
-// started stops what it started, so a failed session never leaves a child
-// behind.
+// StartMCPSession spawns a session eshu-core-api on a kernel-reserved
+// loopback port, waits for its /health, then spawns the satellite
+// eshu-mcp-server on a second reserved loopback port against it. A failure
+// after a child has started stops what it started, so a failed session never
+// leaves a child behind.
 func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, layout eshulocal.Layout) (*MCPSession, error) {
-	apiCmd, baseURL, err := startMCPSessionAPI(ctx, dsn, runtimeConfig, graph, layout)
+	coreCmd, baseURL, err := startMCPSessionCore(ctx, dsn, runtimeConfig, graph, layout)
 	if err != nil {
 		return nil, err
 	}
 	mcpPort, err := mcpSessionReservePort()
 	if err != nil {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 		return nil, err
 	}
 	satelliteAddr := net.JoinHostPort(mcpSessionAPIBindAddress, strconv.Itoa(mcpPort))
@@ -79,7 +82,7 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 	satelliteCmd, err := StartChildProcess("eshu-mcp-server",
 		[]string{"eshu-mcp-server", "-addr=" + satelliteAddr, "-core-base-url=" + baseURL}, satelliteEnv)
 	if err != nil {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 		return nil, err
 	}
 	// The bridge forwards the first stdin line as soon as the session
@@ -89,11 +92,11 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 	// first real request fails while the satellite is still booting.
 	if err := mcpSessionWaitHTTP(ctx, "http://"+satelliteAddr+"/health", mcpSessionStartupTimeout); err != nil {
 		_ = StopChildProcess(satelliteCmd, ShutdownTimeout)
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 		return nil, err
 	}
 	return &MCPSession{
-		apiCmd:              apiCmd,
+		coreCmd:             coreCmd,
 		satelliteCmd:        satelliteCmd,
 		apiBaseURL:          baseURL,
 		satelliteMessageURL: "http://" + satelliteAddr + "/mcp/message",
@@ -101,28 +104,28 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 	}, nil
 }
 
-// startMCPSessionAPI spawns one session eshu-api on a reserved loopback port
-// and waits for it to answer /healthz. It stops the child when the wait
-// fails, so callers only own a child on success.
-func startMCPSessionAPI(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, layout eshulocal.Layout) (*exec.Cmd, string, error) {
-	apiPort, err := mcpSessionReservePort()
+// startMCPSessionCore spawns one session eshu-core-api on a reserved loopback
+// port and waits for it to answer /health. The listen address travels on
+// -addr only: core takes --addr and no --core-base-url (go/cmd/core-api), and
+// reads no ESHU_API_ADDR from the environment. It stops the child when the
+// wait fails, so callers only own a child on success.
+func startMCPSessionCore(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, layout eshulocal.Layout) (*exec.Cmd, string, error) {
+	corePort, err := mcpSessionReservePort()
 	if err != nil {
 		return nil, "", err
 	}
-	apiAddr := net.JoinHostPort(mcpSessionAPIBindAddress, strconv.Itoa(apiPort))
-	apiEnv := ChildEnv(dsn, runtimeConfig, graph, ChildOverrides(layout, map[string]string{
-		"ESHU_API_ADDR": apiAddr,
-	}, os.Getenv))
-	apiCmd, err := StartChildProcess("eshu-api", []string{"eshu-api"}, apiEnv)
+	coreAddr := net.JoinHostPort(mcpSessionAPIBindAddress, strconv.Itoa(corePort))
+	coreEnv := ChildEnv(dsn, runtimeConfig, graph, ChildOverrides(layout, map[string]string{}, os.Getenv))
+	coreCmd, err := StartChildProcess("eshu-core-api", []string{"eshu-core-api", "-addr=" + coreAddr}, coreEnv)
 	if err != nil {
 		return nil, "", err
 	}
-	baseURL := "http://" + apiAddr
-	if err := mcpSessionWaitHTTP(ctx, baseURL+"/healthz", mcpSessionStartupTimeout); err != nil {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+	baseURL := "http://" + coreAddr
+	if err := mcpSessionWaitHTTP(ctx, baseURL+"/health", mcpSessionStartupTimeout); err != nil {
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 		return nil, "", err
 	}
-	return apiCmd, baseURL, nil
+	return coreCmd, baseURL, nil
 }
 
 // mcpSatelliteSessionEnv builds the satellite overrides for a session: HTTP
@@ -144,10 +147,10 @@ func mcpSatelliteSessionEnv(layout eshulocal.Layout, runtimeConfig RuntimeConfig
 // Children returns the session children for supervision alongside the owner's
 // own children.
 func (s *MCPSession) Children() []Child {
-	return []Child{{name: "eshu-api", cmd: s.apiCmd}, {name: "eshu-mcp-server", cmd: s.satelliteCmd}}
+	return []Child{{name: "eshu-core-api", cmd: s.coreCmd}, {name: "eshu-mcp-server", cmd: s.satelliteCmd}}
 }
 
-// APIBaseURL returns the session eshu-api origin the satellite reads through.
+// APIBaseURL returns the session eshu-core-api origin the satellite reads through.
 func (s *MCPSession) APIBaseURL() string {
 	return s.apiBaseURL
 }
@@ -165,12 +168,12 @@ func (s *MCPSession) ServeStdio(ctx context.Context, stdin io.Reader, stdout io.
 	return RunMCPBridge(ctx, s.satelliteMessageURL, s.apiKey, stdin, stdout)
 }
 
-// Close stops the satellite, then the session API, joining the errors so one
+// Close stops the satellite, then the session core, joining the errors so one
 // failing stop does not hide the other.
 func (s *MCPSession) Close() error {
 	return errors.Join(
 		StopChildProcess(s.satelliteCmd, ShutdownTimeout),
-		StopChildProcess(s.apiCmd, ShutdownTimeout),
+		StopChildProcess(s.coreCmd, ShutdownTimeout),
 	)
 }
 
@@ -320,9 +323,9 @@ func writeBridgeError(stdout io.Writer, id json.RawMessage, message string) erro
 }
 
 // RunAttachedMCPHTTP attaches an HTTP MCP endpoint to the workspace's running
-// local owner: it spawns a session eshu-api plus the satellite at the user's
-// host:port and waits on both, so Ctrl-C stops both. It refuses when no
-// healthy owner holds the workspace rather than starting a second one.
+// local owner: it spawns a session eshu-core-api plus the satellite at the
+// user's host:port and waits on both, so Ctrl-C stops both. It refuses when
+// no healthy owner holds the workspace rather than starting a second one.
 func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host string, port int) error {
 	record, err := ReadOwnerRecord(layout.OwnerRecordPath)
 	if err != nil {
@@ -353,12 +356,12 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 	}
 
 	dsn := eshulocal.PostgresDSN("127.0.0.1", record.PostgresPort)
-	apiCmd, baseURL, err := startMCPSessionAPI(ctx, dsn, runtimeConfig, ManagedGraphFromRecord(record), layout)
+	coreCmd, baseURL, err := startMCPSessionCore(ctx, dsn, runtimeConfig, ManagedGraphFromRecord(record), layout)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 	}()
 
 	satelliteAddr := net.JoinHostPort(host, strconv.Itoa(port))
@@ -373,7 +376,7 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 	}()
 
 	return WaitManagedChildren(ctx, []Child{
-		{name: "eshu-api", cmd: apiCmd},
+		{name: "eshu-core-api", cmd: coreCmd},
 		{name: "eshu-mcp-server", cmd: satelliteCmd},
 	}, "eshu-mcp-server")
 }
@@ -383,10 +386,11 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 var mcpSessionReservePort = reserveMCPSessionLoopbackPort
 
 // mcpSessionWaitHTTP polls a session child health URL until it answers 200
-// or the timeout expires: the session eshu-api /healthz after its spawn, the
-// satellite /health after its spawn. Transport errors are retried rather than
-// returned, because the child is still starting when the first attempts fail.
-// It is a variable so session tests prove the wiring without serving HTTP.
+// or the timeout expires: the session eshu-core-api /health after its spawn,
+// the satellite /health after its spawn. Transport errors are retried rather
+// than returned, because the child is still starting when the first attempts
+// fail. It is a variable so session tests prove the wiring without serving
+// HTTP.
 var mcpSessionWaitHTTP = waitMCPSessionHTTPReady
 
 // reserveMCPSessionLoopbackPort asks the kernel for a free loopback port and

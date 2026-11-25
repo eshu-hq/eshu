@@ -5,7 +5,7 @@
 `localsupervisor` is the local Eshu service. It takes ownership of a workspace,
 starts embedded Postgres and (in `local_authoritative`) a NornicDB graph
 backend, supervises the ingester and reducer as child processes, serves MCP
-sessions (a loopback `eshu-api` plus the satellite `eshu-mcp-server` with a
+sessions (a loopback `eshu-core-api` plus the satellite `eshu-mcp-server` with a
 stdio-to-HTTP bridge, see `mcpbridge.go`), and tears all of it back down on
 exit. It also owns the read side an operator sees through
 `eshu graph status`, `eshu graph logs`, `eshu graph stop`, and
