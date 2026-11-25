@@ -79,6 +79,11 @@ tests:
     class: postgres_ci
     reason: "eshu-hq/eshu#11380 the batch-claim gate set and the checkpoint family read name the same undrained generations: both list the checkpoint lasts and the orphaned older window of an incomplete year while excluding ordinary rows, terminal windows, completed years, and other runs, so a re-split of either definition fails; disposable PostgreSQL through postgresproof with the production batch claim query and the shared set"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "rank-once rewrite differential proof (the new candidate SELECT returns the identical work_item_id set as the pre-rewrite correlated-subquery candidate SELECT, in the identical order up to the intentional reclaim-first reorder, on multiple pending siblings sharing a conflict key, an expired claimed holder over an older pending sibling, and multi-domain fairness competition), gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go
     tag: ~
     class: postgres_ci

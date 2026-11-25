@@ -58,7 +58,7 @@ import (
 // pre-rewrite candidate SELECT returning 0/0 rows on both the full backlog and
 // a seeded expired-lease non-member fixture. The in-repo equivalent of that
 // shim is TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder
-// (reducer_queue_batch_rank_once_diff_test.go).
+// (reducer_queue_batch_rank_once_diff_live_test.go).
 // Performance Evidence and Observability Evidence for this change are
 // recorded in README.md under "Reducer claim rank-once window rewrite
 // (#3624)".

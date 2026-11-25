@@ -3372,7 +3372,7 @@ of `base`'s WHERE, so in the uncontended case they are a no-op and the claimed
 set is unchanged — confirmed by the differential below staying 0/0.
 
 Correctness is proven two ways: `TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder`
-(`reducer_queue_batch_rank_once_diff_test.go`) freezes the pre-rewrite candidate
+(`reducer_queue_batch_rank_once_diff_live_test.go`) freezes the pre-rewrite candidate
 SELECT as a read-only reference (`reducer_queue_batch_rank_once_fixtures_query_test.go`)
 and diffs its claimed work-item-id set AND order against the rewrite on a
 fixture with multiple pending siblings per conflict key, an expired
