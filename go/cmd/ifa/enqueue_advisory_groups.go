@@ -197,7 +197,7 @@ func admitFindingRowsInTx(ctx context.Context, tx supplychaincore.SupplyChainImp
 		supplychaincore.SupplyChainImpactConflictDomainKey(scopeID, generationID)); err != nil {
 		return fmt.Errorf("lock supply chain impact conflict domain: %w", err)
 	}
-	if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows); err != nil {
+	if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows, nil); err != nil {
 		return fmt.Errorf("admit finding rows: %w", err)
 	}
 	return nil

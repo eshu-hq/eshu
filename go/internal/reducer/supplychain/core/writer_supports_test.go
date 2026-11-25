@@ -148,7 +148,7 @@ func TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep(t 
 		{FactID: "fact-1", ScopeID: "s", GenerationID: "g", FactKind: supplyChainImpactFactKind},
 		{FactID: "fact-2", ScopeID: "s", GenerationID: "g", FactKind: supplyChainImpactFactKind},
 	}
-	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, rows); err != nil {
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, rows, nil); err != nil {
 		t.Fatalf("WriteSupplyChainImpactFindingRows() error = %v, want nil", err)
 	}
 	if want := []string{"facts", "supports-upsert"}; !reflect.DeepEqual(*events, want) {
@@ -160,7 +160,7 @@ func TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep(t 
 
 	// No rows: nothing is written, supports included.
 	*events = nil
-	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, nil); err != nil {
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, nil, nil); err != nil {
 		t.Fatalf("WriteSupplyChainImpactFindingRows(nil) error = %v, want nil", err)
 	}
 	if len(*events) != 0 {

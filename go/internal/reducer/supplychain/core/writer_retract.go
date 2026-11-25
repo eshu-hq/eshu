@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // SupplyChainImpactTx is the transaction surface one impact write runs in.
@@ -52,55 +51,33 @@ func runSupplyChainImpactTx(
 	}
 	outcome, err := commitSupplyChainImpactRows(ctx, tx, write, rows, meta, protected, hasProtected, now)
 	if err != nil {
-		// Only the lock-wait observation survives a failed pass: it is a duration, not a result.
-		failed := supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait}
+		// Only the lock-wait observation and the statement timings accumulated
+		// before the failure survive a failed pass: they are durations and
+		// counts, not results. The caller records the timings under
+		// outcome=rolled_back, beside RecordSupplyChainImpactWriteTx.
+		failed := supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait, statements: outcome.statements}
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 			return failed, fmt.Errorf("%w; rollback: %v", err, rbErr)
 		}
 		return failed, err
 	}
-	if err := tx.Commit(); err != nil {
-		// The lock-wait observation survives a failed commit too: the pass did take the lock.
-		return supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait}, fmt.Errorf("commit supply chain impact transaction: %w", err)
+	commitStarted := time.Now()
+	commitErr := tx.Commit()
+	outcome.statements.add(supplyChainImpactTxStmtCommit, time.Since(commitStarted), 0)
+	if commitErr != nil {
+		// The lock-wait observation and the statement timings survive a failed
+		// commit too: the pass ran its statements and timed its commit.
+		failed := supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait, statements: outcome.statements}
+		return failed, fmt.Errorf("commit supply chain impact transaction: %w", commitErr)
 	}
 	return outcome, nil
 }
 
-// supplyChainImpactTxOutcome is what one committed pass reports: how many rows
-// it retracted, which CVEs its rows changed, which groups it touched (#10408),
-// and, for a recovery write, every CVE the scope's rows name. suppressionCVEs
-// are the changed suppressions' CVEs (#10019); suppression is the diff report.
-type supplyChainImpactTxOutcome struct {
-	retracted       int
-	changedCVEs     []string
-	derivedCVEs     []string
-	recoveryCVEs    []string
-	rekey           RekeyReport
-	suppressionCVEs []string
-	// touchedGroups are the coalesced advisory-group ids (#10411) the
-	// pass's changed rows, changed suppressions, and (on recovery) every
-	// stored row name. See SupplyChainImpactWriteResult.TouchedGroupIDs.
-	touchedGroups []string
-	// identityChangedCVEs and identityTouchedGroups are changedCVEs and
-	// touchedGroups judged on the identity digest (D7, fanout_identity_gate.go).
-	identityChangedCVEs, identityTouchedGroups []string
-	suppression                                suppressionDiffReport
-	// passStateSkipped reports the generation fence held (#10422): the
-	// pass's generation was stale, so the per-scope pass-state row was
-	// left untouched.
-	passStateSkipped bool
-	// staleCopyRepairs counts the stored copies whose retraction state this
-	// pass flipped (#10765); the handler counts them after the commit.
-	staleCopyRepairs StaleCopyRepairs
-	// goEvidenceLocked/Wait say whether the pass took the shared lock and how long its
-	// lock statements took (#11327); the writer records them on the lock-wait histogram, even on a failed recheck.
-	goEvidenceLocked   bool
-	goEvidenceLockWait time.Duration
-}
-
-// commitSupplyChainImpactRows runs one pass's statements inside tx and returns
-// what it retracted and changed.
-func commitSupplyChainImpactRows(
+// commitSupplyChainImpactRowsTimed is the timed body behind
+// commitSupplyChainImpactRows: the same statements in the same order, each
+// region folded into timings with clock reads and struct stores only, never
+// logging or metric IO.
+func commitSupplyChainImpactRowsTimed(
 	ctx context.Context,
 	tx SupplyChainImpactTx,
 	write SupplyChainImpactWrite,
@@ -109,6 +86,7 @@ func commitSupplyChainImpactRows(
 	protected ProtectedScanImpactPublicationSet,
 	hasProtected bool,
 	now time.Time,
+	timings *supplyChainImpactTxStatementTimings,
 ) (supplyChainImpactTxOutcome, error) {
 	var publisher ProtectedScanImpactPublisher
 	var authorizer ProtectedScanImpactAuthorizer
@@ -130,11 +108,14 @@ func commitSupplyChainImpactRows(
 	// wait two passes of one (scope, generation) can form is on this lock:
 	// no lock-order cycle is possible. Passes for other scopes or
 	// generations hash to other keys and never wait here.
-	if _, err := tx.ExecContext(
+	lockStarted := time.Now()
+	_, lockErr := tx.ExecContext(
 		ctx, lockSupplyChainImpactConflictDomainQuery,
 		supplyChainImpactConflictDomainKey(write.ScopeID, write.GenerationID),
-	); err != nil {
-		return supplyChainImpactTxOutcome{}, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
+	)
+	timings.add(supplyChainImpactTxStmtConflictLock, time.Since(lockStarted), 0)
+	if lockErr != nil {
+		return supplyChainImpactTxOutcome{}, fmt.Errorf("lock supply chain impact conflict domain: %w", lockErr)
 	}
 	// The suppression diff runs before the admission row is written: its
 	// duplicate answer reads only previously committed admissions, so a
@@ -142,8 +123,10 @@ func commitSupplyChainImpactRows(
 	// answer for a pending generation rolls back with no admission row. The
 	// union lands on changedCVEs below, before the owed marker is recorded,
 	// so a suppression-only change still sets the marker (#10019).
+	suppStarted := time.Now()
 	supp, err := runSuppressionDiff(ctx, tx, write.ScopeID, write.GenerationID,
 		write.ScopeFactKinds, write.Recovery, write.SuppressionDiffTimeout)
+	timings.add(supplyChainImpactTxStmtSuppressionDiff, time.Since(suppStarted), 0)
 	if err != nil {
 		return supplyChainImpactTxOutcome{suppression: supp}, err
 	}
@@ -153,7 +136,9 @@ func commitSupplyChainImpactRows(
 	// still inserts fact ids the fresher pass did not derive, leaving a union
 	// no pass derived (#7142). A partial-evidence pass is admitted like any
 	// other: it upserts, and only the retraction below is skipped.
+	admissionStarted := time.Now()
 	admitted, err := tryAdmitSupplyChainImpactWrite(ctx, tx, write.ScopeID, write.GenerationID, write.FencingToken, now)
+	timings.add(supplyChainImpactTxStmtAdmission, time.Since(admissionStarted), 0)
 	if err != nil {
 		return supplyChainImpactTxOutcome{}, err
 	}
@@ -167,14 +152,16 @@ func commitSupplyChainImpactRows(
 	// Read what the pass is about to overwrite, after the lock (no concurrent
 	// pass of this conflict domain can change it) and before the upsert, so the
 	// change set compares the new rows with the rows they replace (#9695).
+	storedStarted := time.Now()
 	stored, err := readStoredSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID)
+	timings.add(supplyChainImpactTxStmtStoredRead, time.Since(storedStarted), int64(len(stored)))
 	if err != nil {
 		return supplyChainImpactTxOutcome{suppression: supp}, err
 	}
 	// The fact rows and the supports derived from them, in this transaction and
 	// under the lock above (WriteSupplyChainImpactFindingRows is the one step
 	// every admission of finding rows runs, the advisory-group cell's included).
-	if err := WriteSupplyChainImpactFindingRows(ctx, tx, rows); err != nil {
+	if err := WriteSupplyChainImpactFindingRows(ctx, tx, rows, timings); err != nil {
 		return supplyChainImpactTxOutcome{}, err
 	}
 	supports, hasSupports := tx.(SupplyChainImpactSupportsMaintainer)
@@ -190,15 +177,8 @@ func commitSupplyChainImpactRows(
 	// nothing, so an unchanged rerun issues no extra statement. A key this
 	// pass's own retraction tombstones is named there, so the capture leaves
 	// it out: one pass stages one dirty row per key (#11411).
-	if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
-		if idents := dirtyIdentifiersToCapture(meta, stored, write.GenerationID); len(idents) > 0 {
-			idents = excludeRetiredWinnersDirtyIdentifiers(idents, stored, keep, write.GenerationID, write.FencingToken, write.PartialEvidence, write.ScopedCVEIDs)
-			if len(idents) > 0 {
-				if _, err := capturer.CaptureWinnersDirtyFacts(ctx, idents); err != nil {
-					return supplyChainImpactTxOutcome{}, fmt.Errorf("capture supply chain impact winners dirty keys: %w", err)
-				}
-			}
-		}
+	if err := captureTimedWinnersDirtyKeys(ctx, tx, write, meta, stored, keep, timings); err != nil {
+		return supplyChainImpactTxOutcome{}, err
 	}
 	if hasProtected {
 		if err := publisher.PublishProtectedScanImpactResults(ctx, protected); err != nil {
@@ -254,31 +234,18 @@ func commitSupplyChainImpactRows(
 	// waiting for the lock would close a cycle with a fence holding the exclusive lock.
 	owed := write.Owed != nil && (len(outcome.changedCVEs) > 0 || len(outcome.touchedGroups) > 0)
 	if !write.PartialEvidence {
-		tombstoned, marked, err := retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken, write.ScopedCVEIDs)
+		tombstoned, err := retractTimedSupersededFindings(ctx, tx, write, keep, supports, hasSupports, timings)
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err
 		}
 		outcome.retracted = tombstoned
-		if hasSupports {
-			if _, err := supports.DeleteRetractedImpactSupports(ctx, write.ScopeID, write.GenerationID); err != nil {
-				return supplyChainImpactTxOutcome{}, fmt.Errorf("remove retracted supply chain impact supports: %w", err)
-			}
-		}
-		// The capture count is the marked keys, not the tombstoned rows:
-		// twin findings that share one key collapse to one staged mark.
-		if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
-			capturer.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactRetract, int64(marked))
-		}
 	}
 	if write.Recovery {
-		outcome.recoveryCVEs, err = readSupplyChainImpactCVEIDs(ctx, tx, write.ScopeID, write.GenerationID)
+		recoveryCVEs, recoveryGroups, err := readTimedRecoveryReport(ctx, tx, write, timings)
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err
 		}
-		recoveryGroups, err := readSupplyChainImpactGroupIDs(ctx, tx, write.ScopeID, write.GenerationID)
-		if err != nil {
-			return supplyChainImpactTxOutcome{}, err
-		}
+		outcome.recoveryCVEs = recoveryCVEs
 		outcome.touchedGroups = unionSortedStrings(outcome.touchedGroups, recoveryGroups)
 	}
 	// Record the scope's durable per-scope pass state last (#10389): a
@@ -295,7 +262,9 @@ func commitSupplyChainImpactRows(
 	// skipped, instead of committing over the newer clear. Only a commit
 	// landing between this statement and the commit below can still
 	// interleave, and no bulk work runs in that window.
+	passStateStarted := time.Now()
 	outcome.passStateSkipped, err = recordSupplyChainImpactScopePassState(ctx, tx, write, now)
+	timings.add(supplyChainImpactTxStmtPassState, time.Since(passStateStarted), 0)
 	if err != nil {
 		return supplyChainImpactTxOutcome{}, err
 	}
@@ -304,10 +273,7 @@ func commitSupplyChainImpactRows(
 	// milliseconds. No statement above writes, row-locks or table-locks fact_work_items
 	// or writes or row-locks a scope or generation row (the pre-lock classifier and the
 	// storage census pin this), so this wait cannot close a cycle with a fence holding the exclusive lock.
-	locked, wait, err := lockAndRecheckGoEvidence(ctx, tx, write.GoEvidence)
-	if err == nil && owed {
-		wait, err = recordOwedAfterGoEvidenceLock(ctx, tx, write, locked, wait)
-	}
+	locked, wait, err := closeTimedGoEvidence(ctx, tx, write, owed, timings)
 	outcome.goEvidenceLocked, outcome.goEvidenceLockWait = locked, wait
 	if err != nil {
 		return supplyChainImpactTxOutcome{goEvidenceLocked: locked, goEvidenceLockWait: wait}, err

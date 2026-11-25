@@ -5,7 +5,9 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
@@ -56,10 +58,18 @@ type SupplyChainImpactSupportsMaintainer interface {
 // as offered. A transaction without the supports maintainer writes the facts only
 // (valid in a test; production repairs it through the backfill). No rows write
 // nothing.
-func WriteSupplyChainImpactFindingRows(ctx context.Context, tx SupplyChainImpactTx, rows []factwrite.VersionedRow) error {
+func WriteSupplyChainImpactFindingRows(ctx context.Context, tx SupplyChainImpactTx, rows []factwrite.VersionedRow, timings *supplyChainImpactTxStatementTimings) error {
 	// Bounded chunked bulk insert: findings are upserted in O(N/batchSize)
-	// round-trips rather than one ExecContext per finding.
-	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
+	// round-trips rather than one ExecContext per finding. When timings is set
+	// each chunk folds its own wall time into the pass's fact_insert
+	// accumulation, so one pass emits one fact_insert sample with the chunk
+	// count and row total, never one series per chunk; a nil timings leaves
+	// the statements untouched and records nothing.
+	db := factwrite.Execer(tx)
+	if timings != nil {
+		db = &timedChunkExecer{inner: tx, timings: timings}
+	}
+	if err := factwrite.BatchInsertVersionedFacts(ctx, db, rows); err != nil {
 		return fmt.Errorf("write supply chain impact fact: %w", err)
 	}
 	supports, hasSupports := tx.(SupplyChainImpactSupportsMaintainer)
@@ -70,8 +80,33 @@ func WriteSupplyChainImpactFindingRows(ctx context.Context, tx SupplyChainImpact
 	for _, row := range rows {
 		factIDs = append(factIDs, row.FactID)
 	}
-	if _, err := supports.UpsertImpactSupports(ctx, factIDs); err != nil {
+	supportsStarted := time.Now()
+	_, err := supports.UpsertImpactSupports(ctx, factIDs)
+	timings.add(supplyChainImpactTxStmtSupportsUpsert, time.Since(supportsStarted), int64(len(factIDs)))
+	if err != nil {
 		return fmt.Errorf("write supply chain impact supports: %w", err)
 	}
 	return nil
+}
+
+// timedChunkExecer delegates to one bulk-insert chunk at a time while folding
+// each chunk's wall time into the pass's fact_insert accumulation. Only clock
+// reads and struct stores run here: no logging, no metric IO, and the
+// statements, order and round-trips are the delegate's own.
+type timedChunkExecer struct {
+	inner   factwrite.Execer
+	timings *supplyChainImpactTxStatementTimings
+}
+
+func (e *timedChunkExecer) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	started := time.Now()
+	result, err := e.inner.ExecContext(ctx, query, args...)
+	var rows int64
+	if len(args) > 0 {
+		if factIDs, ok := args[0].([]string); ok {
+			rows = int64(len(factIDs))
+		}
+	}
+	e.timings.add(supplyChainImpactTxStmtFactInsert, time.Since(started), rows)
+	return result, err
 }

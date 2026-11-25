@@ -202,6 +202,13 @@ var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0
 //   - eshu_dp_supply_chain_impact_fact_write_rejected_total: finding fact writes the
 //     PR-C reject trigger refused; above zero means an old reducer image still runs.
 //
+//   - eshu_dp_supply_chain_impact_write_tx_statement_duration_seconds{statement,
+//     outcome}: the wall time of one statement group inside one impact write
+//     transaction (#11430). The fact_insert sample aggregates the whole chunked
+//     bulk insert to one observation per pass; a rolled-back pass records the
+//     groups that ran. Compare the committed fact_insert and commit series to
+//     split the write_findings tail.
+//
 // No label carries a scope, repository, canonical key or CVE.
 func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error

@@ -88,6 +88,13 @@ const (
 	MetricDimensionEdgeType   = "edge_type"
 	MetricDimensionWritePhase = "write_phase"
 	MetricDimensionOutcome    = "outcome"
+	// MetricDimensionStatement labels the per-statement impact write-transaction
+	// histogram (#11430) with the closed statement set: conflict_lock,
+	// suppression_diff, admission, stored_read, fact_insert, supports_upsert,
+	// winners_capture, retract, supports_delete, recovery_read, pass_state,
+	// go_evidence_close, commit. The value space is that fixed 13-member set,
+	// never a raw statement, scope, generation, CVE, fact id or repository.
+	MetricDimensionStatement = "statement"
 	// MetricDimensionAdvisoryType labels the GHSA rolling-window signals
 	// (#10037) with the closed advisory type: reviewed or malware.
 	// Producers must never use raw scope ids or window bounds here.

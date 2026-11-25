@@ -40,6 +40,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"edge_type",
 		"write_phase",
 		"outcome",
+		"statement",
 		"advisory_type",
 		"guardrail",
 		"policy_id",

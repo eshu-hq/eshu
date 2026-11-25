@@ -38,6 +38,7 @@ reads probe before each call, and how the reducer-side readers used it.
 | `eshu_dp_go_fence_advisory_lock_timeouts_total` | counter | none | Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight impact pass. Nothing was detached; the coordinator retries the page next tick. Three consecutive ticks timing out on the same scope returns to the owner of #11327. |
 | `eshu_dp_go_fence_advisory_lock_wait_seconds` | histogram | none | How long the fence waited for the exclusive go-evidence lock, granted or timed out. A pass holds the shared lock only for its recheck, its owed marker and its commit, so the expected wait is milliseconds; a tail means a pass stalled between its recheck and its commit. The lock timeout is 2 s. |
 | `eshu_dp_supply_chain_impact_write_tx_duration_seconds` | histogram | `outcome` (`committed`, `rolled_back`, `recheck_aborted`) | Wall time of one impact write transaction, begin to commit or rollback. `recheck_aborted` is a pass whose Go evidence went stale during its writes: the whole transaction was spent for nothing, so the abort cost is this histogram's `recheck_aborted` series. Buckets reach 300 s. Use the `committed` p99 to size how long a fence can wait behind a pass. |
+| `eshu_dp_supply_chain_impact_write_tx_statement_duration_seconds` | histogram | `statement` (closed: `conflict_lock`, `suppression_diff`, `admission`, `stored_read`, `fact_insert`, `supports_upsert`, `winners_capture`, `retract`, `supports_delete`, `recovery_read`, `pass_state`, `go_evidence_close`, `commit`), `outcome` (`committed`, `rolled_back`) | Wall time of one statement group inside one impact write transaction. `fact_insert` is one pass-level aggregate no matter how many bulk-insert chunks the pass took; `commit` is timed on every pass. A `rolled_back` pass records the groups that ran before the failure. Buckets run 0.5 ms to 300 s. Use the `committed` `fact_insert` and `commit` series to split the `write_findings` tail. |
 | `eshu_dp_supply_chain_impact_go_evidence_lock_wait_seconds` | histogram | none | How long a pass spent in the closing statements after its first shared go-evidence lock: taking the locks, granted or refused, plus its owed marker, which can wait on its work-item row. A tail means passes queue behind a fence or a stalled marker, and bounds how long a fence can wait behind the pass. Passes with no resolved Go scope record nothing. |
 
 No label carries a scope, repository, canonical key or CVE.
@@ -53,6 +54,28 @@ A drain that reads 100,000 raw rows or more, or that fails after reading any (th
 `event_name=supply_chain_impact_supports.large_drain`, with `reader`, `sample` (`drain`, or `call` for a whole service-catalog call), `outcome` (`served` or `failed`), `keys`, `pages`,
 `raw_rows`, `active_rows` and `duration_ms`, so a hot key is findable from logs
 without a dashboard.
+
+## Statement-timing overhead (#11430)
+
+No-Regression Evidence: the per-statement timing adds one clock read per
+statement group plus struct appends per pass, with no new I/O, locks,
+statement text, ordering, or round trips. The baseline is the pre-PR writer
+with pass-level timing only; after the change, callers without timings take
+the byte-identical delegate path, and
+`TestCommittedPassAccumulatesOneSamplePerStatement` proves 2500 rows over 3
+chunks keep identical call counts with one `fact_insert` sample. Proof is
+`go test -count=1` on `internal/telemetry` and
+`internal/reducer/supplychain/core` (ok, 9.6 s and 16.0 s) and the floor's
+`go test -race` on the changed packages (green), all on go1.27.4 darwin/arm64
+with no live backend. No live-backend measurement was taken; the live QA
+readout is pending a deployed build with this signal.
+
+Observability Evidence: the new
+`eshu_dp_supply_chain_impact_write_tx_statement_duration_seconds{statement,outcome}`
+histogram is the operator signal for this change, capped at 13 statements
+times 2 outcomes (26 series) with no scope, CVE, or fact-id labels. It is
+recorded after the write transaction returns, so metric emission never holds
+the transaction open.
 
 ## Refused fact writes
 

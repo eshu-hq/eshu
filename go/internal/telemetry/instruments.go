@@ -1583,6 +1583,10 @@ type Instruments struct {
 	// transaction by outcome, and the pass's wait on the shared go-evidence lock.
 	SupplyChainImpactWriteTxDuration    metric.Float64Histogram
 	SupplyChainImpactGoEvidenceLockWait metric.Float64Histogram
+	// The per-statement write-transaction signal of #11430: wall time of one
+	// statement group inside an impact write transaction, by statement and
+	// outcome. Registered by registerSupplyChainImpactSupportsInstruments.
+	SupplyChainImpactWriteTxStatementDuration metric.Float64Histogram
 
 	// The per-support table signals of #10880 PR-B1, registered by
 	// registerSupplyChainImpactSupportsInstruments.
@@ -7619,6 +7623,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerSupplyChainImpactSupportsInstruments(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerSupplyChainImpactWriteTxStatementInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerAdvisoryGroupProjectionInstruments(meter, inst); err != nil {
 		return nil, err
 	}
@@ -9889,6 +9896,13 @@ func AttrWritePhase(v string) attribute.KeyValue {
 // AttrOutcome returns an outcome attribute for metric recording.
 func AttrOutcome(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOutcome, v)
+}
+
+// AttrStatement returns a statement attribute for metric recording. Callers
+// MUST pass a bounded SupplyChainImpactWriteTxStatement* value naming the
+// write-transaction statement group, never raw SQL.
+func AttrStatement(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionStatement, v)
 }
 
 // AttrTable returns a table attribute naming the content table an unscoped
