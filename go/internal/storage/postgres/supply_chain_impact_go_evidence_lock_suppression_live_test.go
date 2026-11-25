@@ -33,7 +33,7 @@ const suppressionCandidateMarker = "(g.activated_at IS NOT NULL)"
 func suppressionPassFixture(c *convergence, tag string) (holder, goScope, goGeneration string, second supplychaincore.SupplyChainImpactWrite) {
 	c.t.Helper()
 	holder = "scope:11327:sup:" + tag
-	repository := "repository:r_11327sup" + tag
+	repository := goEvidenceTestRepoID("11327:sup:" + tag)
 	goScope = "go-reachability://" + repository
 	goGeneration = fanOutGen(goScope, "g1")
 	fanOutSeedScope(c.t, c.ctx, c.db, goScope, "g1")

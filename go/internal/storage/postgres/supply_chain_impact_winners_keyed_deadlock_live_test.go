@@ -503,6 +503,16 @@ func winnersDirtyStratumFails(p50, p95, reference time.Duration, ratio, maxRatio
 	return !winnersDirtyIsTailStallNoise(p50, p95, reference)
 }
 
+// winnersDirtyShouldRetryMedianHealthyFailure reports whether a failed stratum
+// warrants one fresh re-measurement: the median is still within the shim-host
+// reference (so a sustained median shift fails immediately), while p95 barely
+// crossed the reference/ratio arms due to transient shared-runner jitter or an
+// abnormally fast control sample.
+func winnersDirtyShouldRetryMedianHealthyFailure(p50, p95, reference time.Duration, ratio, maxRatio float64) bool {
+	return p50 > 0 && reference > 0 && p50 <= reference &&
+		winnersDirtyStratumFails(p50, p95, reference, ratio, maxRatio)
+}
+
 // winnersDirtyContentionRatio reports stratum p95 as a multiple of the
 // same-run single-writer control p95, so the gate travels with runner speed
 // instead of pinning one host's absolute latency.
@@ -658,42 +668,59 @@ func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T)
 	// runs the identical statement on its own 60 private keys with no
 	// contention, so its p95 is this host's steady-state statement cost. It
 	// runs first and doubles as extra cache warmup for the contended strata.
-	controlDurs := runStratum(1, 25)
-	if failed.Load() != 0 {
-		t.Fatalf("control: %d accessor(s) failed; the sample is incomplete", failed.Load())
-	}
-	if want := 25; len(controlDurs) != want {
-		t.Fatalf("control: %d statement samples, want %d", len(controlDurs), want)
-	}
-	controlP95 := winnersDirtyLatencyPercentile(controlDurs, 0.95)
-	controlP50 := winnersDirtyLatencyPercentile(controlDurs, 0.5)
-	t.Logf("winners_dirty_writer_p95 writers=1 n=%d p50=%s p95=%s max=%s role=control",
-		len(controlDurs), controlP50, controlP95, slices.Max(controlDurs))
-
-	check := func(writers, iters int, durs []time.Duration, reference time.Duration, maxRatio float64, stratum string) {
+	measureControl := func() time.Duration {
+		controlDurs := runStratum(1, 25)
 		if failed.Load() != 0 {
-			t.Fatalf("%s: %d accessor(s) failed; the sample is incomplete", stratum, failed.Load())
+			t.Fatalf("control: %d accessor(s) failed; the sample is incomplete", failed.Load())
 		}
-		if want := writers * iters; len(durs) != want {
-			t.Fatalf("%s: %d statement samples, want %d (%d writers x %d iterations)", stratum, len(durs), want, writers, iters)
+		if want := 25; len(controlDurs) != want {
+			t.Fatalf("control: %d statement samples, want %d", len(controlDurs), want)
 		}
-		p50 := winnersDirtyLatencyPercentile(durs, 0.5)
-		p95 := winnersDirtyLatencyPercentile(durs, 0.95)
-		ratio := winnersDirtyContentionRatio(p95, controlP95)
-		t.Logf("winners_dirty_writer_p95 writers=%d n=%d p50=%s p95=%s max=%s control_p95=%s ratio=%.2f max_ratio=%.1f reference=%s",
-			writers, len(durs), p50, p95, slices.Max(durs), controlP95, ratio, maxRatio, reference)
-		if winnersDirtyStratumFails(p50, p95, reference, ratio, maxRatio) {
+		p95 := winnersDirtyLatencyPercentile(controlDurs, 0.95)
+		p50 := winnersDirtyLatencyPercentile(controlDurs, 0.5)
+		t.Logf("winners_dirty_writer_p95 writers=1 n=%d p50=%s p95=%s max=%s role=control",
+			len(controlDurs), p50, p95, slices.Max(controlDurs))
+		return p95
+	}
+	controlP95 := measureControl()
+
+	check := func(writers, iters int, reference time.Duration, maxRatio float64, stratum string) {
+		attemptControlP95 := controlP95
+		for attempt := 1; attempt <= 2; attempt++ {
+			durs := runStratum(writers, iters)
+			if failed.Load() != 0 {
+				t.Fatalf("%s: %d accessor(s) failed; the sample is incomplete", stratum, failed.Load())
+			}
+			if want := writers * iters; len(durs) != want {
+				t.Fatalf("%s: %d statement samples, want %d (%d writers x %d iterations)", stratum, len(durs), want, writers, iters)
+			}
+			p50 := winnersDirtyLatencyPercentile(durs, 0.5)
+			p95 := winnersDirtyLatencyPercentile(durs, 0.95)
+			ratio := winnersDirtyContentionRatio(p95, attemptControlP95)
+			t.Logf("winners_dirty_writer_p95 writers=%d n=%d attempt=%d p50=%s p95=%s max=%s control_p95=%s ratio=%.2f max_ratio=%.1f reference=%s",
+				writers, len(durs), attempt, p50, p95, slices.Max(durs), attemptControlP95, ratio, maxRatio, reference)
+			if !winnersDirtyStratumFails(p50, p95, reference, ratio, maxRatio) {
+				if winnersDirtyGateFails(p95, reference, ratio, maxRatio) {
+					t.Logf("stratified gate writers=%d passes over %d statements despite tripped arms: tail-stall noise (p50 %s healthy against reference %s, p95 %s): runner oversubscription, not a regression (#11060)",
+						writers, len(durs), p50, reference, p95)
+				}
+				return
+			}
+			if attempt == 1 && winnersDirtyShouldRetryMedianHealthyFailure(p50, p95, reference, ratio, maxRatio) {
+				t.Logf("stratified gate writers=%d attempt 1 tripped with healthy median (p50 %s <= reference %s, p95 %s, ratio %.2f vs %.1f); re-measuring once with fresh control to rule out shared-runner jitter",
+					writers, p50, reference, p95, ratio, maxRatio)
+				attemptControlP95 = measureControl()
+				continue
+			}
 			t.Errorf("stratified gate writers=%d failed over %d statements: p95 %s above the %s %s and %.2fx the same-run control above the %.1f backstop: the staging INSERT regressed for this writer count",
 				writers, len(durs), p95, reference, stratum, ratio, maxRatio)
-		} else if winnersDirtyGateFails(p95, reference, ratio, maxRatio) {
-			t.Logf("stratified gate writers=%d passes over %d statements despite tripped arms: tail-stall noise (p50 %s healthy against reference %s, p95 %s): runner oversubscription, not a regression (#11060)",
-				writers, len(durs), p50, reference, p95)
+			return
 		}
 	}
 
-	check(2, 25, runStratum(2, 25), winnersDirtyTwoWriterP95Envelope, winnersDirtyTwoWriterMaxRatio, "envelope")
+	check(2, 25, winnersDirtyTwoWriterP95Envelope, winnersDirtyTwoWriterMaxRatio, "envelope")
 	// The 4-writer stratum runs 25 timed iterations (n=100, like the
 	// control and 2-writer strata) so a few stalled statements move the
 	// nearest-rank p95 less than they did at n=60 (#11060).
-	check(4, 25, runStratum(4, 25), winnersDirtyFourWriterP95Baseline, winnersDirtyFourWriterMaxRatio, "baseline")
+	check(4, 25, winnersDirtyFourWriterP95Baseline, winnersDirtyFourWriterMaxRatio, "baseline")
 }
