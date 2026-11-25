@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -110,6 +111,29 @@ func missingStringValues(current []string, initial []string) []string {
 	return payloadcore.MissingStrings(current, initial)
 }
 
+// canonicalGoManifestPackageIdentity projects one manifest dependency onto
+// the canonical go package identity the vulnerability.affected_package rows
+// carry (eshu-hq/eshu#10032 shape A): gomod://proxy.golang.org/<module> and
+// the versionless pkg:golang/<module> purl. Only the go ecosystem seeds the
+// package arms; every other ecosystem keeps the repository-only behavior,
+// and an unparseable name seeds nothing (fail closed). The identity is
+// versionless on purpose: advisory rows carry no @version, so a versioned
+// purl would never match the exact-match key probes.
+func canonicalGoManifestPackageIdentity(dependency correlation.PackageManifestDependency) (string, string) {
+	if packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(dependency.PackageManager)) != packageidentity.EcosystemGoModule {
+		return "", ""
+	}
+	identity, err := packageidentity.Normalize(packageidentity.RawIdentity{
+		Ecosystem: packageidentity.EcosystemGoModule,
+		Registry:  packageidentity.DefaultRegistry(packageidentity.EcosystemGoModule),
+		RawName:   strings.TrimSpace(dependency.DependencyName),
+	})
+	if err != nil || identity.PackageID == "" || identity.PURL == "" {
+		return "", ""
+	}
+	return identity.PackageID, identity.PURL
+}
+
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {
 	var packageIDs, purls, cveIDs, digests, documentIDs, productCriteria, repositoryIDs, imageRefs []string
 	// advisoryIDs is collected separately from cveIDs because
@@ -173,6 +197,10 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			dependencies := correlation.ExtractPackageManifestDependencies([]facts.Envelope{envelope})
 			for _, dependency := range dependencies {
 				repositoryIDs = append(repositoryIDs, dependency.RepositoryID)
+				if packageID, purl := canonicalGoManifestPackageIdentity(dependency); packageID != "" {
+					packageIDs = append(packageIDs, packageID)
+					purls = append(purls, purl)
+				}
 			}
 		case chain.SBOMComponentFactKind:
 			packageIDs = append(packageIDs, payloadcore.PayloadStr(envelope.Payload, "package_id"))
