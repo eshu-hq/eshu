@@ -5,8 +5,10 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
@@ -75,7 +77,10 @@ LIMIT $6
 // backfill is ready: an unready table must not read as "no impact finding",
 // which the handler turns into a durable provider_only decision. Every read of
 // the handler precedes its one write, so the loader-level refusal defers the
-// intent with nothing written.
+// intent with nothing written. Both streams share one per-call active-row
+// budget (supplyChainImpactSupportsCallBudget): past it the call fails with
+// the drain truncation error and the resume cursor instead of serving a prefix
+// as complete.
 func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 	ctx context.Context,
 	filter securityalert.SecurityAlertReconciliationFactFilter,
@@ -95,14 +100,48 @@ func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 	if err := requireSupplyChainImpactSupportsReady(ctx, s.database, s.instruments, reader); err != nil {
 		return nil, fmt.Errorf("list active security alert reconciliation facts: %w", err)
 	}
-	loaded, err := s.drainActiveSecurityAlertReconciliationFacts(ctx, filter)
+	// One budget across both streams of the call (#11436): the fact stream
+	// spends it first and the supports drain stops on the remainder, so a hot
+	// filter fails fast instead of accumulating every envelope of both kinds.
+	started := time.Now()
+	tracker := newSupplyChainImpactSupportsCallTracker()
+	loaded, factStats, err := s.drainActiveSecurityAlertReconciliationFacts(ctx, filter, tracker, reader)
 	if err != nil {
 		// A fact-stream failure is not a supports read: only the supports drain
-		// below counts under outcome=failed.
+		// below counts under outcome=failed. The truncation error already
+		// carries the resume cursor and the call stats.
 		return nil, err
 	}
-	impacts, err := newSupplyChainImpactSupportsDrain(s.instruments, reader, securityAlertReconciliationSupportsArms,
-		filter.RepositoryIDs, filter.PackageIDs, filter.CVEIDs, filter.GHSAIDs).run(ctx, s.database)
+	impactsBase := tracker.delivered
+	var impacts []facts.Envelope
+	impactStats, err := newSupplyChainImpactSupportsDrain(s.instruments, reader, securityAlertReconciliationSupportsArms,
+		filter.RepositoryIDs, filter.PackageIDs, filter.CVEIDs, filter.GHSAIDs).drainPages(ctx, s.database,
+		func(page []facts.Envelope) error {
+			serve := tracker.head(page)
+			impacts = append(impacts, serve...)
+			if len(serve) < len(page) {
+				return errSupplyChainImpactSupportsCallBudgetTruncated
+			}
+			return nil
+		})
+	// The tracker's head is what the call delivered: on a call-budget cut the
+	// drain's own counter misses the folded head of the final page.
+	impactStats.activeRows = tracker.delivered - impactsBase
+	if errors.Is(err, errSupplyChainImpactSupportsCallBudgetTruncated) {
+		impactStats.truncated = true
+		recordSupplyChainImpactSupportsDrain(ctx, s.instruments, reader, supplyChainImpactSupportsSampleDrain, impactStats)
+		s.instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
+		combined := factStats
+		combined.add(impactStats)
+		combined.elapsed = time.Since(started)
+		combined.failed, combined.truncated = true, true
+		return nil, fmt.Errorf("list active security alert reconciliation facts: %w", &SupplyChainImpactSupportsDrainTruncatedError{
+			Reader:             reader,
+			ResumeCursorFactID: tracker.lastDelivered,
+			Stats:              combined,
+		})
+	}
+	recordSupplyChainImpactSupportsDrain(ctx, s.instruments, reader, supplyChainImpactSupportsSampleDrain, impactStats)
 	if err != nil {
 		s.instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
 		return nil, fmt.Errorf("list active security alert reconciliation facts: %w", err)
@@ -133,21 +172,48 @@ var securityAlertReconciliationSupportsArms = []supplyChainImpactSupportsArm{
 }
 
 // drainActiveSecurityAlertReconciliationFacts pages the alert and consumption
-// fact statement on its own fact-id cursor until a short page.
+// fact statement on its own fact-id cursor until a short page, folding at most
+// the tracker's remaining call budget: past it the drain stops with the
+// resume cursor (the last delivered fact id) on a
+// *SupplyChainImpactSupportsDrainTruncatedError and serves nothing, the same
+// fail-fast contract as the supports drain's active-row cap. On an error it
+// returns the stats of what it read so far, marked failed.
 func (s FactStore) drainActiveSecurityAlertReconciliationFacts(
 	ctx context.Context,
 	filter securityalert.SecurityAlertReconciliationFactFilter,
-) ([]facts.Envelope, error) {
+	tracker *supplyChainImpactSupportsCallTracker,
+	reader string,
+) ([]facts.Envelope, supplyChainImpactSupportsDrainStats, error) {
+	started := time.Now()
 	var loaded []facts.Envelope
 	var cursorFactID string
+	pages, rawRows := 0, 0
+	stats := func(failed, truncated bool) supplyChainImpactSupportsDrainStats {
+		return supplyChainImpactSupportsDrainStats{
+			pages: pages, rawRows: rawRows, activeRows: tracker.delivered,
+			keys:    len(filter.RepositoryIDs) + len(filter.PackageIDs) + len(filter.CVEIDs) + len(filter.GHSAIDs),
+			elapsed: time.Since(started), failed: failed, truncated: truncated,
+		}
+	}
 	for {
 		page, err := s.listActiveSecurityAlertReconciliationFactsPage(ctx, filter, cursorFactID)
 		if err != nil {
-			return nil, err
+			return nil, stats(true, false), err
 		}
-		loaded = append(loaded, page...)
+		serve := tracker.head(page)
+		loaded = append(loaded, serve...)
+		pages++
+		rawRows += len(page)
+		if len(serve) < len(page) {
+			truncated := stats(false, true)
+			return nil, truncated, &SupplyChainImpactSupportsDrainTruncatedError{
+				Reader:             reader,
+				ResumeCursorFactID: tracker.lastDelivered,
+				Stats:              truncated,
+			}
+		}
 		if len(page) < listFactsByKindPageSize {
-			return loaded, nil
+			return loaded, stats(false, false), nil
 		}
 		cursorFactID = page[len(page)-1].FactID
 	}
