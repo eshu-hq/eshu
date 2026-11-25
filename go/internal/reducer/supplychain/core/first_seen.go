@@ -212,7 +212,8 @@ func marshalStampedPayloads(rows []factwrite.VersionedRow, payloads []map[string
 // StampPrebuiltFindingPayloads patches prebuilt rows' payload JSON with
 // their resolved stamps. Only the cassette admission cell uses it: its rows
 // arrive with payload bytes already encoded, so unlike the writer (which
-// marshals maps once, above) the cell must unmarshal, stamp, and remarshal.
+// marshals pre-claim and remarshals only when stamps resolve) the cell must
+// unmarshal, stamp, and remarshal.
 // Cassette admissions are rare and small beside reducer passes, and a row
 // whose key resolved no stamp keeps its payload byte-identical.
 func StampPrebuiltFindingPayloads(rows []factwrite.VersionedRow, stamps map[string]FirstSeenStamp) error {

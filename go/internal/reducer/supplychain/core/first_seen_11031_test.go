@@ -201,14 +201,16 @@ type stubFirstSeenStore struct {
 	stamps map[string]FirstSeenStamp
 }
 
-// BenchmarkFirstSeenApply11031 measures the per-pass in-Go cost of
-// stamping: two map inserts plus the one marshal the writer already did per
-// row, over realistic payloads built by the production encoder (advisory
-// sources, severity and range provenance). The SQL claim itself is two
-// set-based statements per pass (one INSERT ... SELECT unnest, one SELECT
-// ... ANY) no matter how many findings the pass carries, so the marshal is
-// the only finding-count-scaled cost and the stamp adds no second
-// serialization.
+// BenchmarkFirstSeenApply11031 measures the per-row marginal cost of
+// stamping. The stamped arm runs the pre-claim marshal plus the
+// in-transaction remarshal with stamp keys set (the production stamping
+// path); the unstamped arm runs the pre-claim marshal alone (the pre-#11031
+// writer path). The delta is the second marshal, over realistic payloads
+// built by the production encoder (advisory sources, severity and range
+// provenance). The SQL claim itself is two set-based statements per pass
+// (one INSERT ... SELECT unnest, one SELECT ... ANY) no matter how many
+// findings the pass carries, so the remarshal is the only
+// finding-count-scaled cost of the stamp.
 func BenchmarkFirstSeenApply11031(b *testing.B) {
 	const rows = 200
 	write := SupplyChainImpactWrite{
@@ -259,26 +261,41 @@ func BenchmarkFirstSeenApply11031(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			cp := make([]factwrite.VersionedRow, rows)
 			copy(cp, versioned)
-			if err := marshalStampedPayloads(cp, clonePayloads(), stamps); err != nil {
-				b.Fatalf("marshal: %v", err)
+			maps := clonePayloads()
+			for _, m := range maps {
+				encoded, err := json.Marshal(m)
+				if err != nil {
+					b.Fatalf("pre-claim marshal: %v", err)
+				}
+				benchmarkFirstSeenSink += len(encoded)
+			}
+			if err := marshalStampedPayloads(cp, maps, stamps); err != nil {
+				b.Fatalf("remarshal: %v", err)
 			}
 		}
 	})
-	// Unstamped is the pre-stamp build path (the same single marshal with no
-	// stamp keys): the sub-benchmark delta is the stamp's marginal cost.
+	// Unstamped is the pre-#11031 writer path: the single pre-claim marshal
+	// with no stamp keys and no remarshal. The sub-benchmark delta is the
+	// stamp's marginal cost (one remarshal per row on stamping passes).
 	b.Run("unstamped", func(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
-		empty := map[string]FirstSeenStamp{}
 		for i := 0; i < b.N; i++ {
-			cp := make([]factwrite.VersionedRow, rows)
-			copy(cp, versioned)
-			if err := marshalStampedPayloads(cp, clonePayloads(), empty); err != nil {
-				b.Fatalf("marshal: %v", err)
+			maps := clonePayloads()
+			for _, m := range maps {
+				encoded, err := json.Marshal(m)
+				if err != nil {
+					b.Fatalf("pre-claim marshal: %v", err)
+				}
+				benchmarkFirstSeenSink += len(encoded)
 			}
 		}
 	})
 }
+
+// benchmarkFirstSeenSink keeps benchmark marshal output live so the
+// compiler cannot eliminate the measured serializations.
+var benchmarkFirstSeenSink int
 
 func newStubFirstSeenStore() *stubFirstSeenStore {
 	return &stubFirstSeenStore{stamps: map[string]FirstSeenStamp{}}

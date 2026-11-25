@@ -21,13 +21,15 @@ statements no matter how many findings the pass carries. Stamping passes pay
 a second marshal per row; unstamped passes skip the remarshal
 (`len(stamps) > 0` guard) and keep the single pre-existing marshal.
 Microbenchmark `BenchmarkFirstSeenApply11031` (200 production-shaped
-1,656-byte payloads, arm64 dev host): stamped 3,037,462 ns/op vs unstamped
-3,009,484 ns/op. The ~28,000 ns delta over 200 rows (~0.14 us/row, ~12 KB
-per 200 rows) is the stamp's whole marginal cost; the ~15 us/row balance is
-the pre-existing marshal. Digest stability is proven, not asserted: the
-stamp-free unit-test path writes byte-identical payloads, and
-`TestRoundsCutDiagnosticChangesNothing` plus the full
-`internal/reducer/supplychain/core` suite pass with the stamp wired in.
+1,656-byte payloads, arm64 dev host; stamped arm = pre-claim marshal plus
+in-transaction remarshal, unstamped arm = pre-claim marshal alone):
+stamped 5,419,504 ns/op vs unstamped 2,857,868 ns/op. The ~2,561,636 ns
+delta over 200 rows (~12.8 us/row) is the stamp's whole marginal cost: one
+extra marshal of the finding payload per row on stamping passes only.
+Digest stability is proven, not asserted: the stamp-free unit-test path
+writes byte-identical payloads, and `TestRoundsCutDiagnosticChangesNothing`
+plus the full `internal/reducer/supplychain/core` suite pass with the stamp
+wired in.
 
 No-Observability-Change (#11031): this stage emits no metric of its own. A
 claim error fails the pass through the existing writer error path, timed by
