@@ -162,10 +162,10 @@ rows:
     runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "A 4-intent FailBatch with one 600-scope fence parks every item under the btree row limit and returns nil instead of the fatal 54000, a regression the hermetic intent-count ceilings could never exercise (#11350 TEST1, #11297 exit-1); enrolled in the live-postgres-readiness runner"
+    reason: "A 64-intent FailBatch at the production batch cap (Workers*4 max 64), all-wide on 600-scope fences with 156-byte code-derived maxima work_item_ids plus one 5000-byte Unrepresentable blocking id, parks every representable item under the 2000-byte index-row budget with the queue rows retrying and returns nil with no 54000; the 4-intent fixture proved the mechanism, the scaled case proves the cap (#11354 row batch:fail-batch; remote shape probe unreachable from this host so parameters are code-derived from reducerWorkItemID and the realistic-id shape, remote Postgres version parity a follow-up); enrolled in the live-postgres-readiness runner"
     proving_tests:
       - file: go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go
-        tests: [TestFailBatchWideBlockingSetParksCleanlyLive]
+        tests: [TestFailBatchWideBlockingSetParksCleanlyLive, TestFailBatchScaledAllWideParksCleanlyLive]
 
   - contract_ref: claim:duplicate-enqueue
     surface: projector enqueue collapse of concurrent duplicate work items
