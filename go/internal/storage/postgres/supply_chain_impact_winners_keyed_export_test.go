@@ -46,6 +46,15 @@ const WinnersKeyedNarrowAnalyzeSQLForTest = analyzeWinnersKeyedNarrowSQL
 // can drop and rebuild it between explains on one connection.
 const WinnersKeyedNarrowTableForTest = winnersKeyedNarrowTable
 
+// WinnersKeyedNarrowBuildFromSupportsSQLForTest exposes the shipped supports
+// twin of the narrow probe: the statement the tick actually runs. A plan
+// proof must explain this twin, never the legacy fact_records statement.
+var WinnersKeyedNarrowBuildFromSupportsSQLForTest = buildWinnersKeyedNarrowFromSupportsSQL
+
+// WinnersKeyedActiveFactsBuildFromSupportsSQLForTest exposes the shipped
+// supports twin of the active-facts fetch.
+var WinnersKeyedActiveFactsBuildFromSupportsSQLForTest = buildWinnersKeyedActiveFactsFromSupportsSQL
+
 // ActivationPointerMoveSQLForTest exposes the projector Ack statement that
 // moves a scope's active pointer and appends the old and new generation to the
 // winners dirty log, so a live proof runs the production capture site.

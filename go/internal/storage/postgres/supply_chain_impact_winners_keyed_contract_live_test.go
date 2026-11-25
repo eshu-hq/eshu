@@ -175,28 +175,9 @@ func TestSupplyChainImpactWinnersResweepRetentionDeleteChangesNoWinnerLive(t *te
 // joins only the narrow table and live_gens, so fact_records is never scanned.
 func TestSupplyChainImpactWinnersResweepKeyedProbePlanLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 keyed plan proof")
-	// #10544 retirement parity: a fully bootstrapped database must carry the
-	// 291 keyed index and must not carry the retired triple-only
-	// package-lookup index, whose planner cost ties the 291 index at rows=1
-	// (see (#10544)). The
-	// seeded-violation arm plants the retired index and requires the same
-	// census to see it, so an absence assertion that could not detect the
-	// index would fail here instead of passing vacuously.
-	const retiredIndex = "fact_records_supply_chain_impact_package_lookup_idx"
-	if keyedIndexExists(t, h, retiredIndex) {
-		t.Fatalf("retired index %s is present after bootstrap; migration 293 must drop it", retiredIndex)
-	}
-	if !keyedIndexExists(t, h, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Fatal("the 291 keyed winners index is missing after bootstrap")
-	}
-	h.exec(`CREATE INDEX ` + retiredIndex + ` ON fact_records ((payload->>'package_id'), (payload->>'repository_id'), (payload->>'subject_digest'), fact_id ASC, generation_id) WHERE fact_kind = 'reducer_supply_chain_impact_finding' AND is_tombstone = FALSE`)
-	if !keyedIndexExists(t, h, retiredIndex) {
-		t.Fatal("seeded violation undetected: the index census does not see a planted " + retiredIndex)
-	}
-	h.exec(`DROP INDEX ` + retiredIndex)
-	if keyedIndexExists(t, h, retiredIndex) {
-		t.Fatalf("seeded index %s survived its drop; the plan assertions below would run against the wrong schema", retiredIndex)
-	}
+	// The probe the tick runs reads the supports table, so the seeded facts
+	// below must be dual-written to supports exactly as the writer leaves
+	// them; a raw-facts-only seed would prove an empty probe.
 	h.seedScope("vuln-intel://9805/plan", "vuln-intel://9805/plan/g1")
 	h.exec(`
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
@@ -216,6 +197,14 @@ SELECT 'hot-' || g, 'vuln-intel://9805/plan', 'vuln-intel://9805/plan/g1',
                           'subject_digest', '', 'cve_id', 'CVE-2026-H' || g, 'advisory_id', '', 'impact_status', 'affected_exact')
 FROM generate_series(1, 3000) AS g`)
 	h.exec(`ANALYZE fact_records`)
+	// Dual-write the seeded facts to supports with the writer's own
+	// statements, then analyze the supports table so the probe plan below
+	// reflects production statistics.
+	h.syncSupports()
+	h.exec(`ANALYZE supply_chain_impact_finding_supports`)
+	if !keyedIndexExists(t, h, "supply_chain_impact_finding_supports_keyed_probe_idx") {
+		t.Fatal("the supports keyed probe index is missing after bootstrap; migration 354 must apply it")
+	}
 
 	conn, err := h.db.Conn(h.ctx)
 	if err != nil {
@@ -243,7 +232,7 @@ FROM generate_series(1, 3000) AS g`)
 		t.Fatalf("drop narrow probe output before explain: %v", err)
 	}
 	var narrowPlanJSON []byte
-	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&narrowPlanJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest).Scan(&narrowPlanJSON); err != nil {
 		t.Fatalf("explain narrow probe: %v", err)
 	}
 	narrowPlan := string(narrowPlanJSON)
@@ -251,32 +240,32 @@ FROM generate_series(1, 3000) AS g`)
 	if err := json.Unmarshal(narrowPlanJSON, &parsedNarrow); err != nil {
 		t.Fatalf("narrow plan is not JSON: %v", err)
 	}
-	if !strings.Contains(narrowPlan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("the narrow probe does not use the keyed winners index:\n%s", narrowPlan)
+	if !strings.Contains(narrowPlan, "supply_chain_impact_finding_supports_keyed_probe_idx") {
+		t.Errorf("the narrow probe does not use the supports keyed probe index:\n%s", narrowPlan)
 	}
-	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(narrowPlan) {
-		t.Errorf("the narrow probe seq-scans fact_records:\n%s", narrowPlan)
+	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"supply_chain_impact_finding_supports"`).MatchString(narrowPlan) {
+		t.Errorf("the narrow probe seq-scans the supports table:\n%s", narrowPlan)
 	}
 	// The explains above built nothing; materialize the narrow table the
 	// active-facts assertions below read, exactly as the tick does.
-	if _, err := tx.ExecContext(h.ctx, postgres.WinnersKeyedNarrowBuildSQLForTest); err != nil {
+	if _, err := tx.ExecContext(h.ctx, postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest); err != nil {
 		t.Fatalf("build narrow probe for reads: %v", err)
 	}
 	if _, err := tx.ExecContext(h.ctx, postgres.WinnersKeyedNarrowAnalyzeSQLForTest); err != nil {
 		t.Fatalf("analyze narrow probe for reads: %v", err)
 	}
-	// The active-facts build joins the narrow table and live_gens only; it
-	// must not reference the fact table at all.
+	// The active-facts twin joins the narrow table, the supports backing,
+	// and live_gens; it must never scan the supports table.
 	var factsPlanJSON []byte
-	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&factsPlanJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedActiveFactsBuildFromSupportsSQLForTest).Scan(&factsPlanJSON); err != nil {
 		t.Fatalf("explain active-facts build: %v", err)
 	}
 	factsPlan := string(factsPlanJSON)
-	// The active-facts build fetches full fact rows by primary key for the
-	// narrow table's fact_ids and filters generations through live_gens; it
-	// must never scan the fact table.
-	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(factsPlan) {
-		t.Errorf("the active-facts build seq-scans fact_records; it must join narrow rows by key:\n%s", factsPlan)
+	// The active-facts twin joins the narrow rows to their supports backing
+	// by key and filters generations through live_gens; it must never scan
+	// the supports table.
+	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"supply_chain_impact_finding_supports"`).MatchString(factsPlan) {
+		t.Errorf("the active-facts build seq-scans the supports table; it must join narrow rows by key:\n%s", factsPlan)
 	}
 	if !strings.Contains(factsPlan, `"Subplan Name": "CTE live_gens"`) {
 		t.Errorf("the active-facts build lost the live_gens CTE node:\n%s", factsPlan)
@@ -304,22 +293,22 @@ FROM generate_series(1, 3000) AS g`)
 			t.Fatalf("drop the previous narrow probe output: %v", err)
 		}
 		var analyzed []byte
-		if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&analyzed); err != nil {
+		if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest).Scan(&analyzed); err != nil {
 			t.Fatalf("%s: explain analyze narrow probe: %v", state, err)
 		}
 		var analyzedPlan any
 		if err := json.Unmarshal(analyzed, &analyzedPlan); err != nil {
 			t.Fatalf("%s: analyzed plan is not JSON: %v", state, err)
 		}
-		loops, rows, found := keyedIndexScanStats(analyzedPlan)
+		loops, rows, found := keyedIndexScanStatsOn(analyzedPlan, "supply_chain_impact_finding_supports_keyed_probe_idx")
 		if !found {
-			t.Fatalf("%s: the analyzed plan has no scan of the keyed winners index:\n%s", state, analyzed)
+			t.Fatalf("%s: the analyzed plan has no scan of the supports keyed probe index:\n%s", state, analyzed)
 		}
 		if loops != 50 {
-			t.Errorf("%s: the keyed winners index was searched %v times, want 50 (once per identifier):\n%s", state, loops, analyzed)
+			t.Errorf("%s: the supports keyed probe index was searched %v times, want 50 (once per identifier):\n%s", state, loops, analyzed)
 		}
 		if rows != 50 {
-			t.Errorf("%s: the keyed winners index scan returned %v rows, want 50 kept facts (one per identifier, not the hot triple's 3,000 candidates):\n%s", state, rows, analyzed)
+			t.Errorf("%s: the supports keyed probe index scan returned %v rows, want 50 kept supports (one per identifier, not the hot triple's 3,000 candidates):\n%s", state, rows, analyzed)
 		}
 		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE narrow"`) {
 			t.Errorf("%s: the probe is not a materialized CTE node:\n%s", state, analyzed)
@@ -354,10 +343,9 @@ FROM generate_series(1, 3000) AS g`)
 }
 
 // keyedIndexExists reports whether the named index exists in the harness
-// database's current schema. It is the census both arms of the #10544
-// retirement parity check in the plan proof above run: the clean arm
-// requires the retired index absent, the seeded arm requires a planted one
-// present.
+// database's current schema. The plan proof requires the supports keyed
+// probe index present: without it the plan assertions below would fail on
+// missing schema instead of on the probe shape.
 func keyedIndexExists(t *testing.T, h *keyedHarness, indexName string) bool {
 	t.Helper()
 	var exists bool
@@ -369,25 +357,25 @@ func keyedIndexExists(t *testing.T, h *keyedHarness, indexName string) bool {
 	return exists
 }
 
-// keyedIndexScanStats returns the "Actual Loops" and the total rows returned
-// ("Actual Rows" is per loop) of the first scan of the keyed winners index in
+// keyedIndexScanStatsOn returns the "Actual Loops" and the total rows returned
+// ("Actual Rows" is per loop) of the first scan of the named index in
 // an EXPLAIN (ANALYZE, FORMAT JSON) document.
-func keyedIndexScanStats(node any) (loops, rows float64, found bool) {
+func keyedIndexScanStatsOn(node any, index string) (loops, rows float64, found bool) {
 	switch v := node.(type) {
 	case []any:
 		for _, item := range v {
-			if loops, rows, ok := keyedIndexScanStats(item); ok {
+			if loops, rows, ok := keyedIndexScanStatsOn(item, index); ok {
 				return loops, rows, true
 			}
 		}
 	case map[string]any:
-		if name, _ := v["Index Name"].(string); name == "fact_records_supply_chain_impact_winners_keyed_idx" {
+		if name, _ := v["Index Name"].(string); name == index {
 			loops, _ := v["Actual Loops"].(float64)
 			perLoop, _ := v["Actual Rows"].(float64)
 			return loops, loops * perLoop, true
 		}
 		for _, child := range v {
-			if loops, rows, ok := keyedIndexScanStats(child); ok {
+			if loops, rows, ok := keyedIndexScanStatsOn(child, index); ok {
 				return loops, rows, true
 			}
 		}
