@@ -103,9 +103,10 @@ func RouteForCall(gate, granted bool, imageRef, profile string) ReadRoute {
 
 // ExplainRoutesForCall returns the route of the public-id probe and of the selector or identity
 // read of an explain call, by the same function the explain store uses. It is pure: it reads no
-// database. The selector read runs only when the public-id probe misses.
-func ExplainRoutesForCall(gate, granted bool, imageRef string) (publicID, selector ReadRoute) {
-	filter := packet.ExplanationFilter{ImageRef: imageRef}
+// database. The selector read runs only when the public-id probe misses. A keyless selector
+// (no CVE, advisory, or image reference) keeps the legacy read, exactly as the store does.
+func ExplainRoutesForCall(gate, granted bool, imageRef, cveID, advisoryID string) (publicID, selector ReadRoute) {
+	filter := packet.ExplanationFilter{ImageRef: imageRef, CVEID: cveID, AdvisoryID: advisoryID}
 	if granted {
 		filter.AllowedScopeIDs = []string{"scope:granted"}
 	}

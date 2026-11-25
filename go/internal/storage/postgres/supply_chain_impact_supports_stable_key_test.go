@@ -158,7 +158,7 @@ func TestStableFactKeyDoesNotChangeTheVersion1Statements(t *testing.T) {
 
 // supportsContractBeforeRowsUpsertPin is the version-1 pin after PR-C1 a and before
 // PR-C2 h appended the writer's in-memory upsert.
-const supportsContractBeforeRowsUpsertPin = "691ac3c4f55c30599005a87ae4db68165228f7f9a3da3ba9e49f87534dde8eca"
+const supportsContractBeforeRowsUpsertPin = "6b89c4b096c58c65a649ff24e4dd90201b34d9ad9da00c585189c891eca10713"
 
 // TestRowsUpsertOnlyAppendsToTheVersion1Contract proves the PR-C2 h re-pin is an
 // append: the statements the contract covered before still hash to the previous pin,

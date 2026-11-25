@@ -43,6 +43,8 @@ type routeCoverageRow struct {
 	SelectorOnly bool
 	// ImageRef and Profile are the filter inputs of the route function.
 	ImageRef, Profile string
+	// CVEID and AdvisoryID are the selector-key inputs of the explain route function.
+	CVEID, AdvisoryID string
 	// Declared is the labels the request must raise by at least one, and the only ones it may.
 	Declared []impact.ReadRoute
 }
@@ -68,8 +70,8 @@ func routeCoverageRows() []routeCoverageRow {
 		{Name: "route:supports_image", Path: coverageFindingsPath + "?profile=comprehensive&limit=1&image_ref=" + coverageImageRef, Caller: callerAdmin, ImageRef: coverageImageRef, Profile: impact.ProfileComprehensive, Declared: []impact.ReadRoute{impact.RouteSupportsImage}},
 		{Name: "route:supports_grant", Path: coverageFindingsPath + "?profile=comprehensive&limit=1", Caller: callerGranted, Profile: impact.ProfileComprehensive, Declared: []impact.ReadRoute{impact.RouteSupportsGrant}},
 		{Name: "route:supports_finding_id", Path: coverageExplainPath + "?finding_id=" + coverageFindingID, Caller: callerAdmin, Explain: true, Declared: []impact.ReadRoute{impact.RouteSupportsFindingID}},
-		{Name: "route:supports_selector", Path: coverageExplainPath + "?cve_id=" + coverageCVE + "&package_id=" + coveragePackage, Caller: callerAdmin, Explain: true, SelectorOnly: true, Declared: []impact.ReadRoute{impact.RouteSupportsSelector}},
-		{Name: "route:supports_finding_id_miss", Path: coverageExplainPath + "?finding_id=finding:no-such-finding", Caller: callerAdmin, Explain: true, Miss: true, Declared: []impact.ReadRoute{impact.RouteSupportsFindingID, impact.RouteSupportsSelector}},
+		{Name: "route:supports_selector", Path: coverageExplainPath + "?cve_id=" + coverageCVE + "&package_id=" + coveragePackage, Caller: callerAdmin, Explain: true, SelectorOnly: true, CVEID: coverageCVE, Declared: []impact.ReadRoute{impact.RouteSupportsSelector}},
+		{Name: "route:supports_finding_id_miss", Path: coverageExplainPath + "?finding_id=finding:no-such-finding&cve_id=" + coverageCVE, Caller: callerAdmin, Explain: true, Miss: true, CVEID: coverageCVE, Declared: []impact.ReadRoute{impact.RouteSupportsFindingID, impact.RouteSupportsSelector}},
 	}
 }
 
@@ -83,7 +85,7 @@ func routeCoverageProblems(rows []routeCoverageRow, labels []impact.ReadRoute) [
 		granted := row.Caller == callerGranted
 		var want []impact.ReadRoute
 		if row.Explain {
-			publicID, selector := impact.ExplainRoutesForCall(true, granted, row.ImageRef)
+			publicID, selector := impact.ExplainRoutesForCall(true, granted, row.ImageRef, row.CVEID, row.AdvisoryID)
 			switch {
 			case row.SelectorOnly:
 				want = []impact.ReadRoute{selector}

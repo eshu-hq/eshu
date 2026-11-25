@@ -430,14 +430,14 @@ func TestRouteForCallAndExplainRoutesMatchTheStores(t *testing.T) {
 			t.Errorf("%s: route = %q, want %q", name, c.got, c.want)
 		}
 	}
-	publicID, selector := ExplainRoutesForCall(true, false, "")
+	publicID, selector := ExplainRoutesForCall(true, false, "", "CVE-2026-00000", "")
 	if publicID != RouteSupportsFindingID || selector != RouteSupportsSelector {
 		t.Errorf("ungranted explain = %q then %q, want supports_finding_id then supports_selector", publicID, selector)
 	}
-	if publicID, selector = ExplainRoutesForCall(true, true, ""); publicID != RouteSupportsGrant || selector != RouteSupportsGrant {
+	if publicID, selector = ExplainRoutesForCall(true, true, "", "", ""); publicID != RouteSupportsGrant || selector != RouteSupportsGrant {
 		t.Errorf("granted explain = %q then %q, want supports_grant for both", publicID, selector)
 	}
-	if _, selector = ExplainRoutesForCall(true, false, "registry.example/app:1"); selector != RouteSupportsImage {
+	if _, selector = ExplainRoutesForCall(true, false, "registry.example/app:1", "", ""); selector != RouteSupportsImage {
 		t.Errorf("ungranted explain with an image reference reads %q on a miss, want supports_image", selector)
 	}
 }

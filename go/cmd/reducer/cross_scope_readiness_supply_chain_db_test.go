@@ -129,6 +129,11 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 		f.readReadinessWait = true
 		return &crossScopeReadinessRows{}, nil
 	}
+	// The fact-write-stop armed gate reads pg_trigger.tgenabled: report the
+	// stop trigger armed so the pass reaches the producer-readiness probe.
+	if strings.Contains(query, "FROM pg_trigger") {
+		return &crossScopeReadinessRows{rows: [][]any{{true}}}, nil
+	}
 	return f.fakeReducerDB.QueryContext(ctx, query, args...)
 }
 
