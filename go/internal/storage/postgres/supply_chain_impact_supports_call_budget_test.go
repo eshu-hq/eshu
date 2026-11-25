@@ -4,9 +4,12 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -118,6 +121,11 @@ func callBudgetFactPage(base int) [][]any {
 func TestListActiveSecurityAlertReconciliationFactsTruncatesFactStreamOverCallBudget(t *testing.T) {
 	withDrainMaxActiveRows(t, 10*listFactsByKindPageSize)
 	withSupplyChainImpactSupportsCallMaxActiveRows(t, listFactsByKindPageSize+250)
+	// The truncation must leave its signals: the outcome=truncated
+	// large-drain line for the fact stream, like the supports-phase cut.
+	var logBuf bytes.Buffer
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(os.Stderr)
 
 	// The keys-readiness probe runs per fact page, so each page stages its
 	// own probe answer ahead of its rows.
@@ -152,6 +160,15 @@ func TestListActiveSecurityAlertReconciliationFactsTruncatesFactStreamOverCallBu
 	for _, q := range database.queries {
 		if strings.Contains(q.query, "supply_chain_impact_finding_supports AS s") {
 			t.Fatalf("supports statement ran after the fact stream truncated (the call must fail fast)")
+		}
+	}
+	line := logBuf.String()
+	if !strings.Contains(line, "event_name=supply_chain_impact_supports.large_drain") {
+		t.Fatalf("log = %q, want the fact-stream large_drain signal line on call-budget truncation", line)
+	}
+	for _, want := range []string{"outcome=truncated", "sample=drain", "reader=security_alert_reconciliation"} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("log = %q, want %q on the fact-stream truncation line", line, want)
 		}
 	}
 }

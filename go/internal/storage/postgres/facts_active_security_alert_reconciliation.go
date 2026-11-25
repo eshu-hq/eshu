@@ -107,9 +107,17 @@ func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 	tracker := newSupplyChainImpactSupportsCallTracker()
 	loaded, factStats, err := s.drainActiveSecurityAlertReconciliationFacts(ctx, filter, tracker, reader)
 	if err != nil {
-		// A fact-stream failure is not a supports read: only the supports drain
-		// below counts under outcome=failed. The truncation error already
-		// carries the resume cursor and the call stats.
+		var truncated *SupplyChainImpactSupportsDrainTruncatedError
+		if errors.As(err, &truncated) {
+			// A call-budget truncation stops the whole call: record the
+			// fact-stream drain sample as failed+truncated and count the
+			// read as failed, mirroring the supports-phase cut below, so
+			// the hot filter leaves its rows in the signals.
+			factStats.failed, factStats.truncated = true, true
+			factStats.elapsed = time.Since(started)
+			recordSupplyChainImpactSupportsDrain(ctx, s.instruments, reader, supplyChainImpactSupportsSampleDrain, factStats)
+			s.instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
+		}
 		return nil, err
 	}
 	impactsBase := tracker.delivered
