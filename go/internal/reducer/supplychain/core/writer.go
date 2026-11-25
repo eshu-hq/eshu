@@ -119,6 +119,11 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	}
 	txStarted := time.Now()
 	outcome, err := runSupplyChainImpactTx(ctx, w.DB, write, rows, meta, protected, hasProtected, now)
+	// The per-statement timings accumulated inside the transaction record after
+	// it returns — beside, not inside, the tx — so the emission never runs
+	// while the transaction is open. A nil Instruments records nothing. A
+	// rolled-back pass records the groups that ran under outcome=rolled_back.
+	w.Instruments.RecordSupplyChainImpactWriteTxStatements(ctx, supplyChainImpactWriteTxStatementOutcome(err), outcome.statements.toTelemetry())
 	w.Instruments.RecordSupplyChainImpactWriteTx(ctx, writeTxOutcomeLabel(err), time.Since(txStarted), outcome.goEvidenceLocked, outcome.goEvidenceLockWait)
 	if err != nil {
 		return SupplyChainImpactWriteResult{}, err

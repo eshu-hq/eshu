@@ -477,9 +477,9 @@ token, then retracts with `fencing_token <= token` and stamps the tombstones wit
 it. A missing issuer or a zero token fails closed. A scope that stays superseded
 means two workers keep overtaking each other or the sequence lags the admitted
 watermark after a restore or manual reset; the repair is to stop every reducer replica, run the migration 154 seed by hand and restart them (the seed is not live-safe), as the evidence note describes. Rolling back to a reducer that predates the token freezes the
-rows the new reducer stamped; the evidence note has the reset SQL to run first.
-Evidence:
-(#7142).
+rows the new reducer stamped; the evidence note has the reset SQL to run first (Evidence: #7142).
+
+The write transaction also times itself per statement group (#11430) — `conflict_lock`, `suppression_diff`, `admission`, `stored_read`, `fact_insert` (one pass-level aggregate for all bulk-insert chunks), `supports_upsert`, `winners_capture`, `retract`, `supports_delete`, `recovery_read`, `pass_state`, `go_evidence_close`, `commit` — with clock reads and struct stores inside the tx only, recorded after the commit or rollback returns under `eshu_dp_supply_chain_impact_write_tx_statement_duration_seconds{statement,outcome}` (`committed`, or `rolled_back` for every failure including a go-evidence recheck abort); a rolled-back pass keeps the groups that ran, and the statements, order, and round-trips are unchanged.
 - Types: `SupplyChainImpactFinding`, `SupplyChainImpactFactFilter`,
   `SupplyChainImpactWrite`, `SupplyChainImpactWriteResult`,
   `SupplyChainSuppressionDecision`, `SupplyChainSuppressionState`,
