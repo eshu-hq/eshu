@@ -133,7 +133,11 @@ func TestBackfillBoundsLiveProof(t *testing.T) {
 	defer cancel()
 
 	at := seedBoundsCorpus(t, ctx, database)
-	adapter := postgres.SQLDB{DB: database}
+	// Production shape (issue #11470): the ingester wraps postgres.SQLDB in
+	// *InstrumentedDB, and the page guards only hold on the provider leg. The
+	// proof must run through that wrapper or it cannot catch a guard-skipping
+	// regression in the wiring production actually uses.
+	adapter := &postgres.InstrumentedDB{Inner: postgres.SQLDB{DB: database}, StoreName: "ingester"}
 
 	likeTerms := []string{"%payments-service%", "%other-service%"}
 	firstPlan := explainBoundsShape(t, ctx, database,

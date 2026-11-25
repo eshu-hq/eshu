@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -60,9 +61,29 @@ func (database *InstrumentedDB) BeginReadOnlyRepeatableRead(ctx context.Context)
 	return database.instrumentTransaction(tx), nil
 }
 
+// OpenBackfillPageConn forwards the bounded-backfill dedicated-connection
+// capability to the inner database when it offers one (issue #11470). The
+// production ingester wraps postgres.SQLDB in *InstrumentedDB, and the
+// backfill page runner only stamps its SET LOCAL statement_timeout and
+// application_name guards on the provider leg: without this forward the
+// runner silently fell back to unguarded pooled queries. An inner handle
+// without the capability fails loudly so the mis-wiring surfaces instead of
+// degrading to unguarded reads.
+func (database *InstrumentedDB) OpenBackfillPageConn(ctx context.Context) (backfill.PageConn, error) {
+	provider, ok := database.Inner.(backfill.PageConnProvider)
+	if !ok {
+		return nil, fmt.Errorf("inner database %T does not support backfill page connections", database.Inner)
+	}
+	return provider.OpenBackfillPageConn(ctx)
+}
+
 func (database *InstrumentedDB) instrumentTransaction(tx db.Transaction) db.Transaction {
 	return &instrumentedTransaction{tx: tx, instruments: database.Instruments, storeName: database.StoreName}
 }
+
+// Compile-time proof that the production wrapper stays on the guarded
+// provider leg of runGuardedBackfillQuery (issue #11470).
+var _ backfill.PageConnProvider = (*InstrumentedDB)(nil)
 
 // instrumentedTransaction wraps a Transaction so its ExecContext/QueryContext
 // calls record the same eshu_dp_postgres_query_duration_seconds histogram
