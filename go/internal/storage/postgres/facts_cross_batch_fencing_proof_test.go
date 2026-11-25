@@ -214,7 +214,7 @@ func factCrossBatchFencingProofDSN() string {
 // openFactCrossBatchFencingSchema creates an isolated throwaway schema, applies
 // the ingestion_scopes/scope_generations/fact_records DDL, and returns a
 // single-connection handle pinned to that schema plus its name. Mirrors
-// openReducerFairnessDBWithSchema (reducer_queue_domain_fairness_test.go) so
+// openReducerFairnessDBWithSchema (reducer_queue_domain_fairness_live_test.go) so
 // this proof follows the package's established live-Postgres pattern.
 func openFactCrossBatchFencingSchema(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
 	t.Helper()

@@ -117,7 +117,7 @@ rows:
     reason: "ClaimBatch never starves newer domains behind older backlogs and never fills workers from one noisy source, proved on disposable Postgres; enrolled in the live-postgres-readiness runner"
     proving_tests:
       - file: go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go
-        tests: [TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog]
+        tests: [TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog, TestClaimBatchFairnessRankExcludesNonClaimableRows]
       - file: go/internal/storage/postgres/projector_queue_source_fairness_live_test.go
         tests: [TestProjectorQueueClaimOrdersBySourceFairness, TestProjectorQueueClaimDoesNotFillWorkersFromOneNoisySource, TestReducerQueueBatchClaimOrdersBySourceFairnessWithinDomain, TestReducerQueueBatchDoesNotStarveNewerSourceWithinDomain]
 
