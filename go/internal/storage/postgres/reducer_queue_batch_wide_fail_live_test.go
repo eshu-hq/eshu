@@ -120,7 +120,7 @@ func TestFailBatchWideBlockingSetParksCleanlyLive(t *testing.T) {
 // wide closes the gap the 4-intent fixture leaves open. All 64 intents carry
 // the 600-holder fence at code-derived maxima ID byte lengths (work_item_ids
 // built like the longest realistic production id in
-// TestNarrowedWaitWorstCaseKeyFitsLive, ~155 bytes: reducer_ + scope +
+// TestNarrowedWaitWorstCaseKeyFitsLive, 156 bytes: reducer_ + scope +
 // generation + domain + entity key per reducerWorkItemID), and the last
 // intent carries one blocking id long enough (5000 bytes) to force the
 // Unrepresentable edge. FailBatch must return nil, every queue row must be
