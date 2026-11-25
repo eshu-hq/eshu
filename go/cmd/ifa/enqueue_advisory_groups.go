@@ -197,6 +197,20 @@ func admitFindingRowsInTx(ctx context.Context, tx supplychaincore.SupplyChainImp
 		supplychaincore.SupplyChainImpactConflictDomainKey(scopeID, generationID)); err != nil {
 		return fmt.Errorf("lock supply chain impact conflict domain: %w", err)
 	}
+	// Claim the #11031 first-seen stamps for the replayed rows, so a
+	// cassette admitted on a fresh database keeps its original stamps
+	// instead of re-stamping the replay time on the next rewrite. A row
+	// whose payload already carries its stamp offers it; an unstamped
+	// legacy row stamps now. The store is optional, as in the writer.
+	if store, ok := tx.(supplychaincore.SupplyChainImpactFirstSeenStore); ok {
+		stamps, err := store.ClaimSupplyChainImpactFirstSeen(ctx, supplychaincore.FirstSeenClaimsForRows(rows, nil), time.Now().UTC())
+		if err != nil {
+			return fmt.Errorf("claim supply chain impact first seen: %w", err)
+		}
+		if err := supplychaincore.StampPrebuiltFindingPayloads(rows, stamps); err != nil {
+			return fmt.Errorf("stamp prebuilt finding payloads: %w", err)
+		}
+	}
 	if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows, nil); err != nil {
 		return fmt.Errorf("admit finding rows: %w", err)
 	}

@@ -544,6 +544,7 @@ var migrationShippedChecksums = map[string]string{
 	// #10972: the stored-side identifier index for the staged-audit
 	// single-scan range (renumbered 350 to 356; 350-355 taken on main).
 	"356_supply_chain_impact_winners_canonical_ident_idx.sql": "b9da75613d73e4b1b6a06e33024a78f0859b2e7f894cb6400a745f13c68b5195",
+	"357_supply_chain_impact_finding_first_seen.sql":          "0a2cec32763684bcda023bec7f303da445ac46c506b9bd6b7569946fc2575064",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

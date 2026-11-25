@@ -41,6 +41,7 @@ func runSupplyChainImpactTx(
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
 	meta []changedRow,
+	payloads []map[string]any,
 	protected ProtectedScanImpactPublicationSet,
 	hasProtected bool,
 	now time.Time,
@@ -49,7 +50,7 @@ func runSupplyChainImpactTx(
 	if err != nil {
 		return supplyChainImpactTxOutcome{}, fmt.Errorf("begin supply chain impact transaction: %w", err)
 	}
-	outcome, err := commitSupplyChainImpactRows(ctx, tx, write, rows, meta, protected, hasProtected, now)
+	outcome, err := commitSupplyChainImpactRows(ctx, tx, write, rows, meta, payloads, protected, hasProtected, now)
 	if err != nil {
 		// Only the lock-wait observation and the statement timings accumulated
 		// before the failure survive a failed pass: they are durations and
@@ -83,6 +84,7 @@ func commitSupplyChainImpactRowsTimed(
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
 	meta []changedRow,
+	payloads []map[string]any,
 	protected ProtectedScanImpactPublicationSet,
 	hasProtected bool,
 	now time.Time,
@@ -148,6 +150,22 @@ func commitSupplyChainImpactRowsTimed(
 			generationID: write.GenerationID,
 			fencingToken: write.FencingToken,
 		}
+	}
+	// Claim the #11031 first-seen stamps after admission (a rejected stale
+	// pass never stamps) and marshal each payload with its resolved stamp.
+	// The store is optional: only the production transaction implements it,
+	// so unit-test transactions keep writing stamp-free payloads the cohort
+	// classifier excludes as no-stamp.
+	stamps := map[string]FirstSeenStamp{}
+	if store, ok := tx.(SupplyChainImpactFirstSeenStore); ok {
+		var err error
+		stamps, err = store.ClaimSupplyChainImpactFirstSeen(ctx, FirstSeenClaimsForRows(rows, publishSourcesForWrite(write.Findings)), now)
+		if err != nil {
+			return supplyChainImpactTxOutcome{suppression: supp}, fmt.Errorf("claim supply chain impact first seen: %w", err)
+		}
+	}
+	if err := marshalStampedPayloads(rows, payloads, stamps); err != nil {
+		return supplyChainImpactTxOutcome{suppression: supp}, err
 	}
 	// Read what the pass is about to overwrite, after the lock (no concurrent
 	// pass of this conflict domain can change it) and before the upsert, so the

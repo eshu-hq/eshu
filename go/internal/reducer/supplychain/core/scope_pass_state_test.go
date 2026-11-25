@@ -27,7 +27,7 @@ func TestWriteSupplyChainImpactPartialPassRecordsScopePassState(t *testing.T) {
 	write.PartialCauses = []string{"evidence_budget"}
 	now := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
 
-	_, err := runSupplyChainImpactTx(context.Background(), beginner, write, nil, nil, ProtectedScanImpactPublicationSet{}, false, now)
+	_, err := runSupplyChainImpactTx(context.Background(), beginner, write, nil, nil, nil, ProtectedScanImpactPublicationSet{}, false, now)
 	if err != nil {
 		t.Fatalf("runSupplyChainImpactTx() error = %v", err)
 	}
@@ -55,7 +55,7 @@ func TestWriteSupplyChainImpactCompletePassClearsScopePassState(t *testing.T) {
 	write.PartialEvidence = false
 	now := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
 
-	_, err := runSupplyChainImpactTx(context.Background(), beginner, write, nil, nil, ProtectedScanImpactPublicationSet{}, false, now)
+	_, err := runSupplyChainImpactTx(context.Background(), beginner, write, nil, nil, nil, ProtectedScanImpactPublicationSet{}, false, now)
 	if err != nil {
 		t.Fatalf("runSupplyChainImpactTx() error = %v", err)
 	}
@@ -115,7 +115,7 @@ func TestWriteSupplyChainImpactScopedCompletePreservesScopePassState(t *testing.
 	complete.PartialEvidence = false
 	complete.ScopedCVEIDs = []string{"CVE-2026-1"}
 
-	if _, err := runSupplyChainImpactTx(context.Background(), beginner, complete, nil, nil, ProtectedScanImpactPublicationSet{}, false, now); err != nil {
+	if _, err := runSupplyChainImpactTx(context.Background(), beginner, complete, nil, nil, nil, ProtectedScanImpactPublicationSet{}, false, now); err != nil {
 		t.Fatalf("runSupplyChainImpactTx() error = %v", err)
 	}
 	if call := findExecCallByQuery(beginner.state.all, supplyChainImpactScopePassStateQuery); call != nil {
@@ -129,7 +129,7 @@ func TestWriteSupplyChainImpactScopedCompletePreservesScopePassState(t *testing.
 
 	inserts = &testutil.FakeExecer{}
 	beginner = newFakeImpactBeginner(inserts)
-	if _, err := runSupplyChainImpactTx(context.Background(), beginner, partial, nil, nil, ProtectedScanImpactPublicationSet{}, false, now); err != nil {
+	if _, err := runSupplyChainImpactTx(context.Background(), beginner, partial, nil, nil, nil, ProtectedScanImpactPublicationSet{}, false, now); err != nil {
 		t.Fatalf("runSupplyChainImpactTx() error = %v", err)
 	}
 	if call := findExecCallByQuery(beginner.state.all, supplyChainImpactScopePassStateQuery); call == nil {
@@ -194,7 +194,7 @@ func TestRecordScopePassStateSignalsFenceSkipNotTokenGuard(t *testing.T) {
 			write.PartialEvidence = true
 			write.PartialCauses = []string{"evidence_budget"}
 
-			outcome, err := runSupplyChainImpactTx(context.Background(), beginner, write, nil, nil, ProtectedScanImpactPublicationSet{}, false, now)
+			outcome, err := runSupplyChainImpactTx(context.Background(), beginner, write, nil, nil, nil, ProtectedScanImpactPublicationSet{}, false, now)
 			if err != nil {
 				t.Fatalf("runSupplyChainImpactTx() error = %v", err)
 			}

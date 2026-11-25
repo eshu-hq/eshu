@@ -27,6 +27,7 @@
       "SeverityLabel": "",
       "AdvisoryPublishedAt": "",
       "AdvisoryUpdatedAt": "",
+      "AdvisoryPublishSource": "",
       "AlternateSeverities": null,
       "FixedVersionSource": "nvd",
       "FixedVersionBranches": [
