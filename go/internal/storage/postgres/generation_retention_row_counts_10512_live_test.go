@@ -123,7 +123,16 @@ WHERE generation.scope_id LIKE 'plan-fill-scope-%'`,
 func TestGenerationRetentionRowCountPlansStayOnGenerationIndexesLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
-	for _, table := range []string{"shared_projection_intents", "package_manifest_consumption_keys", "package_registry_identity_keys"} {
+	for _, table := range []string{
+		"shared_projection_intents",
+		"package_manifest_consumption_keys",
+		"package_registry_identity_keys",
+		"fact_records",
+		"scope_generations",
+		"ingestion_scopes",
+		"relationship_reference_candidate_keys",
+		"security_alert_reconciliation_keys",
+	} {
 		if _, err := database.ExecContext(ctx, "ALTER TABLE "+table+" SET (autovacuum_enabled = false)"); err != nil {
 			t.Fatalf("disable autovacuum on %s: %v", table, err)
 		}

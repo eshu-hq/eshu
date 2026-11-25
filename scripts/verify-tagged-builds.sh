@@ -57,7 +57,8 @@ script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # rev-parse stops discovering the work tree and reports the directory git ran
 # in. See verify-dirgate.sh and verify-markdown-line-cap.sh for the same note
 # and the gate that silently passed everything until it was found.
-repo_root="${TAGGED_BUILDS_REPO_ROOT:-$(cd "${script_root}/.." && pwd)}"
+tool_repo_root="$(cd "${script_root}/.." && pwd)"
+repo_root="${TAGGED_BUILDS_REPO_ROOT:-${tool_repo_root}}"
 go_dir="${repo_root}/go"
 gate_name="tagged-builds"
 
@@ -309,6 +310,16 @@ exit_status=0
 swept=0
 skipped=0
 
+# Phase 1: collect every build configuration per package, emitting SKIP/ERROR
+# immediately and batching TAGS runs by tag_list so packages sharing a tag set
+# are vetted together while unchanged transitive .vetx outputs are reused via
+# tagged-vet-cache across distinct tag sets.
+pending_tags=()
+pending_patterns=()
+pending_constraints=()
+unique_tag_lists=()
+seen_tag_lists=$'\n'
+
 for index in "${!packages[@]}"; do
 	package="${packages[index]}"
 	pattern="$(vet_package "${package}")"
@@ -348,17 +359,104 @@ for index in "${!packages[@]}"; do
 			TAGS:*)
 				tag_list="${run#TAGS:}"
 				swept=$((swept + 1))
-				if (cd "${go_dir}" && go vet -tags "${tag_list}" "${pattern}"); then
-					printf 'PASS  %s  [%s]  tags=%s\n' "${pattern}" "${constraint}" "${tag_list}"
-				else
-					printf 'FAIL  %s  [%s]  tags=%s\n' "${pattern}" "${constraint}" "${tag_list}"
-					exit_status=1
-				fi
+				pending_tags+=("${tag_list}")
+				pending_patterns+=("${pattern}")
+				pending_constraints+=("${constraint}")
+				case "${seen_tag_lists}" in
+				*$'\n'"${tag_list}"$'\n'*) ;;
+				*)
+					unique_tag_lists+=("${tag_list}")
+					seen_tag_lists="${seen_tag_lists}${tag_list}"$'\n'
+					;;
+				esac
 				;;
 			esac
 		done < <(constraint_runs "${constraint}")
 	done
 done
+
+# Phase 2: build the ephemeral tagged-vet-cache wrapper once and execute each
+# tag_list batch against its deduplicated package patterns. Multi-package batch
+# failures fall back to per-pattern runs to preserve exact PASS/FAIL lines.
+if [[ ${#unique_tag_lists[@]} -gt 0 ]]; then
+	vet_tmp_dir="$(mktemp -d)"
+	trap 'rm -rf "${vet_tmp_dir}" 2>/dev/null || true' EXIT
+	vet_wrapper="${vet_tmp_dir}/tagged-vet-cache"
+	vet_cache_dir="${vet_tmp_dir}/vetx-cache"
+	mkdir -p "${vet_cache_dir}"
+
+	(cd "${tool_repo_root}/go" && go build -buildvcs=false -o "${vet_wrapper}" ./cmd/tagged-vet-cache) ||
+		die "failed to build tagged-vet-cache from ${tool_repo_root}/go"
+	real_vet="$(cd "${go_dir}" && go tool -n vet)"
+	effective_gocache="$(cd "${go_dir}" && go env GOCACHE)"
+
+	run_vet() {
+		local tags="$1"
+		shift
+		(
+			cd "${go_dir}" &&
+				ESHU_TAGGED_VET_REAL_TOOL="${real_vet}" \
+				ESHU_TAGGED_VET_CACHE_DIR="${vet_cache_dir}" \
+				ESHU_TAGGED_VET_GOCACHE="${effective_gocache}" \
+				go vet -vettool="${vet_wrapper}" -tags "${tags}" "$@"
+		)
+	}
+
+	for tag_list in "${unique_tag_lists[@]}"; do
+		batch_indices=()
+		batch_patterns=()
+		seen_patterns=$'\n'
+		for i in "${!pending_tags[@]}"; do
+			if [[ "${pending_tags[i]}" == "${tag_list}" ]]; then
+				batch_indices+=("${i}")
+				p="${pending_patterns[i]}"
+				case "${seen_patterns}" in
+				*$'\n'"${p}"$'\n'*) ;;
+				*)
+					batch_patterns+=("${p}")
+					seen_patterns="${seen_patterns}${p}"$'\n'
+					;;
+				esac
+			fi
+		done
+
+		if [[ ${#batch_patterns[@]} -eq 1 ]]; then
+			if run_vet "${tag_list}" "${batch_patterns[0]}"; then
+				status="PASS"
+			else
+				status="FAIL"
+				exit_status=1
+			fi
+			for idx in "${batch_indices[@]}"; do
+				printf '%s  %s  [%s]  tags=%s\n' \
+					"${status}" "${pending_patterns[idx]}" "${pending_constraints[idx]}" "${tag_list}"
+			done
+		elif run_vet "${tag_list}" "${batch_patterns[@]}" \
+			>"${vet_tmp_dir}/batch.out" 2>"${vet_tmp_dir}/batch.err"; then
+			[[ -s "${vet_tmp_dir}/batch.out" ]] && cat "${vet_tmp_dir}/batch.out"
+			[[ -s "${vet_tmp_dir}/batch.err" ]] && cat "${vet_tmp_dir}/batch.err" >&2
+			for idx in "${batch_indices[@]}"; do
+				printf 'PASS  %s  [%s]  tags=%s\n' \
+					"${pending_patterns[idx]}" "${pending_constraints[idx]}" "${tag_list}"
+			done
+		else
+			for p in "${batch_patterns[@]}"; do
+				if run_vet "${tag_list}" "${p}"; then
+					status="PASS"
+				else
+					status="FAIL"
+					exit_status=1
+				fi
+				for idx in "${batch_indices[@]}"; do
+					if [[ "${pending_patterns[idx]}" == "${p}" ]]; then
+						printf '%s  %s  [%s]  tags=%s\n' \
+							"${status}" "${p}" "${pending_constraints[idx]}" "${tag_list}"
+					fi
+				done
+			done
+		fi
+	done
+fi
 
 # Report both counts for the same reason verify-markdown-line-cap.sh reports
 # its own: a run that compiled nothing exits 0 and is indistinguishable from

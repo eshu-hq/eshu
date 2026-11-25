@@ -303,6 +303,17 @@ var listProducerDependentDriftItemsQuery = deriveQueryAtMarker(
 	producerDriftLinkageConjunct,
 )
 
+// deleteAWSDriftReopenFingerprintQuery clears a reopened
+// aws_cloud_runtime_drift work item's recorded AWS-only fingerprint row inside
+// the producer-activation settle transaction (#7635 + #10878). Because the
+// fingerprint hashes AWS facts only, leaving the row intact causes
+// AWSDriftIncrementalPlanner to skip the reopened run as input_unchanged while
+// the daily audit clock is fresh, silently dropping the Terraform state wake.
+const deleteAWSDriftReopenFingerprintQuery = `
+DELETE FROM aws_drift_reopen_fingerprints
+WHERE work_item_id = $1
+`
+
 // producerOlderGenerationIDsSQL enumerates the scope's generations older
 // than the owed one ($1 scope, $2 owed generation), riding
 // scope_generations_scope_latest_lookup_idx on (scope_id, ingested_at).

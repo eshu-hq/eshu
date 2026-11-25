@@ -34,7 +34,23 @@ fi
 
 [[ "${CHANGES_RESULT:-}" == success ]] || fail "changes gate did not succeed (result=${CHANGES_RESULT:-missing})"
 if [[ "${GITHUB_EVENT_NAME:-}" == pull_request && "${MODE}" == full ]]; then
-  if [[ "${CODE_CHANGED}" == true ]]; then
+  lane_required="${CODE_CHANGED}"
+  if [[ "${LANE}" == go-race ]]; then
+    case "${RACE_CHANGED:-}" in
+      true|false) ;;
+      *) fail 'changes gate has no valid go-race change result' ;;
+    esac
+    case "${LOCKSTEP_CHANGED:-}" in
+      true|false) ;;
+      *) fail 'changes gate has no valid lockstep change result' ;;
+    esac
+    if [[ ( "${CODE_CHANGED}" == true && "${RACE_CHANGED}" == true ) || "${LOCKSTEP_CHANGED}" == true ]]; then
+      lane_required=true
+    else
+      lane_required=false
+    fi
+  fi
+  if [[ "${lane_required}" == true ]]; then
     [[ "${LANE_RESULT:-}" == success ]] || fail "selected full ${LANE} result=${LANE_RESULT:-missing}"
   else
     [[ "${LANE_RESULT:-}" == success || "${LANE_RESULT:-}" == skipped ]] || fail "${LANE} did not succeed (result=${LANE_RESULT:-missing})"

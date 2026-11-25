@@ -1,0 +1,23 @@
+# Paths that can introduce or expose a Go data race under `go test -race`.
+# Excludes non-Go Markdown, Python, YAML, shell scripts, and the docs-only set;
+# Go-tree fixtures (go/**, sdk/go/**), Go-tested spec ledgers, and
+# .github/workflows/test.yml itself are explicitly re-included by the
+# `go_race_include` step in test.yml, and lockstep inputs stay selected via
+# `changes.outputs.lockstep`.
+go_race:
+  - '**'
+  - '!docs/**'
+  - '!*.md'
+  - '!**/*.md'
+  - '!*.py'
+  - '!**/*.py'
+  - '!*.yaml'
+  - '!**/*.yaml'
+  - '!*.yml'
+  - '!**/*.yml'
+  - '!*.sh'
+  - '!**/*.sh'
+  - '!*.json'
+  - '!docs/**/*.json'
+  - '!scripts/**/*.json'
+  - '!.agents/**'

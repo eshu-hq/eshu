@@ -311,3 +311,169 @@ func TestTriggerMatchesChangedPathKeepsMixedPRsWhole(t *testing.T) {
 		t.Fatal("a docs-aware trigger must still select for docs paths")
 	}
 }
+
+func TestGoRaceFilterExcludesNonGoScriptsAndDocs(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("..", "..", "..")
+	raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "test.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps, err := DornyFilterStepsResolved(root, raw)
+	if err != nil {
+		t.Fatalf("resolve test.yml dorny steps: %v", err)
+	}
+	codeStep, ok := DornyFilterStepWithKey(steps, "code")
+	if !ok || !codeStep.Every {
+		t.Fatal("test.yml missing every-quantifier code filter")
+	}
+	lockStep, ok := DornyFilterStepWithKey(steps, "lockstep")
+	if !ok || lockStep.Every {
+		t.Fatal("test.yml missing some-quantifier lockstep filter")
+	}
+	raceStep, ok := DornyFilterStepWithKey(steps, "go_race")
+	if !ok || !raceStep.Every {
+		t.Fatal("test.yml missing every-quantifier go_race filter")
+	}
+	incStep, ok := DornyFilterStepWithKey(steps, "include")
+	if !ok || incStep.Every {
+		t.Fatal("test.yml missing some-quantifier go_race_include filter")
+	}
+	matchesGoRace := func(path string) bool {
+		code := DornyEveryMatch(codeStep.Filters["code"], []string{path})
+		lockstep := DornySomeMatch(lockStep.Filters["lockstep"], []string{path})
+		race := DornyEveryMatch(raceStep.Filters["go_race"], []string{path}) ||
+			DornySomeMatch(incStep.Filters["include"], []string{path})
+		return (code && race) || lockstep
+	}
+	for _, path := range []string{
+		"README.md", "docs/public/guide.md", "go/cmd/ci-gates/README.md",
+		"scripts/ci/test-tools-workflow.py", "tool.py",
+		"scripts/verify-tagged-builds.sh", "run.sh",
+		"specs/ci-gates.d/gates-01.yaml", "config.yaml",
+		".github/workflows/static-contract-gates.yml", "mkdocs.yml",
+		"scripts/lib/ifa_scheduled_inventory.json", "package.json",
+		".agents/skills/x/SKILL.md",
+	} {
+		if matchesGoRace(path) {
+			t.Errorf("go_race filter unexpectedly selected %q", path)
+		}
+	}
+	for _, path := range []string{
+		"go/internal/reducer/awscloud/aws_evidence_cache.go",
+		"go/go.mod", "go/go.sum",
+		"go/internal/storage/postgres/migrations/001_ingestion_scopes.sql",
+		"go/internal/queryplan/testdata/statement-builders.yaml",
+		"go/internal/replay/parserfixture/testdata/trees/yaml/service.yaml",
+		"sdk/go/collector/client.go", "testdata/golden/sample.json",
+		"specs/parser-backing-ledger.v1.yaml", ".github/workflows/test.yml",
+		"AGENTS.md", "go/cmd/eshu/cli_extraction_inventory.md",
+	} {
+		if !matchesGoRace(path) {
+			t.Errorf("go_race filter unexpectedly skipped %q", path)
+		}
+	}
+	reg, err := Load(filepath.Join(root, "specs", "ci-gates.v1.yaml"))
+	if err != nil {
+		t.Fatalf("Load registry: %v", err)
+	}
+	for _, gate := range reg.Gates {
+		if gate.CI.Workflow != "test.yml" || gate.CI.Job != "go-race-complete" {
+			continue
+		}
+		for _, trig := range gate.Triggers {
+			if strings.ContainsAny(trig, "*?[") {
+				continue
+			}
+			if !matchesGoRace(trig) {
+				t.Errorf("go-race-complete gate %q literal trigger %q is skipped by go_race", gate.ID, trig)
+			}
+		}
+	}
+	gated := workflowCodeGatedJobs(t, "test.yml")
+	if !strings.Contains(gated["go-race"], "(needs.changes.outputs.code == 'true' && needs.changes.outputs.go_race == 'true') || needs.changes.outputs.lockstep == 'true'") {
+		t.Fatalf("test.yml go-race if lacks expected code+go_race||lockstep clause: %s", gated["go-race"])
+	}
+	for _, want := range []string{
+		"RACE_CHANGED: ${{ needs.changes.outputs.go_race }}",
+		"LOCKSTEP_CHANGED: ${{ needs.changes.outputs.lockstep }}",
+	} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("test.yml go-race-complete missing %q", want)
+		}
+	}
+}
+
+func TestNonGoWorkflowAndScriptPRsSkipGoSecurityMCPAndCoverage(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("..", "..", "..")
+	pr11377 := []string{"scripts/ci/test-tools-workflow.py"}
+	pr11385 := []string{
+		".github/actions/retry-upload-artifact/action.yml",
+		".github/workflows/golden-corpus-gate.yml",
+		"scripts/lib/golden-corpus-cleanup.sh",
+		"scripts/lib/golden-corpus-failure-diagnostics.sh",
+		"scripts/test-stage-failure-diagnostics.sh",
+		"specs/ci-pr-workflows.d/golden-corpus-gate.yml",
+	}
+	goPR := []string{"go/internal/mcp/handler.go"}
+
+	checkSomeFilter := func(wf, key string) {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(root, ".github", "workflows", wf))
+		if err != nil {
+			t.Fatal(err)
+		}
+		steps, err := DornyFilterStepsResolved(root, raw)
+		if err != nil {
+			t.Fatalf("resolve %s dorny steps: %v", wf, err)
+		}
+		step, ok := DornyFilterStepWithKey(steps, key)
+		if !ok {
+			t.Fatalf("%s missing dorny filter key %q", wf, key)
+		}
+		if step.Every {
+			t.Fatalf("%s %q filter must use predicate-quantifier: some", wf, key)
+		}
+		if DornySomeMatch(step.Filters[key], pr11377) {
+			t.Errorf("%s %q unexpectedly matched PR #11377 paths", wf, key)
+		}
+		if DornySomeMatch(step.Filters[key], pr11385) {
+			t.Errorf("%s %q unexpectedly matched PR #11385 paths", wf, key)
+		}
+		if !DornySomeMatch(step.Filters[key], goPR) {
+			t.Errorf("%s %q failed to match Go code PR", wf, key)
+		}
+	}
+	checkSomeFilter("security-scan.yml", "go_security")
+	checkSomeFilter("mcp-schema-drift.yml", "go_mcp")
+
+	defs, _ := trustedPRWorkflowDefsForTest(t, root)
+	plan11377, err := PlanPRWorkflows(defs, pr11377, false, "main", "full", nil)
+	if err != nil {
+		t.Fatalf("PlanPRWorkflows(pr11377): %v", err)
+	}
+	if _, ok := plan11377["code-coverage-report.yml"]; ok {
+		t.Error("PR #11377 unexpectedly planned code-coverage-report.yml")
+	}
+	if _, ok := plan11377["build.yml"]; ok {
+		t.Error("PR #11377 unexpectedly planned build.yml")
+	}
+	plan11385, err := PlanPRWorkflows(defs, pr11385, false, "main", "full", nil)
+	if err != nil {
+		t.Fatalf("PlanPRWorkflows(pr11385): %v", err)
+	}
+	if _, ok := plan11385["code-coverage-report.yml"]; ok {
+		t.Error("PR #11385 unexpectedly planned code-coverage-report.yml")
+	}
+	planGo, err := PlanPRWorkflows(defs, goPR, false, "main", "full", nil)
+	if err != nil {
+		t.Fatalf("PlanPRWorkflows(goPR): %v", err)
+	}
+	if _, ok := planGo["code-coverage-report.yml"]; !ok {
+		t.Error("Go PR failed to plan code-coverage-report.yml")
+	}
+	if _, ok := planGo["build.yml"]; !ok {
+		t.Error("Go PR failed to plan build.yml")
+	}
+}

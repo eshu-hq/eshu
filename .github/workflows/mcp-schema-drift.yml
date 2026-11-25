@@ -80,6 +80,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
+      go_mcp: ${{ steps.go_mcp.outputs.go_mcp }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -122,9 +123,23 @@ jobs:
           # .github/leaf-lockstep-filter.yml; edit the manifest, then regenerate.
           filters: .github/leaf-lockstep-filter.yml
 
+      - name: Filter Go MCP drift inputs
+        id: go_mcp
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'some'
+          filters: |
+            go_mcp:
+              - 'go/**'
+              - 'sdk/go/**'
+              - '.github/workflows/mcp-schema-drift.yml'
+              - 'scripts/go-test-run-guard.sh'
+              - 'scripts/lib/go-test-run-guard.sh'
+              - 'scripts/ci/go-mod-download-retry.sh'
+
   # ── Gate 1: Tool count ──
   mcp-tool-count:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-tool-count')) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-tool-count')) && (github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' && needs.changes.outputs.go_mcp == 'true') || needs.changes.outputs.lockstep == 'true')) }}
     name: Verify ReadOnlyTools count
     timeout-minutes: 5
     runs-on: ubuntu-24.04
@@ -227,7 +242,7 @@ jobs:
 
   # ── Gate 3: Full MCP test suite ──
   mcp-test-suite:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-test-suite')) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-test-suite')) && (github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' && needs.changes.outputs.go_mcp == 'true') || needs.changes.outputs.lockstep == 'true')) }}
     name: Full MCP test suite
     timeout-minutes: 15
     runs-on: ubuntu-24.04
@@ -260,7 +275,7 @@ jobs:
   # accuracy and every miss to the job summary and never fails on them. It does
   # fail on a malformed corpus or an expected tool that is not registered.
   mcp-router-eval:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-router-eval')) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'mcp-router-eval')) && (github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' && needs.changes.outputs.go_mcp == 'true') || needs.changes.outputs.lockstep == 'true')) }}
     name: MCP router eval report
     timeout-minutes: 10
     runs-on: ubuntu-24.04

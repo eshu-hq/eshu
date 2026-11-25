@@ -80,7 +80,18 @@ func TestGenerationRetentionWorkItemsPlansStayOnGenerationIndexLive(t *testing.T
 	// and the shared guard flags a sequential scan of any of them, so this
 	// fixture seeds and vacuums them exactly as the #10512 guard does.
 	guarded := []string{"fact_work_items", "shared_projection_intents", "package_manifest_consumption_keys", "package_registry_identity_keys"}
-	for _, table := range guarded {
+	autovacuumDisabled := []string{
+		"fact_work_items",
+		"shared_projection_intents",
+		"package_manifest_consumption_keys",
+		"package_registry_identity_keys",
+		"fact_records",
+		"scope_generations",
+		"ingestion_scopes",
+		"relationship_reference_candidate_keys",
+		"security_alert_reconciliation_keys",
+	}
+	for _, table := range autovacuumDisabled {
 		if _, err := database.ExecContext(ctx, "ALTER TABLE "+table+" SET (autovacuum_enabled = false)"); err != nil {
 			t.Fatalf("disable autovacuum on %s: %v", table, err)
 		}
@@ -103,6 +114,12 @@ func TestGenerationRetentionWorkItemsPlansStayOnGenerationIndexLive(t *testing.T
 			t.Fatalf("vacuum %s: %v", table, err)
 		}
 	}
+	// Poll until relallvisible=relpages on every guarded table (#10593): a
+	// concurrent same-database snapshot (such as a pg_catalog autovacuum
+	// worker) can prevent the first VACUUM from marking pages all-visible,
+	// which drops all_visible_frac to 0 and flips cold and analyzed row-count
+	// plans to Seq Scan on fact_work_items.
+	requireGuardedTablesVisible10512(t, ctx, database, guarded)
 	const index = "fact_work_items_generation_idx"
 	statements := []retentionStatement{
 		{"row_counts", generationRetentionRowCountsQuery, []string{index}},
@@ -119,7 +136,13 @@ func TestGenerationRetentionWorkItemsPlansStayOnGenerationIndexLive(t *testing.T
 				retentionGuardedPlanViolations(t, plan, statement.required),
 				retentionWorkItemsPlanViolations10525(t, plan)...)
 			if len(violations) > 0 {
-				t.Errorf("%s %s plan leaves its generation index: %s\n%s", condition, statement.name, strings.Join(violations, "; "), plan)
+				visibility, err := queryGuardedTableVisibility10512(ctx, database, guarded)
+				if err != nil {
+					t.Errorf("%s %s plan leaves its generation index: %s (pg_class query failed: %v)\n%s",
+						condition, statement.name, strings.Join(violations, "; "), err, plan)
+					continue
+				}
+				t.Errorf("%s\n%s", retentionGuardedPlanFailure10512(condition, statement.name, violations, visibility, guarded), plan)
 			}
 		}
 	}

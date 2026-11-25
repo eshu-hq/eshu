@@ -143,13 +143,32 @@ func (c *AWSDriftEvidenceCache) LoadShared(
 	// retries (failure) or reloads observably (passthrough), and never
 	// serves a stale or oversized set to a parked peer.
 	c.mu.Lock()
-	delete(c.flights, key)
+	if c.flights[key] == flight {
+		delete(c.flights, key)
+	}
 	c.mu.Unlock()
 	if flight.err == nil {
 		c.passthrough.Add(1)
 	}
 	close(flight.done)
 	return flight.rows, false, flight.err
+}
+
+// Invalidate drops any stored flight for the given key and returns its bytes
+// to the cache budget so the next caller reloads fresh evidence. Active
+// in-flight loads (zero storedAt) are left intact so concurrent callers still
+// coalesce on the leader.
+func (c *AWSDriftEvidenceCache) Invalidate(scopeID, generationID, inputVersion string) {
+	if c == nil {
+		return
+	}
+	key := scopeID + "|" + generationID + "|" + inputVersion
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if f, ok := c.flights[key]; ok && !f.storedAt.IsZero() {
+		delete(c.flights, key)
+		c.storedBytes -= f.size
+	}
 }
 
 // expiredLocked reports whether a stored flight is older than the TTL.

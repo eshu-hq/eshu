@@ -171,11 +171,19 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, afterGenerationID, afterScopeID, "active", now)
 	seedAWSResourceFactMinimal(t, ctx, sqlDB, afterScopeID, afterGenerationID, afterARN, "aws_lambda_function", now)
 
+	ingestionStore := NewIngestionStore(SQLDB{DB: sqlDB})
 	afterHandler := awscloud.AWSCloudRuntimeDriftHandler{
-		EvidenceLoader:     loader,
-		Writer:             writer,
-		ReadinessChecker:   readinessChecker,
-		FencingTokenIssuer: fencingTokenIssuer,
+		EvidenceLoader:            loader,
+		Writer:                    writer,
+		ReadinessChecker:          readinessChecker,
+		FencingTokenIssuer:        fencingTokenIssuer,
+		SnapshotLoader:            loader,
+		ReopenFingerprintRecorder: ingestionStore,
+		IncrementalPlanSource: &awscloud.AWSDriftIncrementalPlanner{
+			Snapshots: loader,
+			Recorded:  ingestionStore,
+		},
+		EvidenceCache: awscloud.NewAWSDriftEvidenceCache(awscloud.DefaultAWSDriftEvidenceCacheMaxBytes),
 	}
 	_, err = afterHandler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-after-defer-" + suffix,

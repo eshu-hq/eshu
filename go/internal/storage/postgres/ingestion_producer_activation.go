@@ -311,6 +311,11 @@ func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, wor
 			// Count transitions, not listings: an item a concurrent
 			// epoch pass already reopened must not count here.
 			if reopened {
+				if dependent.domain == reducer.DomainAWSCloudRuntimeDrift {
+					if _, err := settle.Tx().ExecContext(ctx, deleteAWSDriftReopenFingerprintQuery, id); err != nil {
+						return nil, "", fmt.Errorf("clear aws drift reopen fingerprint for %s: %w", id, err)
+					}
+				}
 				counts[string(dependent.domain)]++
 			}
 		}

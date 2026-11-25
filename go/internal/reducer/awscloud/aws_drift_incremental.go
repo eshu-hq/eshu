@@ -304,14 +304,25 @@ func (h AWSCloudRuntimeDriftHandler) resolveIncrementalPlan(
 // loadDriftEvidenceShared loads one run's evidence rows, sharing the load
 // across concurrent workers on the same input version through the
 // EvidenceCache when one is wired and the run has a fresh snapshot
-// fingerprint to key it on. Without either it loads directly.
+// fingerprint to key it on. Without either, or while a Terraform
+// state_snapshot scope is still pending (bypassCache), it loads directly so
+// an incomplete pending-state join never poisons the AWS-only-keyed cache.
+// Full re-derivations (audit_due, fallback_forced, fallback_no_snapshot)
+// invalidate any prior stored entry first so a daily audit or reopened run
+// reloads fresh cross-scope state while still allowing concurrent in-flight
+// coalescing.
 func (h AWSCloudRuntimeDriftHandler) loadDriftEvidenceShared(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	inputVersion string,
+	bypassCache bool,
+	plan *AWSDriftIncrementalPlan,
 ) ([]cloudruntime.AddressedRow, error) {
-	if h.EvidenceCache == nil || inputVersion == "" {
+	if bypassCache || h.EvidenceCache == nil || inputVersion == "" {
 		return h.EvidenceLoader.LoadAWSCloudRuntimeDriftEvidence(ctx, intent.ScopeID, intent.GenerationID)
+	}
+	if shouldInvalidateDriftEvidenceCache(plan) {
+		h.invalidateDriftEvidenceCache(intent, inputVersion)
 	}
 	rows, _, err := h.EvidenceCache.LoadShared(
 		ctx, intent.ScopeID, intent.GenerationID, inputVersion,
@@ -324,6 +335,36 @@ func (h AWSCloudRuntimeDriftHandler) loadDriftEvidenceShared(
 		},
 	)
 	return rows, err
+}
+
+// shouldInvalidateDriftEvidenceCache reports whether a planned full run must
+// evict any prior stored EvidenceCache entry before loading so stale
+// cross-scope state/config rows from an earlier run cannot survive into a
+// daily audit, forced fallback, or producer-activation reopen.
+func shouldInvalidateDriftEvidenceCache(plan *AWSDriftIncrementalPlan) bool {
+	if plan == nil || plan.Mode != AWSDriftIncrementalModeFull {
+		return false
+	}
+	switch plan.Reason {
+	case AWSDriftIncrementalReasonAuditDue,
+		AWSDriftIncrementalReasonFallbackForced,
+		AWSDriftIncrementalReasonFallbackNoSnapshot:
+		return true
+	default:
+		return false
+	}
+}
+
+// invalidateDriftEvidenceCache drops any stored EvidenceCache entry for this
+// intent's input version when a cache and fingerprint are present.
+func (h AWSCloudRuntimeDriftHandler) invalidateDriftEvidenceCache(
+	intent reducercontract.Intent,
+	inputVersion string,
+) {
+	if h.EvidenceCache == nil || inputVersion == "" {
+		return
+	}
+	h.EvidenceCache.Invalidate(intent.ScopeID, intent.GenerationID, inputVersion)
 }
 
 // estimateARNBytesOverhead is the conservative per-row allowance for Go
