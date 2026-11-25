@@ -180,8 +180,10 @@ func validateCommitClaimPlaneURL(raw string) error {
 }
 
 // loadCommitGrants decodes the optional producer-grants file: either a bare
-// JSON array of grants or an object holding them under "grants". An empty
-// path pairs nothing, so namespaced-only manifests need no file.
+// JSON array of grants or an object holding them under "grants". An object
+// without the "grants" key fails closed instead of decoding to zero grants
+// silently. An empty path pairs nothing, so namespaced-only manifests need
+// no file.
 func loadCommitGrants(path string) ([]component.ProducerGrant, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil
@@ -199,6 +201,13 @@ func loadCommitGrants(path string) ([]component.ProducerGrant, error) {
 	}
 	if err := json.Unmarshal(raw, &wrapped); err != nil {
 		return nil, fmt.Errorf("commit listener %s: decode grants: %w", commitEnvGrantsPath, err)
+	}
+	var shape map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &shape); err != nil {
+		return nil, fmt.Errorf("commit listener %s: decode grants: %w", commitEnvGrantsPath, err)
+	}
+	if _, ok := shape["grants"]; !ok {
+		return nil, fmt.Errorf("commit listener %s: decode grants: object holds no %q key", commitEnvGrantsPath, "grants")
 	}
 	return wrapped.Grants, nil
 }

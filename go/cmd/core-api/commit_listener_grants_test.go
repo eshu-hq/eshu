@@ -236,6 +236,21 @@ func TestLoadCommitGrantsMalformed(t *testing.T) {
 	}
 }
 
+// TestLoadCommitGrantsUnknownKeyFailsClosed pins the unknown-key path: an
+// object without the "grants" key (e.g. {"grantz":[]}) must fail instead
+// of decoding to zero grants silently.
+func TestLoadCommitGrantsUnknownKeyFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadCommitGrants(writeCommitGrantsRaw(t, `{"grantz":[]}`))
+	if err == nil {
+		t.Fatal(`loadCommitGrants({"grantz":[]}) error = nil, want decode failure`)
+	}
+	if !strings.Contains(err.Error(), commitEnvGrantsPath) {
+		t.Fatalf("loadCommitGrants(unknown key) error = %q, want %q named", err, commitEnvGrantsPath)
+	}
+}
+
 // TestLoadCommitGrantsMissingFile pins the missing-file path: a grants
 // path that names no file fails with the grants variable named instead
 // of silently pairing nothing.
