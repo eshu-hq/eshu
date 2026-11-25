@@ -3,6 +3,10 @@
 
 package postgres
 
+import (
+	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
+)
+
 // claimReducerWorkBatchQuery selects and claims up to $8 reducer work items in
 // one round trip.
 //
@@ -318,15 +322,7 @@ gate_waited_generations AS MATERIALIZED (
     GROUP BY c.last_generation_id
     UNION
     SELECT work.generation_id AS waited_generation_id,
-           MIN(c.updated_at) AS gate_wait_since
-    FROM vulnerability_nvd_baseline_checkpoints AS c
-    JOIN fact_work_items AS work
-      ON work.stage = 'reducer'
-     AND work.status IN ('pending', 'retrying', 'claimed', 'running')
-     AND work.generation_id <> ''
-     AND work.generation_id <> c.last_generation_id
-     AND strpos(work.scope_id, 'vuln-intel://nvd/_baseline/' || c.baseline_run_id || '/' || c.year::text || '/') = 1
-    WHERE NOT c.year_complete
+           MIN(c.updated_at) AS gate_wait_since` + vulnerabilitystore.NVDBaselineUndrainedGenerationRowsSQL + `
     GROUP BY work.generation_id
 ),` + reducerClaimBatchReservedArmCTE() + `,
 ` + reducerClaimBatchRestArmCTE() + `,

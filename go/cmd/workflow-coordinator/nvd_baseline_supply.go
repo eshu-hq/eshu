@@ -24,12 +24,29 @@ type nvdBaselineCheckpointReader struct {
 }
 
 func (r nvdBaselineCheckpointReader) ReadNVDBaselineCheckpoints(ctx context.Context, baselineRunID string) (map[int]coordinator.NVDBaselineStoredCheckpoint, error) {
-	rows, err := vulnerabilitystore.NewNVDBaselineCheckpointStore(r.database).ReadNVDBaselineCheckpoints(ctx, baselineRunID)
+	store := vulnerabilitystore.NewNVDBaselineCheckpointStore(r.database)
+	rows, err := store.ReadNVDBaselineCheckpoints(ctx, baselineRunID)
+	if err != nil {
+		return nil, err
+	}
+	// The older undrained windows ride the same run read through the shared
+	// undrained-generation set (eshu-hq/eshu#11380), so the drain loader
+	// probes the windows the claim boost already covers. A family read
+	// failure is returned, never answered with last chunks alone that the
+	// loader would mistake for the whole year.
+	undrained, err := store.ReadNVDBaselineUndrainedGenerations(ctx, baselineRunID)
 	if err != nil {
 		return nil, err
 	}
 	checkpoints := make(map[int]coordinator.NVDBaselineStoredCheckpoint, len(rows))
 	for year, row := range rows {
+		keys := make([]vulnerability.NVDBaselineDrainKey, 0, len(undrained[year]))
+		for _, window := range undrained[year] {
+			keys = append(keys, vulnerability.NVDBaselineDrainKey{
+				ScopeID:      window.ScopeID,
+				GenerationID: window.GenerationID,
+			})
+		}
 		checkpoints[year] = coordinator.NVDBaselineStoredCheckpoint{
 			Checkpoint: vulnerability.NVDBaselineCheckpoint{
 				ResumeUnixMicro: row.ResumeUnixMicro,
@@ -38,8 +55,9 @@ func (r nvdBaselineCheckpointReader) ReadNVDBaselineCheckpoints(ctx context.Cont
 				RecordsDone:     row.RecordsDone,
 				RecordsTotal:    row.RecordsTotal,
 			},
-			LastScopeID:      row.LastScopeID,
-			LastGenerationID: row.LastGenerationID,
+			LastScopeID:          row.LastScopeID,
+			LastGenerationID:     row.LastGenerationID,
+			UndrainedGenerations: keys,
 		}
 	}
 	return checkpoints, nil

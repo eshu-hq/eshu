@@ -50,6 +50,9 @@ TABLE = {
             "TestClaimBatchGatePriorityBoostsOlderBaselineWindowLive",
             "TestClaimBatchGatePriorityIgnoresCompletedYearLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_batch_gate_undrained_set_live_test.go": (
+            "TestClaimGateAndCheckpointNameTheSameUndrainedSetLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go": (
             "TestFailBatchWideBlockingSetParksCleanlyLive",
         ),

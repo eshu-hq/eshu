@@ -74,6 +74,11 @@ tests:
     class: postgres_ci
     reason: "#10972 drain-gated priority tier: a live generation a gate waits on must win a claim slot ahead of older ordinary backlog (capped at one per batch, FIFO among gating generations), and non-gating relative order plus auto-expiry on drain must hold; disposable PostgreSQL through postgresproof with the production claim path"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_batch_gate_undrained_set_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "eshu-hq/eshu#11380 the batch-claim gate set and the checkpoint family read name the same undrained generations: both list the checkpoint lasts and the orphaned older window of an incomplete year while excluding ordinary rows, terminal windows, completed years, and other runs, so a re-split of either definition fails; disposable PostgreSQL through postgresproof with the production batch claim query and the shared set"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go
     tag: ~
     class: postgres_ci
