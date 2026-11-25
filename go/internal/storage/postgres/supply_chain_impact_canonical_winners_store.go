@@ -146,7 +146,9 @@ const supplyChainImpactSourceCandidateEligibilitySQL = `FROM active_facts AS fac
            OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))`
 
 // supplyChainImpactWinnerBodySQL is the select after the active_facts CTE. It
-// starts with the comma that joins it to a preceding WITH clause.
+// starts with the comma that joins it to a preceding WITH clause (#11120:
+// candidate CTEs extract every text field once; see the detoast section of
+// supply_chain_impact_winners_supports_input.go).
 var supplyChainImpactWinnerBodySQL = `,
 source_candidates AS (
     SELECT
@@ -154,12 +156,12 @@ source_candidates AS (
         fact.scope_id,
         fact.payload,
         fact.source_confidence,
-        ` + supplyChainImpactCanonicalKeyConcat("fact.payload", "            ", "        ") + ` AS canonical_key,
-        ` + supplyChainImpactFindingIDCoalesce("fact.payload") + ` AS finding_id,
-        ` + supplyChainImpactPriorityScoreExpr("fact.payload") + ` AS priority_score,
-        ` + supplyChainImpactHasPayloadFindingIDExpr("fact.payload") + ` AS has_payload_finding_id,
-        ` + supplyChainImpactSuppressionStateExpr("fact.payload") + ` AS suppression_state
-    ` + supplyChainImpactSourceCandidateEligibilitySQL + `
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactCanonicalKeyConcat("fact.payload", "            ", "        ")) + ` AS canonical_key,
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactFindingIDCoalesce("fact.payload")) + ` AS finding_id,
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactPriorityScoreExpr("fact.payload")) + ` AS priority_score,
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactHasPayloadFindingIDExpr("fact.payload")) + ` AS has_payload_finding_id,
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactSuppressionStateExpr("fact.payload")) + ` AS suppression_state` + winnersDetoastCarriedSelect() + `
+    ` + winnersDetoastEligibilityFromActiveFacts + `
 ),
 source_ranked AS (
     SELECT source.*,
@@ -178,13 +180,13 @@ operator_candidates AS (
     SELECT
         fact.fact_id,
         fact.payload,
-        ` + supplyChainImpactCanonicalKeyConcat("fact.payload", "            ", "        ") + ` AS canonical_key,
-        ` + supplyChainImpactSuppressionStateExpr("fact.payload") + ` AS suppression_state,
-        ` + supplyChainImpactPriorityScoreExpr("fact.payload") + ` AS priority_score,
-        ` + supplyChainImpactHasPayloadFindingIDExpr("fact.payload") + ` AS has_payload_finding_id
-    FROM active_facts AS fact
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactCanonicalKeyConcat("fact.payload", "            ", "        ")) + ` AS canonical_key,
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactSuppressionStateExpr("fact.payload")) + ` AS suppression_state,
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactPriorityScoreExpr("fact.payload")) + ` AS priority_score,
+        ` + winnersDetoastFieldReplacer.Replace(supplyChainImpactHasPayloadFindingIDExpr("fact.payload")) + ` AS has_payload_finding_id
+    FROM active_facts AS fact` + winnersDetoastFactLateral + `
     WHERE fact.scope_id = 'operator:vulnerability_suppressions'
-      AND ` + supplyChainImpactOperatorSuppressionPredicate + `
+      AND ` + winnersDetoastOperatorPredicate + `
 ),
 operator_overrides AS (
     SELECT DISTINCT ON (canonical_key) *
@@ -201,19 +203,19 @@ SELECT
     source.finding_id,
     source.priority_score,
     source.source_count,
-    COALESCE(source.payload->>'impact_status', '') AS impact_status,
-    COALESCE(source.payload->>'ecosystem', '') AS ecosystem,
+    source.impact_status AS impact_status,
+    source.ecosystem AS ecosystem,
     ` + cvss.BucketSQL("source.payload") + ` AS severity_bucket,
-    COALESCE(source.payload->>'repository_id', '') AS repository_id,
-    COALESCE(source.payload->>'cve_id', '') AS cve_id,
-    COALESCE(source.payload->>'advisory_id', '') AS advisory_id,
-    COALESCE(source.payload->>'package_id', '') AS package_id,
-    COALESCE(source.payload->>'subject_digest', '') AS subject_digest,
-    COALESCE(source.payload->>'image_ref', '') AS image_ref,
-    COALESCE(source.payload->>'priority_bucket', '') AS priority_bucket,
-    COALESCE(source.payload->>'detection_profile', '') AS detection_profile,
-    COALESCE(source.payload->>'observed_version', '') AS observed_version,
-    COALESCE(source.payload->>'match_reason', '') AS match_reason,
+    source.repository_id AS repository_id,
+    source.cve_id AS cve_id,
+    source.advisory_id AS advisory_id,
+    source.package_id AS package_id,
+    source.subject_digest AS subject_digest,
+    source.image_ref AS image_ref,
+    source.priority_bucket AS priority_bucket,
+    source.detection_profile AS detection_profile,
+    source.observed_version AS observed_version,
+    source.match_reason AS match_reason,
     COALESCE(override.suppression_state, source.suppression_state) AS suppression_state,
     CASE
         WHEN override.fact_id IS NULL

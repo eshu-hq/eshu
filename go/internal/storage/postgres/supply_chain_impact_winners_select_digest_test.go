@@ -84,8 +84,37 @@ func TestWinnerSelectReadsNoDigestExcludedPayloadField(t *testing.T) {
 
 	shipped := postgres.WinnerSelectSQLForTest
 	read := regexp.MustCompile(`payload\s*(?:->>|->)\s*'([a-z_]+)'|payload\s*#>>\s*'\{([a-z_]+)`)
-	if matches := read.FindAllStringSubmatch(shipped, -1); len(matches) < 20 {
-		t.Fatalf("found %d payload reads in the winners select, want the full set (the pattern is stale)", len(matches))
+	matches := read.FindAllStringSubmatch(shipped, -1)
+	// Single-detoast (#11120) moved every text-field read into the record:
+	// the only payload reads left are the documented exceptions — the shared
+	// severity inputs, the three jsonb arrays, and the operator override
+	// reads. Any new read fails here with its key.
+	gotKeys := map[string]int{}
+	for _, m := range matches {
+		key := m[1]
+		if key == "" {
+			key = m[2]
+		}
+		gotKeys[key]++
+	}
+	wantKeys := map[string]bool{
+		// cvss.BucketSQL("source.payload"): one score read per threshold
+		// arm plus the label read.
+		"cvss_score": true, "provenance": true,
+		// The three jsonb arrays keep `->` (JSON-null semantics).
+		"service_ids": true, "workload_ids": true, "environments": true,
+		// The winner-scale operator override reads.
+		"suppression": true,
+	}
+	for key := range gotKeys {
+		if !wantKeys[key] {
+			t.Errorf("unexpected payload read %q in the winners select: single-detoast allows only %v", key, wantKeys)
+		}
+	}
+	for key := range wantKeys {
+		if gotKeys[key] == 0 {
+			t.Errorf("documented payload read %q is gone from the winners select (the pattern is stale)", key)
+		}
 	}
 	for _, violation := range winnerSelectDigestViolations(shipped) {
 		t.Errorf("the winners select %s: a rewrite that changes it would not be captured", violation)
@@ -98,9 +127,9 @@ func TestWinnerSelectReadsNoDigestExcludedPayloadField(t *testing.T) {
 		t.Error("seeded violation undetected: a select with the strip removed reports no violation")
 	}
 	// Seeded RED: reading one excluded key by name is caught too.
-	leaked := strings.Replace(shipped, "source.payload->>'ecosystem'", "source.payload->>'intent_id'", 1)
+	leaked := strings.Replace(shipped, "source.payload->>'cvss_score'", "source.payload->>'intent_id'", 1)
 	if leaked == shipped {
-		t.Fatal("seeded read replacement found no ecosystem read to mutate (the pattern is stale)")
+		t.Fatal("seeded read replacement found no cvss_score read to mutate (the pattern is stale)")
 	}
 	if got := winnerSelectDigestViolations(leaked); len(got) == 0 {
 		t.Error("seeded violation undetected: a select reading intent_id reports no violation")

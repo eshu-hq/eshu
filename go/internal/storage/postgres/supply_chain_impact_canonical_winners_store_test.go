@@ -33,10 +33,12 @@ func TestSupplyChainImpactWinnerSelectMirrorsReadDedup(t *testing.T) {
 		"fact.fact_kind = 'reducer_supply_chain_impact_finding'",
 		"fact.is_tombstone = FALSE",
 		"generation.status = 'active'",
-		// canonical_key first component is the cve/advisory COALESCE.
-		"COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), '')",
-		// public finding_id fallback to canonical_key.
-		"COALESCE(\n            NULLIF(fact.payload->>'finding_id', ''),",
+		// canonical_key first component is the cve/advisory COALESCE,
+		// derived through the detoast replacer (#11120: same helper, record
+		// refs instead of per-field detoasts).
+		winnersDetoastFieldReplacer.Replace("COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), '')"),
+		// public finding_id fallback to canonical_key, same derivation.
+		winnersDetoastFieldReplacer.Replace(supplyChainImpactFindingIDCoalesce("fact.payload")),
 		// Source truth and operator decisions rank independently. The source
 		// owns row identity and filter dimensions; an operator-only key cannot
 		// fabricate a finding.
@@ -48,7 +50,7 @@ func TestSupplyChainImpactWinnerSelectMirrorsReadDedup(t *testing.T) {
 		"SELECT DISTINCT ON (canonical_key) *",
 		"operator_candidates AS (",
 		"fact.scope_id = 'operator:vulnerability_suppressions'",
-		"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') <> 'active'",
+		winnersDetoastOperatorPredicate,
 		"operator_overrides AS (",
 		"FROM source_winners AS source",
 		"LEFT JOIN operator_overrides AS override",
@@ -60,7 +62,7 @@ func TestSupplyChainImpactWinnerSelectMirrorsReadDedup(t *testing.T) {
 		"fact_id ASC",
 		// severity bucket + suppression default, same thresholds/strings as read.
 		"THEN 'critical'",
-		"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active')",
+		winnersDetoastFieldReplacer.Replace(supplyChainImpactSuppressionStateExpr("fact.payload")),
 		// Only operator decisions carry a parsed read-time expiry. Invalid
 		// non-empty values fail closed as already expired.
 		"WHEN override.fact_id IS NULL",

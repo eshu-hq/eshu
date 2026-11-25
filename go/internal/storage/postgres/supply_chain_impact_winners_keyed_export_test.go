@@ -54,6 +54,15 @@ const WinnersKeyedNarrowTableForTest = winnersKeyedNarrowTable
 // proof must explain this twin, never the legacy fact_records statement.
 var WinnersKeyedNarrowBuildFromSupportsSQLForTest = buildWinnersKeyedNarrowFromSupportsSQL
 
+// WinnersDetoastFactLateralForTest exposes the shipped once-extracted record
+// lateral, so the live field-equivalence proof exercises the exact text the
+// tick runs, over a seed table aliased AS fact.
+var WinnersDetoastFactLateralForTest = winnersDetoastFactLateral
+
+// WinnersDetoastFieldsForTest exposes the record's field list, so the live
+// proof covers every field the body extracts without naming them twice.
+var WinnersDetoastFieldsForTest = winnersDetoastFields
+
 // WinnersKeyedActiveFactsBuildFromSupportsSQLForTest exposes the shipped
 // supports twin of the active-facts fetch.
 var WinnersKeyedActiveFactsBuildFromSupportsSQLForTest = buildWinnersKeyedActiveFactsFromSupportsSQL
