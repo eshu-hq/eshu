@@ -1,0 +1,26 @@
+commit=2aa64f624fafe643be72805747b03aee02bc6458
+== eshu-bootstrap-data-plane sha256=9c9c42324d4f961833c991e7ab9281133074414dce051f55827e0123d94bbbb3
+	path	github.com/eshu-hq/eshu/go/cmd/bootstrap-data-plane
+	mod	github.com/eshu-hq/eshu/go	(devel)
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+== eshu-collector-component-extension sha256=5e8db9f6e21e6b36a2dbed40cc1091e85b83170db1d2be7c504fde1d620025f1
+	path	github.com/eshu-hq/eshu/go/cmd/collector-component-extension
+	mod	github.com/eshu-hq/eshu/go	(devel)
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+== eshu-collector-synth-zero sha256=5496e31e2418b5061f590c1d4295bab96de8498f3996442914e6b4903d242f3a
+	path	github.com/eshu-hq/eshu/go/cmd/collector-synth-zero
+	mod	github.com/eshu-hq/eshu/go	(devel)
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+== eshu-ingester sha256=6fbeb893a9a73de8f88898c02e327b89bd7b2e0bed9f74461d2b043c413b129c
+	path	github.com/eshu-hq/eshu/go/cmd/ingester
+	mod	github.com/eshu-hq/eshu/go	(devel)
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+== eshu-projector sha256=582eee3e860900d42431b7266098889be45d751ba45fa7996b4864d45afdabd9
+	path	github.com/eshu-hq/eshu/go/cmd/projector
+	mod	github.com/eshu-hq/eshu/go	(devel)
+	build	-trimpath=true
+	build	CGO_ENABLED=1

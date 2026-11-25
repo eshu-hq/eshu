@@ -83,6 +83,10 @@ Slot 1 (21:25 to 22:02Z, `loadavg-rerun-slot1.tsv`) and slot 3 (`loadavg-infligh
 
 Consult figures are read from the engaged scrape of the product binaries' /metrics; B figures from the queue's own timestamps.
 
+## Registered set (build `2aa64f624f`, #10882 comment 7174400526)
+
+The registered T2TTL x3 vs same-build C2 x3 on `2aa64f624f` (slot 2026-11-25T20:24:37Z to ~20:55:37Z): T2TTL 3/3 PASS by the same check and tolerance rule (C2 mean p50 0.461 / p95 0.862, tolerance 0.132 / 0.274; B waits rep1 0.459/0.931, rep2 0.327/0.814, rep3 0.361/0.928; claims/s 1.125-1.127 vs 1.125). Full judged output is `registered-report.txt`. Starts were clean (start load1 6.7-10.0, gate < 15) but a concurrent lane's verification floor drove mid-run load to 29-59 on C2-rep3 and all three T2TTL reps; C2-rep1/2 stayed fully clean (max 10.3/12.0). Per-rep load and latency context is `registered-per-rep-load.txt`; the slot sampler is `loadavg-registered.tsv`. M3 (slow first graph write) is disposed as non-pacing: slow first writes (0.65-1.1 s) coincide with ~100 stale-plan discards in BOTH arms including C2-rep1 engaged (0.655 s, 108 discards, no pacing involved), fast writes (0.04-0.24 s) with 0-2 discards; see `registered-plan-discards.txt`, which states exactly which rows are registered and which are not. Build provenance is `registered-build.json`, `registered-build.commit` and `registered-build.txt`. The six rep dirs stay under `~/.cache/replay/results-reg-2aa64f624f` and are not committed; only the judged numbers are.
+
 ## T1 enablement gate: the quiet reps
 
 ```text
@@ -128,6 +132,11 @@ The coordinator decides whether the lane run is enough for criterion 2; this rec
 | File | What it is |
 | --- | --- |
 | `matrix-report.txt`, `rerun-report.txt`, `inflight-report.txt` | Raw checker output (`report.sh` for the matrix; `check_arm.py` by hand for the C2/T2/T2TTL rerun root, which has no C control) |
+| `registered-report.txt` | Raw checker output for the registered set (C2 x3 + T2TTL x3 on build `2aa64f624f`; T2TTL 3/3 PASS); 3-line provenance header, body byte-identical to `~/.cache/replay/results-reg-2aa64f624f/report-reg.txt` |
+| `registered-build.json`, `registered-build.commit`, `registered-build.txt` | Build provenance for `2aa64f624f` (binary sha256 pins, commit, `go version -m` build lines); content-equal to the same-named files under `~/.cache/replay/results-reg-2aa64f624f/` up to repo hook normalization (`.commit` byte-identical; `.json` gains the EOF newline it lacked; `.txt` loses trailing-tab whitespace on the five `(devel)` lines; every commit/sha256 byte unchanged) |
+| `loadavg-registered.tsv` | One host load1 sample a minute for the registered slot; body byte-identical to `~/.cache/replay/results-reg-2aa64f624f/loadavg.tsv` |
+| `registered-per-rep-load.txt` | Per-rep load/latency context for the six registered reps (manifest start, start load1, run load1 max, B p50/p95/claims, claim-grant consults) with source paths |
+| `registered-plan-discards.txt` | Registered plan-discard table: comment-7174400526 figures, explicit registered vs not-registered labelling, byte-identical scratch copy for cross-check |
 | `per-item-b-wait.txt` | `b_item_table.py --burst` over the matrix and the rerun roots |
 | `per-worker-timeline.txt` | `per_worker_timeline.py` for T2TTL rep1, T2 rep2 and C2 rep2 of the rerun |
 | `neo4j-plan-discards.txt` | `neo4j_plan_discards.py` over both roots and a copy of the Neo4j `debug.log` |

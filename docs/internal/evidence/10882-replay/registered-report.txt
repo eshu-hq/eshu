@@ -1,0 +1,163 @@
+# provenance: build=2aa64f624fafe643be72805747b03aee02bc6458 results-root=results-reg-2aa64f624f source-path=/home/ubuntu/.cache/replay/results-reg-2aa64f624f/report-reg.txt source-mtime=2026-11-25T20:55:50Z
+# body below is byte-identical to the source file (checker output for the registered C2 x3 + T2TTL x3 set)
+# registered verdict per arbiter ruling in #10882 comment 7174400526: T2TTL 3/3 PASS by the same check and tolerance rule
+== control set C2
+PASS at least 3 control repetitions: have 3
+PASS control rep 1: build identity: one commit, every binary pinned: commit='2aa64f624fafe643be72805747b03aee02bc6458' build.json commit='2aa64f624fafe643be72805747b03aee02bc6458' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 1: graph reading present in every sample (no swallowed Neo4j error): samples=59 missing=0 final_counts=True
+PASS control rep 1: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 1: no wait timed out: timeouts=[]
+PASS control rep 1: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 1: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=1248
+PASS control rep 2: build identity: one commit, every binary pinned: commit='2aa64f624fafe643be72805747b03aee02bc6458' build.json commit='2aa64f624fafe643be72805747b03aee02bc6458' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 2: graph reading present in every sample (no swallowed Neo4j error): samples=59 missing=0 final_counts=True
+PASS control rep 2: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 2: no wait timed out: timeouts=[]
+PASS control rep 2: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 2: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=1248
+PASS control rep 3: build identity: one commit, every binary pinned: commit='2aa64f624fafe643be72805747b03aee02bc6458' build.json commit='2aa64f624fafe643be72805747b03aee02bc6458' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 3: graph reading present in every sample (no swallowed Neo4j error): samples=56 missing=0 final_counts=True
+PASS control rep 3: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 3: no wait timed out: timeouts=[]
+PASS control rep 3: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 3: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=1248
+PASS control rep 2 vs rep 1: every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS control rep 2 vs rep 1: active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS control rep 2 vs rep 1: active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS control rep 2 vs rep 1: reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS control rep 2 vs rep 1: sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS control rep 2 vs rep 1: the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS control rep 2 vs rep 1: graph counts per label: equal
+PASS control rep 2 vs rep 1: relationship counts per type: equal
+PASS control rep 2 vs rep 1: content identity sets (files by repo, path and content hash; entities by id): equal
+PASS control rep 2 vs rep 1: content rows: control=144 arm=144
+PASS control rep 2 vs rep 1: committed generation set (source commit sha): equal
+PASS control rep 3 vs rep 1: every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS control rep 3 vs rep 1: active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS control rep 3 vs rep 1: active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS control rep 3 vs rep 1: reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS control rep 3 vs rep 1: sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS control rep 3 vs rep 1: the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS control rep 3 vs rep 1: graph counts per label: equal
+PASS control rep 3 vs rep 1: relationship counts per type: equal
+PASS control rep 3 vs rep 1: content identity sets (files by repo, path and content hash; entities by id): equal
+PASS control rep 3 vs rep 1: content rows: control=144 arm=144
+PASS control rep 3 vs rep 1: committed generation set (source commit sha): equal
+== T2TTL-rep1 (t2)
+PASS build identity: one commit, every binary pinned: commit='2aa64f624fafe643be72805747b03aee02bc6458' build.json commit='2aa64f624fafe643be72805747b03aee02bc6458' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=78 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS hosted items pending at engagement: planted=24 pending=24
+PASS zero claims while engaged: claims=0
+PASS positive control: the C2 hosted collector claimed during the same window: C2 claims at window end=24
+PASS no attempt change while engaged: attempt_total=0
+PASS none expired: expired=0
+PASS each item claimed and completed after release: completed=24 of 24
+PASS claim-grant consults ran on the hosted collector (collector_kind series, final scrape): count=173.0 by collector_kind={'synth_zero_fact': 173.0} p50=0.7 ms p95=99.0 ms share within 100 ms=0.95 (the per-source consult of 'consult(A)' is the ingester and projector pre-write consult, not this one)
+PASS latch engaged and released (latch row times): engage=2026-11-25T20:28:45Z release=2026-11-25T20:31:03Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[0.0, None, None] (None = no series in that scrape)
+PASS zero A graph, content and projection writes while engaged: graph=0 content=0 succeeded=0 against the run's first sample
+PASS positive control: A writes after release are above 0: graph nodes after release=1248
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+PASS B has zero source_behind deferrals: B=0
+PASS B has zero paced waits: B paced waits=0
+PASS B queue_wait_p50_s not degraded: arm=0.4585 control mean=0.4609 tolerance=0.1323 (29% of the control mean)
+PASS B queue_wait_p95_s not degraded: arm=0.9314 control mean=0.8616 tolerance=0.2737 (32% of the control mean)
+PASS B claims_per_s not degraded: arm=1.1257 control mean=1.1248 tolerance=0.1125 (10% of the control mean)
+== T2TTL-rep2 (t2)
+PASS build identity: one commit, every binary pinned: commit='2aa64f624fafe643be72805747b03aee02bc6458' build.json commit='2aa64f624fafe643be72805747b03aee02bc6458' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=71 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS hosted items pending at engagement: planted=24 pending=24
+PASS zero claims while engaged: claims=0
+PASS positive control: the C2 hosted collector claimed during the same window: C2 claims at window end=24
+PASS no attempt change while engaged: attempt_total=0
+PASS none expired: expired=0
+PASS each item claimed and completed after release: completed=24 of 24
+PASS claim-grant consults ran on the hosted collector (collector_kind series, final scrape): count=170.0 by collector_kind={'synth_zero_fact': 170.0} p50=0.9 ms p95=125.0 ms share within 100 ms=0.92 (the per-source consult of 'consult(A)' is the ingester and projector pre-write consult, not this one)
+PASS latch engaged and released (latch row times): engage=2026-11-25T20:36:36Z release=2026-11-25T20:38:55Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[0.0, None, None] (None = no series in that scrape)
+PASS zero A graph, content and projection writes while engaged: graph=0 content=0 succeeded=0 against the run's first sample
+PASS positive control: A writes after release are above 0: graph nodes after release=1248
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+PASS B has zero source_behind deferrals: B=0
+PASS B has zero paced waits: B paced waits=0
+PASS B queue_wait_p50_s not degraded: arm=0.3265 control mean=0.4609 tolerance=0.1323 (29% of the control mean)
+PASS B queue_wait_p95_s not degraded: arm=0.8137 control mean=0.8616 tolerance=0.2737 (32% of the control mean)
+PASS B claims_per_s not degraded: arm=1.1274 control mean=1.1248 tolerance=0.1125 (10% of the control mean)
+== T2TTL-rep3 (t2)
+PASS build identity: one commit, every binary pinned: commit='2aa64f624fafe643be72805747b03aee02bc6458' build.json commit='2aa64f624fafe643be72805747b03aee02bc6458' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=73 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS hosted items pending at engagement: planted=24 pending=24
+PASS zero claims while engaged: claims=0
+PASS positive control: the C2 hosted collector claimed during the same window: C2 claims at window end=24
+PASS no attempt change while engaged: attempt_total=0
+PASS none expired: expired=0
+PASS each item claimed and completed after release: completed=24 of 24
+PASS claim-grant consults ran on the hosted collector (collector_kind series, final scrape): count=167.0 by collector_kind={'synth_zero_fact': 167.0} p50=0.8 ms p95=130.9 ms share within 100 ms=0.90 (the per-source consult of 'consult(A)' is the ingester and projector pre-write consult, not this one)
+PASS latch engaged and released (latch row times): engage=2026-11-25T20:51:16Z release=2026-11-25T20:53:35Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[0.0, None, None] (None = no series in that scrape)
+PASS zero A graph, content and projection writes while engaged: graph=0 content=0 succeeded=0 against the run's first sample
+PASS positive control: A writes after release are above 0: graph nodes after release=1248
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+PASS B has zero source_behind deferrals: B=0
+PASS B has zero paced waits: B paced waits=0
+PASS B queue_wait_p50_s not degraded: arm=0.3607 control mean=0.4609 tolerance=0.1323 (29% of the control mean)
+PASS B queue_wait_p95_s not degraded: arm=0.9283 control mean=0.8616 tolerance=0.2737 (32% of the control mean)
+PASS B claims_per_s not degraded: arm=1.1252 control mean=1.1248 tolerance=0.1125 (10% of the control mean)
+== numbers
+C2-rep1      ttl=0s  consult(A) p50=0.0ms p95=0.0ms within100ms=0.00 n=0 | K_peak=0 parked_peak=0 woken=0 wait_rows=0 | superseded_scopes=0 paced_A=0 | A_done_after_catchup=-131.2s | load1 max=10.32 end=7.06
+C2-rep2      ttl=0s  consult(A) p50=0.0ms p95=0.0ms within100ms=0.00 n=0 | K_peak=0 parked_peak=0 woken=0 wait_rows=0 | superseded_scopes=0 paced_A=0 | A_done_after_catchup=-130.9s | load1 max=11.99 end=9.32
+C2-rep3      ttl=0s  consult(A) p50=0.0ms p95=0.0ms within100ms=0.00 n=0 | K_peak=0 parked_peak=0 woken=0 wait_rows=0 | superseded_scopes=0 paced_A=0 | A_done_after_catchup=-135.2s | load1 max=35.45 end=37.98
+T2TTL-rep1   ttl=5s  consult(A) p50=0.7ms p95=190.0ms within100ms=0.85 n=144 | K_peak=0 parked_peak=0 woken=0 wait_rows=0 | superseded_scopes=0 paced_A=48 | A_done_after_catchup=82.3s | load1 max=29.53 end=9.01
+T2TTL-rep1   claim-grant consult (collector_kind series, hosted collector): n=173 p50=0.7ms p95=99.0ms within100ms=0.95
+T2TTL-rep2   ttl=5s  consult(A) p50=0.7ms p95=160.0ms within100ms=0.92 n=144 | K_peak=0 parked_peak=0 woken=0 wait_rows=0 | superseded_scopes=0 paced_A=48 | A_done_after_catchup=79.7s | load1 max=47.45 end=40.51
+T2TTL-rep2   claim-grant consult (collector_kind series, hosted collector): n=170 p50=0.9ms p95=125.0ms within100ms=0.92
+T2TTL-rep3   ttl=5s  consult(A) p50=0.7ms p95=194.6ms within100ms=0.88 n=144 | K_peak=0 parked_peak=0 woken=0 wait_rows=0 | superseded_scopes=0 paced_A=48 | A_done_after_catchup=83.4s | load1 max=59.21 end=23.59
+T2TTL-rep3   claim-grant consult (collector_kind series, hosted collector): n=167 p50=0.8ms p95=130.9ms within100ms=0.90
