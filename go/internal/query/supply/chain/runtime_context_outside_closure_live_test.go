@@ -6,7 +6,6 @@ package chain
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #11447 Plan C outside-closure hydration contract: every decoder arm the production UNION must cover (payload repository_id, repo_id, payload-scope alias, related-only, raw scope) plus a grant-scoped row with envelope outside the closure, all resolving through ListSupplyChainImpactRuntimeContext, with an unseeded candidate rendering honest-empty.
 //eshu:readiness:env ESHU_POSTGRES_TEST_DSN
-//eshu:readiness:helper go/internal/query/supply/chain/runtime_filter_live_test.go
 
 import (
 	"context"
