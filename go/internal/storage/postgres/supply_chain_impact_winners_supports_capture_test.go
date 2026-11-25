@@ -14,7 +14,11 @@ import (
 // capture; migration 353 replaces the scanner pair (public-only, like 311). Each
 // new function body must be the previous migration's body with the row source
 // swapped and nothing else changed: the tests derive the expected text from the
-// previous migration file and compare byte for byte.
+// previous migration file and compare byte for byte. Migration 355 reunites the
+// scope-delete capture over both sources (a scope retired before backfill still
+// stages): its body must be 352's with the single-source read replaced by the
+// UNION of the fact arm (310's predicates) and the supports arm, derived the
+// same way.
 
 func readMigrationFile(t *testing.T, name string) string {
 	t.Helper()
@@ -50,6 +54,7 @@ const (
 	previousScannerFile     = "311_supply_chain_impact_winners_scanner_staging_capture.sql"
 	supportsScopeDeleteFile = "352_supply_chain_impact_winners_supports_scope_capture.sql"
 	supportsScannerFile     = "353_supply_chain_impact_winners_supports_scanner_capture.sql"
+	reunitedScopeDeleteFile = "355_supply_chain_impact_winners_scope_capture_facts_and_supports.sql"
 )
 
 // TestSupportsScopeDeleteCaptureIsTheFactCaptureOverSupports proves the
@@ -72,6 +77,43 @@ func TestSupportsScopeDeleteCaptureIsTheFactCaptureOverSupports(t *testing.T) {
 	}
 	if strings.Contains(got, "fact_records") {
 		t.Fatal("the replacement scope-delete capture still reads fact_records")
+	}
+}
+
+// TestReunitedScopeDeleteCaptureReadsFactsAndSupports proves migration 355's
+// scope-delete capture is migration 352's body with the single-source read
+// replaced by the UNION of the fact arm (migration 310's kind and tombstone
+// predicates) and the supports arm, and nothing else: a scope retired before
+// its facts are backfilled stages its keys, and the dual-written overlap
+// collapses to one mark per key.
+func TestReunitedScopeDeleteCaptureReadsFactsAndSupports(t *testing.T) {
+	t.Parallel()
+
+	previous := functionBody(t, readMigrationFile(t, supportsScopeDeleteFile), scopeDeleteFunction)
+	supportsRead := "    FROM supply_chain_impact_finding_supports AS fact\n    WHERE fact.scope_id = OLD.scope_id;"
+	factArm := "    FROM fact_records AS fact\n" +
+		"    WHERE fact.scope_id = OLD.scope_id\n" +
+		"      AND fact.fact_kind = 'reducer_supply_chain_impact_finding'\n" +
+		"      AND fact.is_tombstone = FALSE\n" +
+		"    UNION\n" +
+		"    SELECT DISTINCT 'fact', v_source,\n" +
+		"           COALESCE(fact.payload->>'package_id', ''),\n" +
+		"           COALESCE(fact.payload->>'repository_id', ''),\n" +
+		"           COALESCE(fact.payload->>'subject_digest', ''),\n" +
+		"           COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),\n" +
+		"           COALESCE(fact.payload->>'advisory_id', '')\n" +
+		"    FROM supply_chain_impact_finding_supports AS fact\n" +
+		"    WHERE fact.scope_id = OLD.scope_id;"
+	want := strings.Replace(previous, supportsRead, factArm, 1)
+	if want == previous {
+		t.Fatal("the reunion did not apply to migration 352's scope-delete capture: the read fragment changed")
+	}
+	got := functionBody(t, readMigrationFile(t, reunitedScopeDeleteFile), scopeDeleteFunction)
+	if got != want {
+		t.Fatalf("migration 355's scope-delete capture is not migration 352's reading both sources:\n--- got\n%s\n--- want\n%s", got, want)
+	}
+	if !strings.Contains(got, "fact_records") || !strings.Contains(got, "supply_chain_impact_finding_supports") {
+		t.Fatal("the reunited scope-delete capture must read both fact_records and the supports table")
 	}
 }
 
@@ -109,16 +151,20 @@ func TestSupportsCaptureMigrationsRedefineOnlyTheFunctionsThatReadFacts(t *testi
 
 	scope := readMigrationFile(t, supportsScopeDeleteFile)
 	scanner := readMigrationFile(t, supportsScannerFile)
-	if strings.Contains(scope, activationFunction+"()\nRETURNS") || strings.Contains(scanner, activationFunction+"()\nRETURNS") {
+	reunited := readMigrationFile(t, reunitedScopeDeleteFile)
+	if strings.Contains(scope, activationFunction+"()\nRETURNS") || strings.Contains(scanner, activationFunction+"()\nRETURNS") || strings.Contains(reunited, activationFunction+"()\nRETURNS") {
 		t.Error("a supports capture migration redefines the activation capture, which reads no fact row")
 	}
 	if got := strings.Count(scope, "CREATE OR REPLACE FUNCTION"); got != 1 {
 		t.Errorf("migration 352 redefines %d functions, want 1 (the scope-delete capture)", got)
 	}
+	if got := strings.Count(reunited, "CREATE OR REPLACE FUNCTION"); got != 1 {
+		t.Errorf("migration 355 redefines %d functions, want 1 (the scope-delete capture)", got)
+	}
 	if got := strings.Count(scanner, "CREATE OR REPLACE FUNCTION"); got != 2 {
 		t.Errorf("migration 353 redefines %d functions, want 2 (the scanner pair)", got)
 	}
-	for name, text := range map[string]string{"352": scope, "353": scanner} {
+	for name, text := range map[string]string{"352": scope, "353": scanner, "355": reunited} {
 		if !strings.Contains(text, "SECURITY DEFINER") {
 			t.Errorf("migration %s lost SECURITY DEFINER", name)
 		}
