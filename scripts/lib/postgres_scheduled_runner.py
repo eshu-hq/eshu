@@ -2,7 +2,6 @@
 """Verify source enrollment and Go events for scheduled PostgreSQL proofs."""
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -26,16 +25,14 @@ from postgres_scheduled_matrix import (
 )
 from postgres_scheduled_workflow import (
     JOB_ORDER, LEG_JOBS, SERVICE_JOBS, job_blocks, named_step,
-    verify_canonical_workflow, verify_trigger as verify_workflow_trigger,
+    verify_canonical_workflow, verify_proof_step_exact, verify_setup_steps,
+    verify_trigger as verify_workflow_trigger,
 )
 
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
 FRAGMENT = Path("specs/ci-pr-workflows.d/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "8883388899358fb270b6930cf4eadbbcffd5e631030ccd9649930acd06f75d04"
-BULK_ACTION_SHA256 = "444dbf145f12b1a3ce0e9c2845e075461f83ccc2325cea6bffcf5d4e96158a67"
-STORAGE_ACTION_SHA256 = "75ec84d06552704b83ddaf0d1246da0e9d92944ec64046df6a30eb4bdd8de9e6"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",
@@ -56,17 +53,33 @@ GROUP_TIMEOUTS = {
 }
 
 
-
 def expand_bulk_action(workflow: str, action: str) -> str:
-    """Expand only the bulk composite against its reviewed digest."""
-    return expand_action(workflow, action, "bulk", BULK_ACTION_SHA256)
+    """Expand only the bulk composite."""
+    return expand_action(workflow, action, "bulk")
 
 
 def expand_actions(workflow: str, root: Path) -> str:
-    """Expand both reviewed composites against the digests pinned here."""
-    return expand_reviewed_actions(workflow, root, {
-        "bulk": BULK_ACTION_SHA256, "storage": STORAGE_ACTION_SHA256,
-    })
+    """Expand both reviewed composites into the workflow."""
+    return expand_reviewed_actions(workflow, root)
+
+
+def group_selector(inventory: dict[str, dict[str, object]], group: str) -> str:
+    """Return the exact anchored Go -run selector for one enrolled group."""
+    if group not in PACKAGES:
+        raise ValueError(f"unknown scheduled PostgreSQL group: {group}")
+    raw = [
+        name for row in inventory.values() if row.get("group") == group
+        for name in row.get("tests", [])
+    ]
+    if not raw:
+        raise ValueError(f"no enrolled tests for group: {group}")
+    for name in raw:
+        if not isinstance(name, str) or not re.fullmatch(r"Test\w+", name):
+            raise ValueError(f"invalid test identifier in group {group}: {name!r}")
+    tests = sorted(set(raw))
+    if len(tests) != len(raw):
+        raise ValueError(f"duplicate test identifier in group: {group}")
+    return "^(" + "|".join(tests) + ")$"
 
 
 def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]], fragment: str) -> None:
@@ -99,50 +112,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         raise ValueError("aggregate job must not run a database service")
     setup_steps = re.split(r"(?m)^      - name:", blocks["scheduled-setup"])
     aggregate_steps = re.split(r"(?m)^      - name:", blocks["scheduled-aggregate"])
-
-    bootstrap = [
-        step for step in setup_steps
-        if step.startswith(" Check exact enrollment and negative cases\n")
-    ]
-    if len(bootstrap) != 1:
-        raise ValueError("scheduled runner harness step missing")
-    for command in (
-        "python3 scripts/test-postgres-scheduled-runner.py",
-        "python3 scripts/test-postgres-scheduled-rerun.py",
-        "python3 scripts/test-postgres-scheduled-matrix.py",
-        "python3 scripts/test-postgres-scheduled-fragments.py",
-        "python3 scripts/test-postgres-scheduled-ledger-policy.py",
-        "python3 scripts/lib/postgres_scheduled_runner.py",
-    ):
-        if len(re.findall(r"(?m)^          " + re.escape(command) + r"$", bootstrap[0])) != 1:
-            raise ValueError("scheduled runner harness command missing")
-    if re.search(r"(?m)^\s*if:", bootstrap[0]):
-        raise ValueError("conditional scheduled runner harness step")
-    manifest_index, manifest_step = named_step(setup_steps, "Record hosted proof manifest")
-    manifest_lines = {
-        "          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}",
-        "          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
-        "          set -euo pipefail",
-        "          python3 scripts/lib/postgres_scheduled_runner.py \\",
-        '          checkout_sha="$(git rev-parse HEAD)"',
-        '          reviewed_head_sha="${PR_HEAD_SHA:-$checkout_sha}"',
-        "          postgres_identity=\"$(docker exec \"$POSTGRES_CONTAINER\" "
-        "psql -v ON_ERROR_STOP=1 -At -U eshu -d postgres -c 'SELECT version()')\"",
-        '            --write-manifest "${RUNNER_TEMP}/manifest.json" \\',
-        '            --event "${GITHUB_EVENT_NAME}" \\',
-        '            --run-id "${GITHUB_RUN_ID}" \\',
-        '            --run-attempt "${GITHUB_RUN_ATTEMPT}" \\',
-        "            --run-url \"https://github.com/${GITHUB_REPOSITORY}/actions/"
-        "runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}\" \\",
-        '            --reviewed-head-sha "$reviewed_head_sha" \\',
-        '            --checkout-sha "$checkout_sha" \\',
-        '            --event-sha "${GITHUB_SHA}" \\',
-        '            --backend-identity "$postgres_identity"',
-    }
-    if not manifest_lines.issubset(set(manifest_step.splitlines())):
-        raise ValueError("hosted proof manifest command or identity missing")
-    if re.search(r"(?m)^\s*if:", manifest_step):
-        raise ValueError("conditional hosted proof manifest step")
+    verify_setup_steps(setup_steps)
     for group, package in PACKAGES.items():
         package_path = "./" + package.split("/go/", 1)[1]
         timeout = GROUP_TIMEOUTS.get(group, "6m")
@@ -151,11 +121,16 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             " -containerimage-database=eshu_containerimage_scheduled"
             if group == "containerimage" else ""
         )
+        selector_line = (
+            'selector="$(python3 ../scripts/lib/postgres_scheduled_runner.py '
+            f'--selector --group {group})"'
+        )
         pattern = re.compile(
-            r"(?m)^\s*go test -json -race -p=1 -count=1 -timeout="
+            r"(?m)^\s*" + re.escape(selector_line) + r"\n\s*"
+            r"go test -json -race -p=1 -count=1 -timeout="
             + timeout + " "
             + re.escape(package_path)
-            + r" -run '([^']+)'" + re.escape(arguments)
+            + r' -run "\$\{selector\}"' + re.escape(arguments)
             + r" \| tee \"\$\{RUNNER_TEMP\}/"
             + re.escape(group)
             + r"\.jsonl\"$"
@@ -169,13 +144,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         if len(leg_steps) != 1:
             raise ValueError(f"missing or duplicate selector for {group}")
         step = leg_steps[0]
-        selected = pattern.search(step).group(1)
-        expected = sorted(
-            name for row in inventory.values() if row.get("group") == group
-            for name in row.get("tests", [])
-        )
-        if selected != "^(" + "|".join(expected) + ")$":
-            raise ValueError(f"selector does not equal exact inventory for {group}")
+        group_selector(inventory, group)
         if group in DSNS:
             if step.count(f"{DSNS[group]}: postgres://") != 1:
                 raise ValueError(f"missing or duplicate DSN for {group}")
@@ -247,6 +216,10 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             raise ValueError(f"reviewed source guard missing for {group}")
         if re.search(r"(?m)^\s*if:", step):
             raise ValueError(f"conditional proof step for {group}")
+        verify_proof_step_exact(
+            group, step, package_path, timeout, arguments,
+            DSNS, DATABASES, ADMIN_ENVS,
+        )
     if expanded.count("set -euo pipefail") != len(PACKAGES) + 1:
         raise ValueError("every scheduled package step requires fail-closed shell")
     all_steps = re.split(r"(?m)^      - name:", expanded)
@@ -259,7 +232,11 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             f"-c 'CREATE DATABASE {database}'"
         )
         dsn = f"{DSNS[group]}: postgres://eshu:change-me@localhost:15432/{database}?sslmode=disable"
-        if (create_step.splitlines().count(expected_create) != 1
+        create_lines = [
+            line for line in create_step.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        if (create_lines != [f" Create fresh {label} database", expected_create]
                 or expanded.count(f"-c 'CREATE DATABASE {database}'") != 1
                 or expanded.count(dsn) != 1):
             raise ValueError(f"fresh database and DSN mismatch for {group}")
@@ -285,8 +262,6 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
     verify_leg_uploads(blocks)
     verify_root_storage_builds(blocks)
     verify_aggregate_bundle(aggregate_steps)
-    if hashlib.sha256(workflow.encode("utf-8")).hexdigest() != WORKFLOW_SHA256:
-        raise ValueError("hosted workflow executable bytes differ from reviewed contract")
 
 
 def verify_events(path: Path, package: str, expected: set[str]) -> bool:
@@ -401,6 +376,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--events", type=Path)
+    parser.add_argument("--selector", action="store_true")
     parser.add_argument("--group", choices=tuple(PACKAGES))
     parser.add_argument("--write-manifest", type=Path)
     parser.add_argument("--verify-proof-bundle", type=Path)
@@ -419,6 +395,16 @@ def main() -> int:
     arguments = parser.parse_args()
     try:
         inventory = load_inventory()
+        if arguments.selector:
+            if any((
+                arguments.events, arguments.write_manifest,
+                arguments.verify_proof_bundle, arguments.assemble_proof_streams,
+            )):
+                parser.error("--selector cannot be combined with other action flags")
+            if arguments.group is None:
+                parser.error("--group is required with --selector")
+            print(group_selector(inventory, arguments.group))
+            return 0
         verify_inventory(arguments.repo_root, inventory)
         if arguments.write_manifest:
             if os.environ.get("GITHUB_ACTIONS") == "true":

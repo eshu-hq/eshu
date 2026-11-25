@@ -4,9 +4,9 @@ gates:
     name: Ifa static mirrors (determinism, dead-letter, fault-injection, Neo4j wiring)
     category: exactness
     layer: replay
-    purpose: "Runs the three Ifa static mirrors and the Neo4j wiring guard so a stale hand-kept copy or a NornicDB rewire shows red. Advisory: never holds a merge."
+    purpose: "Runs the three Ifa static mirrors and the Neo4j wiring guard so a stale hand-kept copy or a NornicDB rewire fails closed."
     tier: pre-pr
-    blocking: false
+    blocking: true
     triggers:
       - "scripts/lib/cgo-cflags.sh"
       - "scripts/lib/test-ifa-determinism-private-data-cases.sh"

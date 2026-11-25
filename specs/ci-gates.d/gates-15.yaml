@@ -193,7 +193,7 @@ gates:
     name: Root-cause claims carry observed evidence
     category: exactness
     layer: hygiene
-    purpose: "Checks that any documented root-cause claim also records the observation that established it."
+    purpose: "Advisory local scan checking that any documented root-cause claim also records the observation that established it."
     tier: pre-pr
     blocking: false
     triggers:
@@ -204,15 +204,15 @@ gates:
       - "scripts/lib/gate-diff-base.sh"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
     local:
       command: "bash scripts/verify-root-cause-evidence.sh"
       test_command: "bash scripts/test-verify-root-cause-evidence.sh"
     ci:
-      workflow: static-contract-gates.yml
-      job: "Verify root-cause-evidence gate"
+      workflow: ""
+      job: ""
     requirements: []
     ci_only_reason: ""
+    local_only_reason: "Advisory scan that exits 0 unconditionally while the false-positive rate is being evaluated; runs locally via pre-pr's exactness lane (matching docs-contradiction) instead of burning a non-blocking PR CI job. Re-wire into static-contract-gates.yml with blocking: true once verify-root-cause-evidence.sh exits non-zero."
     hook_id: ""
 
   - id: pg-statement-report
