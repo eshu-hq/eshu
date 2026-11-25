@@ -78,6 +78,7 @@ func TestFactStoreListFactsFullGenerationSkipsUnion(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{false, "", ""}}},
 		},
@@ -91,8 +92,8 @@ func TestFactStoreListFactsFullGenerationSkipsUnion(t *testing.T) {
 	if got, want := len(loaded), 2; got != want {
 		t.Fatalf("ListFacts() len = %d, want %d", got, want)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("query count = %d, want %d (facts plus target row, no base lookup)", got, want)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("query count = %d, want %d (timeout, facts, target row; no base lookup)", got, want)
 	}
 }
 
@@ -101,9 +102,11 @@ func TestFactStoreListFactsDeltaOverlaysBase(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -134,14 +137,14 @@ func TestFactStoreListFactsDeltaOverlaysBase(t *testing.T) {
 	if got := byID["base-other"]; got != "gen-base-1" {
 		t.Fatalf("base fact generation = %q, want gen-base-1", got)
 	}
-	if got, want := len(db.queries), 4; got != want {
+	if got, want := len(db.queries), 6; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.queries[1].query, "delta_baseline_commit_sha") {
-		t.Fatalf("second query = %q, want generation target read", db.queries[1].query)
+	if !strings.Contains(db.queries[2].query, "delta_baseline_commit_sha") {
+		t.Fatalf("third query = %q, want generation target read", db.queries[2].query)
 	}
-	if !strings.Contains(db.queries[2].query, "activated_at IS NOT NULL") {
-		t.Fatalf("third query = %q, want projected-base lookup", db.queries[2].query)
+	if !strings.Contains(db.queries[3].query, "activated_at IS NOT NULL") {
+		t.Fatalf("fourth query = %q, want projected-base lookup", db.queries[3].query)
 	}
 }
 
@@ -150,6 +153,7 @@ func TestFactStoreListFactsDeltaBaseMissingRefuses(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-pruned", ""}}},
 			{rows: nil},
@@ -175,6 +179,7 @@ func TestFactStoreListFactsLegacyDeltaLoadsSingleGeneration(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "", ""}}},
 		},
@@ -188,8 +193,8 @@ func TestFactStoreListFactsLegacyDeltaLoadsSingleGeneration(t *testing.T) {
 	if got, want := len(loaded), 2; got != want {
 		t.Fatalf("ListFacts() len = %d, want %d (no union without a baseline)", got, want)
 	}
-	if got, want := len(db.queries), 2; got != want {
-		t.Fatalf("query count = %d, want %d", got, want)
+	if got, want := len(db.queries), 3; got != want {
+		t.Fatalf("query count = %d, want %d (timeout, facts, target row; no union without a baseline)", got, want)
 	}
 }
 
@@ -284,9 +289,11 @@ func TestFactStoreListFactsActiveBaseSkipsPruneProbe(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -295,8 +302,8 @@ func TestFactStoreListFactsActiveBaseSkipsPruneProbe(t *testing.T) {
 	if _, err := store.ListFacts(context.Background(), "scope-1", "gen-delta-1"); err != nil {
 		t.Fatalf("ListFacts() error = %v, want nil", err)
 	}
-	if got, want := len(db.queries), 4; got != want {
-		t.Fatalf("query count = %d, want %d (no prune probe for an active base)", got, want)
+	if got, want := len(db.queries), 6; got != want {
+		t.Fatalf("query count = %d, want %d (timeouts, facts, target, base lookup; no prune probe for an active base)", got, want)
 	}
 }
 
@@ -307,10 +314,12 @@ func TestFactStoreListFactsSupersededBaseWithoutPruneEventOverlays(t *testing.T)
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "superseded"}}},
 			{rows: nil},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -323,11 +332,11 @@ func TestFactStoreListFactsSupersededBaseWithoutPruneEventOverlays(t *testing.T)
 	if got, want := len(loaded), 3; got != want {
 		t.Fatalf("ListFacts() len = %d, want %d", got, want)
 	}
-	if got, want := len(db.queries), 5; got != want {
+	if got, want := len(db.queries), 7; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.queries[3].query, "generation_retention_events") {
-		t.Fatalf("fourth query = %q, want the retention probe", db.queries[3].query)
+	if !strings.Contains(db.queries[4].query, "generation_retention_events") {
+		t.Fatalf("fifth query = %q, want the retention probe", db.queries[4].query)
 	}
 }
 
@@ -339,6 +348,7 @@ func TestFactStoreListFactsPrunedSupersededBaseRefuses(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "superseded"}}},
@@ -355,8 +365,8 @@ func TestFactStoreListFactsPrunedSupersededBaseRefuses(t *testing.T) {
 	if !errors.As(err, &missing) {
 		t.Fatalf("ListFacts() error = %v, want DeltaBaseMissingError", err)
 	}
-	if got, want := len(db.queries), 4; got != want {
-		t.Fatalf("query count = %d, want %d (no base facts read after refusal)", got, want)
+	if got, want := len(db.queries), 5; got != want {
+		t.Fatalf("query count = %d, want %d (timeout, facts, target, base lookup; no base facts read after refusal)", got, want)
 	}
 }
 
@@ -371,10 +381,12 @@ func TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses(t *testing.T) {
 	inst, reader := newDeltaUnionTestInstruments(t)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "superseded"}}},
 			{rows: nil, err: errors.New("retention probe outage")},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -393,8 +405,8 @@ func TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses(t *testing.T) {
 	if missing.ScopeID != "scope-1" || missing.GenerationID != "gen-delta-1" || missing.BaselineCommitSHA != "commit-base" {
 		t.Fatalf("refusal = %+v, want scope/generation/baseline", missing)
 	}
-	if got, want := len(db.queries), 4; got != want {
-		t.Fatalf("query count = %d, want %d (no base facts read after refusal)", got, want)
+	if got, want := len(db.queries), 5; got != want {
+		t.Fatalf("query count = %d, want %d (timeout, facts, target, base lookup; no base facts read after refusal)", got, want)
 	}
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {
@@ -458,6 +470,7 @@ func TestFactStoreListFactsResolveErrorRecordsResolveFailedOutcome(t *testing.T)
 	inst, reader := newDeltaUnionTestInstruments(t)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: nil, err: errors.New("connection refused")},
 		},
@@ -492,6 +505,7 @@ func TestFactStoreListFactsBaseMissingRecordsRefusedOutcome(t *testing.T) {
 	inst, reader := newDeltaUnionTestInstruments(t)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-pruned", ""}}},
 			{rows: nil},
@@ -540,9 +554,11 @@ func TestFactStoreListFactsNonDeltaScopeWarnsAndCountsMismatch(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionNonDeltaScopeRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionBaseRows()},
 		},
 	}
@@ -575,9 +591,11 @@ func TestFactStoreListFactsEmptyBaseRefuses(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: deltaUnionDeltaRows()},
 			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"scope-1", "gen-base-1", "active"}}},
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{rows: nil},
 		},
 	}

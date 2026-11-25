@@ -6,8 +6,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -184,6 +186,10 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 	// unknown statement still falls through to the error below.
 	case query == terminalGenerationActiveWaitKeysQuery:
 		return newProofRows(nil), nil
+	case query == setGenerationFetchTimeoutQuery:
+		// #11432 per-page statement timeout: the loader closes the returned
+		// row without scanning.
+		return newProofRows(nil), nil
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(tx.state, args)), nil
 	case query == unchangedGenerationCandidateQuery:
@@ -206,6 +212,18 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 			return nil, err
 		}
 		return newProofRows(accepted), nil
+	case strings.Contains(query, "FROM fact_records"):
+		// #11432 keyset generation-fact pages: the loader pages on the
+		// read-only snapshot, so the transaction's own view serves the
+		// first page (scope, generation, limit) and cursor pages (scope,
+		// generation, observed_at, fact_id, limit). This case stays after
+		// the repository-catalog arm above so the catalog keeps its
+		// two-column shape.
+		rows, err := proofFactPageRows(tx.state.facts, args)
+		if err != nil {
+			return nil, err
+		}
+		return newProofRows(rows), nil
 	case strings.Contains(query, "WITH gate AS") && strings.Contains(query, "INSERT INTO ingestion_scopes"):
 		// The proof domain models no retirement tombstone, so the folded
 		// marker gate always admits (#7766). The scope write rides along:
@@ -310,6 +328,80 @@ func proofUpsertFactRecordsReturningAccepted(state map[string]facts.Envelope, ar
 func (tx *proofDomainTx) Commit() error {
 	tx.database.state = tx.state
 	return nil
+}
+
+// proofFactPageRows serves one #11432 generation-fact page from harness
+// state: the first page carries (scope_id, generation_id, limit) and cursor
+// pages carry (scope_id, generation_id, observed_at, fact_id, limit). Rows
+// come back in (observed_at, fact_id) order like the production ORDER BY so
+// the loader's cursor advances exactly as it does on Postgres.
+func proofFactPageRows(input map[string]facts.Envelope, args []any) ([][]any, error) {
+	if len(args) != 3 && len(args) != 5 {
+		return nil, fmt.Errorf("list facts page args = %d, want 3 or 5", len(args))
+	}
+	scopeID, ok := args[0].(string)
+	if !ok {
+		return nil, fmt.Errorf("list facts page scope_id type = %T, want string", args[0])
+	}
+	generationID, ok := args[1].(string)
+	if !ok {
+		return nil, fmt.Errorf("list facts page generation_id type = %T, want string", args[1])
+	}
+	var cursorObserved time.Time
+	var cursorFactID string
+	limitArg := args[2]
+	if len(args) == 5 {
+		cursorObserved, ok = args[2].(time.Time)
+		if !ok {
+			return nil, fmt.Errorf("list facts page observed_at type = %T, want time.Time", args[2])
+		}
+		cursorFactID, ok = args[3].(string)
+		if !ok {
+			return nil, fmt.Errorf("list facts page fact_id type = %T, want string", args[3])
+		}
+		limitArg = args[4]
+	}
+	limit, ok := limitArg.(int)
+	if !ok {
+		return nil, fmt.Errorf("list facts page limit type = %T, want int", limitArg)
+	}
+	matched := make([]facts.Envelope, 0, len(input))
+	for _, envelope := range input {
+		if envelope.ScopeID != scopeID || envelope.GenerationID != generationID {
+			continue
+		}
+		if len(args) == 5 && !afterFactCursor(envelope, cursorObserved, cursorFactID) {
+			continue
+		}
+		matched = append(matched, envelope)
+	}
+	slices.SortFunc(matched, func(a, b facts.Envelope) int {
+		if a.ObservedAt.Equal(b.ObservedAt) {
+			return strings.Compare(a.FactID, b.FactID)
+		}
+		if a.ObservedAt.Before(b.ObservedAt) {
+			return -1
+		}
+		return 1
+	})
+	if len(matched) > limit {
+		matched = matched[:limit]
+	}
+	rows := make([][]any, 0, len(matched))
+	for _, envelope := range matched {
+		payload, _ := json.Marshal(envelope.Payload)
+		rows = append(rows, proofFactEnvelopeRow(envelope, payload))
+	}
+	return rows, nil
+}
+
+// afterFactCursor reports whether the envelope sorts strictly after the
+// (observed_at, fact_id) page cursor.
+func afterFactCursor(envelope facts.Envelope, cursorObserved time.Time, cursorFactID string) bool {
+	if envelope.ObservedAt.After(cursorObserved) {
+		return true
+	}
+	return envelope.ObservedAt.Equal(cursorObserved) && envelope.FactID > cursorFactID
 }
 
 func (tx *proofDomainTx) Rollback() error { return nil }

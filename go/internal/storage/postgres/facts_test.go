@@ -160,6 +160,7 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
 			{
 				rows: [][]any{{
 					"fact-1",
@@ -403,7 +404,10 @@ func TestFactStoreListFactsPropagatesQueryErrors(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		queryResponses: []queueFakeRows{{err: errors.New("boom")}},
+		queryResponses: []queueFakeRows{
+			{}, // #11432 per-page statement_timeout: returned row closed unscanned.
+			{err: errors.New("boom")},
+		},
 	}
 	store := NewFactStore(db)
 

@@ -41,30 +41,6 @@ type factUpsertStats struct {
 
 const countFactsQuery = `SELECT COUNT(*) FROM fact_records WHERE scope_id = $1 AND generation_id = $2`
 
-const listFactsQuery = `
-SELECT
-    fact_id,
-    scope_id,
-    generation_id,
-    fact_kind,
-    stable_fact_key,
-    schema_version,
-    collector_kind,
-    fencing_token,
-    source_confidence,
-    source_system,
-    source_fact_key,
-    COALESCE(source_uri, ''),
-    COALESCE(source_record_id, ''),
-    observed_at,
-    is_tombstone,
-    payload
-FROM fact_records
-WHERE scope_id = $1
-  AND generation_id = $2
-ORDER BY observed_at ASC, fact_id ASC
-`
-
 // FactStore persists and loads fact records from Postgres.
 type FactStore struct {
 	database      db.ExecQueryer

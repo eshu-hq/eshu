@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -108,6 +109,46 @@ func (database *proofDomainDB) Begin(context.Context) (db.Transaction, error) {
 		},
 	}, nil
 }
+
+// BeginReadOnlyRepeatableRead opens the generation-fact fetch snapshot
+// (#11432): one read-only view of a state clone per listFactsGeneration
+// call. Exec is refused and Commit and Rollback are no-ops, so the fetch
+// can serve keyset pages from a stable snapshot without ever merging
+// harness state.
+func (database *proofDomainDB) BeginReadOnlyRepeatableRead(ctx context.Context) (db.Transaction, error) {
+	tx, err := database.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inner, ok := tx.(*proofDomainTx)
+	if !ok {
+		return nil, fmt.Errorf("proof read snapshot: unexpected transaction %T", tx)
+	}
+	return &proofDomainReadTx{tx: inner}, nil
+}
+
+// proofDomainReadTx is the read-only facade over a snapshot-cloned proof
+// transaction. The generation-fact fetch pages through it; writes are
+// refused so a loader can never merge harness state through a read.
+type proofDomainReadTx struct {
+	tx *proofDomainTx
+}
+
+// QueryContext serves reads from the snapshot.
+func (r *proofDomainReadTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return r.tx.QueryContext(ctx, query, args...)
+}
+
+// ExecContext refuses every statement: a proof read snapshot is read-only.
+func (r *proofDomainReadTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, errors.New("proof read snapshot is read-only")
+}
+
+// Commit does nothing: the outer snapshot owns nothing to merge.
+func (r *proofDomainReadTx) Commit() error { return nil }
+
+// Rollback does nothing: the outer snapshot owns nothing to merge.
+func (r *proofDomainReadTx) Rollback() error { return nil }
 
 func (database *proofDomainDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {

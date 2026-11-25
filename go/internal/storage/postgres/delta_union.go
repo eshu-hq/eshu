@@ -15,7 +15,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -185,30 +184,9 @@ func (s FactStore) listFactsUnion(
 	return merged, projector.DeltaUnionBaseFound, nil
 }
 
-// listFactsGeneration runs listFactsQuery for one (scope, generation).
-func (s FactStore) listFactsGeneration(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-) ([]facts.Envelope, error) {
-	rows, err := s.database.QueryContext(ctx, listFactsQuery, scopeID, generationID)
-	if err != nil {
-		return nil, fmt.Errorf("list facts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var loaded []facts.Envelope
-	for rows.Next() {
-		envelope, scanErr := backfill.ScanFactEnvelope(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("list facts: %w", scanErr)
-		}
-		loaded = append(loaded, envelope)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list facts: %w", err)
-	}
-	return loaded, nil
-}
+// listFactsGeneration lives in generation_fetch.go: the keyset-chunked
+// generation fetch (#11432), one read-only repeatable-read transaction per
+// call with a per-page statement timeout.
 
 // recordDeltaUnion counts one union decision, records its fact counts, adds
 // a span event to the active projection span, and logs one line. The span
