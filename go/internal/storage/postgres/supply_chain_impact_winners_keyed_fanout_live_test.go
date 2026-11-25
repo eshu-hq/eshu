@@ -177,18 +177,30 @@ func hasSeqScanOn(t *testing.T, planJSON []byte, table string) bool {
 }
 
 // TestSupplyChainImpactWinnersKeyedFanoutLivenessLoopsBoundedLive explains the production
-// build statement over the fan-out fixture and requires the liveness tables
+// supports-twin build statements over the fan-out fixture and requires the liveness tables
 // to be visited at most once per distinct live pair. The shipped shape
-// nested-loops them once per candidate copy (91 loops here); the fixed shape
-// resolves the live set once per tick.
+// nested-loops them once per candidate copy (91 loops here); the shipped
+// supports twin resolves the live set once per tick.
 func TestSupplyChainImpactWinnersKeyedFanoutLivenessLoopsBoundedLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10839 fan-out plan shape")
 	seedFanout(h)
+	// The probe the tick runs reads the supports table, so the raw-SQL
+	// seeds above (bulk corpus, tombstone, mismatch row) must be
+	// dual-written to supports exactly as the writer leaves them; a
+	// raw-facts-only seed would prove an empty probe.
+	h.syncSupports()
+	h.exec(`ANALYZE supply_chain_impact_finding_supports`)
+	if !keyedIndexExists(t, h, "supply_chain_impact_finding_supports_keyed_probe_idx") {
+		t.Fatal("the supports keyed probe index is missing after bootstrap; migration 354 must apply it")
+	}
 	conn, err := h.db.Conn(h.ctx)
 	if err != nil {
 		t.Fatalf("connection: %v", err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
+	// The identifiers below are probe input, not the statement under test:
+	// the same five-tuples live in the synced supports, so the source is
+	// immaterial to the twin plans below.
 	for _, stmt := range []string{
 		`CREATE TEMP TABLE ` + postgres.WinnersKeyedIdentsTableForTest + ` (package_id text, repository_id text, subject_digest text, c0 text, advisory_id text)`,
 		`INSERT INTO ` + postgres.WinnersKeyedIdentsTableForTest + `
@@ -216,23 +228,28 @@ SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id FROM 
 	}
 	// Post-#11400 the identifier probe lives in the narrow build, while the
 	// liveness join stays in the active-facts build: assert the probe shape
-	// on the narrow plan and the loop bound on the active-facts plan.
+	// on the narrow plan and the loop bound on the active-facts plan. Both
+	// statements below are the shipped supports twins, the statements the
+	// tick actually runs.
 	// EXPLAIN the narrow build before running it: EXPLAIN errors when the
 	// target temp table already exists.
 	var narrowPlanJSON []byte
-	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&narrowPlanJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest).Scan(&narrowPlanJSON); err != nil {
 		_ = tx.Rollback()
 		t.Fatalf("explain narrow probe: %v", err)
 	}
 	narrowPlan := string(narrowPlanJSON)
-	if !strings.Contains(narrowPlan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("the keyed probe does not use the keyed winners index:\n%s", narrowPlan)
+	if !strings.Contains(narrowPlan, "supply_chain_impact_finding_supports_keyed_probe_idx") {
+		t.Errorf("the keyed probe does not use the supports keyed probe index:\n%s", narrowPlan)
 	}
-	if hasSeqScanOn(t, narrowPlanJSON, "fact_records") {
-		t.Errorf("the keyed probe seq-scans fact_records:\n%s", narrowPlan)
+	if hasSeqScanOn(t, narrowPlanJSON, "supply_chain_impact_finding_supports") {
+		t.Errorf("the keyed probe seq-scans the supports table:\n%s", narrowPlan)
+	}
+	if strings.Contains(narrowPlan, "fact_records") {
+		t.Errorf("the keyed probe touches fact_records; the shipped twin reads the supports table:\n%s", narrowPlan)
 	}
 	for _, stmt := range []string{
-		postgres.WinnersKeyedNarrowBuildSQLForTest,
+		postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest,
 		postgres.WinnersKeyedNarrowAnalyzeSQLForTest,
 	} {
 		if _, err := tx.ExecContext(h.ctx, stmt); err != nil {
@@ -241,16 +258,19 @@ SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id FROM 
 		}
 	}
 	var planJSON []byte
-	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&planJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsBuildFromSupportsSQLForTest).Scan(&planJSON); err != nil {
 		_ = tx.Rollback()
 		t.Fatalf("explain probe: %v", err)
 	}
 	plan := string(planJSON)
-	if strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("the active-facts build touches the keyed winners index (the probe must run once, in the narrow build):\n%s", plan)
+	if strings.Contains(plan, "supply_chain_impact_finding_supports_keyed_probe_idx") {
+		t.Errorf("the active-facts build touches the supports keyed probe index (the probe must run once, in the narrow build):\n%s", plan)
 	}
-	if hasSeqScanOn(t, planJSON, "fact_records") {
-		t.Errorf("the active-facts build seq-scans fact_records:\n%s", plan)
+	if hasSeqScanOn(t, planJSON, "supply_chain_impact_finding_supports") {
+		t.Errorf("the active-facts build seq-scans the supports table:\n%s", plan)
+	}
+	if strings.Contains(plan, "fact_records") {
+		t.Errorf("the active-facts build touches fact_records; the shipped twin reads the supports backing:\n%s", plan)
 	}
 	if err := tx.Commit(); err != nil {
 		t.Fatalf("commit probe transaction: %v", err)
