@@ -46,7 +46,7 @@ split: the two phases trade the lead across percentiles.
 ## Code trace (sci handler path)
 
 - `SupplyChainImpactHandler.Handle`
-  (`go/internal/reducer/supplychain/core/impact.go:200`): gate
+  (`go/internal/reducer/supplychain/core/impact.go`): gate
   (`beforeEvidenceLoad`, `attachment_wait.go:153`: supports-readiness gate,
   #9874 manifest marker, #11105 attachment wait) -> fencing token ->
   `loadSupplyChainImpactEvidence` (`evidence_load.go:44`: the 11 timed
