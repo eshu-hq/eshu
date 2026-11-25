@@ -9,7 +9,8 @@ import re
 import sys
 
 from postgres_scheduled_contract import (
-    ADMIN_ENVS, DATABASES, DSNS, IMAGE, PACKAGES, PR_PATHS, STORAGE_GROUPS,
+    ADMIN_ENVS, DATABASES, DSNS, IMAGE, MIN_GROUP_COUNTS, PACKAGES, PR_PATHS,
+    STORAGE_GROUPS,
 )
 from postgres_scheduled_actions import (
     BULK_ACTION, STORAGE_ACTION, expand_action,
@@ -259,6 +260,10 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         actual = sorted(TEST_PATTERN.findall(source))
         if actual != tests:
             raise ValueError(f"source Test inventory changed: {relative}")
+    for group, (min_files, min_tests) in MIN_GROUP_COUNTS.items():
+        rows = [row for row in inventory.values() if row.get("group") == group]
+        if len(rows) < min_files or sum(len(row.get("tests", [])) for row in rows) < min_tests:
+            raise ValueError(f"scheduled proof enrollment shrank below floor for {group}")
     verify_leg_uploads(blocks)
     verify_root_storage_builds(blocks)
     verify_aggregate_bundle(aggregate_steps)

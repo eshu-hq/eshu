@@ -3,6 +3,8 @@
 
 import re
 
+from postgres_scheduled_contract import EXPECTED_POSTGRES_SERVICE
+
 ROOT_KEYS = frozenset({"name", "on", "permissions", "concurrency", "jobs"})
 JOB_KEYS = frozenset({"if", "runs-on", "timeout-minutes", "services", "steps", "needs"})
 STEP_KEYS = frozenset({"uses", "with", "run", "env", "working-directory", "if"})
@@ -229,11 +231,16 @@ def verify_canonical_workflow(workflow: str) -> None:
                      f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job}') }}}}")
         if keys.get("if") != condition:
             raise ValueError(f"conditional scheduled live job: {job}")
+        if keys.get("runs-on") != "    runs-on: ubuntu-24.04":
+            raise ValueError(f"non-fail-closed workflow runner: {job}")
         if job in SERVICE_JOBS:
             if set(keys) != {"if", "runs-on", "timeout-minutes", "services", "steps"}:
                 raise ValueError(f"non-fail-closed workflow job: {job}")
             if block.count("    services:\n") != 1:
                 raise ValueError(f"non-fail-closed workflow services: {job}")
+            svc = block.split("    services:\n", 1)[1].split("    steps:\n", 1)[0]
+            if active_lines(svc) != EXPECTED_POSTGRES_SERVICE:
+                raise ValueError(f"pinned PostgreSQL service block mismatch: {job}")
         elif job == "scheduled-aggregate":
             if set(keys) != {"if", "runs-on", "timeout-minutes", "steps", "needs"}:
                 raise ValueError(f"non-fail-closed workflow job: {job}")

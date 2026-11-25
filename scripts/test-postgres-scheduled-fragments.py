@@ -187,6 +187,23 @@ class InventoryFragmentTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "source Test inventory"):
                 runner.verify_inventory(root, inventory)
             changed.write_bytes((ROOT / source).read_bytes())
+            # Consistent shrinkage (removing a test from both Go source and
+            # inventory) must fail closed via MIN_GROUP_COUNTS, while growth
+            # passes with zero count bumps.
+            multi = next(path for path, row in inventory.items()
+                         if len(row["tests"]) > 1)
+            multi_copy = root / multi
+            removed = inventory[multi]["tests"][-1]
+            shrunk = {
+                path: (dict(row, tests=row["tests"][:-1]) if path == multi else row)
+                for path, row in inventory.items()
+            }
+            multi_copy.write_text(
+                multi_copy.read_text().replace(f"func {removed}(", f"func helper_{removed}(", 1)
+            )
+            with self.assertRaisesRegex(ValueError, "shrank below floor"):
+                runner.verify_inventory(root, shrunk)
+            multi_copy.write_bytes((ROOT / multi).read_bytes())
             for old, new, message in (
                 ("CREATE DATABASE eshu_liveness_scheduled",
                  "CREATE DATABASE eshu_claim_scheduled", "fresh database"),
@@ -321,6 +338,9 @@ class InventoryFragmentTest(unittest.TestCase):
         """No setup command may change reviewed test bytes before proof."""
         workflow = (ROOT / runner.WORKFLOW).read_text(encoding="utf-8")
         mutations = (
+            ("    runs-on: ubuntu-24.04\n", "    runs-on: ubuntu-latest\n"),
+            ("          --health-retries 20\n",
+             "          --health-retries 20\n      sidecar:\n        image: alpine:latest\n"),
             ("        uses: actions/setup-go@v6\n", "        uses: actions/setup-go@v5\n"),
             ("          cache: false\n", "          cache: true\n"),
             ("          persist-credentials: false\n",
