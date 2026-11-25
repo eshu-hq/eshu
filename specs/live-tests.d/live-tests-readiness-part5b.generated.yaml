@@ -39,6 +39,11 @@ tests:
     class: postgres_ci
     reason: "#8205 150 rounds of three concurrent recovery replays (scoped plus failure class, stage-only, bounded per scope in reverse) over 400,000 analyzed background rows, with an EXPLAIN check that the scoped and stage-only replays reach their rows through different indexes and never seq-scan fact_work_items; requires 0 x 40P01 and every row replayed exactly once (main: 145 of 150 rounds deadlocked); isolated schema from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 17-19 s locally including a 10 s seed; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_claim_lane_theory_shim_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "conflict-key lane theory shim (#11430 proof item 1): the derived laned candidate SELECT (lane predicate injected into the shipped base CTE) must show per-lane scan shrink and aggregate L-lane claim CPU within 10% of the unlaned candidate SELECT at QA-scale backlog, else STOP with no implementation, gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go
     tag: ~
     class: postgres_ci
