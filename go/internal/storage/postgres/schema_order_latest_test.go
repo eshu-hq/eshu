@@ -211,4 +211,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 354 (#10880 PR-C1 index set g) adds the keyed probe btree on
 	// the supports table.
 	"supply_chain_impact_supports_keyed_probe_idx",
+	// Migration 355 (#10880 PR-C1) redefines the scope-delete capture over
+	// finding facts and supports so a pre-backfill retirement still stages.
+	"supply_chain_impact_winners_scope_capture_facts_and_supports",
 }
