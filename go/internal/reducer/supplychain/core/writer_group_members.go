@@ -105,3 +105,13 @@ func sortedSetKeys(set map[string]struct{}) []string {
 	sort.Strings(out)
 	return out
 }
+
+// coalescedFindingGroupID returns the advisory-group id (#10411) a finding
+// row belongs to: its CVE id when it names one, else its advisory id, each
+// trimmed. An empty result names no group.
+func coalescedFindingGroupID(cveID string, advisoryID string) string {
+	if id := strings.TrimSpace(cveID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(advisoryID)
+}

@@ -62,6 +62,12 @@ func storedLike(write SupplyChainImpactWrite, finding SupplyChainImpactFinding) 
 		// digest (#10880 arbiter ruling decision 4), so an unchanged rerun
 		// stores the same set the finding derives.
 		evidenceFactIDs: finding.EvidenceFactIDs,
+		// The retired-key exclusion compares the stored row's winners-key
+		// components, so a stored row carries the key its finding derived
+		// (#11411).
+		packageID:     finding.PackageID,
+		repositoryID:  finding.RepositoryID,
+		subjectDigest: finding.SubjectDigest,
 	}
 }
 

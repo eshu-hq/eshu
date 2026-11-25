@@ -12,7 +12,9 @@ import (
 // coalescing). The staging queue collapses repeated marks of one recompute
 // unit at tick time: every capture owner stages one row per mark with no
 // arbiter, and the in-tick collapse restores the version math. A re-mark
-// stages another row; the collapse, not the writer, combines them.
+// with new content stages another row; the collapse, not the writer,
+// combines them. A re-mark that only retires same-generation rows stages
+// once: the retraction carries the key and the capture skips it (#11411).
 //
 // These two tests are the writer-side half of the direction-C failing-first
 // order. Test (1) proves a re-mark staged for an in-flight key survives the
@@ -62,17 +64,18 @@ func TestSupplyChainImpactWinnersDirtyReMarkSurvivesLive(t *testing.T) {
 		t.Fatalf("first tick consumed %d marks, want the 1 staged mark", r1.Identifiers)
 	}
 
-	// A re-mark of the settled key stages 2 fresh rows; the next tick
-	// consumes exactly those, so no mark is lost or doubled.
+	// A re-mark of the settled key stages 1 fresh row (#11411: the
+	// retraction carries the key, so the capture skips it); the next tick
+	// consumes exactly it, so no mark is lost or doubled.
 	second := keyedFinding(cve, pkg, 60)
 	second.ObservedVersion = "2.0.0"
 	h.write(scope, gen, second)
-	if got := stagedFactRow(h, pkg, cve); got != 2 {
-		t.Fatalf("staged rows after the re-mark = %d, want 2 (capture plus retract)", got)
+	if got := stagedFactRow(h, pkg, cve); got != 1 {
+		t.Fatalf("staged rows after the re-mark = %d, want 1 (retraction carries the key)", got)
 	}
 	r2 := h.keyed()
-	if r2.Identifiers != 2 {
-		t.Fatalf("second tick consumed %d marks, want the 2 staged re-marks", r2.Identifiers)
+	if r2.Identifiers != 1 {
+		t.Fatalf("second tick consumed %d marks, want the 1 staged re-mark", r2.Identifiers)
 	}
 
 	h.assertParity("after the surviving re-mark")
@@ -81,9 +84,10 @@ func TestSupplyChainImpactWinnersDirtyReMarkSurvivesLive(t *testing.T) {
 // TestSupplyChainImpactWinnersDirtyOneFiftyMarksCollapseLive is failing-test-first (2): one
 // OSV mint wave re-marking one popular key 150 times stages one row per
 // mark. Every pass changes the observed version, so every pass captures (new
-// digest) and retracts (tombstones the previous fact id); the first pass
-// stages 1 mark, each later pass stages 2. The tick collapse combines them
-// to one log row at the exact version and the settle drains it.
+// digest) and retracts (tombstones the previous fact id); #11411 makes the
+// retraction carry the key so the capture skips it: the first pass stages 1
+// mark and each later pass stages 1. The tick collapse combines them to one
+// log row at the exact version and the settle drains it.
 func TestSupplyChainImpactWinnersDirtyOneFiftyMarksCollapseLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10837 150-mark collapse proof")
 	scope, gen := "vuln-intel://10837/collapse", "vuln-intel://10837/collapse/g1"
@@ -99,15 +103,15 @@ func TestSupplyChainImpactWinnersDirtyOneFiftyMarksCollapseLive(t *testing.T) {
 		h.write(scope, gen, finding)
 	}
 
-	// 1 mark on the first pass, 2 on each of the 149 that follow.
-	const wantStaged = int64(1 + (passes-1)*2)
+	// 1 mark per pass: the retraction carries retired keys (#11411).
+	const wantStaged = int64(passes)
 	if got := stagedFactRow(h, pkg, cve); int64(got) != wantStaged {
 		t.Fatalf("staged rows after %d marks = %d, want %d (one staged row per mark)", passes, got, wantStaged)
 	}
 
 	r := h.keyed()
 	// The tick consumed every staged mark: the collapse combined them to one
-	// version-299 row and the settle drained it.
+	// version-150 row and the settle drained it.
 	if int64(r.Identifiers) != wantStaged {
 		t.Fatalf("tick consumed %d marks, want the %d staged marks", r.Identifiers, wantStaged)
 	}

@@ -54,3 +54,107 @@ func TestDirtyIdentifiersToCaptureStagesEvidenceOnlyChange(t *testing.T) {
 		})
 	}
 }
+
+// TestExcludeRetiredWinnersDirtyIdentifiersMirrorsTheRetraction pins the
+// #11411 retired-key exclusion against the retraction's tombstone predicate:
+// same generation, fact id outside the keep set, stored fencing token at or
+// below the pass's, and, on a scoped pass, a cve id inside the stamp. A key
+// dropped here is staged by the retraction in the same transaction, so the
+// pass stages one dirty row per key. Order is preserved.
+func TestExcludeRetiredWinnersDirtyIdentifiersMirrorsTheRetraction(t *testing.T) {
+	t.Parallel()
+
+	const generation = "gen-1"
+	k1 := WinnersDirtyIdentifier{PackageID: "pkg:a", RepositoryID: "repo-1", SubjectDigest: "s", C0: "CVE-1"}
+	k2 := WinnersDirtyIdentifier{PackageID: "pkg:b", RepositoryID: "repo-1", SubjectDigest: "s", C0: "CVE-2"}
+	k3 := WinnersDirtyIdentifier{PackageID: "pkg:c", RepositoryID: "repo-1", SubjectDigest: "s", C0: "CVE-3"}
+	row := func(factID, gen string, token int64, pkg, cve string) storedFinding {
+		return storedFinding{
+			factID: factID, generationID: gen, fencingToken: token,
+			packageID: pkg, repositoryID: "repo-1", subjectDigest: "s", cveID: cve,
+		}
+	}
+
+	for _, tc := range []struct {
+		name         string
+		idents       []WinnersDirtyIdentifier
+		stored       []storedFinding
+		keep         []string
+		fencingToken int64
+		partial      bool
+		scoped       []string
+		want         []WinnersDirtyIdentifier
+	}{
+		{
+			name:         "retired same-generation row drops its key, order kept",
+			idents:       []WinnersDirtyIdentifier{k1, k2, k3},
+			stored:       []storedFinding{row("old-a", generation, 5, "pkg:a", "CVE-1")},
+			keep:         []string{"new-a", "new-b", "new-c"},
+			fencingToken: 10,
+			want:         []WinnersDirtyIdentifier{k2, k3},
+		},
+		{
+			name:         "kept row keeps its key",
+			idents:       []WinnersDirtyIdentifier{k2},
+			stored:       []storedFinding{row("new-b", generation, 5, "pkg:b", "CVE-2")},
+			keep:         []string{"new-b"},
+			fencingToken: 10,
+			want:         []WinnersDirtyIdentifier{k2},
+		},
+		{
+			name:         "prior generation never retires",
+			idents:       []WinnersDirtyIdentifier{k1},
+			stored:       []storedFinding{row("old-a", "gen-0", 5, "pkg:a", "CVE-1")},
+			keep:         []string{"new-a"},
+			fencingToken: 10,
+			want:         []WinnersDirtyIdentifier{k1},
+		},
+		{
+			name:         "row a fresher pass owns keeps the capture",
+			idents:       []WinnersDirtyIdentifier{k1},
+			stored:       []storedFinding{row("old-a", generation, 99, "pkg:a", "CVE-1")},
+			keep:         []string{"new-a"},
+			fencingToken: 10,
+			want:         []WinnersDirtyIdentifier{k1},
+		},
+		{
+			name:         "scoped pass retires only stamped rows",
+			idents:       []WinnersDirtyIdentifier{k1, k2},
+			stored:       []storedFinding{row("old-a", generation, 5, "pkg:a", "CVE-1"), row("old-b", generation, 5, "pkg:b", "CVE-2")},
+			keep:         []string{"new-a", "new-b"},
+			fencingToken: 10,
+			scoped:       []string{"CVE-1"},
+			want:         []WinnersDirtyIdentifier{k2},
+		},
+		{
+			name:         "partial evidence pass excludes nothing",
+			idents:       []WinnersDirtyIdentifier{k1},
+			stored:       []storedFinding{row("old-a", generation, 5, "pkg:a", "CVE-1")},
+			keep:         []string{"new-a"},
+			fencingToken: 10,
+			partial:      true,
+			want:         []WinnersDirtyIdentifier{k1},
+		},
+		{
+			name:         "empty capture stays empty",
+			idents:       nil,
+			stored:       []storedFinding{row("old-a", generation, 5, "pkg:a", "CVE-1")},
+			keep:         []string{"new-a"},
+			fencingToken: 10,
+			want:         nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := excludeRetiredWinnersDirtyIdentifiers(tc.idents, tc.stored, tc.keep, generation, tc.fencingToken, tc.partial, tc.scoped)
+			if len(got) != len(tc.want) {
+				t.Fatalf("excludeRetiredWinnersDirtyIdentifiers = %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("excludeRetiredWinnersDirtyIdentifiers = %v, want %v", got, tc.want)
+				}
+			}
+		})
+	}
+}

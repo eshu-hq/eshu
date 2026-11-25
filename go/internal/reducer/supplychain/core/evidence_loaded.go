@@ -24,8 +24,11 @@ type supplyChainImpactLoadedEvidence struct {
 	// first load, before any cross-scope expansion). The holder fan-out
 	// classifies its cause from them (#9878): they name what this pass's
 	// generation carried, never what the expansion resolved elsewhere.
-	scopeFactKinds          []string
-	repositoryFacts         int
+	scopeFactKinds  []string
+	repositoryFacts int
+	// goEvidence are the (go scope, generation) pairs the Go evidence load resolved
+	// (#11327); the write locks and rechecks exactly these.
+	goEvidence              []GoEvidenceGeneration
 	manifestDependencyFacts int
 	activeEvidenceFacts     int
 	// truncation names why a bounded load stopped short, by cause (#7154).

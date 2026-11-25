@@ -46,6 +46,34 @@ TABLE = {
             "TestFleetAcceptanceGateKEVReachesServiceRollup9875Live",
             "TestFleetAcceptanceGateFailsWhenEvidenceIsWithheld9875Live",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_live_test.go": (
+            "TestGoEvidenceFenceBetweenLoadAndWriteAbortsThePassLive",
+            "TestGoEvidenceFenceWaitsForAPassHoldingTheSharedLockLive",
+            "TestGoEvidencePassSpendingThreeSecondsInItsWritesLosesToAFenceLive",
+            "TestGoEvidenceSecondPassQueuesBehindAWaitingFenceLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_marker_live_test.go": (
+            "TestFootprintViolationNamesTheSeededFootprints",
+            "TestGoEvidenceRealHandlerPassFootprintLive",
+            "TestGoEvidenceFenceQueuesBehindPassPausedBeforeItsMarkerLive",
+            "TestGoEvidenceMarkerWaitsBehindAFenceStyleReopenLive",
+            "TestGoEvidenceMarkerWaitsBehindATableLockWithoutDeadlockLive",
+            "TestGoEvidenceMarkerRowHeldThreeSecondsFenceTimesOutLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_protected_live_test.go": (
+            "TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_race_live_test.go": (
+            "TestGoEvidenceFenceReopensAnInFlightPassWithoutDeadlockLive",
+            "TestGoEvidenceAckCommitsWhilePassHoldsTheSharedLockLive",
+            "TestGoEvidenceMultiRepositoryPassWithParallelFencesLive",
+            "TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive",
+            "TestGoEvidenceFreeInterleavingLeavesNoStaleVerdictLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_suppression_live_test.go": (
+            "TestGoEvidenceSuppressionPassAndFenceNeverDeadlockLive",
+            "TestGoEvidenceSuppressionCandidateReadIgnoresATableLockLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go": (
             "TestSupplyChainImpactProtectedStaticPublishLive",
             "TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive",

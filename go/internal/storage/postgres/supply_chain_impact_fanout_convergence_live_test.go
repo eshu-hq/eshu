@@ -51,6 +51,13 @@ type convergence struct {
 func newConvergence(t *testing.T, withOperator bool) *convergence {
 	t.Helper()
 	ctx, db := fanOutLiveDB(t)
+	return newConvergenceOn(t, ctx, db, withOperator)
+}
+
+// newConvergenceOn is newConvergence over a database the caller opened, for proofs that
+// run under another runner's env contract (#11327).
+func newConvergenceOn(t *testing.T, ctx context.Context, db *sql.DB, withOperator bool) *convergence {
+	t.Helper()
 	c := &convergence{t: t, ctx: ctx, db: db, queue: fanOutLiveQueue(db)}
 	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
 	c.fanOut = fanOutLiveStore(db)

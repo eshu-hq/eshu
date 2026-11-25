@@ -77,6 +77,12 @@ type SupplyChainImpactWrite struct {
 	// stamp names a bounded set; the sentinel, a stamp without a set, and an
 	// owed retry all run full.
 	ScopedCVEIDs []string
+	// GoEvidence are the (go-reachability scope, generation) pairs the pass's loader
+	// resolved Go evidence from (#11327). The writer takes a shared advisory lock per
+	// scope and rechecks every pair is still the scope's active generation as the last
+	// statements before the commit (a stale pair rolls the whole write back);
+	// empty means the pass resolved none and issues neither.
+	GoEvidence []GoEvidenceGeneration
 }
 
 // SupplyChainImpactWriteResult summarizes durable impact publication.

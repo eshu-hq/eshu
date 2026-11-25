@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason rank-once rewrite differential proof (the new candidate SELECT returns the identical work_item_id set as the pre-rewrite correlated-subquery candidate SELECT, in the identical order up to the intentional reclaim-first reorder, on multiple pending siblings sharing a conflict key, an expired claimed holder over an older pending sibling, and multi-domain fairness competition), gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"

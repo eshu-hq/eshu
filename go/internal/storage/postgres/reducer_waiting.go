@@ -327,6 +327,8 @@ func WaitingDeferralMap() []WaitingDeferral {
 			WakeSite:      WaitingWakeSiteNotAWait,
 			ProvidingSave: "supports backfill marker completion and old-writer fence drain; never parked, the retry timer re-claims the row",
 		},
+		// #11327: not parked; the retry timer re-claims the row and the pass reloads the Go evidence.
+		{FailureClass: supplychaincore.SupplyChainImpactGoEvidenceChangedFailureClass, WaitsForKind: WaitingKindTargetCommitted, WakeSite: WaitingWakeSiteNotAWait, ProvidingSave: "a Go-modules fence or go-reachability successor activation committing; never parked"},
 		{
 			// #10880 PR-C0: not parked. The refusal means this pod's image is older
 			// than the schema; no save wakes it, the retry timer re-claims the row

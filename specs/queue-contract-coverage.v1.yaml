@@ -99,26 +99,26 @@ rows:
 
   - contract_ref: batch:rank-once-equivalence
     surface: reducer ClaimBatch rank-once rewrite candidate equality
-    class: env_gated
-    runners: [manual-dsn]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "The rank-once rewrite differential proves the pre/post-rewrite candidate set and order match on disposable Postgres, but only with an operator DSN (ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN); hermetic shape and derive guards pin the window constructs without a database"
+    reason: "The rank-once rewrite differential proves the pre/post-rewrite candidate set and order match on disposable Postgres; enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_test.go
+      - file: go/internal/storage/postgres/reducer_queue_batch_rank_once_diff_live_test.go
         tests: [TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder]
 
   - contract_ref: batch:fairness-order
     surface: reducer ClaimBatch cross-domain and cross-source fairness
-    class: env_gated
-    runners: [manual-dsn]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "ClaimBatch never starves newer domains behind older backlogs and never fills workers from one noisy source, proved on disposable Postgres but only with an operator DSN (ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN); no enrolled runner selects these files"
+    reason: "ClaimBatch never starves newer domains behind older backlogs and never fills workers from one noisy source, proved on disposable Postgres; enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/reducer_queue_domain_fairness_test.go
-        tests: [TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog]
-      - file: go/internal/storage/postgres/projector_queue_source_fairness_test.go
+      - file: go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go
+        tests: [TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog, TestClaimBatchFairnessRankExcludesNonClaimableRows]
+      - file: go/internal/storage/postgres/projector_queue_source_fairness_live_test.go
         tests: [TestProjectorQueueClaimOrdersBySourceFairness, TestProjectorQueueClaimDoesNotFillWorkersFromOneNoisySource, TestReducerQueueBatchClaimOrdersBySourceFairnessWithinDomain, TestReducerQueueBatchDoesNotStarveNewerSourceWithinDomain]
 
   - contract_ref: retry:non-counting-deferral
@@ -145,15 +145,15 @@ rows:
 
   - contract_ref: conflict:one-per-group-committed/pending
     surface: reducer conflict-key fencing across concurrent claimers
-    class: env_gated
-    runners: [manual-dsn]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "Concurrent claimers on a shared conflict key fence to one holder while disjoint keys proceed and the fenced sibling becomes claimable after ack, proved on disposable Postgres but only with an operator DSN; the 10879 lease mirror pins the one-per-group uniqueness the same way"
+    reason: "Concurrent claimers on a shared conflict key fence to one holder while disjoint keys proceed and the fenced sibling becomes claimable after ack; the 10879 lease mirror pins the one-per-group uniqueness the same way; enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/reducer_queue_conflict_claim_proof_test.go
+      - file: go/internal/storage/postgres/reducer_queue_conflict_claim_proof_live_test.go
         tests: [TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey, TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys, TestReducerClaimFencedSiblingBecomesClaimableAfterAck]
-      - file: go/internal/storage/postgres/reducer_queue_10879_lease_test.go
+      - file: go/internal/storage/postgres/reducer_queue_10879_lease_live_test.go
         tests: [TestReducerQueue10879OnePerGroupLeaseUnique]
 
   - contract_ref: batch:fail-batch
@@ -162,10 +162,10 @@ rows:
     runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "A 4-intent FailBatch with one 600-scope fence parks every item under the btree row limit and returns nil instead of the fatal 54000, a regression the hermetic intent-count ceilings could never exercise (#11350 TEST1, #11297 exit-1); enrolled in the live-postgres-readiness runner"
+    reason: "A 64-intent FailBatch at the production batch cap (Workers*4 max 64), all-wide on 600-scope fences with 156-byte code-derived maxima work_item_ids plus one 5000-byte Unrepresentable blocking id, parks every representable item under the 2000-byte index-row budget with the queue rows retrying and returns nil with no 54000; the 4-intent fixture proved the mechanism, the scaled case proves the cap (#11354 row batch:fail-batch; remote shape probe unreachable from this host so parameters are code-derived from reducerWorkItemID and the realistic-id shape, remote Postgres version parity a follow-up); enrolled in the live-postgres-readiness runner"
     proving_tests:
       - file: go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go
-        tests: [TestFailBatchWideBlockingSetParksCleanlyLive]
+        tests: [TestFailBatchWideBlockingSetParksCleanlyLive, TestFailBatchScaledAllWideParksCleanlyLive]
 
   - contract_ref: claim:duplicate-enqueue
     surface: projector enqueue collapse of concurrent duplicate work items
