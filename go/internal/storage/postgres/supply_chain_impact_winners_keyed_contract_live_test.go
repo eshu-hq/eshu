@@ -166,13 +166,13 @@ func TestSupplyChainImpactWinnersResweepRetentionDeleteChangesNoWinnerLive(t *te
 
 // TestSupplyChainImpactWinnersResweepKeyedProbePlanLive asserts the plan shape the
 // #9975 ruling requires at scale: after the identifier temp table is analyzed,
-// the active_facts build probes the keyed winners index (the package triple
+// the narrow build probes the keyed winners index (the package triple
 // plus the coalesced c0 and advisory expressions) once per identifier, so the
 // heap fetches only the facts a dirty key keeps. The earlier per-triple probe
 // fetched every candidate of a touched triple as wide rows and discarded most
 // after the heap fetch: on QA that was 15,888 fetched rows (160 MB of payload)
-// for 2,720 kept on a 200-identifier sparse tick. The probe never scans
-// fact_records.
+// for 2,720 kept on a 200-identifier sparse tick. The active-facts build then
+// joins only the narrow table and live_gens, so fact_records is never scanned.
 func TestSupplyChainImpactWinnersResweepKeyedProbePlanLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 keyed plan proof")
 	// #10544 retirement parity: a fully bootstrapped database must carry the
@@ -221,31 +221,65 @@ FROM generate_series(1, 3000) AS g`)
 	if err != nil {
 		t.Fatalf("connection: %v", err)
 	}
-	t.Cleanup(func() { _ = conn.Close() })
+	tx, err := conn.BeginTx(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin plan transaction: %v", err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(); _ = conn.Close() })
 	for _, stmt := range []string{
 		`CREATE TEMP TABLE ` + postgres.WinnersKeyedIdentsTableForTest + ` (package_id text, repository_id text, subject_digest text, c0 text, advisory_id text)`,
 		`INSERT INTO ` + postgres.WinnersKeyedIdentsTableForTest + ` SELECT 'pkg:npm/p' || g, 'repo-' || (g % 50), '', 'CVE-2026-' || g, '' FROM generate_series(1, 20) g`,
 		`INSERT INTO ` + postgres.WinnersKeyedIdentsTableForTest + ` SELECT 'pkg:npm/hot', 'repo-hot', '', 'CVE-2026-H' || g, '' FROM generate_series(1, 30) g`,
 		`ANALYZE ` + postgres.WinnersKeyedIdentsTableForTest,
 	} {
-		if _, err := conn.ExecContext(h.ctx, stmt); err != nil {
+		if _, err := tx.ExecContext(h.ctx, stmt); err != nil {
 			t.Fatalf("prepare identifiers %q: %v", stmt, err)
 		}
 	}
-	var planJSON []byte
-	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&planJSON); err != nil {
-		t.Fatalf("explain probe: %v", err)
+	// EXPLAIN of CREATE TABLE AS conflicts when the table exists yet leaves
+	// nothing behind, so drop first, explain the probe shape, then build
+	// and analyze for real before anything reads the table.
+	if _, err := tx.ExecContext(h.ctx, `DROP TABLE IF EXISTS `+postgres.WinnersKeyedNarrowTableForTest); err != nil {
+		t.Fatalf("drop narrow probe output before explain: %v", err)
 	}
-	plan := string(planJSON)
-	var parsed any
-	if err := json.Unmarshal(planJSON, &parsed); err != nil {
-		t.Fatalf("plan is not JSON: %v", err)
+	var narrowPlanJSON []byte
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&narrowPlanJSON); err != nil {
+		t.Fatalf("explain narrow probe: %v", err)
 	}
-	if !strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("the keyed probe does not use the keyed winners index:\n%s", plan)
+	narrowPlan := string(narrowPlanJSON)
+	var parsedNarrow any
+	if err := json.Unmarshal(narrowPlanJSON, &parsedNarrow); err != nil {
+		t.Fatalf("narrow plan is not JSON: %v", err)
 	}
-	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(plan) {
-		t.Errorf("the keyed probe seq-scans fact_records:\n%s", plan)
+	if !strings.Contains(narrowPlan, "fact_records_supply_chain_impact_winners_keyed_idx") {
+		t.Errorf("the narrow probe does not use the keyed winners index:\n%s", narrowPlan)
+	}
+	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(narrowPlan) {
+		t.Errorf("the narrow probe seq-scans fact_records:\n%s", narrowPlan)
+	}
+	// The explains above built nothing; materialize the narrow table the
+	// active-facts assertions below read, exactly as the tick does.
+	if _, err := tx.ExecContext(h.ctx, postgres.WinnersKeyedNarrowBuildSQLForTest); err != nil {
+		t.Fatalf("build narrow probe for reads: %v", err)
+	}
+	if _, err := tx.ExecContext(h.ctx, postgres.WinnersKeyedNarrowAnalyzeSQLForTest); err != nil {
+		t.Fatalf("analyze narrow probe for reads: %v", err)
+	}
+	// The active-facts build joins the narrow table and live_gens only; it
+	// must not reference the fact table at all.
+	var factsPlanJSON []byte
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&factsPlanJSON); err != nil {
+		t.Fatalf("explain active-facts build: %v", err)
+	}
+	factsPlan := string(factsPlanJSON)
+	// The active-facts build fetches full fact rows by primary key for the
+	// narrow table's fact_ids and filters generations through live_gens; it
+	// must never scan the fact table.
+	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(factsPlan) {
+		t.Errorf("the active-facts build seq-scans fact_records; it must join narrow rows by key:\n%s", factsPlan)
+	}
+	if !strings.Contains(factsPlan, `"Subplan Name": "CTE live_gens"`) {
+		t.Errorf("the active-facts build lost the live_gens CTE node:\n%s", factsPlan)
 	}
 
 	// 21 distinct triples (20 ordinary, one hot) carry 50 identifiers. The keyed
@@ -259,19 +293,19 @@ FROM generate_series(1, 3000) AS g`)
 	// a MATERIALIZED CTE, so the planner has no join order to choose for it.
 	for _, state := range []string{"default scope-table statistics", "analyzed scope tables"} {
 		if state == "analyzed scope tables" {
-			if _, err := conn.ExecContext(h.ctx, `ANALYZE ingestion_scopes`); err != nil {
+			if _, err := tx.ExecContext(h.ctx, `ANALYZE ingestion_scopes`); err != nil {
 				t.Fatalf("analyze ingestion_scopes: %v", err)
 			}
-			if _, err := conn.ExecContext(h.ctx, `ANALYZE scope_generations`); err != nil {
+			if _, err := tx.ExecContext(h.ctx, `ANALYZE scope_generations`); err != nil {
 				t.Fatalf("analyze scope_generations: %v", err)
 			}
 		}
-		if _, err := conn.ExecContext(h.ctx, `DROP TABLE IF EXISTS `+postgres.WinnersKeyedActiveFactsTableForTest); err != nil {
-			t.Fatalf("drop the previous explain output: %v", err)
+		if _, err := tx.ExecContext(h.ctx, `DROP TABLE IF EXISTS `+postgres.WinnersKeyedNarrowTableForTest); err != nil {
+			t.Fatalf("drop the previous narrow probe output: %v", err)
 		}
 		var analyzed []byte
-		if err := conn.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&analyzed); err != nil {
-			t.Fatalf("%s: explain analyze probe: %v", state, err)
+		if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&analyzed); err != nil {
+			t.Fatalf("%s: explain analyze narrow probe: %v", state, err)
 		}
 		var analyzedPlan any
 		if err := json.Unmarshal(analyzed, &analyzedPlan); err != nil {
@@ -290,21 +324,15 @@ FROM generate_series(1, 3000) AS g`)
 		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE narrow"`) {
 			t.Errorf("%s: the probe is not a materialized CTE node:\n%s", state, analyzed)
 		}
-		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE live_gens"`) {
-			t.Errorf("%s: the live generation set is not a materialized CTE node (it would recompute per row):\n%s", state, analyzed)
-		}
 	}
 
-	// #11343: the scanned-copies COUNT(*) is the same five-tuple probe as the
-	// build above, narrowed to SELECT 1. Substring containment of the shipped
-	// text passes on reworded-but-plan-breaking variants, so only an EXPLAIN
-	// proves it takes the same keyed-index path. EXPLAIN (ANALYZE, BUFFERS)
-	// also closes the F2 perf half at fixture scale: it reports the buffer
-	// and timing cost of the extra lateral probe per tick on the fixture
-	// corpus, not a production per-tick cost (see the QA-replica evidence on
-	// #11343 for the QA-shaped measurement).
+	// #11343: the scanned-copies COUNT(*) reads the narrow temp table the
+	// probe built above, so its plan cannot show the keyed-index probe that
+	// filled the table. What the count must prove instead: it touches
+	// nothing but the narrow table (no fact_records re-probe), and it
+	// returns one copy per identifier.
 	var countPlanJSON []byte
-	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countPlanJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countPlanJSON); err != nil {
 		t.Fatalf("explain scanned-copies count: %v", err)
 	}
 	countPlan := string(countPlanJSON)
@@ -312,36 +340,12 @@ FROM generate_series(1, 3000) AS g`)
 	if err := json.Unmarshal(countPlanJSON, &parsedCount); err != nil {
 		t.Fatalf("scanned-copies count plan is not JSON: %v", err)
 	}
-	if !strings.Contains(countPlan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("the scanned-copies count does not use the keyed winners index:\n%s", countPlan)
+	if strings.Contains(countPlan, `"Relation Name": "fact_records"`) {
+		t.Errorf("the scanned-copies count touches fact_records; it must read only the narrow table:\n%s", countPlan)
 	}
-	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(countPlan) {
-		t.Errorf("the scanned-copies count seq-scans fact_records:\n%s", countPlan)
-	}
-
-	var countAnalyzed []byte
-	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countAnalyzed); err != nil {
-		t.Fatalf("explain analyze scanned-copies count: %v", err)
-	}
-	var countAnalyzedPlan any
-	if err := json.Unmarshal(countAnalyzed, &countAnalyzedPlan); err != nil {
-		t.Fatalf("analyzed scanned-copies count plan is not JSON: %v", err)
-	}
-	loops, rows, found := keyedIndexScanStats(countAnalyzedPlan)
-	if !found {
-		t.Fatalf("the analyzed scanned-copies count plan has no scan of the keyed winners index:\n%s", countAnalyzed)
-	}
-	if loops != 50 {
-		t.Errorf("the scanned-copies count searched the keyed winners index %v times, want 50 (once per identifier):\n%s", loops, countAnalyzed)
-	}
-	if rows != 50 {
-		t.Errorf("the scanned-copies count scanned %v copies, want 50 (one per identifier, not the hot triple's 3,000 candidates):\n%s", rows, countAnalyzed)
-	}
-	hits, reads, execMs, planningMs := keyedPlanBufferStats(countAnalyzedPlan)
-	t.Logf("scanned-copies count (fixture-scale): %v copies, %.3f ms execution (%.3f ms planning), %v shared hits + %v reads", rows, execMs, planningMs, hits, reads)
 
 	var copies int64
-	if err := conn.QueryRowContext(h.ctx, postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&copies); err != nil {
+	if err := tx.QueryRowContext(h.ctx, postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&copies); err != nil {
 		t.Fatalf("run scanned-copies count: %v", err)
 	}
 	if copies != 50 {
@@ -389,48 +393,4 @@ func keyedIndexScanStats(node any) (loops, rows float64, found bool) {
 		}
 	}
 	return 0, 0, false
-}
-
-// keyedPlanBufferStats sums Shared Hit/Read Blocks over every node of an
-// EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) document and reports the top-level
-// execution and planning times, so a plan proof can log the buffer and timing
-// cost of the statement it pins (#11343 F2).
-func keyedPlanBufferStats(node any) (hits, reads, execMs, planningMs float64) {
-	switch v := node.(type) {
-	case []any:
-		for _, item := range v {
-			h, r, e, p := keyedPlanBufferStats(item)
-			hits += h
-			reads += r
-			if e > execMs {
-				execMs = e
-			}
-			if p > planningMs {
-				planningMs = p
-			}
-		}
-	case map[string]any:
-		for key, child := range v {
-			switch key {
-			case "Shared Hit Blocks":
-				hits += asFloat(child)
-			case "Shared Read Blocks":
-				reads += asFloat(child)
-			case "Execution Time":
-				execMs = asFloat(child)
-			case "Planning Time":
-				planningMs = asFloat(child)
-			default:
-				h, r, _, _ := keyedPlanBufferStats(child)
-				hits += h
-				reads += r
-			}
-		}
-	}
-	return hits, reads, execMs, planningMs
-}
-
-func asFloat(v any) float64 {
-	f, _ := v.(float64)
-	return f
 }
