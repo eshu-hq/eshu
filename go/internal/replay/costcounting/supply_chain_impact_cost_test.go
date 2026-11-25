@@ -73,14 +73,14 @@ func supplyChainImpactFixtureFindings() []supplychaincore.SupplyChainImpactFindi
 // eshu_dp_postgres_query_duration_seconds's write-attributed observation
 // count is within the committed budget.
 //
-// WriteSupplyChainImpactFindings now calls the shared
-// reducerBatchInsertVersionedFacts bounded chunked bulk insert (issue #5317)
-// instead of one ExecContext per finding, so two findings fit one chunk and
-// this scenario asserts exactly five write observations (lock, admission,
-// insert, winners dirty-key capture, retraction;
-// #6831, #7142, #9805). The scope pass-state fence decision (#10422) and the
-// stored-row read (#9695) are read observations outside this write budget. The
-// companion N+1
+// WriteSupplyChainImpactFindings issues one ExecContext per pass-side write,
+// so two findings cost the same as one: this scenario asserts exactly four
+// write observations (conflict-domain lock, admission upsert, winners
+// dirty-key capture, suppression-timeout reset; #6831, #7142, #9805). #10880
+// PR-C2 removed the fact bulk insert (issue #5317) and moved the retraction
+// Query-side, and the supports upsert runs Query-side with RETURNING. The
+// scope pass-state fence decision (#10422) and the stored-row read (#9695)
+// are read observations outside this write budget. The companion N+1
 // negative control below (TestCostBudget_SupplyChainImpact_N1_ExceedsBudget)
 // proves the budget still catches a per-finding regression.
 func TestCostBudget_SupplyChainImpact(t *testing.T) {

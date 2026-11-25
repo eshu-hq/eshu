@@ -94,8 +94,9 @@ func (r *censusRows) Scan(dest ...any) error {
 }
 
 // censusWrite is a pass that exercises every statement family of the writer
-// transaction: findings (fact upsert, supports, winners capture, retraction), the
-// protected-scan authorization and publication, the owed marker, and Go evidence.
+// transaction: findings (supports, winners capture, retraction; no fact upsert
+// since the C2 write stop), the protected-scan authorization and publication,
+// the owed marker, and Go evidence.
 func censusWrite() supplychaincore.SupplyChainImpactWrite {
 	intent := reducercontract.Intent{IntentID: "work-item-census"}
 	factID := "fact:census"
