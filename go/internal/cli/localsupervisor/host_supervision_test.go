@@ -146,6 +146,7 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 // bridge that owns the process stdio.
 func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T) {
 	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_GRAPH_BACKEND", string(querycontract.GraphBackendNeo4j))
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres

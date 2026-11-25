@@ -109,7 +109,15 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 // -addr only: core takes --addr and no --core-base-url (go/cmd/core-api), and
 // reads no ESHU_API_ADDR from the environment. It stops the child when the
 // wait fails, so callers only own a child on success.
+//
+// The guard below refuses before reserving a port or spawning anything: core
+// fails closed on every backend but Neo4j, so a nornicdb or lightweight
+// session would only burn the /health wait on a child that can never serve.
 func startMCPSessionCore(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, layout eshulocal.Layout) (*exec.Cmd, string, error) {
+	if runtimeConfig.GraphBackend != querycontract.GraphBackendNeo4j {
+		return nil, "", fmt.Errorf("eshu-core-api MCP sessions need ESHU_GRAPH_BACKEND=neo4j against real Neo4j, got backend %q with profile %q",
+			runtimeConfig.GraphBackend, runtimeConfig.Profile)
+	}
 	corePort, err := mcpSessionReservePort()
 	if err != nil {
 		return nil, "", err

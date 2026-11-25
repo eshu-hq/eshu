@@ -71,7 +71,7 @@ func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
 	t.Setenv("ESHU_API_KEY", "")
 	starts, waits := stubMCPSessionChildren(t, 19191, 19192)
 
-	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB}
+	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNeo4j}
 	layout := eshulocal.Layout{LogsDir: t.TempDir()}
 	session, err := StartMCPSession(context.Background(), "host=127.0.0.1 port=15439 user=eshu dbname=postgres", runtimeConfig, nil, layout)
 	if err != nil {
@@ -123,6 +123,52 @@ func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
 	}
 	if got := session.SatelliteMessageURL(); got != "http://127.0.0.1:19192/mcp/message" {
 		t.Fatalf("SatelliteMessageURL() = %q, want http://127.0.0.1:19192/mcp/message", got)
+	}
+}
+
+// TestStartMCPSessionRefusesNonNeo4jBackend proves the supervisor refuses a
+// session before spawning anything when the backend is not the pinned Neo4j
+// one eshu-core-api requires. Core fails closed on any other backend, so a
+// nornicdb or lightweight session would only burn the /health wait on a child
+// that can never serve.
+func TestStartMCPSessionRefusesNonNeo4jBackend(t *testing.T) {
+	tests := []struct {
+		name          string
+		runtimeConfig RuntimeConfig
+	}{
+		{"nornicdb", RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB}},
+		{"lightweight", RuntimeConfig{Profile: querycontract.ProfileLocalLightweight}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalStartChild := StartChildProcess
+			originalReserve := mcpSessionReservePort
+			originalWait := mcpSessionWaitHTTP
+			t.Cleanup(func() {
+				StartChildProcess = originalStartChild
+				mcpSessionReservePort = originalReserve
+				mcpSessionWaitHTTP = originalWait
+			})
+			StartChildProcess = func(string, []string, []string) (*exec.Cmd, error) {
+				t.Error("StartChildProcess called, want pre-spawn refusal")
+				return nil, nil
+			}
+			mcpSessionReservePort = func() (int, error) {
+				t.Error("mcpSessionReservePort called, want pre-spawn refusal")
+				return 0, errors.New("no ports on a refused session")
+			}
+			mcpSessionWaitHTTP = func(context.Context, string, time.Duration) error {
+				t.Error("mcpSessionWaitHTTP called, want pre-spawn refusal")
+				return nil
+			}
+
+			layout := eshulocal.Layout{LogsDir: t.TempDir()}
+			if _, err := StartMCPSession(context.Background(), "dsn", tt.runtimeConfig, nil, layout); err == nil {
+				t.Fatal("StartMCPSession() error = nil, want backend refusal")
+			} else if !strings.Contains(err.Error(), "ESHU_GRAPH_BACKEND=neo4j") {
+				t.Fatalf("StartMCPSession() error = %q, want it to name ESHU_GRAPH_BACKEND=neo4j", err)
+			}
+		})
 	}
 }
 
@@ -338,7 +384,7 @@ func TestStartMCPSessionStopsAPIWhenSatelliteFails(t *testing.T) {
 	}
 	defer func() { StartChildProcess = originalStartChild }()
 
-	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalLightweight}
+	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNeo4j}
 	layout := eshulocal.Layout{LogsDir: t.TempDir()}
 	if _, err := StartMCPSession(context.Background(), "dsn", runtimeConfig, nil, layout); !errors.Is(err, wantErr) {
 		t.Fatalf("StartMCPSession() error = %v, want %v", err, wantErr)
@@ -396,7 +442,7 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
 		Profile:            string(querycontract.ProfileLocalAuthoritative),
-		GraphBackend:       string(querycontract.GraphBackendNornicDB),
+		GraphBackend:       string(querycontract.GraphBackendNeo4j),
 	}
 	ReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) { return record, nil }
 	ProcessAlive = func(int) bool { return true }

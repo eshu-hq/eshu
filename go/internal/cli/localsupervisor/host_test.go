@@ -34,11 +34,14 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 		WorkspaceID:        layout.WorkspaceID,
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
+		Profile:            string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:       string(querycontract.GraphBackendNeo4j),
 	}
 
 	originalReadOwnerRecord := ReadOwnerRecord
 	originalProcessAlive := ProcessAlive
 	originalSocketHealthy := SocketHealthy
+	originalGraphHealthy := GraphHealthy
 	originalStartChild := StartChildProcess
 	originalReserve := mcpSessionReservePort
 	originalWait := mcpSessionWaitHTTP
@@ -47,6 +50,7 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 		ReadOwnerRecord = originalReadOwnerRecord
 		ProcessAlive = originalProcessAlive
 		SocketHealthy = originalSocketHealthy
+		GraphHealthy = originalGraphHealthy
 		StartChildProcess = originalStartChild
 		mcpSessionReservePort = originalReserve
 		mcpSessionWaitHTTP = originalWait
@@ -62,6 +66,7 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	SocketHealthy = func(path string) bool {
 		return path == record.PostgresSocketPath
 	}
+	GraphHealthy = func(eshulocal.OwnerRecord) bool { return true }
 
 	var satelliteEnv []string
 	var waitedURLs []string
