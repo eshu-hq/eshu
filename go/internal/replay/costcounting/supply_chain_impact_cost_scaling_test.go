@@ -17,9 +17,10 @@ import (
 
 // TestCostBudget_SupplyChainImpact_WritesDoNotGrowWithFindings proves the
 // impact writer's write observations are constant per pass at any finding
-// count: #10880 PR-C2 removed the fact bulk insert, so no statement chunks by
-// finding count anymore (the unnest supports upsert is one Query-side
-// statement at any N). The flat 4 across 1 to 2,000 findings proves no
+// count: #10880 PR-C2 removed the fact bulk insert, so no Exec-side statement
+// chunks by finding count anymore (the unnest supports upsert is one
+// Query-side statement per 1,000-row chunk, outside both counted metrics).
+// The flat 4 across 1 to 2,000 findings proves no
 // per-finding Exec-side write; the N+1 companion
 // (TestCostBudget_SupplyChainImpact_N1_ExceedsBudget) proves per-call growth
 // still exceeds the budget.
