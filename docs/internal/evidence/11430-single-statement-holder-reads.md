@@ -101,3 +101,29 @@ equivalence to the union-of-16 was re-proven live on disposable PG 18.7
 Holder phase only: the retired shape paid 16 sorts/uniques/joins serially
 (~2.2–2.6s each on QA at p50); the shipped shape pays one (~0.7–1.1s warm
 on the worst id under the 10s guard). No other phase was touched.
+
+## Evidence markers
+
+- Performance Evidence: baseline = 16 key-range holder statements per hot
+  singleton (QA p50 ~2.2–2.6s each; lab phase median 96–97ms on 84k-hot /
+  120k-background QA-shaped data, disposable PostgreSQL 18.7, full
+  375-migration bootstrap); after = one shipped holder statement (lab phase
+  median ~24ms, ~4x; QA read-replica EXPLAIN ANALYZE BUFFERS on the worst
+  id CVE-2025-27789 with 101,377 cve-arm rows under statement_timeout 10s:
+  generic-plan median 848ms, custom-plan median 721ms, no run >= 10s).
+  Backend/version: disposable PG 18.7 (aarch64) for differentials, QA
+  `eshu-postgresql-read` replica for the guard. Input shape: hot singleton
+  CVE id plus cold pack, 10s per-statement guard, force_generic_plan and
+  force_custom_plan via PREPARE/EXECUTE. The change is safe because the
+  shipped statement is byte-identical, the union-of-16 == single
+  differential re-passes live (edge holders, exclusions, seeded RED), and
+  every statement keeps the same 10s guard with fail-closed retry.
+- Observability Evidence: the read-duration histogram keeps one sample per
+  shipped statement under `holders` (hot singleton included) with the same
+  `ok`/`read_timeout`/`read_error` outcomes — no `holders_key_range` or
+  `holders_key_range_read` samples are recorded anymore; the
+  `fanout_holder_statements`, `fanout_holder_key_range_statements` (now 0),
+  and `fanout_key_ranged_ids` (now 0) sub-signal keys are unchanged; the
+  `holder_key_range_statement` span event and warn log fire only via
+  `noteKeyRangeStatement`, whose contract is pinned directly by unit tests
+  (routing emits none).
