@@ -541,6 +541,9 @@ var migrationShippedChecksums = map[string]string{
 	"353_supply_chain_impact_winners_supports_scanner_capture.sql":         "4b4237a659e753e35d4e13b6d1b2c813a4d96c548598ef7ffa8676d307b26549",
 	"351_supply_chain_impact_retracted_finding_keys.sql":                   "0c8e4ff4a9553cb5502bfe3c32309b4ff642598c998ed650572cc1bbdcf95231",
 	"355_supply_chain_impact_winners_scope_capture_facts_and_supports.sql": "4c26b6ad8070147fa1eeb75dabe68fd7e0ae1613bbf34313b7458f17aa44b642",
+	// #10972: the stored-side identifier index for the staged-audit
+	// single-scan range (renumbered 350 to 356; 350-355 taken on main).
+	"356_supply_chain_impact_winners_canonical_ident_idx.sql": "b9da75613d73e4b1b6a06e33024a78f0859b2e7f894cb6400a745f13c68b5195",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

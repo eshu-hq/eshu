@@ -18,6 +18,20 @@ var (
 	WinnersAuditNullProbeSQLForTest  = probeWinnersAuditNullKeysSQL
 )
 
+// WinnersAuditSingleScanFirstRangeSQLForTest and
+// WinnersAuditSingleScanNextRangeSQLForTest expose the single-scan range
+// statements (#10972), so the differential derives its seeded mutation from
+// them instead of hand-copying.
+var (
+	WinnersAuditSingleScanFirstRangeSQLForTest = selectWinnersAuditSingleScanFirstRangeSQL
+	WinnersAuditSingleScanNextRangeSQLForTest  = selectWinnersAuditSingleScanNextRangeSQL
+)
+
+// WinnersAuditRangeStoredIdentExprsForTest exposes the stored-winner
+// identifier expressions (#11131) so the canonical-ident index pin can
+// compare the migration text against the code without a hand copy.
+var WinnersAuditRangeStoredIdentExprsForTest = winnersAuditRangeStoredIdentExprs
+
 // ReadWinnersAuditRangeWithSQLForTest runs one range with the given statement
 // pair, for the seeded-RED differential.
 func ReadWinnersAuditRangeWithSQLForTest(ctx context.Context, reader db.Queryer, lo *WinnersAuditRangeIdent, budget int, first, next string) (WinnersAuditRange, error) {
