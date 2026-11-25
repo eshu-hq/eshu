@@ -6,7 +6,9 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -228,14 +230,31 @@ func planBuffers(t *testing.T, raw json.RawMessage) explainBuffers {
 	}
 }
 
-// explainRangeFirstText runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) over the
-// first-range statement at budget and returns the raw plan text. It is the
-// one seam every first-range plan proof reads through, so a plan-shape
+// explainRangeFirstTextGUC runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) over
+// the first-range statement at budget and returns the raw plan text, with
+// one session GUC applied to the statement only (empty applies none). It is
+// the one seam every first-range plan proof reads through, so a plan-shape
 // assertion covers the rendered statement itself instead of a hand-written
-// proxy.
-func explainRangeFirstText(t *testing.T, h *keyedHarness, stmt string, budget int) string {
+// proxy. The GUC rides SET LOCAL in an explicit transaction on a pinned
+// connection, so pool reuse can neither leak it into other statements nor
+// drop it from this one.
+func explainRangeFirstTextGUC(t *testing.T, h *keyedHarness, stmt string, budget int, guc string) string {
 	t.Helper()
-	rows, err := h.db.QueryContext(h.ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+stmt, budget)
+	conn, err := h.db.Conn(h.ctx)
+	if err != nil {
+		t.Fatalf("explain range conn: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+	if _, err := conn.ExecContext(h.ctx, "BEGIN"); err != nil {
+		t.Fatalf("explain range begin: %v", err)
+	}
+	defer func() { _, _ = conn.ExecContext(context.Background(), "ROLLBACK") }()
+	if guc != "" {
+		if _, err := conn.ExecContext(h.ctx, "SET LOCAL "+guc); err != nil {
+			t.Fatalf("explain range GUC %q: %v", guc, err)
+		}
+	}
+	rows, err := conn.QueryContext(h.ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+stmt, budget)
 	if err != nil {
 		t.Fatalf("explain range: %v", err)
 	}
@@ -252,6 +271,16 @@ func explainRangeFirstText(t *testing.T, h *keyedHarness, stmt string, budget in
 		t.Fatalf("explain range: %v", err)
 	}
 	return text
+}
+
+// explainRangeFirstText runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) over the
+// first-range statement at budget and returns the raw plan text. It is the
+// one seam every first-range plan proof reads through, so a plan-shape
+// assertion covers the rendered statement itself instead of a hand-written
+// proxy.
+func explainRangeFirstText(t *testing.T, h *keyedHarness, stmt string, budget int) string {
+	t.Helper()
+	return explainRangeFirstTextGUC(t, h, stmt, budget, "")
 }
 
 // explainRangeFirst runs EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) over the
@@ -280,34 +309,83 @@ func decodeExplainPlan(t *testing.T, text string) map[string]any {
 	return plans[0].Plan
 }
 
-// planNodeMatches reports whether the plan tree rooted at node holds a node
-// of the given type on the given relation (an empty relation matches any).
-func planNodeMatches(node map[string]any, nodeType, relation string) bool {
-	if node["Node Type"] == nodeType && (relation == "" || node["Relation Name"] == relation) {
+// planSubtreeHas reports whether the plan tree rooted at node holds a node
+// satisfying pred.
+func planSubtreeHas(node map[string]any, pred func(map[string]any) bool) bool {
+	if pred(node) {
 		return true
 	}
 	kids, _ := node["Plans"].([]any)
 	for _, kid := range kids {
-		if child, ok := kid.(map[string]any); ok && planNodeMatches(child, nodeType, relation) {
+		if child, ok := kid.(map[string]any); ok && planSubtreeHas(child, pred) {
 			return true
 		}
 	}
 	return false
 }
 
-// planIndexScansOn reports whether the plan tree scans relation through the
-// named index: an Index Scan node carrying that Index Name on the relation.
-func planIndexScansOn(node map[string]any, index, relation string) bool {
-	if node["Node Type"] == "Index Scan" && node["Relation Name"] == relation && node["Index Name"] == index {
-		return true
+// isWinnersBtreeScan reports an index path on the named index over the
+// canonical winners: a plain Index Scan on the relation, or the Bitmap
+// Index Scan under a Bitmap Heap Scan (which carries no Relation Name).
+func isWinnersBtreeScan(index string) func(map[string]any) bool {
+	return func(node map[string]any) bool {
+		if node["Index Name"] != index {
+			return false
+		}
+		return node["Node Type"] == "Index Scan" && node["Relation Name"] == "supply_chain_impact_canonical_winners" ||
+			node["Node Type"] == "Bitmap Index Scan"
 	}
-	kids, _ := node["Plans"].([]any)
-	for _, kid := range kids {
-		if child, ok := kid.(map[string]any); ok && planIndexScansOn(child, index, relation) {
-			return true
+}
+
+// isWinnersSeqScan reports a sequential scan of the canonical winners table.
+func isWinnersSeqScan(node map[string]any) bool {
+	return node["Node Type"] == "Seq Scan" && node["Relation Name"] == "supply_chain_impact_canonical_winners"
+}
+
+// storedRangeArms finds the stored_range UNION ALL Append in the rendered
+// first-range plan: the one two-child Append with one arm riding the named
+// btree index on the winners table and the other sequentially scanning it.
+// It returns the btree arm first, then the sequential arm.
+func storedRangeArms(t *testing.T, plan map[string]any, index string) (btree, seq map[string]any) {
+	t.Helper()
+	btreeScan := isWinnersBtreeScan(index)
+	var found []struct{ btree, seq map[string]any }
+	var walk func(node map[string]any)
+	walk = func(node map[string]any) {
+		if node["Node Type"] == "Append" {
+			kids, _ := node["Plans"].([]any)
+			if len(kids) == 2 {
+				a, aok := kids[0].(map[string]any)
+				b, bok := kids[1].(map[string]any)
+				if aok && bok {
+					aIdx, bIdx := planSubtreeHas(a, btreeScan), planSubtreeHas(b, btreeScan)
+					aSeq, bSeq := planSubtreeHas(a, isWinnersSeqScan), planSubtreeHas(b, isWinnersSeqScan)
+					if (aIdx || bIdx) && (aSeq || bSeq) {
+						if aIdx {
+							found = append(found, struct {
+								btree, seq map[string]any
+							}{a, b})
+						} else {
+							found = append(found, struct {
+								btree, seq map[string]any
+							}{b, a})
+						}
+					}
+				}
+			}
+		}
+		kids, _ := node["Plans"].([]any)
+		for _, kid := range kids {
+			if child, ok := kid.(map[string]any); ok {
+				walk(child)
+			}
 		}
 	}
-	return false
+	walk(plan)
+	if len(found) != 1 {
+		t.Fatalf("rendered plan holds %d stored_range arm pairs, want exactly 1", len(found))
+	}
+	return found[0].btree, found[0].seq
 }
 
 // TestSupplyChainImpactWinnersResweepSingleScanCostLive is the #10972 RED 2 cost
@@ -396,8 +474,11 @@ func splitTopLevelCommas(s string) []string {
 // proof: migration 356's index expressions are byte-identical to the stored
 // identifier expressions (after stripping the `w.` qualifier and the
 // index-syntax parentheses), and the rendered first-range statement's own
-// plan rides an index scan on the new index instead of sequentially scanning
-// the winners table.
+// plan rides the new index on the stored side. Under #11441 verdict-B the
+// stored_range predicate is a complementary UNION ALL, so the pin is
+// per-arm: the bounded arm (NOT is_last with the pure row-comparison) takes
+// the btree path, and the only sequential scan of the winners table is the
+// unbounded arm (bare is_last).
 func TestSupplyChainImpactWinnersResweepCanonicalIdentIndexLive(t *testing.T) {
 	_, migrationSQL := canonicalIdentIndexDef(t)
 	created := regexp.MustCompile(`(?m)CREATE INDEX CONCURRENTLY IF NOT EXISTS (\S+)`).FindStringSubmatch(migrationSQL)
@@ -443,20 +524,297 @@ func TestSupplyChainImpactWinnersResweepCanonicalIdentIndexLive(t *testing.T) {
 	}
 
 	h := newKeyedHarness(t, "#10972 canonical ident index")
-	auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+	live := auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+	const budget = 200
+	if live < budget {
+		t.Fatalf("fixture holds %d live facts, want at least the budget %d so the first range is not last", live, budget)
+	}
 	h.exec(`ANALYZE supply_chain_impact_canonical_winners`)
 	// The EXPLAINed text IS the rendered single-scan first-range statement at
 	// a mid-size budget, read through the explainRangeFirst seam, so the pin
 	// covers the range's own stored-side access. A hand-written
 	// scalar-predicate proxy could pass while the rendered statement
 	// sequentially scans the winners table.
-	renderedText := explainRangeFirstText(t, h, postgres.WinnersAuditSingleScanFirstRangeSQLForTest, 200)
+	//
+	// The plan runs with enable_seqscan forced off for the statement only.
+	// The bound subselects are plan-time parameters, so the row-comparison
+	// estimates a fixed default fraction of the table (a third on the
+	// fixtures probed) and the natural bitmap-versus-seq choice is a costing
+	// coin flip on any padded fixture. Forcing proves the verdict-B theory
+	// itself — the bounded arm's predicate is index-compatible —
+	// deterministically, instead of pinning one flip of that coin. The
+	// folded pre-UNION ALL statement is the control: under the same forcing
+	// it still sequentially scans, proving the old OR over the is_last
+	// InitPlan is what blocked the btree path.
+	renderedText := explainRangeFirstTextGUC(t, h, postgres.WinnersAuditSingleScanFirstRangeSQLForTest,
+		budget, "enable_seqscan = 'off'")
 	rendered := decodeExplainPlan(t, renderedText)
+	foldedText := explainRangeFirstTextGUC(t, h,
+		storedRangePreUnionSQL(t, postgres.WinnersAuditSingleScanFirstRangeSQLForTest),
+		budget, "enable_seqscan = 'off'")
+	if planSubtreeHas(decodeExplainPlan(t, foldedText), isWinnersBtreeScan(indexName)) {
+		t.Errorf("folded pre-UNION ALL statement rides %s under forcing: the control does not discriminate", indexName)
+	}
 	t.Logf("rendered first-range plan:\n%s", renderedText)
-	if !planIndexScansOn(rendered, indexName, "supply_chain_impact_canonical_winners") {
-		t.Errorf("rendered first range does not index-scan %s:\n%s", indexName, renderedText)
+	// #11441 verdict-B: the stored_range predicate is a complementary
+	// UNION ALL, so the bounded arm (NOT is_last with the pure
+	// row-comparison) rides the 356 btree path while only the unbounded
+	// arm (bare is_last) sequentially scans the winners table.
+	btree, seq := storedRangeArms(t, rendered, indexName)
+	if planSubtreeHas(btree, isWinnersSeqScan) {
+		t.Errorf("bounded stored_range arm sequentially scans supply_chain_impact_canonical_winners:\n%s", renderedText)
 	}
-	if planNodeMatches(rendered, "Seq Scan", "supply_chain_impact_canonical_winners") {
-		t.Errorf("rendered first range sequentially scans supply_chain_impact_canonical_winners:\n%s", renderedText)
+	if planSubtreeHas(seq, isWinnersBtreeScan(indexName)) {
+		t.Errorf("unbounded stored_range arm touches %s:\n%s", indexName, renderedText)
 	}
+	rawBtree, _ := json.Marshal(btree)
+	rawSeq, _ := json.Marshal(seq)
+	if !strings.Contains(string(rawBtree), "NOT (InitPlan") {
+		t.Errorf("bounded stored_range arm is not gated on NOT is_last:\n%s", renderedText)
+	}
+	if !strings.Contains(string(rawSeq), "(InitPlan") || strings.Contains(string(rawSeq), "NOT (InitPlan") {
+		t.Errorf("unbounded stored_range arm is not gated on bare is_last:\n%s", renderedText)
+	}
+	var seqScans, btreeScans int
+	var count func(node map[string]any)
+	count = func(node map[string]any) {
+		if isWinnersSeqScan(node) {
+			seqScans++
+		}
+		if isWinnersBtreeScan(indexName)(node) {
+			btreeScans++
+		}
+		kids, _ := node["Plans"].([]any)
+		for _, kid := range kids {
+			if child, ok := kid.(map[string]any); ok {
+				count(child)
+			}
+		}
+	}
+	count(rendered)
+	if seqScans != 1 {
+		t.Errorf("rendered plan sequentially scans supply_chain_impact_canonical_winners %d times, want exactly 1 (the unbounded arm)", seqScans)
+	}
+	if btreeScans != 1 {
+		t.Errorf("rendered plan rides %s %d times, want exactly 1 (the bounded arm)", indexName, btreeScans)
+	}
+}
+
+// storedRangeUnionSpine is the UNION ALL arm split unique to the rewritten
+// stored_range CTE: the unbounded arm (bare is_last) over the winners table
+// followed by the bounded arm (NOT is_last with the pure row-comparison).
+const storedRangeUnionSpine = `
+    UNION ALL
+    SELECT w.*
+    FROM supply_chain_impact_canonical_winners AS w
+    WHERE `
+
+// storedRangePreUnionSQL rebuilds the pre-#11441 stored_range predicate from
+// a rewritten single-scan range statement: the complementary UNION ALL folds
+// back into `WHERE <lower>((SELECT is_last ...) OR <row> <= <bound>)`. The
+// reconstruction is positional and self-validating — it fails unless the
+// fresh statement holds exactly one stored_range spine, both arms share the
+// same lower bound, and the fold removes exactly one UNION ALL — so the
+// equivalence proof below compares against the true old text, not a
+// hand-written proxy.
+func storedRangePreUnionSQL(t *testing.T, fresh string) string {
+	t.Helper()
+	if strings.Count(fresh, storedRangeUnionSpine) != 1 {
+		t.Fatalf("single-scan statement holds %d stored_range UNION ALL spines, want 1",
+			strings.Count(fresh, storedRangeUnionSpine))
+	}
+	head, tail, _ := strings.Cut(fresh, storedRangeUnionSpine)
+	const armGate = "(SELECT is_last FROM range_bounds)"
+	if !strings.HasSuffix(head, armGate) {
+		t.Fatalf("unbounded stored_range arm does not end at the is_last gate")
+	}
+	lower := head[strings.LastIndex(head, "WHERE ")+len("WHERE ") : len(head)-len(armGate)]
+	const boundedGate = "NOT (SELECT is_last FROM range_bounds)\n      AND "
+	if !strings.HasPrefix(tail, lower+boundedGate) {
+		t.Fatalf("bounded stored_range arm does not share the %q lower bound", lower)
+	}
+	rest := tail[len(lower)+len(boundedGate):]
+	old := head[:strings.LastIndex(head, "WHERE ")] + "WHERE " + lower +
+		"((SELECT is_last FROM range_bounds) OR " + rest
+	const storedClose = "\n),\nrange_diff AS ("
+	if strings.Count(old, storedClose) != 1 {
+		t.Fatalf("folded statement holds %d stored_range closes, want 1", strings.Count(old, storedClose))
+	}
+	old = strings.Replace(old, storedClose, ")\n),\nrange_diff AS (", 1)
+	if strings.Contains(old, "NOT (SELECT is_last") {
+		t.Fatalf("folded statement keeps a NOT is_last arm")
+	}
+	if got, want := strings.Count(old, "UNION ALL"), strings.Count(fresh, "UNION ALL")-1; got != want {
+		t.Fatalf("folded statement holds %d UNION ALLs, want one fewer than the fresh %d", got, want+1)
+	}
+	return old
+}
+
+// rangeCellText renders one result cell deterministically, keeping the
+// driver type visible so a representation change reads as a mismatch.
+func rangeCellText(v any) string {
+	switch c := v.(type) {
+	case nil:
+		return "\x00NULL"
+	case []byte:
+		return "B:" + string(c)
+	case time.Time:
+		return "T:" + c.UTC().Format(time.RFC3339Nano)
+	default:
+		return fmt.Sprintf("V:%v", c)
+	}
+}
+
+// collectRangeRows runs one range statement and returns its full row
+// multiset as sorted deterministic lines: byte-identical output compares
+// equal, and any added, dropped, or altered row (or arm duplication) fails
+// the comparison.
+func collectRangeRows(t *testing.T, h *keyedHarness, stmt string, args ...any) []string {
+	t.Helper()
+	rows, err := h.db.QueryContext(h.ctx, stmt, args...)
+	if err != nil {
+		t.Fatalf("range read: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	cols, err := rows.Columns()
+	if err != nil {
+		t.Fatalf("range columns: %v", err)
+	}
+	var out []string
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			t.Fatalf("range scan: %v", err)
+		}
+		cells := make([]string, len(cols))
+		for i, v := range vals {
+			cells[i] = rangeCellText(v)
+		}
+		out = append(out, strings.Join(cells, "\x1f"))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("range rows: %v", err)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// requireStoredRangeEquivalent runs the rewritten statement, its pre-UNION
+// ALL fold, and its UNION (deduped-arm) variant over identical arguments and
+// demands byte-identical multisets. The old-versus-new leg proves the
+// rewrite preserves every row; the UNION ALL-versus-UNION leg proves the
+// arms are disjoint (each arm reads winners rows once through the primary
+// key, so a UNION/UNION ALL divergence is arm overlap, and any mismatch in
+// either leg fails the proof).
+func requireStoredRangeEquivalent(t *testing.T, h *keyedHarness, first, next string, lo *postgres.WinnersAuditRangeIdent, budget int) {
+	t.Helper()
+	stmt, args := first, []any{budget}
+	if lo != nil {
+		stmt = next
+		args = append(args, lo.PackageID, lo.RepositoryID, lo.SubjectDigest, lo.C0, lo.AdvisoryID)
+	}
+	old := storedRangePreUnionSQL(t, stmt)
+	dedup := strings.Replace(stmt, storedRangeUnionSpine, `
+    UNION
+    SELECT w.*
+    FROM supply_chain_impact_canonical_winners AS w
+    WHERE `, 1)
+	want := collectRangeRows(t, h, old, args...)
+	got := collectRangeRows(t, h, stmt, args...)
+	if strings.Join(want, "\n") != strings.Join(got, "\n") {
+		t.Errorf("budget %d lo=%+v: folded statement returns %d rows, rewritten %d rows", budget, lo, len(want), len(got))
+	}
+	same := collectRangeRows(t, h, dedup, args...)
+	if strings.Join(got, "\n") != strings.Join(same, "\n") {
+		t.Errorf("budget %d lo=%+v: UNION ALL returns %d rows, UNION %d rows: the stored_range arms overlap", budget, lo, len(got), len(same))
+	}
+	t.Logf("budget %d lo=%+v: %d rows byte-identical across folded, UNION ALL, and UNION", budget, lo, len(got))
+}
+
+// TestSupplyChainImpactWinnersStoredRangeUnionAllEquivalenceLive is the
+// #11441 verdict-B gate (3): the rewritten stored_range predicate returns
+// byte-identical row multisets to the old OR predicate on a last range
+// (P=true), a selective mid-sweep range and an unselective mid-sweep range
+// (P=false), an empty winners table, and a NULL-bound range, for both the
+// first- and next-range renderings, with disjoint arms throughout.
+func TestSupplyChainImpactWinnersStoredRangeUnionAllEquivalenceLive(t *testing.T) {
+	first, next := postgres.WinnersAuditSingleScanFirstRangeSQLForTest, postgres.WinnersAuditSingleScanNextRangeSQLForTest
+
+	t.Run("selective", func(t *testing.T) {
+		h := newKeyedHarness(t, "#11441 stored_range selective")
+		auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+		auditRangePerturb(t, h)
+		requireStoredRangeEquivalent(t, h, first, next, nil, 7)
+	})
+
+	t.Run("unselective", func(t *testing.T) {
+		h := newKeyedHarness(t, "#11441 stored_range unselective")
+		auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+		auditRangePerturb(t, h)
+		// One minimal stored row: the mid-sweep bound of live facts sits
+		// above the empty key under every collation, so the bounded arm is
+		// non-selective while is_last stays false.
+		h.exec(`DELETE FROM supply_chain_impact_canonical_winners`)
+		h.exec(`INSERT INTO supply_chain_impact_canonical_winners
+  (canonical_key, winner_fact_id, finding_id, package_id, repository_id, subject_digest, cve_id, advisory_id, materialized_at)
+VALUES ('unselective|one', 'gone:one', 'finding:one', '', '', '', '', '', now())`)
+		requireStoredRangeEquivalent(t, h, first, next, nil, 7)
+	})
+
+	t.Run("last", func(t *testing.T) {
+		h := newKeyedHarness(t, "#11441 stored_range last")
+		auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+		auditRangePerturb(t, h)
+		requireStoredRangeEquivalent(t, h, first, next, nil, 100000)
+	})
+
+	t.Run("empty winners", func(t *testing.T) {
+		h := newKeyedHarness(t, "#11441 stored_range empty winners")
+		auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+		auditRangePerturb(t, h)
+		h.exec(`DELETE FROM supply_chain_impact_canonical_winners`)
+		requireStoredRangeEquivalent(t, h, first, next, nil, 7)
+	})
+
+	t.Run("null bound", func(t *testing.T) {
+		h := newKeyedHarness(t, "#11441 stored_range null bound")
+		auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+		auditRangePerturb(t, h)
+		// No finding facts: range_raw is empty, so is_last is true and every
+		// hi_* bound is NULL while the winners table stays populated.
+		h.exec(`DELETE FROM fact_records WHERE fact_kind = $1`, facts.ReducerSupplyChainImpactFindingFactKind)
+		requireStoredRangeEquivalent(t, h, first, next, nil, 7)
+	})
+
+	t.Run("next range", func(t *testing.T) {
+		h := newKeyedHarness(t, "#11441 stored_range next range")
+		auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+		auditRangePerturb(t, h)
+		reader := postgres.SQLDB{DB: h.db}
+		rng, err := postgres.ReadWinnersAuditRangeWithSQLForTest(h.ctx, reader, nil, 7, first, next)
+		if err != nil {
+			t.Fatalf("open first range: %v", err)
+		}
+		if rng.Last || rng.Hi == nil {
+			t.Fatalf("first range at budget 7 already ends the sweep: %+v", rng)
+		}
+		requireStoredRangeEquivalent(t, h, first, next, rng.Hi, 7)
+	})
+
+	t.Run("sweep", func(t *testing.T) {
+		h := newKeyedHarness(t, "#11441 stored_range sweep")
+		auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+		auditRangePerturb(t, h)
+		reader := postgres.SQLDB{DB: h.db}
+		oldFirst, oldNext := storedRangePreUnionSQL(t, first), storedRangePreUnionSQL(t, next)
+		for _, budget := range []int{1, 7, 200} {
+			want := sweepSnapshotAll(t, h.ctx, reader, budget, oldFirst, oldNext)
+			got := sweepSnapshotAll(t, h.ctx, reader, budget, first, next)
+			requireSnapshotsEqual(t, budget, want, got)
+		}
+	})
 }

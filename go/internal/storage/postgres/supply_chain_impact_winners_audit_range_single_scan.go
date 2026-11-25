@@ -148,7 +148,12 @@ WITH active_facts AS NOT MATERIALIZED (
 stored_range AS (
     SELECT w.*
     FROM supply_chain_impact_canonical_winners AS w
-    WHERE ` + storedLower + `((SELECT is_last FROM range_bounds) OR ` + storedRow + ` <= ` + boundRow + `)
+    WHERE ` + storedLower + `(SELECT is_last FROM range_bounds)
+    UNION ALL
+    SELECT w.*
+    FROM supply_chain_impact_canonical_winners AS w
+    WHERE ` + storedLower + `NOT (SELECT is_last FROM range_bounds)
+      AND ` + storedRow + ` <= ` + boundRow + `
 ),
 range_diff AS (
 ` + winnersAuditDiffSelect("winners_now", "stored_range") + `
