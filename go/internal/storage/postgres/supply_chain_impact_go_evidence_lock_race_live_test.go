@@ -104,6 +104,31 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 	return chainSeed
 }
 
+// addHolderSecondAdvisory inserts a second CVE + affected-package pair into
+// seed.holder's active generation so a subsequent c.rerun(seed.holder) produces
+// a changed finding set (owed == true) and therefore runs the owed marker after
+// the shared go-evidence lock.
+func addHolderSecondAdvisory(c *convergence, seed goEvidenceChain, tag string) {
+	c.t.Helper()
+	holderGeneration := fanOutGen(seed.holder, "g1")
+	advisory2 := "GO-2026-2-" + strings.ToUpper(tag)
+	module := "example.com/ge-" + tag
+	pkg := "gomod://proxy.golang.org/" + module
+	c.upsert(
+		c.envelope(seed.holder, holderGeneration, "fact:11327:"+tag+":cve2", chain.VulnerabilityCVEFactKind, map[string]any{
+			"advisory_id": advisory2, "cve_id": advisory2, "source": "osv", "cvss_score": 8.0,
+			"aliases": []any{advisory2},
+		}),
+		c.envelope(seed.holder, holderGeneration, "fact:11327:"+tag+":affected2", chain.VulnerabilityAffectedPackageFactKind, map[string]any{
+			"advisory_id": advisory2, "cve_id": advisory2, "package_id": pkg, "ecosystem": "gomod",
+			"package_name": module, "purl": "pkg:golang/" + module, "fixed_versions": []any{"1.2.0"},
+			"affected_ranges": []any{map[string]any{"type": "SEMVER", "events": []any{
+				map[string]any{"introduced": "0"}, map[string]any{"fixed": "1.2.0"},
+			}}},
+		}),
+	)
+}
+
 // holderVerdictNotCalled reports whether the holder's active finding still carries the
 // govulncheck not_called verdict.
 func holderVerdictNotCalled(c *convergence, holder string) bool {

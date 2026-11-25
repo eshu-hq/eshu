@@ -686,6 +686,7 @@ func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T)
 
 	check := func(writers, iters int, reference time.Duration, maxRatio float64, stratum string) {
 		attemptControlP95 := controlP95
+		var firstAttemptTrip string
 		for attempt := 1; attempt <= 2; attempt++ {
 			durs := runStratum(writers, iters)
 			if failed.Load() != 0 {
@@ -700,6 +701,10 @@ func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T)
 			t.Logf("winners_dirty_writer_p95 writers=%d n=%d attempt=%d p50=%s p95=%s max=%s control_p95=%s ratio=%.2f max_ratio=%.1f reference=%s",
 				writers, len(durs), attempt, p50, p95, slices.Max(durs), attemptControlP95, ratio, maxRatio, reference)
 			if !winnersDirtyStratumFails(p50, p95, reference, ratio, maxRatio) {
+				if attempt == 2 && firstAttemptTrip != "" {
+					_, _ = fmt.Fprintf(os.Stderr, "::warning::winners_dirty_writer_p95 writers=%d passed on attempt 2 (p50=%s p95=%s ratio=%.2f) after attempt 1 tripped (%s)\n",
+						writers, p50, p95, ratio, firstAttemptTrip)
+				}
 				if winnersDirtyGateFails(p95, reference, ratio, maxRatio) {
 					t.Logf("stratified gate writers=%d passes over %d statements despite tripped arms: tail-stall noise (p50 %s healthy against reference %s, p95 %s): runner oversubscription, not a regression (#11060)",
 						writers, len(durs), p50, reference, p95)
@@ -707,6 +712,7 @@ func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T)
 				return
 			}
 			if attempt == 1 && winnersDirtyShouldRetryMedianHealthyFailure(p50, p95, reference, ratio, maxRatio) {
+				firstAttemptTrip = fmt.Sprintf("p50=%s p95=%s control_p95=%s ratio=%.2f", p50, p95, attemptControlP95, ratio)
 				t.Logf("stratified gate writers=%d attempt 1 tripped with healthy median (p50 %s <= reference %s, p95 %s, ratio %.2f vs %.1f); re-measuring once with fresh control to rule out shared-runner jitter",
 					writers, p50, reference, p95, ratio, maxRatio)
 				attemptControlP95 = measureControl()
