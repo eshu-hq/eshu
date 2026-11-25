@@ -3,7 +3,23 @@
 
 package main
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
+
+// resetFactWriteStopWatchForTest drops the process-global write-stop watch so
+// the next factWriteStopWatchFor binds the calling test's own database.
+// factWriteStopWatchFor pins its database with a sync.Once, so without this a
+// wiring test that executes a supply_chain_impact intent reads pg_trigger
+// through whichever fake another test bound first and fails with
+// "unexpected query". Callers must not run parallel with other tests that
+// build the reducer service: the binding is process-global, so two builders
+// racing would still hand one test the other's database.
+func resetFactWriteStopWatchForTest() {
+	factWriteStopWatch = nil
+	factWriteStopOnce = sync.Once{}
+}
 
 // TestStateChangedLogsOnlyTheEdges pins the poller's log edges: the first reading and each change log,
 // an unchanged reading does not.
