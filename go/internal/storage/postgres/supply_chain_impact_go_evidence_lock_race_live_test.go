@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,6 +39,15 @@ type goEvidenceChain struct {
 // seedGoEvidenceChain seeds a holder scope with one package consumption fact per
 // repository and an active go-reachability scope per repository holding not_called
 // evidence. tag keeps every id unique within one database.
+// goEvidenceSeedRepos hands out the repository suffixes the chain seed uses.
+// The fence only accepts canonical repository ids (`r_` plus 8 hex chars), so
+// the seed cannot embed its text tag the way the holder scope does.
+var goEvidenceSeedRepos atomic.Uint32
+
+func canonicalSeedRepository() string {
+	return fmt.Sprintf("repository:r_%08x", goEvidenceSeedRepos.Add(1))
+}
+
 func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenceChain {
 	c.t.Helper()
 	chainSeed := goEvidenceChain{
@@ -62,7 +72,7 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 		}),
 	}
 	for i := 0; i < repositories; i++ {
-		repository := fmt.Sprintf("repository:r_11327%s%d", tag, i)
+		repository := canonicalSeedRepository()
 		envelopes = append(envelopes, c.envelope(chainSeed.holder, holderGeneration, fmt.Sprintf("fact:11327:%s:consumption:%d", tag, i),
 			factschema.FactKindReducerPackageConsumptionCorrelation, map[string]any{
 				"package_id": pkg, "relationship_kind": "consumption", "repository_id": repository,
@@ -72,7 +82,7 @@ func seedGoEvidenceChain(c *convergence, tag string, repositories int) goEvidenc
 	c.upsert(envelopes...)
 	chainSeed.item = fanOutSeedItem(c.t, c.ctx, c.db, chainSeed.holder, "g1")
 	for i := 0; i < repositories; i++ {
-		repository := fmt.Sprintf("repository:r_11327%s%d", tag, i)
+		repository := canonicalSeedRepository()
 		goScope := "go-reachability://" + repository
 		fanOutSeedScope(c.t, c.ctx, c.db, goScope, "g1")
 		generation := fanOutGen(goScope, "g1")
@@ -350,7 +360,10 @@ func TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive(t *testing.T) {
 	if _, err := c.db.ExecContext(c.ctx, `UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = $1`, dormantScope); err != nil {
 		t.Fatalf("clear the dormant pointer: %v", err)
 	}
-	repositories := []string{"repository:r_11327pr0", "repository:r_11327pr1", dormantRepository}
+	repositories := []string{dormantRepository}
+	for _, goScope := range seed.goScopes {
+		repositories = append(repositories, strings.TrimPrefix(goScope, "go-reachability://"))
+	}
 	evidence, err := postgres.NewFactStore(postgres.SQLDB{DB: c.db}).ListActiveGoReachabilityEvidence(c.ctx,
 		supplychaincore.GoReachabilityFactFilter{RepositoryIDs: repositories})
 	if err != nil {
