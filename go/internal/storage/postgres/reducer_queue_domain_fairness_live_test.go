@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason claim:batch fairness proof (a single ClaimBatch lane over two domains never lets an older continuously-regenerated high-volume backlog starve a newer lower-volume domain, and the fairness rank excludes non-claimable inactive-generation rows so they cannot inflate a domain rank), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE
+
 import (
 	"context"
 	"database/sql"

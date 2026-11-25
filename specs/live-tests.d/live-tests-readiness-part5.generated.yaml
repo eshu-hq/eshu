@@ -284,6 +284,11 @@ tests:
     class: postgres_ci
     reason: "#9432 queue-layer acceptance that two consecutive planning windows leave exactly one active generation per pinned slot scope: two slot scopes each carry a window-one active generation and a window-two pending generation, acking window two supersedes window one and repoints the scope; untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 0.1s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_source_fairness_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "claim:batch source-fairness proof (the projector claim orders by source fair rank so a quiet source is served while a noisy source is in flight, and a reducer ClaimBatch within one domain never lets an older noisy-source backlog starve a newer quiet source; hermetic query-shape guards pin the source-fairness ORDER BY fragments without a database), untagged and gated by the ESHU_REDUCER_FAIRNESS_PROOF_DSN env Skip; Postgres only; about 10s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_source_paced_live_test.go
     tag: ~
     class: postgres_ci

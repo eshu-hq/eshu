@@ -110,15 +110,15 @@ rows:
 
   - contract_ref: batch:fairness-order
     surface: reducer ClaimBatch cross-domain and cross-source fairness
-    class: env_gated
-    runners: [manual-dsn]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "ClaimBatch never starves newer domains behind older backlogs and never fills workers from one noisy source, proved on disposable Postgres but only with an operator DSN (ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN); no enrolled runner selects these files"
+    reason: "ClaimBatch never starves newer domains behind older backlogs and never fills workers from one noisy source, proved on disposable Postgres; enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/reducer_queue_domain_fairness_test.go
+      - file: go/internal/storage/postgres/reducer_queue_domain_fairness_live_test.go
         tests: [TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog]
-      - file: go/internal/storage/postgres/projector_queue_source_fairness_test.go
+      - file: go/internal/storage/postgres/projector_queue_source_fairness_live_test.go
         tests: [TestProjectorQueueClaimOrdersBySourceFairness, TestProjectorQueueClaimDoesNotFillWorkersFromOneNoisySource, TestReducerQueueBatchClaimOrdersBySourceFairnessWithinDomain, TestReducerQueueBatchDoesNotStarveNewerSourceWithinDomain]
 
   - contract_ref: retry:non-counting-deferral
