@@ -215,6 +215,51 @@ func narrowStatioProbe(t *testing.T, h *keyedHarness, queries ...string) int64 {
 	return narrowStatioBlocks(t, h) - before
 }
 
+// narrowWriteBarPasses reports whether a narrow shape's first-pass block
+// touches satisfy the Box 1 bar against the shipped probe's touches: the
+// shape must read at most one quarter of the shipped blocks.
+func narrowWriteBarPasses(shippedBlocks, shapeBlocks int64) bool {
+	return shippedBlocks >= 4*shapeBlocks
+}
+
+// narrowDeadlocksPass reports whether the observed deadlock count satisfies
+// the Box 1 zero-deadlock bar for concurrent disjoint-scope writers.
+func narrowDeadlocksPass(deadlocks int) bool {
+	return deadlocks == 0
+}
+
+// TestNarrowWriteBarSeededRedGreen is the committed RED/GREEN pair for the
+// two Box 1 bars: seeded inputs that must trip each comparator (RED side)
+// alongside inputs that must pass (GREEN side). A comparator that cannot
+// fail — or one broken to pass everything — fails this test.
+func TestNarrowWriteBarSeededRedGreen(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name            string
+		shipped, shape  int64
+		deadlocks       int
+		wantBar, wantDL bool
+	}{
+		{"over-budget shape trips the 4x bar", 100, 26, 0, false, true},
+		{"shape at exactly one quarter passes", 100, 25, 0, true, true},
+		{"shape well under passes", 1647, 29, 0, true, true},
+		{"zero shipped touches trips (blind measurement)", 0, 29, 0, false, true},
+		{"zero shape touches passes the ratio", 100, 0, 0, true, true},
+		{"nonzero deadlocks trip the zero bar", 1647, 29, 3, true, false},
+		{"zero deadlocks pass", 1647, 29, 0, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := narrowWriteBarPasses(tc.shipped, tc.shape); got != tc.wantBar {
+				t.Errorf("narrowWriteBarPasses(%d, %d) = %v, want %v", tc.shipped, tc.shape, got, tc.wantBar)
+			}
+			if got := narrowDeadlocksPass(tc.deadlocks); got != tc.wantDL {
+				t.Errorf("narrowDeadlocksPass(%d) = %v, want %v", tc.deadlocks, got, tc.wantDL)
+			}
+		})
+	}
+}
+
 // narrowDrain runs bounded ticks until the backlog drains and returns every
 // tick result. The chunk bound keeps every tick short; the loop is the
 // maintainer's re-tick while Bounded.
@@ -378,7 +423,7 @@ SELECT *, now() AS age_captured_at, 0 AS age_seq FROM narrow_proof_idents`)
 		if shapeBlocks == 0 {
 			t.Errorf("shape %s recorded 0 statio block touches: the statistics-view measurement is blind", shape)
 		}
-		if shippedBlocks < 4*shapeBlocks {
+		if !narrowWriteBarPasses(shippedBlocks, shapeBlocks) {
 			t.Errorf("shape %s first pass block touches %d > shipped %d / 4: the narrow first pass must read at least 4x fewer blocks than the shipped probe",
 				shape, shapeBlocks, shippedBlocks)
 		}
@@ -468,7 +513,7 @@ WHERE fact.fact_id IN (SELECT fact_id FROM (` +
 		}
 		t.Logf("%d writers: %d facts in %v = %.0f facts/hr, WAL %d bytes = %.2f MB/s, deadlocks=%d",
 			writers, n, elapsed.Round(time.Millisecond), float64(n)/hours, wal, float64(wal)/secs/1e6, deadlocks)
-		if deadlocks != 0 {
+		if !narrowDeadlocksPass(deadlocks) {
 			t.Errorf("%d writers: pg_stat_database.deadlocks = %d, want 0 (concurrent disjoint-scope writers must not deadlock the tick)", writers, deadlocks)
 		}
 		drainStart := time.Now()
