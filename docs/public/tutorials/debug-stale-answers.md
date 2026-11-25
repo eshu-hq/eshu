@@ -30,10 +30,12 @@ About 10 minutes for the first diagnosis.
 
 ## Steps
 
-1. Separate process health from data readiness:
+1. Separate process health from data readiness (the satellite and the
+   core both serve the same read surface on this port; neither serves
+   `/healthz`):
 
    ```bash
-   curl -fsS http://localhost:8080/healthz
+   curl -fsS http://localhost:8080/health
    curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
      http://localhost:8080/api/v0/index-status
    ```

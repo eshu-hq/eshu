@@ -24,7 +24,7 @@ func main() {
 	graphDatabase := flag.String("graph-database", envOr("DEFAULT_DATABASE", "nornic"), "graph database name")
 	graphUsername := flag.String("graph-username", os.Getenv("NEO4J_USERNAME"), "graph username (empty for no-auth backends)")
 	graphPassword := flag.String("graph-password", os.Getenv("NEO4J_PASSWORD"), "graph password")
-	apiBaseURL := flag.String("api-base-url", envOr("READ_API_LATENCY_GATE_BASE_URL", "http://localhost:18080"), "running eshu-api base URL")
+	apiBaseURL := flag.String("api-base-url", envOr("READ_API_LATENCY_GATE_BASE_URL", "http://localhost:18080"), "running eshu-api satellite or eshu-core-api base URL (same read surface; flag overrides the default and the env)")
 	mcpBaseURL := flag.String("mcp-base-url", "", "running MCP HTTP transport base URL for pilot tools/call")
 	apiKey := flag.String("api-key", os.Getenv("ESHU_API_KEY"), "eshu-api bearer token")
 	totalScopes := flag.Int("total-scopes", 800, "total ingestion_scopes rows to seed")

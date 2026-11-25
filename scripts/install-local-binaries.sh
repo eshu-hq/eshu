@@ -49,9 +49,8 @@ main() {
     cd "$GO_DIR"
 
     go build "${ESHU_BUILD_TAG_ARGS[@]}" -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu" ./cmd/eshu
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-api" ./cmd/api
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-core-api" ./cmd/core-api
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-index" ./cmd/bootstrap-index
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-core-api" ./cmd/core-api
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-ingester" ./cmd/ingester
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-reducer" ./cmd/reducer
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-workflow-coordinator" ./cmd/workflow-coordinator
@@ -75,6 +74,22 @@ main() {
     echo "eshu-mcp $ESHU_MCP_REF resolved to $(git -C "$MCP_SRC_DIR" rev-parse HEAD)"
     CGO_ENABLED=0 go -C "$MCP_SRC_DIR" build -trimpath -o "$INSTALL_DIR/eshu-mcp-server" ./cmd/eshu-mcp
     rm -rf "$MCP_SRC_DIR"
+
+    # #11453: the in-tree api server moved to the eshu-api satellite. Local
+    # launchers still resolve `eshu-api` from PATH, so the installer builds
+    # the pinned satellite release under that name. ESHU_API_REF pins the
+    # promoted build commit (a sha tag has no git ref, so fetch it by SHA);
+    # override only to measure another satellite build. The satellite release
+    # builds with CGO_ENABLED=0.
+    : "${ESHU_API_REF:=4565809840f689d552d2674a771e28a35326359c}"
+    API_SRC_DIR="$(mktemp -d)"
+    git init -q "$API_SRC_DIR"
+    git -C "$API_SRC_DIR" remote add origin https://github.com/eshu-hq/eshu-api.git
+    git -C "$API_SRC_DIR" fetch --depth 1 origin "$ESHU_API_REF"
+    git -C "$API_SRC_DIR" checkout -q FETCH_HEAD
+    echo "eshu-api $ESHU_API_REF resolved to $(git -C "$API_SRC_DIR" rev-parse HEAD)"
+    CGO_ENABLED=0 go -C "$API_SRC_DIR" build -trimpath -o "$INSTALL_DIR/eshu-api" ./cmd/eshu-api
+    rm -rf "$API_SRC_DIR"
 
     echo "Installed Eshu binaries to $INSTALL_DIR"
     if [[ -n "$ESHU_BUILD_TAGS" ]]; then
