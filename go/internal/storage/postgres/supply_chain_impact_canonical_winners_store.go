@@ -377,7 +377,7 @@ func (t supplyChainImpactTx) ExecContext(
 	args ...any,
 ) (sql.Result, error) {
 	result, err := t.tx.ExecContext(ctx, query, args...)
-	return result, t.classifyFactWriteStopped(ctx, err)
+	return result, classifyGoEvidenceLockTimeout(query, t.classifyFactWriteStopped(ctx, err))
 }
 
 // QueryContext runs a read inside the write transaction.

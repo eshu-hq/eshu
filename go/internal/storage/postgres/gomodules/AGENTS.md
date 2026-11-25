@@ -31,7 +31,12 @@
 - `FenceStaleGoEvidence` is the only write. Do not add another or a schema change here.
   Both updates name the scope and the generation the page read, so a successor activated
   after that read makes the fence a no-op.
-- The fence's lock order is the `ingestion_scopes` row, then the generation, then each
+- The fence's first statement after its timeouts is the exclusive go-evidence advisory lock
+  (`lockGoEvidence`, `fence_goevidence.go`, #11327), before the readiness check, the scope row,
+  the generation and the holders. The impact pass takes the shared form as its closing statements
+  before the commit, so the fence waits for a recheck and a commit; its 2,000 ms timeout is the
+  bound and a timeout detaches nothing. Do not move the lock behind another statement.
+- The fence's lock order after that is the `ingestion_scopes` row, then the generation, then each
   holder's work items in `scope_id` order. The scope row first is the #7389 order every
   blocking path uses, Ack included. Do not reverse it to match statement order in
   `projector_queue_sql.go`, which is declaration order, not execution order.

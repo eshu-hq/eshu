@@ -39,6 +39,31 @@ tests:
     class: postgres_ci
     reason: "#9875 fleet acceptance gate on disposable PostgreSQL 18: an advisory, a KEV listing, and an owned package on a catalogued service drain through the real SupplyChainImpactHandler and queue, the keyed winners tick, and the grouped inventory HTTP route; the service bucket must be complete with the KEV-scored critical winner, the unmapped control must sit in the unattributed bucket, and source commit to rollup read must stay within ESHU_FLEET_GATE_MAX_ELAPSED (default 30s); withholding the KEV, affected_package, or service mapping fact must fail the gate; reads ESHU_FLEET_GATE_PROOF_DSN with its disposable opt-in; the service rollup reads profile=comprehensive; after the supports backfill completes the same run expects the default (precise) profile to answer the same rollup from the supports table, and expects 503 naming the supports read model while the readiness marker is reset, then 200 again once the backfill completes"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof that a supply-chain impact pass, which takes the shared go-evidence lock as the last statements before its commit, and the Go-modules fence cannot both commit around the same go scope: a fence between the Go evidence load and the pass write aborts the pass with the non-counting class, a pass that spends 3 s in its writes loses to a fence that takes its lock at once, a fence behind a pass paused between recheck and commit waits then reopens it, and a second pass queues behind a waiting fence"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_marker_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof of the owed marker that follows the go-evidence lock: the recorded footprint of a changed pass through the real handler, 40 rounds each of a fence queued behind a pass paused before its marker and of a fence-style reopen holding the marker's row, a retirement-style table lock under the marker, and a marker row held 3 s while a fence on that go scope times out and detaches nothing"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_protected_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof, through the least-privilege runtime-writer login and the protected-scan authorization and publication, that a pass taking the shared go-evidence lock last and a Go-modules fence reopening that pass's own work item never deadlock in 40 rounds"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL race proofs of the go-evidence lock: 40 rounds of the fence reopening the work item of a pass already in flight (zero deadlocks), a successor ack that commits while a pass holds the shared lock for 3 s and ends on the successor, a multi-repository pass with fences on two of its go scopes in parallel, the recheck covering exactly the pairs the loader resolved, and 40 free-interleaving rounds whose invariant is that no support derived from a retracted generation survives without a reopened holder"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_go_evidence_lock_suppression_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11327 real PostgreSQL proof for the suppression family before the go-evidence lock: 40 rounds of a pass whose suppression diff really runs racing a fence that reopens its work item with zero deadlocks and a clean recorded footprint, and the production suppression candidate read returning under a 1 s lock_timeout while a side transaction holds LOCK TABLE fact_work_items IN EXCLUSIVE MODE"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_protected_static_publish_live_test.go
     tag: ~
     class: postgres_ci

@@ -69,6 +69,10 @@ func goReachabilityScopeIDs(repositoryIDs []string) []string {
 // scope has no active generation) simply loads nothing.
 const goReachabilityScopeResolutionSQL = `SELECT scope.scope_id, scope.active_generation_id
 FROM ingestion_scopes AS scope
+JOIN scope_generations AS generation
+  ON generation.scope_id = scope.scope_id
+ AND generation.generation_id = scope.active_generation_id
+ AND generation.status = 'active'
 WHERE scope.scope_id = ANY($1::text[])
   AND scope.active_generation_id IS NOT NULL
 ORDER BY scope.scope_id`
@@ -139,18 +143,32 @@ func (s FactStore) ListActiveGoReachabilityFacts(
 	ctx context.Context,
 	filter supplychaincore.GoReachabilityFactFilter,
 ) ([]facts.Envelope, error) {
+	evidence, err := s.ListActiveGoReachabilityEvidence(ctx, filter)
+	return evidence.Facts, err
+}
+
+// ListActiveGoReachabilityEvidence is ListActiveGoReachabilityFacts plus the
+// (go scope, generation) pairs the load resolved, read in the same repeatable-read
+// snapshot as the facts (#11327). The pairs are every named scope whose active
+// pointer names an active generation, whether or not that generation holds evidence:
+// the writer locks and rechecks exactly these before it commits a verdict derived from
+// them.
+func (s FactStore) ListActiveGoReachabilityEvidence(
+	ctx context.Context,
+	filter supplychaincore.GoReachabilityFactFilter,
+) (supplychaincore.GoReachabilityEvidence, error) {
 	if s.database == nil {
-		return nil, fmt.Errorf("fact store database is required")
+		return supplychaincore.GoReachabilityEvidence{}, fmt.Errorf("fact store database is required")
 	}
 	scopeIDs := goReachabilityScopeIDs(filter.RepositoryIDs)
 	if len(scopeIDs) == 0 {
-		return nil, nil
+		return supplychaincore.GoReachabilityEvidence{}, nil
 	}
 	query, err := s.protectedImpactStaticFactSQL(listActiveGoReachabilityFactsQuery)
 	if err != nil {
-		return nil, err
+		return supplychaincore.GoReachabilityEvidence{}, err
 	}
-	var loaded []facts.Envelope
+	var evidence supplychaincore.GoReachabilityEvidence
 	err = withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
 		scopes, generations, err := resolveGoReachabilityScopes(ctx, queryer, scopeIDs)
 		if err != nil {
@@ -159,13 +177,18 @@ func (s FactStore) ListActiveGoReachabilityFacts(
 		if len(scopes) == 0 {
 			return nil
 		}
-		loaded, err = listGoReachabilityFactRows(ctx, queryer, query, scopes, generations)
+		for i := range scopes {
+			evidence.Generations = append(evidence.Generations, supplychaincore.GoEvidenceGeneration{
+				ScopeID: scopes[i], GenerationID: generations[i],
+			})
+		}
+		evidence.Facts, err = listGoReachabilityFactRows(ctx, queryer, query, scopes, generations)
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return supplychaincore.GoReachabilityEvidence{}, err
 	}
-	return loaded, nil
+	return evidence, nil
 }
 
 // resolveGoReachabilityScopes returns the active (scope, generation) pairs

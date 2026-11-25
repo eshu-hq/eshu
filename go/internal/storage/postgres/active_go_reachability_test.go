@@ -136,3 +136,23 @@ func TestGoReachabilityEvidenceKindsAreTheTwoLoaderKinds(t *testing.T) {
 		}
 	}
 }
+
+// TestGoReachabilityScopeResolutionNamesOnlyActiveGenerations pins the pairs the
+// writer locks and rechecks (#11327): a pair is resolved only when the scope's pointer
+// names a generation whose status is active, the same condition the writer's recheck
+// applies, so a pointer naming a generation that is not active cannot make every pass
+// that names it abort forever.
+func TestGoReachabilityScopeResolutionNamesOnlyActiveGenerations(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"JOIN scope_generations AS generation",
+		"generation.generation_id = scope.active_generation_id",
+		"generation.status = 'active'",
+		"scope.scope_id = ANY($1::text[])",
+	} {
+		if !strings.Contains(goReachabilityScopeResolutionSQL, want) {
+			t.Fatalf("goReachabilityScopeResolutionSQL missing %q:\n%s", want, goReachabilityScopeResolutionSQL)
+		}
+	}
+}

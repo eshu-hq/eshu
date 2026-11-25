@@ -1559,6 +1559,16 @@ type Instruments struct {
 	// SupplyChainImpactFactWriteRejected counts impact-finding fact writes the
 	// PR-C reject trigger refused (#10880); registered with the supports signals.
 	SupplyChainImpactFactWriteRejected metric.Int64Counter
+	// The go-evidence lock signals of #11327, registered with the supports
+	// signals: passes aborted before their write because the Go evidence they
+	// loaded went stale, and the Go-modules fence's wait on the exclusive lock.
+	SupplyChainImpactGoEvidenceRecheckAborts metric.Int64Counter
+	GoFenceAdvisoryLockTimeouts              metric.Int64Counter
+	GoFenceAdvisoryLockWait                  metric.Float64Histogram
+	// The pass-side duration signals of #11327: wall time of the impact write
+	// transaction by outcome, and the pass's wait on the shared go-evidence lock.
+	SupplyChainImpactWriteTxDuration    metric.Float64Histogram
+	SupplyChainImpactGoEvidenceLockWait metric.Float64Histogram
 
 	// The per-support table signals of #10880 PR-B1, registered by
 	// registerSupplyChainImpactSupportsInstruments.

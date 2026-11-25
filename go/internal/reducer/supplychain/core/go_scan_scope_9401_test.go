@@ -121,6 +121,19 @@ func (l *goStageImpactLoader) ListActiveGoReachabilityFacts(_ context.Context, f
 	return append([]facts.Envelope(nil), l.goScan...), nil
 }
 
+// ListActiveGoReachabilityEvidence is the pairs seam the writer's lock needs
+// (#11327): the same go-scan facts, with one pair per distinct (scope,
+// generation) among them. The filter is still recorded: the pass reads its
+// repository ids through this seam now, not the facts seam above.
+func (l *goStageImpactLoader) ListActiveGoReachabilityEvidence(_ context.Context, filter GoReachabilityFactFilter) (GoReachabilityEvidence, error) {
+	l.goFilters = append(l.goFilters, filter)
+	pairs := make([]GoEvidenceGeneration, 0, len(l.goScan))
+	for _, envelope := range l.goScan {
+		pairs = append(pairs, GoEvidenceGeneration{ScopeID: envelope.ScopeID, GenerationID: envelope.GenerationID})
+	}
+	return GoReachabilityEvidence{Facts: append([]facts.Envelope(nil), l.goScan...), Generations: sortedGoEvidencePairs(pairs)}, nil
+}
+
 // runLive9401Pass runs the handler over the orders scope with the given
 // own-scope facts and Go-stage facts and returns the written findings by CVE.
 func runLive9401Pass(t *testing.T, ownScope, goScan []facts.Envelope) (map[string]SupplyChainImpactFinding, *goStageImpactLoader) {

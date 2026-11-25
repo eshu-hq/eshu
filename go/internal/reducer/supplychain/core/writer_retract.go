@@ -52,13 +52,16 @@ func runSupplyChainImpactTx(
 	}
 	outcome, err := commitSupplyChainImpactRows(ctx, tx, write, rows, meta, protected, hasProtected, now)
 	if err != nil {
+		// Only the lock-wait observation survives a failed pass: it is a duration, not a result.
+		failed := supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait}
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			return supplyChainImpactTxOutcome{}, fmt.Errorf("%w; rollback: %v", err, rbErr)
+			return failed, fmt.Errorf("%w; rollback: %v", err, rbErr)
 		}
-		return supplyChainImpactTxOutcome{}, err
+		return failed, err
 	}
 	if err := tx.Commit(); err != nil {
-		return supplyChainImpactTxOutcome{}, fmt.Errorf("commit supply chain impact transaction: %w", err)
+		// The lock-wait observation survives a failed commit too: the pass did take the lock.
+		return supplyChainImpactTxOutcome{goEvidenceLocked: outcome.goEvidenceLocked, goEvidenceLockWait: outcome.goEvidenceLockWait}, fmt.Errorf("commit supply chain impact transaction: %w", err)
 	}
 	return outcome, nil
 }
@@ -89,6 +92,10 @@ type supplyChainImpactTxOutcome struct {
 	// staleCopyRepairs counts the stored copies whose retraction state this
 	// pass flipped (#10765); the handler counts them after the commit.
 	staleCopyRepairs StaleCopyRepairs
+	// goEvidenceLocked/Wait say whether the pass took the shared lock and how long its
+	// lock statements took (#11327); the writer records them on the lock-wait histogram, even on a failed recheck.
+	goEvidenceLocked   bool
+	goEvidenceLockWait time.Duration
 }
 
 // commitSupplyChainImpactRows runs one pass's statements inside tx and returns
@@ -242,11 +249,10 @@ func commitSupplyChainImpactRows(
 	// pass whose only changes are CVE-less (group keys live in advisory_id)
 	// has empty changedCVEs but still owes its touched groups a
 	// projection, so the crash-recovery rerun must re-drive it too.
-	if write.Owed != nil && (len(outcome.changedCVEs) > 0 || len(outcome.touchedGroups) > 0) {
-		if err := write.Owed.RecordFanOutOwed(ctx, tx); err != nil {
-			return supplyChainImpactTxOutcome{}, fmt.Errorf("record supply chain impact fan-out owed: %w", err)
-		}
-	}
+	// The marker updates this pass's own fact_work_items row, the row a fence's holder
+	// reopen updates, so it is recorded after the go-evidence lock below: holding it while
+	// waiting for the lock would close a cycle with a fence holding the exclusive lock.
+	owed := write.Owed != nil && (len(outcome.changedCVEs) > 0 || len(outcome.touchedGroups) > 0)
 	if !write.PartialEvidence {
 		tombstoned, marked, err := retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken, write.ScopedCVEIDs)
 		if err != nil {
@@ -293,6 +299,19 @@ func commitSupplyChainImpactRows(
 	if err != nil {
 		return supplyChainImpactTxOutcome{}, err
 	}
+	// The go-evidence lock and recheck close the pass (#11327), apart from the owed
+	// marker: the shared lock is held for a recheck and a commit, so a fence waits
+	// milliseconds. No statement above writes, row-locks or table-locks fact_work_items
+	// or writes or row-locks a scope or generation row (the pre-lock classifier and the
+	// storage census pin this), so this wait cannot close a cycle with a fence holding the exclusive lock.
+	locked, wait, err := lockAndRecheckGoEvidence(ctx, tx, write.GoEvidence)
+	if err == nil && owed {
+		wait, err = recordOwedAfterGoEvidenceLock(ctx, tx, write, locked, wait)
+	}
+	outcome.goEvidenceLocked, outcome.goEvidenceLockWait = locked, wait
+	if err != nil {
+		return supplyChainImpactTxOutcome{goEvidenceLocked: locked, goEvidenceLockWait: wait}, err
+	}
 	return outcome, nil
 }
 
@@ -313,6 +332,9 @@ const lockSupplyChainImpactConflictDomainQuery = `SELECT pg_advisory_xact_lock(h
 // (scope, generation) finding set. The fact kind prefix namespaces it away
 // from other domains' advisory keys; a 64-bit hash collision only costs a
 // brief extra wait, never a wrong result.
+//
+// The go-evidence lock key (SupplyChainImpactGoEvidenceLockKey, go_evidence_lock.go)
+// is a separate derivation in a separate namespace, taken after this lock, at the end of the transaction.
 func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 	return supplyChainImpactFactKind + "\x1f" + scopeID + "\x1f" + generationID
 }
