@@ -104,6 +104,11 @@ func TestWinnersResweepTimeoutFormatMatchesSetConfig(t *testing.T) {
 	if got := formatWinnersResweepTimeout(120 * time.Second); got != "120000ms" {
 		t.Errorf("formatWinnersResweepTimeout(120s) = %q, want 120000ms", got)
 	}
+	// A positive sub-millisecond timeout clamps to 1 ms: Postgres reads
+	// "0ms" as no timeout, so rendering one would silently drop the guard.
+	if got := formatWinnersResweepTimeout(500 * time.Microsecond); got != "1ms" {
+		t.Errorf("formatWinnersResweepTimeout(500us) = %q, want 1ms", got)
+	}
 	if !strings.Contains(pinWinnersResweepStatementTimeoutSQL, "set_config('statement_timeout'") {
 		t.Errorf("pin statement does not set_config statement_timeout: %q", pinWinnersResweepStatementTimeoutSQL)
 	}
