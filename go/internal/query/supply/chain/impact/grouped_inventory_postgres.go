@@ -147,7 +147,7 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	countRoute(ctx, s.Instruments, route)
 	build := groupedInventoryQuery
 	switch route {
-	case RouteLegacy, RouteWinners, RouteSupportsFindingID:
+	case RouteLegacy, RouteWinners, RouteSupportsFindingID, RouteSupportsSelector:
 		// unreachable for the legacy route (a gate-off store refused above); the
 		// winners route uses the winners builder
 	case RouteSupportsGrant:

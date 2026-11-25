@@ -54,6 +54,8 @@ func routeOf(statement string) ReadRoute {
 		return RouteSupportsGrant
 	case strings.Contains(statement, "supply_chain_impact_canonical_winners AS w"):
 		return RouteWinners
+	case strings.Contains(statement, "first_hit AS MATERIALIZED"):
+		return RouteSupportsSelector
 	case strings.Contains(statement, "FROM fact_records AS fact"):
 		return RouteLegacy
 	}

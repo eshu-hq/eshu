@@ -1,0 +1,402 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package impact
+
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10880 PR-C1 f disposable PostgreSQL 18 proof that the decide-first ungranted selector explain answers exactly what the legacy explain answers: zero, one and several canonical keys, a key whose only copies are unauthorized, a key whose best-ranked copy is unauthorized, a scanner-associated copy, a derived-image scope, an operator-suppressed finding and a retracted scanner classification; and that statements with the authority probe or the identity predicate removed diverge on the same corpus
+//eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+)
+
+const (
+	decideScopeStale    = "scope:decide-stale"
+	decideGenStaleOld   = "gen:decide-stale-old"
+	decideGenStaleNew   = "gen:decide-stale-new"
+	decideDerivedScope  = "image://derived/decide"
+	decideDerivedGen    = "gen:decide-derived"
+	decideRepository    = "repository:decide"
+	decideOperatorState = "false_positive"
+)
+
+// decidePayload is one fixture finding payload. The canonical key folds the CVE, package and
+// repository, so copies of one finding in several scopes share a key.
+func decidePayload(cve, pkg string, score int) map[string]any {
+	payload := groupedLiveFindingPayload("decide", "decide", score, 5.0)
+	payload["finding_id"] = "finding:decide:" + cve + ":" + pkg
+	payload["cve_id"] = "CVE-2026-" + cve
+	payload["package_id"] = "pkg:npm/" + pkg + "@1.0.0"
+	payload["repository_id"] = decideRepository
+	return payload
+}
+
+// seedDecideFirstFixtures adds the cases the multi-support corpus lacks: every one is a
+// canonical key whose copies the authority probe must treat in a specific way.
+func seedDecideFirstFixtures(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	groupedLiveScope(t, ctx, database, decideScopeStale, decideGenStaleNew)
+	groupedLiveScope(t, ctx, database, decideDerivedScope, decideDerivedGen)
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
+VALUES ($1, $2, 'synthetic', NOW(), NOW(), 'superseded', NOW(), '{}'::jsonb)`, decideGenStaleOld, decideScopeStale); err != nil {
+		t.Fatalf("insert the superseded generation: %v", err)
+	}
+	fact := func(id, scope, generation, cve, pkg string, score int) {
+		groupedLiveFact(t, ctx, database, id, scope, generation, FindingFactKind, decidePayload(cve, pkg, score))
+	}
+	// d1: one authorized key (k1) beside a key with only stale copies (k2), a derived-scope key (k3),
+	// a scanner-associated key (k4) and a derived-classified key (k5). k1's best-ranked copy is the stale one.
+	fact("fact:d1:k1:stale", decideScopeStale, decideGenStaleOld, "d1", "k1", 95)
+	fact("fact:d1:k1:a", multiSupportScopeA, "gen:a", "d1", "k1", 60)
+	fact("fact:d1:k2:stale", decideScopeStale, decideGenStaleOld, "d1", "k2", 80)
+	fact("fact:d1:k3:derived", decideDerivedScope, decideDerivedGen, "d1", "k3", 80)
+	fact("fact:d1:k4:assoc", multiSupportScopeA, "gen:a", "d1", "k4", 80)
+	fact("fact:d1:k5:class", multiSupportScopeA, "gen:a", "d1", "k5", 80)
+	// d2: two authorized keys, one of them with a static active classification, beside a retracted one.
+	fact("fact:d2:k6:static", multiSupportScopeA, "gen:a", "d2", "k6", 70)
+	fact("fact:d2:k7:b", multiSupportScopeB, "gen:b", "d2", "k7", 70)
+	fact("fact:d2:k8:retracted", multiSupportScopeA, "gen:a", "d2", "k8", 70)
+	// d3: two authorized keys, one operator-suppressed: a suppressed winner still counts.
+	fact("fact:d3:k9:a", multiSupportScopeA, "gen:a", "d3", "k9", 70)
+	fact("fact:d3:k10:b", multiSupportScopeB, "gen:b", "d3", "k10", 70)
+	// d4: one authorized key, operator-suppressed.
+	fact("fact:d4:k11:a", multiSupportScopeA, "gen:a", "d4", "k11", 70)
+	// d5: only stale copies: not found. d6: one key with copies in two scopes: found, the better copy wins.
+	fact("fact:d5:k12:stale", decideScopeStale, decideGenStaleOld, "d5", "k12", 70)
+	fact("fact:d6:k13:a", multiSupportScopeA, "gen:a", "d6", "k13", 50)
+	fact("fact:d6:k13:b", multiSupportScopeB, "gen:b", "d6", "k13", 75)
+	decideFactWith := func(id, scope, generation, cve, pkg string, score int, edit func(map[string]any)) {
+		payload := decidePayload(cve, pkg, score)
+		edit(payload)
+		groupedLiveFact(t, ctx, database, id, scope, generation, FindingFactKind, payload)
+	}
+	// d7: runtime filters. Two keys in two repositories; service and workload facts name only repository decide-a.
+	decideFactWith("fact:d7:k14:a", multiSupportScopeA, "gen:a", "d7", "k14", 70, func(p map[string]any) { p["repository_id"] = "repository:decide-a" })
+	decideFactWith("fact:d7:k15:b", multiSupportScopeB, "gen:b", "d7", "k15", 70, func(p map[string]any) { p["repository_id"] = "repository:decide-b" })
+	groupedLiveFact(t, ctx, database, "fact:runtime:svc-decide-a", multiSupportScopeA, "gen:a", serviceCatalogCorrelationFactKind,
+		map[string]any{"service_id": "service:decide-a", "repository_id": "repository:decide-a", "outcome": "exact"})
+	groupedLiveFact(t, ctx, database, "fact:runtime:wl-decide-a", multiSupportScopeA, "gen:a", "reducer_workload_identity",
+		map[string]any{"workload_id": "workload:decide-a", "repository_id": "repository:decide-a"})
+	// d8: subject digests. Two keys that differ only by digest.
+	decideFactWith("fact:d8:k16:a", multiSupportScopeA, "gen:a", "d8", "k16", 70, func(p map[string]any) { p["subject_digest"] = "sha256:decide-1" })
+	decideFactWith("fact:d8:k17:b", multiSupportScopeB, "gen:b", "d8", "k17", 70, func(p map[string]any) { p["subject_digest"] = "sha256:decide-2" })
+	// d9: an advisory id: two keys carry it as advisory_id, one carries it in the cve_id column (the second arm).
+	decideFactWith("fact:d9:k18:a", multiSupportScopeA, "gen:a", "d9", "k18", 70, func(p map[string]any) { p["advisory_id"] = "GHSA-decide-9" })
+	decideFactWith("fact:d9:k19:b", multiSupportScopeB, "gen:b", "d9", "k19", 70, func(p map[string]any) { p["advisory_id"] = "GHSA-decide-9" })
+	decideFactWith("fact:d9:k20:a", multiSupportScopeA, "gen:a", "d9", "k20", 70, func(p map[string]any) { p["cve_id"] = "GHSA-decide-9" })
+	// d10: rank ties between authorized copies of one key. k21: equal score, one copy without a payload
+	// finding id whose fact id sorts first (the payload-finding-id tie-break must beat the fact id).
+	// k22: equal score and both with a finding id (the smaller fact id wins). The copies differ by cvss_score.
+	decideFactWith("fact:d10:k21:z", multiSupportScopeA, "gen:a", "d10", "k21", 70, func(p map[string]any) { p["cvss_score"] = 5.1 })
+	decideFactWith("fact:d10:k21:a", multiSupportScopeA, "gen:a", "d10", "k21", 70, func(p map[string]any) { p["cvss_score"] = 6.2; delete(p, "finding_id") })
+	decideFactWith("fact:d10:k22:y", multiSupportScopeA, "gen:a", "d10", "k22", 70, func(p map[string]any) { p["cvss_score"] = 5.3 })
+	decideFactWith("fact:d10:k22:b", multiSupportScopeA, "gen:a", "d10", "k22", 70, func(p map[string]any) { p["cvss_score"] = 6.4 })
+	for _, overlay := range []struct{ id, cve, pkg string }{
+		{"fact:op:d3:k10", "d3", "k10"}, {"fact:op:d4:k11", "d4", "k11"},
+	} {
+		payload := decidePayload(overlay.cve, overlay.pkg, 90)
+		payload["suppression_state"] = decideOperatorState
+		payload["suppression"] = map[string]any{"expires_at": "2099-01-01T00:00:00Z", "reason": "decide-first"}
+		groupedLiveFact(t, ctx, database, overlay.id, supportsOperatorScope, "gen:operator:2", FindingFactKind, payload)
+	}
+	for _, statement := range []string{
+		`INSERT INTO scanner_image_result_fact_classifications (finding_fact_id, source_class, lifecycle, scan_scope_id) VALUES ('fact:d1:k5:class', 'derived', 'active', '')`,
+		`INSERT INTO scanner_image_result_fact_classifications (finding_fact_id, source_class, lifecycle, scan_scope_id) VALUES ('fact:d2:k6:static', 'static', 'active', '')`,
+		`INSERT INTO scanner_image_result_fact_classifications (finding_fact_id, source_class, lifecycle, scan_scope_id) VALUES ('fact:d2:k8:retracted', 'static', 'retracted', '')`,
+	} {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("insert scanner classification: %v", err)
+		}
+	}
+	// The association row's foreign keys are bypassed for this fixture only: the read guard looks
+	// at the row's presence, never at its publication.
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+		t.Fatalf("relax foreign keys for the association fixture: %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO scanner_image_result_fact_associations (finding_fact_id, publication_id, scan_scope_id, scan_generation_id, tenant_id, workspace_id)
+VALUES ('fact:d1:k4:assoc', 'publication:decide', 'scan-scope:decide', 'gen', '', '')`); err != nil {
+		t.Fatalf("insert scanner association: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit association fixture: %v", err)
+	}
+}
+
+// decideOutcome is explainOutcome with the ambiguous count, which the refusal envelope carries.
+func decideOutcome(row ExplanationRow, err error) string {
+	if errors.Is(err, ErrExplanationAmbiguous) {
+		return fmt.Sprintf("ambiguous(%d)", ExplanationAmbiguousCandidateCount(err))
+	}
+	if err == nil {
+		encoded, _ := json.Marshal(row)
+		return string(encoded)
+	}
+	return explainOutcome(row, err)
+}
+
+// decideRequests are the ungranted explain requests the matrix runs: every selector a bounded
+// scope allows, over every fixture CVE, plus the identity lookups.
+func decideRequests(all []FindingRow, canonicalKeys map[string]string) []packet.ExplanationFilter {
+	requests := []packet.ExplanationFilter{}
+	for _, cve := range []string{"d1", "d2", "d3", "d4", "d5", "d6"} {
+		requests = append(requests,
+			packet.ExplanationFilter{CVEID: "CVE-2026-" + cve, RepositoryID: decideRepository},
+			packet.ExplanationFilter{AdvisoryID: "CVE-2026-" + cve, RepositoryID: decideRepository},
+		)
+	}
+	for _, fixture := range []struct{ cve, pkg string }{
+		{"d1", "k1"},
+		{"d1", "k2"},
+		{"d1", "k3"},
+		{"d1", "k4"},
+		{"d1", "k5"},
+		{"d2", "k6"},
+		{"d2", "k7"},
+		{"d2", "k8"},
+		{"d3", "k9"},
+		{"d3", "k10"},
+		{"d4", "k11"},
+		{"d5", "k12"},
+		{"d6", "k13"},
+	} {
+		requests = append(requests, packet.ExplanationFilter{CVEID: "CVE-2026-" + fixture.cve, PackageID: "pkg:npm/" + fixture.pkg + "@1.0.0"})
+	}
+	// A finding id with a package or a repository and no CVE or advisory keeps the legacy selector read
+	// (ruling item-f-identity 2.1): hit by fact id, hit by canonical key, and a miss, all equal to legacy.
+	for _, copy := range []struct{ fact, pkg string }{
+		{"fact:d1:k1:a", "pkg:npm/k1@1.0.0"}, {"fact:d2:k7:b", "pkg:npm/k7@1.0.0"}, {"fact:d6:k13:b", "pkg:npm/k13@1.0.0"},
+	} {
+		for _, identity := range []string{copy.fact, canonicalKeys[copy.fact], "finding:decide:no-such-identity"} {
+			requests = append(requests,
+				packet.ExplanationFilter{FindingID: identity, PackageID: copy.pkg},
+				packet.ExplanationFilter{FindingID: identity, RepositoryID: decideRepository},
+				packet.ExplanationFilter{FindingID: identity, SubjectDigest: "sha256:decide-1"},
+			)
+		}
+	}
+	// Runtime filters, digests, advisory ids and rank ties: every selector the route takes.
+	requests = append(requests,
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", ServiceID: "service:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", ServiceID: "service:decide-b"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", WorkloadID: "workload:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", WorkloadID: "workload:decide-b"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", RepositoryID: "repository:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d7", RepositoryID: "repository:decide-b"},
+		packet.ExplanationFilter{AdvisoryID: "CVE-2026-d7", ServiceID: "service:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", SubjectDigest: "sha256:decide-1"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", SubjectDigest: "sha256:decide-2"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", SubjectDigest: "sha256:decide-3"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d8", RepositoryID: decideRepository},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", RepositoryID: decideRepository},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", PackageID: "pkg:npm/k18@1.0.0"},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", PackageID: "pkg:npm/k20@1.0.0"},
+		packet.ExplanationFilter{AdvisoryID: "GHSA-decide-9", PackageID: "pkg:npm/k19@1.0.0", ServiceID: "service:decide-a"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d10", PackageID: "pkg:npm/k21@1.0.0"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d10", PackageID: "pkg:npm/k22@1.0.0"},
+		packet.ExplanationFilter{CVEID: "CVE-2026-d10", RepositoryID: decideRepository},
+	)
+	for _, row := range all {
+		requests = append(requests,
+			packet.ExplanationFilter{CVEID: row.CVEID, PackageID: row.PackageID},
+			packet.ExplanationFilter{CVEID: row.CVEID, RepositoryID: row.RepositoryID},
+			packet.ExplanationFilter{FindingID: row.FindingID},
+			packet.ExplanationFilter{FindingID: row.FindingID, CVEID: row.CVEID, RepositoryID: row.RepositoryID},
+		)
+	}
+	// A fact id the public-id lookup misses falls through to the selector statement with the identity
+	// predicate: it must narrow to that fact's canonical key, whatever else the selector matches.
+	for _, fixture := range []struct{ fact, cve string }{
+		{"fact:d1:k1:a", "d1"},
+		{"fact:d2:k6:static", "d2"},
+		{"fact:d2:k7:b", "d2"},
+		{"fact:d3:k9:a", "d3"},
+		{"fact:d3:k10:b", "d3"},
+		{"fact:d6:k13:b", "d6"},
+		{"fact:d1:k2:stale", "d1"},
+	} {
+		requests = append(requests, packet.ExplanationFilter{FindingID: fixture.fact, CVEID: "CVE-2026-" + fixture.cve, RepositoryID: decideRepository})
+	}
+	for _, id := range []string{"d1:k1", "d1:k2", "d2:k6", "d3:k10", "d4:k11", "d6:k13", "missing"} {
+		requests = append(requests, packet.ExplanationFilter{FindingID: "finding:decide:" + id})
+	}
+	return requests
+}
+
+// decideCompare runs every request through both stores and returns the mismatches plus counts of each
+// outcome class, so a caller can require the matrix to be non-vacuous.
+func decideCompare(ctx context.Context, requests []packet.ExplanationFilter, candidate, legacy PostgresFindingStore) (mismatches []string, found, ambiguous, notFound int) {
+	for _, request := range requests {
+		got, gotErr := candidate.ExplainSupplyChainImpact(ctx, request)
+		want, wantErr := legacy.ExplainSupplyChainImpact(ctx, request)
+		if decideOutcome(got, gotErr) != decideOutcome(want, wantErr) {
+			mismatches = append(mismatches, fmt.Sprintf("%+v\n  legacy:   %s\n  decide-first: %s", request, decideOutcome(want, wantErr), decideOutcome(got, gotErr)))
+		}
+		switch {
+		case errors.Is(wantErr, ErrExplanationNotFound):
+			notFound++
+		case errors.Is(wantErr, ErrExplanationAmbiguous):
+			ambiguous++
+		case wantErr == nil:
+			found++
+		}
+	}
+	return mismatches, found, ambiguous, notFound
+}
+
+// TestExplainUngrantedDecideFirstEqualsLegacyLive holds the decide-first ungranted explain to the
+// legacy explain over zero, one and several canonical keys and the authority cases of the
+// fixtures; a seeded-violation subtest removes the authority probe, the second-key compare and the
+// identity predicate in turn and requires the same matrix to catch each.
+func TestExplainUngrantedDecideFirstEqualsLegacyLive(t *testing.T) {
+	ctx, database := openSupportsEqualityDatabaseWith(t, seedDecideFirstFixtures)
+	candidate := PostgresFindingStore{DB: database, ReadFromWinners: true}
+	legacy := PostgresFindingStore{DB: database, ReadFromWinners: false}
+	all, err := legacy.ListSupplyChainImpactFindings(ctx, FindingFilter{Status: "affected_exact", Limit: 200})
+	if err != nil || len(all) == 0 {
+		t.Fatalf("seed list = %d rows, %v", len(all), err)
+	}
+	canonicalKeys := map[string]string{}
+	for _, fact := range []string{"fact:d1:k1:a", "fact:d2:k7:b", "fact:d6:k13:b"} {
+		var key string
+		if err := database.QueryRowContext(ctx, `SELECT canonical_key FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, fact).Scan(&key); err != nil {
+			t.Fatalf("canonical key of %s: %v", fact, err)
+		}
+		canonicalKeys[fact] = key
+	}
+	requests := decideRequests(all, canonicalKeys)
+
+	t.Run("equals legacy", func(t *testing.T) {
+		mismatches, found, ambiguous, notFound := decideCompare(ctx, requests, candidate, legacy)
+		if len(mismatches) > 0 {
+			t.Fatalf("%d of %d requests differ from legacy:\n%s", len(mismatches), len(requests), strings.Join(mismatches, "\n"))
+		}
+		t.Logf("compared %d requests: %d found, %d ambiguous, %d not found", len(requests), found, ambiguous, notFound)
+		if found == 0 || ambiguous == 0 || notFound == 0 {
+			t.Fatalf("matrix is vacuous: found %d, ambiguous %d, not found %d; it needs all three", found, ambiguous, notFound)
+		}
+	})
+
+	original := map[explainDrivingKey]string{}
+	for key, query := range ExplainFindingUngrantedByKeyQuery {
+		original[key] = query
+	}
+	mutate := func(t *testing.T, edit func(string) string) {
+		t.Helper()
+		t.Cleanup(func() {
+			for key, query := range original {
+				ExplainFindingUngrantedByKeyQuery[key] = query
+			}
+		})
+		for key, query := range original {
+			changed := edit(query)
+			if changed == query {
+				t.Fatalf("the seeded violation changed nothing in the %s statement", key)
+			}
+			ExplainFindingUngrantedByKeyQuery[key] = changed
+		}
+	}
+	diverges := func(t *testing.T) {
+		t.Helper()
+		mismatches, _, _, _ := decideCompare(ctx, requests, candidate, legacy)
+		if len(mismatches) == 0 {
+			t.Fatal("the matrix did not catch the seeded violation: a regression here would ship")
+		}
+	}
+	t.Run("seeded violation: no authority probe", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			q = strings.ReplaceAll(q, "AND scope.active_generation_id = fact.generation_id\n", "AND TRUE\n")
+			return strings.ReplaceAll(q, "AND generation.status = 'active'\n", "AND TRUE\n")
+		})
+		diverges(t)
+	})
+	t.Run("seeded violation: no scanner association guard", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			return strings.ReplaceAll(q, "AND finding_association.finding_fact_id IS NULL\n", "AND TRUE\n")
+		})
+		diverges(t)
+	})
+	t.Run("seeded violation: no second-key compare", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			return strings.ReplaceAll(q, "WHERE fact.canonical_key <> (SELECT first_key.canonical_key FROM first_hit AS first_key)\n    AND ", "WHERE ")
+		})
+		diverges(t)
+	})
+	t.Run("seeded violation: no runtime-filter predicate", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			q = strings.ReplaceAll(q, "$9 = ''\n        OR EXISTS", "TRUE\n        OR EXISTS")
+			return strings.ReplaceAll(q, "$8 = ''\n        OR EXISTS", "TRUE\n        OR EXISTS")
+		})
+		diverges(t)
+	})
+	t.Run("seeded violation: no subject-digest predicate", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			return strings.ReplaceAll(q, "AND ($7 = '' OR fact.subject_digest = $7)", "AND TRUE")
+		})
+		diverges(t)
+	})
+	const rankOrder = "ORDER BY fact.priority_score DESC, fact.has_payload_finding_id DESC, fact.fact_id ASC"
+	for name, flipped := range map[string]string{
+		"ranked copies in reverse":        "ORDER BY fact.priority_score ASC, fact.has_payload_finding_id ASC, fact.fact_id DESC",
+		"no payload-finding-id tie-break": "ORDER BY fact.priority_score DESC, fact.fact_id ASC",
+		"fact id tie-break descending":    "ORDER BY fact.priority_score DESC, fact.has_payload_finding_id DESC, fact.fact_id DESC",
+	} {
+		t.Run("seeded violation: "+name, func(t *testing.T) {
+			mutate(t, func(q string) string { return strings.ReplaceAll(q, rankOrder, flipped) })
+			diverges(t)
+		})
+	}
+	t.Run("seeded violation: no identity predicate", func(t *testing.T) {
+		mutate(t, func(q string) string {
+			return strings.ReplaceAll(q, "($2 = ''\n        OR fact.fact_id = $2", "(TRUE\n        OR fact.fact_id = $2")
+		})
+		diverges(t)
+	})
+}
+
+// TestExplainSelectorJITOffRevertsAfterTheExplainLive is ruling item-f-identity 4.1 and its live proof: the
+// keyed selector read runs under a transaction-local jit = off inside the explain snapshot, and the one
+// pooled connection (pinned so the check lands on it) reads the server default after the explain returns,
+// through the plain connection and through the guarded read port, for a found, an ambiguous and a
+// not-found answer.
+func TestExplainSelectorJITOffRevertsAfterTheExplainLive(t *testing.T) {
+	ctx, database := openSupportsEqualityDatabaseWith(t, seedDecideFirstFixtures)
+	database.SetMaxOpenConns(1)
+	pool := sqlRowQueryer{database: database}
+	def := jitSetting(ctx, t, pool)
+	if def != "on" {
+		t.Skipf("server jit = %q: the proof needs the default (on) to show the switch", def)
+	}
+	stores := map[string]PostgresFindingStore{
+		"plain connection":  {DB: database, ReadFromWinners: true},
+		"guarded read port": NewPostgresFindingStoreWithReadStore(storagepostgres.NewSQLReadStore(database), true),
+	}
+	for name, store := range stores {
+		for answer, request := range map[string]packet.ExplanationFilter{
+			"found":     {CVEID: "CVE-2026-d4", RepositoryID: decideRepository},
+			"ambiguous": {CVEID: "CVE-2026-d2", RepositoryID: decideRepository},
+			"not found": {CVEID: "CVE-2026-d5", RepositoryID: decideRepository},
+		} {
+			_, _ = store.ExplainSupplyChainImpact(ctx, request)
+			if got := jitSetting(ctx, t, pool); got != def {
+				t.Fatalf("%s, %s: jit after the explain = %q, want the server default %q", name, answer, got, def)
+			}
+		}
+	}
+}

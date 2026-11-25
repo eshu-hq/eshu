@@ -1,0 +1,395 @@
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=29918.30..29918.31 rows=2 width=117) (actual time=652.280..652.311 rows=1.00 loops=1)
+   Buffers: shared hit=155812
+   CTE runtime_workload_identity_matches
+     ->  Append  (cost=9.55..10637.10 rows=414 width=865) (never executed)
+           ->  Result  (cost=9.55..178.23 rows=1 width=865) (never executed)
+                 One-Time Filter: ($8 <> ''::text)
+                 ->  Bitmap Heap Scan on fact_records  (cost=9.55..178.23 rows=1 width=865) (never executed)
+                       Recheck Cond: ((((payload ->> 'workload_id'::text) = $8) AND (fact_kind = 'reducer_workload_identity'::text) AND (NOT is_tombstone)) OR (((payload -> 'entity_keys'::text) ? $8) AND (fact_kind = 'reducer_workload_identity'::text) AND (NOT is_tombstone)))
+                       Filter: (((jsonb_typeof((payload -> 'workload_id'::text)) = 'string'::text) AND ((payload ->> 'workload_id'::text) = $8)) OR (($8 ~~ 'workload:%'::text) AND (jsonb_typeof((payload -> 'entity_keys'::text)) = ANY ('{array,string}'::text[])) AND ((payload -> 'entity_keys'::text) ? $8)))
+                       ->  BitmapOr  (cost=9.55..9.55 rows=148 width=0) (never executed)
+                             ->  Bitmap Index Scan on fact_records_workload_identity_workload_idx  (cost=0.00..4.08 rows=49 width=0) (never executed)
+                                   Index Cond: ((payload ->> 'workload_id'::text) = $8)
+                                   Index Searches: 0
+                             ->  Bitmap Index Scan on fact_records_workload_identity_entity_keys_idx  (cost=0.00..5.47 rows=99 width=0) (never executed)
+                                   Index Cond: ((payload -> 'entity_keys'::text) ? $8)
+                                   Index Searches: 0
+           ->  Result  (cost=0.12..2.37 rows=1 width=865) (never executed)
+                 One-Time Filter: ($8 <> ''::text)
+                 ->  Index Scan using fact_records_workload_identity_workload_trim_idx on fact_records fact_records_1  (cost=0.12..2.37 rows=1 width=865) (never executed)
+                       Index Cond: (btrim((payload ->> 'workload_id'::text)) = $8)
+                       Filter: (NOT COALESCE((((jsonb_typeof((payload -> 'workload_id'::text)) = 'string'::text) AND ((payload ->> 'workload_id'::text) = $8)) OR (($8 ~~ 'workload:%'::text) AND (jsonb_typeof((payload -> 'entity_keys'::text)) = ANY ('{array,string}'::text[])) AND ((payload -> 'entity_keys'::text) ? $8))), false))
+                       Index Searches: 0
+           ->  Result  (cost=0.12..10454.43 rows=412 width=865) (never executed)
+                 One-Time Filter: (($8 <> ''::text) AND ($8 ~~ 'workload:%'::text))
+                 ->  Index Scan using fact_records_workload_identity_entity_trim_idx on fact_records fact_records_2  (cost=0.12..10454.43 rows=412 width=865) (never executed)
+                       Filter: ((NOT COALESCE(((jsonb_typeof((payload -> 'workload_id'::text)) = 'string'::text) AND (btrim((payload ->> 'workload_id'::text)) = $8)), false)) AND (NOT COALESCE((((jsonb_typeof((payload -> 'workload_id'::text)) = 'string'::text) AND ((payload ->> 'workload_id'::text) = $8)) OR (($8 ~~ 'workload:%'::text) AND (jsonb_typeof((payload -> 'entity_keys'::text)) = ANY ('{array,string}'::text[])) AND ((payload -> 'entity_keys'::text) ? $8))), false)) AND EXISTS(SubPlan 1))
+                       Index Searches: 0
+                       SubPlan 1
+                         ->  Function Scan on jsonb_array_elements_text entity_key  (cost=0.02..2.02 rows=1 width=0) (never executed)
+                               Filter: ((btrim(value) ~~ 'workload:%'::text) AND (btrim(value) = $8))
+   CTE runtime_workload_catalog_matches
+     ->  Append  (cost=0.27..60.89 rows=2 width=865) (never executed)
+           ->  Result  (cost=0.27..58.52 rows=1 width=865) (never executed)
+                 One-Time Filter: ($8 <> ''::text)
+                 ->  Index Scan using fact_records_service_catalog_correlations_workload_idx on fact_records fact_records_3  (cost=0.27..58.52 rows=1 width=865) (never executed)
+                       Index Cond: ((payload ->> 'workload_id'::text) = $8)
+                       Filter: ((jsonb_typeof((payload -> 'workload_id'::text)) = 'string'::text) AND (btrim(COALESCE((payload ->> 'outcome'::text), ''::text)) = ANY ('{"",exact,derived}'::text[])) AND (lower(btrim(COALESCE((payload ->> 'provenance_only'::text), ''::text))) <> 'true'::text))
+                       Index Searches: 0
+           ->  Result  (cost=0.12..2.37 rows=1 width=865) (never executed)
+                 One-Time Filter: ($8 <> ''::text)
+                 ->  Index Scan using fact_records_service_catalog_workload_trim_idx on fact_records fact_records_4  (cost=0.12..2.37 rows=1 width=865) (never executed)
+                       Index Cond: (btrim((payload ->> 'workload_id'::text)) = $8)
+                       Filter: (((payload ->> 'workload_id'::text) IS DISTINCT FROM $8) AND (btrim(COALESCE((payload ->> 'outcome'::text), ''::text)) = ANY ('{"",exact,derived}'::text[])) AND (lower(btrim(COALESCE((payload ->> 'provenance_only'::text), ''::text))) <> 'true'::text))
+                       Index Searches: 0
+   CTE runtime_service_matches
+     ->  Append  (cost=0.27..60.89 rows=2 width=865) (never executed)
+           ->  Result  (cost=0.27..58.52 rows=1 width=865) (never executed)
+                 One-Time Filter: ($9 <> ''::text)
+                 ->  Index Scan using fact_records_service_catalog_correlations_service_idx on fact_records fact_records_5  (cost=0.27..58.52 rows=1 width=865) (never executed)
+                       Index Cond: ((payload ->> 'service_id'::text) = $9)
+                       Filter: ((jsonb_typeof((payload -> 'service_id'::text)) = 'string'::text) AND (btrim(COALESCE((payload ->> 'outcome'::text), ''::text)) = ANY ('{"",exact,derived}'::text[])) AND (lower(btrim(COALESCE((payload ->> 'provenance_only'::text), ''::text))) <> 'true'::text))
+                       Index Searches: 0
+           ->  Result  (cost=0.12..2.37 rows=1 width=865) (never executed)
+                 One-Time Filter: ($9 <> ''::text)
+                 ->  Index Scan using fact_records_service_catalog_service_trim_idx on fact_records fact_records_6  (cost=0.12..2.37 rows=1 width=865) (never executed)
+                       Index Cond: (btrim((payload ->> 'service_id'::text)) = $9)
+                       Filter: (((payload ->> 'service_id'::text) IS DISTINCT FROM $9) AND (btrim(COALESCE((payload ->> 'outcome'::text), ''::text)) = ANY ('{"",exact,derived}'::text[])) AND (lower(btrim(COALESCE((payload ->> 'provenance_only'::text), ''::text))) <> 'true'::text))
+                       Index Searches: 0
+   CTE runtime_environment_matches
+     ->  Result  (cost=0.00..0.00 rows=0 width=0) (never executed)
+           One-Time Filter: false
+   CTE runtime_filter_repositories
+     ->  Unique  (cost=908.30..908.33 rows=4 width=64) (never executed)
+           ->  Sort  (cost=908.30..908.31 rows=4 width=64) (never executed)
+                 Sort Key: "*SELECT* 1_3".filter_kind, (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 6), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text))))
+                 ->  Append  (cost=0.82..908.26 rows=4 width=64) (never executed)
+                       ->  Subquery Scan on "*SELECT* 1_3"  (cost=0.82..892.17 rows=1 width=64) (never executed)
+                             Filter: ((COALESCE(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 7), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text))), ''::text) <> ''::text) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 8), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 1_3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 1_3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 1_3".scope_id), ''::text))) = ANY ($11)) OR ("*SELECT* 1_3".scope_id = ANY ($12))))
+                             ->  Nested Loop  (cost=0.82..891.90 rows=1 width=96) (never executed)
+                                   ->  Nested Loop  (cost=0.41..891.14 rows=1 width=411) (never executed)
+                                         ->  CTE Scan on runtime_workload_identity_matches runtime_fact_1  (cost=0.00..8.28 rows=414 width=96) (never executed)
+                                               Storage: Memory  Maximum Storage: 17kB
+                                         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes runtime_scope  (cost=0.41..2.12 rows=1 width=315) (never executed)
+                                               Index Cond: (active_generation_id = runtime_fact_1.generation_id)
+                                               Filter: (runtime_fact_1.scope_id = scope_id)
+                                               Index Searches: 0
+                                   ->  Index Scan using scope_generations_pkey on scope_generations runtime_generation  (cost=0.41..0.75 rows=1 width=538) (never executed)
+                                         Index Cond: (generation_id = runtime_scope.active_generation_id)
+                                         Filter: ((status = 'active'::text) AND (runtime_scope.scope_id = scope_id))
+                                         Index Searches: 0
+                             SubPlan 6
+                               ->  Limit  (cost=0.02..0.08 rows=1 width=40) (never executed)
+                                     ->  Function Scan on jsonb_array_elements_text related  (cost=0.02..5.25 rows=99 width=40) (never executed)
+                                           Filter: (COALESCE(CASE WHEN (btrim(value) ~~ 'repository:%'::text) THEN btrim(value) WHEN (btrim(value) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(value FROM 22)), ''::text) ELSE NULL::text END, ''::text) <> ''::text)
+                             SubPlan 7
+                               ->  Limit  (cost=0.02..0.08 rows=1 width=40) (never executed)
+                                     ->  Function Scan on jsonb_array_elements_text related_1  (cost=0.02..5.25 rows=99 width=40) (never executed)
+                                           Filter: (COALESCE(CASE WHEN (btrim(value) ~~ 'repository:%'::text) THEN btrim(value) WHEN (btrim(value) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(value FROM 22)), ''::text) ELSE NULL::text END, ''::text) <> ''::text)
+                             SubPlan 8
+                               ->  Limit  (cost=0.02..0.08 rows=1 width=40) (never executed)
+                                     ->  Function Scan on jsonb_array_elements_text related_2  (cost=0.02..5.25 rows=99 width=40) (never executed)
+                                           Filter: (COALESCE(CASE WHEN (btrim(value) ~~ 'repository:%'::text) THEN btrim(value) WHEN (btrim(value) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(value FROM 22)), ''::text) ELSE NULL::text END, ''::text) <> ''::text)
+                       ->  Subquery Scan on "*SELECT* 2"  (cost=0.82..6.25 rows=1 width=64) (never executed)
+                             Filter: ((COALESCE(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 7), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text))), ''::text) <> ''::text) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 8), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 2".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 2".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 2".scope_id), ''::text))) = ANY ($11)) OR ("*SELECT* 2".scope_id = ANY ($12))))
+                             ->  Nested Loop  (cost=0.82..5.98 rows=1 width=96) (never executed)
+                                   Join Filter: ((runtime_fact_2.scope_id = runtime_scope_1.scope_id) AND (runtime_fact_2.generation_id = runtime_scope_1.active_generation_id))
+                                   ->  Nested Loop  (cost=0.41..5.33 rows=1 width=634) (never executed)
+                                         ->  CTE Scan on runtime_workload_catalog_matches runtime_fact_2  (cost=0.00..0.04 rows=2 width=96) (never executed)
+                                               Storage: Memory  Maximum Storage: 17kB
+                                         ->  Index Scan using scope_generations_pkey on scope_generations runtime_generation_1  (cost=0.41..2.64 rows=1 width=538) (never executed)
+                                               Index Cond: (generation_id = runtime_fact_2.generation_id)
+                                               Filter: ((status = 'active'::text) AND (scope_id = runtime_fact_2.scope_id))
+                                               Index Searches: 0
+                                   ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes runtime_scope_1  (cost=0.41..0.64 rows=1 width=315) (never executed)
+                                         Index Cond: (active_generation_id = runtime_generation_1.generation_id)
+                                         Filter: (scope_id = runtime_generation_1.scope_id)
+                                         Index Searches: 0
+                       ->  Subquery Scan on "*SELECT* 3"  (cost=0.82..6.25 rows=1 width=64) (never executed)
+                             Filter: ((COALESCE(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 7), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text))), ''::text) <> ''::text) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 8), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 3".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 3".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 3".scope_id), ''::text))) = ANY ($11)) OR ("*SELECT* 3".scope_id = ANY ($12))))
+                             ->  Nested Loop  (cost=0.82..5.98 rows=1 width=96) (never executed)
+                                   Join Filter: ((runtime_fact_3.scope_id = runtime_scope_2.scope_id) AND (runtime_fact_3.generation_id = runtime_scope_2.active_generation_id))
+                                   ->  Nested Loop  (cost=0.41..5.33 rows=1 width=634) (never executed)
+                                         ->  CTE Scan on runtime_service_matches runtime_fact_3  (cost=0.00..0.04 rows=2 width=96) (never executed)
+                                               Storage: Memory  Maximum Storage: 17kB
+                                         ->  Index Scan using scope_generations_pkey on scope_generations runtime_generation_2  (cost=0.41..2.64 rows=1 width=538) (never executed)
+                                               Index Cond: (generation_id = runtime_fact_3.generation_id)
+                                               Filter: ((status = 'active'::text) AND (scope_id = runtime_fact_3.scope_id))
+                                               Index Searches: 0
+                                   ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes runtime_scope_2  (cost=0.41..0.64 rows=1 width=315) (never executed)
+                                         Index Cond: (active_generation_id = runtime_generation_2.generation_id)
+                                         Filter: (scope_id = runtime_generation_2.scope_id)
+                                         Index Searches: 0
+                       ->  Subquery Scan on "*SELECT* 4"  (cost=0.82..3.57 rows=1 width=64) (never executed)
+                             Filter: ((COALESCE(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 7), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text))), ''::text) <> ''::text) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'repository_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'repository_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'repo_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'repo_id'::text) ELSE NULL::text END), ''::text), CASE WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) ~~ 'repository:%'::text) THEN COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) WHEN (COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) ~~ 'git-repository-scope:%'::text) THEN NULLIF(btrim(SUBSTRING(COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text)) FROM 22)), ''::text) ELSE NULL::text END, (SubPlan 8), COALESCE(NULLIF(btrim(CASE WHEN (jsonb_typeof(("*SELECT* 4".payload -> 'scope_id'::text)) = 'string'::text) THEN ("*SELECT* 4".payload ->> 'scope_id'::text) ELSE NULL::text END), ''::text), NULLIF(btrim("*SELECT* 4".scope_id), ''::text))) = ANY ($11)) OR ("*SELECT* 4".scope_id = ANY ($12))))
+                             ->  Nested Loop  (cost=0.82..3.30 rows=1 width=96) (never executed)
+                                   Join Filter: ((runtime_fact_4.scope_id = runtime_scope_3.scope_id) AND (runtime_fact_4.generation_id = runtime_scope_3.active_generation_id))
+                                   ->  Nested Loop  (cost=0.41..2.65 rows=1 width=634) (never executed)
+                                         ->  CTE Scan on runtime_environment_matches runtime_fact_4  (cost=0.00..0.00 rows=1 width=96) (never executed)
+                                               Storage: Memory  Maximum Storage: 17kB
+                                         ->  Index Scan using scope_generations_pkey on scope_generations runtime_generation_3  (cost=0.41..2.64 rows=1 width=538) (never executed)
+                                               Index Cond: (generation_id = runtime_fact_4.generation_id)
+                                               Filter: ((status = 'active'::text) AND (scope_id = runtime_fact_4.scope_id))
+                                               Index Searches: 0
+                                   ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes runtime_scope_3  (cost=0.41..0.64 rows=1 width=315) (never executed)
+                                         Index Cond: (active_generation_id = runtime_generation_3.generation_id)
+                                         Filter: (scope_id = runtime_generation_3.scope_id)
+                                         Index Searches: 0
+   CTE key_supports
+     ->  Result  (cost=0.69..18189.70 rows=1 width=1301) (actual time=7.304..650.810 rows=209.00 loops=1)
+           One-Time Filter: (($1 IS NOT NULL) AND ($14 IS NOT NULL) AND ($15 IS NOT NULL) AND ($16 IS NOT NULL) AND ($17 IS NOT NULL) AND ($18 IS NOT NULL) AND ($19 IS NOT NULL))
+           Buffers: shared hit=155698
+           ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports fact  (cost=0.69..18189.70 rows=1 width=1301) (actual time=7.301..650.750 rows=209.00 loops=1)
+                 Index Cond: (cve_id = $4)
+                 Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 11).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 13).col1))))
+                 Rows Removed by Filter: 140047
+                 Index Searches: 1
+                 Buffers: shared hit=155698
+                 SubPlan 11
+                   ->  CTE Scan on runtime_filter_repositories runtime_filter  (cost=0.00..0.09 rows=1 width=32) (never executed)
+                         Filter: (filter_kind = 'service'::text)
+                         Storage: Memory  Maximum Storage: 17kB
+                 SubPlan 13
+                   ->  CTE Scan on runtime_filter_repositories runtime_filter_1  (cost=0.00..0.09 rows=1 width=32) (never executed)
+                         Filter: (filter_kind = 'workload'::text)
+                         Storage: Memory  Maximum Storage: 17kB
+   CTE identity_keys
+     ->  Result  (cost=2.08..13.51 rows=1 width=147) (never executed)
+           One-Time Filter: (($2 <> ''::text) AND ($14 IS NOT NULL) AND ($15 IS NOT NULL) AND ($16 IS NOT NULL) AND ($17 IS NOT NULL) AND ($18 IS NOT NULL) AND ($19 IS NOT NULL))
+           ->  Nested Loop  (cost=2.08..13.51 rows=1 width=147) (never executed)
+                 ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports fact_1  (cost=0.69..3.18 rows=1 width=1194) (never executed)
+                       Index Cond: (fact_id = $2)
+                       Filter: ((scope_id <> 'operator:vulnerability_suppressions'::text) AND (scope_id !~~ 'image://derived/%'::text) AND (($4 = ''::text) OR (cve_id = $4)) AND (($5 = ''::text) OR (package_id = $5)) AND (($6 = ''::text) OR (repository_id = $6)) AND (($7 = ''::text) OR (subject_digest = $7)) AND (($10 = ''::text) OR (image_ref = $10)) AND (($3 = ''::text) OR (advisory_id = $3) OR (cve_id = $3)) AND (((COALESCE(cardinality($11), 0) = 0) AND (COALESCE(cardinality($12), 0) = 0)) OR (repository_id = ANY ($11)) OR (scope_id = ANY ($12))) AND (($9 = ''::text) OR (ANY (repository_id = (hashed SubPlan 16).col1))) AND (($8 = ''::text) OR (ANY (repository_id = (hashed SubPlan 18).col1))))
+                       Index Searches: 0
+                       SubPlan 16
+                         ->  CTE Scan on runtime_filter_repositories runtime_filter_2  (cost=0.00..0.09 rows=1 width=32) (never executed)
+                               Filter: (filter_kind = 'service'::text)
+                               Storage: Memory  Maximum Storage: 17kB
+                       SubPlan 18
+                         ->  CTE Scan on runtime_filter_repositories runtime_filter_3  (cost=0.00..0.09 rows=1 width=32) (never executed)
+                               Filter: (filter_kind = 'workload'::text)
+                               Storage: Memory  Maximum Storage: 17kB
+                 ->  Limit  (cost=1.39..10.30 rows=1 width=4) (never executed)
+                       ->  Nested Loop Anti Join  (cost=1.39..10.30 rows=1 width=4) (never executed)
+                             ->  Nested Loop Left Join  (cost=1.24..7.93 rows=1 width=0) (never executed)
+                                   Filter: ((finding_class.finding_fact_id IS NULL) OR ((finding_class.source_class = 'static'::text) AND (finding_class.lifecycle = 'active'::text)))
+                                   ->  Nested Loop  (cost=0.82..5.28 rows=1 width=0) (never executed)
+                                         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes scope  (cost=0.41..2.63 rows=1 width=315) (never executed)
+                                               Index Cond: (active_generation_id = fact_1.generation_id)
+                                               Filter: (scope_id = fact_1.scope_id)
+                                               Index Searches: 0
+                                         ->  Index Scan using scope_generations_pkey on scope_generations generation  (cost=0.41..2.64 rows=1 width=538) (never executed)
+                                               Index Cond: (generation_id = fact_1.generation_id)
+                                               Filter: ((scope_id = fact_1.scope_id) AND (status = 'active'::text))
+                                               Index Searches: 0
+                                   ->  Index Scan using scanner_image_result_fact_classifications_pkey on scanner_image_result_fact_classifications finding_class  (cost=0.42..2.64 rows=1 width=115) (never executed)
+                                         Index Cond: (finding_fact_id = fact_1.fact_id)
+                                         Index Searches: 0
+                             ->  Index Only Scan using scanner_image_result_fact_associations_pkey on scanner_image_result_fact_associations finding_association  (cost=0.15..2.37 rows=1 width=0) (never executed)
+                                   Index Cond: (finding_fact_id = fact_1.fact_id)
+                                   Heap Fetches: 0
+                                   Index Searches: 0
+   CTE first_hit
+     ->  Limit  (cost=1.41..10.38 rows=1 width=64) (actual time=0.203..0.206 rows=1.00 loops=1)
+           Buffers: shared hit=41
+           ->  Nested Loop  (cost=1.41..10.38 rows=1 width=64) (actual time=0.202..0.206 rows=1.00 loops=1)
+                 Buffers: shared hit=41
+                 ->  CTE Scan on key_supports fact_2  (cost=0.02..0.06 rows=1 width=128) (actual time=0.001..0.002 rows=1.00 loops=1)
+                       Filter: (($2 = ''::text) OR (fact_id = $2) OR (finding_id = $2) OR (canonical_key = $2) OR (ANY (canonical_key = (hashed SubPlan 20).col1)))
+                       Storage: Memory  Maximum Storage: 314kB
+                       SubPlan 20
+                         ->  CTE Scan on identity_keys identity_key  (cost=0.00..0.02 rows=1 width=32) (never executed)
+                               Storage: Memory  Maximum Storage: 17kB
+                 ->  Limit  (cost=1.39..10.30 rows=1 width=4) (actual time=0.199..0.201 rows=1.00 loops=1)
+                       Buffers: shared hit=41
+                       ->  Nested Loop Anti Join  (cost=1.39..10.30 rows=1 width=4) (actual time=0.198..0.201 rows=1.00 loops=1)
+                             Buffers: shared hit=41
+                             ->  Nested Loop Left Join  (cost=1.24..7.93 rows=1 width=0) (actual time=0.184..0.186 rows=1.00 loops=1)
+                                   Filter: ((finding_class_1.finding_fact_id IS NULL) OR ((finding_class_1.source_class = 'static'::text) AND (finding_class_1.lifecycle = 'active'::text)))
+                                   Buffers: shared hit=39
+                                   ->  Nested Loop  (cost=0.82..5.28 rows=1 width=0) (actual time=0.153..0.154 rows=1.00 loops=1)
+                                         Buffers: shared hit=36
+                                         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes scope_1  (cost=0.41..2.63 rows=1 width=315) (actual time=0.126..0.126 rows=1.00 loops=1)
+                                               Index Cond: (active_generation_id = fact_2.generation_id)
+                                               Filter: (scope_id = fact_2.scope_id)
+                                               Index Searches: 1
+                                               Buffers: shared hit=32
+                                         ->  Index Scan using scope_generations_pkey on scope_generations generation_1  (cost=0.41..2.64 rows=1 width=538) (actual time=0.026..0.026 rows=1.00 loops=1)
+                                               Index Cond: (generation_id = fact_2.generation_id)
+                                               Filter: ((scope_id = fact_2.scope_id) AND (status = 'active'::text))
+                                               Index Searches: 1
+                                               Buffers: shared hit=4
+                                   ->  Index Scan using scanner_image_result_fact_classifications_pkey on scanner_image_result_fact_classifications finding_class_1  (cost=0.42..2.64 rows=1 width=115) (actual time=0.029..0.029 rows=0.00 loops=1)
+                                         Index Cond: (finding_fact_id = fact_2.fact_id)
+                                         Index Searches: 1
+                                         Buffers: shared hit=3
+                             ->  Index Only Scan using scanner_image_result_fact_associations_pkey on scanner_image_result_fact_associations finding_association_1  (cost=0.15..2.37 rows=1 width=0) (actual time=0.012..0.012 rows=0.00 loops=1)
+                                   Index Cond: (finding_fact_id = fact_2.fact_id)
+                                   Heap Fetches: 0
+                                   Index Searches: 1
+                                   Buffers: shared hit=2
+   CTE second_hit
+     ->  Limit  (cost=1.43..10.40 rows=1 width=64) (actual time=651.454..651.458 rows=0.00 loops=1)
+           Buffers: shared hit=155739
+           InitPlan 22
+             ->  CTE Scan on first_hit first_key  (cost=0.00..0.02 rows=1 width=32) (actual time=0.205..0.205 rows=1.00 loops=1)
+                   Storage: Memory  Maximum Storage: 17kB
+                   Buffers: shared hit=41
+           ->  Nested Loop  (cost=1.41..10.38 rows=1 width=64) (actual time=651.454..651.457 rows=0.00 loops=1)
+                 Buffers: shared hit=155739
+                 ->  CTE Scan on key_supports fact_3  (cost=0.02..0.06 rows=1 width=128) (actual time=651.453..651.454 rows=0.00 loops=1)
+                       Filter: ((canonical_key <> (InitPlan 22).col1) AND (($2 = ''::text) OR (fact_id = $2) OR (finding_id = $2) OR (canonical_key = $2) OR (ANY (canonical_key = (hashed SubPlan 23).col1))))
+                       Rows Removed by Filter: 209
+                       Storage: Memory  Maximum Storage: 314kB
+                       Buffers: shared hit=155739
+                       SubPlan 23
+                         ->  CTE Scan on identity_keys identity_key_1  (cost=0.00..0.02 rows=1 width=32) (never executed)
+                               Storage: Memory  Maximum Storage: 17kB
+                 ->  Limit  (cost=1.39..10.30 rows=1 width=4) (never executed)
+                       ->  Nested Loop Anti Join  (cost=1.39..10.30 rows=1 width=4) (never executed)
+                             ->  Nested Loop Left Join  (cost=1.24..7.93 rows=1 width=0) (never executed)
+                                   Filter: ((finding_class_2.finding_fact_id IS NULL) OR ((finding_class_2.source_class = 'static'::text) AND (finding_class_2.lifecycle = 'active'::text)))
+                                   ->  Nested Loop  (cost=0.82..5.28 rows=1 width=0) (never executed)
+                                         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes scope_2  (cost=0.41..2.63 rows=1 width=315) (never executed)
+                                               Index Cond: (active_generation_id = fact_3.generation_id)
+                                               Filter: (scope_id = fact_3.scope_id)
+                                               Index Searches: 0
+                                         ->  Index Scan using scope_generations_pkey on scope_generations generation_2  (cost=0.41..2.64 rows=1 width=538) (never executed)
+                                               Index Cond: (generation_id = fact_3.generation_id)
+                                               Filter: ((scope_id = fact_3.scope_id) AND (status = 'active'::text))
+                                               Index Searches: 0
+                                   ->  Index Scan using scanner_image_result_fact_classifications_pkey on scanner_image_result_fact_classifications finding_class_2  (cost=0.42..2.64 rows=1 width=115) (never executed)
+                                         Index Cond: (finding_fact_id = fact_3.fact_id)
+                                         Index Searches: 0
+                             ->  Index Only Scan using scanner_image_result_fact_associations_pkey on scanner_image_result_fact_associations finding_association_2  (cost=0.15..2.37 rows=1 width=0) (never executed)
+                                   Index Cond: (finding_fact_id = fact_3.fact_id)
+                                   Heap Fetches: 0
+                                   Index Searches: 0
+   CTE ranked_copies
+     ->  Sort  (cost=0.11..0.11 rows=1 width=102) (actual time=651.831..651.832 rows=1.00 loops=1)
+           Sort Key: fact_4.priority_score DESC, fact_4.has_payload_finding_id DESC, fact_4.fact_id
+           Sort Method: quicksort  Memory: 269kB
+           Buffers: shared hit=155739
+           InitPlan 25
+             ->  CTE Scan on second_hit  (cost=0.00..0.02 rows=1 width=0) (actual time=651.455..651.455 rows=0.00 loops=1)
+                   Storage: Memory  Maximum Storage: 17kB
+                   Buffers: shared hit=155739
+           InitPlan 26
+             ->  CTE Scan on first_hit first_key_1  (cost=0.00..0.02 rows=1 width=32) (actual time=0.005..0.005 rows=1.00 loops=1)
+                   Storage: Memory  Maximum Storage: 17kB
+           ->  Result  (cost=0.02..0.06 rows=1 width=102) (actual time=651.466..651.543 rows=209.00 loops=1)
+                 One-Time Filter: (NOT (InitPlan 25).col1)
+                 Buffers: shared hit=155739
+                 ->  CTE Scan on key_supports fact_4  (cost=0.02..0.06 rows=1 width=102) (actual time=0.009..0.067 rows=209.00 loops=1)
+                       Filter: ((canonical_key = (InitPlan 26).col1) AND (($2 = ''::text) OR (fact_id = $2) OR (finding_id = $2) OR (canonical_key = $2) OR (ANY (canonical_key = (hashed SubPlan 27).col1))))
+                       Storage: Memory  Maximum Storage: 314kB
+                       SubPlan 27
+                         ->  CTE Scan on identity_keys identity_key_2  (cost=0.00..0.02 rows=1 width=32) (never executed)
+                               Storage: Memory  Maximum Storage: 17kB
+   CTE best_copy
+     ->  Limit  (cost=1.39..10.34 rows=1 width=32) (actual time=651.941..651.943 rows=1.00 loops=1)
+           Buffers: shared hit=155755
+           ->  Nested Loop  (cost=1.39..10.34 rows=1 width=32) (actual time=651.941..651.942 rows=1.00 loops=1)
+                 Buffers: shared hit=155755
+                 ->  CTE Scan on ranked_copies fact_5  (cost=0.00..0.02 rows=1 width=96) (actual time=651.835..651.835 rows=1.00 loops=1)
+                       Storage: Memory  Maximum Storage: 18kB
+                       Buffers: shared hit=155739
+                 ->  Limit  (cost=1.39..10.30 rows=1 width=4) (actual time=0.102..0.103 rows=1.00 loops=1)
+                       Buffers: shared hit=16
+                       ->  Nested Loop Anti Join  (cost=1.39..10.30 rows=1 width=4) (actual time=0.101..0.102 rows=1.00 loops=1)
+                             Buffers: shared hit=16
+                             ->  Nested Loop Left Join  (cost=1.24..7.93 rows=1 width=0) (actual time=0.089..0.090 rows=1.00 loops=1)
+                                   Filter: ((finding_class_3.finding_fact_id IS NULL) OR ((finding_class_3.source_class = 'static'::text) AND (finding_class_3.lifecycle = 'active'::text)))
+                                   Buffers: shared hit=14
+                                   ->  Nested Loop  (cost=0.82..5.28 rows=1 width=0) (actual time=0.066..0.066 rows=1.00 loops=1)
+                                         Buffers: shared hit=11
+                                         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes scope_3  (cost=0.41..2.63 rows=1 width=315) (actual time=0.045..0.045 rows=1.00 loops=1)
+                                               Index Cond: (active_generation_id = fact_5.generation_id)
+                                               Filter: (scope_id = fact_5.scope_id)
+                                               Index Searches: 1
+                                               Buffers: shared hit=7
+                                         ->  Index Scan using scope_generations_pkey on scope_generations generation_3  (cost=0.41..2.64 rows=1 width=538) (actual time=0.018..0.018 rows=1.00 loops=1)
+                                               Index Cond: (generation_id = fact_5.generation_id)
+                                               Filter: ((scope_id = fact_5.scope_id) AND (status = 'active'::text))
+                                               Index Searches: 1
+                                               Buffers: shared hit=4
+                                   ->  Index Scan using scanner_image_result_fact_classifications_pkey on scanner_image_result_fact_classifications finding_class_3  (cost=0.42..2.64 rows=1 width=115) (actual time=0.022..0.022 rows=0.00 loops=1)
+                                         Index Cond: (finding_fact_id = fact_5.fact_id)
+                                         Index Searches: 1
+                                         Buffers: shared hit=3
+                             ->  Index Only Scan using scanner_image_result_fact_associations_pkey on scanner_image_result_fact_associations finding_association_3  (cost=0.15..2.37 rows=1 width=0) (actual time=0.010..0.010 rows=0.00 loops=1)
+                                   Index Cond: (finding_fact_id = fact_5.fact_id)
+                                   Heap Fetches: 0
+                                   Index Searches: 1
+                                   Buffers: shared hit=2
+   CTE source_candidates
+     ->  Nested Loop  (cost=0.69..2.92 rows=1 width=1244) (actual time=651.978..651.979 rows=1.00 loops=1)
+           Buffers: shared hit=155761
+           ->  CTE Scan on best_copy  (cost=0.00..0.02 rows=1 width=32) (actual time=651.942..651.943 rows=1.00 loops=1)
+                 Storage: Memory  Maximum Storage: 17kB
+                 Buffers: shared hit=155755
+           ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support_1  (cost=0.69..2.90 rows=1 width=1244) (actual time=0.033..0.034 rows=1.00 loops=1)
+                 Index Cond: (fact_id = best_copy.fact_id)
+                 Index Searches: 1
+                 Buffers: shared hit=6
+   ->  Sort  (cost=13.73..13.74 rows=3 width=117) (actual time=652.280..652.283 rows=1.00 loops=1)
+         Sort Key: source_candidates.finding_id
+         Sort Method: quicksort  Memory: 36kB
+         Buffers: shared hit=155812
+         ->  Append  (cost=7.62..13.71 rows=3 width=117) (actual time=652.242..652.249 rows=1.00 loops=1)
+               Buffers: shared hit=155809
+               ->  Nested Loop Left Join  (cost=7.62..7.82 rows=1 width=96) (actual time=652.241..652.244 rows=1.00 loops=1)
+                     Buffers: shared hit=155809
+                     ->  Unique  (cost=0.03..0.04 rows=1 width=230) (actual time=652.011..652.012 rows=1.00 loops=1)
+                           Buffers: shared hit=155767
+                           ->  Sort  (cost=0.03..0.04 rows=1 width=230) (actual time=652.010..652.011 rows=1.00 loops=1)
+                                 Sort Key: source_candidates.canonical_key, source_candidates.priority_score DESC, source_candidates.has_payload_finding_id DESC, source_candidates.fact_id
+                                 Sort Method: quicksort  Memory: 25kB
+                                 Buffers: shared hit=155767
+                                 ->  CTE Scan on source_candidates  (cost=0.00..0.02 rows=1 width=230) (actual time=651.983..651.984 rows=1.00 loops=1)
+                                       Storage: Memory  Maximum Storage: 18kB
+                                       Buffers: shared hit=155761
+                     ->  Limit  (cost=7.59..7.60 rows=1 width=987) (actual time=0.024..0.025 rows=0.00 loops=1)
+                           Buffers: shared hit=2
+                           InitPlan 31
+                             ->  Nested Loop  (cost=0.79..5.24 rows=1 width=80) (never executed)
+                                   Join Filter: (g.generation_id = s.active_generation_id)
+                                   ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes s  (cost=0.66..2.88 rows=1 width=315) (never executed)
+                                         Index Cond: (scope_id = 'operator:vulnerability_suppressions'::text)
+                                         Index Searches: 0
+                                   ->  Index Scan using scope_generations_vulnerability_suppression_lineage_idx on scope_generations g  (cost=0.12..2.34 rows=1 width=538) (never executed)
+                                         Filter: (status = 'active'::text)
+                                         Index Searches: 0
+                           ->  Sort  (cost=2.36..2.36 rows=1 width=987) (actual time=0.024..0.024 rows=0.00 loops=1)
+                                 Sort Key: operator.priority_score DESC, operator.has_payload_finding_id DESC, operator.fact_id
+                                 Sort Method: quicksort  Memory: 25kB
+                                 Buffers: shared hit=2
+                                 ->  Index Scan using supply_chain_impact_finding_supports_operator_idx on supply_chain_impact_finding_supports operator  (cost=0.12..2.35 rows=1 width=987) (actual time=0.006..0.006 rows=0.00 loops=1)
+                                       Index Cond: (canonical_key = source_candidates.canonical_key)
+                                       Filter: ((suppression_state <> 'active'::text) AND (generation_id = (InitPlan 31).col1))
+                                       Index Searches: 1
+                                       Buffers: shared hit=2
+               ->  Nested Loop  (cost=0.71..5.88 rows=2 width=128) (actual time=0.003..0.004 rows=0.00 loops=1)
+                     ->  Append  (cost=0.02..0.07 rows=2 width=32) (actual time=0.002..0.003 rows=0.00 loops=1)
+                           ->  Result  (cost=0.02..0.04 rows=1 width=32) (actual time=0.001..0.002 rows=0.00 loops=1)
+                                 One-Time Filter: (InitPlan 32).col1
+                                 InitPlan 32
+                                   ->  CTE Scan on second_hit second_hit_1  (cost=0.00..0.02 rows=1 width=0) (actual time=0.000..0.001 rows=0.00 loops=1)
+                                         Storage: Memory  Maximum Storage: 17kB
+                                 ->  CTE Scan on first_hit hit_1  (cost=0.02..0.04 rows=1 width=32) (never executed)
+                                       Storage: Memory  Maximum Storage: 17kB
+                           ->  CTE Scan on second_hit hit  (cost=0.00..0.02 rows=1 width=32) (actual time=0.000..0.001 rows=0.00 loops=1)
+                                 Storage: Memory  Maximum Storage: 17kB
+                     ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports support  (cost=0.69..2.90 rows=1 width=229) (never executed)
+                           Index Cond: (fact_id = hit_1.fact_id)
+                           Index Searches: 0
+ Planning:
+   Buffers: shared hit=4797
+ Planning Time: 39.621 ms
+ Execution Time: 653.783 ms
+(389 rows)
+
+
+--- stderr ---

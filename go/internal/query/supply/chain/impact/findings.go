@@ -106,6 +106,9 @@ type PostgresFindingStore struct {
 	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter; the
 	// route attribute is still set on the active span.
 	Instruments *telemetry.Instruments
+	// inSnapshot is set on the copy an explain call reads through when the call holds its own
+	// read transaction: the explain selector read switches JIT off for that transaction only.
+	inSnapshot bool
 }
 
 // NewPostgresFindingStore creates the Postgres-backed impact
@@ -261,7 +264,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	defer timeRoute(ctx, s.Instruments, route)()
 	query := ListFindingsQuery
 	switch route {
-	case RouteLegacy, RouteSupportsFindingID:
+	case RouteLegacy, RouteSupportsFindingID, RouteSupportsSelector:
 		// the legacy fact read stays the default statement (gate off); the
 		// finding-id route is an explain label no list or aggregate takes
 	case RouteSupportsGrant:
