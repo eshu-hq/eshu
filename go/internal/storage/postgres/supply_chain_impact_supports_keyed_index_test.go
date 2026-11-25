@@ -166,16 +166,18 @@ func keyedProbeCoveredByIndex(probe, ddl string) error {
 // TestKeyedSupportsIndexCoversTheKeyedProbe pins that the draft index's leading
 // five keys are exactly the expressions the supports keyed probe equates, in the
 // probe's order, so the planner can use every equality as an index condition.
+// The probe lives in the narrow statement since the watermark-stall split: the
+// final fetch joins the persisted narrow rows and equates nothing.
 func TestKeyedSupportsIndexCoversTheKeyedProbe(t *testing.T) {
 	t.Parallel()
 
 	ddl := keyedIndexStatement(t, keyedSupportsIndexMigration)
-	if err := keyedProbeCoveredByIndex(buildWinnersKeyedActiveFactsFromSupportsSQL, ddl); err != nil {
+	if err := keyedProbeCoveredByIndex(buildWinnersKeyedNarrowFromSupportsSQL, ddl); err != nil {
 		t.Fatalf("migration 354 does not cover the supports keyed probe: %v", err)
 	}
 	// The legacy index covers the legacy probe by the same rule, which proves the
 	// matcher reads the real statements and is not vacuous.
-	if err := keyedProbeCoveredByIndex(buildWinnersKeyedActiveFactsSQL, keyedIndexStatement(t, keyedFactsIndexMigration)); err != nil {
+	if err := keyedProbeCoveredByIndex(buildWinnersKeyedNarrowSQL, keyedIndexStatement(t, keyedFactsIndexMigration)); err != nil {
 		t.Fatalf("the matcher rejects the shipped legacy index and probe: %v", err)
 	}
 }
@@ -218,7 +220,7 @@ func TestKeyedProbeCoverageRejectsSeededViolations(t *testing.T) {
 	t.Parallel()
 
 	ddl := keyedIndexStatement(t, keyedSupportsIndexMigration)
-	probe := buildWinnersKeyedActiveFactsFromSupportsSQL
+	probe := buildWinnersKeyedNarrowFromSupportsSQL
 	if err := keyedProbeCoveredByIndex(probe, ddl); err != nil {
 		t.Fatalf("clean pair rejected: %v", err)
 	}

@@ -84,8 +84,7 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// reduce, by reversing the declared swaps alone, to the statements the previous
 	// version-2 hash (25e4d891...) pinned; a live byte-identity differential of the
 	// stored winners on a seed is owed with the live proofs.
-	// TEMP-REBASE-PIN: recomputed at the end of the rebase (handoff step 3).
-	2: "9b414e51cf5de5caf779089279bb2d23872c3679f1beda52468fe6847a3664b1",
+	2: "119ae48d12b861062f1f7b76acc7936d3251e294ccfbe425bcb40c7ce5defa30",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
