@@ -1560,6 +1560,12 @@ type Instruments struct {
 	// (and audit ticks) refused because the supports table is not ready
 	// (#10880 PR-C1); registered with the supports signals.
 	SupplyChainImpactWinnersSupportsNotReady metric.Int64Counter
+	// The stable_fact_key fill's signals (#10880 PR-C1k): steps by outcome, rows
+	// by outcome, pauses by reason, and the marker-complete gauge.
+	SupplyChainImpactStableKeyFillSteps    metric.Int64Counter
+	SupplyChainImpactStableKeyFillRows     metric.Int64Counter
+	SupplyChainImpactStableKeyFillPauses   metric.Int64Counter
+	SupplyChainImpactStableKeyFillComplete metric.Int64Gauge
 	// SupplyChainImpactFactWriteRejected counts impact-finding fact writes the
 	// PR-C reject trigger refused (#10880); registered with the supports signals.
 	SupplyChainImpactFactWriteRejected metric.Int64Counter

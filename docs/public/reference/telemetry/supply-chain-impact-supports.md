@@ -29,6 +29,10 @@ reads probe before each call, and how the reducer-side readers used it.
 | `eshu_dp_supply_chain_impact_supports_backfill_verify_slice_duration_seconds` | histogram | `outcome` | Wall time of one verification slice statement. The tail is the longest snapshot the verification holds open (QA, 11.6M live findings: 4.6 to 6.0 s cold, 20.3 s for a slice that starts inside the largest scope and generation). A `failed` sample is a slice that hit an error, often a statement timeout; a slice cut short by shutdown records nothing. |
 | `eshu_dp_supply_chain_impact_supports_dirty_scopes` | gauge | none | Scopes the old-writer fence marked dirty that the backfill has not drained, capped at 1000. Non-zero holds the table not ready. A count that never falls means a writer without the maintainer is still running. |
 | `eshu_dp_supply_chain_impact_supports_backfill_last_success_timestamp_seconds` | gauge | none | Unix time of the last backfill step that finished without error. A value that stops moving while the gauge below reads 0 means the loop is stuck. |
+| `eshu_dp_supply_chain_impact_stable_key_fill_steps_total` | counter | `outcome` | Stable-key fill steps (#10880 PR-C1k): `chunk`, `verify`, `gap` (a verification slice found a keyless support whose fact twin has a key and restarted the sweep), `complete`, `failed`. A chunk updates at most 500 supports of one scope generation under its conflict-domain lock. |
+| `eshu_dp_supply_chain_impact_stable_key_fill_rows_total` | counter | `outcome` | Supports the fill gave a key (`filled`) or left keyless because their fact twin has no key (`skipped`). |
+| `eshu_dp_supply_chain_impact_stable_key_fill_pauses_total` | counter | `reason` | Passes held back by a pause condition: `replay_lag` (a replica over the limit), `free_disk` (under the limit), `disk_unreadable` (a limit is set and no reading is wired), `index_build` (`pg_stat_progress_create_index` not empty), `probe_error` (a condition could not be read, never taken as clear). |
+| `eshu_dp_supply_chain_impact_stable_key_fill_complete` | gauge | none | 1 once the fill marker is set: a clean verification found no keyless support whose twin has a key. 0 until then, and while the fill is off (the default). |
 | `eshu_dp_supply_chain_impact_supports_backfill_ready` | gauge | none | 1 once the backfill finished and verified at the current contract version and the fence is empty, else 0. A reader of the table refuses a grant-scoped call while it is 0. |
 
 No label carries a scope, repository, canonical key or CVE.
@@ -160,3 +164,17 @@ through a least-privilege login still marks its scope dirty during a rolling
 upgrade, with no privilege on the dirty table. This is proven by live tests
 against a login that holds `INSERT` and `UPDATE` on `fact_records` and nothing on
 the dirty table. It is not proven on a deployed least-privilege database.
+
+## Stable-key fill
+
+The fill (#10880 PR-C1k) copies the fact twin's `stable_fact_key` into the supports no
+rewrite has keyed, so the writer's stored read can leave `fact_records`. It is off unless
+`ESHU_SUPPLY_CHAIN_IMPACT_STABLE_KEY_FILL_ENABLED=true`, because it must not run inside a
+counted window or before the lab run. One elected reducer runs it, in chunks of at most 500
+supports, paced to `ESHU_SUPPLY_CHAIN_IMPACT_STABLE_KEY_FILL_WAL_BYTES_PER_HOUR` (default
+8 GB) using an estimate of `..._WAL_BYTES_PER_ROW` per filled row. It pauses on replica
+replay lag, free disk and a running index build (see `pauses_total`). Free disk is not
+readable through SQL, so with the default limit and no reading wired it pauses with
+`disk_unreadable`; set `..._MIN_FREE_DISK_BYTES=0` only when disk is watched elsewhere.
+The replay-lag read needs the `pg_monitor` role. Read the fill with the `complete` gauge, the
+`rows_total{outcome="filled"}` rate against the WAL budget, and `pauses_total` by reason.

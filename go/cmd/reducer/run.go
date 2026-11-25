@@ -159,6 +159,12 @@ func run(parent context.Context) error {
 	waitSupportsBackfill := startSupplyChainImpactSupportsBackfill(ctx, func(runCtx context.Context) error {
 		return runSupplyChainImpactSupportsBackfill(runCtx, db, instruments, logger)
 	}, logger)
+	// The stable-key fill (#10880 PR-C1k) is off unless an operator enables it: it
+	// must not run inside a counted window or before the lab run.
+	stableKeyFillConfig := loadStableKeyFillConfig(os.Getenv)
+	waitStableKeyFill := startSupplyChainImpactStableKeyFill(ctx, stableKeyFillConfig, func(runCtx context.Context) error {
+		return runSupplyChainImpactStableKeyFill(runCtx, db, stableKeyFillConfig, instruments, logger)
+	}, logger)
 	// The id-anchor census (#7212) reads the graph, so it stops before the
 	// deferred graph-driver close like the gauge refreshers above.
 	waitIDAnchorCensus := startIDAnchorCensus(ctx, loadIDAnchorCensusConfig(os.Getenv), graphBackend, idAnchorCensusReader(neo4jReader, graphReader), instruments, logger)
@@ -179,6 +185,7 @@ func run(parent context.Context) error {
 		closeSecretLinesLockPool(secretLinesLockPool)
 		waitIDAnchorCensus()
 		waitPackageManifestBackfill()
+		waitStableKeyFill()
 		waitSupportsBackfill()
 		waitGraphRefresher()
 		waitPostgresRefresher()

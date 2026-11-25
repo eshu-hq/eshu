@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -410,6 +411,9 @@ func cloneBootstrapTemplateDatabase(ctx context.Context, admin disposableDropAdm
 	return fmt.Errorf("clone bootstrap template database %q from %q after %d attempts: %w", clone, template, disposableDropMaxAttempts, lastErr)
 }
 
+// keepCloneEnv names the opt-in that leaves an opened clone database in place.
+const keepCloneEnv = "ESHU_PROOF_KEEP_DB"
+
 // OpenBootstrapTemplateClone clones template and returns the open handle,
 // registering the close and the force-drop on the test's cleanup. An absent
 // DSN skips like the other disposable openers.
@@ -428,6 +432,15 @@ func OpenBootstrapTemplateClone(
 	db, clone, cleanup, err := cloneBootstrapTemplate(ctx, adminDSN, optIn, template)
 	if err != nil {
 		t.Fatalf("clone bootstrap template database: %v", err)
+	}
+	// ESHU_PROOF_KEEP_DB=1 keeps the clone for a lab run that measures against the seeded
+	// database afterwards: the handle is closed at the end of the test and the database is
+	// left in place, named in the test log. The operator drops it by hand. Unset, the
+	// clone is dropped and verified as before.
+	if os.Getenv(keepCloneEnv) == "1" {
+		t.Logf("%s=1: keeping clone database %q; drop it by hand when finished", keepCloneEnv, clone)
+		t.Cleanup(func() { _ = db.Close() })
+		return ctx, db
 	}
 	// t.Cleanup runs LIFO: registerCloneTeardown registers the drop
 	// verification first so it runs after the clone cleanup and reports a
