@@ -230,7 +230,7 @@ import re, sys
 path = sys.argv[1]
 content = open(path).read()
 pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pat.findall(content)) == 3, "one every plus two some lines expected in security-scan.yml"
+assert len(pat.findall(content)) == 4, "two every plus two some lines expected in security-scan.yml"
 open(path, "w").write(pat.sub("", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then

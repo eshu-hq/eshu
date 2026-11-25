@@ -45,6 +45,7 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
       go_security: ${{ steps.go_security.outputs.go_security }}
+      go_gosec: ${{ steps.go_security.outputs.go_security == 'true' && steps.non_test.outputs.non_test == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -99,6 +100,19 @@ jobs:
               - 'scripts/ci/govulncheck-replace-recheck.sh'
               - 'scripts/ci/run-scan-with-tee.sh'
               - 'scripts/test-govulncheck-replace-recheck.sh'
+
+      # gosec (without -tests) excludes go/**/*_test.go by design (#8341).
+      # govulncheck stays on go_security because govulncheck-replace-recheck.sh
+      # runs advisory regression tests matching Test*GO<YYYY><NNNN> in go/**/*_test.go.
+      - name: Filter non-test files for gosec
+        id: non_test
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            non_test:
+              - '**'
+              - '!go/**/*_test.go'
   trivy-fs:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-fs')) && (github.event_name != 'workflow_run') }}
     name: Trivy filesystem scan (vuln + secret + config)
@@ -239,7 +253,7 @@ jobs:
           path: go/govulncheck.out
           if-no-files-found: ignore
   gosec:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true') && needs.changes.outputs.go_security == 'true'))) }}
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true') && needs.changes.outputs.go_gosec == 'true'))) }}
     name: gosec (Go static analysis)
     runs-on: ubuntu-24.04
     timeout-minutes: 30

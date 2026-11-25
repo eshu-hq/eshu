@@ -124,6 +124,12 @@ workflows:
   - go/internal/queryplan/**
   - .github/workflows/golden-corpus-gate.yml
   - specs/ci-pr-workflows.d/golden-corpus-gate.yml
+  # Exclude unrelated Go module tests under go/; re-include the two B-7
+  # identity live proofs executed by golden-corpus-container-image-demotion.sh.
+  - '!go/**/*_test.go'
+  - go/internal/reducer/containerimage/**
+  - go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
+  - go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_helpers_test.go
   jobs:
   - corpus-gate
   - differential

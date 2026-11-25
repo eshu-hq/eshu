@@ -18,6 +18,7 @@ workflows:
   - .agents/**
   - '*.py'
   - '**/*.py'
+  - 'go/**/*_test.go'
   jobs:
   - build
   - release

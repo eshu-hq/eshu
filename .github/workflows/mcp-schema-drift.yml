@@ -80,7 +80,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
-      go_mcp: ${{ steps.go_mcp.outputs.go_mcp }}
+      go_mcp: ${{ steps.go_mcp.outputs.go_mcp == 'true' && (steps.non_test.outputs.non_test == 'true' || steps.mcp_tree.outputs.mcp_tree == 'true') }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -136,6 +136,26 @@ jobs:
               - 'scripts/go-test-run-guard.sh'
               - 'scripts/lib/go-test-run-guard.sh'
               - 'scripts/ci/go-mod-download-retry.sh'
+
+      # Unrelated _test.go outside go/internal/mcp cannot affect MCP tool count or tests.
+      - name: Filter non-test files for MCP checks
+        id: non_test
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            non_test:
+              - '**'
+              - '!go/**/*_test.go'
+
+      - name: Filter MCP package tree
+        id: mcp_tree
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'some'
+          filters: |
+            mcp_tree:
+              - 'go/internal/mcp/**'
 
   # ── Gate 1: Tool count ──
   mcp-tool-count:
