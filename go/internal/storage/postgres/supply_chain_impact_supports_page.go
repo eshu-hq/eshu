@@ -81,8 +81,8 @@ const supplyChainImpactSupportsDrainLogRows = 100000
 // one slice. Inactive raw rows carry no payload and never materialize one, so
 // the cap counts active rows only. The value matches the large-drain log
 // threshold's number, not its unit (that line counts raw rows; the cap counts
-// actives, so the cap trips no later than the log line would have): what that
-// line used to only observe now also stops. A 152,000
+// actives, so the log line fires first and the cap trips at the same time or
+// later): what that line used to only observe now also stops. A 152,000
 // finding repository measured about 365 MB through this path, so 100,000 rows
 // bounds a single drain to hundreds of megabytes; past it the hot key fails
 // fast and retryable with a resume cursor instead of OOMKilling the engine
