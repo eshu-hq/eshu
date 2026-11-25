@@ -31,8 +31,8 @@ import (
 // re-pinned once more when #11327 rebased onto the post-#11366 main: the batch
 // statement then carried both the second UNION arm and the
 // supply_chain_impact_go_evidence_changed class, while the single statement
-// carried only the class (the arm is batch-only), so the single digest is
-// unchanged from the #11327 pin.
+// carried only the class (the arm is batch-only), so the single digest moved
+// from 8aa7 to 2f84 for exactly that enrollment and nothing else.
 const (
 	staleGate11234PreGateSHA    = "30a3fd23ee77b417d8c6cd5a981dfae7953c30749f8552953f41b766a38b3aeb"
 	staleGate11234BaseBatchSHA  = "ce1fa3a1f0b97a95cf53a93a2e0f25d1760e81eb8e2b70e714d7c6945b4848aa"
