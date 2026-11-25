@@ -58,6 +58,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/reducer_queue_batch_wide_fail_live_test.go": (
             "TestFailBatchWideBlockingSetParksCleanlyLive",
+            "TestFailBatchScaledAllWideParksCleanlyLive",
         ),
         "go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go": (
             "TestCodeCallDeltaScopeUnusableDeadLettersOnFirstAttemptLive",
