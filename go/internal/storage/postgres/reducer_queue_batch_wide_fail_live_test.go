@@ -14,8 +14,11 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestFailBatchWideBlockingSetParksCleanlyLive is the batch-path regression
@@ -148,8 +151,17 @@ func TestFailBatchScaledAllWideParksCleanlyLive(t *testing.T) {
 			i, strings.Repeat("ab", 32), i)
 	}
 	t.Logf("scaled work_item_id length %d bytes", len(ids[0]))
+	if len(ids[0]) != 156 {
+		t.Fatalf("scaled work_item_id length = %d bytes, want 156 (code-derived maxima)", len(ids[0]))
+	}
 	clock := at
 	q := newOwnGateQueue(db, &clock, reducer.DomainDeployableUnitCorrelation)
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("failbatch-scaled-live"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	q.Instruments = instruments
 	for _, id := range ids {
 		addOwnGateItem(t, ctx, db, id, boundWaiterScope, boundWaiterGen, reducer.DomainDeployableUnitCorrelation, at)
 	}
@@ -206,5 +218,13 @@ func TestFailBatchScaledAllWideParksCleanlyLive(t *testing.T) {
 		if row := len(id) + len(WaitingKindRelationshipGenerationActive) + size; row > waitingIndexRowBudgetBytes {
 			t.Fatalf("wide index row = %d bytes, want <= %d", row, waitingIndexRowBudgetBytes)
 		}
+	}
+
+	// The Unrepresentable edge must be observed, not inferred: nil error plus
+	// zero wait rows is also what a swallowed 54000 looks like through the
+	// failIntent survival branch. The whole-row cap working means the closed
+	// reason counts "unrepresentable" once and never "index_row_rejected".
+	if got := keyBoundedCounts(t, reader); got["unrepresentable"] != 1 || got["index_row_rejected"] != 0 {
+		t.Fatalf("scaled closed reasons = %v, want unrepresentable=1 and index_row_rejected=0: the whole-row cap must refuse the edge item before Postgres does", got)
 	}
 }
