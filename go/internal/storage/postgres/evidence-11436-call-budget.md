@@ -46,3 +46,33 @@ reuses `SupplyChainImpactSupportsDrainTruncatedError` (retryable,
 `supply_chain_impact_supports_drain_truncated`), and the existing
 large-drain log line fires with `outcome=truncated` through the call/drain
 sample's truncated flag, exactly as a per-drain cut does.
+
+## Addendum: fact-stream truncation signals (PR #11469 P1 fix)
+
+The fact-stream cut did not keep the paragraph above: it returned before
+any `recordSupplyChainImpactSupportsDrain` or
+`RecordSupplyChainImpactSupportsRead` call, so a hot filter left no
+`outcome=truncated` large-drain line. The fix records the fact-stream
+drain sample as failed+truncated and counts the read as failed before
+returning the unchanged truncation error, mirroring the supports-phase
+cut; the advisory loader already recorded both.
+
+No-Regression Evidence: the success path is byte-identical (the new
+`errors.As` check runs only inside the `err != nil` branch) and
+non-truncation errors return exactly as before; the added work runs only
+on the already-terminal truncation path (one log line plus one counter).
+RED-first:
+`TestListActiveSecurityAlertReconciliationFactsTruncatesFactStreamOverCallBudget`
+failed before the fix with an empty log capture and passes after,
+asserting the `large_drain` line with `outcome=truncated`,
+`sample=drain`, `reader=security_alert_reconciliation` on the same
+500 + 250 cut (cursor `fact-0749`). Focused suite green
+(`go test ./internal/storage/postgres/ -run
+'TestListActiveSecurityAlertReconciliationFacts|TestGetSupplyChainAdvisoriesForRepos|TestSupplyChainImpactSupportsCallBudget|TestSecurityAlertReadinessProbeFailureIsLogged'
+-count=1`), `go vet` and `git diff --check` clean. No live backend:
+no SQL changed.
+
+Observability Evidence: still no new metric, span, or log line. The fix
+makes the paragraph above true for the fact stream too: the same
+`outcome=truncated` large-drain line and the same `ReadFailed` read
+count the supports-phase cut already emitted.
