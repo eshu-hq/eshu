@@ -123,14 +123,14 @@ rows:
 
   - contract_ref: retry:non-counting-deferral
     surface: projector fail admission-budget accounting
-    class: fake
-    runners: [unit]
+    class: live
+    runners: [live-postgres-readiness]
     blocking: true
     tag: ~
-    reason: "Admission-timeout Fail retries against the separate admission budget without consuming the projection attempt budget and dead-letters only when that budget is exhausted, proved against a recording execer with no live Postgres"
+    reason: "Admission-timeout Fail retries against the separate admission budget without consuming the projection attempt budget and dead-letters only when that budget is exhausted, proved on live Postgres: the exhaustion test pins admission retry on an exhausted projection budget and dead-letter with admission_timeout class on the Nth wait, the cycle test pins the admission counter +1 and refund-to-dead-letter at refunded exhaustion, the race test pins exactly-once admission increments, and the refinalize test pins counter reset to (pending, 0, 0); enrolled in the live-postgres-readiness runner"
     proving_tests:
-      - file: go/internal/storage/postgres/projector_queue_admission_budget_test.go
-        tests: [TestProjectorQueueFailRetriesAdmissionTimeoutWhenProjectionBudgetExhausted, TestProjectorQueueFailDeadLettersAdmissionTimeoutWhenAdmissionBudgetExhausted, TestProjectorQueueFailRefundsAdmissionWaitsFromProjectionBudget]
+      - file: go/internal/storage/postgres/projector_queue_admission_budget_live_test.go
+        tests: [TestProjectorQueueAdmissionBudgetLiveCycle, TestProjectorQueueAdmissionBudgetExhaustionDeadLettersLive, TestProjectorQueueAdmissionFailAdmitsExactlyOnceUnderRace, TestProjectorQueueAdmissionRefinalizeCycleLive]
 
   - contract_ref: deadletter:replay-state
     surface: projector dead-letter guard cells

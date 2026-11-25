@@ -217,7 +217,7 @@ tests:
   - file: go/internal/storage/postgres/projector_queue_admission_budget_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10671 disposable PostgreSQL proof that an admission-timeout failure retries against the dedicated admission budget (attempt_count stays a monotonic fence, the admission counter increments exactly once per admission Fail including under a concurrent double-Fail race with the loser claim-rejected, a stale owner is rejected without touching the row), that generic retryable failures still spend the refunded projection budget to a retry_exhausted dead-letter, and that migration 325 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test"
+    reason: "#10671 disposable PostgreSQL proof that an admission-timeout failure retries against the dedicated admission budget (attempt_count stays a monotonic fence, the admission counter increments exactly once per admission Fail including under a concurrent double-Fail race with the loser claim-rejected, a stale owner is rejected without touching the row), that exhausting the admission budget dead-letters with the admission_timeout class on the Nth wait, that generic retryable failures still spend the refunded projection budget to a retry_exhausted dead-letter, and that migration 325 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_claim_full_guard_contention_live_test.go
     tag: ~
