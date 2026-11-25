@@ -76,18 +76,22 @@ func supportsLiveAssertMirror(t *testing.T, ctx context.Context, db *sql.DB, sco
 	if !slices.Equal(want, got) {
 		t.Fatalf("%s: supports = %v, live facts = %v: a support must exist exactly for each live fact", step, got, want)
 	}
-	// The payload is stored verbatim: byte-equal to the fact payload for every
-	// support (the supports table becomes the only copy in PR-C, so a stripped
-	// key is lost data).
+	// The payload is stored verbatim apart from the two per-pass keys: since #10880 B3a
+	// the write-on-change guard ignores intent_id and cause, so a row the pass confirmed
+	// keeps the intent id and cause of the pass that last changed it. Every other key is
+	// equal, and the supports table becomes the only copy in PR-C, so a stripped content
+	// key is lost data. Rows a pass inserted or changed are byte-equal; the guard live
+	// tests (supply_chain_impact_supports_guard_live_test.go) assert that exactly.
 	var different int
 	if err := db.QueryRowContext(ctx, `
 SELECT count(*) FROM supply_chain_impact_finding_supports AS s
 JOIN fact_records AS f ON f.fact_id = s.fact_id
-WHERE s.scope_id = $1 AND s.generation_id = $2 AND s.payload::text IS DISTINCT FROM f.payload::text`, scope, generation).Scan(&different); err != nil {
+WHERE s.scope_id = $1 AND s.generation_id = $2
+  AND (s.payload - 'intent_id' - 'cause')::text IS DISTINCT FROM (f.payload - 'intent_id' - 'cause')::text`, scope, generation).Scan(&different); err != nil {
 		t.Fatalf("%s: compare payloads: %v", step, err)
 	}
 	if different != 0 {
-		t.Fatalf("%s: %d support payloads differ from their fact payload: the payload must be stored verbatim", step, different)
+		t.Fatalf("%s: %d support payloads differ from their fact payload beyond intent_id and cause: the payload must be stored verbatim", step, different)
 	}
 }
 
@@ -139,8 +143,8 @@ WHERE (w.canonical_key, w.finding_id, w.priority_score, w.severity_bucket, w.rep
 	}
 
 	// Replay: the same set under the same intent id changes no fact payload, so it
-	// writes no support row version. A new intent id changes the verbatim
-	// payload and rewrites the support, as it rewrites the fact.
+	// writes no support row version. A new intent id rewrites the fact but, since
+	// #10880 B3a, not the support (the guard ignores intent_id and cause).
 	before := supportsLiveXminSum(t, ctx, db)
 	write("intent:10880:supports-1", finding(1), finding(2), finding(3))
 	if after := supportsLiveXminSum(t, ctx, db); after != before {

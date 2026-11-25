@@ -134,8 +134,8 @@ func TestStableFactKeyDoesNotChangeTheVersion1Statements(t *testing.T) {
 	t.Parallel()
 
 	statements := supplyChainImpactSupportsContractStatements()
-	baseUpsert := supplyChainImpactUpsertSupportsStatementWith(
-		supplyChainImpactSupportsSelectSQLWith("fact.fact_id = ANY($1::text[])", nil), nil)
+	baseUpsert := supplyChainImpactUpsertSupportsStatementGuarded(
+		supplyChainImpactSupportsSelectSQLWith("fact.fact_id = ANY($1::text[])", nil), nil, nil)
 	if statements[0] == baseUpsert {
 		t.Fatal("the shipped upsert equals the no-fill render: the fill-only column is not in it")
 	}

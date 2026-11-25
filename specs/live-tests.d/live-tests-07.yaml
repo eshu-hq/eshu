@@ -723,6 +723,11 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the per-support table follows the real writer and survives racing writers"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_guard_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 B3a: reducer-contention proof that the supports write-on-change guard ignores the per-pass payload keys intent_id and cause: an identical replay rewrites none of 10,000 supports, a content or evidence change rewrites exactly the changed rows, and old and new statements alternate without churn"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_supports_verify_live_test.go
     tag: ~
     class: dedicated_ci

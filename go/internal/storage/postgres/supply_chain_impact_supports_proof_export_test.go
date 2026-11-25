@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -127,3 +128,58 @@ func WinnersProofKeyedProbeSQL() string { return buildWinnersKeyedNarrowFromSupp
 // WinnersProofKeyedIdentsTable returns the session table the keyed probe reads its
 // identifiers from.
 func WinnersProofKeyedIdentsTable() string { return winnersKeyedIdentsTable }
+
+// ProofUpsertSupports runs one supports upsert over the fact ids of a single (scope,
+// generation) in a transaction under the pair's conflict-domain lock, as the writer's maintainer
+// does, and returns how many rows it inserted and how many it updated. shipped selects the
+// statement the writer runs now; false selects the statement of the C1 head (the guard compares
+// the payload verbatim), which stands in for an old-version writer in the transition and
+// mixed-version proofs of #10880 B3a (the guard ignores the per-pass keys intent_id and cause).
+func ProofUpsertSupports(
+	ctx context.Context, database db.ExecQueryer, scope, generation string, ids []string, shipped bool,
+) (inserted, updated int64, err error) {
+	beginner, ok := database.(db.Beginner)
+	if !ok {
+		return 0, 0, errors.New("proof supports upsert requires a transaction beginner")
+	}
+	statement := upsertSupplyChainImpactSupportsSQL
+	if !shipped {
+		statement = supplyChainImpactUpsertSupportsStatementGuarded(
+			supplyChainImpactSupportsSelectSQL("fact.fact_id = ANY($1::text[])"), supplyChainImpactSupportFillOnlyColumns, nil)
+	}
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("begin proof supports upsert: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, supplychaincore.SupplyChainImpactConflictDomainLockQuery,
+		supplychaincore.SupplyChainImpactConflictDomainKey(scope, generation)); err != nil {
+		return 0, 0, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, statement, array.Of(ids))
+	if err != nil {
+		return 0, 0, fmt.Errorf("proof supports upsert: %w", err)
+	}
+	for rows.Next() {
+		var wasInserted bool
+		if err := rows.Scan(&wasInserted); err != nil {
+			_ = rows.Close()
+			return 0, 0, err
+		}
+		if wasInserted {
+			inserted++
+		} else {
+			updated++
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return 0, 0, err
+	}
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, 0, fmt.Errorf("commit proof supports upsert: %w", err)
+	}
+	return inserted, updated, nil
+}

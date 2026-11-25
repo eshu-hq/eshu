@@ -120,8 +120,12 @@ func supplyChainImpactSupportsColumnNamesWith(fillOnly []supplyChainImpactSuppor
 // upsertSupplyChainImpactSupportsSQL writes one support row per live fact id
 // ($1), in fact id order so two writers on overlapping fact ids lock rows in one
 // order. The WHERE on DO UPDATE is the write-on-change guard: a row whose derived
-// columns already match is not rewritten, so a replay produces no row version and
-// no WAL. RETURNING (xmax = 0) distinguishes an insert from an update.
+// columns already match (the payload compared without the per-pass keys, see
+// supplyChainImpactSupportsGuardIgnoredPayloadKeys) is not rewritten, so a replay
+// produces no row version and no index change; the conflicting row is still locked
+// before the guard runs, which costs one heap lock WAL record per row (measured in the
+// B3 lab: 10,000 lock records of 54 bytes for 10,000 suppressed rows).
+// RETURNING (xmax = 0) distinguishes an insert from an update.
 var upsertSupplyChainImpactSupportsSQL = supplyChainImpactUpsertSupportsStatement(
 	supplyChainImpactSupportsSelectSQL("fact.fact_id = ANY($1::text[])"),
 )
@@ -133,12 +137,50 @@ func supplyChainImpactUpsertSupportsStatement(selectSQL string) string {
 	return supplyChainImpactUpsertSupportsStatementWith(selectSQL, supplyChainImpactSupportFillOnlyColumns)
 }
 
+// supplyChainImpactSupportsGuardIgnoredPayloadKeys are the per-pass payload keys the
+// write-on-change guard leaves out of its payload compare (#10880 B3a, arbiter ruling
+// 2026-11-24). Every pass stamps the pass's own intent id and cause into the finding
+// payload, so an identical replay differs from the stored row in exactly these two keys
+// and, compared verbatim, rewrote every supports row (measured: 10,000 of 10,000). The
+// stored payload stays verbatim; only the compare ignores them, on both sides, so a row
+// that really changed (any other key, `evidence_fact_ids` and `generation_id` included)
+// is still rewritten, and its stored intent_id and cause then name the pass that last
+// changed it. `generation_id` is not listed: it cannot differ for one fact id.
+var supplyChainImpactSupportsGuardIgnoredPayloadKeys = []string{"intent_id", "cause"}
+
+// guardPayloadTerm is one side of the guard's payload compare with ignored keys
+// removed (jsonb minus text); with no ignored keys it is the column itself.
+func guardPayloadTerm(column string, ignored []string) string {
+	if len(ignored) == 0 {
+		return column
+	}
+	term := column
+	for _, key := range ignored {
+		term += " - '" + key + "'"
+	}
+	return "(" + term + ")"
+}
+
 // supplyChainImpactUpsertSupportsStatementWith is the upsert over an explicit
-// fill-only column list (see supplyChainImpactSupportsSelectSQLWith).
+// fill-only column list (see supplyChainImpactSupportsSelectSQLWith), with the shipped
+// guard that ignores the per-pass payload keys.
 func supplyChainImpactUpsertSupportsStatementWith(selectSQL string, fillOnly []supplyChainImpactSupportColumn) string {
+	return supplyChainImpactUpsertSupportsStatementGuarded(selectSQL, fillOnly, supplyChainImpactSupportsGuardIgnoredPayloadKeys)
+}
+
+// supplyChainImpactUpsertSupportsStatementGuarded is the upsert with an explicit list
+// of payload keys the write-on-change compare ignores; nil renders the guard that
+// compares the payload verbatim (the statement before B3a, kept for the differential
+// and the mixed-version proof).
+func supplyChainImpactUpsertSupportsStatementGuarded(selectSQL string, fillOnly []supplyChainImpactSupportColumn, ignored []string) string {
 	var set, existing, incoming []string
 	for _, column := range supplyChainImpactSupportColumns {
 		set = append(set, column.name+" = EXCLUDED."+column.name)
+		if column.name == "payload" {
+			existing = append(existing, guardPayloadTerm("supports.payload", ignored))
+			incoming = append(incoming, guardPayloadTerm("EXCLUDED.payload", ignored))
+			continue
+		}
 		existing = append(existing, "supports."+column.name)
 		incoming = append(incoming, "EXCLUDED."+column.name)
 	}
