@@ -189,14 +189,29 @@ SELECT blks_read + blks_hit FROM pg_stat_database WHERE datname = current_databa
 	return n
 }
 
-// narrowStatioProbe executes query and returns the block touches it caused,
-// measured as the statistics-view delta around the execution.
-// The statement runs for its real side effects (the shipped arm builds its
-// temp active-facts table); temp-table writes are not block touches.
-func narrowStatioProbe(t *testing.T, h *keyedHarness, query string) int64 {
+// narrowStatioProbe executes queries in one transaction and returns the
+// block touches they caused, measured as the statistics-view delta around
+// the execution. The statements run for their real side effects (the
+// shipped arm builds its narrow probe then its temp active-facts table,
+// mirroring runKeyedOrFull); temp-table writes are not block touches, and
+// the single transaction keeps the ON COMMIT DROP tables alive across the
+// statements the way the tick does.
+func narrowStatioProbe(t *testing.T, h *keyedHarness, queries ...string) int64 {
 	t.Helper()
 	before := narrowStatioBlocks(t, h)
-	h.exec(query)
+	tx, err := h.db.BeginTx(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin statio probe: %v", err)
+	}
+	for _, query := range queries {
+		if _, err := tx.ExecContext(h.ctx, query); err != nil {
+			_ = tx.Rollback()
+			t.Fatalf("statio probe exec: %v", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit statio probe: %v", err)
+	}
 	return narrowStatioBlocks(t, h) - before
 }
 
@@ -319,6 +334,15 @@ FROM sci_winners_narrow_prototype LIMIT 50`)
 	h.exec(`CREATE TEMP TABLE ` + postgres.WinnersKeyedIdentsTableForTest + ` AS
 SELECT *, now() AS age_captured_at, 0 AS age_seq FROM narrow_proof_idents`)
 	h.exec(`ANALYZE ` + postgres.WinnersKeyedIdentsTableForTest)
+	// The shipped tick persists the identifier probe to the narrow temp
+	// table before the active-facts build reads it; the probe measures all
+	// three shipped statements in one transaction, mirroring runKeyedOrFull
+	// (post-#11400 the build errors on the missing relation otherwise, and
+	// ON COMMIT DROP tables do not survive autocommit execs).
+	shippedBlocks := narrowStatioProbe(t, h,
+		postgres.WinnersKeyedNarrowBuildSQLForTest,
+		postgres.WinnersKeyedNarrowAnalyzeSQLForTest,
+		postgres.WinnersKeyedActiveFactsSQLForTest)
 	// The bar counts first-pass block touches (buffer hits plus reads) from
 	// the statistics views around a real execution of each probe, per shape:
 	// each shape must touch at most one quarter of the shipped probe's
@@ -326,7 +350,6 @@ SELECT *, now() AS age_captured_at, 0 AS age_seq FROM narrow_proof_idents`)
 	// index serves each probe); its buffer lines are plan context, not the
 	// bar, and the shipped arm is measured on the executed build, never on
 	// an EXPLAIN of the CREATE TABLE AS.
-	shippedBlocks := narrowStatioProbe(t, h, postgres.WinnersKeyedActiveFactsSQLForTest)
 	t.Logf("shipped per-identifier probe: statio block touches=%d", shippedBlocks)
 	if shippedBlocks == 0 {
 		t.Fatalf("shipped probe recorded 0 statio block touches: the statistics-view measurement is blind")

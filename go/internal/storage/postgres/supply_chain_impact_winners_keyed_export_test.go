@@ -33,6 +33,15 @@ const WinnersKeyedActiveFactsTableForTest = winnersKeyedActiveFactsTable
 // reads.
 const WinnersKeyedIdentsTableForTest = winnersKeyedIdentsTable
 
+// WinnersKeyedNarrowBuildSQLForTest exposes the statement that persists the
+// identifier probe to the narrow temp table, which the active-facts build
+// reads; a proof must run it first, mirroring runKeyedOrFull.
+const WinnersKeyedNarrowBuildSQLForTest = buildWinnersKeyedNarrowSQL
+
+// WinnersKeyedNarrowAnalyzeSQLForTest exposes the ANALYZE of the narrow
+// temp table, so the active-facts build plans on real statistics.
+const WinnersKeyedNarrowAnalyzeSQLForTest = analyzeWinnersKeyedNarrowSQL
+
 // ActivationPointerMoveSQLForTest exposes the projector Ack statement that
 // moves a scope's active pointer and appends the old and new generation to the
 // winners dirty log, so a live proof runs the production capture site.
