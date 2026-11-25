@@ -174,7 +174,8 @@ type SupplyChainImpactWinnersStore struct {
 	// MaxIdentifiers and MaxKeyFraction cap a keyed resweep (#9805): a tick whose
 	// consumed dirty-log rows expand to more identifiers than MaxIdentifiers, or
 	// to more than MaxKeyFraction of the stored winners, runs the full rebuild in
-	// the same transaction. Zero means the defaults, 50,000 and 0.5.
+	// the same transaction. Zero means the defaults, 50,000 and 0.5
+	// (TEMPORARY #10972: 5,000 and 0.5 until the drain revert).
 	MaxIdentifiers int
 	MaxKeyFraction float64
 	// ChunkMaxDirtyRows and ChunkMaxIdentifiers bound one keyed transaction
