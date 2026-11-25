@@ -231,9 +231,27 @@ FROM generate_series(1, 3000) AS g`)
 			t.Fatalf("prepare identifiers %q: %v", stmt, err)
 		}
 	}
+	// Post-#11400 the identifier probe lives in the narrow build, so the
+	// plan-shape assertions target its plan, not the active-facts build.
+	// EXPLAIN the narrow build before running it: EXPLAIN errors when the
+	// target temp table already exists.
+	tx, err := conn.BeginTx(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin probe transaction: %v", err)
+	}
 	var planJSON []byte
-	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&planJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&planJSON); err != nil {
+		_ = tx.Rollback()
 		t.Fatalf("explain probe: %v", err)
+	}
+	for _, stmt := range []string{
+		postgres.WinnersKeyedNarrowBuildSQLForTest,
+		postgres.WinnersKeyedNarrowAnalyzeSQLForTest,
+	} {
+		if _, err := tx.ExecContext(h.ctx, stmt); err != nil {
+			_ = tx.Rollback()
+			t.Fatalf("build narrow probe: %v", err)
+		}
 	}
 	plan := string(planJSON)
 	var parsed any
@@ -251,59 +269,82 @@ FROM generate_series(1, 3000) AS g`)
 	// index must be searched once per identifier with the c0 and advisory
 	// expressions as index conditions, so the hot triple's 3,000 candidates are
 	// not heap-fetched at all: the scan returns the 50 kept facts, one per
-	// identifier, not 3,050 candidates. The plan must hold in both statistics
-	// states that mattered: the scope tables as the isolated schema leaves them
-	// (default estimates, which flipped the per-identifier form into a scope loop
-	// with 100 searches), and after ANALYZE of the scope tables. The probe sits in
-	// a MATERIALIZED CTE, so the planner has no join order to choose for it.
+	// identifier, not 3,050 candidates. Post-#11400 that probe lives in the
+	// narrow build, so the per-identifier counts below run against its
+	// analyzed plan; the loop that follows pins only the live_gens shape,
+	// which stayed in the active-facts build.
+	// EXPLAIN errors when the target table already exists, so drop the
+	// just-built narrow table before explaining it, then rebuild for the
+	// active-facts work below.
+	if _, err := tx.ExecContext(h.ctx, `DROP TABLE `+postgres.WinnersKeyedNarrowTableForTest); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("drop narrow probe output: %v", err)
+	}
+	var narrowAnalyzed []byte
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&narrowAnalyzed); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("explain analyze narrow probe: %v", err)
+	}
+	// The EXPLAIN ANALYZE above already created and filled the narrow table;
+	// only ANALYZE it for the active-facts work below.
+	if _, err := tx.ExecContext(h.ctx, postgres.WinnersKeyedNarrowAnalyzeSQLForTest); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("analyze narrow probe: %v", err)
+	}
+	var narrowAnalyzedPlan any
+	if err := json.Unmarshal(narrowAnalyzed, &narrowAnalyzedPlan); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("analyzed narrow plan is not JSON: %v", err)
+	}
+	loops, rows, found := keyedIndexScanStats(narrowAnalyzedPlan)
+	if !found {
+		_ = tx.Rollback()
+		t.Fatalf("the analyzed narrow plan has no scan of the keyed winners index:\n%s", narrowAnalyzed)
+	}
+	if loops != 50 {
+		t.Errorf("the keyed winners index was searched %v times, want 50 (once per identifier):\n%s", loops, narrowAnalyzed)
+	}
+	if rows != 50 {
+		t.Errorf("the keyed winners index scan returned %v rows, want 50 kept facts (one per identifier, not the hot triple's 3,000 candidates):\n%s", rows, narrowAnalyzed)
+	}
+	if !strings.Contains(string(narrowAnalyzed), `"Subplan Name": "CTE narrow"`) {
+		t.Errorf("the probe is not a materialized CTE node:\n%s", narrowAnalyzed)
+	}
+	// The live_gens shape must hold in both statistics states that mattered:
+	// the scope tables as the isolated schema leaves them (default estimates,
+	// which flipped the per-identifier form into a scope loop with 100
+	// searches), and after ANALYZE of the scope tables.
 	for _, state := range []string{"default scope-table statistics", "analyzed scope tables"} {
 		if state == "analyzed scope tables" {
-			if _, err := conn.ExecContext(h.ctx, `ANALYZE ingestion_scopes`); err != nil {
+			if _, err := tx.ExecContext(h.ctx, `ANALYZE ingestion_scopes`); err != nil {
 				t.Fatalf("analyze ingestion_scopes: %v", err)
 			}
-			if _, err := conn.ExecContext(h.ctx, `ANALYZE scope_generations`); err != nil {
+			if _, err := tx.ExecContext(h.ctx, `ANALYZE scope_generations`); err != nil {
 				t.Fatalf("analyze scope_generations: %v", err)
 			}
 		}
-		if _, err := conn.ExecContext(h.ctx, `DROP TABLE IF EXISTS `+postgres.WinnersKeyedActiveFactsTableForTest); err != nil {
+		if _, err := tx.ExecContext(h.ctx, `DROP TABLE IF EXISTS `+postgres.WinnersKeyedActiveFactsTableForTest); err != nil {
 			t.Fatalf("drop the previous explain output: %v", err)
 		}
 		var analyzed []byte
-		if err := conn.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&analyzed); err != nil {
+		if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&analyzed); err != nil {
 			t.Fatalf("%s: explain analyze probe: %v", state, err)
 		}
 		var analyzedPlan any
 		if err := json.Unmarshal(analyzed, &analyzedPlan); err != nil {
 			t.Fatalf("%s: analyzed plan is not JSON: %v", state, err)
 		}
-		loops, rows, found := keyedIndexScanStats(analyzedPlan)
-		if !found {
-			t.Fatalf("%s: the analyzed plan has no scan of the keyed winners index:\n%s", state, analyzed)
-		}
-		if loops != 50 {
-			t.Errorf("%s: the keyed winners index was searched %v times, want 50 (once per identifier):\n%s", state, loops, analyzed)
-		}
-		if rows != 50 {
-			t.Errorf("%s: the keyed winners index scan returned %v rows, want 50 kept facts (one per identifier, not the hot triple's 3,000 candidates):\n%s", state, rows, analyzed)
-		}
-		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE narrow"`) {
-			t.Errorf("%s: the probe is not a materialized CTE node:\n%s", state, analyzed)
-		}
 		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE live_gens"`) {
 			t.Errorf("%s: the live generation set is not a materialized CTE node (it would recompute per row):\n%s", state, analyzed)
 		}
 	}
 
-	// #11343: the scanned-copies COUNT(*) is the same five-tuple probe as the
-	// build above, narrowed to SELECT 1. Substring containment of the shipped
-	// text passes on reworded-but-plan-breaking variants, so only an EXPLAIN
-	// proves it takes the same keyed-index path. EXPLAIN (ANALYZE, BUFFERS)
-	// also closes the F2 perf half at fixture scale: it reports the buffer
-	// and timing cost of the extra lateral probe per tick on the fixture
-	// corpus, not a production per-tick cost (see the QA-replica evidence on
-	// #11343 for the QA-shaped measurement).
+	// Post-#11400 the scanned-copies COUNT(*) reads the persisted narrow
+	// table instead of re-running the probe, so there is no keyed-index
+	// scan left in its plan by design. The assertion that survives is
+	// stronger: the count must not touch fact_records at all.
 	var countPlanJSON []byte
-	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countPlanJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countPlanJSON); err != nil {
 		t.Fatalf("explain scanned-copies count: %v", err)
 	}
 	countPlan := string(countPlanJSON)
@@ -311,40 +352,23 @@ FROM generate_series(1, 3000) AS g`)
 	if err := json.Unmarshal(countPlanJSON, &parsedCount); err != nil {
 		t.Fatalf("scanned-copies count plan is not JSON: %v", err)
 	}
-	if !strings.Contains(countPlan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("the scanned-copies count does not use the keyed winners index:\n%s", countPlan)
+	if !strings.Contains(countPlan, "winners_keyed_narrow") {
+		t.Errorf("the scanned-copies count does not read the persisted narrow probe output:\n%s", countPlan)
 	}
-	if regexp.MustCompile(`"Node Type":\s*"Seq Scan"[^}]*"Relation Name":\s*"fact_records"`).MatchString(countPlan) {
-		t.Errorf("the scanned-copies count seq-scans fact_records:\n%s", countPlan)
+	if strings.Contains(countPlan, "fact_records") {
+		t.Errorf("the scanned-copies count touches fact_records; it must read only the persisted narrow table:\n%s", countPlan)
 	}
-
-	var countAnalyzed []byte
-	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&countAnalyzed); err != nil {
-		t.Fatalf("explain analyze scanned-copies count: %v", err)
-	}
-	var countAnalyzedPlan any
-	if err := json.Unmarshal(countAnalyzed, &countAnalyzedPlan); err != nil {
-		t.Fatalf("analyzed scanned-copies count plan is not JSON: %v", err)
-	}
-	loops, rows, found := keyedIndexScanStats(countAnalyzedPlan)
-	if !found {
-		t.Fatalf("the analyzed scanned-copies count plan has no scan of the keyed winners index:\n%s", countAnalyzed)
-	}
-	if loops != 50 {
-		t.Errorf("the scanned-copies count searched the keyed winners index %v times, want 50 (once per identifier):\n%s", loops, countAnalyzed)
-	}
-	if rows != 50 {
-		t.Errorf("the scanned-copies count scanned %v copies, want 50 (one per identifier, not the hot triple's 3,000 candidates):\n%s", rows, countAnalyzed)
-	}
-	hits, reads, execMs, planningMs := keyedPlanBufferStats(countAnalyzedPlan)
-	t.Logf("scanned-copies count (fixture-scale): %v copies, %.3f ms execution (%.3f ms planning), %v shared hits + %v reads", rows, execMs, planningMs, hits, reads)
 
 	var copies int64
-	if err := conn.QueryRowContext(h.ctx, postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&copies); err != nil {
+	if err := tx.QueryRowContext(h.ctx, postgres.WinnersKeyedScannedCopiesSQLForTest).Scan(&copies); err != nil {
+		_ = tx.Rollback()
 		t.Fatalf("run scanned-copies count: %v", err)
 	}
 	if copies != 50 {
 		t.Errorf("scanned-copies count = %d, want 50 (one copy per identifier)", copies)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit probe transaction: %v", err)
 	}
 }
 
@@ -388,48 +412,4 @@ func keyedIndexScanStats(node any) (loops, rows float64, found bool) {
 		}
 	}
 	return 0, 0, false
-}
-
-// keyedPlanBufferStats sums Shared Hit/Read Blocks over every node of an
-// EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) document and reports the top-level
-// execution and planning times, so a plan proof can log the buffer and timing
-// cost of the statement it pins (#11343 F2).
-func keyedPlanBufferStats(node any) (hits, reads, execMs, planningMs float64) {
-	switch v := node.(type) {
-	case []any:
-		for _, item := range v {
-			h, r, e, p := keyedPlanBufferStats(item)
-			hits += h
-			reads += r
-			if e > execMs {
-				execMs = e
-			}
-			if p > planningMs {
-				planningMs = p
-			}
-		}
-	case map[string]any:
-		for key, child := range v {
-			switch key {
-			case "Shared Hit Blocks":
-				hits += asFloat(child)
-			case "Shared Read Blocks":
-				reads += asFloat(child)
-			case "Execution Time":
-				execMs = asFloat(child)
-			case "Planning Time":
-				planningMs = asFloat(child)
-			default:
-				h, r, _, _ := keyedPlanBufferStats(child)
-				hits += h
-				reads += r
-			}
-		}
-	}
-	return hits, reads, execMs, planningMs
-}
-
-func asFloat(v any) float64 {
-	f, _ := v.(float64)
-	return f
 }

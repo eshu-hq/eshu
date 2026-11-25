@@ -206,16 +206,47 @@ SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id FROM 
 			t.Fatalf("prepare identifiers: %v", err)
 		}
 	}
+	// Post-#11400 the active-facts build reads the narrow probe table
+	// the tick persists first; build it in the same transaction as the
+	// EXPLAIN, mirroring runKeyedOrFull (ON COMMIT DROP tables do not
+	// survive autocommit execs).
+	tx, err := conn.BeginTx(h.ctx, nil)
+	if err != nil {
+		t.Fatalf("begin probe transaction: %v", err)
+	}
+	// Post-#11400 the identifier probe lives in the narrow build, while the
+	// liveness join stays in the active-facts build: assert the probe shape
+	// on the narrow plan and the loop bound on the active-facts plan.
+	// EXPLAIN the narrow build before running it: EXPLAIN errors when the
+	// target temp table already exists.
+	var narrowPlanJSON []byte
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (FORMAT JSON) `+postgres.WinnersKeyedNarrowBuildSQLForTest).Scan(&narrowPlanJSON); err != nil {
+		_ = tx.Rollback()
+		t.Fatalf("explain narrow probe: %v", err)
+	}
+	narrowPlan := string(narrowPlanJSON)
+	if !strings.Contains(narrowPlan, "fact_records_supply_chain_impact_winners_keyed_idx") {
+		t.Errorf("the keyed probe does not use the keyed winners index:\n%s", narrowPlan)
+	}
+	if hasSeqScanOn(t, narrowPlanJSON, "fact_records") {
+		t.Errorf("the keyed probe seq-scans fact_records:\n%s", narrowPlan)
+	}
+	for _, stmt := range []string{
+		postgres.WinnersKeyedNarrowBuildSQLForTest,
+		postgres.WinnersKeyedNarrowAnalyzeSQLForTest,
+	} {
+		if _, err := tx.ExecContext(h.ctx, stmt); err != nil {
+			_ = tx.Rollback()
+			t.Fatalf("build narrow probe: %v", err)
+		}
+	}
 	var planJSON []byte
-	if err := conn.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&planJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsSQLForTest).Scan(&planJSON); err != nil {
+		_ = tx.Rollback()
 		t.Fatalf("explain probe: %v", err)
 	}
-	plan := string(planJSON)
-	if !strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("the keyed probe does not use the keyed winners index:\n%s", plan)
-	}
-	if hasSeqScanOn(t, planJSON, "fact_records") {
-		t.Errorf("the keyed probe seq-scans fact_records:\n%s", plan)
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit probe transaction: %v", err)
 	}
 	var livePairs int
 	if err := conn.QueryRowContext(h.ctx, `SELECT count(*) FROM (
