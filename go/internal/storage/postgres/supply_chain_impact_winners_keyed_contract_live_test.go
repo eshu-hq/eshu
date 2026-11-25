@@ -413,4 +413,3 @@ func keyedIndexScanStats(node any) (loops, rows float64, found bool) {
 	}
 	return 0, 0, false
 }
-
