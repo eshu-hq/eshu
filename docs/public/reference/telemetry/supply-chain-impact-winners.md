@@ -71,46 +71,35 @@ and records its sample under `path="full"`.
 One keyed tick is chunk-bounded (#9805, Dec 6(ii)): it reads the DB-clock tick stamp,
 admits the 5,000 dirty-log rows with the oldest capture times (ordered by
 `captured_at`, then `seq`, #11075) as candidates, then admits the oldest-first
-budgeted prefix of the post-expansion identifiers: at most 200 identifiers,
-and at most 10,000 pre-filter scanned copies. The scanned-copies budget is the
-primary bound (an identifier chunk alone still admits an unbounded probe at
-scope-expanded fan-out); kept facts always cost a subset of the scanned copies'
-heap fetches, so one scanned-copies unit bounds both. The tick probes
-identifiers one at a time and stops admitting new ones once the budget is
-spent (the current identifier always completes, never split), then deletes
-exactly the rows it applied. Admission
-follows capture time, not insert order, because the horizon is the oldest
-remaining capture: a converted scope remainder keeps its old capture time on a
-new `seq`, and admitting by `seq` left it behind every newer row while the
-watermark stood still. A tick that stopped at either bound leaves the rest
-queued, stamps the horizon over them, and counts
-`eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, so a backlog drains
-as short spaced ticks, never one long transaction, and the watermark advances on
-every tick. The span and the commit log
+budgeted prefix of the post-expansion identifiers: at most 200 identifiers
+and at most 10,000 pre-filter scanned copies (the primary bound against
+scope-expanded fan-out; one scanned-copies unit bounds both, since kept facts
+cost a subset of the scanned copies' heap fetches). The tick probes identifiers
+one at a time and stops admitting new ones once the budget is spent (the
+current identifier always completes, never split), then deletes exactly the
+rows it applied. Admission follows capture time, not insert order,
+because the horizon is the oldest remaining capture: a converted scope
+remainder keeps its old capture time on a new `seq`, and admitting by `seq`
+left it behind every newer row while the watermark stood still. A tick that
+stopped at either bound leaves the rest queued, stamps the horizon over them,
+and counts `eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, so a
+backlog drains as short spaced ticks and the watermark advances on every
+tick. The span and the commit log
 line carry `bounded`, `remaining`, `remaining_upper_bound`, `chunk_identifiers`,
-`chunk_kept_rows`, `chunk_scanned_copies`, and `chunk_truncated_by` for the
-chunk the tick probed,
-kept, and scanned pre-filter (#11308): `chunk_scanned_copies` counts every
-finding the five-tuple probe matched before the active-generation join
-discarded the retired and superseded ones, so the tick log alone attributes a
-tick's build cost to cost-per-copy (`build_active_facts` seconds per scanned
-copy, when scanned is greater than zero) against kept-rows-per-identifier.
-Since #10880 PR-C1 the count reads the narrow temp table persisting the
-supports probe the keyed build runs. A support is keyed by `fact_id` for every
-live finding fact of every generation, so it counts the same copies. The QA
-figures below are for the fact-table probe; the supports probe (migration
-354's index) is unmeasured.
-`chunk_truncated_by` names which bound stopped admission (`identifiers`,
-`scanned_copies`, or `identifiers+scanned_copies`, empty on a drained tick),
-so a budget trip is distinguishable from an identifier-bound trip in the log.
+`chunk_kept_rows`, `chunk_scanned_copies`, and `chunk_truncated_by`
+(`identifiers`, `scanned_copies`, or both; empty on a drained tick) for the
+chunk the tick probed, kept, and scanned pre-filter (#11308): since #10880
+PR-C1 the count reads the narrow temp table persisting the supports probe,
+so the count attributes a tick's build cost to cost-per-copy against
+kept-rows-per-identifier, and a budget trip stays distinguishable from an
+identifier-bound trip in the log.
 
 Every keyed tick transaction pins a statement-timeout guard (Dec 7):
-`statement_timeout` is set to 120 s for the tick, so a runaway statement
-aborts with the distinct `statement_timeout` failure class on the tick's
-`eshu_dp_supply_chain_impact_winners_write_conflicts_total` series instead of
-holding the single-flight lock. The guard is sized from the post-fix tick
-maximum and is never the fix; the over-cap full fallback lifts it, since a
-full recompute's legitimate duration is unbounded by the tick bar.
+`statement_timeout` is set to 120 s, so a runaway statement aborts with the
+distinct `statement_timeout` failure class instead of holding the
+single-flight lock. The guard is sized from the post-fix tick maximum and is
+never the fix; the over-cap full fallback lifts it, since a full recompute's
+legitimate duration is unbounded by the tick bar.
 
 No-Regression Evidence: the scanned-copies probe was measured read-only on
 the QA replica (PostgreSQL 18.6, 86,765 canonical winners) with 30
