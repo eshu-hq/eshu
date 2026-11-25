@@ -11,7 +11,9 @@ loader probes beside each checkpoint's last chunk and folds to one state
 per year. See eshu-hq/eshu#11380.
 
 Performance Evidence: the shipped batch claim is byte-identical, plus a
-claim-path benchmark before and after, PostgreSQL 18.
+claim-path benchmark before and after, PostgreSQL 18, same host and
+invocation on the base tree (`f91199d5ae`, the branch's `origin/main`) and
+the branch.
 
 - `TestStaleGate11234LeavesEveryOtherByteUnchanged` still passes on the
   pinned digest: the assembled `claimReducerWorkBatchQuery` string is
