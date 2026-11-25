@@ -38,7 +38,7 @@ func TestGoEvidenceProtectedPassAndFenceNeverDeadlockLive(t *testing.T) {
 	for round := 0; round < 40; round++ {
 		tag := fmt.Sprintf("%02d", round)
 		holder, generation := "scope:11327:prot:"+tag, "scope:11327:prot:"+tag+"/g1"
-		repository := "repository:r_11327prot" + tag
+		repository := goEvidenceTestRepoID("11327:prot:" + tag)
 		goScope := "go-reachability://" + repository
 		goGeneration := fanOutGen(goScope, "g1")
 		fanOutSeedScope(t, ctx, admin, goScope, "g1")

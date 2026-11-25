@@ -33,7 +33,7 @@ const suppressionCandidateMarker = "(g.activated_at IS NOT NULL)"
 func suppressionPassFixture(c *convergence, tag string) (holder, goScope, goGeneration string, second supplychaincore.SupplyChainImpactWrite) {
 	c.t.Helper()
 	holder = "scope:11327:sup:" + tag
-	repository := "repository:r_11327sup" + tag
+	repository := goEvidenceTestRepoID("11327:sup:" + tag)
 	goScope = "go-reachability://" + repository
 	goGeneration = fanOutGen(goScope, "g1")
 	fanOutSeedScope(c.t, c.ctx, c.db, goScope, "g1")
@@ -58,6 +58,9 @@ func suppressionPassFixture(c *convergence, tag string) (holder, goScope, goGene
 	}
 	second = fenceWrite("intent:11327:sup2:"+tag, holder, generation, finding("CVE-2026-6"+tag), finding("CVE-2026-5"+tag))
 	second.ScopeFactKinds = []string{chain.VulnerabilitySuppressionFactKind}
+	// Recovery=true ensures runSuppressionDiff executes the walk and RESET
+	// statement_timeout even though first already admitted generation g1.
+	second.Recovery = true
 	second.GoEvidence = []supplychaincore.GoEvidenceGeneration{{ScopeID: goScope, GenerationID: goGeneration}}
 	second.Owed = postgres.SupplyChainImpactFanOutStore{LeaseOwner: "sup-proof"}.
 		OwedRecorder(reducercontract.Intent{IntentID: item, ClaimedAt: &claimedAt})

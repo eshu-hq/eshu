@@ -204,10 +204,13 @@ func TestPackageManifestSBTRepairAddsKeysWithoutFlippingReadiness(t *testing.T) 
 	probeCtx, stopProbe := context.WithCancel(ctx)
 	var probes, notReady int
 	var probeErr error
+	firstProbe := make(chan struct{})
+	var firstProbeOnce sync.Once
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer firstProbeOnce.Do(func() { close(firstProbe) })
 		for probeCtx.Err() == nil {
 			ready, err := PackageManifestConsumptionKeysReady(probeCtx, SQLDB{DB: database})
 			if err != nil {
@@ -220,8 +223,14 @@ func TestPackageManifestSBTRepairAddsKeysWithoutFlippingReadiness(t *testing.T) 
 			if !ready {
 				notReady++
 			}
+			firstProbeOnce.Do(func() { close(firstProbe) })
 		}
 	}()
+	defer func() {
+		stopProbe()
+		wg.Wait()
+	}()
+	<-firstProbe
 
 	var reports []consumption.SBTRepairReport
 	for pass := 0; pass < 4 && (len(reports) == 0 || reports[len(reports)-1].Pending); pass++ {
