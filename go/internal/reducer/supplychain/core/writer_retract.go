@@ -171,13 +171,25 @@ func commitSupplyChainImpactRows(
 		return supplyChainImpactTxOutcome{}, err
 	}
 	supports, hasSupports := tx.(SupplyChainImpactSupportsMaintainer)
+	// keep is the fact-id set this pass wrote: the retraction below tombstones
+	// every other active row of the generation. It is built once so the
+	// capture and the retraction name the same set.
+	keep := make([]string, 0, len(rows))
+	for _, row := range rows {
+		keep = append(keep, row.FactID)
+	}
 	// Name the keys this pass changed for the winners keyed resweep (#9805), in
 	// the transaction that changes them. A rewrite to an identical digest names
-	// nothing, so an unchanged rerun issues no extra statement.
+	// nothing, so an unchanged rerun issues no extra statement. A key this
+	// pass's own retraction tombstones is named there, so the capture leaves
+	// it out: one pass stages one dirty row per key (#11411).
 	if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
 		if idents := dirtyIdentifiersToCapture(meta, stored, write.GenerationID); len(idents) > 0 {
-			if _, err := capturer.CaptureWinnersDirtyFacts(ctx, idents); err != nil {
-				return supplyChainImpactTxOutcome{}, fmt.Errorf("capture supply chain impact winners dirty keys: %w", err)
+			idents = excludeRetiredWinnersDirtyIdentifiers(idents, stored, keep, write.GenerationID, write.FencingToken, write.PartialEvidence, write.ScopedCVEIDs)
+			if len(idents) > 0 {
+				if _, err := capturer.CaptureWinnersDirtyFacts(ctx, idents); err != nil {
+					return supplyChainImpactTxOutcome{}, fmt.Errorf("capture supply chain impact winners dirty keys: %w", err)
+				}
 			}
 		}
 	}
@@ -236,10 +248,6 @@ func commitSupplyChainImpactRows(
 		}
 	}
 	if !write.PartialEvidence {
-		keep := make([]string, 0, len(rows))
-		for _, row := range rows {
-			keep = append(keep, row.FactID)
-		}
 		tombstoned, marked, err := retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken, write.ScopedCVEIDs)
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err

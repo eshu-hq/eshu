@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
 )
@@ -118,7 +117,10 @@ SELECT fact_id,
        fencing_token,
        COALESCE(payload #>> '{provenance,advisory_group_members}', '[]'),
        COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active'),
-       COALESCE(payload #>> '{evidence_fact_ids}', '[]')
+       COALESCE(payload #>> '{evidence_fact_ids}', '[]'),
+       COALESCE(payload ->> 'package_id', ''),
+       COALESCE(payload ->> 'repository_id', ''),
+       COALESCE(payload ->> 'subject_digest', '')
 FROM fact_records
 WHERE fact_kind = '` + supplyChainImpactFactKind + `'
   AND scope_id = $1
@@ -159,6 +161,11 @@ type storedFinding struct {
 	// evidenceFactIDs is the stored row's evidence fact id set, read for
 	// the capture secondary comparison (#10880 ruling decision 4).
 	evidenceFactIDs []string
+	// packageID, repositoryID and subjectDigest are the stored row's
+	// canonical winners-key components: the pass's retraction stages the
+	// keys it tombstones, so the upsert capture skips the keys the same
+	// pass retires and one pass stages one dirty row per key (#11411).
+	packageID, repositoryID, subjectDigest string
 }
 
 // readStoredSupplyChainImpactFindings returns the active rows of the generation
@@ -178,7 +185,7 @@ func readStoredSupplyChainImpactFindings(
 	for rows.Next() {
 		var row storedFinding
 		var membersRaw, evidenceRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
+		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.identityDigest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw, &row.packageID, &row.repositoryID, &row.subjectDigest); err != nil {
 			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
 		}
 		members, err := parseAdvisoryGroupMembers(membersRaw)
@@ -330,16 +337,6 @@ func derivedCVEIDs(rows []changedRow, stored []storedFinding, generationID strin
 		}
 	}
 	return sortedSetKeys(derived)
-}
-
-// coalescedFindingGroupID returns the advisory-group id (#10411) a finding
-// row belongs to: its CVE id when it names one, else its advisory id, each
-// trimmed. An empty result names no group.
-func coalescedFindingGroupID(cveID string, advisoryID string) string {
-	if id := strings.TrimSpace(cveID); id != "" {
-		return id
-	}
-	return strings.TrimSpace(advisoryID)
 }
 
 // touchedGroupIDs returns the sorted advisory-group ids a pass changed
