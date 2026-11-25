@@ -32,6 +32,7 @@ var findingWriteStopCallers = map[string]string{
 	"internal/storage/postgres/supply_chain_impact_capped_scope_live_test.go":            "openCappedScopeLiveDB: the capped-scope proofs plant finding facts with raw SQL (whole-test disarm; to become SeedFindingFacts)",
 	"internal/storage/postgres/supply_chain_impact_fanout_live_test.go":                  "fanOutLiveDB: the fan-out family plants finding facts with raw SQL across ~16 files; whole-test disarm for now, each plant to become a SeedFindingFacts call (the holder reads under test read supports)",
 	"internal/storage/postgres/supply_chain_impact_winners_write_on_change_live_test.go": "winnersLiveExec, the raw-SQL seed of the winners and audit family: each raw write of a finding fact is a scoped plant, the writer and maintainer run armed",
+	"internal/storage/postgres/supply_chain_impact_fact_write_stop_role_live_test.go":    "the armed-check subtest reads the disabled trigger in a SeedFindingFacts-scoped window (no plant; proves Refresh answers from pg_trigger, not a constant), the writer paths run armed",
 }
 
 var disarmCall = regexp.MustCompile(`\b(SeedFindingFacts|DisarmFindingWriteStopForTest|DisarmFindingWriteStop|ArmFindingWriteStop)\(`)

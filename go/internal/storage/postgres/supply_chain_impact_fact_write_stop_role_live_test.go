@@ -79,11 +79,15 @@ func TestSupplyChainImpactSupportsFactWriteStopAsRuntimeWriterLive(t *testing.T)
 			t.Fatalf("Refresh() as the runtime-writer = %v, %v, want true, nil", armed, err)
 		}
 		// The read must report a disabled trigger too, not a constant: it answers from pg_trigger.
-		postgresproof.DisarmFindingWriteStopForTest(t, admin)
-		armed, err = watch.Refresh(ctx)
-		if err != nil || armed {
-			t.Fatalf("Refresh() with the trigger disabled = %v, %v, want false, nil", armed, err)
-		}
+		// A test of C2 code uses the scoped form, not the whole-test disarm. Refresh only
+		// reads pg_trigger and issues no fact write, so running it in the window cannot
+		// mask a 55000; the deferred re-arm still verifies the stop is back on.
+		postgresproof.SeedFindingFacts(t, admin, func() {
+			armed, err = watch.Refresh(ctx)
+			if err != nil || armed {
+				t.Errorf("Refresh() with the trigger disabled = %v, %v, want false, nil", armed, err)
+			}
+		})
 	})
 }
 
