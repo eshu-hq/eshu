@@ -117,6 +117,7 @@ For sizing and operator diagnostics, see
 | `ESHU_POSTGRES_PING_TIMEOUT` | `10s` | Runtimes using `internal/runtime.OpenPostgres` | Startup ping timeout. API/MCP currently use the request context for the startup ping instead of this timeout. |
 | `ESHU_CONTENT_ENTITY_BATCH_SIZE` | `300` | bootstrap-index, ingester/projector, projector | Rows per `content_entities` upsert statement. Values must be `1..4000`. |
 | `ESHU_CONTENT_WRITER_BATCH_CONCURRENCY` | runtime default | Postgres content writer | Concurrent Postgres content-write batches. Keep within database connection headroom. |
+| `ESHU_SUPPLY_CHAIN_IMPACT_SUPPORTS_CALL_MAX_ACTIVE_ROWS` | `500000` (5x the per-drain cap) | Service vulnerability advisory loader, security-alert reconciliation loader | Per-call active-row working-set budget across every repository and stream the call drains. Past it the call fails with the drain truncation error and the resume cursor instead of serving a prefix as complete. Floored at the per-drain default (`100000`). |
 | `ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES` | unset / `false` | `eshu graph start` local service | Defers expensive content trigram search indexes during local-authoritative bulk load, then restores them after drain. |
 
 ## Graph Driver
