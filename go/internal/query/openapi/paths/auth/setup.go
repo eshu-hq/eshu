@@ -23,9 +23,10 @@ const Setup = `
                 "schema": {
                   "type": "object",
                   "required": ["needs_setup", "bootstrap_mode"],
+                  "description": "Setup reachability state (SetupHandler.SetupStateResponse).",
                   "properties": {
-                    "needs_setup": {"type": "boolean"},
-                    "bootstrap_mode": {"type": "string", "enum": ["generated", "sso-only", "disabled"]}
+                    "needs_setup": {"type": "boolean", "description": "True while a generated bootstrap admin credential remains unconsumed, per the setup handler."},
+                    "bootstrap_mode": {"type": "string", "enum": ["generated", "sso-only", "disabled"], "description": "ESHU_AUTH_BOOTSTRAP_MODE echo for console messaging, per the setup handler."}
                   }
                 }
               }
@@ -60,7 +61,7 @@ const Setup = `
         "responses": {
           "200": {
             "description": "Credential verified.",
-            "content": {"application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string", "enum": ["claimed"]}}}}}
+            "content": {"application/json": {"schema": {"type": "object", "description": "Claim verdict emitted by the setup claim handler.", "properties": {"status": {"type": "string", "enum": ["claimed"], "description": "Fixed claim verdict, per the setup claim handler."}}, "required": ["status"]}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "401": {"$ref": "#/components/responses/Unauthorized"},
@@ -99,11 +100,13 @@ const Setup = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Admin creation outcome emitted by the setup admin handler.",
                   "properties": {
-                    "status": {"type": "string", "enum": ["admin_created"]},
-                    "tenant_id": {"type": "string"},
-                    "workspace_id": {"type": "string"}
-                  }
+                    "status": {"type": "string", "enum": ["admin_created"], "description": "Fixed admin-created verdict, per the setup admin handler."},
+                    "tenant_id": {"type": "string", "description": "System-assigned bootstrap tenant id resolved by the setup admin handler."},
+                    "workspace_id": {"type": "string", "description": "System-assigned bootstrap workspace id resolved by the setup admin handler."}
+                  },
+                  "required": ["status", "tenant_id", "workspace_id"]
                 }
               }
             }
@@ -150,14 +153,16 @@ const Setup = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Setup completion outcome (SetupHandler.SetupCompleteResponse) with the operator's browser session.",
                   "properties": {
-                    "status": {"type": "string", "enum": ["completed"]},
+                    "status": {"type": "string", "enum": ["completed"], "description": "Fixed setup-completed verdict, per the setup MFA handler."},
                     "recovery_codes": {"type": "array", "items": {"type": "string"}, "description": "One-time plaintext recovery codes, returned exactly once."},
-                    "auth": {"$ref": "#/components/schemas/BrowserSessionAuth"},
-                    "csrf_token": {"type": "string"},
-                    "idle_expires_at": {"type": "string", "format": "date-time"},
-                    "absolute_expires_at": {"type": "string", "format": "date-time"}
-                  }
+                    "auth": {"$ref": "#/components/schemas/BrowserSessionAuth", "description": "Issued browser-session auth, per the setup MFA handler."},
+                    "csrf_token": {"type": "string", "description": "CSRF secret for the issued session, per the setup MFA handler."},
+                    "idle_expires_at": {"type": "string", "format": "date-time", "description": "Idle expiry of the issued session, per the setup MFA handler."},
+                    "absolute_expires_at": {"type": "string", "format": "date-time", "description": "Absolute expiry of the issued session, per the setup MFA handler."}
+                  },
+                  "required": ["status", "recovery_codes", "auth", "csrf_token", "idle_expires_at", "absolute_expires_at"]
                 }
               }
             }

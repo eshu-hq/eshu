@@ -44,19 +44,20 @@ const RouteToCaller = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Exact route-to-caller trace emitted by handleRouteToCaller, or an unsupported verdict when no HANDLES_ROUTE edge exists.",
                   "properties": {
-                    "status": {"type": "string", "enum": ["complete", "partial", "unsupported"]},
-                    "partial": {"type": "boolean"},
-                    "truncated": {"type": "boolean"},
-                    "unsupported": {"type": "array", "items": {"type": "string"}},
-                    "truth_source": {"type": "string", "enum": ["HANDLES_ROUTE"]},
-                    "route": {"type": "object", "additionalProperties": true},
-                    "handler": {"type": "object", "nullable": true, "additionalProperties": true},
-                    "callers": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "callees": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "impact": {"type": "object", "additionalProperties": true},
-                    "max_depth": {"type": "integer"},
-                    "limit": {"type": "integer"}
+                    "status": {"type": "string", "enum": ["complete", "partial", "unsupported"], "description": "Trace outcome reported by handleRouteToCaller."},
+                    "partial": {"type": "boolean", "description": "True when the traversal stopped early, per handleRouteToCaller."},
+                    "truncated": {"type": "boolean", "description": "True when caller/callee rows were cut at the limit, per handleRouteToCaller."},
+                    "unsupported": {"type": "array", "description": "Unsupported-route reasons reported by handleRouteToCaller.", "items": {"type": "string"}},
+                    "truth_source": {"type": "string", "enum": ["HANDLES_ROUTE"], "description": "Edge family the trace was resolved from, per handleRouteToCaller."},
+                    "route": {"type": "object", "description": "Resolved route endpoint keyed by endpoint field names, per handleRouteToCaller.", "additionalProperties": true},
+                    "handler": {"type": "object", "description": "Resolved handler keyed by handler field names, per handleRouteToCaller; null when no exact handler exists.", "nullable": true, "additionalProperties": true},
+                    "callers": {"type": "array", "description": "Bounded CALLS callers of the handler, per handleRouteToCaller.", "items": {"type": "object", "additionalProperties": true}},
+                    "callees": {"type": "array", "description": "Bounded CALLS callees of the handler, per handleRouteToCaller.", "items": {"type": "object", "additionalProperties": true}},
+                    "impact": {"type": "object", "description": "Materialized workload/repository impact summary keyed by impact field names, per handleRouteToCaller.", "additionalProperties": true},
+                    "max_depth": {"type": "integer", "description": "Traversal depth bound echoed by handleRouteToCaller."},
+                    "limit": {"type": "integer", "description": "Row bound echoed by handleRouteToCaller."}
                   }
                 }
               }

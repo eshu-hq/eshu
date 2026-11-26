@@ -98,18 +98,19 @@ const Symbols = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Structural code inventory page emitted by handleStructuralInventory.",
                   "properties": {
-                    "repo_id": {"type": "string"},
-                    "language": {"type": "string"},
-                    "inventory_kind": {"type": "string"},
-                    "entity_kind": {"type": "string"},
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by handleStructuralInventory."},
+                    "language": {"type": "string", "description": "Language filter echoed by handleStructuralInventory."},
+                    "inventory_kind": {"type": "string", "description": "Inventory kind echoed by handleStructuralInventory."},
+                    "entity_kind": {"type": "string", "description": "Entity kind echoed by handleStructuralInventory."},
                     "results": {"type": "array", "description": "Inventory rows. Entity rows carry source_cache clipped at read time to 4096 bytes: a clipped row adds source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes, and source_handle locates the full body for get_entity_content or get_file_lines. The docstring, and every echo derived from it, is clipped the same way to 512 bytes: a clipped row adds docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.", "items": {"type": "object", "additionalProperties": true}},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_offset": {"type": "integer", "nullable": true},
-                    "source_backend": {"type": "string"},
+                    "count": {"type": "integer", "description": "Rows on this page counted by handleStructuralInventory."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by handleStructuralInventory."},
+                    "offset": {"type": "integer", "description": "Page offset echoed by handleStructuralInventory."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page, per handleStructuralInventory."},
+                    "next_offset": {"type": "integer", "description": "Next offset to request when truncated is true, per handleStructuralInventory.", "nullable": true},
+                    "source_backend": {"type": "string", "description": "Backend that served the inventory, per handleStructuralInventory."},
                     "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
                     "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped; 0 when none."},
                     "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
@@ -170,9 +171,10 @@ const Symbols = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Import dependency investigation page emitted by handleImportDependencyInvestigation.",
                   "properties": {
-                    "query_type": {"type": "string"},
-                    "scope": {"type": "object", "additionalProperties": true},
+                    "query_type": {"type": "string", "description": "Query type echoed by handleImportDependencyInvestigation."},
+                    "scope": {"type": "object", "description": "Resolved investigation scope keyed by scope field names, per handleImportDependencyInvestigation.", "additionalProperties": true},
                     "dependencies": {"type": "array", "description": "Canonical rows for imports_by_file, importers, and module_dependencies query_type values. One row per (file, module) pair, which is the identity of the underlying File-[:IMPORTS]->Module edge. imported_name and alias are populated only when every import statement joining that file to that module agrees on them: a file importing two symbols from one module returns the row with both fields empty rather than naming an arbitrary one of the two.", "items": {"type": "object", "additionalProperties": true}},
                     "modules": {"type": "array", "description": "Canonical rows for package_imports query_type.", "items": {"type": "object", "additionalProperties": true}},
                     "cycles": {
@@ -181,46 +183,47 @@ const Symbols = `
                       "items": {
                         "type": "object",
                         "properties": {
-                          "repo_id": {"type": "string"},
-                          "repo_name": {"type": "string"},
-                          "source_file": {"type": "string"},
-                          "target_file": {"type": "string"},
-                          "source_module": {"type": "string"},
-                          "target_module": {"type": "string"},
-                          "source_line_number": {"type": "integer"},
-                          "back_edge_line_number": {"type": "integer"},
-                          "relationship_type": {"type": "string", "enum": ["IMPORTS"]},
+                          "repo_id": {"type": "string", "description": "Repository id of the cycle, per handleImportDependencyInvestigation."},
+                          "repo_name": {"type": "string", "description": "Repository name of the cycle, per handleImportDependencyInvestigation."},
+                          "source_file": {"type": "string", "description": "Cycle source file, per handleImportDependencyInvestigation."},
+                          "target_file": {"type": "string", "description": "Cycle target file, per handleImportDependencyInvestigation."},
+                          "source_module": {"type": "string", "description": "Cycle source module, per handleImportDependencyInvestigation."},
+                          "target_module": {"type": "string", "description": "Cycle target module, per handleImportDependencyInvestigation."},
+                          "source_line_number": {"type": "integer", "description": "Source import line number, per handleImportDependencyInvestigation."},
+                          "back_edge_line_number": {"type": "integer", "description": "Back-edge line number, per handleImportDependencyInvestigation."},
+                          "relationship_type": {"type": "string", "description": "Always IMPORTS for cycle rows, per handleImportDependencyInvestigation.", "enum": ["IMPORTS"]},
                           "cycle_length": {"type": "integer", "description": "Number of import edges in the cycle (2 through max_cycle_length)."},
-                          "cycle_path": {"type": "array", "items": {"type": "string"}},
+                          "cycle_path": {"type": "array", "description": "Cycle file path closing back on its first file, per handleImportDependencyInvestigation.", "items": {"type": "string"}},
                           "cycle_label": {"type": "string", "enum": ["runtime", "ambiguous", "flags_unknown"], "description": "runtime: every edge is a proven load-time import. ambiguous: at least one edge is inferred (a guessed target). flags_unknown: no edge is inferred and at least one has no flag properties because it was written before the import flags existed; the cycle may include an import that never runs."},
                           "cycle_edges": {
                             "type": "array",
+                            "description": "One IMPORTS proof edge per cycle hop, per handleImportDependencyInvestigation.",
                             "items": {
                               "type": "object",
                               "properties": {
-                                "relationship_type": {"type": "string", "enum": ["IMPORTS"]},
-                                "source_file": {"type": "string"},
-                                "target_file": {"type": "string"},
-                                "source_module": {"type": "string"},
-                                "target_module": {"type": "string"},
-                                "line_number": {"type": "integer"},
+                                "relationship_type": {"type": "string", "description": "Always IMPORTS for cycle edges, per handleImportDependencyInvestigation.", "enum": ["IMPORTS"]},
+                                "source_file": {"type": "string", "description": "Edge source file, per handleImportDependencyInvestigation."},
+                                "target_file": {"type": "string", "description": "Edge target file, per handleImportDependencyInvestigation."},
+                                "source_module": {"type": "string", "description": "Edge source module, per handleImportDependencyInvestigation."},
+                                "target_module": {"type": "string", "description": "Edge target module, per handleImportDependencyInvestigation."},
+                                "line_number": {"type": "integer", "description": "Edge line number, per handleImportDependencyInvestigation."},
                                 "flag_state": {"type": "string", "enum": ["runtime", "inferred", "unknown"], "description": "runtime: the projector wrote all three import flags and none is set. inferred: the parser synthesized the import's source. unknown: a flag property is missing or is not a boolean, which is how an edge written before the flags existed reads. Type-only and deferred edges are excluded before the walk and never appear here."}
                               }
                             }
                           },
-                          "source_handle": {"type": "object", "additionalProperties": true}
+                          "source_handle": {"type": "object", "description": "Source locator for the cycle, per handleImportDependencyInvestigation.", "additionalProperties": true}
                         },
                         "additionalProperties": true
                       }
                     },
                     "cross_module_calls": {"type": "array", "description": "Canonical rows for cross_module_calls query_type.", "items": {"type": "object", "additionalProperties": true}},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
+                    "count": {"type": "integer", "description": "Rows on this page counted by handleImportDependencyInvestigation."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by handleImportDependencyInvestigation."},
+                    "offset": {"type": "integer", "description": "Page offset echoed by handleImportDependencyInvestigation."},
                     "truncated": {"type": "boolean", "description": "True when the answer is partial: another page exists, or (for file_import_cycles) the cycle enumeration stopped early at the 1000-cycle cap or the step budget. A capped run stays truncated on every page, including the last. Page on has_more and next_offset, not on truncated."},
                     "has_more": {"type": "boolean", "description": "True only while another page of this enumeration exists. It is false on the last page even when truncated is true."},
                     "next_offset": {"type": "integer", "nullable": true, "description": "The offset to request next, or null when has_more is false."},
-                    "source_backend": {"type": "string"},
+                    "source_backend": {"type": "string", "description": "Backend that served the investigation, per handleImportDependencyInvestigation."},
                     "coverage": {"type": "object", "additionalProperties": true, "description": "Bounds and completeness. For file_import_cycles it carries cycle_max_length, cycle_enumeration_cap, cycle_enumeration_truncated, cycle_enumeration_stop_reason (none, cycle_cap, or step_budget), and cycle_enumeration_step_budget. It also carries cycle_edge_flags, an object with edges_considered, type_only_excluded, deferred_excluded, inferred, and flags_unknown: the deduplicated edges counted by class before anchor filtering and paging, so a client can tell how much of a result rests on inferred edges or on edges written before the flags existed."}
                   }
                 }
@@ -279,17 +282,18 @@ const Symbols = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Call graph metric rows emitted by handleCallGraphMetrics.",
                   "properties": {
-                    "metric_type": {"type": "string"},
-                    "scope": {"type": "object", "additionalProperties": true},
+                    "metric_type": {"type": "string", "description": "Metric type echoed by handleCallGraphMetrics."},
+                    "scope": {"type": "object", "description": "Resolved read scope keyed by scope field names, per handleCallGraphMetrics.", "additionalProperties": true},
                     "functions": {"type": "array", "description": "Canonical call graph metric rows.", "items": {"type": "object", "additionalProperties": true}},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_offset": {"type": "integer", "nullable": true},
-                    "source_backend": {"type": "string"},
-                    "coverage": {"type": "object", "additionalProperties": true}
+                    "count": {"type": "integer", "description": "Rows on this page counted by handleCallGraphMetrics."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by handleCallGraphMetrics."},
+                    "offset": {"type": "integer", "description": "Page offset echoed by handleCallGraphMetrics."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page, per handleCallGraphMetrics."},
+                    "next_offset": {"type": "integer", "description": "Next offset to request when truncated is true, per handleCallGraphMetrics.", "nullable": true},
+                    "source_backend": {"type": "string", "description": "Backend that served the metrics, per handleCallGraphMetrics."},
+                    "coverage": {"type": "object", "description": "Bounds and completeness for the metric read, per handleCallGraphMetrics.", "additionalProperties": true}
                   }
                 }
               }
@@ -348,25 +352,38 @@ const Symbols = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Ranked topic evidence page emitted by codequery/topic.go handleTopicInvestigation.",
                   "properties": {
-                    "topic": {"type": "string"},
-                    "intent": {"type": "string"},
-                    "scope": {"type": "object", "additionalProperties": true},
-                    "searched_terms": {"type": "array", "items": {"type": "string"}},
-                    "matched_files": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "matched_symbols": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "evidence_groups": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "call_graph_handles": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "topic": {"type": "string", "description": "Topic investigated, echoed by handleTopicInvestigation."},
+                    "intent": {"type": "string", "description": "Caller intent echoed by handleTopicInvestigation."},
+                    "scope": {"type": "object", "description": "Resolved investigation scope (codeTopicScope) keyed by scope field names, per handleTopicInvestigation.", "additionalProperties": true},
+                    "searched_terms": {"type": "array", "description": "Search terms probed for the topic, per handleTopicInvestigation.", "items": {"type": "string"}},
+                    "matched_files": {"type": "array", "description": "Ranked file matches (content-index rows) returned by handleTopicInvestigation.", "items": {"type": "object", "additionalProperties": true}},
+                    "matched_symbols": {"type": "array", "description": "Ranked symbol matches (content-index rows) returned by handleTopicInvestigation.", "items": {"type": "object", "additionalProperties": true}},
+                    "evidence_groups": {"type": "array", "description": "Grouped evidence assembled by handleTopicInvestigation.", "items": {"type": "object", "additionalProperties": true}},
+                    "call_graph_handles": {"type": "array", "description": "Call-graph follow-up handles for the top row, per codeTopicCallGraphHandle.", "items": {"type": "object", "additionalProperties": true}},
+                    "recommended_next_calls": {"type": "array", "description": "Follow-up calls from codeTopicRecommendedNextCalls: source reads for the top row, or find_symbol plus search_file_content probes when no rows matched.", "items": {"type": "object", "additionalProperties": true}},
+                    "count": {"type": "integer", "description": "Rows on this page emitted by handleTopicInvestigation."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by handleTopicInvestigation."},
+                    "offset": {"type": "integer", "description": "Page offset echoed by handleTopicInvestigation."},
+                    "truncated": {"type": "boolean", "description": "True when more ranked rows exist past this page, per handleTopicInvestigation."},
                     "candidate_pool_truncated": {"type": "boolean", "description": "True when the bounded per-term candidate pool reached its cap for at least one search term (#7008); the corpus may have additional, lower-ranked matches that never entered scoring."},
                     "deadline_truncated": {"type": "boolean", "description": "True when the read exceeded its context deadline and the response is a bounded partial of the scored rows gathered so far (#7008); lower-ranked matches may be missing. Distinct from candidate_pool_truncated, which reports a capped pool on a read that ran to completion. Also present as coverage.deadline_truncated."},
-                    "source_backend": {"type": "string"},
-                    "coverage": {"type": "object", "additionalProperties": true},
-                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."}
+                    "source_backend": {"type": "string", "description": "Backend that served the topic investigation, per handleTopicInvestigation."},
+                    "coverage": {"type": "object", "description": "Bounds and completeness for the topic investigation, per handleTopicInvestigation.", "additionalProperties": true},
+                    "answer_metadata": {"type": "object", "description": "Normalized additive answer companion (answer.AnswerMetadata) derived from this payload by answer.AttachAnswerMetadata via handleTopicInvestigation.",
+                      "properties": {
+                        "schema_version": {"type": "string", "description": "Answer metadata schema version emitted by answer.BuildAnswerMetadata."},
+                        "evidence_handles": {"type": "array", "description": "Evidence handles carried by the topic payload, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}},
+                        "missing_evidence": {"type": "array", "description": "Evidence the topic payload lacks, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}},
+                        "limitations": {"type": "array", "description": "Bounded caveats for the topic answer, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}},
+                        "truncated": {"type": "boolean", "description": "True when the topic answer or its coverage is truncated, per answer.BuildAnswerMetadata."},
+                        "coverage": {"type": "object", "description": "Topic answer coverage keyed by coverage field names, per answer.BuildAnswerMetadata.", "additionalProperties": true},
+                        "partial_reasons": {"type": "array", "description": "Why the topic answer is partial, per answer.BuildAnswerMetadata.", "items": {"type": "string"}},
+                        "recommended_next_calls": {"type": "array", "description": "Follow-up calls for the topic answer, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}}
+                      },
+                      "required": ["schema_version", "evidence_handles", "missing_evidence", "limitations", "truncated", "coverage", "partial_reasons", "recommended_next_calls"]
+                    }
                   }
                 }
               }

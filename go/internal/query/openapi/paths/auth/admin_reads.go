@@ -24,24 +24,30 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Membership-role assignments page emitted by handleListRoleAssignments.",
                   "properties": {
                     "role_assignments": {
                       "type": "array",
+                      "description": "Membership-role assignment rows projected by handleListRoleAssignments.",
                       "items": {
                         "type": "object",
+                        "description": "One assignment row: user, role, source, status, and effective/expiry timestamps.",
                         "properties": {
-                          "user_id": {"type": "string"},
-                          "role_id": {"type": "string"},
-                          "assignment_source": {"type": "string"},
-                          "status": {"type": "string"},
-                          "effective_at": {"type": "string", "format": "date-time"},
-                          "expires_at": {"type": "string", "format": "date-time"},
-                          "tenant_id": {"type": "string"},
-                          "workspace_id": {"type": "string"}
-                        }
+                          "user_id": {"type": "string", "description": "Assigned user id projected by handleListRoleAssignments."},
+                          "role_id": {"type": "string", "description": "Assigned role id projected by handleListRoleAssignments."},
+                          "assignment_source": {"type": "string", "description": "How the assignment was created, per handleListRoleAssignments."},
+                          "status": {"type": "string", "description": "Assignment status projected by handleListRoleAssignments."},
+                          "effective_at": {"type": "string", "format": "date-time", "description": "When the assignment takes effect, per handleListRoleAssignments."},
+                          "expires_at": {"type": "string", "format": "date-time", "description": "When the assignment expires, per handleListRoleAssignments; absent when the row carries none."},
+                          "tenant_id": {"type": "string", "description": "Tenant id projected by handleListRoleAssignments."},
+                          "workspace_id": {"type": "string", "description": "Workspace id projected by handleListRoleAssignments."}
+                        },
+                        "required": ["user_id", "role_id", "assignment_source", "status", "effective_at", "tenant_id", "workspace_id"]
                       }
-                    }
-                  }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when the assignment page reached the list cap, per handleListRoleAssignments."}
+                  },
+                  "required": ["role_assignments", "truncated"]
                 }
               }
             }
@@ -80,12 +86,14 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Grant outcome emitted by handleGrantRoleAssignment: the granted assignment's state.",
                   "properties": {
-                    "user_id": {"type": "string"},
-                    "role_id": {"type": "string"},
-                    "status": {"type": "string"},
-                    "changed": {"type": "boolean"}
-                  }
+                    "user_id": {"type": "string", "description": "Granted user id echoed by handleGrantRoleAssignment."},
+                    "role_id": {"type": "string", "description": "Granted role id echoed by handleGrantRoleAssignment."},
+                    "status": {"type": "string", "description": "Effective assignment status reported by handleGrantRoleAssignment."},
+                    "changed": {"type": "boolean", "description": "False when the grant reactivated an already-revoked row instead of inserting a fresh one, per handleGrantRoleAssignment."}
+                  },
+                  "required": ["user_id", "role_id", "status", "changed"]
                 }
               }
             }
@@ -111,33 +119,42 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Tenant roles and capability grants page emitted by handleListRoles.",
                   "properties": {
                     "roles": {
                       "type": "array",
+                      "description": "Role rows projected by handleListRoles.",
                       "items": {
                         "type": "object",
+                        "description": "One role row: id, status, built-in flag, and capability grants.",
                         "properties": {
-                          "role_id": {"type": "string"},
-                          "status": {"type": "string"},
-                          "built_in": {"type": "boolean"},
+                          "role_id": {"type": "string", "description": "Role id projected by handleListRoles."},
+                          "status": {"type": "string", "description": "Role status projected by handleListRoles."},
+                          "built_in": {"type": "boolean", "description": "Whether the role is built-in, per handleListRoles."},
                           "grants": {
                             "type": "array",
+                            "description": "Capability grants the role confers, per handleListRoles.",
                             "items": {
                               "type": "object",
+                              "description": "One capability grant: action, feature, data/scope class, and status.",
                               "properties": {
-                                "grant_id": {"type": "string"},
-                                "action": {"type": "string"},
-                                "feature": {"type": "string"},
-                                "data_class": {"type": "string"},
-                                "scope_class": {"type": "string"},
-                                "status": {"type": "string"}
-                              }
+                                "grant_id": {"type": "string", "description": "Grant id projected by handleListRoles."},
+                                "action": {"type": "string", "description": "Granted action projected by handleListRoles."},
+                                "feature": {"type": "string", "description": "Granted feature projected by handleListRoles."},
+                                "data_class": {"type": "string", "description": "Granted data class projected by handleListRoles."},
+                                "scope_class": {"type": "string", "description": "Granted scope class projected by handleListRoles."},
+                                "status": {"type": "string", "description": "Grant status projected by handleListRoles."}
+                              },
+                              "required": ["grant_id", "action", "feature", "data_class", "scope_class", "status"]
                             }
                           }
-                        }
+                        },
+                        "required": ["role_id", "status", "built_in", "grants"]
                       }
-                    }
-                  }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when the roles page or a role's grant set reached its cap, per handleListRoles."}
+                  },
+                  "required": ["roles", "truncated"]
                 }
               }
             }
@@ -162,19 +179,25 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Configured identity providers page emitted by handleListIdPProviders.",
                   "properties": {
                     "providers": {
                       "type": "array",
+                      "description": "Provider rows projected by handleListIdPProviders.",
                       "items": {
                         "type": "object",
+                        "description": "One provider row: config id, kind, and status.",
                         "properties": {
-                          "provider_config_id": {"type": "string"},
-                          "provider_kind": {"type": "string"},
-                          "status": {"type": "string"}
-                        }
+                          "provider_config_id": {"type": "string", "description": "Provider config id projected by handleListIdPProviders."},
+                          "provider_kind": {"type": "string", "description": "Provider kind projected by handleListIdPProviders."},
+                          "status": {"type": "string", "description": "Provider status projected by handleListIdPProviders."}
+                        },
+                        "required": ["provider_config_id", "provider_kind", "status"]
                       }
-                    }
-                  }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when the provider page reached the list cap, per handleListIdPProviders."}
+                  },
+                  "required": ["providers", "truncated"]
                 }
               }
             }
@@ -202,26 +225,31 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "IdP group-to-role mappings page emitted by handleListIdPGroupMappings.",
                   "properties": {
                     "group_mappings": {
                       "type": "array",
+                      "description": "Mapping rows projected by handleListIdPGroupMappings, ordered by opaque mapping_ref.",
                       "items": {
                         "type": "object",
+                        "description": "One mapping row addressed by its opaque mapping_ref.",
                         "properties": {
-                          "mapping_ref": {"type": "string"},
-                          "provider_config_id": {"type": "string"},
-                          "role_id": {"type": "string"},
-                          "status": {"type": "string"},
-                          "effective_at": {"type": "string", "format": "date-time"},
-                          "expires_at": {"type": "string", "format": "date-time"},
-                          "tenant_id": {"type": "string"},
-                          "workspace_id": {"type": "string"}
-                        }
+                          "mapping_ref": {"type": "string", "description": "Opaque mapping ref projected by handleListIdPGroupMappings."},
+                          "provider_config_id": {"type": "string", "description": "Provider config id projected by handleListIdPGroupMappings."},
+                          "role_id": {"type": "string", "description": "Role id projected by handleListIdPGroupMappings."},
+                          "status": {"type": "string", "description": "Mapping status projected by handleListIdPGroupMappings."},
+                          "effective_at": {"type": "string", "format": "date-time", "description": "When the mapping takes effect, per handleListIdPGroupMappings."},
+                          "expires_at": {"type": "string", "format": "date-time", "description": "When the mapping expires, per handleListIdPGroupMappings; absent when the row carries none."},
+                          "tenant_id": {"type": "string", "description": "Tenant id projected by handleListIdPGroupMappings."},
+                          "workspace_id": {"type": "string", "description": "Workspace id projected by handleListIdPGroupMappings."}
+                        },
+                        "required": ["mapping_ref", "provider_config_id", "role_id", "status", "effective_at", "tenant_id", "workspace_id"]
                       }
                     },
                     "truncated": {"type": "boolean", "description": "True when this page reaches the 500-row cap. A subsequent page may be empty."},
                     "next_after_ref": {"type": "string", "description": "Last mapping_ref on a full page; empty when fewer than 500 rows were returned."}
-                  }
+                  },
+                  "required": ["group_mappings", "truncated", "next_after_ref"]
                 }
               }
             }
@@ -262,13 +290,15 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Created mapping outcome emitted by handleCreateIdPGroupMapping.",
                   "properties": {
-                    "mapping_ref": {"type": "string"},
-                    "provider_config_id": {"type": "string"},
-                    "role_id": {"type": "string"},
-                    "status": {"type": "string"},
-                    "created": {"type": "boolean"}
-                  }
+                    "mapping_ref": {"type": "string", "description": "Opaque mapping ref of the created mapping, per handleCreateIdPGroupMapping."},
+                    "provider_config_id": {"type": "string", "description": "Provider config id echoed by handleCreateIdPGroupMapping."},
+                    "role_id": {"type": "string", "description": "Role id echoed by handleCreateIdPGroupMapping."},
+                    "status": {"type": "string", "description": "Effective mapping status reported by handleCreateIdPGroupMapping."},
+                    "created": {"type": "boolean", "description": "False when the create reactivated an existing mapping, per handleCreateIdPGroupMapping."}
+                  },
+                  "required": ["mapping_ref", "provider_config_id", "role_id", "status", "created"]
                 }
               }
             }
@@ -294,27 +324,33 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Tenant API tokens page emitted by handleListAPITokens.",
                   "properties": {
                     "tokens": {
                       "type": "array",
+                      "description": "Token rows projected by handleListAPITokens.",
                       "items": {
                         "type": "object",
+                        "description": "One token row: id, class, owner, status, label, and lifecycle timestamps.",
                         "properties": {
-                          "token_id": {"type": "string"},
-                          "token_class": {"type": "string"},
-                          "user_id": {"type": "string"},
-                          "service_principal_id": {"type": "string"},
-                          "status": {"type": "string"},
+                          "token_id": {"type": "string", "description": "Token id projected by handleListAPITokens."},
+                          "token_class": {"type": "string", "description": "Token class projected by handleListAPITokens."},
+                          "user_id": {"type": "string", "description": "Owning user id projected by handleListAPITokens; absent for service-principal tokens."},
+                          "service_principal_id": {"type": "string", "description": "Owning service principal id projected by handleListAPITokens; absent for user tokens."},
+                          "status": {"type": "string", "description": "Token status projected by handleListAPITokens."},
                           "display_label": {"type": "string", "description": "Present only when the token was created with a label."},
-                          "issued_at": {"type": "string", "format": "date-time"},
-                          "expires_at": {"type": "string", "format": "date-time"},
-                          "revoked_at": {"type": "string", "format": "date-time"},
-                          "tenant_id": {"type": "string"},
-                          "workspace_id": {"type": "string"}
-                        }
+                          "issued_at": {"type": "string", "format": "date-time", "description": "When the token was issued, per handleListAPITokens."},
+                          "expires_at": {"type": "string", "format": "date-time", "description": "When the token expires, per handleListAPITokens; absent when the row carries none."},
+                          "revoked_at": {"type": "string", "format": "date-time", "description": "When the token was revoked, per handleListAPITokens; absent when the row carries none."},
+                          "tenant_id": {"type": "string", "description": "Tenant id projected by handleListAPITokens."},
+                          "workspace_id": {"type": "string", "description": "Workspace id projected by handleListAPITokens."}
+                        },
+                        "required": ["token_id", "token_class", "status", "issued_at", "tenant_id", "workspace_id"]
                       }
-                    }
-                  }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when the token page reached the list cap, per handleListAPITokens."}
+                  },
+                  "required": ["tokens", "truncated"]
                 }
               }
             }
@@ -347,24 +383,30 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Governance audit events page emitted by handleListAuditEvents.",
                   "properties": {
                     "events": {
                       "type": "array",
+                      "description": "Audit-safe event rows projected by auditEventJSON (hashes omitted).",
                       "items": {
                         "type": "object",
+                        "description": "One audit event: type, actor/scope class, decision, reason, and occurred-at.",
                         "properties": {
-                          "event_type": {"type": "string"},
-                          "actor_class": {"type": "string"},
-                          "scope_class": {"type": "string"},
-                          "decision": {"type": "string"},
-                          "reason_code": {"type": "string"},
-                          "occurred_at": {"type": "string", "format": "date-time"},
-                          "service_principal_id": {"type": "string"},
-                          "correlation_id": {"type": "string"}
-                        }
+                          "event_type": {"type": "string", "description": "Event type projected by auditEventJSON."},
+                          "actor_class": {"type": "string", "description": "Actor class projected by auditEventJSON."},
+                          "scope_class": {"type": "string", "description": "Scope class projected by auditEventJSON."},
+                          "decision": {"type": "string", "description": "Decision projected by auditEventJSON."},
+                          "reason_code": {"type": "string", "description": "Reason code projected by auditEventJSON."},
+                          "occurred_at": {"type": "string", "format": "date-time", "description": "When the event occurred, per auditEventJSON."},
+                          "service_principal_id": {"type": "string", "description": "Service principal id projected by auditEventJSON; absent when the event carries none."},
+                          "correlation_id": {"type": "string", "description": "Correlation id projected by auditEventJSON; absent when the event carries none."}
+                        },
+                        "required": ["event_type", "actor_class", "scope_class", "decision", "reason_code", "occurred_at"]
                       }
-                    }
-                  }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when the event page reached the effective limit, per handleListAuditEvents."}
+                  },
+                  "required": ["events", "truncated"]
                 }
               }
             }
@@ -389,18 +431,20 @@ const AdminReads = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Aggregate governance audit counts emitted by auditSummaryJSON.",
                   "properties": {
-                    "total": {"type": "integer"},
-                    "allowed": {"type": "integer"},
-                    "denied": {"type": "integer"},
-                    "unavailable": {"type": "integer"},
-                    "last_occurred_at": {"type": "string", "format": "date-time"},
-                    "event_type_counts": {"$ref": "#/components/schemas/AdminAuditCountList"},
-                    "decision_counts": {"$ref": "#/components/schemas/AdminAuditCountList"},
-                    "reason_counts": {"$ref": "#/components/schemas/AdminAuditCountList"},
-                    "actor_class_counts": {"$ref": "#/components/schemas/AdminAuditCountList"},
-                    "scope_class_counts": {"$ref": "#/components/schemas/AdminAuditCountList"}
-                  }
+                    "total": {"type": "integer", "description": "Total audited events counted by auditSummaryJSON."},
+                    "allowed": {"type": "integer", "description": "Allowed decisions counted by auditSummaryJSON."},
+                    "denied": {"type": "integer", "description": "Denied decisions counted by auditSummaryJSON."},
+                    "unavailable": {"type": "integer", "description": "Unavailable decisions counted by auditSummaryJSON."},
+                    "last_occurred_at": {"type": "string", "format": "date-time", "description": "Latest event instant reported by auditSummaryJSON."},
+                    "event_type_counts": {"$ref": "#/components/schemas/AdminAuditCountList", "description": "Low-cardinality counts by event type, per auditSummaryJSON."},
+                    "decision_counts": {"$ref": "#/components/schemas/AdminAuditCountList", "description": "Low-cardinality counts by decision, per auditSummaryJSON."},
+                    "reason_counts": {"$ref": "#/components/schemas/AdminAuditCountList", "description": "Low-cardinality counts by reason, per auditSummaryJSON."},
+                    "actor_class_counts": {"$ref": "#/components/schemas/AdminAuditCountList", "description": "Low-cardinality counts by actor class, per auditSummaryJSON."},
+                    "scope_class_counts": {"$ref": "#/components/schemas/AdminAuditCountList", "description": "Low-cardinality counts by scope class, per auditSummaryJSON."}
+                  },
+                  "required": ["total", "allowed", "denied", "unavailable", "last_occurred_at", "event_type_counts", "decision_counts", "reason_counts", "actor_class_counts", "scope_class_counts"]
                 }
               }
             }

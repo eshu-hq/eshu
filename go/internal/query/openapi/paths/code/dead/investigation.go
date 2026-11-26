@@ -47,11 +47,11 @@ const Investigation = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "repo_id": {"type": "string"},
-                    "language": {"type": "string"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by the dead-code investigation handler."},
+                    "language": {"type": "string", "description": "Parser language filter echoed by the dead-code investigation handler."},
+                    "limit": {"type": "integer", "description": "Active-candidate bound echoed by the dead-code investigation handler."},
+                    "offset": {"type": "integer", "description": "Zero-based active-candidate offset echoed by the dead-code investigation handler."},
+                    "truncated": {"type": "boolean", "description": "True when more active candidates exist past this page, per the dead-code investigation handler."},
                     "display_truncated": {"type": "boolean", "description": "True when active candidates exceeded limit and the displayed buckets were clipped."},
                     "candidate_scan_truncated": {"type": "boolean", "description": "True when the shared candidate scan limit was reached before all selected labels were exhausted."},
                     "suppressed_truncated": {"type": "boolean", "description": "True when suppressed modeled-root examples exceeded the bounded suppressed bucket, whose size is suppressed_limit."},
@@ -63,15 +63,22 @@ const Investigation = `
                     "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
                     "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped, suppressed rows included; 0 when none."},
                     "candidate_scan_rows": {"type": "integer", "description": "Number of raw candidate rows inspected before policy exclusions."},
-                    "coverage": {"type": "object", "additionalProperties": true},
+                    "coverage": {"type": "object", "description": "Bounds and completeness for the investigation emitted by the dead-code investigation handler; keys are coverage field names.", "additionalProperties": true},
                     "candidate_buckets": {"type": "object", "additionalProperties": true, "description": "Candidate rows in the cleanup_ready, ambiguous, and suppressed buckets. Every row in every bucket has its docstring clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes."},
-                    "bucket_counts": {"type": "object", "additionalProperties": true},
-                    "root_policy": {"type": "object", "additionalProperties": true},
-                    "language_maturity": {"type": "object", "additionalProperties": true},
-                    "exactness_blockers": {"type": "object", "additionalProperties": true},
-                    "observed_exactness_blockers": {"type": "object", "additionalProperties": true},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "object"}},
-                    "analysis": {"type": "object", "additionalProperties": true}
+                    "bucket_counts": {"type": "object", "description": "Candidate counts by bucket (deadcode policy stats) emitted by the dead-code investigation handler; keys are bucket names.", "additionalProperties": {"type": "integer"}},
+                    "root_policy": {"type": "object", "description": "Reachability root policy applied to the investigation, per the dead-code investigation handler; keys are policy field names.", "additionalProperties": true},
+                    "language_maturity": {"type": "object", "description": "Dead-code language maturity by language, per the dead-code investigation handler; keys are language names.", "additionalProperties": {"type": "string"}},
+                    "exactness_blockers": {"type": "object", "description": "Named blockers that prevent exact cleanup-safe dead-code truth for a language, per the dead-code investigation handler; keys are language names.", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+                    "observed_exactness_blockers": {"type": "object", "description": "Named exactness blockers observed on returned candidates grouped by language, per the dead-code investigation handler; keys are language names.", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+                    "recommended_next_calls": {"type": "array", "description": "Follow-up tool calls suggested by deadcode.InvestigationNextCalls: read the exact source first, then check incoming evidence per admitted relationship type.", "items": {"type": "object", "description": "One follow-up call (deadcode.InvestigationNextCalls): tool, open arguments, and reason.",
+                      "properties": {
+                        "tool": {"type": "string", "description": "Tool to call, per deadcode.InvestigationNextCalls (get_entity_content, get_code_relationship_story, or execute_cypher_query)."},
+                        "arguments": {"type": "object", "additionalProperties": true, "description": "Tool arguments; keys are the callee's argument names (entity_id, direction, relationship_type, cypher_query, limit, offset), per deadcode.InvestigationNextCalls."},
+                        "reason": {"type": "string", "description": "Why the call is recommended, per deadcode.InvestigationNextCalls."}
+                      },
+                      "required": ["tool", "arguments", "reason"]
+                    }},
+                    "analysis": {"type": "object", "description": "Policy analysis for the investigation emitted by the dead-code investigation handler; keys are analysis field names.", "additionalProperties": true}
                   }
                 }
               }

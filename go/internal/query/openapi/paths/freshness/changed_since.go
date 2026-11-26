@@ -29,45 +29,51 @@ const ChangedSince = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Bounded changed-since delta for one repository-kind scope emitted by the changed-since handler.",
                   "properties": {
-                    "scope_id": {"type": "string"},
-                    "scope_kind": {"type": "string"},
-                    "repository": {"type": "string"},
-                    "since_generation_id": {"type": "string"},
-                    "since_observed_at": {"type": "string"},
-                    "current_active_generation_id": {"type": "string"},
-                    "current_observed_at": {"type": "string"},
-                    "sample_limit": {"type": "integer"},
-                    "unavailable": {"type": "boolean"},
+                    "scope_id": {"type": "string", "description": "Ingestion scope the diff was read for, per the changed-since handler."},
+                    "scope_kind": {"type": "string", "description": "Scope kind the diff was read for, per the changed-since handler."},
+                    "repository": {"type": "string", "description": "Canonical repository id matched by source_key, per the changed-since handler; empty when scope_id selected."},
+                    "since_generation_id": {"type": "string", "description": "Prior generation the diff was read from, per the changed-since handler."},
+                    "since_observed_at": {"type": "string", "description": "Observed-at of the baseline generation echoed by the changed-since handler; empty with an exact since_generation_id."},
+                    "current_active_generation_id": {"type": "string", "description": "Current active generation the diff was read to, per the changed-since handler."},
+                    "current_observed_at": {"type": "string", "description": "Observed-at of the current active generation, per the changed-since handler."},
+                    "sample_limit": {"type": "integer", "description": "Sample cap applied per classification per category, per the changed-since handler."},
+                    "unavailable": {"type": "boolean", "description": "True when no comparable diff exists (no active generation, pruned baseline, or delta baseline), per the changed-since handler."},
                     "unavailable_reason": {"type": "string", "enum": ["retention_expired", "baseline_not_comparable"], "description": "Closed unavailable reason. retention_expired: the requested prior generation was known for the scope but pruned by generation retention. baseline_not_comparable: the since generation or the current active generation is a delta generation, which holds only the changed files' facts plus tombstones, so the raw diff is refused rather than reporting untouched keys as removed or added."},
                     "since_is_delta": {"type": "boolean", "description": "Present and true only on a baseline_not_comparable answer whose since generation is a delta generation; choose a full generation as the since reference."},
                     "current_is_delta": {"type": "boolean", "description": "Present and true only on a baseline_not_comparable answer whose current active generation is a delta generation; a diff is available once a full generation activates."},
                     "categories": {
                       "type": "array",
+                      "description": "Per-evidence-category deltas (files, content entities, facts) keyed by stable_fact_key, per the changed-since handler.",
                       "items": {
                         "type": "object",
+                        "description": "One evidence-category delta: exact counts plus bounded deterministic sample handles per classification.",
                         "properties": {
-                          "category": {"type": "string", "enum": ["files", "content_entities", "facts"]},
+                          "category": {"type": "string", "enum": ["files", "content_entities", "facts"], "description": "Evidence category this delta covers, per the changed-since handler."},
                           "counts": {
                             "type": "object",
+                            "description": "Exact per-classification counts for the category, per the changed-since handler.",
                             "properties": {
-                              "added": {"type": "integer"},
-                              "updated": {"type": "integer"},
-                              "unchanged": {"type": "integer"},
-                              "retired": {"type": "integer"},
-                              "superseded": {"type": "integer"}
+                              "added": {"type": "integer", "description": "Keys added since the baseline, per the changed-since handler."},
+                              "updated": {"type": "integer", "description": "Keys updated since the baseline, per the changed-since handler."},
+                              "unchanged": {"type": "integer", "description": "Keys unchanged since the baseline, per the changed-since handler."},
+                              "retired": {"type": "integer", "description": "Keys retired since the baseline, per the changed-since handler."},
+                              "superseded": {"type": "integer", "description": "Keys superseded since the baseline, per the changed-since handler."}
                             },
                             "required": ["added", "updated", "unchanged", "retired", "superseded"]
                           },
                           "samples": {
                             "type": "object",
+                            "description": "Bounded deterministic sample handles per classification, per the changed-since handler; keys are classification names (added, updated, unchanged, retired, superseded).",
                             "additionalProperties": {
                               "type": "array",
                               "items": {
                                 "type": "object",
+                                "description": "One sample handle identifying a changed key.",
                                 "properties": {
-                                  "stable_fact_key": {"type": "string"},
-                                  "fact_kind": {"type": "string"}
+                                  "stable_fact_key": {"type": "string", "description": "Stable fact key of the sampled change, per the changed-since handler."},
+                                  "fact_kind": {"type": "string", "description": "Fact kind of the sampled change, per the changed-since handler."}
                                 },
                                 "required": ["stable_fact_key", "fact_kind"]
                               }
@@ -75,9 +81,10 @@ const ChangedSince = `
                           },
                           "truncated": {
                             "type": "object",
+                            "description": "Per-classification sample truncation flags, per the changed-since handler; keys are classification names.",
                             "additionalProperties": {"type": "boolean"}
                           },
-                          "unavailable": {"type": "boolean"}
+                          "unavailable": {"type": "boolean", "description": "True when this category has no comparable diff, per the changed-since handler."}
                         },
                         "required": ["category", "counts", "unavailable"]
                       }

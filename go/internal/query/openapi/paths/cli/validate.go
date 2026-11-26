@@ -33,7 +33,17 @@ const Validate = `
           "200": {
             "description": "Validation verdict envelope ({valid, message})",
             "content": {
-              "application/json": {"schema": {"type": "object"}}
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Bundle validation verdict (cli/support.ValidateVerdict): a 200 always carries it, valid or not, because validation is a check, not a fetch.",
+                  "properties": {
+                    "valid": {"type": "boolean", "description": "Verdict emitted by the validateBundle handler: true when the bundle passes the share-safe gate."},
+                    "message": {"type": "string", "description": "Refusal reason emitted by the validateBundle handler; empty when valid is true."}
+                  },
+                  "required": ["valid"]
+                }
+              }
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},

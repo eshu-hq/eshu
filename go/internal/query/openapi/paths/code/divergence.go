@@ -41,7 +41,75 @@ const Divergence = `
             "description": "Divergence findings",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "additionalProperties": true}
+                "schema": {
+                  "type": "object",
+                  "description": "Bounded divergence findings page emitted by handleDivergenceFindings.",
+                  "properties": {
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by handleDivergenceFindings."},
+                    "kind": {"type": "string", "description": "Requested divergence family echoed by handleDivergenceFindings; empty reads all five."},
+                    "limit": {"type": "integer", "description": "Nominating-group cap echoed by handleDivergenceFindings."},
+                    "offset": {"type": "integer", "description": "Page offset echoed by handleDivergenceFindings."},
+                    "findings": {"type": "array", "description": "Assembled findings in final score order, per handleDivergenceFindings.", "items": {
+                      "type": "object",
+                      "description": "One divergence finding (codedivergence.ResultMap): member rows with token reasons, plus the outlier block on convention_outlier findings.",
+                      "properties": {
+                        "finding_id": {"type": "string", "description": "Finding identity emitted by codedivergence.ResultMap."},
+                        "kind": {"type": "string", "description": "Divergence family emitted by codedivergence.ResultMap."},
+                        "fingerprint": {"type": "string", "description": "Finding fingerprint emitted by codedivergence.ResultMap."},
+                        "score": {"type": "integer", "description": "Finding score emitted by codedivergence.ResultMap."},
+                        "members": {"type": "array", "description": "Member rows emitted by codedivergence.ResultMap.", "items": {
+                          "type": "object",
+                          "description": "One member row: entity identity, token count, and source/drilldown handles.",
+                          "properties": {
+                            "entity_id": {"type": "string", "description": "Member entity id, per codedivergence.ResultMap."},
+                            "entity_name": {"type": "string", "description": "Member entity name, per codedivergence.ResultMap."},
+                            "entity_type": {"type": "string", "description": "Member entity type, per codedivergence.ResultMap."},
+                            "file_path": {"type": "string", "description": "Member file path, per codedivergence.ResultMap."},
+                            "relative_path": {"type": "string", "description": "Member repo-relative path, per codedivergence.ResultMap."},
+                            "repo_id": {"type": "string", "description": "Member repository id, per codedivergence.ResultMap."},
+                            "language": {"type": "string", "description": "Member language, per codedivergence.ResultMap."},
+                            "package": {"type": "string", "description": "Member package derived from its path, per codedivergence.ResultMap."},
+                            "start_line": {"type": "integer", "description": "Member start line, per codedivergence.ResultMap."},
+                            "end_line": {"type": "integer", "description": "Member end line, per codedivergence.ResultMap."},
+                            "token_count": {"type": "integer", "description": "Member token count, per codedivergence.ResultMap."},
+                            "source_handle": {"type": "object", "description": "Source and drilldown handles for the member, per codedivergence.ResultMap.", "additionalProperties": true}
+                          },
+                          "required": ["entity_id", "entity_name", "file_path", "relative_path", "repo_id", "start_line", "end_line", "token_count", "source_handle"]
+                        }},
+                        "reasons": {"type": "array", "description": "Token reasons that sum to the score, per codedivergence.ResultMap.", "items": {
+                          "type": "object",
+                          "description": "One score reason: code, sentence, and value.",
+                          "properties": {
+                            "code": {"type": "string", "description": "Reason code, per codedivergence.ResultMap."},
+                            "sentence": {"type": "string", "description": "Human-readable reason, per codedivergence.ResultMap."},
+                            "value": {"type": "integer", "description": "Score contribution, per codedivergence.ResultMap."}
+                          },
+                          "required": ["code", "sentence", "value"]
+                        }},
+                        "confidence": {"type": "number", "description": "Finding confidence, per codedivergence.ResultMap; absent when zero."},
+                        "cohort": {"type": "object", "description": "Outlier cohort that produced a convention_outlier finding, per codedivergence.outlierResultBlock; absent on other kinds.", "additionalProperties": true},
+                        "majority_callee": {"type": "object", "description": "Majority callee of the outlier cohort, per codedivergence.outlierResultBlock; absent on other kinds.", "additionalProperties": true},
+                        "share": {"type": "number", "description": "Cohort share of the majority callee, per codedivergence.outlierResultBlock; absent on other kinds."},
+                        "outliers": {"type": "array", "description": "Outlier entity ids, per codedivergence.outlierResultBlock; absent on other kinds.", "items": {"type": "string"}},
+                        "mediated": {"type": "array", "description": "Mediated outlier resolutions, per codedivergence.outlierResultBlock; absent on other kinds.", "items": {"type": "object", "description": "One mediated outlier: outlier, mediator, and mediator name.",
+                          "properties": {
+                            "outlier_id": {"type": "string", "description": "Outlier entity id, per codedivergence.outlierResultBlock."},
+                            "mediator_id": {"type": "string", "description": "Mediator entity id, per codedivergence.outlierResultBlock."},
+                            "mediator_name": {"type": "string", "description": "Mediator name, per codedivergence.outlierResultBlock."}
+                          },
+                          "required": ["outlier_id", "mediator_id", "mediator_name"]
+                        }}
+                      },
+                      "required": ["finding_id", "kind", "fingerprint", "score", "members", "reasons"]
+                    }},
+                    "count": {"type": "integer", "description": "Findings on this page counted by handleDivergenceFindings."},
+                    "truncated": {"type": "boolean", "description": "True when more findings exist past this page, per handleDivergenceFindings."},
+                    "next_offset": {"type": "integer", "description": "Cursor advance past the pre-suppression stat window, per nextDivergenceOffset."},
+                    "suppressions": {"type": "object", "description": "Suppression counts by rule, per handleDivergenceFindings; keys are suppression rule names.", "additionalProperties": {"type": "integer"}},
+                    "source_backend": {"type": "string", "description": "Backend that served the findings (content store, plus graph for wrapper/outlier tracks), per handleDivergenceFindings."}
+                  },
+                  "required": ["repo_id", "findings", "count", "truncated", "suppressions", "source_backend"]
+                }
               }
             }
           },
@@ -83,7 +151,28 @@ const Divergence = `
             "description": "Finding investigation",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "additionalProperties": true}
+                "schema": {
+                  "type": "object",
+                  "description": "Divergence finding investigation emitted by handleDivergenceInvestigate.",
+                  "properties": {
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by handleDivergenceInvestigate."},
+                    "finding": {"type": "object", "description": "Investigated finding (codedivergence.ResultMap): member rows with token reasons, per handleDivergenceInvestigate.", "additionalProperties": true},
+                    "next_steps": {"type": "array", "description": "Bounded follow-up calls with filled-in arguments, per codedivergence.InvestigateSteps.", "items": {
+                      "type": "object",
+                      "description": "One investigation step: tool, args, and purpose.",
+                      "properties": {
+                        "tool": {"type": "string", "description": "Tool to call next, per codedivergence.InvestigateSteps."},
+                        "args": {"type": "object", "description": "Filled-in step arguments keyed by argument name, per codedivergence.InvestigateSteps.", "additionalProperties": true},
+                        "purpose": {"type": "string", "description": "Why the step follows, per codedivergence.InvestigateSteps."}
+                      },
+                      "required": ["tool", "args", "purpose"]
+                    }},
+                    "truncated": {"type": "boolean", "description": "True when follow-up steps were cut at the bound, per handleDivergenceInvestigate."},
+                    "suppressions": {"type": "object", "description": "Suppression counts by rule, per handleDivergenceInvestigate; keys are suppression rule names.", "additionalProperties": {"type": "integer"}},
+                    "source_backend": {"type": "string", "description": "Backend that served the investigation, per handleDivergenceInvestigate."}
+                  },
+                  "required": ["repo_id", "finding", "next_steps", "truncated", "suppressions", "source_backend"]
+                }
               }
             }
           },
@@ -123,7 +212,21 @@ const Divergence = `
             "description": "Divergence rollup report",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "additionalProperties": true}
+                "schema": {
+                  "type": "object",
+                  "description": "One-call rollup over all five divergence families emitted by handleDivergenceReport.",
+                  "properties": {
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by handleDivergenceReport."},
+                    "counts": {"type": "object", "description": "Assembled post-suppression finding counts by divergence family, per handleDivergenceReport; keys are family names (exact, renamed, drifted, wrapper_bypass, convention_outlier).", "additionalProperties": {"type": "integer"}},
+                    "total": {"type": "integer", "description": "Total assembled findings across families counted by handleDivergenceReport."},
+                    "top": {"type": "object", "description": "Top findings per family in final score order, per handleDivergenceReport; keys are family names.", "additionalProperties": {"type": "array", "items": {"type": "object", "additionalProperties": true}}},
+                    "top_per_kind": {"type": "integer", "description": "Top-findings bound echoed by handleDivergenceReport."},
+                    "truncated": {"type": "object", "description": "Per-family truncation flags marking capped windows, per handleDivergenceReport; keys are family names.", "additionalProperties": {"type": "boolean"}},
+                    "suppressions": {"type": "object", "description": "Suppression counts by rule, per handleDivergenceReport; keys are suppression rule names.", "additionalProperties": {"type": "integer"}},
+                    "source_backend": {"type": "string", "description": "Backend that served the report, per handleDivergenceReport."}
+                  },
+                  "required": ["repo_id", "counts", "total", "top", "top_per_kind", "truncated", "suppressions", "source_backend"]
+                }
               }
             }
           },
