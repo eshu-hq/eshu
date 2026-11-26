@@ -30,7 +30,7 @@ var prometheusDurationPattern = regexp.MustCompile(`([0-9]+)(ms|s|m|h|d|w|y)`)
 
 var prometheusMetricExpressions = map[string]string{
 	"ingest_rate":  "sum(rate(eshu_dp_facts_committed_total[5m])) * 60",
-	"queue_depth":  `sum(eshu_dp_queue_depth{status=~"pending|in_flight|retrying"})`,
+	"queue_depth":  `sum(max by (queue, status) (eshu_dp_queue_depth{status=~"pending|in_flight|retrying"}))`,
 	"dead_letters": "sum(eshu_runtime_queue_dead_letter)",
 	"graph_nodes":  "sum(eshu_dp_canonical_nodes_written_total)",
 	"graph_edges":  "sum(eshu_dp_canonical_edges_written_total)",
