@@ -19,18 +19,19 @@ var Cassettes = []string{
 	"packageregistry/supply-chain-demo.json",
 }
 
-// DigestSQL is the family digest: sha256 over every support row (the payload without intent_id and cause)
-// ordered by fact id, a separator, and every winner row (without the materialization stamp) ordered by
-// canonical key. It covers the stable key, the content digest and the evidence ids (they are payload) and
-// every derived column.
+// DigestSQL is the family digest: sha256 over every support row (the payload without intent_id, cause and
+// the observation timestamp provenance.first_seen_at) ordered by fact id, a separator, and every winner row
+// (without the materialization stamp and the same first_seen_at) ordered by
+// canonical key. It covers the stable key, the content digest
+// and the evidence ids (they are payload) and every derived column.
 const DigestSQL = `
 SELECT encode(sha256(convert_to(
     (SELECT COALESCE(string_agg(
-        (to_jsonb(s) - 'payload' || jsonb_build_object('payload', s.payload - 'intent_id' - 'cause'))::text,
+        (to_jsonb(s) - 'payload' || jsonb_build_object('payload', (s.payload - 'intent_id' - 'cause') #- '{provenance,first_seen_at}'))::text,
         E'\n' ORDER BY s.fact_id), '')
      FROM supply_chain_impact_finding_supports AS s)
     || E'\n--winners--\n' ||
-    (SELECT COALESCE(string_agg((to_jsonb(w) - 'materialized_at')::text, E'\n' ORDER BY w.canonical_key), '')
+    (SELECT COALESCE(string_agg((to_jsonb(w) - 'materialized_at' || jsonb_build_object('payload', w.payload #- '{provenance,first_seen_at}'))::text, E'\n' ORDER BY w.canonical_key), '')
      FROM supply_chain_impact_canonical_winners AS w),
     'UTF8')), 'hex')`
 
