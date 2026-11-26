@@ -98,9 +98,9 @@ func quotedArray(values ...string) string {
 }
 
 // holderPlanStatements derives the production statements from the shipped
-// constants. The 5-id statement and the mass probe run under a generic plan (the
-// default for a prepared statement after five executions), the key-range
-// statements under the custom plan the store pins.
+// constants. The 5-id statement, the routing-mass count, and the mass probe
+// run under a generic plan (the default for a prepared statement after five
+// executions), the key-range statements under the custom plan the store pins.
 func holderPlanStatements() []holderPlanStatement {
 	five := quotedArray("CVE-HOT", "CVE-5", "GHSA-HOT", "GHSA-7", "adv-hot-foreign")
 	tokens := quotedArray(postgres.HolderMemberTokens([]string{"adv-hot-foreign"}, 0, 16)...)
