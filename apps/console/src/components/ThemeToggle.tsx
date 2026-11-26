@@ -13,7 +13,13 @@ export function ThemeToggle(): React.JSX.Element {
     theme === "light" ? shellMessageDescriptors.themeToDark : shellMessageDescriptors.themeToLight,
   );
   return (
-    <button aria-label={label} className="topbar-btn theme-toggle" title={label} type="button" onClick={toggle}>
+    <button
+      aria-label={label}
+      className="topbar-btn theme-toggle"
+      title={label}
+      type="button"
+      onClick={toggle}
+    >
       {theme === "light" ? <Moon aria-hidden /> : <Sun aria-hidden />}
     </button>
   );

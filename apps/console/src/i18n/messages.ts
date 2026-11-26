@@ -51,7 +51,8 @@ export const defaultMessages = {
   "app.nav.item.admin": "Admin",
   "app.shell.title": "Eshu Console",
   "app.shell.brandSubtitle": "Context Graph",
-  "app.shell.subtitle": "Your organization's knowledge base: code, services, infrastructure and owners",
+  "app.shell.subtitle":
+    "Your organization's knowledge base: code, services, infrastructure and owners",
   "app.shell.source.demoFixtures": "Demo fixtures",
   "app.shell.source.live": "Live",
   "app.shell.source.connecting": "Connecting…",

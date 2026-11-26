@@ -67,14 +67,21 @@ describe("Home model", () => {
   it("raises urgent vulnerabilities and contradicted docs as attention items", () => {
     const items = attentionItems(readyData);
     expect(items.map((item) => item.id)).toEqual(["vulns", "docs"]);
-    expect(items[0]).toMatchObject({ tone: "critical", title: "6 urgent vulnerabilities affect software we run" });
+    expect(items[0]).toMatchObject({
+      tone: "critical",
+      title: "6 urgent vulnerabilities affect software we run",
+    });
     expect(items[1].title).toBe("4 documentation claims no longer match the code");
   });
 
   it("turns an unavailable vulnerability read into an explanatory item, not a zero", () => {
     const items = attentionItems({
       ...readyData,
-      vulnerabilities: { status: "unavailable", reason: "slow", detail: "upstream request timeout" },
+      vulnerabilities: {
+        status: "unavailable",
+        reason: "slow",
+        detail: "upstream request timeout",
+      },
     });
     expect(items[0]).toMatchObject({ id: "vulns-unavailable", tone: "info" });
     expect(items[0].detail).toMatch(/took too long/);
@@ -83,7 +90,11 @@ describe("Home model", () => {
   it("puts the role's items first without hiding others", () => {
     const pipeline = attentionItems({
       ...readyData,
-      index: { status: "ready", truth: null, data: { ...demoIndexStatus, queue: { dead_letter: 12 } } },
+      index: {
+        status: "ready",
+        truth: null,
+        data: { ...demoIndexStatus, queue: { dead_letter: 12 } },
+      },
     });
     const forPlatform = orderForRole(pipeline, "platform").map((item) => item.id);
     expect(forPlatform[0]).toBe("pipeline");
@@ -93,7 +104,12 @@ describe("Home model", () => {
   it("groups data sources into plain coverage areas", () => {
     const areas = coverageAreas(demoCollectorReadiness);
     const byId = Object.fromEntries(areas.map((area) => [area.id, area.state]));
-    expect(byId).toMatchObject({ code: "connected", delivery: "partial", operations: "partial", knowledge: "partial" });
+    expect(byId).toMatchObject({
+      code: "connected",
+      delivery: "partial",
+      operations: "partial",
+      knowledge: "partial",
+    });
   });
 
   it("groups services by owning team, largest first", () => {

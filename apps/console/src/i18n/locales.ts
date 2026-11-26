@@ -109,7 +109,8 @@ const deCatalog = {
   "app.nav.item.relationships": "Beziehungen",
   "app.shell.title": "Eshu-Konsole",
   "app.shell.brandSubtitle": "Kontextgraph",
-  "app.shell.subtitle": "Die Wissensbasis Ihrer Organisation: Code, Services, Infrastruktur und Verantwortliche",
+  "app.shell.subtitle":
+    "Die Wissensbasis Ihrer Organisation: Code, Services, Infrastruktur und Verantwortliche",
   "app.shell.source.live": "Live",
   "app.shell.search.button": "Suchen",
   "app.shell.search.input": "Eshu durchsuchen",
@@ -136,7 +137,8 @@ const esCatalog = {
   "app.nav.item.relationships": "Relaciones",
   "app.shell.title": "Consola de Eshu",
   "app.shell.brandSubtitle": "Grafo de contexto",
-  "app.shell.subtitle": "La base de conocimiento de tu organización: código, servicios, infraestructura y responsables",
+  "app.shell.subtitle":
+    "La base de conocimiento de tu organización: código, servicios, infraestructura y responsables",
   "app.shell.source.live": "En vivo",
   "app.shell.search.button": "Buscar",
   "app.shell.search.input": "Buscar en Eshu",

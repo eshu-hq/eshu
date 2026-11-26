@@ -22,12 +22,12 @@
   --teal: #0f766e;
   --teal-bright: #0d9488;
   --deep-teal: #115e59;
-  --ember: #c2560a;
+  --ember: #b34e08;
   --violet: #6d4bd8;
   --blue: #2f66d0;
   --crit: #c0263a;
-  --high: #c2560a;
-  --med: #9a6700;
+  --high: #b34e08;
+  --med: #8a5c00;
   --low: #0f766e;
   --accent-soft: color-mix(in oklab, var(--accent) 11%, transparent);
   --shadow: 0 1px 2px rgba(23, 32, 43, 0.05), 0 10px 28px -16px rgba(23, 32, 43, 0.18);
@@ -47,3 +47,30 @@
 
 .theme-toggle svg { width: 17px; height: 17px; }
 .topbar-btn:not(:has(svg)) { width: auto; padding: 0 12px; white-space: nowrap; }
+
+/* Light-theme contrast repairs (axe color-contrast, 4.5:1 for small text).
+   --accent on --accent-soft, the dark-calibrated truth colors, teal-bright
+   text, and dark-fallback input surfaces fall below the ratio on
+   paper/panel surfaces, so light remaps them to darker ramps. */
+:root[data-theme="light"] .btn-ghost.active { color: var(--deep-teal); }
+:root[data-theme="light"] .rel-tool-chip.active { color: var(--deep-teal); }
+:root[data-theme="light"] .badge-teal { color: var(--deep-teal); }
+:root[data-theme="light"] .trend.up { color: var(--deep-teal); }
+:root[data-theme="light"] .verify-btn.on { color: var(--deep-teal); }
+/* Picker inputs fall back to a dark surface (#11151b) that light text
+   tokens cannot read; light gives them the standard field surface. */
+:root[data-theme="light"] .srp-field input,
+:root[data-theme="light"] .seg-field input { background: var(--bg-field); }
+/* The gated-projection banner stays dark in both themes, so its note needs
+   a light tone in the light theme instead of the dark --muted token. */
+:root[data-theme="light"] .secrets-iam-boundary span { color: #c8d0dc; }
+/* Inline --tc beats a stylesheet custom property, so remap color directly. */
+:root[data-theme="light"] .truth-chip[data-truth="exact"],
+:root[data-theme="light"] .truth-chip[data-truth="exact"] i { color: #0f766e; }
+:root[data-theme="light"] .truth-chip[data-truth="exact"] i { background: #0f766e; }
+:root[data-theme="light"] .truth-chip[data-truth="derived"],
+:root[data-theme="light"] .truth-chip[data-truth="derived"] i { color: #8a5c00; }
+:root[data-theme="light"] .truth-chip[data-truth="derived"] i { background: #8a5c00; }
+:root[data-theme="light"] .truth-chip[data-truth="inferred"],
+:root[data-theme="light"] .truth-chip[data-truth="inferred"] i { color: #b34e08; }
+:root[data-theme="light"] .truth-chip[data-truth="inferred"] i { background: #b34e08; }

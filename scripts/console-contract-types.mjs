@@ -12,7 +12,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const contractsJsonPath = resolve(here, "../apps/console/src/api/contracts/homeContracts.json");
+export const contractsJsonPath = resolve(
+  here,
+  "../apps/console/src/api/contracts/homeContracts.json",
+);
 export const contractTypesDir = resolve(here, "../apps/console/src/api/contracts/wire");
 
 export function typeNameForRoute(route) {
@@ -50,7 +53,12 @@ function render(schema, indent) {
 
 function renderOne(schema, type, indent) {
   if (schema.enum && type !== "object" && type !== "array") {
-    return schema.enum.filter((v) => v !== null).map((v) => JSON.stringify(v)).join(" | ") || "never";
+    return (
+      schema.enum
+        .filter((v) => v !== null)
+        .map((v) => JSON.stringify(v))
+        .join(" | ") || "never"
+    );
   }
   switch (type) {
     case "string":

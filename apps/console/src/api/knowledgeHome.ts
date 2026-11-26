@@ -52,13 +52,23 @@ export const loadingHome: KnowledgeHomeData = {
 };
 
 function isEnvelope(value: unknown): value is EshuEnvelope<unknown> {
-  return typeof value === "object" && value !== null && "data" in value && "error" in value && "truth" in value;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "data" in value &&
+    "error" in value &&
+    "truth" in value
+  );
 }
 
 // readSection reads one route and folds every failure into an unavailable
 // section. Some reads are enveloped and some (index-status) are raw payloads;
 // both are accepted.
-export async function readSection<T>(client: EshuApiClient, path: string, signal?: AbortSignal): Promise<Section<T>> {
+export async function readSection<T>(
+  client: EshuApiClient,
+  path: string,
+  signal?: AbortSignal,
+): Promise<Section<T>> {
   try {
     const body: unknown = await client.get<T>(path, { signal });
     if (!isEnvelope(body)) {
@@ -79,15 +89,21 @@ export async function readSection<T>(client: EshuApiClient, path: string, signal
 export function unavailableFrom(error: unknown): Section<never> {
   if (error instanceof EshuApiHttpError) {
     const detail = error.error?.message ?? `HTTP ${error.status}`;
-    if (error.status === 401 || error.status === 403) return { status: "unavailable", reason: "forbidden", detail };
-    if (error.status === 504 || error.status === 408) return { status: "unavailable", reason: "slow", detail };
+    if (error.status === 401 || error.status === 403)
+      return { status: "unavailable", reason: "forbidden", detail };
+    if (error.status === 504 || error.status === 408)
+      return { status: "unavailable", reason: "slow", detail };
     if (error.status === 503) return { status: "unavailable", reason: "not_ready", detail };
     return { status: "unavailable", reason: "failed", detail };
   }
   if (error instanceof DOMException && error.name === "TimeoutError") {
     return { status: "unavailable", reason: "slow", detail: error.message };
   }
-  return { status: "unavailable", reason: "failed", detail: error instanceof Error ? error.message : String(error) };
+  return {
+    status: "unavailable",
+    reason: "failed",
+    detail: error instanceof Error ? error.message : String(error),
+  };
 }
 
 // loadKnowledgeHome fires every Home read in parallel and reports each section
