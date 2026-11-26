@@ -292,6 +292,13 @@ func grantImpactWriterPregrants(t *testing.T, ctx context.Context, admin *sql.DB
 		// cascade, which the owner runs. The scope-delete and scanner capture functions
 		// (migrations 352, 353) are SECURITY DEFINER and need no grant for any login.
 		`GRANT SELECT, INSERT ON supply_chain_impact_retracted_finding_keys TO "` + roleName + `"`,
+		// The first-seen stamp claim (#11031, migration 357) inserts one row per
+		// stable fact key and reads it back in the same transaction. An ordinary
+		// base table, so a DBA pregrant like the tables above; ON CONFLICT DO
+		// NOTHING never updates and nothing deletes, so INSERT plus SELECT
+		// suffice. (The runtime-writer login owns its tables in QA/prod, so this
+		// grant only matters to least-privilege proofs like this one.)
+		`GRANT SELECT, INSERT ON supply_chain_impact_finding_first_seen TO "` + roleName + `"`,
 		// The change set behind the holder fan-out (#9695) reads scope_generations
 		// inside the write transaction to find the previous generation. The
 		// runtime-writer login already needs this SELECT on main, for every
