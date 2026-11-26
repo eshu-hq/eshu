@@ -89,3 +89,17 @@ hit is the literal phrase "SKIP LOCKED" inside a reopen-route contract
 description that quotes the admin store's documented behavior, not new
 concurrency code. No-Observability-Change: no emitters, spans, metrics, or
 logs touched; no handler behavior changed.
+
+## Accuracy-wave admin contracts: no-regression note
+
+No-Regression Evidence: this wave adds OpenAPI `requestBody` schemas for
+seven admin POSTs and pin tests only; the new `admin_queries.go` fragment is
+a content-neutral split of `admin.go` (concatenated bytes identical except
+the const declaration lines), and no handler, query, lock, claim, lease,
+queue, or worker code is touched. Baseline and after:
+`go test -count=1 ./internal/query/openapi/...` green (all packages),
+`scripts/verify-openapi.sh` clean (281 HandleFunc routes, 281 OpenAPI path
+entries). The perf gate's hot-content hit is the new fragment file path
+itself, which carries string constants only — no Cypher, concurrency, or
+runtime knobs. No-Observability-Change: no emitters, spans, metrics, or
+logs touched; no handler behavior changed.

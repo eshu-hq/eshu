@@ -5,8 +5,9 @@ Scope: `go/internal/query/openapi/paths/status/` (package `status`).
 ## Ownership
 
 This leaf owns the OpenAPI 3.0 path documentation for the status, admin,
-and operator surfaces — fifteen files, the broadest leaf in the tree:
+and operator surfaces — sixteen files, the broadest leaf in the tree:
 `routes.go` (`Routes`), `compare.go` (`Compare`), `admin.go` (`Admin`),
+`admin_queries.go` (`AdminQueries`),
 `reindex_progress.go` (`ReindexProgress`),
 `answer_narration.go` (`AnswerNarration`), `collector_readiness.go`
 (`CollectorReadiness`), `collector_extraction_readiness.go`

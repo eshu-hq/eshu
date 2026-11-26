@@ -24,7 +24,8 @@ const componentsLocalIdentity = `
         "properties": {
           "login_id": {"type": "string"},
           "password": {"type": "string", "format": "password"},
-          "recovery_code": {"type": "string", "format": "password"}
+          "recovery_code": {"type": "string", "format": "password"},
+          "totp_code": {"type": "string", "description": "Authenticator-app code, checked before recovery_code when both are submitted (issue #4986). Required only when the account has an active TOTP factor."}
         }
       },
       "LocalIdentityInvitationRequest": {
@@ -58,7 +59,8 @@ const componentsLocalIdentity = `
           "login_id": {"type": "string"},
           "current_password": {"type": "string", "format": "password"},
           "new_password": {"type": "string", "format": "password"},
-          "recovery_code": {"type": "string", "format": "password", "description": "Required only when the account has an active MFA factor."}
+          "recovery_code": {"type": "string", "format": "password", "description": "Required only when the account has an active MFA factor."},
+          "totp_code": {"type": "string", "description": "Authenticator-app code re-proved at rotation time (issue #4986), checked before recovery_code when both are submitted."}
         }
       },
       "LocalIdentityBreakGlassRequest": {
@@ -75,9 +77,8 @@ const componentsLocalIdentity = `
       },
       "LocalIdentityAPITokenCreateRequest": {
         "type": "object",
-        "required": ["token_class"],
         "properties": {
-          "token_class": {"type": "string", "enum": ["personal", "service_principal"]},
+          "token_class": {"type": "string", "enum": ["personal", "service_principal"], "default": "personal", "description": "Token class. Optional: defaults to personal when absent, per the token create handler."},
           "tenant_id": {"type": "string"},
           "workspace_id": {"type": "string"},
           "user_id": {"type": "string", "description": "Required for token_class=personal unless omitted, in which case a browser session resolves it to the caller's OWN internal user_id (self-service create). Explicitly naming a different user_id remains the existing all-scope admin flow."},
