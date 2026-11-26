@@ -212,6 +212,17 @@ func (e *missingGraphSchemaExecutor) ExecuteCypher(
 	return e.executor.ExecuteCypher(ctx, statement)
 }
 
+// QueryBackendVersion implements graph.BackendVersionQuerier by delegating to
+// the wrapped executor. A wrapped executor that cannot report a version fails
+// the #11535 schema gate closed.
+func (e *missingGraphSchemaExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	querier, ok := e.executor.(graph.BackendVersionQuerier)
+	if !ok {
+		return "", fmt.Errorf("schema executor %T cannot report the backend version", e.executor)
+	}
+	return querier.QueryBackendVersion(ctx)
+}
+
 func expectedGraphSchemaObjectNames(backend graph.SchemaBackend) (map[string]struct{}, error) {
 	statements, err := graph.SchemaStatementsForBackend(backend)
 	if err != nil {

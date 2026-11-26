@@ -41,7 +41,7 @@ func TestSchemaInfraSearchKeyIndexIsNeo4jOnly(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SchemaStatementsForBackend(%s) error = %v", tc.backend, err)
 		}
-		executor := &schemaRecordingExecutor{}
+		executor := &schemaRecordingExecutor{version: "NornicDB v1.5.2-hotfix"}
 		if err := EnsureSchemaWithBackend(context.Background(), executor, nil, tc.backend); err != nil {
 			t.Fatalf("EnsureSchemaWithBackend(%s) error = %v", tc.backend, err)
 		}

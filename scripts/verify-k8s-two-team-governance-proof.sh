@@ -197,11 +197,11 @@ done
 require_eq "$(json_str "${provenance}" platform)" "kubernetes" "provenance platform"
 require_eq "$(json_str "${provenance}" backend)" "nornicdb" "provenance backend"
 require_eq "$(json_str "${provenance}" backend_image)" "${expected_backend_image}" "provenance configured backend image"
-# Upstream's v1.3.2 tag retained a stale embedded VERSION file reporting
-# v1.3.1; v1.3.3 corrects it and self-reports v1.3.3. The immutable image
-# identity above proves the release artifact; this field records the binary's
-# honest self-report instead of inventing a version.
-require_eq "$(json_str "${provenance}" backend_version)" "NornicDB v1.3.3" "provenance backend version"
+# The immutable image identity above proves the release artifact; this field
+# records the binary's honest self-report (observed live: boot log "Starting
+# NornicDB v1.5.2-hotfix" and dbms.components() versions ["1.5.2-hotfix"])
+# instead of inventing a version.
+require_eq "$(json_str "${provenance}" backend_version)" "NornicDB v1.5.2-hotfix" "provenance backend version"
 require_eq "$(json_str "${provenance}" backend_source_revision)" "unavailable" "official image source revision status"
 
 backend_platform="$(json_str "${provenance}" backend_platform)"
@@ -211,7 +211,7 @@ backend_runtime_image_id="$(json_str "${provenance}" backend_runtime_image_id)"
 	|| die "provenance backend_runtime_image_id '${backend_runtime_image_id}' is not the expected repository"
 case "${backend_runtime_image_id}" in
 	*@"${expected_amd64_digest}"|*@"${expected_index_digest}") ;;
-	*) die "provenance backend_runtime_image_id '${backend_runtime_image_id}' matches neither the immutable v1.3.3 index nor linux/amd64 digest ${expected_amd64_digest}" ;;
+	*) die "provenance backend_runtime_image_id '${backend_runtime_image_id}' matches neither the immutable v1.5.2-hotfix index nor linux/amd64 digest ${expected_amd64_digest}" ;;
 esac
 rg --quiet '"eshu_commit"[[:space:]]*:[[:space:]]*"unknown"' "${provenance}" \
 	&& die "provenance eshu_commit is unknown (capture ran outside a checkout)"

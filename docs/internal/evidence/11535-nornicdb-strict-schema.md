@@ -37,10 +37,24 @@ equality seeks the backing index. The owner 150k-node scale proof
 1.5.x at its own prefix-count gate: `STARTS WITH` counted 10.014s against
 the 10s production reader deadline (seed: 150k nodes in 20m46s). The fenced
 first page (uid-only projection) measured ~7.5s cold, ~0.5-1s for later
-distinct pages, 5ms on result-cache repeats; the production 37-property
-projection on 1.5.x remains unmeasured. The rollout keeps the 1.5.x backend
-pin and this dialect in lockstep: on pre-1.5 NornicDB the constraint creates
-no backing index, so the new statement list must never execute there.
+distinct pages, 5ms on result-cache repeats. The production full projection
+(all 35 properties of `cloudResourceOwnerBackfillProjection`) measured live
+on 1.5.2-hotfix 2026-11-26 (disposable container
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5`,
+fresh store, full production NornicDB schema, 150k CloudResource nodes seeded
+in 28m15s with every projected property populated): COLD first page (500 rows
+over 150k nodes through the production `NewNeo4jReader` 10s deadline) took
+**8.646s — inside the 10s graph-read deadline** (the server logged a
+slow-read warning at 8.65s, so headroom is 1.35s); WARM repeat with distinct
+query text (server result cache defeated, store warm) took **61ms**. Verdict:
+PASS, no query tuning applied. Throwaway measurer
+`go/internal/query/temp_11535_measure_live_test.go` (kept out of the commit;
+method: seed all 35 properties in 250-row batches, then time the exact
+production first-page query cold, then warm). The rollout keeps the 1.5.x
+backend pin and this dialect in lockstep, now enforced by the
+`requireNornicDBBackendVersion` schema-apply gate: on pre-1.5 NornicDB the
+constraint creates no backing index, so the new statement list must never
+execute there.
 
 ## Observability Evidence:
 

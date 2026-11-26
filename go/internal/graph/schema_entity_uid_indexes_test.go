@@ -59,7 +59,7 @@ func TestEnsureSchemaAppliesUnconstrainedUIDIndexesOnNeo4jOnly(t *testing.T) {
 		{SchemaBackendNeo4j, true},
 		{SchemaBackendNornicDB, false},
 	} {
-		executor := &schemaRecordingExecutor{}
+		executor := &schemaRecordingExecutor{version: "NornicDB v1.5.2-hotfix"}
 		if err := EnsureSchemaWithBackend(context.Background(), executor, nil, tc.backend); err != nil {
 			t.Fatalf("EnsureSchemaWithBackend(%s) error = %v", tc.backend, err)
 		}

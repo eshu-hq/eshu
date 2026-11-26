@@ -25,6 +25,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -47,6 +48,22 @@ func (e liveSchemaExecutor) ExecuteCypher(ctx context.Context, stmt graph.Cypher
 	_, err := neo4j.ExecuteQuery(ctx, e.driver, stmt.Cypher, stmt.Parameters,
 		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(e.db))
 	return err
+}
+
+// QueryBackendVersion implements graph.BackendVersionQuerier against the live
+// backend, so this proof passes the #11535 version gate before the production
+// NornicDB schema applies (the Neo4j leg never consults it).
+func (e liveSchemaExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	result, err := neo4j.ExecuteQuery(ctx, e.driver,
+		graph.NornicDBBackendVersionCypher, nil,
+		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(e.db))
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(result.Records) == 0 || len(result.Records[0].Values) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return graph.NornicDBComponentVersionFromCell(result.Records[0].Values[0])
 }
 
 func TestLiveUnresolvedRowTokenCheck(t *testing.T) {

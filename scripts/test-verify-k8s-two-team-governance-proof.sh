@@ -14,10 +14,15 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-k8s-two-team-governance-proof.sh"
 fixtures="${repo_root}/tests/fixtures/governance_k8s_two_team_proof"
-expected_backend_image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
-expected_index_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
-expected_amd64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:c4a2116e3c1547f750426d5c6c7fae618135f2fc1a3f7bf13fd7811a9c189915"
-expected_arm64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:523137af6a6e26e7977c00ef8aeb96aef236a0414334253e63f6aae25fc466ce"
+expected_backend_image="ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5"
+expected_index_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5"
+expected_amd64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:fbb1226d8b276532de401893ca923568896436ba18859e2c003413e292f13313"
+# The v1.5.2-hotfix manifest ships no arm64 child (amd64 only), so there is no
+# live arm64 platform digest to pin. This sentinel keeps the
+# wrong-platform-child shape (a non-amd64 platform digest the verifier must
+# reject) without pinning a stale release artifact.
+expected_arm64_image_id="docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+expected_backend_version="NornicDB v1.5.2-hotfix"
 
 die() {
 	printf 'test-verify-k8s-two-team-governance-proof: %s\n' "$*" >&2
@@ -54,7 +59,7 @@ for expected in \
 	"\"backend_image\": \"${expected_backend_image}\"" \
 	'"backend_platform": "linux/amd64"' \
 	"\"backend_runtime_image_id\": \"${expected_amd64_image_id}\"" \
-	'"backend_version": "NornicDB v1.3.3"'; do
+	"\"backend_version\": \"${expected_backend_version}\""; do
 	rg --fixed-strings --quiet "${expected}" "${fixtures}/good/provenance.json" \
 		|| die "good provenance fixture missing exact backend identity: ${expected}"
 done
@@ -143,11 +148,11 @@ bash "${verifier}" --artifacts "${index_dir}" >/dev/null \
 
 for mutation in wrong-index wrong-runtime-index wrong-runtime-repository wrong-platform-child wrong-version inferred-source-revision; do
 	case "${mutation}" in
-		wrong-index) replacement='s/fix-500-e022384c@sha256:74a8ed7b/v1.3.1@sha256:74a8ed7b/' ;;
-		wrong-runtime-index) replacement='s/sha256:c4a2116e3c1547f750426d5c6c7fae618135f2fc1a3f7bf13fd7811a9c189915/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' ;;
+		wrong-index) replacement='s/v1.5.2-hotfix@sha256:ece888de/v1.5.1@sha256:ece888de/' ;;
+		wrong-runtime-index) replacement='s/sha256:fbb1226d8b276532de401893ca923568896436ba18859e2c003413e292f13313/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' ;;
 		wrong-runtime-repository) replacement='s#docker-pullable://ghcr.io/eshu-hq/nornicdb-amd64-cpu@#docker-pullable://example.invalid/nornicdb@#' ;;
 		wrong-platform-child) replacement="s#${expected_amd64_image_id}#${expected_arm64_image_id}#" ;;
-		wrong-version) replacement='s/NornicDB v1\.3\.3/NornicDB v1.3.0/' ;;
+		wrong-version) replacement='s/NornicDB v1\.5\.2-hotfix/NornicDB v1.5.0/' ;;
 		inferred-source-revision) replacement='s/"backend_source_revision": "unavailable"/"backend_source_revision": "91289b0ed96e2bd23f3d96cb9b3f00fce30f6a0c"/' ;;
 	esac
 	mutation_dir="${tmp_dir}/${mutation}"

@@ -261,6 +261,20 @@ func (e liveExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatem
 	return e.Execute(ctx, cypher.Statement{Cypher: stmt.Cypher, Parameters: stmt.Parameters})
 }
 
+// QueryBackendVersion implements graph.BackendVersionQuerier against the live
+// backend, so NornicDB delta-tier proofs pass the #11535 version gate before
+// the production schema applies.
+func (e liveExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	rows, err := e.Run(ctx, graph.NornicDBBackendVersionCypher, nil)
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return graph.NornicDBComponentVersionFromCell(rows[0]["versions"])
+}
+
 // Run executes a read query and returns its rows, satisfying
 // cypher.OrphanSweepReader so liveExecutor can double as EdgeWriter.Reader for
 // the shell-exec orphan-cleanup retract's S1/S2 anti-join reads.

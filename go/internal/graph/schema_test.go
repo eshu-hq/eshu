@@ -363,7 +363,7 @@ func TestEnsureSchemaExecutesAllStatements(t *testing.T) {
 func TestEnsureSchemaWithBackendExecutesNornicDBStatements(t *testing.T) {
 	t.Parallel()
 
-	executor := &schemaRecordingExecutor{}
+	executor := &schemaRecordingExecutor{version: "NornicDB v1.5.2-hotfix"}
 	err := EnsureSchemaWithBackend(context.Background(), executor, nil, SchemaBackendNornicDB)
 	if err != nil {
 		t.Fatalf("EnsureSchemaWithBackend() error = %v, want nil", err)
@@ -404,6 +404,7 @@ func TestEnsureSchemaFulltextFallback(t *testing.T) {
 		failOn: func(cypher string) bool {
 			return strings.Contains(cypher, "db.index.fulltext.createNodeIndex")
 		},
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchema(context.Background(), executor, nil)
@@ -432,6 +433,7 @@ func TestEnsureSchemaWithBackendSkipsFulltextFallbackForNornicDB(t *testing.T) {
 		failOn: func(cypher string) bool {
 			return strings.Contains(cypher, "db.index.fulltext.createNodeIndex")
 		},
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchemaWithBackend(context.Background(), executor, nil, SchemaBackendNornicDB)
@@ -490,6 +492,11 @@ type schemaRecordingExecutor struct {
 	calls   []CypherStatement
 	failErr error
 	failOn  func(string) bool
+	// version is the self-reported backend version this fake answers with.
+	// NornicDB applies refuse without it (fail closed); Neo4j applies never
+	// consult it. Tests that drive the NornicDB statement list declare the
+	// backend they emulate here.
+	version string
 }
 
 func (r *schemaRecordingExecutor) ExecuteCypher(_ context.Context, stmt CypherStatement) error {
@@ -501,6 +508,16 @@ func (r *schemaRecordingExecutor) ExecuteCypher(_ context.Context, stmt CypherSt
 		return errors.New("simulated schema error")
 	}
 	return nil
+}
+
+// QueryBackendVersion implements BackendVersionQuerier so the recording fake
+// can drive the NornicDB version gate. An empty version fails the gate
+// closed, exactly like an executor that cannot report one.
+func (r *schemaRecordingExecutor) QueryBackendVersion(_ context.Context) (string, error) {
+	if r.version == "" {
+		return "", errors.New("schemaRecordingExecutor has no backend version configured")
+	}
+	return r.version, nil
 }
 
 func assertContainsStatement(t *testing.T, stmts []string, want string) {

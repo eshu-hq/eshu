@@ -52,6 +52,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -204,6 +205,26 @@ func (w x9LiveWriter) ExecuteCypher(ctx context.Context, stmt eshugraph.CypherSt
 		_, err = result.Consume(ctx)
 		return err
 	})
+}
+
+// QueryBackendVersion implements eshugraph.BackendVersionQuerier against the
+// live backend, so the NornicDB retraction proof passes the #11535 version
+// gate before the production schema applies.
+func (w x9LiveWriter) QueryBackendVersion(ctx context.Context) (string, error) {
+	session := w.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: w.database})
+	defer func() { _ = session.Close(ctx) }()
+	result, err := session.Run(ctx, eshugraph.NornicDBBackendVersionCypher, nil)
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	records, err := result.Collect(ctx)
+	if err != nil {
+		return "", fmt.Errorf("collect nornicdb backend version: %w", err)
+	}
+	if len(records) == 0 || len(records[0].Values) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return eshugraph.NornicDBComponentVersionFromCell(records[0].Values[0])
 }
 
 func (w x9LiveWriter) write(ctx context.Context, t *testing.T, cypher string) {

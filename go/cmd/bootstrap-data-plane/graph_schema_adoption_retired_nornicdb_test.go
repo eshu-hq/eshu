@@ -32,7 +32,7 @@ func runNornicDBBootstrapOverStoreWith(t *testing.T, retired ...string) (applied
 		names[name] = struct{}{}
 	}
 
-	backend := &fakeNeo4jExecutor{}
+	backend := &fakeNeo4jExecutor{version: "NornicDB v1.5.2-hotfix"}
 	db := &fakeBootstrapDB{queryRows: []fakeBootstrapRows{{rows: nil}}}
 	err = run(
 		context.Background(),

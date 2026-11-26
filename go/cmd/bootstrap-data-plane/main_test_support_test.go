@@ -120,12 +120,26 @@ func (r *fakeBootstrapRows) Close() error {
 type fakeNeo4jExecutor struct {
 	calls   int
 	cyphers []string
+	// version is the self-reported backend version the fake answers with.
+	// Tests that drive the NornicDB statement list declare the backend they
+	// emulate here; an empty version fails the #11535 gate closed.
+	version string
 }
 
 func (f *fakeNeo4jExecutor) ExecuteCypher(_ context.Context, statement graph.CypherStatement) error {
 	f.calls++
 	f.cyphers = append(f.cyphers, statement.Cypher)
 	return nil
+}
+
+// QueryBackendVersion implements graph.BackendVersionQuerier for schema-gate
+// tests. An empty version fails the gate closed, like an executor that
+// cannot report one.
+func (f *fakeNeo4jExecutor) QueryBackendVersion(_ context.Context) (string, error) {
+	if f.version == "" {
+		return "", errors.New("fakeNeo4jExecutor has no backend version configured")
+	}
+	return f.version, nil
 }
 
 type fakeGraphSchemaInspector struct {

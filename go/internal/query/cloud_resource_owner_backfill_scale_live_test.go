@@ -237,6 +237,22 @@ func (e cloudResourceBackfillScaleExecutor) ExecuteCypher(ctx context.Context, s
 	return err
 }
 
+// QueryBackendVersion implements graph.BackendVersionQuerier against the live
+// backend, so the seeded store passes the #11535 version gate before the
+// production schema applies.
+func (e cloudResourceBackfillScaleExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	result, err := neo4jdriver.ExecuteQuery(ctx, e.driver,
+		graph.NornicDBBackendVersionCypher, nil,
+		neo4jdriver.EagerResultTransformer, neo4jdriver.ExecuteQueryWithDatabase("nornic"))
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(result.Records) == 0 || len(result.Records[0].Values) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return graph.NornicDBComponentVersionFromCell(result.Records[0].Values[0])
+}
+
 func (s cloudResourceBackfillScaleSeed) ensurePopulation() {
 	all := s.count(`MATCH (n:CloudResource) RETURN count(n) AS count`, nil)
 	mine := s.count(`MATCH (n:CloudResource) WHERE n.uid STARTS WITH $prefix RETURN count(n) AS count`,

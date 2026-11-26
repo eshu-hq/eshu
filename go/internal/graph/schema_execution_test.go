@@ -20,6 +20,7 @@ func TestEnsureSchemaReturnsContextDeadline(t *testing.T) {
 	executor := &schemaRecordingExecutor{
 		failErr: context.DeadlineExceeded,
 		failOn:  func(_ string) bool { return true },
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchema(context.Background(), executor, nil)
@@ -35,7 +36,8 @@ func TestEnsureSchemaWithBackendStrictReturnsStatementFailures(t *testing.T) {
 	t.Parallel()
 
 	executor := &schemaRecordingExecutor{
-		failOn: func(_ string) bool { return true },
+		failOn:  func(_ string) bool { return true },
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchemaWithBackendStrict(context.Background(), executor, nil, SchemaBackendNornicDB)
@@ -78,7 +80,7 @@ func TestEnsureSchemaLogsStatementProgress(t *testing.T) {
 
 	var output strings.Builder
 	logger := slog.New(slog.NewTextHandler(io.Writer(&output), nil))
-	executor := &schemaRecordingExecutor{}
+	executor := &schemaRecordingExecutor{version: "NornicDB v1.5.2-hotfix"}
 
 	err := EnsureSchemaWithBackend(context.Background(), executor, logger, SchemaBackendNornicDB)
 	if err != nil {

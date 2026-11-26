@@ -49,6 +49,22 @@ func (e nornicDBStrictLiveExecutor) ExecuteCypher(ctx context.Context, stmt Cyph
 	return err
 }
 
+// QueryBackendVersion implements BackendVersionQuerier against the live
+// backend, so the live strict-schema proof exercises the #11535 version gate
+// through the same probe production uses.
+func (e nornicDBStrictLiveExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	result, err := neo4jdriver.ExecuteQuery(ctx, e.driver,
+		"CALL dbms.components() YIELD name, versions RETURN versions", nil,
+		neo4jdriver.EagerResultTransformer, neo4jdriver.ExecuteQueryWithDatabase("nornic"))
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(result.Records) == 0 || len(result.Records[0].Values) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return NornicDBComponentVersionFromCell(result.Records[0].Values[0])
+}
+
 // filteredNornicDBStrictLiveExecutor mirrors the production adoption contract
 // (missingGraphSchemaExecutor in cmd/bootstrap-data-plane): statements whose
 // schema object already exists are skipped, DROP guards always run. An
@@ -69,6 +85,12 @@ func (e filteredNornicDBStrictLiveExecutor) ExecuteCypher(ctx context.Context, s
 		}
 	}
 	return e.nornicDBStrictLiveExecutor.ExecuteCypher(ctx, stmt)
+}
+
+// QueryBackendVersion implements BackendVersionQuerier by delegating to the
+// live executor, so the idempotency proof passes the same gate.
+func (e filteredNornicDBStrictLiveExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	return e.nornicDBStrictLiveExecutor.QueryBackendVersion(ctx)
 }
 
 // nornicDBStrictLiveObjectName declares the schema object a statement

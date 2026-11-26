@@ -138,7 +138,7 @@ func TestEnsureBootstrapGraphSchemaAppliesAndMarksMissingMarker(t *testing.T) {
 
 	app := graph.MustSchemaApplicationForBackend(graph.SchemaBackendNornicDB)
 	database := &graphSchemaBootstrapDB{app: app, missingUntilMarked: true}
-	executor := &recordingGraphSchemaExecutor{}
+	executor := &recordingGraphSchemaExecutor{version: "NornicDB v1.5.2-hotfix"}
 	closed := false
 	err := ensureBootstrapGraphSchemaWithOpener(
 		context.Background(),
@@ -254,9 +254,22 @@ func (f *graphSchemaBootstrapDB) QueryContext(context.Context, string, ...any) (
 type recordingGraphSchemaExecutor struct {
 	count int
 	err   error
+	// version is the self-reported backend version the fake answers with.
+	// NornicDB applies refuse without it (fail closed).
+	version string
 }
 
 func (r *recordingGraphSchemaExecutor) ExecuteCypher(context.Context, graph.CypherStatement) error {
 	r.count++
 	return r.err
+}
+
+// QueryBackendVersion implements graph.BackendVersionQuerier for schema-gate
+// tests. An empty version fails the gate closed, like an executor that
+// cannot report one.
+func (r *recordingGraphSchemaExecutor) QueryBackendVersion(_ context.Context) (string, error) {
+	if r.version == "" {
+		return "", errors.New("recordingGraphSchemaExecutor has no backend version configured")
+	}
+	return r.version, nil
 }

@@ -40,7 +40,9 @@ const (
 // This statement list must only ever execute against a 1.5.x backend: on
 // pre-1.5 NornicDB the constraint creates no backing index, so dropping the
 // lookup indexes there would leave uid reads unindexed. The rollout keeps
-// the backend pin and this dialect in lockstep.
+// the backend pin and this dialect in lockstep, and requireNornicDBBackendVersion
+// (armed by dropUIDLookupIndexes in ensureSchemaWithBackend) refuses the
+// apply before any DDL when the connected backend is not provably >= 1.5.
 func nornicDBUIDLookupIndexDrops() []string {
 	drops := make([]string, 0, len(uidConstraintLabels))
 	for _, label := range uidConstraintLabels {
