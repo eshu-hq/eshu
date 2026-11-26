@@ -473,13 +473,14 @@ const components = `  "components": {
 ` + ComponentsWorkloadSession + componentsLocalIdentity + componentsRecovery + `
       "ErrorResponse": {
         "type": "object",
+        "description": "Shared error shape. Plain failures carry error and detail; structured failures add code, message, correlation_id, and the open details map. Owner: querycontract/http.go WriteError plus querycontract/truth.go ErrorEnvelope.",
         "properties": {
-          "error": {"type": "string"},
-          "detail": {"type": "string"},
-          "error_code": {"type": "string"},
-          "message": {"type": "string"},
-          "correlation_id": {"type": "string"},
-          "details": {"type": "object"}
+          "error": {"type": "string", "description": "Short error title (for example the HTTP status text). Owner: querycontract/http.go WriteError."},
+          "detail": {"type": "string", "description": "Human-readable failure detail. Owner: querycontract/http.go WriteError."},
+          "error_code": {"type": "string", "description": "Stable machine-readable error code. Owner: querycontract/truth.go ErrorEnvelope code path."},
+          "message": {"type": "string", "description": "Human-readable error message. Owner: querycontract/truth.go ErrorEnvelope.Message."},
+          "correlation_id": {"type": "string", "description": "Request correlation id for operator lookup. Owner: querycontract/truth.go ErrorEnvelope.CorrelationID."},
+          "details": {"type": "object", "additionalProperties": true, "description": "Open per-verdict detail map keyed by verdict (for example reason and restart_with on rank_cursor failures). Owner: querycontract/truth.go ErrorEnvelope.Details."}
         }
       }
     },
