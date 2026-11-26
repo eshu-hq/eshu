@@ -168,7 +168,26 @@ const (
     "provider_unavailable": {"type": "integer"},
     "unchanged": {"type": "integer"},
     "stale": {"type": "integer"},
-    "updated_at": {"type": "string", "format": "date-time"}
+    "status_counts": {"type": "array", "description": "Queue rows by status; absent when none.", "items": ` + namedCountItemSchema + `},
+    "source_class_counts": {"type": "array", "description": "Queue rows by source class; absent when none.", "items": ` + namedCountItemSchema + `},
+    "failure_class_counts": {"type": "array", "description": "Queue rows by failure class; absent when none.", "items": ` + namedCountItemSchema + `},
+    "provider_profile_counts": {"type": "array", "description": "Queue rows by provider profile; absent when none.", "items": {"type": "object", "properties": {
+      "provider_kind": {"type": "string"},
+      "provider_profile_id": {"type": "string"},
+      "provider_profile_class": {"type": "string"},
+      "count": {"type": "integer"}
+    }}},
+    "policy_decision_counts": {"type": "array", "description": "Policy-guard decisions; absent when none.", "items": {"type": "object", "properties": {
+      "state": {"type": "string"},
+      "reason": {"type": "string"},
+      "count": {"type": "integer"}
+    }}},
+    "guard_decision_counts": {"type": "array", "description": "Guard decisions; absent when none.", "items": {"type": "object", "properties": {
+      "state": {"type": "string"},
+      "reason": {"type": "string"},
+      "count": {"type": "integer"}
+    }}},
+    "updated_at": {"type": "string", "format": "date-time", "description": "Queue read time; absent when unset."}
   }}`
 
 	// semanticBudgetSchema is the redacted semantic extraction token, cost,
@@ -182,7 +201,13 @@ const (
     "actual_cost_micros": {"type": "integer"},
     "remaining_tokens": {"type": "integer"},
     "remaining_cost_micros": {"type": "integer"},
-    "exhausted": {"type": "integer"}
+    "exhausted": {"type": "integer"},
+    "decision_counts": {"type": "array", "description": "Budget decisions by state, reason, and unit; absent when none.", "items": {"type": "object", "properties": {
+      "state": {"type": "string"},
+      "reason": {"type": "string"},
+      "budget_unit": {"type": "string"},
+      "count": {"type": "integer"}
+    }}}
   }}`
 
 	// semanticAuditSchema is the class-based semantic extraction audit

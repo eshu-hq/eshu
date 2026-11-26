@@ -151,9 +151,21 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		props := propsOf(t, schema, "service-story")
 
 		// Owner: service/story_overview.go buildServiceDeploymentOverviewWithContext.
+		// The contract names exactly the 26 keys the builder emits; a phantom
+		// passes presence-only pins, so the closed set is asserted here the
+		// same way as on the WorkloadContext twin.
 		deployment := child(t, props, "deployment_overview", "service-story")
-		requireKeys(t, propsOf(t, deployment, "service-story.deployment_overview"), "service-story.deployment_overview",
-			"instance_count", "environment_count", "platform_count", "platforms")
+		deploymentProps := propsOf(t, deployment, "service-story.deployment_overview")
+		requireExactKeys(t, deploymentProps, "service-story.deployment_overview",
+			"instance_count", "environment_count", "materialized_environment_count",
+			"config_environment_count", "platform_count", "platforms", "environments",
+			"materialized_environments", "deployment_truth_tier", "config_environments",
+			"hostname_count", "entrypoint_count", "network_path_count", "api_surface",
+			"dependent_count", "consumer_repository_count", "provisioning_source_chain_count",
+			"cloud_resource_count", "cloud_relationship_basis", "uncorrelated_cloud_resource_count",
+			"missing_cloud_relationship", "deployment_tool_families",
+			"deployment_evidence_artifact_count", "delivery_path_count",
+			"delivery_workflow_count", "shared_config_path_count")
 		// Owner: service/story_dossier.go buildServiceDossierAPISurface plus
 		// service/story_overview.go dropStoryOverviewEndpoints, which deletes
 		// the endpoint rows and names their location instead.
@@ -169,9 +181,12 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 
 		// Owner: service/story_overview.go buildServiceDocumentationOverview.
 		documentation := child(t, props, "documentation_overview", "service-story")
-		requireKeys(t, propsOf(t, documentation, "service-story.documentation_overview"), "service-story.documentation_overview",
-			"repo_id", "repo_name", "docs_route_count", "api_spec_count", "entrypoint_host_count")
-		requireDescribed(t, propsOf(t, documentation, "service-story.documentation_overview"), "service-story.documentation_overview",
+		documentationProps := propsOf(t, documentation, "service-story.documentation_overview")
+		requireExactKeys(t, documentationProps, "service-story.documentation_overview",
+			"repo_id", "repo_name", "portable_identifier", "docs_route_count", "api_spec_count",
+			"entrypoint_host_count", "remote_url", "repo_slug", "has_remote",
+			"local_path_present", "api_spec_paths")
+		requireDescribed(t, documentationProps, "service-story.documentation_overview",
 			"repo_id", "docs_route_count", "api_spec_count")
 	})
 
@@ -237,11 +252,50 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 
 		// Owner: codequery/flow.go buildCodeFlowPayload emits only coverage,
 		// ambiguity, bounds, and one result family; writeCodeFlowResponse
-		// adds only query and coverage. A scope property would be a
-		// phantom: assert its absence.
-		if _, ok := props["scope"]; ok {
-			t.Error("CodeFlowResponse: phantom property \"scope\" is not emitted by the owner")
+		// adds only query and coverage.
+		for _, key := range []string{"query", "coverage", "ambiguity", "bounds"} {
+			if _, ok := props[key].(map[string]any); !ok {
+				t.Errorf("CodeFlowResponse: missing owner-emitted property %q", key)
+			}
 		}
+		for _, phantom := range []string{"scope", "kind", "count", "limit", "truncated", "source_backend", "answer_metadata"} {
+			if _, ok := props[phantom]; ok {
+				t.Errorf("CodeFlowResponse: phantom property %q is not emitted by the owner", phantom)
+			}
+		}
+		query := child(t, props, "query", "CodeFlowResponse")
+		queryProps := propsOf(t, query, "CodeFlowResponse.query")
+		requireExactKeys(t, queryProps, "CodeFlowResponse.query",
+			"kind", "repo_id", "language", "symbol", "file_path", "line")
+		requireScalarTypes(t, queryProps, "CodeFlowResponse.query", map[string]string{
+			"kind": "string", "repo_id": "string", "language": "string",
+			"symbol": "string", "file_path": "string", "line": "integer",
+		})
+		// Owner: writeCodeFlowResponse emits coverage.state="unsupported"
+		// with supported_languages on the unsupported-language path.
+		coverage := child(t, props, "coverage", "CodeFlowResponse")
+		coverageProps := propsOf(t, coverage, "CodeFlowResponse.coverage")
+		requireExactKeys(t, coverageProps, "CodeFlowResponse.coverage",
+			"state", "reason", "language", "supported_languages")
+		requireScalarTypes(t, coverageProps, "CodeFlowResponse.coverage", map[string]string{
+			"state": "string", "reason": "string", "language": "string",
+			"supported_languages": "array",
+		})
+		ambiguity := child(t, props, "ambiguity", "CodeFlowResponse")
+		ambiguityProps := propsOf(t, ambiguity, "CodeFlowResponse.ambiguity")
+		requireExactKeys(t, ambiguityProps, "CodeFlowResponse.ambiguity", "ambiguous", "candidates")
+		requireScalarTypes(t, ambiguityProps, "CodeFlowResponse.ambiguity", map[string]string{
+			"ambiguous": "boolean", "candidates": "array",
+		})
+		candidates := child(t, ambiguityProps, "candidates", "CodeFlowResponse.ambiguity")
+		requireExactKeys(t, propsOf(t, itemsOf(t, candidates, "ambiguity candidates"), "ambiguity candidates[]"), "ambiguity candidates[]",
+			"relative_path", "function_name", "function_uid", "line_number")
+		bounds := child(t, props, "bounds", "CodeFlowResponse")
+		boundsProps := propsOf(t, bounds, "CodeFlowResponse.bounds")
+		requireExactKeys(t, boundsProps, "CodeFlowResponse.bounds", "limit", "count", "truncated")
+		requireScalarTypes(t, boundsProps, "CodeFlowResponse.bounds", map[string]string{
+			"limit": "integer", "count": "integer", "truncated": "boolean",
+		})
 	})
 
 	t.Run("investigation evidence packet layers", func(t *testing.T) {

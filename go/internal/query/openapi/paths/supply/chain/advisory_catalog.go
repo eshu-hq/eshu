@@ -52,7 +52,12 @@ const AdvisoryCatalog = `
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "scope": {"type": "object"},
+                    "scope": {"type": "object", "description": "Echo of the applied catalog filters; only non-empty filters appear. kev is a boolean while the rest are strings, so this is not a string map.", "properties": {
+                      "severity": {"type": "string"},
+                      "ecosystem": {"type": "string"},
+                      "q": {"type": "string", "description": "Free-text query filter."},
+                      "kev": {"type": "boolean", "description": "True when the KEV-only filter was applied; absent otherwise."}
+                    }},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "object"}
                   },

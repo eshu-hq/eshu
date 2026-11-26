@@ -228,20 +228,40 @@ const components = `  "components": {
       },
       "CodeFlowResponse": {
         "type": "object",
-        "description": "Canonical bounded code-flow response. One of paths, definitions, functions, or summaries is populated depending on the operation. Each row carries a fact_label such as exact_parser_fact, derived_reducer_evidence, or partial_derived_summary.",
+        "description": "Canonical bounded code-flow response. One of paths, definitions, functions, or summaries is populated depending on the operation. Owner: codequery/flow.go writeCodeFlowResponse over buildCodeFlowPayload.",
         "properties": {
-          "kind": {"type": "string", "enum": ["taint_path", "reaching_def", "cfg_summary", "pdg_summary"]},
+          "query": {"type": "object", "description": "Echo of the code-flow request the payload answers.", "properties": {
+            "kind": {"type": "string", "enum": ["taint_path", "reaching_def", "cfg_summary", "pdg_summary"]},
+            "repo_id": {"type": "string"},
+            "language": {"type": "string"},
+            "symbol": {"type": "string"},
+            "file_path": {"type": "string"},
+            "line": {"type": "integer"}
+          }},
+          "coverage": {"type": "object", "description": "Readiness of the evidence behind the payload.", "properties": {
+            "state": {"type": "string", "enum": ["exact", "partial", "derived", "unsupported"]},
+            "reason": {"type": "string"},
+            "language": {"type": "string"},
+            "supported_languages": {"type": "array", "items": {"type": "string"}, "description": "Claimed fixture-backed value-flow languages; present only when state is unsupported."}
+          }},
           "paths": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "definitions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "functions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "summaries": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-          "coverage": {"type": "object", "additionalProperties": true},
-          "bounds": {"type": "object", "additionalProperties": true},
-          "count": {"type": "integer"},
-          "limit": {"type": "integer"},
-          "truncated": {"type": "boolean"},
-          "source_backend": {"type": "string", "enum": ["fact_records"]},
-          "answer_metadata": {"type": "object", "description": "Normalized answer metadata with evidence handles, missing evidence, limitations, partial reasons, coverage, and recommended next calls."}
+          "ambiguity": {"type": "object", "description": "Symbol disambiguation: true with candidate rows when the symbol matched multiple functions without a file or line pin.", "properties": {
+            "ambiguous": {"type": "boolean"},
+            "candidates": {"type": "array", "items": {"type": "object", "properties": {
+              "relative_path": {"type": "string"},
+              "function_name": {"type": "string"},
+              "function_uid": {"type": "string"},
+              "line_number": {"type": "integer"}
+            }}}
+          }},
+          "bounds": {"type": "object", "description": "Result-window bounds for the one populated family.", "properties": {
+            "limit": {"type": "integer"},
+            "count": {"type": "integer"},
+            "truncated": {"type": "boolean"}
+          }}
         }
       },
       "Relationship": {

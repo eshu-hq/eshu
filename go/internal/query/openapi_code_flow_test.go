@@ -52,9 +52,19 @@ func TestOpenAPIDocumentsCodeFlowRoutes(t *testing.T) {
 	}
 	response := testutil.MustMapField(t, schemas, "CodeFlowResponse")
 	responseProperties := testutil.MustMapField(t, response, "properties")
-	for _, field := range []string{"paths", "definitions", "functions", "summaries", "coverage", "bounds", "source_backend"} {
+	// Owner: codequery/flow.go writeCodeFlowResponse emits only query,
+	// coverage, ambiguity, bounds, and one result family. kind, count,
+	// limit, truncated, source_backend, scope, and answer_metadata are
+	// phantoms the owner never sends; asserting them here would pin a
+	// contract mismatch instead of the wire.
+	for _, field := range []string{"query", "coverage", "ambiguity", "bounds", "paths", "definitions", "functions", "summaries"} {
 		if _, ok := responseProperties[field]; !ok {
 			t.Fatalf("CodeFlowResponse missing %s", field)
+		}
+	}
+	for _, phantom := range []string{"scope", "kind", "count", "limit", "truncated", "source_backend", "answer_metadata"} {
+		if _, ok := responseProperties[phantom]; ok {
+			t.Fatalf("CodeFlowResponse carries phantom %s not emitted by writeCodeFlowResponse", phantom)
 		}
 	}
 }

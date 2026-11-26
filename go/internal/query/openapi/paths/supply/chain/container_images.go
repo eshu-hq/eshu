@@ -58,6 +58,7 @@ const ContainerImages = `
                     },
                     "source_bridge": {
                       "type": "object",
+                      "description": "Source-repository-scoped identity evidence; present only when the source_repository_id filter was given. Arrays are absent when empty.",
                       "properties": {
                         "source_repository_id": {"type": "string"},
                         "image_repository_ids": {"type": "array", "items": {"type": "string"}},

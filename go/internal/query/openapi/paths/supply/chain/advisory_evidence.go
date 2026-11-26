@@ -84,7 +84,7 @@ const AdvisoryEvidence = `
                     },
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "scope": {"type": "object"},
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the applied evidence filters, as string pairs (cve_id, advisory_id, package_id, repository_id, service_id, workload_id); only non-empty filters appear. Render as filter chips, never a fixed form."},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "object"}
                   },

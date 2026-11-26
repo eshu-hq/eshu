@@ -96,6 +96,15 @@ func TestContractShapesSlice2Status(t *testing.T) {
 	// requireScalarTypes pins the JSON scalar type of hand-written schema
 	// properties. Presence-only checks pass a boolean where the server
 	// emits an integer, so every hand-typed scalar needs its type pinned.
+	requireKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
+		t.Helper()
+		for _, key := range keys {
+			if _, ok := props[key].(map[string]any); !ok {
+				t.Errorf("%s: missing property %q", where, key)
+			}
+		}
+	}
+
 	requireScalarTypes := func(t *testing.T, props map[string]any, where string, want map[string]string) {
 		t.Helper()
 		for key, typ := range want {
@@ -244,6 +253,57 @@ func TestContractShapesSlice2Status(t *testing.T) {
 			requireExactKeys(t, items, "audit."+key+"[] items", "name", "count")
 			requireScalarTypes(t, items, "audit."+key+"[] items", map[string]string{
 				"name": "string", "count": "integer",
+			})
+		}
+	})
+
+	t.Run("semantic queue and budget nested counts", func(t *testing.T) {
+		t.Parallel()
+		// Owner: extraction_observability_json.go extractionQueueJSON.
+		// The route owner only sets the count arrays when non-empty, so
+		// every nested count is asserted present-or-absent by shape, not
+		// as always-present: status/source-class/failure-class counts
+		// arrive via always-non-nil NamedCountsJSON but omitempty still
+		// drops them when empty; provider-profile/policy/guard counts and
+		// updated_at/decision_counts are omitted when empty.
+		doc := fragment(t, Semantic, "Semantic")
+		schema := schemaAt(t, doc, "/api/v0/status/semantic-extraction", "get")
+		props := propsOf(t, schema, "/api/v0/status/semantic-extraction")
+		queue := child(t, props, "queue", "semantic_extraction")
+		queueProps := propsOf(t, queue, "semantic queue")
+		for _, key := range []string{
+			"status_counts", "source_class_counts", "failure_class_counts",
+			"provider_profile_counts", "policy_decision_counts", "guard_decision_counts",
+		} {
+			if _, ok := queueProps[key].(map[string]any); !ok {
+				t.Errorf("semantic queue: missing conditionally-served property %q", key)
+			}
+		}
+		budget := child(t, props, "budget", "semantic_extraction")
+		budgetProps := propsOf(t, budget, "semantic budget")
+		if _, ok := budgetProps["decision_counts"].(map[string]any); !ok {
+			t.Error("semantic budget: missing conditionally-served property \"decision_counts\"")
+		}
+		// Nested item shapes are closed structs: NamedCountJSON is exactly
+		// {name, count}; decision rows carry optional string classifiers
+		// with a required integer count.
+		for _, key := range []string{"status_counts", "source_class_counts", "failure_class_counts"} {
+			arr := child(t, queueProps, key, "semantic queue")
+			requireExactKeys(t, propsOf(t, itemsOf(t, arr, key), key+" items"), "semantic queue."+key+"[]",
+				"name", "count")
+		}
+		budgetDecisions := child(t, budgetProps, "decision_counts", "semantic budget")
+		budgetDecisionProps := propsOf(t, itemsOf(t, budgetDecisions, "decision_counts"), "budget decision_counts[]")
+		requireKeys(t, budgetDecisionProps, "semantic budget.decision_counts[]", "count")
+		requireScalarTypes(t, budgetDecisionProps, "semantic budget.decision_counts[]", map[string]string{
+			"count": "integer",
+		})
+		for _, key := range []string{"provider_profile_counts", "policy_decision_counts", "guard_decision_counts"} {
+			arr := child(t, queueProps, key, "semantic queue")
+			arrProps := propsOf(t, itemsOf(t, arr, key), key+" items")
+			requireKeys(t, arrProps, "semantic queue."+key+"[]", "count")
+			requireScalarTypes(t, arrProps, "semantic queue."+key+"[]", map[string]string{
+				"count": "integer",
 			})
 		}
 	})

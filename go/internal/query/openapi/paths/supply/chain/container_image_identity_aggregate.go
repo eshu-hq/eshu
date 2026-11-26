@@ -35,7 +35,12 @@ const ContainerImageIdentityAggregate = `
                     "total_identities": {"type": "integer", "description": "Reducer-owned container image identities matching the filters."},
                     "by_outcome": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Identity counts by outcome (exact_digest, tag_resolved). Bucket names are outcome values; render as bars, never a fixed enum."},
                     "by_identity_strength": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Identity counts by identity strength. Bucket names are strength values; render as bars, never a fixed enum."},
-                    "source_bridge": {"type": "object", "description": "Source-scoped bridge diagnostics, including missing_evidence when no source-to-image proof is present."},
+                    "source_bridge": {"type": "object", "description": "Source-repository-scoped identity evidence; present only when the source_repository_id filter was given. Owner: supply/chain ContainerImageIdentitySourceBridge.", "properties": {
+                      "source_repository_id": {"type": "string"},
+                      "image_repository_ids": {"type": "array", "items": {"type": "string"}, "description": "Absent when empty."},
+                      "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Absent when empty."},
+                      "warnings": {"type": "array", "items": {"type": "string"}, "description": "Absent when empty."}
+                    }},
                     "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the filters applied to this aggregate, as string pairs (only non-empty filters appear). Render as filter chips, never a fixed form."}
                   }
                 }
