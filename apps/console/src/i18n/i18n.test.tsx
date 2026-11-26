@@ -15,45 +15,22 @@ import { formatApiUnavailableMessage, shellMessageDescriptors } from "./shellMes
 const intl = createConsoleIntl(defaultMessages);
 
 describe("console i18n framework", () => {
-  it("addresses overview nav labels by stable message IDs", () => {
-    const overview = NAV_GROUPS[0];
+  it("addresses start nav labels by stable message IDs", () => {
+    const start = NAV_GROUPS[0];
 
     expect(defaultLocale).toBe("en");
-    expect(overview.messageId).toBe("app.nav.group.overview");
-    expect(intl.formatMessage({ id: overview.messageId })).toBe("Overview");
-    expect(Object.hasOwn(overview, "label")).toBe(false);
+    expect(start.messageId).toBe("app.nav.group.start");
+    expect(intl.formatMessage({ id: start.messageId })).toBe("Start");
+    expect(Object.hasOwn(start, "label")).toBe(false);
 
-    const firstOverviewItems = overview.items.slice(0, 8);
-    expect(firstOverviewItems.map((item) => item.messageId)).toEqual([
-      "app.nav.item.status",
-      "app.nav.item.dashboard",
+    expect(start.items.map((item) => item.messageId)).toEqual([
+      "app.nav.item.home",
       "app.nav.item.ask",
-      "app.nav.item.semanticSearch",
       "app.nav.item.guidedQuestions",
-      "app.nav.item.impact",
-      "app.nav.item.exposurePath",
-      "app.nav.item.changedSince",
+      "app.nav.item.semanticSearch",
+      "app.nav.item.contentSearch",
     ]);
-    expect(firstOverviewItems.map((item) => Object.hasOwn(item, "label"))).toEqual([
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
-    expect(firstOverviewItems.map((item) => intl.formatMessage({ id: item.messageId }))).toEqual([
-      "Status",
-      "Dashboard",
-      "Ask Eshu",
-      "Semantic Search",
-      "Guided Questions",
-      "Impact",
-      "Exposure Path",
-      "Changed Since",
-    ]);
+    expect(start.items.every((item) => !Object.hasOwn(item, "label"))).toBe(true);
   });
 
   it("formats the shell API unavailable banner through the i18n layer", () => {
@@ -114,7 +91,7 @@ describe("console i18n framework", () => {
   });
 
   it("keeps top translated shell and nav message keys in parity for every locale", () => {
-    expect(translatedMessageIds).toHaveLength(20);
+    expect(translatedMessageIds).toHaveLength(24);
 
     for (const locale of supportedLocales) {
       expect(Object.keys(localeCatalogs[locale]).sort()).toEqual([...translatedMessageIds].sort());
@@ -124,10 +101,10 @@ describe("console i18n framework", () => {
   it("formats a translated nav message through the provider catalog", () => {
     const { container } = render(
       <ConsoleI18nProvider messages={createLocaleMessages("de")}>
-        <FormattedMessage id="app.nav.group.overview" />
+        <FormattedMessage id="app.nav.group.security" />
       </ConsoleI18nProvider>,
     );
 
-    expect(container.textContent).toBe("Übersicht");
+    expect(container.textContent).toBe("Sicherheit");
   });
 });

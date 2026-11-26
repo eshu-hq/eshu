@@ -1,0 +1,49 @@
+/* ============================================================= ESHU THEMES
+   Light ("daylight") is the default: warm paper surfaces, ink text, teal for
+   action and ember for emphasis — the same brand palette as geteshu.com's light
+   mode. Dark keeps the original graphite surface for people who prefer it.
+   Only tokens change here; components read them from styles.css. */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --graphite: #1b2430;
+  --bg: #f6f2ea;
+  --bg-2: #fbf8f3;
+  --bg-panel: #ffffff;
+  --bg-raised: #fffdf9;
+  --bg-field: #ffffff;
+  --bone: #17202b;
+  --bone-dim: #2f3a48;
+  --muted: #586273;
+  --subtle: #636d7d;
+  --line: rgba(23, 32, 43, 0.10);
+  --line-2: rgba(23, 32, 43, 0.17);
+  --edge: rgba(23, 32, 43, 0.24);
+  --teal: #0f766e;
+  --teal-bright: #0d9488;
+  --deep-teal: #115e59;
+  --ember: #c2560a;
+  --violet: #6d4bd8;
+  --blue: #2f66d0;
+  --crit: #c0263a;
+  --high: #c2560a;
+  --med: #9a6700;
+  --low: #0f766e;
+  --accent-soft: color-mix(in oklab, var(--accent) 11%, transparent);
+  --shadow: 0 1px 2px rgba(23, 32, 43, 0.05), 0 10px 28px -16px rgba(23, 32, 43, 0.18);
+}
+
+:root[data-theme="light"] body::before {
+  background:
+    radial-gradient(1100px 520px at 85% -10%, rgba(20, 184, 166, 0.08), transparent 60%),
+    radial-gradient(900px 480px at 0% 105%, rgba(255, 138, 0, 0.06), transparent 55%);
+}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(23, 32, 43, 0.16); background-clip: padding-box; }
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(23, 32, 43, 0.26); background-clip: padding-box; }
+:root[data-theme="light"] .sidebar { background: var(--bg-2); }
+:root[data-theme="light"] .topbar-profile,
+:root[data-theme="light"] .btn-primary,
+:root[data-theme="light"] .ask-submit { color: #ffffff; background: var(--deep-teal); }
+
+.theme-toggle svg { width: 17px; height: 17px; }
+.topbar-btn:not(:has(svg)) { width: auto; padding: 0 12px; white-space: nowrap; }

@@ -22,6 +22,8 @@ export const shellMessageDescriptors = {
   searchInput: descriptor("app.shell.search.input"),
   searchPlaceholder: descriptor("app.shell.search.placeholder"),
   verifiedOnlyToggle: descriptor("app.shell.verifiedOnly.toggle"),
+  themeToLight: descriptor("app.shell.theme.toLight"),
+  themeToDark: descriptor("app.shell.theme.toDark"),
   noNotifications: descriptor("app.shell.notifications.none"),
   signOut: descriptor("app.shell.signOut"),
   demoBannerTitle: descriptor("app.shell.demoBanner.title"),

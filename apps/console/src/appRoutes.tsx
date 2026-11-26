@@ -104,6 +104,12 @@ const ImpactPage = lazy(() =>
   import("./pages/ImpactPage").then((module) => ({ default: module.ImpactPage })),
 );
 
+// KnowledgeHomePage is the "/" front door. Lazy so its panels and styles stay
+// out of the eagerly loaded shell bundle.
+const KnowledgeHomePage = lazy(() =>
+  import("./pages/home/KnowledgeHomePage").then((module) => ({ default: module.KnowledgeHomePage })),
+);
+
 export interface AppRoutesProps {
   readonly model: ConsoleModel;
   readonly client: EshuApiClient | undefined;
@@ -111,6 +117,9 @@ export interface AppRoutesProps {
   readonly repositories: readonly RepoListItem[];
   readonly repositoryCatalog?: RepositoryCatalogState;
   readonly onOpenService: (name: string) => void;
+  // onFind runs the shell's entity search (repo → service → CVE → explorer).
+  // Home's search box uses it so both boxes resolve names the same way.
+  readonly onFind?: (query: string) => void;
   // auth gates /admin (issue #4969): the route guard and AdminPage's
   // per-panel gating both derive from this session auth. Undefined in tests
   // that don't exercise gating — fails open, matching capabilityAccess.ts.
@@ -127,6 +136,7 @@ export function AppRoutes({
   repositoryCatalog,
   auth,
   onOpenService,
+  onFind,
 }: AppRoutesProps): React.JSX.Element {
   const sourceLabel = source.mode === "demo" ? "demo fixtures" : "live";
   const cloudDriftDemoDefaults = source.mode === "demo" ? demoDefaults.cloudDrift : undefined;
@@ -136,13 +146,12 @@ export function AppRoutes({
       <Route
         path={APP_ROUTE_PATHS.root}
         element={
-          <DashboardPage
-            model={model}
-            client={client}
-            onOpenService={onOpenService}
-            repositories={repositories}
-            repositoryCatalog={repositoryCatalog}
-          />
+          <Suspense fallback={null}>
+            <KnowledgeHomePage
+              client={client}
+              onFind={onFind ?? ((query) => onOpenService(query))}
+            />
+          </Suspense>
         }
       />
       <Route path={APP_ROUTE_PATHS.status} element={<StatusPage client={client} />} />

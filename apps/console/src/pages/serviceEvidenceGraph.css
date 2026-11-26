@@ -19,7 +19,7 @@
 
 .seg-field span {
   font-size: 12px;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
 }
 
 .seg-field input {
@@ -53,7 +53,7 @@
 }
 
 .seg-muted {
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   margin-top: 10px;
 }
 
@@ -70,7 +70,7 @@
 }
 
 .seg-limits {
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   font-size: 13px;
   margin: 0 0 10px;
 }
@@ -108,7 +108,7 @@
 }
 
 .seg-legend-label {
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
 }
 
 .seg-kind {
@@ -173,18 +173,18 @@
 
 .seg-edge-truth {
   font-size: 12px;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
 }
 
 .seg-edge-diagnostic {
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   font-size: 11px;
   opacity: 0.72;
 }
 
 .seg-next-reason {
   margin-left: 8px;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   font-size: 13px;
 }
 

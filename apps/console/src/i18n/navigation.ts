@@ -11,6 +11,7 @@ import {
   Gauge,
   GitBranch,
   Hexagon,
+  House,
   History,
   Images,
   KeyRound,
@@ -50,107 +51,42 @@ export type NavGroup = {
 
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
-    messageId: "app.nav.group.overview",
+    messageId: "app.nav.group.start",
     items: [
-      { to: "/status", messageId: "app.nav.item.status", icon: Gauge },
-      { to: "/dashboard", messageId: "app.nav.item.dashboard", icon: LayoutDashboard },
+      { to: "/", messageId: "app.nav.item.home", icon: House },
       { to: "/ask", messageId: "app.nav.item.ask", icon: Search },
+      { to: "/guided-questions", messageId: "app.nav.item.guidedQuestions", icon: Compass },
       {
         to: "/semantic-search",
         messageId: "app.nav.item.semanticSearch",
         icon: FileSearch,
       },
-      { to: "/guided-questions", messageId: "app.nav.item.guidedQuestions", icon: Compass },
-      { to: "/impact", messageId: "app.nav.item.impact", icon: Network },
-      { to: "/exposure", messageId: "app.nav.item.exposurePath", icon: RouteIcon },
-      { to: "/changed-since", messageId: "app.nav.item.changedSince", icon: History },
-      { to: "/explorer", messageId: "app.nav.item.graphExplorer", icon: GitBranch },
-      { to: "/relationships", messageId: "app.nav.item.relationships", icon: Share2 },
-      { to: "/service-story", messageId: "app.nav.item.serviceStory", icon: Waypoints },
-      { to: "/service-report", messageId: "app.nav.item.serviceReport", icon: FileText },
-      { to: "/nodes", messageId: "app.nav.item.nodes", icon: Hexagon },
+      { to: "/content-search", messageId: "app.nav.item.contentSearch", icon: FileSearch },
     ],
   },
   {
-    messageId: "app.nav.group.inventory",
+    messageId: "app.nav.group.services",
     items: [
-      {
-        to: "/repositories",
-        messageId: "app.nav.item.repositories",
-        icon: FolderGit2,
-        count: (m) => nonZero(m.runtime.repositories),
-      },
       {
         to: "/catalog",
         messageId: "app.nav.item.catalog",
         icon: Boxes,
         count: (m) => nonZero(m.services?.length ?? 0),
       },
+      { to: "/service-story", messageId: "app.nav.item.serviceStory", icon: Waypoints },
+      { to: "/service-report", messageId: "app.nav.item.serviceReport", icon: FileText },
       {
-        to: "/findings",
-        messageId: "app.nav.item.findings",
-        icon: TriangleAlert,
-        count: (m) => nonZero((m.findings?.length ?? 0) + (m.vulnerabilities?.length ?? 0)),
-        alert: true,
+        to: "/repositories",
+        messageId: "app.nav.item.repositories",
+        icon: FolderGit2,
+        count: (m) => nonZero(m.runtime.repositories),
       },
-      {
-        to: "/images",
-        messageId: "app.nav.item.images",
-        icon: Images,
-        count: (m) => nonZero(m.images?.length ?? 0),
-      },
-      {
-        to: "/iac",
-        messageId: "app.nav.item.iac",
-        icon: Network,
-        // The bootstrap model contains one bounded page, not an inventory
-        // aggregate. Label it explicitly so the navigation never presents a
-        // page limit as the authoritative IaC total.
-        count: (m) => (m.iacResources.length > 0 ? `${m.iacResources.length} page-only` : null),
-      },
-      { to: "/replatforming", messageId: "app.nav.item.replatforming", icon: Network },
-      {
-        to: "/vulnerabilities",
-        messageId: "app.nav.item.vulnerabilities",
-        icon: ShieldCheck,
-        count: (m) => nonZero(m.vulnerabilities?.length ?? 0),
-        alert: true,
-      },
-    ],
-  },
-  {
-    messageId: "app.nav.group.code",
-    items: [
+      { to: "/code-graph", messageId: "app.nav.item.codeGraph", icon: Code2 },
       {
         to: "/dead-code",
         messageId: "app.nav.item.deadCode",
         icon: TriangleAlert,
         count: (m) => nonZero(m.findings.filter((finding) => finding.type === "Dead code").length),
-      },
-      { to: "/code-graph", messageId: "app.nav.item.codeGraph", icon: Code2 },
-      { to: "/content-search", messageId: "app.nav.item.contentSearch", icon: FileSearch },
-    ],
-  },
-  {
-    messageId: "app.nav.group.cloudTelemetry",
-    items: [
-      { to: "/topology", messageId: "app.nav.item.topology", icon: GitBranch },
-      { to: "/cloud", messageId: "app.nav.item.cloud", icon: Cloud },
-      { to: "/secrets-iam", messageId: "app.nav.item.secretsIam", icon: KeyRound },
-      { to: "/incidents", messageId: "app.nav.item.incidents", icon: TriangleAlert },
-      { to: "/ci-cd/run-correlations", messageId: "app.nav.item.ciCd", icon: Workflow },
-      {
-        to: "/cloud-drift",
-        messageId: "app.nav.item.cloudDrift",
-        icon: TriangleAlert,
-        alert: true,
-      },
-      { to: "/observability", messageId: "app.nav.item.observability", icon: Waves },
-      {
-        to: "/sbom",
-        messageId: "app.nav.item.sbom",
-        icon: PackageSearch,
-        count: (m) => nonZero(m.sbom?.total ?? 0),
       },
       {
         to: "/dependencies",
@@ -161,18 +97,99 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     ],
   },
   {
+    messageId: "app.nav.group.change",
+    items: [
+      { to: "/impact", messageId: "app.nav.item.impact", icon: Network },
+      { to: "/changed-since", messageId: "app.nav.item.changedSince", icon: History },
+      { to: "/ci-cd/run-correlations", messageId: "app.nav.item.ciCd", icon: Workflow },
+    ],
+  },
+  {
+    messageId: "app.nav.group.security",
+    items: [
+      {
+        to: "/vulnerabilities",
+        messageId: "app.nav.item.vulnerabilities",
+        icon: ShieldCheck,
+        count: (m) => nonZero(m.vulnerabilities?.length ?? 0),
+        alert: true,
+      },
+      {
+        to: "/findings",
+        messageId: "app.nav.item.findings",
+        icon: TriangleAlert,
+        count: (m) => nonZero((m.findings?.length ?? 0) + (m.vulnerabilities?.length ?? 0)),
+        alert: true,
+      },
+      { to: "/exposure", messageId: "app.nav.item.exposurePath", icon: RouteIcon },
+      { to: "/secrets-iam", messageId: "app.nav.item.secretsIam", icon: KeyRound },
+      {
+        to: "/sbom",
+        messageId: "app.nav.item.sbom",
+        icon: PackageSearch,
+        count: (m) => nonZero(m.sbom?.total ?? 0),
+      },
+      {
+        to: "/images",
+        messageId: "app.nav.item.images",
+        icon: Images,
+        count: (m) => nonZero(m.images?.length ?? 0),
+      },
+    ],
+  },
+  {
+    messageId: "app.nav.group.infrastructure",
+    items: [
+      { to: "/cloud", messageId: "app.nav.item.cloud", icon: Cloud },
+      { to: "/topology", messageId: "app.nav.item.topology", icon: GitBranch },
+      {
+        to: "/iac",
+        messageId: "app.nav.item.iac",
+        icon: Network,
+        // The bootstrap model contains one bounded page, not an inventory
+        // aggregate. Label it explicitly so the navigation never presents a
+        // page limit as the authoritative IaC total.
+        count: (m) => (m.iacResources.length > 0 ? `${m.iacResources.length} page-only` : null),
+      },
+      {
+        to: "/cloud-drift",
+        messageId: "app.nav.item.cloudDrift",
+        icon: TriangleAlert,
+        alert: true,
+      },
+      { to: "/replatforming", messageId: "app.nav.item.replatforming", icon: Network },
+    ],
+  },
+  {
+    messageId: "app.nav.group.operations",
+    items: [
+      { to: "/incidents", messageId: "app.nav.item.incidents", icon: TriangleAlert },
+      { to: "/observability", messageId: "app.nav.item.observability", icon: Waves },
+    ],
+  },
+  {
+    messageId: "app.nav.group.explore",
+    items: [
+      { to: "/explorer", messageId: "app.nav.item.graphExplorer", icon: GitBranch },
+      { to: "/relationships", messageId: "app.nav.item.relationships", icon: Share2 },
+      { to: "/nodes", messageId: "app.nav.item.nodes", icon: Hexagon },
+    ],
+  },
+  {
     messageId: "app.nav.group.system",
     items: [
-      { to: "/capabilities", messageId: "app.nav.item.capabilities", icon: ListChecks },
+      { to: "/status", messageId: "app.nav.item.status", icon: Gauge },
+      { to: "/dashboard", messageId: "app.nav.item.dashboard", icon: LayoutDashboard },
+      { to: "/operations", messageId: "app.nav.item.operations", icon: ServerCog },
+      { to: "/freshness-causality", messageId: "app.nav.item.freshness", icon: Activity },
       {
         to: "/collector-readiness",
         messageId: "app.nav.item.collectorReadiness",
         icon: ShieldCheck,
         count: (m) => nonZero(m.collectorReadiness?.length ?? 0),
       },
+      { to: "/capabilities", messageId: "app.nav.item.capabilities", icon: ListChecks },
       { to: "/surface-inventory", messageId: "app.nav.item.surfaceInventory", icon: Layers },
-      { to: "/operations", messageId: "app.nav.item.operations", icon: ServerCog },
-      { to: "/freshness-causality", messageId: "app.nav.item.freshness", icon: Activity },
       { to: "/profile", messageId: "app.nav.item.profile", icon: User },
       { to: "/admin", messageId: "app.nav.item.admin", icon: UserCog },
     ],

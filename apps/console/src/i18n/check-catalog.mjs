@@ -106,8 +106,8 @@ function validateLocaleCatalogs({
   const errors = [];
   const translatedSet = new Set(translatedMessageIds);
 
-  if (translatedMessageIds.length !== 20) {
-    errors.push(`Expected 20 translated i18n keys, found ${translatedMessageIds.length}.`);
+  if (translatedMessageIds.length !== 24) {
+    errors.push(`Expected 24 translated i18n keys, found ${translatedMessageIds.length}.`);
   }
   if (translatedSet.size !== translatedMessageIds.length) {
     errors.push("Translated i18n key list contains duplicate IDs.");

@@ -8,6 +8,7 @@
 // off (evidence-only), and presents the disabled/scoped/demo states cleanly.
 import { Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import {
   askEshu,
@@ -52,7 +53,11 @@ export function AskPage({ source }: { readonly source: SourceState }): React.JSX
 }
 
 function AskLive({ source }: { readonly source: SourceState }): React.JSX.Element {
-  const [question, setQuestion] = useState("");
+  // ?q= lets Home (and shared links) hand a question straight to Ask.
+  const [searchParams] = useSearchParams();
+  const initialQuestion = searchParams.get("q")?.trim() ?? "";
+  const autoAskedRef = useRef(false);
+  const [question, setQuestion] = useState(initialQuestion);
   const [format, setFormat] = useState<AskFormat>(loadFormat);
   const [phase, setPhase] = useState<Phase>("idle");
   const [traces, setTraces] = useState<readonly AskTraceStep[]>([]);
@@ -81,11 +86,24 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
     void askNarrationStatus({ baseUrl: source.base, apiKey: source.key }).then((result) => {
       if (alive) {
         setProbe(result);
+        // Ask a ?q= question once on arrival, only when Ask can answer it.
+        if (
+          initialQuestion.length > 0 &&
+          !autoAskedRef.current &&
+          result.state !== "disabled" &&
+          result.providerConfigured
+        ) {
+          autoAskedRef.current = true;
+          submit(initialQuestion);
+        }
       }
     });
     return () => {
       alive = false;
     };
+    // initialQuestion is fixed for this mount and submit only reads current
+    // state, so the probe re-runs only when the connection changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source.base, source.key]);
 
   // Abort any in-flight stream on unmount.

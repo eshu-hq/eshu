@@ -19,7 +19,7 @@
 
 .srp-field span {
   font-size: 12px;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
 }
 
 .srp-field input {
@@ -89,7 +89,7 @@
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
 }
 
 .srp-chip-row {
@@ -125,7 +125,7 @@
 
 .srp-list article small {
   font-size: 12px;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   word-break: break-word;
 }
 
@@ -143,7 +143,7 @@
 }
 
 .srp-muted {
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   font-size: 13px;
 }
 
