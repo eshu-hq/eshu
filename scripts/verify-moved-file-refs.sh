@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# verify-moved-file-refs.sh - fail a branch that moves or deletes a Go file and
-# leaves a reference pointing at the path it vacated (#6525).
+# verify-moved-file-refs.sh - fail a branch that moves or deletes a Go file or
+# a Markdown file and leaves a reference pointing at the path it vacated
+# (#6525 for Go; #11532 for Markdown-to-Markdown links).
 #
 # Why this exists: the #6061 reducer subpackage split moved family after family
 # out of the flat `go/internal/reducer/` root. Each move left behind pointers to
@@ -14,6 +15,17 @@
 # epic prefers writing them that way) and the cost is precisely this class: 53
 # dead reducer paths accumulated across docs/, scripts/, specs/ and go/ before
 # anyone counted them.
+#
+# Markdown files get the same attribution with a basename sweep. A link to a
+# vacated .md file is usually a same-directory basename ([text](sibling.md)),
+# which a full-path grep never matches -- that is the #11532 shape, where a
+# batch deletion left a dead same-dir link inside docs/internal/evidence/.
+# For a vacated .md path the gate therefore sweeps the full path across the
+# tree plus the basename across .md referrers, and reports a basename hit only
+# from a .md file in the same directory (where the relative link resolves to
+# the vacated file) or a line naming the full path. A same-basename link from
+# another directory resolves to its own sibling and is not reported, and
+# cross-directory relative links (../dir/file.md) are out of scope.
 #
 # What it checks, and why it is scoped to the branch:
 #
@@ -62,8 +74,8 @@ allowlist_dir="${repo_root}/scripts/moved-file-refs-allowlist.d"
 
 usage() {
   printf 'usage: %s [--base <ref>] [--help]\n' "${0##*/}"
-  printf '  Fails when this branch moved or deleted a Go file under go/ and a\n'
-  printf '  reference to the vacated path is still present in the working tree.\n'
+  printf '  Fails when this branch moved or deleted a Go file under go/ or a\n'
+  printf '  Markdown file and a reference to the vacated path is still present.\n'
   printf '  --base <ref>  diff base to attribute against (default: merge-base\n'
   printf '                with origin/main; see scripts/lib/gate-diff-base.sh)\n'
 }
@@ -117,8 +129,9 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 tab="$(printf '\t')"
 
 # Old path -> new path for every Go file under go/ the branch renamed, and old
-# path -> "" for every one it deleted outright. -M turns a move into a single R
-# record carrying both sides, which is what lets a failure name its target.
+# path -> "" for every one it deleted outright -- plus the same pair for every
+# Markdown file it renamed or deleted outright (#11532). -M turns a move into
+# a single R record carrying both sides, which is what lets a failure name its target.
 if ! git diff --name-status -M --diff-filter=DR "${base}" HEAD \
   >"${tmp_dir}/changed.txt" 2>"${tmp_dir}/diff-err.txt"; then
   printf 'verify-moved-file-refs: git diff against %s failed; the scan did not run\n' "${base}" >&2
@@ -130,7 +143,8 @@ fi
 while IFS="${tab}" read -r status old new; do
   [ -n "${old:-}" ] || continue
   case "${old}" in
-    go/*.go) ;;
+    go/*.go) kind="go" ;;
+    *.md) kind="md" ;;
     *) continue ;;
   esac
   case "${status}" in
@@ -138,12 +152,15 @@ while IFS="${tab}" read -r status old new; do
     D) new="" ;;
     *) continue ;;
   esac
-  printf '%s\t%s\n' "${old}" "${new:-}" >>"${tmp_dir}/vacated.txt"
+  # kind leads: an empty ${new} between tabs would collapse under IFS
+  # whitespace splitting and shift kind into new, so the never-empty kind
+  # goes first and the possibly-empty new stays last.
+  printf '%s\t%s\t%s\n' "${kind}" "${old}" "${new:-}" >>"${tmp_dir}/vacated.txt"
 done <"${tmp_dir}/changed.txt"
 
 vacated_n="$(awk 'NF' "${tmp_dir}/vacated.txt" | wc -l | tr -d ' ')"
 if [ "${vacated_n}" -eq 0 ]; then
-  printf 'verify-moved-file-refs: branch vacates no go/**.go path (base %s); nothing to check\n' "${base}"
+  printf 'verify-moved-file-refs: branch vacates no tracked go/md path (base %s); nothing to check\n' "${base}"
   exit 0
 fi
 
@@ -185,34 +202,90 @@ allowed() {
 }
 
 violations=0
-while IFS="${tab}" read -r old new; do
+while IFS="${tab}" read -r kind old new; do
   [ -n "${old}" ] || continue
   # git grep exits 0 with matches, 1 with none, and >1 when the search itself
   # could not run. Only 1 means clean -- treating every non-zero status as
   # "clean" would turn an operational failure into a silent pass.
-  # Search the path WITHOUT its leading "go/". Citations in this repo are
-  # commonly written in Go-import style ("internal/projector/canonical.go"),
-  # and the repo-root-relative form git diff reports ("go/internal/...") does
-  # not match those, so grepping the prefixed form alone silently passed a
-  # branch that left ~20 dangling bare-style citations (#6781 Part B). The
-  # unprefixed needle is a substring of the prefixed one, so it still catches
-  # every "go/"-prefixed citation. The violation key below keeps using ${old},
-  # so existing allowlist entries are unaffected.
-  set +e
-  hits="$(git grep -n -F -- "${old#go/}" -- . "${exclusions[@]}" 2>"${tmp_dir}/grep-err.txt")"
-  grep_status=$?
-  set -e
-  case "${grep_status}" in
-    0) ;;
-    1) continue ;;
-    *)
-      printf 'verify-moved-file-refs: git grep for %s failed (exit %s); the scan did not run\n' \
-        "${old}" "${grep_status}" >&2
-      cat "${tmp_dir}/grep-err.txt" >&2
-      exit 2
-      ;;
-  esac
-  printf '%s\n' "${hits}" >"${tmp_dir}/hits.txt"
+  : >"${tmp_dir}/hits.txt"
+  if [ "${kind:-go}" = "md" ]; then
+    # A Markdown link to a vacated .md file is usually a same-directory
+    # basename, which the full-path needle below never matches (#11532), so
+    # sweep the full path across the tree plus the basename across .md
+    # referrers. A basename hit counts only from a .md file in the same
+    # directory, where the relative link resolves to the vacated file; a
+    # full-path hit counts anywhere, exactly like the Go needle.
+    md_base="${old##*/}"
+    case "${old}" in
+      */*) md_dir="${old%/*}" ;;
+      *) md_dir="." ;;
+    esac
+    set +e
+    git grep -n -F -- "${old}" -- . "${exclusions[@]}" \
+      >"${tmp_dir}/hits-full.txt" 2>"${tmp_dir}/grep-err.txt"
+    full_status=$?
+    git grep -n -F -- "${md_base}" -- '*.md' "${exclusions[@]}" \
+      >"${tmp_dir}/hits-base.txt" 2>>"${tmp_dir}/grep-err.txt"
+    base_status=$?
+    set -e
+    case "${full_status}" in
+      0|1) ;;
+      *)
+        printf 'verify-moved-file-refs: git grep for %s failed (exit %s); the scan did not run\n' \
+          "${old}" "${full_status}" >&2
+        cat "${tmp_dir}/grep-err.txt" >&2
+        exit 2
+        ;;
+    esac
+    case "${base_status}" in
+      0|1) ;;
+      *)
+        printf 'verify-moved-file-refs: git grep for %s failed (exit %s); the scan did not run\n' \
+          "${md_base}" "${base_status}" >&2
+        cat "${tmp_dir}/grep-err.txt" >&2
+        exit 2
+        ;;
+    esac
+    cat "${tmp_dir}/hits-full.txt" >>"${tmp_dir}/hits.txt"
+    while IFS= read -r base_hit; do
+      [ -n "${base_hit}" ] || continue
+      base_file="${base_hit%%:*}"
+      case "${base_file}" in
+        */*) base_hit_dir="${base_file%/*}" ;;
+        *) base_hit_dir="." ;;
+      esac
+      if [ "${base_hit_dir}" = "${md_dir}" ]; then
+        printf '%s\n' "${base_hit}" >>"${tmp_dir}/hits.txt"
+      fi
+    done <"${tmp_dir}/hits-base.txt"
+    # A line naming the full path arrives from both sweeps; report it once.
+    LC_ALL=C sort -u -o "${tmp_dir}/hits.txt" "${tmp_dir}/hits.txt"
+    [ -s "${tmp_dir}/hits.txt" ] || continue
+  else
+    # Search the path WITHOUT its leading "go/". Citations in this repo are
+    # commonly written in Go-import style ("internal/projector/canonical.go"),
+    # and the repo-root-relative form git diff reports ("go/internal/...") does
+    # not match those, so grepping the prefixed form alone silently passed a
+    # branch that left ~20 dangling bare-style citations (#6781 Part B). The
+    # unprefixed needle is a substring of the prefixed one, so it still catches
+    # every "go/"-prefixed citation. The violation key below keeps using ${old},
+    # so existing allowlist entries are unaffected.
+    set +e
+    hits="$(git grep -n -F -- "${old#go/}" -- . "${exclusions[@]}" 2>"${tmp_dir}/grep-err.txt")"
+    grep_status=$?
+    set -e
+    case "${grep_status}" in
+      0) ;;
+      1) continue ;;
+      *)
+        printf 'verify-moved-file-refs: git grep for %s failed (exit %s); the scan did not run\n' \
+          "${old}" "${grep_status}" >&2
+        cat "${tmp_dir}/grep-err.txt" >&2
+        exit 2
+        ;;
+    esac
+    printf '%s\n' "${hits}" >"${tmp_dir}/hits.txt"
+  fi
   while IFS= read -r hit; do
     [ -n "${hit}" ] || continue
     hit_file="${hit%%:*}"
@@ -261,5 +334,5 @@ if [ "${violations}" -gt 0 ]; then
   exit 1
 fi
 
-printf 'verify-moved-file-refs: %s vacated go path(s) against base %s, no dangling references\n' \
+printf 'verify-moved-file-refs: %s vacated path(s) against base %s, no dangling references\n' \
   "${vacated_n}" "${base}"

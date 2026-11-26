@@ -121,10 +121,10 @@ rm -rf "$repo"
 #    the header's "inherited debt did not change, so it cannot either", and
 #    what keeps the disclosed residual debt from failing unrelated PRs.
 #    The branch must ALSO vacate something real, or the case exits through the
-#    same "vacates no go path" early return as case 4 and proves nothing about
+#    same "vacates no tracked" early return as case 4 and proves nothing about
 #    attribution. That is precisely how the first version of this case was
 #    vacuous: its fixture only appended doc lines, so vacated_n was 0 and the
-#    gate never reached the scan. The "1 vacated go path" assertion below is
+#    gate never reached the scan. The "1 vacated path" assertion below is
 #    what makes the silence meaningful, and 3b is what proves it is
 #    attribution rather than an inability to see the reference at all.
 repo="$(new_repo)"
@@ -150,7 +150,7 @@ out="$(run_gate "$repo")"
 rc=$?
 set -e
 check "ignores a reference that was already dead at the base" 0 "$rc"
-check_output "reached the scan instead of the early exit" "1 vacated go path" "$out"
+check_output "reached the scan instead of the early exit" "1 vacated path" "$out"
 
 # 3b. CONTROL for case 3. Same tree, base widened past the deletion: the
 #     inherited reference IS reported. Without this, case 3 passing could mean
@@ -172,8 +172,8 @@ set +e
 out="$(run_gate "$repo")"
 rc=$?
 set -e
-check "passes when the branch vacates no go path" 0 "$rc"
-check_output "says it had nothing to check" "vacates no go" "$out"
+check "passes when the branch vacates no tracked path" 0 "$rc"
+check_output "says it had nothing to check" "vacates no tracked" "$out"
 rm -rf "$repo"
 
 # 5. Outright DELETION (no rename target) still fails, with deletion wording.
@@ -357,7 +357,7 @@ out="$(run_gate_env "$repo" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main)
 rc=$?
 set -e
 check "merge ref: a base that moved after the ref was built adds no change" 0 "$rc"
-check_output "merge ref: the moved base tip is not read as the PR's deletion" "vacates no go" "$out"
+check_output "merge ref: the moved base tip is not read as the PR's deletion" "vacates no tracked" "$out"
 
 # 10b. CONTROL. An explicit override still wins over the merge ref parent, and
 #      pointing it at the moved tip brings the false failure back. Without this,
@@ -446,6 +446,36 @@ rc=$?
 set -e
 check "guard: a single-parent HEAD on a pull request still sees the move" 1 "$rc"
 check_output "guard: single-parent HEAD names the moved path" "go/internal/reducer/widget.go" "$out"
+rm -rf "$repo"
+
+# 11. MD VACATED (#11532): the branch deletes a .md file while a same-directory
+#     .md link still names its basename. Full-path grep never matches a
+#     same-dir `[text](sibling.md)` link, so this is the shape no gate caught.
+repo="$(new_repo)"
+printf '# probe target\n' >"$repo/docs/probe-target.md"
+printf 'See [the probe](probe-target.md) for details.\n' >"$repo/docs/probe-ref.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "add md probe pair"
+git -C "$repo" rm -q docs/probe-target.md
+git -C "$repo" commit -qm "delete probe target"
+set +e
+out="$(run_gate "$repo")"
+rc=$?
+set -e
+check "fails when a branch deletes a referenced md file" 1 "$rc"
+check_output "names the md referencing site" "docs/probe-ref.md" "$out"
+check_output "names the vacated md path" "docs/probe-target.md" "$out"
+
+# 11b. CONTROL: dropping the dead link makes the same branch clean, so case 11
+#      passing cannot mean the gate fires on every md deletion.
+printf 'The probe target is gone; see the widget family instead.\n' >"$repo/docs/probe-ref.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "drop the dead md link"
+set +e
+out="$(run_gate "$repo")"
+rc=$?
+set -e
+check "passes once the dead md link is dropped" 0 "$rc"
 rm -rf "$repo"
 
 if [ "$failures" -gt 0 ]; then
