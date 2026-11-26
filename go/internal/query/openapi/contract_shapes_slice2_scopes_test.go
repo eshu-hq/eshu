@@ -244,4 +244,45 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		t.Parallel()
 		requireInventoryPage(t, "/api/v0/ci-cd/run-correlations/inventory")
 	})
+
+	t.Run("container aggregate source bridge", func(t *testing.T) {
+		t.Parallel()
+		// Owner: supply/chain ContainerImageIdentitySourceBridge, present
+		// only when the source_repository_id filter was given.
+		props := propsOf(t, schemaAt(t, "/api/v0/supply-chain/container-images/identities/count", "get"), "container-count")
+		bridge, ok := props["source_bridge"].(map[string]any)
+		if !ok {
+			t.Fatal("container-count: missing source_bridge property")
+		}
+		bridgeProps := propsOf(t, bridge, "container-count source_bridge")
+		requireScalarTypes(t, bridgeProps, "container-count source_bridge", map[string]string{
+			"source_repository_id": "string", "image_repository_ids": "array",
+			"missing_evidence": "array", "warnings": "array",
+		})
+	})
+
+	t.Run("advisory catalog scope is mixed", func(t *testing.T) {
+		t.Parallel()
+		// Owner: advisoryCatalogResponseScope emits string filters plus a
+		// boolean kev, so this scope is a fixed mixed object, not a
+		// string map.
+		props := propsOf(t, schemaAt(t, "/api/v0/supply-chain/advisories", "get"), "catalog")
+		scope, ok := props["scope"].(map[string]any)
+		if !ok {
+			t.Fatal("catalog: missing scope property")
+		}
+		scopeProps := propsOf(t, scope, "catalog scope")
+		requireScalarTypes(t, scopeProps, "catalog scope", map[string]string{
+			"severity": "string", "ecosystem": "string", "q": "string", "kev": "boolean",
+		})
+	})
+
+	t.Run("advisory evidence scope is a filter echo", func(t *testing.T) {
+		t.Parallel()
+		// Owner: advisoryEvidenceResponseScope returns map[string]string
+		// (cve_id, advisory_id, package_id, repository_id, service_id,
+		// workload_id).
+		props := propsOf(t, schemaAt(t, "/api/v0/supply-chain/advisories/evidence", "get"), "evidence")
+		requireFilterEchoScope(t, props, "evidence")
+	})
 }

@@ -237,11 +237,20 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 
 		// Owner: codequery/flow.go buildCodeFlowPayload emits only coverage,
 		// ambiguity, bounds, and one result family; writeCodeFlowResponse
-		// adds only query and coverage. A scope property would be a
-		// phantom: assert its absence.
-		if _, ok := props["scope"]; ok {
-			t.Error("CodeFlowResponse: phantom property \"scope\" is not emitted by the owner")
+		// adds only query and coverage.
+		for _, key := range []string{"query", "coverage", "ambiguity", "bounds"} {
+			if _, ok := props[key].(map[string]any); !ok {
+				t.Errorf("CodeFlowResponse: missing owner-emitted property %q", key)
+			}
 		}
+		for _, phantom := range []string{"scope", "kind", "count", "limit", "truncated", "source_backend", "answer_metadata"} {
+			if _, ok := props[phantom]; ok {
+				t.Errorf("CodeFlowResponse: phantom property %q is not emitted by the owner", phantom)
+			}
+		}
+		query := child(t, props, "query", "CodeFlowResponse")
+		requireKeys(t, propsOf(t, query, "CodeFlowResponse.query"), "CodeFlowResponse.query",
+			"kind", "repo_id", "language", "symbol", "file_path", "line")
 	})
 
 	t.Run("investigation evidence packet layers", func(t *testing.T) {

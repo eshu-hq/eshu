@@ -247,4 +247,31 @@ func TestContractShapesSlice2Status(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("semantic queue and budget nested counts", func(t *testing.T) {
+		t.Parallel()
+		// Owner: extraction_observability_json.go extractionQueueJSON
+		// (status/source-class/failure-class counts always present via
+		// NamedCountsJSON; provider-profile/policy/guard counts and
+		// updated_at omitted when empty) and extractionBudgetJSON
+		// (decision_counts omitted when empty).
+		doc := fragment(t, Semantic, "Semantic")
+		schema := schemaAt(t, doc, "/api/v0/status/semantic-extraction", "get")
+		props := propsOf(t, schema, "/api/v0/status/semantic-extraction")
+		queue := child(t, props, "queue", "semantic_extraction")
+		queueProps := propsOf(t, queue, "semantic queue")
+		for _, key := range []string{
+			"status_counts", "source_class_counts", "failure_class_counts",
+			"provider_profile_counts", "policy_decision_counts", "guard_decision_counts",
+		} {
+			if _, ok := queueProps[key].(map[string]any); !ok {
+				t.Errorf("semantic queue: missing conditionally-served property %q", key)
+			}
+		}
+		budget := child(t, props, "budget", "semantic_extraction")
+		budgetProps := propsOf(t, budget, "semantic budget")
+		if _, ok := budgetProps["decision_counts"].(map[string]any); !ok {
+			t.Error("semantic budget: missing conditionally-served property \"decision_counts\"")
+		}
+	})
 }
