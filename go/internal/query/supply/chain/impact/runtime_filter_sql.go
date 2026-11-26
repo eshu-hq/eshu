@@ -3,7 +3,10 @@
 
 package impact
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const supplyChainImpactRuntimeFilterCTESQL = `
 runtime_workload_identity_matches AS MATERIALIZED (
@@ -241,6 +244,18 @@ runtime_filter_repositories AS MATERIALIZED (
 //
 // The arguments are internal SQL parameter expressions such as "$9", never
 // request values. Callers retain parameterized queries.
+//
+// A dimension whose parameter expression is the literal empty string has no
+// rows by definition (every leg guards on `<param> <> ”`), so the builder
+// replaces that whole dimension CTE with an empty stub selecting identical
+// columns. The only build-time-known empty dimension today is the explain
+// literal "”" environment (eshu-hq/eshu#11493, arbiter ruling 7178944958):
+// bind expressions such as "$10" stay exactly as shipped because their
+// emptiness is unknowable at SQL-build time. The stub keeps the dimension's
+// runtime_filter_candidates leg, so the $N placeholder set, the arg slices,
+// the filter_kind values, and the outer per-dimension AND semantics are
+// unchanged. The NOT COALESCE guards, MATERIALIZED, and collation are
+// untouched.
 func supplyChainImpactRuntimeFilterCTE(
 	serviceParam string,
 	workloadParam string,
@@ -248,7 +263,7 @@ func supplyChainImpactRuntimeFilterCTE(
 	allowedRepositoriesParam string,
 	allowedScopesParam string,
 ) string {
-	return fmt.Sprintf(
+	full := fmt.Sprintf(
 		supplyChainImpactRuntimeFilterCTESQL,
 		serviceParam,
 		workloadParam,
@@ -261,6 +276,74 @@ func supplyChainImpactRuntimeFilterCTE(
 			"runtime_repository",
 		),
 	)
+	return pruneLiteralEmptyRuntimeFilterDimensions(full, serviceParam, workloadParam, environmentParam)
+}
+
+// runtimeFilterEmptyLiteral is the only build-time-known empty dimension
+// parameter expression. Anything else, including a "$N" bind that may bind
+// an empty value per request, keeps the shipped dimension scan.
+const runtimeFilterEmptyLiteral = "''"
+
+// runtimeFilterDimensionSuccessor names each prunable whole-dimension CTE
+// and the CTE that follows it in template order, so a literal-empty
+// dimension is replaced block-by-block without paren counting. The workload
+// dimension controls both workload CTEs: pruning one arm alone would drop
+// padded-entity matches and break filter truth.
+var runtimeFilterDimensionSuccessor = map[string]string{
+	"runtime_workload_identity_matches": "runtime_workload_catalog_matches",
+	"runtime_workload_catalog_matches":  "runtime_service_matches",
+	"runtime_service_matches":           "runtime_environment_matches",
+	"runtime_environment_matches":       "runtime_filter_candidates",
+}
+
+// pruneLiteralEmptyRuntimeFilterDimensions replaces every whole-dimension
+// CTE whose parameter expression is the literal empty string with an empty
+// stub. On a lost marker it returns the shipped text unchanged: answers
+// never change silently, and the shape test fails loudly on the lost
+// pruning.
+func pruneLiteralEmptyRuntimeFilterDimensions(full, serviceParam, workloadParam, environmentParam string) string {
+	pruned := map[string]bool{
+		"runtime_workload_identity_matches": workloadParam == runtimeFilterEmptyLiteral,
+		"runtime_workload_catalog_matches":  workloadParam == runtimeFilterEmptyLiteral,
+		"runtime_service_matches":           serviceParam == runtimeFilterEmptyLiteral,
+		"runtime_environment_matches":       environmentParam == runtimeFilterEmptyLiteral,
+	}
+	out := full
+	for name, next := range runtimeFilterDimensionSuccessor {
+		if !pruned[name] {
+			continue
+		}
+		stubbed, ok := stubRuntimeFilterDimensionCTE(out, name, next)
+		if !ok {
+			return full
+		}
+		out = stubbed
+	}
+	return out
+}
+
+// stubRuntimeFilterDimensionCTE replaces one whole-dimension CTE block with
+// an empty stub selecting identical columns from fact_records, preserving
+// the trailing comma that opens the next CTE. The stub references no $N, so
+// the statement's placeholder set is unchanged.
+func stubRuntimeFilterDimensionCTE(full, name, next string) (string, bool) {
+	startMarker := name + " AS MATERIALIZED ("
+	nextMarker := next + " AS "
+	start := strings.Index(full, startMarker)
+	if start < 0 {
+		return "", false
+	}
+	rest := strings.Index(full[start+len(startMarker):], nextMarker)
+	if rest < 0 {
+		return "", false
+	}
+	end := start + len(startMarker) + rest
+	stub := name + " AS MATERIALIZED (\n" +
+		"  SELECT scope_id, generation_id, payload\n" +
+		"  FROM fact_records\n" +
+		"  WHERE FALSE\n" +
+		"),\n"
+	return full[:start] + stub + full[end:], true
 }
 
 // supplyChainImpactRuntimeFilterPredicate accepts only repositories whose
