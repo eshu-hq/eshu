@@ -444,6 +444,14 @@ func runSupplyChainImpactWinnersRebuild(
 	if previous.Valid {
 		result.PreviousWatermark = previous.Time.UTC()
 	}
+	// #11466: claim the enrichment first-carry stamps for the reconciled
+	// winners in this same transaction, stamped with the rebuild's own S
+	// so a newly carried value shares its row version's materialized_at.
+	// A claim failure fails the resweep: an unstamped winner would
+	// silently drop out of the arrival-to-rescore cohort.
+	if err := claimSupplyChainImpactWinnersEnrichmentFirstCarry(ctx, tx, false, stamp); err != nil {
+		return result, err
+	}
 	return result, nil
 }
 

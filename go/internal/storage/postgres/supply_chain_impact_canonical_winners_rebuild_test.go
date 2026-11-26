@@ -249,14 +249,18 @@ func (tx *winnersFakeTx) clockOrDefault() time.Time {
 	return tx.clock
 }
 
-// ExecContext accepts only the #11117 isolation pin (recording whether it ran
-// first) and contract stamp; any other Exec is a fake mismatch.
+// ExecContext accepts only the #11117 isolation pin (recording whether it
+// ran first), the contract stamp, and the #11466 enrichment first-carry
+// claims (which return no rows back: the stamp table is the observable, like
+// the pin and the stamp); any other Exec is a fake mismatch.
 func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch query {
 	case pinWinnersFullReadCommittedSQL:
 		tx.pinnedFirst = len(tx.queries) == 0
 	case stampSupplyChainImpactWinnersContractSQL:
 		tx.contractStamps = append(tx.contractStamps, args)
+	case claimSupplyChainImpactWinnersEnrichmentCarryFullSQL,
+		claimSupplyChainImpactWinnersEnrichmentCarryKeyedSQL:
 	default:
 		return nil, errors.New("the resweep must not use ExecContext")
 	}

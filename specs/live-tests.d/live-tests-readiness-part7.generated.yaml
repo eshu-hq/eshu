@@ -109,6 +109,11 @@ tests:
     class: postgres_ci
     reason: "#9994 disposable PostgreSQL 18 proof that the #9914 widened upstream probe — the CVE key probe over all five vulnerability kinds — holds its anchor on an NVD-bearing store at the 120-id chunk bound under custom and generic plans; the no-statistics control must walk, so a hold proves the measurement and not the fixture"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_enrichment_carry_11466_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11466 disposable PostgreSQL 18 proof of the durable set-once-per-value enrichment first-carry stamp: a seeded EPSS rescore and KEV listing drive the real finding build and the production writer, the real full and keyed resweeps stamp first_carried_at per (canonical_key, enrichment_source) with set-once-per-value semantics, the QA-shaped lag join measures a finite arrival-to-rescore lag after the stamp where none was measurable before it, rewrites and same-value re-ingests never move the stamp, a KEV delist moves it observably, a backfilled value is stamped but excluded from the steady-state cohort, and concurrent resweeps leave exactly one stamp row; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_winners_hotkey_staging_shim_live_test.go
     tag: ~
     class: postgres_ci

@@ -400,9 +400,12 @@ import (
 // the merged tree.
 // 357_supply_chain_impact_finding_first_seen.sql (#11031) adds the durable
 // set-once first-seen stamp table. Count 383 is 382 plus 357.
+// 359_supply_chain_impact_winners_enrichment_first_carry.sql (#11466) adds
+// the durable set-once-per-value enrichment first-carry stamp table (358 is
+// the open #11476 write-stop lane). Count 384 is 383 plus 359.
 const (
-	goldenBootstrapDefinitionsDigest = "fae57d85e7cb03d8cd44bbb6cb1dbb805c9ccf1d27b8b476100a709b61edbd57"
-	goldenBootstrapDefinitionsCount  = 383
+	goldenBootstrapDefinitionsDigest = "06445f4f2fac10882602e7c590dfcbdc1ddaffbf3625ea3ac8961e0f140d715e"
+	goldenBootstrapDefinitionsCount  = 384
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
