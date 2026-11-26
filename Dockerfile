@@ -200,7 +200,7 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 # floor above. scripts/verify-runtime-image-tools.sh asserts its
 # REQUIRED_TOOLS list is present in the built image.
 RUN apk add --no-cache git openssh-client curl "c-ares>=1.34.9-r0" \
-    "libexpat>=2.10.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" \
+    "libexpat>=2.11.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" \
     "musl>=1.2.5-r12" "musl-utils>=1.2.5-r12" "zlib>=1.4-r0"
 
 # Copy Go binaries
