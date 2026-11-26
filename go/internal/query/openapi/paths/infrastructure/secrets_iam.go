@@ -36,7 +36,7 @@ const SecretsIAM = `
                   "cross_account_grants": {"type": "integer", "description": "Cross-account grant tally emitted by secrets.IAMGrantPosture.CrossAccountGrants."},
                   "service_principal_grants": {"type": "integer", "description": "Service-principal grant tally emitted by secrets.IAMGrantPosture.ServicePrincipalGrants."}
                 }, "required": ["total_grants", "grants_by_outcome", "grants_by_resolution_mode", "public_grants", "cross_account_grants", "service_principal_grants"]}
-              }, "description": "Bounded scope-anchored rollup emitted by the secrets summary handler from secrets.IAMPostureSummary."}
+              }}
             }, "required": ["scope_id", "summary"]}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
