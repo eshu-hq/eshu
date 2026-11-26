@@ -31,38 +31,45 @@ const Owners = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Bounded CODEOWNERS ownership page emitted by ListOwnership.",
                   "properties": {
                     "ownership": {
                       "type": "array",
+                      "description": "DECLARES_CODEOWNER edges for the repository, per ListOwnership.",
                       "items": {
                         "type": "object",
+                        "description": "One ownership declaration row: pattern, source path, order, and owner.",
                         "properties": {
-                          "pattern": {"type": "string"},
-                          "source_path": {"type": "string"},
-                          "order_index": {"type": "integer"},
-                          "owner_ref": {"type": "string"}
+                          "pattern": {"type": "string", "description": "CODEOWNERS pattern reported by ListOwnership."},
+                          "source_path": {"type": "string", "description": "Source path of the CODEOWNERS rule reported by ListOwnership."},
+                          "order_index": {"type": "integer", "description": "Rule order index (last-match-wins) reported by ListOwnership."},
+                          "owner_ref": {"type": "string", "description": "Owner reference reported by ListOwnership."}
                         },
                         "required": ["pattern", "source_path", "order_index", "owner_ref"]
                       }
                     },
-                    "repository_id": {"type": "string"},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "repository_id": {"type": "string", "description": "Repository the read was anchored on, per ListOwnership."},
+                    "count": {"type": "integer", "description": "Rows on this page counted by listCodeownersOwnership."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by listCodeownersOwnership."},
+                    "truncated": {"type": "boolean", "description": "True when more declarations exist past this page, per ListOwnership."},
                     "next_cursor": {
                       "type": "object",
+                      "description": "Keyset cursor for the next page, per listCodeownersOwnership; present only when truncated is true.",
                       "properties": {
-                        "after_order_index": {"type": "integer"},
-                        "after_pattern": {"type": "string"},
-                        "after_ref": {"type": "string"}
-                      }
+                        "after_order_index": {"type": "integer", "description": "Cursor order_index component, per ListOwnership."},
+                        "after_pattern": {"type": "string", "description": "Cursor pattern component, per ListOwnership."},
+                        "after_ref": {"type": "string", "description": "Cursor owner_ref component, per ListOwnership."}
+                      },
+                      "required": ["after_order_index", "after_pattern", "after_ref"]
                     },
                     "effective_owner": {
                       "type": "object",
+                      "description": "Owner resolved by manifest-vs-codeowners precedence, per ListOwnership.",
                       "properties": {
-                        "owner_ref": {"type": "string"},
-                        "source": {"type": "string", "enum": ["service_catalog", "codeowners"]}
-                      }
+                        "owner_ref": {"type": "string", "description": "Resolved owner reference, per ListOwnership."},
+                        "source": {"type": "string", "enum": ["service_catalog", "codeowners"], "description": "Which declaration won precedence, per ListOwnership."}
+                      },
+                      "required": ["owner_ref", "source"]
                     }
                   },
                   "required": ["ownership", "repository_id", "count", "limit", "truncated", "effective_owner"]

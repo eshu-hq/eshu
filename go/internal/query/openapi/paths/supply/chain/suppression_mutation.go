@@ -86,9 +86,9 @@ const suppressionMutation = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "suppression_id": {"type": "string"},
-                    "generation_id": {"type": "string"},
-                    "status": {"type": "string", "enum": ["created"]}
+                    "suppression_id": {"type": "string", "description": "Operator suppression id echoed by createVulnerabilitySuppression."},
+                    "generation_id": {"type": "string", "description": "New suppression generation id emitted by createVulnerabilitySuppression."},
+                    "status": {"type": "string", "enum": ["created"], "description": "Creation outcome emitted by createVulnerabilitySuppression."}
                   },
                   "required": ["suppression_id", "generation_id", "status"]
                 }
@@ -102,9 +102,9 @@ const suppressionMutation = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "suppression_id": {"type": "string"},
-                    "generation_id": {"type": "string"},
-                    "status": {"type": "string", "enum": ["unchanged"]}
+                    "suppression_id": {"type": "string", "description": "Operator suppression id echoed by createVulnerabilitySuppression."},
+                    "generation_id": {"type": "string", "description": "Latest generation id still holding the suppression, emitted by createVulnerabilitySuppression."},
+                    "status": {"type": "string", "enum": ["unchanged"], "description": "Idempotent-repeat outcome emitted by createVulnerabilitySuppression."}
                   },
                   "required": ["suppression_id", "generation_id", "status"]
                 }

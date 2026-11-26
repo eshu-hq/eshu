@@ -28,42 +28,48 @@ const ServiceChangedSince = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Bounded service-scope changed-since delta for one service emitted by the service changed-since handler.",
                   "properties": {
-                    "service_id": {"type": "string"},
+                    "service_id": {"type": "string", "description": "Exact service id whose evidence lineage was diffed, per the service changed-since handler."},
                     "scope_id": {"type": "string", "description": "Ingestion scope of the lineage the diff read; empty for an unattributed legacy lineage."},
                     "unattributed": {"type": "boolean", "description": "True when the diff read an unattributed legacy lineage (scope_id NULL), which only an unscoped caller can resolve."},
-                    "since_generation_id": {"type": "string"},
-                    "since_observed_at": {"type": "string"},
-                    "current_active_generation_id": {"type": "string"},
-                    "current_observed_at": {"type": "string"},
-                    "sample_limit": {"type": "integer"},
-                    "unavailable": {"type": "boolean"},
+                    "since_generation_id": {"type": "string", "description": "Prior service materialization generation the diff was read from, per the service changed-since handler."},
+                    "since_observed_at": {"type": "string", "description": "Observed-at of the baseline service generation, per the service changed-since handler."},
+                    "current_active_generation_id": {"type": "string", "description": "Current active service generation the diff was read to, per the service changed-since handler."},
+                    "current_observed_at": {"type": "string", "description": "Observed-at of the current active service generation, per the service changed-since handler."},
+                    "sample_limit": {"type": "integer", "description": "Sample cap applied per classification per family, per the service changed-since handler."},
+                    "unavailable": {"type": "boolean", "description": "True when no comparable service diff exists, per the service changed-since handler."},
                     "categories": {
                       "type": "array",
+                      "description": "Per-evidence-family deltas keyed by service_evidence_key, per the service changed-since handler.",
                       "items": {
                         "type": "object",
+                        "description": "One evidence-family delta: exact counts plus bounded deterministic sample handles per classification.",
                         "properties": {
-                          "category": {"type": "string", "enum": ["ownership", "deployment", "runtime", "dependencies", "docs", "incidents", "vulnerabilities"]},
+                          "category": {"type": "string", "enum": ["ownership", "deployment", "runtime", "dependencies", "docs", "incidents", "vulnerabilities"], "description": "Evidence family this delta covers, per the service changed-since handler."},
                           "counts": {
                             "type": "object",
+                            "description": "Exact per-classification counts for the family, per the service changed-since handler.",
                             "properties": {
-                              "added": {"type": "integer"},
-                              "updated": {"type": "integer"},
-                              "unchanged": {"type": "integer"},
-                              "retired": {"type": "integer"},
-                              "superseded": {"type": "integer"}
+                              "added": {"type": "integer", "description": "Keys added since the baseline, per the service changed-since handler."},
+                              "updated": {"type": "integer", "description": "Keys updated since the baseline, per the service changed-since handler."},
+                              "unchanged": {"type": "integer", "description": "Keys unchanged since the baseline, per the service changed-since handler."},
+                              "retired": {"type": "integer", "description": "Keys retired since the baseline, per the service changed-since handler."},
+                              "superseded": {"type": "integer", "description": "Keys superseded since the baseline, per the service changed-since handler."}
                             },
                             "required": ["added", "updated", "unchanged", "retired", "superseded"]
                           },
                           "samples": {
                             "type": "object",
+                            "description": "Bounded deterministic sample handles per classification, per the service changed-since handler; keys are classification names.",
                             "additionalProperties": {
                               "type": "array",
                               "items": {
                                 "type": "object",
+                                "description": "One sample handle identifying a changed key.",
                                 "properties": {
-                                  "stable_fact_key": {"type": "string"},
-                                  "fact_kind": {"type": "string"}
+                                  "stable_fact_key": {"type": "string", "description": "Stable fact key of the sampled change, per the service changed-since handler."},
+                                  "fact_kind": {"type": "string", "description": "Fact kind of the sampled change, per the service changed-since handler."}
                                 },
                                 "required": ["stable_fact_key", "fact_kind"]
                               }
@@ -71,9 +77,10 @@ const ServiceChangedSince = `
                           },
                           "truncated": {
                             "type": "object",
+                            "description": "Per-classification sample truncation flags, per the service changed-since handler; keys are classification names.",
                             "additionalProperties": {"type": "boolean"}
                           },
-                          "unavailable": {"type": "boolean"}
+                          "unavailable": {"type": "boolean", "description": "True when this family has no comparable diff, per the service changed-since handler."}
                         },
                         "required": ["category", "counts", "unavailable"]
                       }

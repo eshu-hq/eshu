@@ -6,8 +6,11 @@ routes.
 Layout:
 
 - `routes.go` — `Routes`: `/api/v0/impact/trace-deployment-chain`,
-  `/api/v0/impact/blast-radius`, `/api/v0/impact/change-surface`, and
-  `/api/v0/impact/change-surface/investigate`.
+  `/api/v0/impact/change-surface`, and
+  `/api/v0/impact/change-surface/investigate` (plus the `blastRadius`
+  and `deploymentConfigInfluence` splices below).
+- `blast_radius.go` — `blastRadius`: `/api/v0/impact/blast-radius`,
+  folded into `Routes` by a source-level `+` in `routes.go`.
 - `contract.go` — `Contract`: `POST /api/v0/impact/contracts`.
 - `deployment_config_influence.go` — `deploymentConfigInfluence`:
   `POST /api/v0/impact/deployment-config-influence`.
@@ -26,15 +29,16 @@ from this package's own `k8s_resource_limits.go`; `routes.go` additionally uses
 ## Assembly — the deploymentConfigInfluence exception
 
 `openapi/spec.go` concatenates `Routes`, `Contract`, `Rest`, and `Exposure`
-directly. `deploymentConfigInfluence` is not in that list: `routes.go`
-already folds it in with its own `+ deploymentConfigInfluence +`, so it
-reaches the published document once, through `Routes`. The constant is
+directly. `deploymentConfigInfluence` and `blastRadius` are not in that
+list: `routes.go` already folds them in with its own
+`+ deploymentConfigInfluence +` and `+ blastRadius +`, so each reaches
+the published document once, through `Routes`. Both constants are
 unexported, so the compiler already refuses the duplicate-it direction:
-`spec.go` is a different package and cannot name it. The direction that
-stays open is removal — dropping the `+ deploymentConfigInfluence +` line
-from `routes.go` silently drops the route from the published document
-instead. Either way `scripts/verify-openapi.sh`'s route cross-reference is
-the only thing that would catch it — there is no schema-drift test.
+`spec.go` is a different package and cannot name them. The direction that
+stays open is removal — dropping either splice line from `routes.go`
+silently drops the route from the published document instead. Either way
+`scripts/verify-openapi.sh`'s route cross-reference is the only thing that
+would catch it — there is no schema-drift test.
 
 ## Related docs
 

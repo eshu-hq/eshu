@@ -33,9 +33,15 @@ const Render = `
           "200": {
             "description": "Rendered packet bytes (content type follows the format)",
             "content": {
-              "application/json": {"schema": {"type": "object"}},
-              "text/markdown": {"schema": {"type": "string"}},
-              "text/html": {"schema": {"type": "string"}}
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "Rendered investigation evidence packet document (querycontract/packet.RenderInvestigationPacket JSON variant): the packet layers keyed by layer name, so a reader can audit every layer without parsing another format."
+                }
+              },
+              "text/markdown": {"schema": {"type": "string", "description": "Deterministic markdown summary of the rendered packet, one fixed section per evidence layer, emitted by packet.RenderInvestigationPacket."}},
+              "text/html": {"schema": {"type": "string", "description": "HTML rendering of the packet emitted by packet.RenderInvestigationPacket."}}
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},

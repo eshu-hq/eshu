@@ -35,11 +35,11 @@ const SBOMAttestationAttachmentAggregate = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "total_attachments": {"type": "integer", "description": "Reducer-owned SBOM and attestation attachments matching the filters."},
-                    "by_attachment_status": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Attachment counts by attachment status (attached_verified, attached_unverified, attached_parse_only, subject_mismatch, ambiguous_subject, unknown_subject, unparseable). Bucket names are status values; render as bars, never a fixed enum."},
-                    "by_artifact_kind": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Attachment counts by artifact kind (sbom, attestation). Bucket names are kind values; render as bars, never a fixed enum."},
-                    "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Source-scope gap classes such as repository_to_image_evidence_missing or image_to_sbom_evidence_missing."},
-                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the filters applied to this aggregate, as string pairs (only non-empty filters appear). Render as filter chips, never a fixed form."}
+                    "total_attachments": {"type": "integer", "description": "Reducer-owned SBOM and attestation attachments matching the filters, emitted by the attachment count aggregate handler."},
+                    "by_attachment_status": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Attachment counts by attachment status (attached_verified, attached_unverified, attached_parse_only, subject_mismatch, ambiguous_subject, unknown_subject, unparseable), emitted by the attachment count aggregate handler. Bucket names are status values; render as bars, never a fixed enum."},
+                    "by_artifact_kind": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Attachment counts by artifact kind (sbom, attestation), emitted by the attachment count aggregate handler. Bucket names are kind values; render as bars, never a fixed enum."},
+                    "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Source-scope gap classes such as repository_to_image_evidence_missing or image_to_sbom_evidence_missing, emitted by the attachment count aggregate handler."},
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the filters applied to this aggregate, as string pairs (only non-empty filters appear), emitted by the attachment aggregate scope helper. Render as filter chips, never a fixed form."}
                   }
                 }
               }
@@ -79,22 +79,23 @@ const SBOMAttestationAttachmentAggregate = `
                   "properties": {
                     "buckets": {
                       "type": "array",
+                      "description": "Grouped count buckets ordered by count desc, emitted by the SBOM attestation attachment inventory aggregate handler (SBOMAttestationAttachmentInventoryRow).",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "dimension": {"type": "string", "description": "Bucket dimension value; the label comes from the group_by request value."},
-                          "value": {"type": "string", "description": "Group value."},
-                          "count": {"type": "integer", "description": "Attachments in this bucket."}
+                          "dimension": {"type": "string", "description": "Bucket dimension value emitted by the attachment inventory aggregate handler (SBOMAttestationAttachmentInventoryRow.Dimension); the label comes from the group_by request value."},
+                          "value": {"type": "string", "description": "Group value emitted by the attachment inventory aggregate handler (SBOMAttestationAttachmentInventoryRow.Value)."},
+                          "count": {"type": "integer", "description": "Attachments in this bucket, emitted by the attachment inventory aggregate handler (SBOMAttestationAttachmentInventoryRow.Count)."}
                         }
                       }
                     },
-                    "count": {"type": "integer", "description": "Buckets in this page."},
-                    "limit": {"type": "integer", "description": "Echo of the requested page bound."},
-                    "offset": {"type": "integer", "description": "Echo of the requested page offset."},
-                    "group_by": {"type": "string", "description": "Echo of the requested grouping dimension."},
-                    "truncated": {"type": "boolean", "description": "True when more buckets matched than this page carries; continue with next_offset."},
-                    "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
-                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the filters applied to this aggregate, as string pairs (only non-empty filters appear). Render as filter chips, never a fixed form."}
+                    "count": {"type": "integer", "description": "Buckets in this page, emitted by the attachment inventory aggregate handler."},
+                    "limit": {"type": "integer", "description": "Echo of the requested page bound, emitted by the attachment inventory aggregate handler."},
+                    "offset": {"type": "integer", "description": "Echo of the requested page offset, emitted by the attachment inventory aggregate handler."},
+                    "group_by": {"type": "string", "description": "Echo of the requested grouping dimension, emitted by the attachment inventory aggregate handler."},
+                    "truncated": {"type": "boolean", "description": "True when more buckets matched than this page carries; continue with next_offset, emitted by the attachment inventory aggregate handler."},
+                    "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true, emitted by the attachment inventory aggregate handler; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the filters applied to this aggregate, as string pairs (only non-empty filters appear), emitted by the attachment aggregate scope helper. Render as filter chips, never a fixed form."}
                   }
                 }
               }

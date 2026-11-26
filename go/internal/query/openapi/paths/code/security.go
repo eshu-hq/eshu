@@ -46,30 +46,72 @@ const Security = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Redacted hardcoded-secret investigation packet emitted by hardcodedSecretResponse.",
                   "properties": {
+                    "scope": {"type": "object", "description": "Investigation scope (hardcodedSecretScope): repo_id and language selectors echoed by hardcodedSecretResponse.",
+                      "properties": {
+                        "repo_id": {"type": "string", "description": "Repository selector echoed by hardcodedSecretResponse."},
+                        "language": {"type": "string", "description": "Language filter echoed by hardcodedSecretResponse."}
+                      },
+                      "required": ["repo_id", "language"]
+                    },
+                    "finding_kinds": {"type": "array", "description": "Normalized finding kinds investigated by hardcodedSecretResponse.", "items": {"type": "string"}},
                     "findings": {
                       "type": "array",
+                      "description": "Redacted secret candidates (hardcodedSecretFinding rows) returned by hardcodedSecretResponse.",
                       "items": {
                         "type": "object",
+                        "description": "One redacted finding: rank, identity, kind, redacted excerpt, suppression, and a source handle.",
                         "properties": {
-                          "repo_id": {"type": "string"},
-                          "relative_path": {"type": "string"},
-                          "line_number": {"type": "integer"},
-                          "finding_kind": {"type": "string"},
-                          "confidence": {"type": "string"},
-                          "severity": {"type": "string"},
-                          "redacted_excerpt": {"type": "string"},
-                          "suppressed": {"type": "boolean"},
-                          "suppression_notes": {"type": "array", "items": {"type": "string"}},
-                          "source_handle": {"type": "object", "additionalProperties": true}
-                        }
+                          "rank": {"type": "integer", "description": "One-based rank assigned by hardcodedSecretFinding."},
+                          "repo_id": {"type": "string", "description": "Repository id reported by hardcodedSecretFinding."},
+                          "relative_path": {"type": "string", "description": "Repo-relative file path reported by hardcodedSecretFinding."},
+                          "language": {"type": "string", "description": "File language reported by hardcodedSecretFinding."},
+                          "line_number": {"type": "integer", "description": "Line number reported by hardcodedSecretFinding."},
+                          "finding_kind": {"type": "string", "description": "Secret kind reported by hardcodedSecretFinding."},
+                          "confidence": {"type": "string", "description": "Finding confidence reported by hardcodedSecretFinding."},
+                          "severity": {"type": "string", "description": "Finding severity reported by hardcodedSecretFinding."},
+                          "redacted_excerpt": {"type": "string", "description": "Redacted line excerpt (secret replaced with the redacted marker), per hardcodedSecretFinding."},
+                          "suppressed": {"type": "boolean", "description": "Whether the finding was suppressed, per hardcodedSecretFinding."},
+                          "suppression_notes": {"type": "array", "description": "Suppression notes reported by hardcodedSecretFinding.", "items": {"type": "string"}},
+                          "source_handle": {"type": "object", "description": "Source locator (repo_id, relative_path, start/end line) emitted by hardcodedSecretFinding.",
+                            "properties": {
+                              "repo_id": {"type": "string", "description": "Repository id of the finding, per hardcodedSecretFinding."},
+                              "relative_path": {"type": "string", "description": "Repo-relative path of the finding, per hardcodedSecretFinding."},
+                              "start_line": {"type": "integer", "description": "Finding line, per hardcodedSecretFinding."},
+                              "end_line": {"type": "integer", "description": "Finding line, per hardcodedSecretFinding."}
+                            },
+                            "required": ["repo_id", "relative_path", "start_line", "end_line"]
+                          }
+                        },
+                        "required": ["rank", "repo_id", "relative_path", "line_number", "finding_kind", "confidence", "severity", "redacted_excerpt", "suppressed", "suppression_notes", "source_handle"]
                       }
                     },
-                    "coverage": {"type": "object", "additionalProperties": true},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
-                  }
+                    "recommended_next_calls": {"type": "array", "description": "Follow-up calls from hardcodedSecretRecommendedNextCalls: an evidence-citation hydration for the first finding, or a topic-broadening call when no findings exist.", "items": {"type": "object", "additionalProperties": true, "description": "One follow-up call: tool, reason, and args, per hardcodedSecretRecommendedNextCalls."}},
+                    "count": {"type": "integer", "description": "Visible findings counted by hardcodedSecretResponse."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by hardcodedSecretResponse."},
+                    "offset": {"type": "integer", "description": "Page offset echoed by hardcodedSecretResponse."},
+                    "truncated": {"type": "boolean", "description": "True when more findings exist past the limit, per hardcodedSecretResponse."},
+                    "source_backend": {"type": "string", "description": "Backend that served the investigation (postgres_content_store), per hardcodedSecretResponse."},
+                    "coverage": {"type": "object", "description": "Read-path coverage for the investigation emitted by hardcodedSecretResponse.",
+                      "properties": {
+                        "query_shape": {"type": "string", "description": "Investigation query shape, per hardcodedSecretResponse."},
+                        "returned_count": {"type": "integer", "description": "Findings returned on this page, per hardcodedSecretResponse."},
+                        "suppressed_count": {"type": "integer", "description": "Findings suppressed on this page, per hardcodedSecretResponse."},
+                        "include_suppressed": {"type": "boolean", "description": "Whether suppressed findings were included, per hardcodedSecretResponse."},
+                        "limit": {"type": "integer", "description": "Page bound echoed in coverage, per hardcodedSecretResponse."},
+                        "offset": {"type": "integer", "description": "Page offset echoed in coverage, per hardcodedSecretResponse."},
+                        "truncated": {"type": "boolean", "description": "Truncation echoed in coverage, per hardcodedSecretResponse."},
+                        "redaction": {"type": "string", "description": "Redaction marker applied to secret values, per hardcodedSecretResponse."},
+                        "empty": {"type": "boolean", "description": "True when no findings exist, per hardcodedSecretResponse."},
+                        "searched_all_kinds": {"type": "boolean", "description": "True when no finding_kind filter was given, per hardcodedSecretResponse."},
+                        "requires_repo_scope": {"type": "boolean", "description": "Whether the read requires a repository scope, per hardcodedSecretResponse."},
+                        "read_path": {"type": "string", "description": "Read side table the investigation ran against, per hardcodedSecretResponse."}
+                      },
+                      "required": ["query_shape", "returned_count", "suppressed_count", "include_suppressed", "limit", "offset", "truncated", "redaction", "empty", "searched_all_kinds", "requires_repo_scope", "read_path"]
+                    }
+                  },
+                  "required": ["scope", "finding_kinds", "findings", "recommended_next_calls", "count", "limit", "offset", "truncated", "source_backend", "coverage"]
                 }
               }
             }

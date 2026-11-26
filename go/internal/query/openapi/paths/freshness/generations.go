@@ -31,54 +31,59 @@ const Generations = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Bounded scope generation lifecycle page emitted by the generations handler.",
                   "properties": {
                     "generations": {
                       "type": "array",
+                      "description": "Generation lifecycle rows joined with their owning scope identity, per the generations handler.",
                       "items": {
                         "type": "object",
+                        "description": "One scope generation lifecycle row with fact_work_items queue status and the latest failure.",
                         "properties": {
-                          "scope_id": {"type": "string"},
-                          "generation_id": {"type": "string"},
-                          "scope_kind": {"type": "string"},
-                          "source_system": {"type": "string"},
-                          "collector_kind": {"type": "string"},
-                          "current_active_generation_id": {"type": "string"},
-                          "is_active": {"type": "boolean"},
-                          "trigger_kind": {"type": "string"},
-                          "freshness_hint": {"type": "string"},
-                          "status": {"type": "string", "enum": ["pending", "active", "superseded", "completed", "failed"]},
-                          "observed_at": {"type": "string"},
-                          "ingested_at": {"type": "string"},
-                          "activated_at": {"type": "string"},
-                          "superseded_at": {"type": "string"},
+                          "scope_id": {"type": "string", "description": "Ingestion scope the generation belongs to, per the generations handler."},
+                          "generation_id": {"type": "string", "description": "Generation id, per the generations handler."},
+                          "scope_kind": {"type": "string", "description": "Scope kind, per the generations handler."},
+                          "source_system": {"type": "string", "description": "Source system that produced the generation, per the generations handler."},
+                          "collector_kind": {"type": "string", "description": "Collector kind that produced the generation, per the generations handler."},
+                          "current_active_generation_id": {"type": "string", "description": "Active generation id for the owning scope, per the generations handler."},
+                          "is_active": {"type": "boolean", "description": "True when this row is the scope's active generation, per the generations handler."},
+                          "trigger_kind": {"type": "string", "description": "What triggered the generation, per the generations handler."},
+                          "freshness_hint": {"type": "string", "description": "Freshness hint for the generation, per the generations handler."},
+                          "status": {"type": "string", "enum": ["pending", "active", "superseded", "completed", "failed"], "description": "Generation lifecycle status, per the generations handler."},
+                          "observed_at": {"type": "string", "description": "When the generation was observed, per the generations handler."},
+                          "ingested_at": {"type": "string", "description": "When the generation was ingested, per the generations handler."},
+                          "activated_at": {"type": "string", "description": "When the generation activated, per the generations handler."},
+                          "superseded_at": {"type": "string", "description": "When the generation was superseded, per the generations handler."},
                           "queue_status": {
                             "type": "object",
+                            "description": "Per-generation fact_work_items queue status joined by the generations handler.",
                             "properties": {
-                              "total": {"type": "integer"},
-                              "outstanding": {"type": "integer"},
-                              "in_flight": {"type": "integer"},
-                              "retrying": {"type": "integer"},
-                              "succeeded": {"type": "integer"},
-                              "failed": {"type": "integer"},
-                              "dead_letter": {"type": "integer"}
+                              "total": {"type": "integer", "description": "Total work items for the generation, per the generations handler."},
+                              "outstanding": {"type": "integer", "description": "Outstanding work items for the generation, per the generations handler."},
+                              "in_flight": {"type": "integer", "description": "In-flight work items for the generation, per the generations handler."},
+                              "retrying": {"type": "integer", "description": "Retrying work items for the generation, per the generations handler."},
+                              "succeeded": {"type": "integer", "description": "Succeeded work items for the generation, per the generations handler."},
+                              "failed": {"type": "integer", "description": "Failed work items for the generation, per the generations handler."},
+                              "dead_letter": {"type": "integer", "description": "Dead-lettered work items for the generation, per the generations handler."}
                             },
                             "required": ["total", "outstanding", "in_flight", "retrying", "succeeded", "failed", "dead_letter"]
                           },
                           "latest_failure": {
                             "type": "object",
+                            "description": "Latest per-generation failure joined by the generations handler; absent when the generation never failed.",
                             "properties": {
-                              "failure_class": {"type": "string"},
-                              "failure_message": {"type": "string"},
-                              "work_item_status": {"type": "string"},
-                              "observed_at": {"type": "string"},
+                              "failure_class": {"type": "string", "description": "Failure class of the latest failure, per the generations handler."},
+                              "failure_message": {"type": "string", "description": "Failure message of the latest failure, per the generations handler."},
+                              "work_item_status": {"type": "string", "description": "Work item status carrying the failure, per the generations handler."},
+                              "observed_at": {"type": "string", "description": "When the failure was observed, per the generations handler."},
                               "prior_failure": {
                                 "type": "object",
                                 "description": "The failure the newest failure row kept before a supersede, a stale-scope reclaim or an operator note rewrote its failure evidence. Absent when the row kept none. Its details text is not exposed.",
                                 "properties": {
-                                  "status": {"type": "string"},
-                                  "failure_class": {"type": "string"},
-                                  "failure_message": {"type": "string"},
-                                  "updated_at": {"type": "string"}
+                                  "status": {"type": "string", "description": "Work item status of the prior failure, per the generations handler."},
+                                  "failure_class": {"type": "string", "description": "Failure class of the prior failure, per the generations handler."},
+                                  "failure_message": {"type": "string", "description": "Failure message of the prior failure, per the generations handler."},
+                                  "updated_at": {"type": "string", "description": "When the prior failure was recorded, per the generations handler."}
                                 }
                               }
                             },
@@ -88,9 +93,9 @@ const Generations = `
                         "required": ["scope_id", "generation_id", "scope_kind", "source_system", "collector_kind", "is_active", "trigger_kind", "status", "queue_status"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "count": {"type": "integer", "description": "Rows on this page emitted by the generations handler."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by the generations handler."},
+                    "truncated": {"type": "boolean", "description": "True when more lifecycle rows exist past this page, per the generations handler."}
                   },
                   "required": ["generations", "count", "limit", "truncated"]
                 }

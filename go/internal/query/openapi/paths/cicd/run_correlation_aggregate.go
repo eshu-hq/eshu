@@ -75,6 +75,7 @@ const RunCorrelationAggregate = `
                   "properties": {
                     "buckets": {
                       "type": "array",
+                      "description": "Grouped count buckets ordered by count desc, per the inventory handler.",
                       "items": {
                         "type": "object",
                         "properties": {

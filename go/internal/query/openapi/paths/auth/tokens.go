@@ -36,22 +36,27 @@ const Tokens = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Caller token metadata page emitted by local.IdentityHandler.handleListAPITokens.",
                   "properties": {
                     "tokens": {
                       "type": "array",
+                      "description": "Token rows for the caller's own tokens projected by local.IdentityHandler.handleListAPITokens.",
                       "items": {
                         "type": "object",
+                        "description": "One token row: id, class, label, and lifecycle timestamps.",
                         "properties": {
-                          "token_id": {"type": "string"},
-                          "token_class": {"type": "string"},
+                          "token_id": {"type": "string", "description": "Token id projected by local.IdentityHandler.handleListAPITokens."},
+                          "token_class": {"type": "string", "description": "Token class projected by local.IdentityHandler.handleListAPITokens."},
                           "display_label": {"type": "string", "description": "Present only when the token was created with a label."},
-                          "issued_at": {"type": "string", "format": "date-time"},
-                          "expires_at": {"type": "string", "format": "date-time"},
-                          "revoked_at": {"type": "string", "format": "date-time"}
-                        }
+                          "issued_at": {"type": "string", "format": "date-time", "description": "When the token was issued, per local.IdentityHandler.handleListAPITokens."},
+                          "expires_at": {"type": "string", "format": "date-time", "description": "When the token expires, per handleListAPITokens; absent when the row carries none."},
+                          "revoked_at": {"type": "string", "format": "date-time", "description": "When the token was revoked, per handleListAPITokens; absent when the row carries none."}
+                        },
+                        "required": ["token_id", "token_class", "issued_at"]
                       }
                     }
-                  }
+                  },
+                  "required": ["tokens"]
                 }
               }
             }

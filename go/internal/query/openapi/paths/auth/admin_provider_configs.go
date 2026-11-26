@@ -28,13 +28,16 @@ const AdminProviderConfigs = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Tenant provider configs page emitted by the provider config list handler (DB-backed configs merged with env/file-registered providers).",
                   "properties": {
                     "provider_configs": {
                       "type": "array",
+                      "description": "Provider config detail rows (providerConfigDetailJSON): never carry a secret, only has_secret, secret_fingerprint, and key_id.",
                       "items": {"$ref": "#/components/schemas/AdminProviderConfig"}
                     },
-                    "truncated": {"type": "boolean"}
-                  }
+                    "truncated": {"type": "boolean", "description": "True when the config page reached the list cap, per the provider config list handler."}
+                  },
+                  "required": ["provider_configs", "truncated"]
                 }
               }
             }
@@ -146,22 +149,27 @@ const AdminProviderConfigs = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Provider config revision history (newest first) emitted by the revision list handler.",
                   "properties": {
                     "revisions": {
                       "type": "array",
+                      "description": "Revision rows projected by the revision list handler.",
                       "items": {
                         "type": "object",
+                        "description": "One revision row: id, status, secret presence, and lifecycle timestamps.",
                         "properties": {
-                          "revision_id": {"type": "string"},
-                          "status": {"type": "string"},
-                          "has_secret": {"type": "boolean"},
-                          "created_at": {"type": "string", "format": "date-time"},
-                          "activated_at": {"type": "string", "format": "date-time"},
-                          "superseded_at": {"type": "string", "format": "date-time"}
-                        }
+                          "revision_id": {"type": "string", "description": "Revision id projected by the revision list handler."},
+                          "status": {"type": "string", "description": "Revision status projected by the revision list handler."},
+                          "has_secret": {"type": "boolean", "description": "Whether the revision carries a sealed secret, per the revision list handler."},
+                          "created_at": {"type": "string", "format": "date-time", "description": "When the revision was created, per the revision list handler."},
+                          "activated_at": {"type": "string", "format": "date-time", "description": "When the revision activated, per the revision list handler; absent when never active."},
+                          "superseded_at": {"type": "string", "format": "date-time", "description": "When the revision was superseded, per the revision list handler; absent when never superseded."}
+                        },
+                        "required": ["revision_id", "status", "has_secret", "created_at"]
                       }
                     }
-                  }
+                  },
+                  "required": ["revisions"]
                 }
               }
             }
@@ -274,11 +282,13 @@ const AdminProviderConfigs = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Connection test result emitted by the provider config test-connection handler.",
                   "properties": {
-                    "provider_config_id": {"type": "string"},
-                    "ok": {"type": "boolean"},
-                    "detail": {"type": "string"}
-                  }
+                    "provider_config_id": {"type": "string", "description": "Tested provider config id echoed by the test-connection handler."},
+                    "ok": {"type": "boolean", "description": "Whether the connection test passed, per the test-connection handler."},
+                    "detail": {"type": "string", "description": "Test detail reported by the test-connection handler."}
+                  },
+                  "required": ["provider_config_id", "ok", "detail"]
                 }
               }
             }

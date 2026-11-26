@@ -6,15 +6,16 @@ top-level files).
 ## Ownership
 
 This leaf owns the change- and blast-radius-impact OpenAPI fragments
-(#6060, lane C): `routes.go` (`Routes`), `contract.go` (`Contract`),
+(#6060, lane C): `routes.go` (`Routes`), `blast_radius.go`
+(`blastRadius`), `contract.go` (`Contract`),
 `deployment_config_influence.go` (`deploymentConfigInfluence`),
 `exposure.go` (`Exposure`), and `rest.go` (`Rest`).
 
 - Each exported constant is a raw JSON object-body string keyed by path,
   meant to be concatenated inside the paths object `openapi/spec.go`
-  assembles — except `deploymentConfigInfluence`, which `routes.go` folds
-  into `Routes` directly. See `README.md`'s Assembly section before
-  touching either constant; adding `deploymentConfigInfluence` to
+  assembles — except `deploymentConfigInfluence` and `blastRadius`, which
+  `routes.go` folds into `Routes` directly. See `README.md`'s Assembly
+  section before touching either constant; adding one to
   `openapi/spec.go`'s concatenation as well would duplicate the route.
 - `routes.go` and `deployment_config_influence.go` depend on
   this package's own `K8sResourceLimits`; `routes.go` also

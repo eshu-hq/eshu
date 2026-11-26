@@ -23,14 +23,16 @@ const TOTP = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Pending TOTP factor (localIdentityTOTPBeginResponse) returned once by the TOTP begin handler.",
                   "properties": {
-                    "factor_id": {"type": "string"},
-                    "otpauth_uri": {"type": "string"},
+                    "factor_id": {"type": "string", "description": "Pending factor id created by the TOTP begin handler."},
+                    "otpauth_uri": {"type": "string", "description": "Provisioning URI for QR rendering, returned once by the TOTP begin handler."},
                     "secret": {"type": "string", "description": "Base32-encoded shared secret for manual entry."},
-                    "issuer": {"type": "string"},
-                    "digits": {"type": "integer"},
-                    "period_seconds": {"type": "integer"}
-                  }
+                    "issuer": {"type": "string", "description": "Provisioning URI issuer, per the TOTP begin handler."},
+                    "digits": {"type": "integer", "description": "Code digit count, per the TOTP begin handler."},
+                    "period_seconds": {"type": "integer", "description": "Code period in seconds, per the TOTP begin handler."}
+                  },
+                  "required": ["factor_id", "otpauth_uri", "secret", "issuer", "digits", "period_seconds"]
                 }
               }
             }

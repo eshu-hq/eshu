@@ -3,6 +3,63 @@
 
 package status
 
+// collectorReadinessResponseSchema is the 200-response schema for the
+// collector-readiness read model emitted by StatusHandler.getCollectorReadiness
+// (go/internal/query/status_collector_readiness.go: collectorReadinessEntry
+// plus the version/generated_at/readiness/count payload assembly). Both the
+// canonical route and its legacy alias splice this constant so the two cannot
+// drift; the lane-5 contract test pins them identical.
+const collectorReadinessResponseSchema = `{
+                  "type": "object",
+                  "properties": {
+                    "version": {"type": "string", "description": "Serving binary version from buildinfo; identical for scoped and unscoped callers."},
+                    "generated_at": {"type": "string", "format": "date-time", "description": "Snapshot time of this payload in UTC; the readiness cache keys freshness off it."},
+                    "count": {"type": "integer", "description": "Number of entries in readiness."},
+                    "readiness": {
+                      "type": "array",
+                      "description": "One redacted readiness record per collector family or instance, ordered as the promotion proofs project them.",
+                      "items": {
+                        "type": "object",
+                        "required": ["collector_kind", "promotion_state", "reducer_readback", "claim_driven", "recommended_next_action"],
+                        "properties": {
+                          "collector_kind": {"type": "string", "description": "Collector family kind, for example security_alert."},
+                          "instance_id": {"type": "string", "description": "Collector instance id; withheld from scoped callers, who see family-level readiness."},
+                          "display_name": {"type": "string", "description": "Operator-facing display name of the instance."},
+                          "promotion_state": {"type": "string", "enum": ["implemented", "partial", "failed", "stale", "gated", "disabled", "permission_hidden", "unsupported"], "description": "Promotion state projected from the collector promotion proofs."},
+                          "runtime_category": {"type": "string", "description": "Runtime category of the collector."},
+                          "health": {"type": "string", "description": "Instance health readback; an acknowledged instance reads at least partial."},
+                          "claim_driven": {"type": "boolean", "description": "Whether the instance runs claim-driven."},
+                          "claim_state": {"type": "string", "description": "Current claim state of the instance, when claimed."},
+                          "source_scope": {"type": "string", "description": "Scope the instance collects for."},
+                          "fixture_only": {"type": "boolean", "description": "True when the instance exists only in fixture corpora."},
+                          "evidence_sources": {"type": "array", "items": {"type": "string"}, "description": "Evidence source names backing the readiness verdict."},
+                          "source_systems": {"type": "array", "items": {"type": "string"}, "description": "Source systems the instance reads."},
+                          "observation_count": {"type": "integer", "description": "Count of observations behind the readiness verdict."},
+                          "reducer_readback": {"type": "string", "enum": ["available", "pending", "unavailable"], "description": "Reducer readback state for the instance."},
+                          "telemetry_handles": {"type": "array", "items": {"type": "string"}, "description": "Telemetry handles identifying the instance signals."},
+                          "blockers": {"type": "array", "items": {"type": "string"}, "description": "Human-readable blockers preventing promotion; a failed instance carries the terminal fetch failure blocker."},
+                          "recommended_next_action": {"type": "string", "description": "Recommended operator action for the instance state."},
+                          "last_proof_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Last evidence time; null when the instance was never observed."},
+                          "updated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Last update time of the instance record; null when unknown."},
+                          "last_failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; omitted when there is none. Each collector kind reports the common classes, the extension host classes, and its own; any other persisted value reads unknown, and a class an extension defines reads extension_defined, whether the kind is not first-party or the instance is a component-activated extension carrying a first-party kind."},
+                          "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown; omitted when there is none."},
+                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; omitted when there is none."},
+                          "acknowledged_failure": {
+                            "type": "object",
+                            "description": "An operator-acknowledged terminal failure (POST /api/v0/admin/collector-failures/acknowledge). The instance then reads promotion_state partial with the blocker (terminal fetch failure acknowledged: <class> (<operation>)), never implemented. Bounded tokens and times only; the operator's reason is never returned here. Omitted when none.",
+                            "properties": {
+                              "failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"], "description": "Bounded class of the acknowledged failure."},
+                              "failure_operation": {"type": "string", "description": "Bounded operation token of the acknowledged failure."},
+                              "failed_at": {"type": "string", "format": "date-time", "description": "When the acknowledged failure became terminal."},
+                              "acknowledged_at": {"type": "string", "format": "date-time", "description": "When the operator acknowledged the failure."}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`
+
 // CollectorReadiness is the OpenAPI path fragment documenting the
 // `/api/v0/collector-readiness`, `/api/v0/status/collector-readiness` routes.
 // openapi.Spec concatenates it into the published document; keep it in
@@ -21,55 +78,7 @@ const CollectorReadiness = `
             "description": "Collector family readiness",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "version": {"type": "string"},
-                    "generated_at": {"type": "string", "format": "date-time"},
-                    "count": {"type": "integer"},
-                    "readiness": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "required": ["collector_kind", "promotion_state", "reducer_readback", "claim_driven", "recommended_next_action"],
-                        "properties": {
-                          "collector_kind": {"type": "string"},
-                          "instance_id": {"type": "string"},
-                          "display_name": {"type": "string"},
-                          "promotion_state": {"type": "string", "enum": ["implemented", "partial", "failed", "stale", "gated", "disabled", "permission_hidden", "unsupported"]},
-                          "runtime_category": {"type": "string"},
-                          "health": {"type": "string"},
-                          "claim_driven": {"type": "boolean"},
-                          "claim_state": {"type": "string"},
-                          "source_scope": {"type": "string"},
-                          "fixture_only": {"type": "boolean"},
-                          "evidence_sources": {"type": "array", "items": {"type": "string"}},
-                          "source_systems": {"type": "array", "items": {"type": "string"}},
-                          "observation_count": {"type": "integer"},
-                          "reducer_readback": {"type": "string", "enum": ["available", "pending", "unavailable"]},
-                          "telemetry_handles": {"type": "array", "items": {"type": "string"}},
-                          "blockers": {"type": "array", "items": {"type": "string"}},
-                          "recommended_next_action": {"type": "string"},
-                          "last_proof_at": {"type": "string", "format": "date-time", "nullable": true},
-                          "updated_at": {"type": "string", "format": "date-time", "nullable": true},
-                          "last_failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; omitted when there is none. Each collector kind reports the common classes, the extension host classes, and its own; any other persisted value reads unknown, and a class an extension defines reads extension_defined, whether the kind is not first-party or the instance is a component-activated extension carrying a first-party kind."},
-                          "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown; omitted when there is none."},
-                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; omitted when there is none."},
-                          "acknowledged_failure": {
-                            "type": "object",
-                            "description": "An operator-acknowledged terminal failure (POST /api/v0/admin/collector-failures/acknowledge). The instance then reads promotion_state partial with the blocker (terminal fetch failure acknowledged: <class> (<operation>)), never implemented. Bounded tokens and times only; the operator's reason is never returned here. Omitted when none.",
-                            "properties": {
-                              "failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"]},
-                              "failure_operation": {"type": "string"},
-                              "failed_at": {"type": "string", "format": "date-time"},
-                              "acknowledged_at": {"type": "string", "format": "date-time"}
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
+                "schema": ` + collectorReadinessResponseSchema + `
               }
             }
           },
@@ -91,7 +100,7 @@ const CollectorReadiness = `
             "description": "Collector family readiness",
             "content": {
               "application/json": {
-                "schema": {"type": "object"}
+                "schema": ` + collectorReadinessResponseSchema + `
               }
             }
           },

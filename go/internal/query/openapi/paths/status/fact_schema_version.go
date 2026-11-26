@@ -31,22 +31,23 @@ const FactSchemaVersion = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "schema_version": {"type": "string"},
-                    "status": {"type": "string", "enum": ["available"]},
+                    "schema_version": {"type": "string", "description": "Registry schema version served by the fact-schema-version handler."},
+                    "status": {"type": "string", "enum": ["available"], "description": "Registry availability; the registry is static so it always reads available."},
                     "fact_schema_versions": {
                       "type": "array",
+                      "description": "One entry per core fact kind in the in-binary registry from go/internal/facts.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "fact_kind": {"type": "string"},
-                          "schema_version": {"type": "string"}
+                          "fact_kind": {"type": "string", "description": "Core fact kind, for example terraform_state_resource."},
+                          "schema_version": {"type": "string", "description": "Schema version the current binary supports for the fact kind."}
                         }
                       }
                     },
-                    "count": {"type": "integer"},
-                    "total_count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "count": {"type": "integer", "description": "Fact-kind rows in this page."},
+                    "total_count": {"type": "integer", "description": "Fact-kind rows in the registry."},
+                    "limit": {"type": "integer", "description": "Applied page limit."},
+                    "truncated": {"type": "boolean", "description": "True when rows were left out by the limit."}
                   }
                 }
               }
@@ -87,12 +88,12 @@ const FactSchemaVersion = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "schema_version": {"type": "string"},
-                    "status": {"type": "string", "enum": ["available"]},
-                    "fact_kind": {"type": "string"},
-                    "supported_version": {"type": "string"},
-                    "candidate": {"type": "string"},
-                    "compatibility": {"type": "string", "enum": ["supported", "unsupported_major", "unsupported_minor", "unknown_kind"]}
+                    "schema_version": {"type": "string", "description": "Registry schema version served by the fact-schema-version handler."},
+                    "status": {"type": "string", "enum": ["available"], "description": "Registry availability; the registry is static so it always reads available."},
+                    "fact_kind": {"type": "string", "description": "Core fact kind from the path parameter."},
+                    "supported_version": {"type": "string", "description": "Supported schema version for the fact kind from the in-binary registry."},
+                    "candidate": {"type": "string", "description": "Candidate version echoed back; empty when no candidate was supplied."},
+                    "compatibility": {"type": "string", "enum": ["supported", "unsupported_major", "unsupported_minor", "unknown_kind"], "description": "Classification of the candidate against the supported version."}
                   }
                 }
               }

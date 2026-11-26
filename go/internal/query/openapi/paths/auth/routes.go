@@ -47,6 +47,7 @@ const Routes = `
                   "properties": {
                     "providers": {
                       "type": "array",
+                      "description": "Derived provider entries for the tenant's login picker, per DeriveAuthPosture.",
                       "items": {
                         "type": "object",
                         "required": ["provider_config_id", "display_label", "provider_kind", "icon_hint"],
@@ -399,26 +400,32 @@ const Routes = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Tenant invitations page emitted by handleListInvitations.",
                   "properties": {
                     "invitations": {
                       "type": "array",
+                      "description": "Invitation rows projected by handleListInvitations; never carries the invite code or identity hashes.",
                       "items": {
                         "type": "object",
+                        "description": "One invitation row: id, role, status, and lifecycle timestamps.",
                         "properties": {
-                          "invite_id": {"type": "string"},
-                          "role_id": {"type": "string"},
-                          "status": {"type": "string"},
-                          "expires_at": {"type": "string", "format": "date-time"},
-                          "accepted_at": {"type": "string", "format": "date-time"},
-                          "revoked_at": {"type": "string", "format": "date-time"},
-                          "created_at": {"type": "string", "format": "date-time"},
-                          "updated_at": {"type": "string", "format": "date-time"},
-                          "tenant_id": {"type": "string"},
-                          "workspace_id": {"type": "string"}
-                        }
+                          "invite_id": {"type": "string", "description": "Invitation id projected by handleListInvitations."},
+                          "role_id": {"type": "string", "description": "Invited role id projected by handleListInvitations."},
+                          "status": {"type": "string", "description": "Invitation status projected by handleListInvitations."},
+                          "expires_at": {"type": "string", "format": "date-time", "description": "When the invitation expires, per handleListInvitations."},
+                          "accepted_at": {"type": "string", "format": "date-time", "description": "When the invitation was accepted, per handleListInvitations; absent when never accepted."},
+                          "revoked_at": {"type": "string", "format": "date-time", "description": "When the invitation was revoked, per handleListInvitations; absent when never revoked."},
+                          "created_at": {"type": "string", "format": "date-time", "description": "When the invitation was created, per handleListInvitations."},
+                          "updated_at": {"type": "string", "format": "date-time", "description": "When the invitation was updated, per handleListInvitations."},
+                          "tenant_id": {"type": "string", "description": "Tenant id projected by handleListInvitations."},
+                          "workspace_id": {"type": "string", "description": "Workspace id projected by handleListInvitations."}
+                        },
+                        "required": ["invite_id", "role_id", "status", "expires_at", "created_at", "updated_at", "tenant_id", "workspace_id"]
                       }
-                    }
-                  }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when the invitation page reached the list cap, per handleListInvitations."}
+                  },
+                  "required": ["invitations", "truncated"]
                 }
               }
             }
@@ -701,31 +708,38 @@ const Routes = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Caller identity profile aggregated by handleProfile; never exposes session hashes, token hashes, or credential handles.",
                   "properties": {
-                    "external_provider_config_id": {"type": "string"},
-                    "active_tenant_id": {"type": "string"},
-                    "active_workspace_id": {"type": "string"},
-                    "role_ids": {"type": "array", "items": {"type": "string"}},
-                    "allowed_permission_features": {"type": "array", "items": {"type": "string"}},
-                    "permission_catalog_enforced": {"type": "boolean"},
+                    "external_provider_config_id": {"type": "string", "description": "Identity provider config id from the caller's auth context, per handleProfile; absent for local identity."},
+                    "active_tenant_id": {"type": "string", "description": "Active tenant id from the caller's auth context, per handleProfile."},
+                    "active_workspace_id": {"type": "string", "description": "Active workspace id from the caller's auth context, per handleProfile."},
+                    "role_ids": {"type": "array", "description": "Role ids from the caller's auth context, per handleProfile.", "items": {"type": "string"}},
+                    "allowed_permission_features": {"type": "array", "description": "Permitted permission features from the caller's auth context, per handleProfile.", "items": {"type": "string"}},
+                    "permission_catalog_enforced": {"type": "boolean", "description": "Whether the permission catalog is enforced for the caller, per handleProfile."},
                     "mfa": {
                       "type": "object",
+                      "description": "Safe MFA status fields looked up by handleProfile; never a credential handle or hash.",
                       "properties": {
-                        "has_active_mfa": {"type": "boolean"},
-                        "factor_kind": {"type": "string"}
-                      }
+                        "has_active_mfa": {"type": "boolean", "description": "Whether the caller has an active MFA factor, per handleProfile."},
+                        "factor_kind": {"type": "string", "description": "Active MFA factor kind, per handleProfile; empty when none."}
+                      },
+                      "required": ["has_active_mfa", "factor_kind"]
                     },
                     "memberships": {
                       "type": "array",
+                      "description": "Active tenant/workspace membership only; no full per-subject membership query exists, per handleProfile.",
                       "items": {
                         "type": "object",
+                        "description": "The caller's active tenant/workspace membership.",
                         "properties": {
-                          "tenant_id": {"type": "string"},
-                          "workspace_id": {"type": "string"}
-                        }
+                          "tenant_id": {"type": "string", "description": "Active tenant id, per handleProfile."},
+                          "workspace_id": {"type": "string", "description": "Active workspace id, per handleProfile."}
+                        },
+                        "required": ["tenant_id", "workspace_id"]
                       }
                     }
-                  }
+                  },
+                  "required": ["permission_catalog_enforced", "mfa", "memberships"]
                 }
               }
             }
@@ -764,21 +778,25 @@ const Routes = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Caller browser sessions page emitted by the session list handler.",
                   "properties": {
                     "sessions": {
                       "type": "array",
+                      "description": "Active session metadata rows (sessionJSON); never carries a session hash or secret.",
                       "items": {
                         "type": "object",
+                        "description": "One session row: timestamps, tenant/workspace, current marker, and revocation time.",
                         "properties": {
-                          "issued_at": {"type": "string", "format": "date-time"},
-                          "last_seen_at": {"type": "string", "format": "date-time"},
-                          "idle_expires_at": {"type": "string", "format": "date-time"},
-                          "absolute_expires_at": {"type": "string", "format": "date-time"},
-                          "tenant_id": {"type": "string"},
-                          "workspace_id": {"type": "string"},
-                          "current": {"type": "boolean"},
-                          "revoked_at": {"type": "string", "format": "date-time"}
-                        }
+                          "issued_at": {"type": "string", "format": "date-time", "description": "When the session was issued, per the session list handler."},
+                          "last_seen_at": {"type": "string", "format": "date-time", "description": "When the session was last seen, per the session list handler."},
+                          "idle_expires_at": {"type": "string", "format": "date-time", "description": "Idle expiry of the session, per the session list handler."},
+                          "absolute_expires_at": {"type": "string", "format": "date-time", "description": "Absolute expiry of the session, per the session list handler."},
+                          "tenant_id": {"type": "string", "description": "Session tenant id, per the session list handler."},
+                          "workspace_id": {"type": "string", "description": "Session workspace id, per the session list handler."},
+                          "current": {"type": "boolean", "description": "True for the row of the calling session, per the session list handler."},
+                          "revoked_at": {"type": "string", "format": "date-time", "description": "When the session was revoked, per the session list handler; absent when active."}
+                        },
+                        "required": ["issued_at", "last_seen_at", "idle_expires_at", "absolute_expires_at", "tenant_id", "workspace_id", "current"]
                       }
                     },
                     "prev": {

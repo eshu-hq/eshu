@@ -47,16 +47,17 @@ const Quality = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Function quality inspection page emitted by handleCodeQualityInspection.",
                   "properties": {
-                    "check": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "language": {"type": "string"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "thresholds": {"type": "object", "additionalProperties": true},
-                    "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+                    "check": {"type": "string", "description": "Quality check echoed by handleCodeQualityInspection."},
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by handleCodeQualityInspection."},
+                    "language": {"type": "string", "description": "Language filter echoed by handleCodeQualityInspection."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by handleCodeQualityInspection."},
+                    "offset": {"type": "integer", "description": "Page offset echoed by handleCodeQualityInspection."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page, per handleCodeQualityInspection."},
+                    "thresholds": {"type": "object", "description": "Effective thresholds keyed by threshold name, per handleCodeQualityInspection.", "additionalProperties": true},
+                    "results": {"type": "array", "description": "Quality rows (content-index rows plus per-row quality facts) returned by handleCodeQualityInspection.", "items": {"type": "object", "additionalProperties": true}},
+                    "recommended_next_calls": {"type": "array", "description": "Follow-up get_file_lines calls from quality.NextCalls, one per result row.", "items": {"type": "object", "additionalProperties": true, "description": "One follow-up call (quality.NextCalls): tool get_file_lines with repo_id, relative_path, start_line, and end_line."}}
                   }
                 }
               }

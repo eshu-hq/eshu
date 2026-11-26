@@ -28,7 +28,8 @@ const SignInPolicy = `
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {"require_sso": {"type": "boolean"}}
+                  "description": "Public sign-in policy hint emitted by the public sign-in policy handler.",
+                  "properties": {"require_sso": {"type": "boolean", "description": "True when the tenant requires SSO and the console should hide the local password form, per the public sign-in policy handler."}}
                 }
               }
             }

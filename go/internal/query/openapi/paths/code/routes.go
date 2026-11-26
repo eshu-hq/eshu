@@ -189,18 +189,18 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "entity_id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "labels": {"type": "array", "items": {"type": "string"}},
-                    "file_path": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "repo_name": {"type": "string"},
-                    "language": {"type": "string"},
-                    "start_line": {"type": "integer"},
-                    "end_line": {"type": "integer"},
-                    "metadata": {"type": "object", "additionalProperties": true},
-                    "outgoing": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
-                    "incoming": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "entity_id": {"type": "string", "description": "Anchor entity id resolved by handleRelationships."},
+                    "name": {"type": "string", "description": "Anchor entity name resolved by handleRelationships."},
+                    "labels": {"type": "array", "description": "Anchor entity graph labels reported by handleRelationships.", "items": {"type": "string"}},
+                    "file_path": {"type": "string", "description": "Anchor entity repo-relative file path reported by handleRelationships."},
+                    "repo_id": {"type": "string", "description": "Anchor entity repository id reported by handleRelationships."},
+                    "repo_name": {"type": "string", "description": "Anchor entity repository name reported by handleRelationships."},
+                    "language": {"type": "string", "description": "Anchor entity language reported by handleRelationships."},
+                    "start_line": {"type": "integer", "description": "Anchor entity start line reported by handleRelationships."},
+                    "end_line": {"type": "integer", "description": "Anchor entity end line reported by handleRelationships."},
+                    "metadata": {"type": "object", "description": "Anchor entity metadata keyed by metadata field names, per handleRelationships.", "additionalProperties": true},
+                    "outgoing": {"type": "array", "description": "Outgoing relationship rows (components.schemas.Relationship) from the anchor, per handleRelationships.", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "incoming": {"type": "array", "description": "Incoming relationship rows (components.schemas.Relationship) to the anchor, per handleRelationships.", "items": {"$ref": "#/components/schemas/Relationship"}},
                     "outgoing_truncated": {"type": "boolean", "description": "Always present. On the graph paths, true when more outgoing neighbours exist than were returned (the one-hop read hit the per-direction row ceiling, 500 on NornicDB). On the content fallback, true when a lookup reached its ceiling (the k8s SELECTS candidate scan, or a 20-row lookup for REFERENCES, PATCHES or CONTAINS edges), so the list may be incomplete; the cap is applied before any in-process filter, so it does not prove more neighbours exist. False when no ceiling was reached, when the direction filter excluded outgoing, when relationship_type excludes the clipped edge type, on the Neo4j and transitive paths, which have no row ceiling, and on the ambiguous-target answer, which returns no neighbours."},
                     "incoming_truncated": {"type": "boolean", "description": "Always present. On the graph paths, true when more incoming neighbours exist than were returned (the one-hop read hit the per-direction row ceiling, 500 on NornicDB). On the content fallback, true when a lookup reached its ceiling (the k8s SELECTS candidate scan, or a 20-row lookup for REFERENCES, PATCHES or CONTAINS edges), so the list may be incomplete; the cap is applied before any in-process filter, so it does not prove more neighbours exist. False when no ceiling was reached, when the direction filter excluded incoming, when relationship_type excludes the clipped edge type, on the Neo4j and transitive paths, which have no row ceiling, and on the ambiguous-target answer, which returns no neighbours."}
                   }
@@ -262,18 +262,18 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "target_resolution": {"type": "object", "additionalProperties": true},
-                    "scope": {"type": "object", "additionalProperties": true},
-                    "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
-                    "class_hierarchy": {"type": "object", "additionalProperties": true},
-                    "override_story": {"type": "object", "additionalProperties": true},
-                    "summary": {"type": "object", "additionalProperties": true},
-                    "coverage": {"type": "object", "additionalProperties": true, "properties": {
+                    "target_resolution": {"type": "object", "description": "How the target symbol resolved (or ambiguity candidates), per getCodeRelationshipStory; keys are resolution field names.", "additionalProperties": true},
+                    "scope": {"type": "object", "description": "Resolved story scope keyed by scope field names, per handleRelationshipStory.", "additionalProperties": true},
+                    "relationships": {"type": "array", "description": "Direct or transitive relationship rows (components.schemas.Relationship), per handleRelationshipStory.", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "class_hierarchy": {"type": "object", "description": "Class-hierarchy enrichment for class_hierarchy mode, per getCodeRelationshipStory; keys are hierarchy field names.", "additionalProperties": true},
+                    "override_story": {"type": "object", "description": "Override story for overrides mode, per getCodeRelationshipStory; keys are override field names.", "additionalProperties": true},
+                    "summary": {"type": "object", "description": "Story summary keyed by summary field names, per handleRelationshipStory.", "additionalProperties": true},
+                    "coverage": {"type": "object", "additionalProperties": true, "description": "Bounds and missing-edge explanation for the story, per handleRelationshipStory.", "properties": {
                       "missing_edge_reason": {"type": "string", "enum": ["complete", "target_unresolved", "no_relationships_found", "all_below_confidence_floor", "truncated_by_limit", "truncated_by_token_budget"], "description": "Why the result is empty or short, so an agent need not guess. Descriptive only; never changes the answer's truth label."},
                       "truncation_state": {"type": "string", "enum": ["none", "count", "token_budget", "count_and_token_budget"], "description": "Whether and how the result was capped."},
                       "evidence_explanation": {"type": "string", "description": "Bounded human-readable explanation of the missing-edge reason."}
                     }},
-                    "source_backend": {"type": "string"}
+                    "source_backend": {"type": "string", "description": "Backend that served the story (content store, graph, or both), per handleRelationshipStory."}
                   }
                 }
               }
@@ -323,22 +323,25 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "start": {"type": "string"},
-                    "end": {"type": "string"},
-                    "start_entity_id": {"type": "string"},
-                    "end_entity_id": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "cross_repo": {"type": "boolean"},
-                    "start_repo_id": {"type": "string"},
-                    "end_repo_id": {"type": "string"},
+                    "start": {"type": "string", "description": "Caller function name echoed by handleCallChain."},
+                    "end": {"type": "string", "description": "Callee function name echoed by handleCallChain."},
+                    "start_entity_id": {"type": "string", "description": "Canonical caller entity id echoed by handleCallChain."},
+                    "end_entity_id": {"type": "string", "description": "Canonical callee entity id echoed by handleCallChain."},
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by handleCallChain."},
+                    "cross_repo": {"type": "boolean", "description": "Whether cross-repository traversal was enabled, per handleCallChain."},
+                    "start_repo_id": {"type": "string", "description": "Starting repository selector echoed by handleCallChain."},
+                    "end_repo_id": {"type": "string", "description": "Ending repository selector echoed by handleCallChain."},
                     "chains": {
                       "type": "array",
+                      "description": "Shortest call chains between the endpoints, per handleCallChain.",
                       "items": {
                         "type": "object",
+                        "description": "One call chain: depth plus the entity hop sequence.",
                         "properties": {
-                          "depth": {"type": "integer"},
+                          "depth": {"type": "integer", "description": "Chain depth reported by handleCallChain."},
                           "chain": {
                             "type": "array",
+                            "description": "Entity hops of the chain (components.schemas.EntityRef), per handleCallChain.",
                             "items": {"$ref": "#/components/schemas/EntityRef"}
                           }
                         }
@@ -392,30 +395,33 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "start": {"type": "string"},
-                    "end": {"type": "string"},
-                    "start_entity_id": {"type": "string"},
-                    "end_entity_id": {"type": "string"},
-                    "repo_id": {"type": "string"},
+                    "start": {"type": "string", "description": "Caller function name echoed by handleCompareCodePaths."},
+                    "end": {"type": "string", "description": "Callee function name echoed by handleCompareCodePaths."},
+                    "start_entity_id": {"type": "string", "description": "Canonical caller entity id echoed by handleCompareCodePaths."},
+                    "end_entity_id": {"type": "string", "description": "Canonical callee entity id echoed by handleCompareCodePaths."},
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by handleCompareCodePaths."},
                     "paths": {
                       "type": "array",
+                      "description": "Distinct simple call paths, shortest first with weakest-edge confidence, per handleCompareCodePaths.",
                       "items": {
                         "type": "object",
+                        "description": "One compared path: entity nodes, depth, and weakest-edge confidence.",
                         "properties": {
                           "nodes": {
                             "type": "array",
+                            "description": "Entity nodes of the path (components.schemas.EntityRef), per handleCompareCodePaths.",
                             "items": {"$ref": "#/components/schemas/EntityRef"}
                           },
-                          "depth": {"type": "integer"},
-                          "confidence": {"type": "number"}
+                          "depth": {"type": "integer", "description": "Path depth reported by handleCompareCodePaths."},
+                          "confidence": {"type": "number", "description": "Weakest-edge confidence of the path, per handleCompareCodePaths."}
                         }
                       }
                     },
-                    "truncated": {"type": "boolean"},
-                    "max_depth": {"type": "integer"},
-                    "max_paths": {"type": "integer"},
-                    "visited": {"type": "integer"},
-                    "source_backend": {"type": "string"}
+                    "truncated": {"type": "boolean", "description": "True when the path enumeration stopped early, per handleCompareCodePaths."},
+                    "max_depth": {"type": "integer", "description": "Depth bound applied by handleCompareCodePaths."},
+                    "max_paths": {"type": "integer", "description": "Path bound applied by handleCompareCodePaths."},
+                    "visited": {"type": "integer", "description": "Graph rows visited during the bounded traversal, per handleCompareCodePaths."},
+                    "source_backend": {"type": "string", "description": "Backend that served the comparison, per handleCompareCodePaths."}
                   }
                 }
               }
@@ -460,22 +466,22 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "entity_id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "labels": {"type": "array", "items": {"type": "string"}},
-                    "file_path": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "repo_name": {"type": "string"},
-                    "language": {"type": "string"},
-                    "start_line": {"type": "integer"},
-                    "end_line": {"type": "integer"},
-                    "metadata": {"type": "object", "additionalProperties": true},
-                    "outgoing_count": {"type": "integer"},
-                    "incoming_count": {"type": "integer"},
-                    "total_relationships": {"type": "integer"},
+                    "entity_id": {"type": "string", "description": "Anchor entity id echoed by handleComplexity."},
+                    "name": {"type": "string", "description": "Anchor entity name echoed by handleComplexity."},
+                    "labels": {"type": "array", "description": "Anchor entity graph labels reported by handleComplexity.", "items": {"type": "string"}},
+                    "file_path": {"type": "string", "description": "Anchor entity repo-relative file path reported by handleComplexity."},
+                    "repo_id": {"type": "string", "description": "Anchor or list-scope repository id echoed by handleComplexity."},
+                    "repo_name": {"type": "string", "description": "Anchor entity repository name reported by handleComplexity."},
+                    "language": {"type": "string", "description": "Anchor entity language reported by handleComplexity."},
+                    "start_line": {"type": "integer", "description": "Anchor entity start line reported by handleComplexity."},
+                    "end_line": {"type": "integer", "description": "Anchor entity end line reported by handleComplexity."},
+                    "metadata": {"type": "object", "description": "Anchor entity metadata keyed by metadata field names, per handleComplexity.", "additionalProperties": true},
+                    "outgoing_count": {"type": "integer", "description": "Anchor outgoing relationship count reported by handleComplexity."},
+                    "incoming_count": {"type": "integer", "description": "Anchor incoming relationship count reported by handleComplexity."},
+                    "total_relationships": {"type": "integer", "description": "Anchor total relationship count reported by handleComplexity."},
                     "results": {"type": "array", "description": "Most-complex-function rows (list mode). Each row's docstring is clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.", "items": {"type": "object", "additionalProperties": true}},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "limit": {"type": "integer", "description": "Page bound echoed by handleComplexity."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past the limit, per handleComplexity."},
                     "docstring_clip_bytes": {"type": "integer", "description": "List mode only, always present there: the read-time docstring ceiling in bytes (512) applied to every row of results."},
                     "docstring_clipped_rows": {"type": "integer", "description": "List mode only: number of returned rows whose docstring was clipped; 0 when none."}
                   }

@@ -32,11 +32,13 @@ const AdminMutations = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Terminal invitation state after the idempotent revoke, per handleRevokeInvitation.",
                   "properties": {
-                    "invite_id": {"type": "string"},
-                    "status": {"type": "string"},
-                    "revoked": {"type": "boolean"}
-                  }
+                    "invite_id": {"type": "string", "description": "Revoked invitation id echoed by handleRevokeInvitation."},
+                    "status": {"type": "string", "description": "Terminal invitation status reported by handleRevokeInvitation."},
+                    "revoked": {"type": "boolean", "description": "False when the invitation was already revoked, accepted, or expired (safe no-op), per handleRevokeInvitation."}
+                  },
+                  "required": ["invite_id", "status", "revoked"]
                 }
               }
             }
@@ -79,12 +81,14 @@ const AdminMutations = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Revoked assignment state emitted by handleRevokeRoleAssignment.",
                   "properties": {
-                    "user_id": {"type": "string"},
-                    "role_id": {"type": "string"},
-                    "status": {"type": "string"},
-                    "changed": {"type": "boolean"}
-                  }
+                    "user_id": {"type": "string", "description": "Revoked user id echoed by handleRevokeRoleAssignment."},
+                    "role_id": {"type": "string", "description": "Revoked role id echoed by handleRevokeRoleAssignment."},
+                    "status": {"type": "string", "description": "Effective assignment status reported by handleRevokeRoleAssignment."},
+                    "changed": {"type": "boolean", "description": "False when the assignment was already revoked (safe no-op), per handleRevokeRoleAssignment."}
+                  },
+                  "required": ["user_id", "role_id", "status", "changed"]
                 }
               }
             }
@@ -111,10 +115,12 @@ const AdminMutations = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Idempotent delete outcome emitted by handleDeleteIdPGroupMapping.",
                   "properties": {
-                    "mapping_ref": {"type": "string"},
-                    "deleted": {"type": "boolean"}
-                  }
+                    "mapping_ref": {"type": "string", "description": "Deleted mapping ref echoed by handleDeleteIdPGroupMapping."},
+                    "deleted": {"type": "boolean", "description": "Whether the mapping was tombstoned by this call, per handleDeleteIdPGroupMapping."}
+                  },
+                  "required": ["mapping_ref", "deleted"]
                 }
               }
             }

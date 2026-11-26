@@ -46,10 +46,10 @@ const Scan = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "candidate_kind": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "language": {"type": "string"},
-                    "limit": {"type": "integer"},
+                    "candidate_kind": {"type": "string", "description": "Candidate kind echoed by the dead-code scan handler."},
+                    "repo_id": {"type": "string", "description": "Repository selector echoed by the dead-code scan handler."},
+                    "language": {"type": "string", "description": "Parser language filter echoed by the dead-code scan handler."},
+                    "limit": {"type": "integer", "description": "Candidate bound echoed by the dead-code scan handler."},
                     "truncated": {"type": "boolean", "description": "True when either displayed results were clipped to limit or the bounded paged raw candidate scan reached its scan cap."},
                     "display_truncated": {"type": "boolean", "description": "True when filtered display results exceeded limit and were clipped."},
                     "candidate_scan_truncated": {"type": "boolean", "description": "True when the paged raw candidate scan reached candidate_scan_limit before exhausting candidates."},
@@ -61,6 +61,7 @@ const Scan = `
                     "candidate_scan_rows": {"type": "integer", "description": "Number of raw candidate rows inspected before policy exclusions."},
                     "results": {
                       "type": "array",
+                      "description": "Dead-code candidates (content-index entity rows plus per-result classification) returned by the dead-code scan handler.",
                       "items": {
                         "allOf": [
                           {"$ref": "#/components/schemas/EntityRef"},
@@ -82,9 +83,10 @@ const Scan = `
                     },
                     "analysis": {
                       "type": "object",
+                      "description": "Policy analysis for the scan (deadcode policy stats and modeled roots) emitted by the dead-code scan handler.",
                       "properties": {
-                        "root_categories_used": {"type": "array", "items": {"type": "string"}},
-                        "frameworks_recognized": {"type": "array", "items": {"type": "string"}},
+                        "root_categories_used": {"type": "array", "description": "Reachability root categories applied by the dead-code policy.", "items": {"type": "string"}},
+                        "frameworks_recognized": {"type": "array", "description": "Frameworks the dead-code policy recognized on the candidates.", "items": {"type": "string"}},
                         "reflection_modeled": {
                           "type": "boolean",
                           "description": "True only when the requested language has modeled reflection reachability evidence."
@@ -94,10 +96,10 @@ const Scan = `
                           "items": {"type": "string"},
                           "description": "Languages whose reflection reachability evidence is modeled by the dead-code policy."
                         },
-                        "tests_excluded": {"type": "boolean"},
-                        "generated_code_excluded": {"type": "boolean"},
-                        "user_overrides_applied": {"type": "boolean"},
-                        "dead_code_language_maturity": {"type": "object", "additionalProperties": {"type": "string"}},
+                        "tests_excluded": {"type": "boolean", "description": "Whether test files were excluded from the candidates by the dead-code policy."},
+                        "generated_code_excluded": {"type": "boolean", "description": "Whether generated code was excluded from the candidates by the dead-code policy."},
+                        "user_overrides_applied": {"type": "boolean", "description": "Whether user decorator exclusions were applied by the dead-code policy."},
+                        "dead_code_language_maturity": {"type": "object", "description": "Dead-code language maturity by language, per the dead-code policy; keys are language names.", "additionalProperties": {"type": "string"}},
                         "dead_code_language_exactness_blockers": {
                           "type": "object",
                           "description": "Named blockers that prevent exact cleanup-safe dead-code truth for a language.",
@@ -113,9 +115,9 @@ const Scan = `
                           "description": "Frameworks observed on returned candidates for which dead-code has no root model, grouped by language. Convention-dispatched entry points of those frameworks may be misreported as dead.",
                           "additionalProperties": {"type": "array", "items": {"type": "string"}}
                         },
-                        "modeled_entrypoints": {"type": "array", "items": {"type": "string"}},
-                        "modeled_public_api": {"type": "array", "items": {"type": "string"}},
-                        "notes": {"type": "array", "items": {"type": "string"}}
+                        "modeled_entrypoints": {"type": "array", "description": "Modeled entry points the dead-code policy treated as reachability roots.", "items": {"type": "string"}},
+                        "modeled_public_api": {"type": "array", "description": "Modeled public API the dead-code policy treated as reachability roots.", "items": {"type": "string"}},
+                        "notes": {"type": "array", "description": "Policy notes for the scan emitted by the dead-code scan handler.", "items": {"type": "string"}}
                       }
                     }
                   }

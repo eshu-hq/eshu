@@ -36,11 +36,13 @@ const Graph = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Bounded read-only Cypher result page emitted by handleCypherQuery.",
                   "properties": {
-                    "results": {"type": "array", "items": {"type": "object"}},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
-                  }
+                    "results": {"type": "array", "description": "Raw Neo4j driver result rows written by handleCypherQuery; keys are the caller query's RETURN aliases, so no fixed key set can be named.", "items": {"type": "object", "additionalProperties": true, "description": "One raw result row; keys are the caller query's RETURN aliases with arbitrary JSON values."}},
+                    "limit": {"type": "integer", "description": "Row bound applied by handleCypherQuery."},
+                    "truncated": {"type": "boolean", "description": "True when more rows existed than the limit, per handleCypherQuery."}
+                  },
+                  "required": ["results", "limit", "truncated"]
                 }
               }
             }
@@ -84,22 +86,67 @@ const Graph = `
                   "properties": {
                     "visualization_packet": {
                       "type": "object",
+                      "description": "Renderable subgraph packet (visualization.VisualizationPacket) projected from the graph entities the query returned by handleVisualizeQuery.",
                       "properties": {
-                        "view": {"type": "string"},
-                        "title": {"type": "string"},
-                        "supported": {"type": "boolean"},
-                        "nodes": {"type": "array", "items": {"type": "object"}},
-                        "edges": {"type": "array", "items": {"type": "object"}},
-                        "truth": {"type": "object"},
-                        "limits": {"type": "object"},
-                        "truncation": {"type": "object"},
-                        "limitations": {"type": "array", "items": {"type": "string"}},
-                        "recommended_next_calls": {"type": "array", "items": {"type": "object"}}
+                        "view": {"type": "string", "description": "Derived-view family the packet was built from, per visualization.NewVisualizationBuilder."},
+                        "title": {"type": "string", "description": "Short human-readable subgraph subject, per visualization.NewVisualizationBuilder."},
+                        "supported": {"type": "boolean", "description": "False when no subgraph could be derived; the packet then carries limitations and recommended_next_calls, per visualization.BuildGraphQueryVisualizationPacket."},
+                        "nodes": {"type": "array", "description": "Bounded deterministically ordered nodes (visualization.VisualizationNode) retained in the packet.", "items": {"type": "object", "description": "One packet node: stable id, type, label, and optional classification, truth, and evidence-handle fields.",
+                          "properties": {
+                            "id": {"type": "string", "description": "Stable deterministic node identifier derived from the underlying identity, per visualization.VisualizationNode."},
+                            "type": {"type": "string", "description": "Node class (service, repository, citation, incident, evidence_slot), per visualization.VisualizationNode."},
+                            "label": {"type": "string", "description": "Bounded human-readable render label, per visualization.VisualizationNode."},
+                            "category": {"type": "string", "description": "Optional sub-classification for layout, per visualization.VisualizationNode."},
+                            "role": {"type": "string", "description": "What the source evidence proves this node does in the service story, per visualization.VisualizationNode."},
+                            "roles": {"type": "array", "description": "Every source-proven role reconciled onto this node, per visualization.VisualizationNode.", "items": {"type": "string"}},
+                            "canonical_key": {"type": "string", "description": "Privacy-safe repository identity from the source evidence, per visualization.VisualizationNode."},
+                            "scope_key": {"type": "string", "description": "Privacy-safe observation-scope discriminator, per visualization.VisualizationNode."},
+                            "scope_keys": {"type": "array", "description": "Every privacy-safe observation scope reconciled onto this node, per visualization.VisualizationNode.", "items": {"type": "string"}},
+                            "truth_label": {"type": "string", "description": "Per-node truth label carried from the source response, per visualization.VisualizationNode."},
+                            "evidence_handle": {"type": "object", "description": "Evidence-citation handle back to the source response evidence, per visualization.VisualizationNode.", "additionalProperties": true},
+                            "evidence_handles": {"type": "array", "description": "Every supported observation handle reconciled onto this node, per visualization.VisualizationNode.", "items": {"type": "object", "additionalProperties": true}}
+                          },
+                          "required": ["id", "type", "label"]
+                        }},
+                        "edges": {"type": "array", "description": "Bounded deterministically ordered edges (visualization.VisualizationEdge) retained in the packet.", "items": {"type": "object", "description": "One packet edge between stable node ids, per visualization.VisualizationEdge.",
+                          "properties": {
+                            "id": {"type": "string", "description": "Stable deterministic edge identifier derived from source, target, and relationship, per visualization.VisualizationEdge."},
+                            "source": {"type": "string", "description": "Stable id of the originating node, per visualization.VisualizationEdge."},
+                            "target": {"type": "string", "description": "Stable id of the destination node, per visualization.VisualizationEdge."},
+                            "relationship": {"type": "string", "description": "Relationship label (graph relationship type or incident slot transition), per visualization.VisualizationEdge."},
+                            "truth_label": {"type": "string", "description": "Truth label carried from the source response, per visualization.VisualizationEdge."},
+                            "evidence_handle": {"type": "object", "description": "Evidence-citation handle for the relationship, per visualization.VisualizationEdge.", "additionalProperties": true},
+                            "evidence_handles": {"type": "array", "description": "Every supported relationship handle collapsed onto this edge, per visualization.VisualizationEdge.", "items": {"type": "object", "additionalProperties": true}}
+                          },
+                          "required": ["id", "source", "target", "relationship"]
+                        }},
+                        "truth": {"type": "object", "description": "Copy of the source response TruthEnvelope; the canonical truth metadata for the subgraph, per visualization.VisualizationPacket. Omitted when the source carried none.", "additionalProperties": true},
+                        "limits": {"type": "object", "description": "Payload bounds and retained counts (visualization.VisualizationLimits) so a client can show N of M.",
+                          "properties": {
+                            "max_nodes": {"type": "integer", "description": "Node bound applied, per visualization.VisualizationLimits."},
+                            "max_edges": {"type": "integer", "description": "Edge bound applied, per visualization.VisualizationLimits."},
+                            "ordering": {"type": "string", "description": "Deterministic ordering contract (stable_id), per visualization.VisualizationLimits."},
+                            "node_count": {"type": "integer", "description": "Nodes retained in the packet, per visualization.VisualizationLimits."},
+                            "edge_count": {"type": "integer", "description": "Edges retained in the packet, per visualization.VisualizationLimits."}
+                          },
+                          "required": ["max_nodes", "max_edges", "ordering", "node_count", "edge_count"]
+                        },
+                        "truncation": {"type": "object", "description": "What the packet dropped to stay within bounds (visualization.VisualizationTruncation), so truncation is explicit.",
+                          "properties": {
+                            "truncated": {"type": "boolean", "description": "True when any node or edge was dropped, per visualization.VisualizationTruncation."},
+                            "dropped_node_count": {"type": "integer", "description": "Nodes dropped over the bound, per visualization.VisualizationTruncation."},
+                            "dropped_edge_count": {"type": "integer", "description": "Edges dropped (over-bound plus dangling), per visualization.VisualizationTruncation."},
+                            "dropped_node_ids": {"type": "array", "description": "Stable ids of dropped nodes, sorted and bounded, per visualization.VisualizationTruncation.", "items": {"type": "string"}}
+                          },
+                          "required": ["truncated", "dropped_node_count", "dropped_edge_count"]
+                        },
+                        "limitations": {"type": "array", "description": "Bounded human-readable caveats (unsupported view, truncation, missing source fields), per visualization.VisualizationPacket.", "items": {"type": "string"}},
+                        "recommended_next_calls": {"type": "array", "description": "Bounded follow-up calls in the evidence-citation recommended_next_calls shape, per visualization.VisualizationPacket.", "items": {"type": "object", "additionalProperties": true, "description": "One follow-up call; keys follow the evidence-citation recommended_next_calls convention (tool, arguments, reason)."}}
                       },
                       "required": ["view", "supported", "nodes", "edges", "limits", "truncation"]
                     },
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "limit": {"type": "integer", "description": "Row bound applied before projection, per handleVisualizeQuery."},
+                    "truncated": {"type": "boolean", "description": "True when the row window was cut at the limit before projection, per handleVisualizeQuery."}
                   }
                 }
               }
@@ -149,10 +196,14 @@ const Graph = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Bounded package-registry bundle candidate page emitted by searchRegistryBundles.",
                   "properties": {
-                    "bundles": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "count": {"type": "integer"}
-                  }
+                    "bundles": {"type": "array", "description": "Bundle candidates ordered by ecosystem, normalized name, and package id, per handleSearchBundles. Each row is a package node projection; keys are the registry row fields.", "items": {"type": "object", "additionalProperties": true, "description": "One bundle candidate row keyed by the package registry row fields."}},
+                    "count": {"type": "integer", "description": "Candidates on this page emitted by searchRegistryBundles."},
+                    "limit": {"type": "integer", "description": "Page bound echoed by handleSearchBundles."},
+                    "truncated": {"type": "boolean", "description": "True when more matches exist than the limit, per handleSearchBundles."}
+                  },
+                  "required": ["bundles", "count", "limit", "truncated"]
                 }
               }
             }

@@ -28,15 +28,16 @@ const ReindexProgress = `
                   "type": "object",
                   "required": ["status", "fleet_requested_at", "counts", "scopes", "truncated"],
                   "properties": {
-                    "status": {"type": "string", "enum": ["complete", "incomplete"]},
+                    "status": {"type": "string", "enum": ["complete", "incomplete"], "description": "complete only when no named scope is pending or never_seen."},
                     "fleet_requested_at": {"type": ["string", "null"], "format": "date-time", "description": "The fleet watermark compared, in UTC; null when no fleet reindex was ever requested and no override was given."},
                     "counts": {
                       "type": "object",
+                      "description": "Coverage over every named scope.",
                       "required": ["satisfied", "pending", "never_seen"],
                       "properties": {
-                        "satisfied": {"type": "integer"},
-                        "pending": {"type": "integer"},
-                        "never_seen": {"type": "integer"}
+                        "satisfied": {"type": "integer", "description": "Named scopes whose newest activated full was ingested at or after the effective watermark."},
+                        "pending": {"type": "integer", "description": "Named scopes with an activated full older than the effective watermark."},
+                        "never_seen": {"type": "integer", "description": "Named scopes with no activated full at all."}
                       }
                     },
                     "scopes": {
@@ -47,15 +48,15 @@ const ReindexProgress = `
                         "type": "object",
                         "required": ["scope_id", "state", "requested_at", "last_stored_full_at", "active_generation_id"],
                         "properties": {
-                          "scope_id": {"type": "string"},
-                          "state": {"type": "string", "enum": ["satisfied", "pending", "never_seen"]},
+                          "scope_id": {"type": "string", "description": "Ingestion scope the sample covers."},
+                          "state": {"type": "string", "enum": ["satisfied", "pending", "never_seen"], "description": "Watermark verdict for the scope under the reconciliation rule."},
                           "requested_at": {"type": ["string", "null"], "format": "date-time", "description": "The scope's effective watermark in UTC; null when no watermark applies."},
                           "last_stored_full_at": {"type": ["string", "null"], "format": "date-time", "description": "The ingest time of the scope's newest activated full generation; null when it has none."},
                           "active_generation_id": {"type": "string", "description": "The scope's active generation; empty when it has none."}
                         }
                       }
                     },
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean", "description": "True when scopes were left out of the samples."}
                   }
                 }
               }
