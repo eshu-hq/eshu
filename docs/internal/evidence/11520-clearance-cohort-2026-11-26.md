@@ -15,7 +15,8 @@ WHERE domain='supply_chain_impact'
   AND status IN ('pending','retrying','claimed')
   AND strpos(scope_id,'vuln-intel://nvd/_baseline/')=0
 GROUP BY 1,2 ORDER BY 1,2;
--- cold 388.973 ms; warm count-only repeats 100.454 ms, 71.416 ms
+-- cold 388.973 ms on the grouped query above; warm repeats used
+-- SELECT count(*) with the same WHERE clause: 100.454 ms, 71.416 ms
 ```
 
 Cohort totals at read time: pending 7,772 (oldest 2026-10-22),
@@ -57,6 +58,13 @@ for zero reorder).
 5. Drain-gating tier extension: RULED OUT for this cohort (0% baseline
    gets nil yield by construction).
 6. Worker bump: RULED OUT until the H2 holder shape is fixed.
+
+## Sources
+
+- P1a figures (inflow 910, drain 733, 17-row baseline check, 03:57Z)
+  are recorded in the #11520 issue body (coordinator live read).
+- DROP cost deltas (+16-17% CPU, +22-24% buffers) are recorded in the
+  Box-2 verdict comment on #10972.
 
 ## Verdicts
 
