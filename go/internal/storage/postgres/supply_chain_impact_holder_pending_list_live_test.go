@@ -148,6 +148,12 @@ func explainInTx(t *testing.T, ctx context.Context, tx *sql.Tx, st holderPlanSta
 //	        the reader runs: the member arm is on the members index, no Seq Scan, and
 //	        the probe runs with masses equal to the flushed run.
 //
+// The H2 routing-mass count (#10972 Lane-1b) shares the probe's posture: it runs
+// only through readIDMasses, always under the same settings, so GREEN-2 plans it
+// under the settings too, while the no-setting leg below skips both mass texts.
+// Its generic plan on a healthy table is pinned by the plan-shape test's
+// routing-mass row.
+//
 // In the RED-1 state, with both lists full, the 5-id holder statement and both
 // key-range statements keep every arm on its index by name, with no setting. The
 // reloptions assertion rejects a members GIN without fastupdate=off and a tokens
@@ -156,11 +162,17 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 	ctx, database := fanOutLiveDB(t)
 	pendingListCorpus(t, ctx, database, 40000)
 	statements := holderPlanStatements()
-	var probe holderPlanStatement
+	var probe, routingMass holderPlanStatement
 	for _, st := range statements {
 		if st.query == postgres.HolderMassProbeQuery {
 			probe = st
 		}
+		if st.query == postgres.HolderRoutingMassQuery {
+			routingMass = st
+		}
+	}
+	if routingMass.query == "" {
+		t.Fatal("routing-mass count missing from the plan registry: the no-setting leg cannot tell the settings-dependent texts apart")
 	}
 
 	// Schema: the members GIN carries fastupdate = off and the tokens GIN carries
@@ -245,6 +257,14 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 		_ = redTx.Rollback()
 		t.Fatalf("GREEN-2: the mass probe under the reader's settings: %s\n%s", v, greenPlan)
 	}
+	// The routing-mass count runs only under the same settings (readIDMasses),
+	// so GREEN-2 covers its plan too: same member arm shape, same GIN, same
+	// pressure. The no-setting leg below skips both mass texts for that reason.
+	routingPlan := explainInTx(t, ctx, redTx, routingMass, true)
+	if v := holderPlanViolation(routingPlan, routingMass.indexes...); v != "" {
+		_ = redTx.Rollback()
+		t.Fatalf("GREEN-2: the routing-mass count under the reader's settings: %s\n%s", v, routingPlan)
+	}
 	// The helper's setting lasts for the rest of the transaction, so the leg below
 	// would plan under it. Seeded RED: the guard detects the forced-off setting; then
 	// the setting is reset and the leg asserts it is on before it plans anything.
@@ -268,9 +288,12 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 		_ = redTx.Rollback()
 		t.Fatalf("enable_seqscan = %q before the no-setting leg, want on", got)
 	}
-	// The other statements in the RED state, no setting.
+	// The other statements in the RED state, no setting. Both mass texts run
+	// only under the reader's settings in production (readIDMasses), so the
+	// no-setting leg skips both; GREEN-2 above covers their under-settings
+	// plans under the same pressure.
 	for _, st := range statements {
-		if st.query == postgres.HolderMassProbeQuery {
+		if st.query == postgres.HolderMassProbeQuery || st.query == postgres.HolderRoutingMassQuery {
 			continue
 		}
 		plan := explainHolderStatement(t, ctx, redTx, st, false)
