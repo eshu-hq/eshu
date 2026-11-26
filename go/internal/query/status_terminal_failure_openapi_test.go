@@ -55,7 +55,7 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 	}
 
 	// The acknowledged_failure sub-record (#8830) carries the same bounded
-	// class on all three routes, so its enum is pinned to the same set,
+	// class on all four routes, so its enum is pinned to the same set,
 	// and its timestamps are omitted-when-absent (never null) like
 	// last_failure_at.
 	var acknowledged []map[string]any
