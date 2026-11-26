@@ -270,6 +270,12 @@ func applyWinnersKeyed(
 	candidate time.Time,
 	result *supplychaincore.SupplyChainImpactWinnersResweep,
 ) error {
+	// The RETURNING watermark column reads the post-upsert value, so the
+	// replaced value is read before the apply runs.
+	previous, err := readWinnersPreStampWatermark(ctx, tx)
+	if err != nil {
+		return err
+	}
 	rows, err := tx.QueryContext(ctx, applyWinnersKeyedSQL, candidate)
 	if err != nil {
 		return fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
@@ -281,8 +287,9 @@ func applyWinnersKeyed(
 		}
 		return fmt.Errorf("apply supply chain impact winners keyed resweep: statement returned no counts")
 	}
-	var previous sql.NullTime
-	if err := rows.Scan(&result.Inserted, &result.Updated, &result.Deleted, &result.Unchanged, &result.Keys, &previous); err != nil {
+	// stamped is the post-upsert watermark; it is scanned for arity only.
+	var stamped sql.NullTime
+	if err := rows.Scan(&result.Inserted, &result.Updated, &result.Deleted, &result.Unchanged, &result.Keys, &stamped); err != nil {
 		return fmt.Errorf("scan supply chain impact winners keyed counts: %w", err)
 	}
 	if rows.Next() {
@@ -294,9 +301,7 @@ func applyWinnersKeyed(
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("close supply chain impact winners keyed counts: %w", err)
 	}
-	if previous.Valid {
-		result.PreviousWatermark = previous.Time.UTC()
-	}
+	result.PreviousWatermark = previous
 	return nil
 }
 
