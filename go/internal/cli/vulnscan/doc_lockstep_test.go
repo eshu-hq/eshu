@@ -24,7 +24,7 @@ import (
 // package is NOT process-neutral and a broader name would imply it is. It
 // reaches the network on every RunRepo through the injected RepoClient, and
 // the local runtime reaches it directly: it listens on a loopback port to
-// reserve one and polls /healthz over HTTP. It starts child processes
+// reserve one and polls /health over HTTP. It starts child processes
 // (os/exec, with the binary path from procexec.Executable), reads the
 // filesystem (os.Stat), has one os.Getenv reference -- handed to
 // localsupervisor.ChildOverrides as its getenv, which reads what it needs to

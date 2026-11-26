@@ -84,7 +84,7 @@ func TestEmbeddedPostgresConfigRoutesStartupLogsToWorkspaceFile(t *testing.T) {
 //     session eshu-core-api per MCP session (the satellite eshu-mcp-server
 //     holds no pool; it reads through the session API).
 //   - cmd/eshu/gotchas-read-surface-commands.md documents `eshu vuln-scan repo`
-//     attaching to a running owner and launching eshu-local-api plus
+//     attaching to a running owner and launching eshu-core-api plus
 //     eshu-bootstrap-index against that owner's Postgres.
 func TestLocalPostgresPoolHoldersCoverEveryLocalProcessThatOpensAPool(t *testing.T) {
 	t.Parallel()
@@ -93,7 +93,7 @@ func TestLocalPostgresPoolHoldersCoverEveryLocalProcessThatOpensAPool(t *testing
 		"eshu-reducer",
 		"eshu-ingester",
 		"eshu-core-api",
-		"eshu-local-api",
+		"eshu-core-api", // vulnscan one-shot; shares the binary with the session child.
 		"eshu-bootstrap-index",
 	}
 	got := make(map[string]bool, len(localPostgresPoolHolders))

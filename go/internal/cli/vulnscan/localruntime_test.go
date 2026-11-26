@@ -27,7 +27,7 @@ func TestPrepareVulnScanLocalRuntimeAttachesExistingAuthoritativeOwner(t *testin
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
 		Profile:            "local_authoritative",
-		GraphBackend:       "nornicdb",
+		GraphBackend:       "neo4j",
 		GraphAddress:       "127.0.0.1",
 		GraphBoltPort:      17687,
 		GraphUsername:      "admin",
@@ -36,25 +36,27 @@ func TestPrepareVulnScanLocalRuntimeAttachesExistingAuthoritativeOwner(t *testin
 	defer restoreOwner()
 
 	originalReservePort := reserveLocalAPIPortFn
-	originalStartAPI := startLocalAPIFn
-	originalWaitAPI := waitLocalAPIFn
+	originalStartCore := startLocalCoreFn
+	originalWaitCore := waitLocalCoreFn
 	originalStopProcess := stopLocalProcessFn
 	defer func() {
 		reserveLocalAPIPortFn = originalReservePort
-		startLocalAPIFn = originalStartAPI
-		waitLocalAPIFn = originalWaitAPI
+		startLocalCoreFn = originalStartCore
+		waitLocalCoreFn = originalWaitCore
 		stopLocalProcessFn = originalStopProcess
 	}()
 
 	reserveLocalAPIPortFn = func() (int, error) { return 19090, nil }
-	var gotAPIEnv []string
-	startLocalAPIFn = func(env []string) (*exec.Cmd, error) {
-		gotAPIEnv = append([]string(nil), env...)
+	var gotCoreAddr string
+	var gotCoreEnv []string
+	startLocalCoreFn = func(apiAddr string, env []string) (*exec.Cmd, error) {
+		gotCoreAddr = apiAddr
+		gotCoreEnv = append([]string(nil), env...)
 		return nil, nil
 	}
-	waitLocalAPIFn = func(_ context.Context, baseURL string, _ time.Duration) error {
+	waitLocalCoreFn = func(_ context.Context, baseURL string, _ time.Duration) error {
 		if baseURL != "http://127.0.0.1:19090" {
-			t.Fatalf("baseURL = %q, want local API URL", baseURL)
+			t.Fatalf("baseURL = %q, want local core URL", baseURL)
 		}
 		return nil
 	}
@@ -65,20 +67,23 @@ func TestPrepareVulnScanLocalRuntimeAttachesExistingAuthoritativeOwner(t *testin
 		t.Fatalf("prepareLocalRuntime() error = %v, want nil", err)
 	}
 	if runtime.BaseURL != "http://127.0.0.1:19090" {
-		t.Fatalf("runtime.BaseURL = %q, want local API address", runtime.BaseURL)
+		t.Fatalf("runtime.BaseURL = %q, want local core address", runtime.BaseURL)
 	}
 	wantDSN := "host=127.0.0.1 port=15439 user=eshu password=change-me dbname=postgres sslmode=disable"
 	if got := envValue(runtime.BootstrapEnv, "ESHU_POSTGRES_DSN"); got != wantDSN {
 		t.Fatalf("bootstrap ESHU_POSTGRES_DSN = %q, want %q", got, wantDSN)
 	}
-	if got, want := envValue(runtime.BootstrapEnv, "ESHU_NEO4J_URI"), "bolt://127.0.0.1:17687"; got != want {
-		t.Fatalf("bootstrap ESHU_NEO4J_URI = %q, want %q", got, want)
+	if got, want := envValue(runtime.BootstrapEnv, "ESHU_GRAPH_BACKEND"), "neo4j"; got != want {
+		t.Fatalf("bootstrap ESHU_GRAPH_BACKEND = %q, want %q", got, want)
 	}
-	if got, want := envValue(gotAPIEnv, "ESHU_API_ADDR"), "127.0.0.1:19090"; got != want {
-		t.Fatalf("API ESHU_API_ADDR = %q, want %q", got, want)
+	if gotCoreAddr != "127.0.0.1:19090" {
+		t.Fatalf("core apiAddr = %q, want the reserved loopback address on -addr argv", gotCoreAddr)
 	}
-	if got, want := envValue(gotAPIEnv, "ESHU_GRAPH_BACKEND"), "nornicdb"; got != want {
-		t.Fatalf("API ESHU_GRAPH_BACKEND = %q, want %q", got, want)
+	if got := envValue(gotCoreEnv, "ESHU_API_ADDR"); got != "" {
+		t.Fatalf("core ESHU_API_ADDR = %q, want unset: core takes the listen address on -addr only", got)
+	}
+	if got, want := envValue(gotCoreEnv, "ESHU_GRAPH_BACKEND"), "neo4j"; got != want {
+		t.Fatalf("core ESHU_GRAPH_BACKEND = %q, want %q", got, want)
 	}
 }
 
@@ -97,7 +102,7 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
 		Profile:            "local_authoritative",
-		GraphBackend:       "nornicdb",
+		GraphBackend:       "neo4j",
 		GraphAddress:       "127.0.0.1",
 		GraphBoltPort:      17687,
 		GraphHTTPPort:      17474,
@@ -112,8 +117,8 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 	originalGraphHealthy := localsupervisor.GraphHealthy
 	originalStartOwner := startLocalOwnerFn
 	originalReservePort := reserveLocalAPIPortFn
-	originalStartAPI := startLocalAPIFn
-	originalWaitAPI := waitLocalAPIFn
+	originalStartCore := startLocalCoreFn
+	originalWaitCore := waitLocalCoreFn
 	originalStopProcess := stopLocalProcessFn
 	defer func() {
 		localsupervisor.BuildLayout = originalBuildLayout
@@ -123,8 +128,8 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 		localsupervisor.GraphHealthy = originalGraphHealthy
 		startLocalOwnerFn = originalStartOwner
 		reserveLocalAPIPortFn = originalReservePort
-		startLocalAPIFn = originalStartAPI
-		waitLocalAPIFn = originalWaitAPI
+		startLocalCoreFn = originalStartCore
+		waitLocalCoreFn = originalWaitCore
 		stopLocalProcessFn = originalStopProcess
 	}()
 
@@ -157,8 +162,8 @@ func TestPrepareVulnScanLocalRuntimeStartsOwnerWhenMissing(t *testing.T) {
 		return ownerCmd, nil
 	}
 	reserveLocalAPIPortFn = func() (int, error) { return 19090, nil }
-	startLocalAPIFn = func([]string) (*exec.Cmd, error) { return apiCmd, nil }
-	waitLocalAPIFn = func(context.Context, string, time.Duration) error { return nil }
+	startLocalCoreFn = func(string, []string) (*exec.Cmd, error) { return apiCmd, nil }
+	waitLocalCoreFn = func(context.Context, string, time.Duration) error { return nil }
 	stopLocalProcessFn = func(cmd *exec.Cmd, _ time.Duration) error {
 		if cmd == ownerCmd {
 			ownerStopped.Store(true)
@@ -289,27 +294,86 @@ func pathExists(path string) bool {
 	return err == nil
 }
 
-// TestStartLocalAPISpawnsLocalAPIBinary proves the one-shot vulnscan API is
-// the in-tree build installed as eshu-local-api, not the eshu-api satellite
-// (which exits fail-closed without --core-base-url). It calls the real
-// startLocalAPI with a fake eshu-local-api on PATH — no seam doubles — so a
-// spawn-name regression fails here instead of at scan time.
-func TestStartLocalAPISpawnsLocalAPIBinary(t *testing.T) {
+// TestPrepareVulnScanLocalRuntimeRefusesUnsupportedBackendBeforeSpawn is the
+// #11514 failing-first regression: on a backend with no surviving one-shot
+// API, prepareLocalRuntime must refuse before reserving a port or spawning
+// anything, naming the backend requirement — not burning the health-wait
+// timeout on a child that can never serve.
+func TestPrepareVulnScanLocalRuntimeRefusesUnsupportedBackendBeforeSpawn(t *testing.T) {
+	for _, backend := range []string{"nornicdb", ""} {
+		t.Run("backend="+backend, func(t *testing.T) {
+			repoPath := t.TempDir()
+			restoreOwner := stubLocalOwner(t, repoPath, eshulocal.OwnerRecord{
+				PID:                1234,
+				WorkspaceID:        "workspace-123",
+				PostgresPort:       15439,
+				PostgresSocketPath: "/tmp/.s.PGSQL.15439",
+				Profile:            "local_authoritative",
+				GraphBackend:       backend,
+				GraphAddress:       "127.0.0.1",
+				GraphBoltPort:      17687,
+				GraphUsername:      "admin",
+				GraphPassword:      "workspace-secret",
+			})
+			defer restoreOwner()
+
+			originalReservePort := reserveLocalAPIPortFn
+			originalStartCore := startLocalCoreFn
+			originalWaitCore := waitLocalCoreFn
+			originalStopProcess := stopLocalProcessFn
+			defer func() {
+				reserveLocalAPIPortFn = originalReservePort
+				startLocalCoreFn = originalStartCore
+				waitLocalCoreFn = originalWaitCore
+				stopLocalProcessFn = originalStopProcess
+			}()
+
+			var reserved, spawned, waited int
+			reserveLocalAPIPortFn = func() (int, error) { reserved++; return 19090, nil }
+			startLocalCoreFn = func(string, []string) (*exec.Cmd, error) { spawned++; return &exec.Cmd{}, nil }
+			waitLocalCoreFn = func(context.Context, string, time.Duration) error { waited++; return nil }
+			stopLocalProcessFn = func(*exec.Cmd, time.Duration) error { return nil }
+
+			_, err := prepareLocalRuntime(context.Background(), repoPath, io.Discard)
+			if err == nil {
+				t.Fatal("prepareLocalRuntime() error = nil, want backend-requirement refusal")
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, "neo4j") || !strings.Contains(msg, "eshu-core-api") {
+				t.Fatalf("refusal error = %q, want it to name the neo4j/eshu-core-api backend requirement", msg)
+			}
+			if strings.Contains(msg, "timed out") {
+				t.Fatalf("refusal error = %q, want pre-spawn refusal, not a health-wait timeout", msg)
+			}
+			if reserved+spawned+waited != 0 {
+				t.Fatalf("reserved=%d spawned=%d waited=%d, want 0: refusal must precede port reserve and spawn",
+					reserved, spawned, waited)
+			}
+		})
+	}
+}
+
+// TestStartLocalCoreSpawnsCoreAPIBinary proves the one-shot vulnscan serve
+// child is eshu-core-api on -addr, not the retired ./cmd/api one-shot build
+// and not the eshu-api satellite (which exits fail-closed without
+// --core-base-url). It calls the real startLocalCoreAPI with a fake
+// eshu-core-api on PATH — no seam doubles — so a spawn-name regression fails
+// here instead of at scan time.
+func TestStartLocalCoreSpawnsCoreAPIBinary(t *testing.T) {
 	binDir := t.TempDir()
-	fake := filepath.Join(binDir, "eshu-local-api")
+	fake := filepath.Join(binDir, "eshu-core-api")
 	if err := os.WriteFile(fake, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
-		t.Fatalf("write fake eshu-local-api: %v", err)
+		t.Fatalf("write fake eshu-core-api: %v", err)
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	const wantAddr = "127.0.0.1:19199"
 	env := []string{
-		"ESHU_API_ADDR=" + wantAddr,
 		localsupervisor.LogDirEnv + "=" + t.TempDir(),
 	}
-	cmd, err := startLocalAPI(env)
+	cmd, err := startLocalCoreAPI(wantAddr, env)
 	if err != nil {
-		t.Fatalf("startLocalAPI() error = %v, want nil", err)
+		t.Fatalf("startLocalCoreAPI() error = %v, want nil", err)
 	}
 	t.Cleanup(func() {
 		if cmd.Process != nil {
@@ -318,10 +382,11 @@ func TestStartLocalAPISpawnsLocalAPIBinary(t *testing.T) {
 		_ = cmd.Wait()
 	})
 
-	if len(cmd.Args) != 1 || cmd.Args[0] != "eshu-local-api" {
-		t.Fatalf("cmd.Args = %v, want [eshu-local-api]", cmd.Args)
+	wantArgs := []string{"eshu-core-api", "-addr=" + wantAddr}
+	if len(cmd.Args) != len(wantArgs) || cmd.Args[0] != wantArgs[0] || cmd.Args[1] != wantArgs[1] {
+		t.Fatalf("cmd.Args = %v, want %v", cmd.Args, wantArgs)
 	}
-	if got := envValue(cmd.Env, "ESHU_API_ADDR"); got != wantAddr {
-		t.Fatalf("ESHU_API_ADDR = %q, want %q", got, wantAddr)
+	if got := envValue(cmd.Env, "ESHU_API_ADDR"); got != "" {
+		t.Fatalf("ESHU_API_ADDR = %q, want unset: core takes the listen address on -addr only", got)
 	}
 }
