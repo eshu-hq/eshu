@@ -219,8 +219,7 @@ export ESHU_EMIT_DATAFLOW=true
 log "query profile: ${ESHU_QUERY_PROFILE}"
 export ESHU_API_KEY="${GATE_API_KEY}"
 export ESHU_API_ADDR=":${GATE_API_PORT}"
-# #10880 PR-C2: serve the rebuilt canonical winners; post-C2 the read-time dedup over fact_records is empty for findings.
-export ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true
+export ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true # #10880 PR-C2: serve the rebuilt canonical winners; post-C2 the read-time dedup over fact_records is empty for findings.
 # The SSM host inventory readback fails closed without freshness bounds
 # (#9558: the API/MCP handlers 503 when any bound is unset). The corpus
 # carries no SSM fixtures, so the gate asserts the empty shape served —
