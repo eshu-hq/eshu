@@ -69,14 +69,6 @@ func TestContractShapesCompareEnvironments(t *testing.T) {
 			}
 		}
 	}
-	requireKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
-		t.Helper()
-		for _, key := range keys {
-			if _, ok := props[key].(map[string]any); !ok {
-				t.Errorf("%s: missing property %q", where, key)
-			}
-		}
-	}
 	requireExactKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
 		t.Helper()
 		want := map[string]bool{}
@@ -134,7 +126,13 @@ func TestContractShapesCompareEnvironments(t *testing.T) {
 	})
 
 	// Owner: workloadRowMap projects the workload graph row.
-	workload := propsOf(t, child(t, props, "workload", "compare"), "compare.workload")
+	workloadNode := child(t, props, "workload", "compare")
+	// Owner: handler.go missingWorkloadResponse passes nil workload, so the
+	// schema must carry nullable like the snapshot instance does.
+	if nullable, _ := workloadNode["nullable"].(bool); !nullable {
+		t.Error("compare.workload: schema promises null, so it needs nullable:true")
+	}
+	workload := propsOf(t, workloadNode, "compare.workload")
 	requireExactKeys(t, workload, "compare.workload", "id", "name", "kind", "repo_id")
 	requireDescribed(t, workload, "compare.workload", "id", "name", "kind", "repo_id")
 	requireScalarTypes(t, workload, "compare.workload", map[string]string{
@@ -225,19 +223,34 @@ func TestContractShapesCompareEnvironments(t *testing.T) {
 		"right_dedicated_resource_count": "integer", "changed_resource_count": "integer",
 	})
 
-	// Owner: environmentCompareResponse wraps shared/dedicated around the
-	// same 17-key cloud resource rows; dedicated splits left/right.
+	// Owner: environmentCompareResponse wraps shared/dedicated rows built
+	// by sharedEnvironmentResource (8 keys) and dedicatedEnvironmentResource
+	// (7 keys) — projections of the 17-key snapshot rows, not the rows
+	// themselves. Dedicated splits left/right.
 	shared := propsOf(t, child(t, props, "shared", "compare"), "compare.shared")
 	requireExactKeys(t, shared, "compare.shared", "cloud_resources")
 	sharedProps := propsOf(t, itemsOf(t, child(t, shared, "cloud_resources", "compare.shared"), "compare.shared"), "compare.shared.cloud_resources[]")
-	requireKeys(t, sharedProps, "compare.shared.cloud_resources[]", "id", "name", "kind")
-	requireDescribed(t, sharedProps, "compare.shared.cloud_resources[]", "id", "name", "kind")
+	requireExactKeys(t, sharedProps, "compare.shared.cloud_resources[]",
+		"id", "name", "kind", "provider", "left_environment", "right_environment", "confidence", "reason")
+	requireDescribed(t, sharedProps, "compare.shared.cloud_resources[]",
+		"id", "name", "kind", "provider", "left_environment", "right_environment", "confidence", "reason")
+	requireScalarTypes(t, sharedProps, "compare.shared.cloud_resources[]", map[string]string{
+		"confidence": "number",
+	})
 	dedicated := propsOf(t, child(t, props, "dedicated", "compare"), "compare.dedicated")
 	requireExactKeys(t, dedicated, "compare.dedicated", "left", "right")
 	for _, side := range []string{"left", "right"} {
 		sideNode := propsOf(t, child(t, dedicated, side, "compare.dedicated"), "compare.dedicated."+side)
 		requireExactKeys(t, sideNode, "compare.dedicated."+side, "environment", "cloud_resources")
 		requireDescribed(t, sideNode, "compare.dedicated."+side, "environment", "cloud_resources")
+		dedicatedProps := propsOf(t, itemsOf(t, child(t, sideNode, "cloud_resources", "compare.dedicated."+side), "compare.dedicated."+side), "compare.dedicated."+side+".cloud_resources[]")
+		requireExactKeys(t, dedicatedProps, "compare.dedicated."+side+".cloud_resources[]",
+			"id", "name", "kind", "provider", "environment", "confidence", "reason")
+		requireDescribed(t, dedicatedProps, "compare.dedicated."+side+".cloud_resources[]",
+			"id", "name", "kind", "provider", "environment", "confidence", "reason")
+		requireScalarTypes(t, dedicatedProps, "compare.dedicated."+side+".cloud_resources[]", map[string]string{
+			"confidence": "number",
+		})
 	}
 
 	// Owner: environmentCompareEvidence rows are kind-dispatched — the
