@@ -57,7 +57,7 @@ const Routes = `
                     "evidence_count": {"type": "integer", "description": "Number of evidence facts aggregated into this relationship."},
                     "evidence_kinds": {"type": "array", "items": {"type": "string"}, "description": "Normalized evidence kinds from repositoryRelationshipEvidenceKinds in repository_relationship_read_model.go; present only when the details carry kinds."},
                     "evidence_type": {"type": "string", "description": "Normalized evidence type from repositoryRelationshipEvidenceType in repository_relationship_read_model.go; present only when derivable from the details."},
-                    "evidence_preview": {"type": "array", "items": {"type": "object", "properties": {
+                    "evidence_preview": {"type": "array", "items": {"type": "object", "description": "One evidence preview fact (at most 5 preview rows). Owner: relationships/resolver.go.", "properties": {
                       "kind": {"type": "string", "description": "Evidence kind of one preview fact, written by relationships/resolver.go (at most 5 preview rows)."},
                       "confidence": {"type": "number", "description": "Confidence of that preview fact."},
                       "details": {"type": "object", "description": "Raw per-fact detail map in relationships.EvidenceFact.Details; keys vary by evidence kind.", "additionalProperties": {}}
@@ -66,7 +66,7 @@ const Routes = `
                     "resolution_source": {"type": "string", "description": "How the relationship was resolved (for example graph or assertion); assertion outranks evidence in the confidence basis."},
                     "details": {"type": "object", "description": "Reducer-owned detail map in resolved_relationships.details, written by relationships/resolver.go; carries evidence_kinds and evidence_preview, plus evidence_type when captured.", "properties": {
                       "evidence_kinds": {"type": "array", "items": {"type": "string"}, "description": "Sorted evidence-kind keys written by relationships/resolver.go."},
-                      "evidence_preview": {"type": "array", "items": {"type": "object", "properties": {
+                      "evidence_preview": {"type": "array", "items": {"type": "object", "description": "One evidence preview fact (at most 5 preview rows). Owner: relationships/resolver.go.", "properties": {
                         "kind": {"type": "string", "description": "Evidence kind of one preview fact."},
                         "confidence": {"type": "number", "description": "Confidence of that preview fact."},
                         "details": {"type": "object", "description": "Raw per-fact detail map in relationships.EvidenceFact.Details; keys vary by evidence kind.", "additionalProperties": {}}
@@ -120,7 +120,7 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "decisions": {"type": "array", "items": {"type": "object", "properties": {
+                    "decisions": {"type": "array", "items": {"type": "object", "description": "One reducer-owned admission decision. Owner: evidence/admission_decisions.go AdmissionDecisionResultFromRow.", "properties": {
                       "decision_id": {"type": "string", "description": "Reducer-owned decision id in packet.AdmissionDecisionResult (querycontract/packet/deployable_unit.go)."},
                       "domain": {"type": "string", "description": "Reducer admission domain (for example deployable_unit) in packet.AdmissionDecisionResult."},
                       "state": {"type": "string", "description": "Decision state: admitted, rejected, ambiguous, stale, missing_evidence, permission_hidden, unsupported, or unsafe."},
@@ -137,7 +137,7 @@ const Routes = `
                       "freshness_state": {"type": "string", "description": "Freshness state in packet.AdmissionDecisionResult; present only when the reader reports it."},
                       "freshness_observed_at": {"type": "string", "format": "date-time", "description": "When freshness was observed, in packet.AdmissionDecisionResult; present only when reported."},
                       "freshness_cause": {"type": "string", "description": "Why the freshness state holds, in packet.AdmissionDecisionResult; present only when reported."},
-                      "source_handles": {"type": "array", "items": {"type": "object", "properties": {
+                      "source_handles": {"type": "array", "items": {"type": "object", "description": "One source handle behind the decision. Owner: evidence/admission_decisions.go AdmissionDecisionResultFromRow.", "properties": {
                         "kind": {"type": "string", "description": "Source handle kind in packet.AdmissionDecisionSourceHandle."},
                         "id": {"type": "string", "description": "Source handle id in packet.AdmissionDecisionSourceHandle."},
                         "scope_id": {"type": "string", "description": "Scope the handle belongs to, in packet.AdmissionDecisionSourceHandle; present only when scoped."}
@@ -159,7 +159,7 @@ const Routes = `
                       "payload_version": {"type": "string", "description": "Decision payload version in packet.AdmissionDecisionResult; present only when versioned."},
                       "decided_at": {"type": "string", "format": "date-time", "description": "When the reducer decided, in packet.AdmissionDecisionResult."},
                       "updated_at": {"type": "string", "format": "date-time", "description": "When the decision was last updated, in packet.AdmissionDecisionResult."},
-                      "evidence": {"type": "array", "items": {"type": "object", "properties": {
+                      "evidence": {"type": "array", "items": {"type": "object", "description": "One admission decision evidence row. Owner: evidence/admission_decisions.go boundedAdmissionDecisionEvidence.", "properties": {
                         "evidence_id": {"type": "string", "description": "Evidence row id in packet.AdmissionDecisionEvidenceRow."},
                         "decision_id": {"type": "string", "description": "Decision this evidence row belongs to."},
                         "source_handle": {"type": "string", "description": "Source handle the evidence was read from."},
@@ -173,7 +173,7 @@ const Routes = `
                     "count": {"type": "integer", "description": "Number of decisions in this page, from listAdmissionDecisions in evidence/admission_decisions.go."},
                     "limit": {"type": "integer", "description": "Echo of the requested page bound (default 50, max 200)."},
                     "truncated": {"type": "boolean", "description": "True when more decisions matched than this page carries; narrow by state, anchor_kind, and anchor_id."},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "properties": {
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "description": "One follow-up call. Owner: evidence/admission_decisions.go admissionDecisionRecommendedNextCalls.", "properties": {
                       "tool": {"type": "string", "description": "MCP tool to call next (list_admission_decisions), from RecommendedNextCall in evidence/admission_decision_types.go."},
                       "route": {"type": "string", "description": "HTTP route backing the follow-up call."},
                       "reason": {"type": "string", "description": "Why the follow-up call is recommended."},
@@ -244,8 +244,7 @@ const Routes = `
                   "properties": {
                     "subject": {"type": "object", "description": "Echo of the caller-supplied subject handle map from the citation request, carried through by buildEvidenceCitations in evidence/citation.go; keys are caller-defined.", "additionalProperties": {}},
                     "question": {"type": "string", "description": "Echo of the caller-supplied question from the citation request."},
-                    "citations": {"type": "array", "items": {
-                      "type": "object",
+                    "citations": {"type": "array", "items": {"type": "object", "description": "One resolved evidence citation. Owner: evidence/citation.go citationFromFile and citationFromEntity.",
                       "properties": {
                         "citation_id": {"type": "string", "description": "Stable citation id from evidenceCitationID in evidence/citation.go (rank-scoped)."},
                         "rank": {"type": "integer", "description": "1-based rank of the citation within the packet."},
@@ -275,7 +274,7 @@ const Routes = `
                       },
                       "required": ["citation_id", "kind", "evidence_family", "confidence", "provenance", "excerpt"]
                     }, "description": "Resolved citations from citationFromFile and citationFromEntity in evidence/citation.go."},
-                    "missing_handles": {"type": "array", "items": {"type": "object", "properties": {
+                    "missing_handles": {"type": "array", "items": {"type": "object", "description": "One handle that resolved to no citation. Owner: evidence/citation.go buildEvidenceCitations.", "properties": {
                       "kind": {"type": "string", "description": "Handle kind from querycontract/evidence.EvidenceCitationHandle."},
                       "repo_id": {"type": "string", "description": "Repository the missing handle names; present only on repo-scoped handles."},
                       "relative_path": {"type": "string", "description": "Repo-relative path the missing handle names; present only on file handles."},
@@ -295,7 +294,7 @@ const Routes = `
                       "truncated": {"type": "boolean", "description": "True when handles beyond the limit were dropped."},
                       "source_backend": {"type": "string", "description": "Backend that served the read (postgres_content_store)."}
                     }, "required": ["query_shape", "input_handle_count", "resolved_count", "missing_count", "limit", "truncated", "source_backend"]},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "properties": {
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "description": "One follow-up call. Owner: evidence/citation.go evidenceCitationNextCalls.", "properties": {
                       "tool": {"type": "string", "description": "MCP tool to call next, from evidenceCitationNextCalls in evidence/citation.go (build_evidence_citation_packet after a truncation cut, search_file_content for missing handles)."},
                       "reason": {"type": "string", "description": "Why the follow-up call is recommended."}
                     }, "required": ["tool", "reason"]}, "description": "Follow-up calls from evidenceCitationNextCalls in evidence/citation.go; empty when every handle resolved within the limit."}

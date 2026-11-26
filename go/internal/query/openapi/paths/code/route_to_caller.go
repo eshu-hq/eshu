@@ -53,8 +53,8 @@ const RouteToCaller = `
                     "truth_source": {"type": "string", "enum": ["HANDLES_ROUTE"], "description": "Edge family the trace was resolved from, per handleRouteToCaller."},
                     "route": {"type": "object", "description": "Resolved route endpoint keyed by endpoint field names, per handleRouteToCaller.", "additionalProperties": true},
                     "handler": {"type": "object", "description": "Resolved handler keyed by handler field names, per handleRouteToCaller; null when no exact handler exists.", "nullable": true, "additionalProperties": true},
-                    "callers": {"type": "array", "description": "Bounded CALLS callers of the handler, per handleRouteToCaller.", "items": {"type": "object", "additionalProperties": true}},
-                    "callees": {"type": "array", "description": "Bounded CALLS callees of the handler, per handleRouteToCaller.", "items": {"type": "object", "additionalProperties": true}},
+                    "callers": {"type": "array", "description": "Bounded CALLS callers of the handler, per handleRouteToCaller.", "items": {"type": "object", "description": "One caller row (open map). Owner: handleRouteToCaller.", "additionalProperties": true}},
+                    "callees": {"type": "array", "description": "Bounded CALLS callees of the handler, per handleRouteToCaller.", "items": {"type": "object", "additionalProperties": true, "description": "One callee row (open map). Owner: handleRouteToCaller."}},
                     "impact": {"type": "object", "description": "Materialized workload/repository impact summary keyed by impact field names, per handleRouteToCaller.", "additionalProperties": true},
                     "max_depth": {"type": "integer", "description": "Traversal depth bound echoed by handleRouteToCaller."},
                     "limit": {"type": "integer", "description": "Row bound echoed by handleRouteToCaller."}

@@ -42,6 +42,7 @@ const Inventory = `
                       "description": "Page of canonical cloud resource identity views, emitted by query.cloudInventoryResourceView.",
                       "items": {
                         "type": "object",
+                        "description": "One canonical cloud resource identity view. Owner: query.cloudInventoryResourceView.",
                         "properties": {
                           "cloud_resource_uid": {"type": "string", "description": "Canonical cross-provider resource identity, emitted by query.cloudInventoryResourceView from the reducer payload."},
                           "provider": {"type": "string", "description": "Cloud provider of the canonical identity, emitted by query.cloudInventoryResourceView from the reducer payload."},
@@ -74,6 +75,7 @@ const Inventory = `
                             "description": "Optional bounded identity-policy evidence rows containing only safe enum/text classes and keyed fingerprints; raw identities, assignment scopes, and principal GUIDs are never returned.",
                             "items": {
                               "type": "object",
+                            "description": "One identity-policy evidence row. Owner: query.cloudInventoryIdentityPolicyEvidence.",
                               "properties": {
                                 "evidence_key": {"type": "string", "description": "Evidence row key emitted by query.cloudInventoryIdentityPolicyEvidence (closed safe-field projection)."},
                                 "identity_type": {"type": "string", "description": "Bounded identity class emitted by query.cloudInventoryIdentityPolicyEvidence; raw identities never cross the wire."},
@@ -91,6 +93,7 @@ const Inventory = `
                             "description": "Optional sanitized Azure Resource Graph change evidence attached to an already-admitted canonical resource. Delete rows are tombstone candidates only.",
                             "items": {
                               "type": "object",
+                            "description": "One change evidence row. Owner: query.cloudInventoryResourceChangeFreshness.",
                               "properties": {
                                 "evidence_key": {"type": "string", "description": "Change row key emitted by query.cloudInventoryResourceChangeFreshness (reducer allowlist)."},
                                 "change_type": {"type": "string", "enum": ["created", "updated", "deleted"], "description": "Azure Resource Graph change type emitted by query.cloudInventoryResourceChangeFreshness."},

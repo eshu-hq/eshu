@@ -41,6 +41,7 @@ const ComponentExtensions = `
                       "description": "Component rows emitted by listComponentExtensions (sanitizedComponentExtensions).",
                       "items": {
                         "type": "object",
+                        "description": "One component extension row. Owner: listComponentExtensions (sanitizedComponentExtensions).",
                         "properties": {
                           "id": {"type": "string", "description": "Component package id emitted by listComponentExtensions (ComponentExtensionComponent.ID)."},
                           "name": {"type": "string", "description": "Component name emitted by listComponentExtensions (ComponentExtensionComponent.Name)."},
@@ -56,6 +57,7 @@ const ComponentExtensions = `
                             "description": "Component activations emitted by listComponentExtensions (ComponentExtensionActivation).",
                             "items": {
                               "type": "object",
+                              "description": "One component activation. Owner: listComponentExtensions (ComponentExtensionActivation).",
                               "properties": {
                                 "instance_id": {"type": "string", "description": "Activation instance id emitted by listComponentExtensions (ComponentExtensionActivation.InstanceID)."},
                                 "mode": {"type": "string", "description": "Activation mode emitted by listComponentExtensions (ComponentExtensionActivation.Mode)."},
@@ -162,6 +164,7 @@ const ComponentExtensions = `
                       "states": {"type": "array", "items": {"type": "string"}, "description": "Component states emitted by getComponentExtensionDiagnostics (ComponentExtensionComponent.States)."},
                       "activations": {"type": "array", "description": "Component activations emitted by getComponentExtensionDiagnostics (ComponentExtensionActivation).", "items": {
                         "type": "object",
+                        "description": "One component activation. Owner: getComponentExtensionDiagnostics (ComponentExtensionActivation).",
                         "properties": {
                           "instance_id": {"type": "string", "description": "Activation instance id emitted by getComponentExtensionDiagnostics (ComponentExtensionActivation.InstanceID)."},
                           "mode": {"type": "string", "description": "Activation mode emitted by getComponentExtensionDiagnostics (ComponentExtensionActivation.Mode)."},

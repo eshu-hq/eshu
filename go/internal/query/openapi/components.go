@@ -72,15 +72,15 @@ const components = `  "components": {
         "required": ["readiness_state", "collector_kind", "counts"]
       },
       "Repository": {
-        "type": "object",
+        "type": "object", "description": "One repository row. Owner: repository.Handler listRepositories.",
         "properties": {
-          "id": {"type": "string"},
-          "name": {"type": "string"},
-          "path": {"type": "string"},
-          "local_path": {"type": "string"},
-          "remote_url": {"type": "string"},
-          "repo_slug": {"type": "string"},
-          "has_remote": {"type": "boolean"},
+          "id": {"type": "string", "description": "Canonical repository id. Owner: repository.Handler listRepositories."},
+          "name": {"type": "string", "description": "Repository display name. Owner: repository.Handler listRepositories."},
+          "path": {"type": "string", "description": "Repository path. Owner: repository.Handler listRepositories."},
+          "local_path": {"type": "string", "description": "Local checkout path. Owner: repository.Handler listRepositories."},
+          "remote_url": {"type": "string", "description": "Repository remote URL. Owner: repository.Handler listRepositories."},
+          "repo_slug": {"type": "string", "description": "Repository slug. Owner: repository.Handler listRepositories."},
+          "has_remote": {"type": "boolean", "description": "Whether the repository carries a remote URL. Owner: repository.Handler listRepositories."},
           "is_dependency": {"type": "boolean", "description": "True when at least one other repository depends on this one, i.e. it is the target of an admitted Repository-[:DEPENDS_ON]->Repository edge."},
           "group_key": {"type": "string", "description": "Source-backed repository group label. Empty when grouping evidence is missing."},
           "group_source": {"type": "string", "enum": ["dependency_cluster", "repository_dependency_flag", "repo_slug_namespace", "remote_url_owner", "missing_evidence"], "description": "Evidence source used for grouping. dependency_cluster is the highest-precedence source and is set when the repository participates in a (:Repository)-[:DEPENDS_ON]->(:Repository) connected component."},
@@ -91,12 +91,12 @@ const components = `  "components": {
             "type": "object",
             "description": "Collector selection aggregate for the repository scope (#7625, #8454): the same block the freshness read renders. Always present; state is unknown when no selector row is live. When reason is not_listed, classification and successor_slug carry the upstream probe verdict.",
             "properties": {
-              "state": {"type": "string", "enum": ["selected", "not_selected", "pending_confirmation", "excluded_still_ingested", "unknown"]},
-              "reason": {"type": "string", "nullable": true, "enum": ["not_listed", "archived_excluded", "rule_excluded", null]},
-              "state_since": {"type": "string", "format": "date-time", "nullable": true},
-              "last_listed_at": {"type": "string", "format": "date-time", "nullable": true},
-              "evaluated_at": {"type": "string", "format": "date-time", "nullable": true},
-              "live_selector_count": {"type": "integer"},
+              "state": {"type": "string", "enum": ["selected", "not_selected", "pending_confirmation", "excluded_still_ingested", "unknown"], "description": "Collector selection state for the repository scope (#7625, #8454)."},
+              "reason": {"type": "string", "nullable": true, "enum": ["not_listed", "archived_excluded", "rule_excluded", null], "description": "Why the scope carries its state (#7625, #8454)."},
+              "state_since": {"type": "string", "format": "date-time", "nullable": true, "description": "When the scope entered its state (#7625)."},
+              "last_listed_at": {"type": "string", "format": "date-time", "nullable": true, "description": "When the scope was last listed (#7625)."},
+              "evaluated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "When the scope was last evaluated (#7625)."},
+              "live_selector_count": {"type": "integer", "description": "Live selector rows for the scope (#7625)."},
               "classification": {"type": "string", "nullable": true, "enum": ["transferred", "renamed", "still_present", "not_found_or_inaccessible", null], "description": "Upstream probe verdict for a Confirmed not_listed scope (#8454); null otherwise."},
               "successor_slug": {"type": "string", "nullable": true, "description": "Probe full_name for a renamed or transferred verdict (#8454); null otherwise."},
               "successor_selected": {"type": "boolean", "description": "Whether the successor slug resolves to a selected scope, decided at read time (#8454)."}
@@ -117,38 +117,40 @@ const components = `  "components": {
       },
       "CatalogWorkload": {
         "type": "object",
+        "description": "One catalog workload row. Owner: repository.Handler listCatalogWorkloads over catalogWorkload.",
         "properties": {
-          "id": {"type": "string"},
-          "name": {"type": "string"},
-          "kind": {"type": "string"},
-          "repo_id": {"type": "string"},
-          "repo_name": {"type": "string"},
-          "environments": {"type": "array", "items": {"type": "string"}},
-          "instance_count": {"type": "integer"},
+          "id": {"type": "string", "description": "Canonical workload id. Owner: repository.Handler listCatalogWorkloads."},
+          "name": {"type": "string", "description": "Workload display name. Owner: repository.Handler listCatalogWorkloads."},
+          "kind": {"type": "string", "description": "Workload kind. Owner: repository.Handler listCatalogWorkloads."},
+          "repo_id": {"type": "string", "description": "Canonical repository id. Owner: repository.Handler listCatalogWorkloads."},
+          "repo_name": {"type": "string", "description": "Repository display name. Owner: repository.Handler listCatalogWorkloads."},
+          "environments": {"type": "array", "description": "Environments the workload was observed in. Owner: repository.Handler listCatalogWorkloads.", "items": {"type": "string"}},
+          "instance_count": {"type": "integer", "description": "Materialized instance count. Owner: repository.Handler listCatalogWorkloads."},
           "same_name_siblings": {"type": "integer", "description": "SAME_NAME sibling workloads admitted by the caller grant (Decision D2, #5385); 0 when no admitted sibling shares the name."},
-          "materialization_status": {"type": "string"}
+          "materialization_status": {"type": "string", "description": "Materialization status (identity_only on the content-identity path). Owner: repository.Handler listCatalogWorkloads."}
         }
       },
       "RepositoryRef": {
-        "type": "object",
+        "type": "object", "description": "One repository reference row. Owner: repository row builders.",
         "properties": {
-          "id": {"type": "string"},
-          "name": {"type": "string"},
-          "path": {"type": "string"},
-          "remote_url": {"type": "string"},
-          "has_remote": {"type": "boolean"}
+          "id": {"type": "string", "description": "Canonical repository id. Owner: repository row builders."},
+          "name": {"type": "string", "description": "Repository display name. Owner: repository row builders."},
+          "path": {"type": "string", "description": "Repository path. Owner: repository row builders."},
+          "remote_url": {"type": "string", "description": "Repository remote URL. Owner: repository row builders."},
+          "has_remote": {"type": "boolean", "description": "Whether the repository carries a remote URL. Owner: repository row builders."}
         }
       },
       "EntityRef": {
         "type": "object",
+        "description": "One entity reference row. Owner: entity.resolvedEntityResponse via Handler.ResolveEntity.",
         "properties": {
-          "id": {"type": "string"},
-          "name": {"type": "string"},
-          "labels": {"type": "array", "items": {"type": "string"}},
-          "file_path": {"type": "string"},
-          "language": {"type": "string"},
-          "start_line": {"type": "integer"},
-          "end_line": {"type": "integer"},
+          "id": {"type": "string", "description": "Canonical entity id. Owner: entity.resolvedEntityResponse."},
+          "name": {"type": "string", "description": "Entity display name. Owner: entity.resolvedEntityResponse."},
+          "labels": {"type": "array", "description": "Graph labels of the resolved entity. Owner: entity.resolvedEntityResponse.", "items": {"type": "string"}},
+          "file_path": {"type": "string", "description": "Repository-relative file path of the entity. Owner: entity.resolvedEntityResponse."},
+          "language": {"type": "string", "description": "Entity language. Owner: entity.resolvedEntityResponse."},
+          "start_line": {"type": "integer", "description": "First entity line. Owner: entity.resolvedEntityResponse."},
+          "end_line": {"type": "integer", "description": "Last entity line. Owner: entity.resolvedEntityResponse."},
           "semantic_summary": {
             "type": "string",
             "description": "Optional first-class semantic summary synthesized from parser metadata."
@@ -163,8 +165,8 @@ const components = `  "components": {
             "additionalProperties": true,
             "description": "Optional parser metadata enriched from the Go content pipeline for graph-backed entity results. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."
           },
-          "repo_id": {"type": "string"},
-          "repo_name": {"type": "string"}
+          "repo_id": {"type": "string", "description": "Repository id the entity belongs to. Owner: entity.resolvedEntityResponse."},
+          "repo_name": {"type": "string", "description": "Repository display name. Owner: entity.resolvedEntityResponse."}
         }
       },
 ` + componentsSemanticEvidence + `      "CodeFlowRequest": {
@@ -183,37 +185,37 @@ const components = `  "components": {
         "type": "object",
         "description": "Canonical bounded code-flow response. One of paths, definitions, functions, or summaries is populated depending on the operation. Owner: codequery/flow.go writeCodeFlowResponse over buildCodeFlowPayload.",
         "properties": {
-          "query": {"type": "object", "description": "Echo of the code-flow request the payload answers.", "properties": {
-            "kind": {"type": "string", "enum": ["taint_path", "reaching_def", "cfg_summary", "pdg_summary"]},
-            "repo_id": {"type": "string"},
-            "language": {"type": "string"},
-            "symbol": {"type": "string"},
-            "file_path": {"type": "string"},
-            "line": {"type": "integer"}
+          "query": {"type": "object", "description": "Echo of the code-flow request the payload answers. Owner: codequery/flow.go buildCodeFlowPayload.", "properties": {
+            "kind": {"type": "string", "enum": ["taint_path", "reaching_def", "cfg_summary", "pdg_summary"], "description": "Code-flow query kind. Owner: codequery/flow.go buildCodeFlowPayload."},
+            "repo_id": {"type": "string", "description": "Repository the query ran against. Owner: codequery/flow.go buildCodeFlowPayload."},
+            "language": {"type": "string", "description": "Language filter echoed from the request. Owner: codequery/flow.go buildCodeFlowPayload."},
+            "symbol": {"type": "string", "description": "Symbol filter echoed from the request. Owner: codequery/flow.go buildCodeFlowPayload."},
+            "file_path": {"type": "string", "description": "File path filter echoed from the request. Owner: codequery/flow.go buildCodeFlowPayload."},
+            "line": {"type": "integer", "description": "Line filter echoed from the request. Owner: codequery/flow.go buildCodeFlowPayload."}
           }},
-          "coverage": {"type": "object", "description": "Readiness of the evidence behind the payload.", "properties": {
-            "state": {"type": "string", "enum": ["exact", "partial", "derived", "unsupported"]},
-            "reason": {"type": "string"},
-            "language": {"type": "string"},
+          "coverage": {"type": "object", "description": "Readiness of the evidence behind the payload. Owner: codequery/flow.go writeCodeFlowResponse.", "properties": {
+            "state": {"type": "string", "enum": ["exact", "partial", "derived", "unsupported"], "description": "Coverage state. Owner: codequery/flow.go writeCodeFlowResponse."},
+            "reason": {"type": "string", "description": "Coverage reason. Owner: codequery/flow.go writeCodeFlowResponse."},
+            "language": {"type": "string", "description": "Language the coverage applies to. Owner: codequery/flow.go writeCodeFlowResponse."},
             "supported_languages": {"type": "array", "items": {"type": "string"}, "description": "Claimed fixture-backed value-flow languages; present only when state is unsupported."}
           }},
-          "paths": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-          "definitions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-          "functions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-          "summaries": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-          "ambiguity": {"type": "object", "description": "Symbol disambiguation: true with candidate rows when the symbol matched multiple functions without a file or line pin.", "properties": {
-            "ambiguous": {"type": "boolean"},
-            "candidates": {"type": "array", "items": {"type": "object", "properties": {
-              "relative_path": {"type": "string"},
-              "function_name": {"type": "string"},
-              "function_uid": {"type": "string"},
-              "line_number": {"type": "integer"}
+          "paths": {"type": "array", "description": "Taint-path rows; populated only for the taint_path kind. Owner: codequery/flow.go buildCodeFlowPayload.", "items": {"type": "object", "description": "One taint-path row (open map). Owner: codequery/flow.go buildCodeFlowPayload.", "additionalProperties": true}},
+          "definitions": {"type": "array", "description": "Reaching-definition rows; populated only for the reaching_def kind. Owner: codequery/flow.go buildCodeFlowPayload.", "items": {"type": "object", "description": "One reaching-definition row (open map). Owner: codequery/flow.go buildCodeFlowPayload.", "additionalProperties": true}},
+          "functions": {"type": "array", "description": "Function rows; populated only for the cfg_summary kind. Owner: codequery/flow.go buildCodeFlowPayload.", "items": {"type": "object", "description": "One function row (open map). Owner: codequery/flow.go buildCodeFlowPayload.", "additionalProperties": true}},
+          "summaries": {"type": "array", "description": "Program-dependence summary rows; populated only for the pdg_summary kind. Owner: codequery/flow.go buildCodeFlowPayload.", "items": {"type": "object", "description": "One summary row (open map). Owner: codequery/flow.go buildCodeFlowPayload.", "additionalProperties": true}},
+          "ambiguity": {"type": "object", "description": "Symbol disambiguation: true with candidate rows when the symbol matched multiple functions without a file or line pin. Owner: codequery/flow.go buildCodeFlowPayload.", "properties": {
+            "ambiguous": {"type": "boolean", "description": "Whether the symbol matched multiple functions. Owner: codequery/flow.go buildCodeFlowPayload."},
+            "candidates": {"type": "array", "description": "Candidate function rows. Owner: codequery/flow.go buildCodeFlowPayload.", "items": {"type": "object", "description": "One candidate function row. Owner: codequery/flow.go buildCodeFlowPayload.", "properties": {
+              "relative_path": {"type": "string", "description": "Candidate file path. Owner: codequery/flow.go buildCodeFlowPayload."},
+              "function_name": {"type": "string", "description": "Candidate function name. Owner: codequery/flow.go buildCodeFlowPayload."},
+              "function_uid": {"type": "string", "description": "Candidate function uid. Owner: codequery/flow.go buildCodeFlowPayload."},
+              "line_number": {"type": "integer", "description": "Candidate definition line. Owner: codequery/flow.go buildCodeFlowPayload."}
             }}}
           }},
-          "bounds": {"type": "object", "description": "Result-window bounds for the one populated family.", "properties": {
-            "limit": {"type": "integer"},
-            "count": {"type": "integer"},
-            "truncated": {"type": "boolean"}
+          "bounds": {"type": "object", "description": "Result-window bounds for the one populated family. Owner: codequery/flow.go writeCodeFlowResponse.", "properties": {
+            "limit": {"type": "integer", "description": "Applied row bound. Owner: codequery/flow.go writeCodeFlowResponse."},
+            "count": {"type": "integer", "description": "Rows returned. Owner: codequery/flow.go writeCodeFlowResponse."},
+            "truncated": {"type": "boolean", "description": "True when more rows exist past the bound. Owner: codequery/flow.go writeCodeFlowResponse."}
           }}
         }
       },
@@ -261,19 +263,20 @@ const components = `  "components": {
             "heuristic": {"type": "boolean", "description": "True when truth_state is heuristic. Owner: codemodel.RelationshipStoryProvenance."},
             "unsupported": {"type": "boolean", "description": "True when truth_state is unsupported. Owner: codemodel.RelationshipStoryProvenance."}
           }},
-          "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking."}
+          "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking. Owner: codeshaping centrality."}
         }
       },
       "FileContent": {
         "type": "object",
+        "description": "One file content row. Owner: contentread.contentSearchResponse.",
         "properties": {
-          "repo_id": {"type": "string"},
-          "relative_path": {"type": "string"},
-          "commit_sha": {"type": "string"},
-          "content": {"type": "string"},
-          "content_hash": {"type": "string"},
-          "line_count": {"type": "integer"},
-          "language": {"type": "string"},
+          "repo_id": {"type": "string", "description": "Repository the file belongs to. Owner: contentread.contentSearchResponse."},
+          "relative_path": {"type": "string", "description": "Repository-relative file path. Owner: contentread.contentSearchResponse."},
+          "commit_sha": {"type": "string", "description": "Commit the file content was read at. Owner: contentread.contentSearchResponse."},
+          "content": {"type": "string", "description": "File content (clipped when clipped markers are present). Owner: contentread.contentSearchResponse."},
+          "content_hash": {"type": "string", "description": "Content hash of the file bytes. Owner: contentread.contentSearchResponse."},
+          "line_count": {"type": "integer", "description": "Lines in the file content. Owner: contentread.contentSearchResponse."},
+          "language": {"type": "string", "description": "Source language of the file. Owner: contentread.contentSearchResponse."},
           "match_snippet": {"type": "string", "description": "Bounded excerpt of raw content around the first case-insensitive match (at most 120 characters, at most 40 before the match). An excerpt by contract: it may start or end mid-token. Present only on search_file_content rows; absent when the match anchor is missing or the enrichment budget was exceeded."},
           "match_line": {"type": "integer", "description": "1-based line of the first match. Exact or absent, never approximate: omitted when the match starts past 1M characters or the anchor is missing."},
           "search_backend": {"type": "string", "enum": ["hybrid"], "description": "Set to \"hybrid\" on search_file_content rows reordered by the bounded fused BM25+vector re-rank; absent when the lexical content-index order was served."}
@@ -281,15 +284,16 @@ const components = `  "components": {
       },
       "EntityContent": {
         "type": "object",
+        "description": "One entity content row. Owner: contentread content search row builders (contentSearchResponse, writePHPConfigSearch).",
         "properties": {
-          "entity_id": {"type": "string"},
-          "repo_id": {"type": "string"},
-          "relative_path": {"type": "string"},
-          "entity_type": {"type": "string"},
-          "entity_name": {"type": "string"},
-          "start_line": {"type": "integer"},
-          "end_line": {"type": "integer"},
-          "language": {"type": "string"},
+          "entity_id": {"type": "string", "description": "Canonical entity id. Owner: contentread content search row builders."},
+          "repo_id": {"type": "string", "description": "Repository the entity belongs to. Owner: contentread content search row builders."},
+          "relative_path": {"type": "string", "description": "Repository-relative file path. Owner: contentread content search row builders."},
+          "entity_type": {"type": "string", "description": "Entity type. Owner: contentread content search row builders."},
+          "entity_name": {"type": "string", "description": "Entity display name. Owner: contentread content search row builders."},
+          "start_line": {"type": "integer", "description": "First entity line. Owner: contentread content search row builders."},
+          "end_line": {"type": "integer", "description": "Last entity line. Owner: contentread content search row builders."},
+          "language": {"type": "string", "description": "Entity language. Owner: contentread content search row builders."},
           "source_cache": {"type": "string", "description": "Stored source body. On search_entity_content rows it is clipped at read time to 4096 bytes (see source_cache_clipped); get_entity_content returns the full body."},
           "source_cache_clipped": {"type": "boolean", "description": "Present and true only when this row's source_cache was clipped at read time to source_cache_clip_bytes. The stored body is unchanged; use source_handle with get_entity_content or get_file_lines for the full text. Distinct from the write-time metadata.source_cache_truncated marker."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Present only on a clipped row: the read-time source_cache ceiling in bytes (4096)."},

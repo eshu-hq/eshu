@@ -38,6 +38,7 @@ const Context = `
                       "description": "Outgoing repository relationships, emitted by the repository context handler from repository.QueryRepoDependencies (or the relationship read model) as graph-edge rows with evidence pointers.",
                       "items": {
                         "type": "object",
+                        "description": "One outgoing repository relationship row. Owner: repository.QueryRepoDependencies.",
                         "properties": {
                           "type": {"type": "string", "description": "Edge type emitted by the repository relationship row projection."},
                           "target_name": {"type": "string", "description": "Target repository name emitted by the repository relationship row projection."},
@@ -68,6 +69,7 @@ const Context = `
                           "description": "Normalized relationship rows emitted by repository.BuildRepositoryRelationshipOverview.",
                           "items": {
                             "type": "object",
+                            "description": "One normalized relationship row. Owner: repository.BuildRepositoryRelationshipOverview.",
                             "properties": {
                               "type": {"type": "string", "description": "Edge type emitted by repository.BuildRepositoryRelationshipOverview."},
                               "target_name": {"type": "string", "description": "Target name emitted by repository.BuildRepositoryRelationshipOverview."},
@@ -90,7 +92,7 @@ const Context = `
                         },
                         "relationship_types": {"type": "array", "items": {"type": "string"}, "description": "Distinct edge types in the overview, emitted by repository.BuildRepositoryRelationshipOverview."},
                         "evidence_types": {"type": "array", "items": {"type": "string"}, "description": "Distinct evidence types in the overview, emitted by repository.BuildRepositoryRelationshipOverview."},
-                        "controller_driven": {"type": "array", "description": "Controller-driven normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as relationships.", "items": {"type": "object", "properties": {
+                        "controller_driven": {"type": "array", "description": "Controller-driven normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as relationships.", "items": {"type": "object", "description": "One controller-driven relationship row. Owner: repository.BuildRepositoryRelationshipOverview.", "properties": {
                           "type": {"type": "string", "description": "Edge type emitted by repository.BuildRepositoryRelationshipOverview."},
                           "target_name": {"type": "string", "description": "Target name emitted by repository.BuildRepositoryRelationshipOverview."},
                           "target_id": {"type": "string", "description": "Target identity emitted by repository.BuildRepositoryRelationshipOverview."},
@@ -107,9 +109,9 @@ const Context = `
                           "confidence_basis": {"type": "string", "description": "Confidence basis copied by repository.copyRelationshipEvidenceMetadata (present when the row carries one)."},
                           "rationale": {"type": "string", "description": "Edge rationale emitted by repository.BuildRepositoryRelationshipOverview (present when the row carries one)."}
                         }, "required": ["type", "target_name", "target_id"]}},
-                        "workflow_driven": {"type": "array", "description": "Workflow-driven normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as controller_driven.", "items": {"type": "object", "additionalProperties": true}},
-                        "iac_driven": {"type": "array", "description": "IaC-driven normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as controller_driven.", "items": {"type": "object", "additionalProperties": true}},
-                        "other_relationships": {"type": "array", "description": "Remaining normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as controller_driven.", "items": {"type": "object", "additionalProperties": true}},
+                        "workflow_driven": {"type": "array", "description": "Workflow-driven normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as controller_driven.", "items": {"type": "object", "description": "One workflow-driven relationship row (open map). Owner: repository.BuildRepositoryRelationshipOverview.", "additionalProperties": true}},
+                        "iac_driven": {"type": "array", "description": "IaC-driven normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as controller_driven.", "items": {"type": "object", "description": "One IaC-driven relationship row (open map). Owner: repository.BuildRepositoryRelationshipOverview.", "additionalProperties": true}},
+                        "other_relationships": {"type": "array", "description": "Remaining normalized relationship rows, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty). Same row shape as controller_driven.", "items": {"type": "object", "description": "One remaining relationship row (open map). Owner: repository.BuildRepositoryRelationshipOverview.", "additionalProperties": true}},
                         "story": {"type": "string", "description": "One-line relationship narrative, emitted by repository.BuildRepositoryRelationshipOverview (present when non-empty)."}
                       },
                       "required": ["relationship_count", "relationships", "relationship_types", "evidence_types"]
@@ -127,6 +129,7 @@ const Context = `
                           "description": "Bounded endpoint rows emitted by repository.buildGraphAPISurface.",
                           "items": {
                             "type": "object",
+                            "description": "One bounded endpoint row. Owner: repository.buildGraphAPISurface.",
                             "properties": {
                               "id": {"type": "string", "description": "Endpoint identity emitted by repository.buildGraphAPISurface."},
                               "path": {"type": "string", "description": "Endpoint path emitted by repository.buildGraphAPISurface."},
@@ -163,6 +166,7 @@ const Context = `
                       "description": "Repositories with incoming relationships to this repository, emitted by the repository context handler from queryRepoConsumers (or the relationship read model) as graph-edge rows with evidence pointers.",
                       "items": {
                         "type": "object",
+                        "description": "One incoming-relationship repository row. Owner: repository queryRepoConsumers.",
                         "properties": {
                           "type": {"type": "string", "description": "Edge type emitted by the repository consumer row projection."},
                           "target_name": {"type": "string", "description": "Consumer repository name emitted by the repository consumer row projection."},

@@ -74,13 +74,13 @@ const IncidentContext = `
                           "summary": {"type": "string", "description": "Reference summary. Owner: query/incident/model IncidentContextReference."},
                           "url": {"type": "string", "description": "Reference URL. Owner: query/incident/model IncidentContextReference."}
                         }},
-                        "teams": {"type": "array", "items": {"type": "object", "properties": {
+                        "teams": {"type": "array", "items": {"type": "object", "description": "One provider team reference. Owner: query/incident/model IncidentContextReference.", "properties": {
                           "id": {"type": "string", "description": "Reference id. Owner: query/incident/model IncidentContextReference."},
                           "type": {"type": "string", "description": "Reference type. Owner: query/incident/model IncidentContextReference."},
                           "summary": {"type": "string", "description": "Reference summary. Owner: query/incident/model IncidentContextReference."},
                           "url": {"type": "string", "description": "Reference URL. Owner: query/incident/model IncidentContextReference."}
                         }}, "description": "Provider team references, present only when reported. Owner: query/incident/model IncidentContextIncident."},
-                        "assignments": {"type": "array", "items": {"type": "object", "properties": {
+                        "assignments": {"type": "array", "items": {"type": "object", "description": "One provider assignment reference. Owner: query/incident/model IncidentContextReference.", "properties": {
                           "id": {"type": "string", "description": "Reference id. Owner: query/incident/model IncidentContextReference."},
                           "type": {"type": "string", "description": "Reference type. Owner: query/incident/model IncidentContextReference."},
                           "summary": {"type": "string", "description": "Reference summary. Owner: query/incident/model IncidentContextReference."},
@@ -100,6 +100,7 @@ const IncidentContext = `
                       "description": "Provider-reported incident events in source order; empty when the read model holds none. Owner: query/incident/model BuildIncidentContextResponse.",
                       "items": {
                         "type": "object",
+                        "description": "One provider-reported incident event. Owner: query/incident/model IncidentContextTimelineEvent.",
                         "properties": {
                           "event_id": {"type": "string", "description": "Provider event id, always present. Owner: query/incident/model IncidentContextTimelineEvent."},
                           "event_type": {"type": "string", "description": "Provider event type, present only when reported. Owner: query/incident/model IncidentContextTimelineEvent."},
@@ -124,17 +125,18 @@ const IncidentContext = `
                       "description": "Fallback change candidates matched by service and time window unless a later reducer promotes stronger evidence. Owner: query/incident/model BuildIncidentContextResponse, which defaults an empty truth_label to fallback with the PagerDuty service/time-window candidate note.",
                       "items": {
                         "type": "object",
+                        "description": "One fallback change candidate. Owner: query/incident/model IncidentContextChangeCandidate.",
                         "properties": {
                           "change_id": {"type": "string", "description": "Candidate change id, always present. Owner: query/incident/model IncidentContextChangeCandidate."},
                           "summary": {"type": "string", "description": "Candidate summary, present only when known. Owner: query/incident/model IncidentContextChangeCandidate."},
                           "source": {"type": "string", "description": "Candidate source (for example CI/CD), present only when known. Owner: query/incident/model IncidentContextChangeCandidate."},
-                          "services": {"type": "array", "items": {"type": "object", "properties": {
+                          "services": {"type": "array", "items": {"type": "object", "description": "One service reference. Owner: query/incident/model IncidentContextReference.", "properties": {
                             "id": {"type": "string", "description": "Reference id. Owner: query/incident/model IncidentContextReference."},
                             "type": {"type": "string", "description": "Reference type. Owner: query/incident/model IncidentContextReference."},
                             "summary": {"type": "string", "description": "Reference summary. Owner: query/incident/model IncidentContextReference."},
                             "url": {"type": "string", "description": "Reference URL. Owner: query/incident/model IncidentContextReference."}
                           }}, "description": "Service references for the candidate, present only when known. Owner: query/incident/model IncidentContextChangeCandidate."},
-                          "links": {"type": "array", "items": {"type": "object", "properties": {
+                          "links": {"type": "array", "items": {"type": "object", "description": "One sanitized provider link. Owner: query/incident/model IncidentContextLink.", "properties": {
                             "href": {"type": "string", "description": "Sanitized link target. Owner: query/incident/model IncidentContextLink."},
                             "text": {"type": "string", "description": "Link text. Owner: query/incident/model IncidentContextLink."}
                           }}, "description": "Sanitized provider links, present only when reported. Owner: query/incident/model IncidentContextChangeCandidate."},
@@ -153,12 +155,13 @@ const IncidentContext = `
                       "description": "Ordered incident to service/routing/deployable/runtime/image/build/commit/PR/work-item slots with exact, derived, fallback, drifted, ambiguous, permission_hidden, unresolved, stale, rejected, or missing truth labels. Owner: query/incident/model BuildIncidentContextResponse, which fills every expected slot (MissingEdge) and orders them per incidentEvidenceSlotOrder.",
                       "items": {
                         "type": "object",
+                        "description": "One evidence-path slot edge. Owner: query/incident/model IncidentContextEvidenceEdge.",
                         "properties": {
                           "slot": {"type": "string", "description": "Evidence-path slot (incident, service, intended_routing, applied_routing, live_routing, deployable, runtime_artifact, image, build_deploy, commit, pull_request, work_item). Owner: query/incident/model IncidentEvidenceSlot.", "enum": ["incident", "service", "intended_routing", "applied_routing", "live_routing", "deployable", "runtime_artifact", "image", "build_deploy", "commit", "pull_request", "work_item"]},
                           "truth_label": {"type": "string", "description": "Edge truth label, always present (normalize derives it from candidates, evidence, or value when blank). Owner: query/incident/model normalizeIncidentContextEdge.", "enum": ["exact", "derived", "fallback", "drifted", "ambiguous", "unresolved", "stale", "rejected", "permission_hidden", "missing"]},
                           "explanation": {"type": "string", "description": "Why the edge carries its label, always present (missing slots use the per-slot documented explanation). Owner: query/incident/model normalizeIncidentContextEdge."},
                           "value": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Slot-scoped string attributes, present only on evidenced edges; keys are the slot attribute names (for example provider and provider_incident_id on the incident slot, service_id, service_name, and service_url on the service slot). Owner: query/incident/model IncidentContextEvidenceEdge.Value."},
-                          "evidence": {"type": "array", "items": {"type": "object", "properties": {
+                          "evidence": {"type": "array", "items": {"type": "object", "description": "One evidence reference. Owner: query/incident/model IncidentContextEvidenceRef.", "properties": {
                             "fact_id": {"type": "string", "description": "Durable fact id, present only when the ref points at a fact. Owner: query/incident/model IncidentContextEvidenceRef."},
                             "record_id": {"type": "string", "description": "Source record id, present only when recorded. Owner: query/incident/model IncidentContextEvidenceRef."},
                             "source": {"type": "string", "description": "Evidence source, present only when known. Owner: query/incident/model IncidentContextEvidenceRef."},
@@ -167,7 +170,7 @@ const IncidentContext = `
                             "confidence": {"type": "string", "description": "Evidence confidence, present only when recorded. Owner: query/incident/model IncidentContextEvidenceRef."},
                             "observed_at": {"type": "string", "description": "Observation time, present only when recorded. Owner: query/incident/model IncidentContextEvidenceRef."}
                           }}, "description": "Source or reducer facts behind the edge, present only on evidenced edges. Owner: query/incident/model IncidentContextEvidenceEdge."},
-                          "candidates": {"type": "array", "items": {"type": "object", "properties": {
+                          "candidates": {"type": "array", "items": {"type": "object", "description": "One ambiguous evidence candidate. Owner: query/incident/model IncidentContextEvidenceCandidate.", "properties": {
                             "id": {"type": "string", "description": "Candidate id, present only when known. Owner: query/incident/model IncidentContextEvidenceCandidate."},
                             "label": {"type": "string", "description": "Candidate label, present only when known. Owner: query/incident/model IncidentContextEvidenceCandidate."},
                             "url": {"type": "string", "description": "Sanitized candidate URL, present only when reported. Owner: query/incident/model IncidentContextEvidenceCandidate."},
@@ -181,6 +184,7 @@ const IncidentContext = `
                       "description": "One entry per evidence-path edge whose truth label is missing, unresolved, stale, permission_hidden, or rejected. Owner: query/incident/model BuildIncidentContextResponse.",
                       "items": {
                         "type": "object",
+                        "description": "One missing-evidence entry. Owner: query/incident/model IncidentMissingEvidence.",
                         "properties": {
                           "slot": {"type": "string", "description": "Evidence-path slot with no usable evidence. Owner: query/incident/model IncidentMissingEvidence."},
                           "reason": {"type": "string", "description": "The edge explanation for the unusable slot. Owner: query/incident/model IncidentMissingEvidence."}
@@ -192,12 +196,13 @@ const IncidentContext = `
                       "description": "Evidence-path edges whose truth label is ambiguous, in path order. Owner: query/incident/model BuildIncidentContextResponse.",
                       "items": {
                         "type": "object",
+                        "description": "One ambiguous evidence edge. Owner: query/incident/model BuildIncidentContextResponse.",
                         "properties": {
                           "slot": {"type": "string", "description": "Evidence-path slot. Owner: query/incident/model IncidentEvidenceSlot.", "enum": ["incident", "service", "intended_routing", "applied_routing", "live_routing", "deployable", "runtime_artifact", "image", "build_deploy", "commit", "pull_request", "work_item"]},
                           "truth_label": {"type": "string", "description": "Always ambiguous on these rows. Owner: query/incident/model BuildIncidentContextResponse.", "enum": ["ambiguous"]},
                           "explanation": {"type": "string", "description": "Why the edge is ambiguous. Owner: query/incident/model normalizeIncidentContextEdge."},
                           "value": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Slot-scoped string attributes, present only on evidenced edges. Owner: query/incident/model IncidentContextEvidenceEdge.Value."},
-                          "evidence": {"type": "array", "items": {"type": "object", "properties": {
+                          "evidence": {"type": "array", "items": {"type": "object", "description": "One evidence reference. Owner: query/incident/model IncidentContextEvidenceRef.", "properties": {
                             "fact_id": {"type": "string", "description": "Durable fact id, present only when the ref points at a fact. Owner: query/incident/model IncidentContextEvidenceRef."},
                             "record_id": {"type": "string", "description": "Source record id, present only when recorded. Owner: query/incident/model IncidentContextEvidenceRef."},
                             "source": {"type": "string", "description": "Evidence source, present only when known. Owner: query/incident/model IncidentContextEvidenceRef."},
@@ -206,7 +211,7 @@ const IncidentContext = `
                             "confidence": {"type": "string", "description": "Evidence confidence, present only when recorded. Owner: query/incident/model IncidentContextEvidenceRef."},
                             "observed_at": {"type": "string", "description": "Observation time, present only when recorded. Owner: query/incident/model IncidentContextEvidenceRef."}
                           }}, "description": "Source or reducer facts behind the edge. Owner: query/incident/model IncidentContextEvidenceEdge."},
-                          "candidates": {"type": "array", "items": {"type": "object", "properties": {
+                          "candidates": {"type": "array", "items": {"type": "object", "description": "One ambiguous evidence candidate. Owner: query/incident/model IncidentContextEvidenceCandidate.", "properties": {
                             "id": {"type": "string", "description": "Candidate id, present only when known. Owner: query/incident/model IncidentContextEvidenceCandidate."},
                             "label": {"type": "string", "description": "Candidate label, present only when known. Owner: query/incident/model IncidentContextEvidenceCandidate."},
                             "url": {"type": "string", "description": "Sanitized candidate URL, present only when reported. Owner: query/incident/model IncidentContextEvidenceCandidate."},
@@ -221,13 +226,13 @@ const IncidentContext = `
                       "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls. Owner: query/incident/model incidentContextAnswerMetadata.",
                       "properties": {
                         "schema_version": {"type": "string", "description": "Answer metadata wire version. Owner: query/querycontract/answer BuildAnswerMetadata."},
-                        "evidence_handles": {"type": "array", "items": {"type": "object", "properties": {
+                        "evidence_handles": {"type": "array", "items": {"type": "object", "description": "One fact handle behind an evidenced path edge. Owner: query/incident/model incidentContextAnswerMetadata.", "properties": {
                           "kind": {"type": "string", "description": "Handle kind, always fact on this route. Owner: query/incident/model incidentContextAnswerMetadata."},
                           "evidence_family": {"type": "string", "description": "Evidence-path slot the handle came from. Owner: query/incident/model incidentContextAnswerMetadata."},
                           "entity_id": {"type": "string", "description": "Fact id of the handle. Owner: query/incident/model incidentContextAnswerMetadata."},
                           "reason": {"type": "string", "description": "Edge explanation for the handle. Owner: query/incident/model incidentContextAnswerMetadata."}
                         }}, "description": "Fact handles behind evidenced path edges (edges without a fact id contribute none). Owner: query/incident/model incidentContextAnswerMetadata."},
-                        "missing_evidence": {"type": "array", "items": {"type": "object", "properties": {
+                        "missing_evidence": {"type": "array", "items": {"type": "object", "description": "One slot/reason row mirroring the top-level missing_evidence. Owner: query/incident/model incidentContextAnswerMetadata.", "properties": {
                           "slot": {"type": "string", "description": "Evidence-path slot with no usable evidence. Owner: query/incident/model incidentContextAnswerMetadata."},
                           "reason": {"type": "string", "description": "The edge explanation for the unusable slot. Owner: query/incident/model incidentContextAnswerMetadata."}
                         }}, "description": "Slot/reason rows mirroring the top-level missing_evidence. Owner: query/incident/model incidentContextAnswerMetadata."},

@@ -34,7 +34,7 @@ const AdvisoryCatalog = `
                       "type": "array",
                       "description": "Summary-only catalog rows emitted by listAdvisoryCatalog from advisory.CatalogRow; source intelligence only, no impact implied.",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One canonical advisory row. emitted by listAdvisoryCatalog.",
                         "properties": {
                           "advisory_key": {"type": "string", "description": "Canonical advisory key emitted by listAdvisoryCatalog (advisory.CatalogRow.Key); the keyset cursor tiebreaker."},
                           "canonical_id": {"type": "string", "description": "Canonical advisory id emitted by listAdvisoryCatalog (advisory.CatalogRow.CanonicalID)."},

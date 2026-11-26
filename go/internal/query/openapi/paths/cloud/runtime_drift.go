@@ -81,6 +81,7 @@ const RuntimeDrift = `
                       "description": "Finding counts grouped by provider-neutral source state with drilldown uids, emitted by query.cloudRuntimeDriftSourceStateGroups.",
                       "items": {
                         "type": "object",
+                        "description": "One source-state group. Owner: query.cloudRuntimeDriftSourceStateGroups.",
                         "properties": {
                           "source_state": {"type": "string", "description": "Provider-neutral source-state bucket emitted by query.cloudRuntimeDriftSourceStateGroup.SourceState."},
                           "count": {"type": "integer", "description": "Number of page findings in this source-state bucket, emitted by query.cloudRuntimeDriftSourceStateGroup.Count."},
@@ -103,6 +104,7 @@ const RuntimeDrift = `
                       "description": "Page of provider-neutral runtime drift finding views, emitted by query.cloudRuntimeDriftFindingViews.",
                       "items": {
                         "type": "object",
+                        "description": "One runtime drift finding view. Owner: query.cloudRuntimeDriftFindingViews.",
                         "properties": {
                           "fact_id": {"type": "string", "description": "Reducer fact identity emitted by packet.CloudRuntimeDriftFindingView.FactID."},
                           "provider": {"type": "string", "enum": ["aws", "gcp", "azure"], "description": "Cloud provider of the finding, emitted by packet.CloudRuntimeDriftFindingView.Provider."},
@@ -122,6 +124,7 @@ const RuntimeDrift = `
                             "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison), one pair per comparison that ran and disagreed. Empty for every other kind, including value_comparison_inconclusive, which reports that this pass cannot speak for the covered values -- either no comparison could be made at all, or the ones that ran agreed while another covered comparable was unreadable. Both kinds name any comparable they could not READ in missing_evidence as comparable_attribute:<key>, so an image_version_drift carrying one is a verdict reached on partial evidence. Emitted by packet.CloudRuntimeDriftFindingView.DriftedAttributes.",
                             "items": {
                               "type": "object",
+                              "description": "One declared/observed value pair. Owner: querycontract.DriftedAttributeView.",
                               "properties": {
                                 "attribute": {"type": "string", "description": "Allowlisted comparable attribute name emitted by querycontract.DriftedAttributeView.Attribute."},
                                 "declared_value": {"type": "string", "description": "Terraform-state value emitted by querycontract.DriftedAttributeView.Declared."},

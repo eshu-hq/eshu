@@ -62,6 +62,7 @@ const blastRadius = `
                       "description": "Materialization status of every graph edge type the target_type's blast-radius surface conceptually covers. Empty for target_type values with no registered coverage gap.",
                       "items": {
                         "type": "object",
+                        "description": "One edge type's materialization status. Owner: findBlastRadius coverage.",
                         "properties": {
                           "edge_type": {"type": "string", "description": "Graph relationship type, e.g. INDEXES"},
                           "materialized": {"type": "boolean", "description": "Whether a graph writer currently emits this edge type"},

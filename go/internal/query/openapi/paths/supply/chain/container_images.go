@@ -37,7 +37,7 @@ const ContainerImages = `
                       "type": "array",
                       "description": "Reducer-owned container image identity rows emitted by listContainerImageIdentities (ContainerImageIdentityResult).",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One container image identity row. emitted by listContainerImageIdentities (ContainerImageIdentityResult).",
                         "properties": {
                           "identity_id": {"type": "string", "description": "Identity id emitted by listContainerImageIdentities (ContainerImageIdentityResult.IdentityID)."},
                           "digest": {"type": "string", "description": "Image digest emitted by listContainerImageIdentities (ContainerImageIdentityResult.Digest)."},

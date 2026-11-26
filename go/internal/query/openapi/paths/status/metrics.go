@@ -33,6 +33,7 @@ const Metrics = `
                       "description": "Ordered sample points over the window; empty with unavailable or building freshness when the metrics source is unconfigured or the metric has no history yet.",
                       "items": {
                         "type": "object",
+                        "description": "One ordered sample point. Owner: metrics handler.",
                         "properties": {
                           "t": {"type": "string", "format": "date-time", "description": "Sample timestamp in UTC."},
                           "v": {"type": "number", "description": "Sample value in unit."}

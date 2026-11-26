@@ -83,6 +83,7 @@ const ResourceAggregate = `
                       "description": "Grouped count buckets ordered by count desc, emitted by the query infra aggregates handler as []query.InfraResourceInventoryRow.",
                       "items": {
                         "type": "object",
+                        "description": "One grouped count bucket. Owner: query infra aggregates handler (query.InfraResourceInventoryRow).",
                         "properties": {
                           "dimension": {"type": "string", "description": "Group-by dimension emitted by query.InfraResourceInventoryRow.Dimension."},
                           "value": {"type": "string", "description": "Bucket value emitted by query.InfraResourceInventoryRow.Value."},

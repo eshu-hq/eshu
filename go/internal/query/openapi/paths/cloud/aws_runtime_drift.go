@@ -61,6 +61,7 @@ const AWSRuntimeDrift = `
                       "description": "Finding counts grouped by derived outcome, emitted by iac.awsRuntimeDriftOutcomeGroups.",
                       "items": {
                         "type": "object",
+                      "description": "One outcome group. Owner: iac.awsRuntimeDriftOutcomeGroup.",
                         "properties": {
                           "outcome": {"type": "string", "description": "Derived outcome bucket emitted by iac.awsRuntimeDriftOutcomeGroup.Outcome (exact, derived, ambiguous, stale, or unknown)."},
                           "count": {"type": "integer", "description": "Number of page findings in this outcome bucket, emitted by iac.awsRuntimeDriftOutcomeGroup.Count."},
@@ -84,8 +85,9 @@ const AWSRuntimeDrift = `
                       "description": "Page of AWS runtime drift findings, emitted by iac.awsRuntimeDriftFindingRows.",
                       "items": {
                         "type": "object",
+                        "description": "One AWS runtime drift finding. Owner: iac.awsRuntimeDriftFindingRows.",
                         "properties": {
-                          "id": {"type": "string", "description": "Finding row identity emitted by iac.ManagementFindingRow.ID."},
+                        "id": {"type": "string", "description": "Finding row identity emitted by iac.ManagementFindingRow.ID."},
                           "arn": {"type": "string", "description": "AWS ARN under review, emitted by iac.ManagementFindingRow.ARN."},
                           "provider": {"type": "string", "description": "Cloud provider of the finding, emitted by iac.ManagementFindingRow.Provider."},
                           "account_id": {"type": "string", "description": "AWS account owning the resource, emitted by iac.ManagementFindingRow.AccountID."},
@@ -124,8 +126,9 @@ const AWSRuntimeDrift = `
                             "description": "Evidence atoms explaining the finding, emitted by iac.ManagementFindingRow.Evidence.",
                             "items": {
                               "type": "object",
-                              "properties": {
-                                "id": {"type": "string", "description": "Evidence atom identity emitted by iac.ManagementEvidenceRow.ID."},
+                            "description": "One evidence atom. Owner: iac.ManagementEvidenceRow.",
+                            "properties": {
+                              "id": {"type": "string", "description": "Evidence atom identity emitted by iac.ManagementEvidenceRow.ID."},
                                 "source_system": {"type": "string", "description": "Source system of the atom, emitted by iac.ManagementEvidenceRow.SourceSystem."},
                                 "evidence_type": {"type": "string", "description": "Atom type emitted by iac.ManagementEvidenceRow.EvidenceType."},
                                 "scope_id": {"type": "string", "description": "Scope the atom's data came from, emitted by iac.ManagementEvidenceRow.ScopeID."},
@@ -142,8 +145,9 @@ const AWSRuntimeDrift = `
                             "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison), one pair per comparison that ran and disagreed. Empty for every other kind, including value_comparison_inconclusive, which reports that this pass cannot speak for the covered values -- either no comparison could be made at all, or the ones that ran agreed while another covered comparable was unreadable. Both kinds name any comparable they could not READ in missing_evidence as comparable_attribute:<key>, so an image_version_drift carrying one is a verdict reached on partial evidence. Emitted by iac.ManagementFindingRow.DriftedAttributes.",
                             "items": {
                               "type": "object",
-                              "properties": {
-                                "attribute": {"type": "string", "description": "Allowlisted comparable attribute name emitted by querycontract.DriftedAttributeView.Attribute."},
+                            "description": "One declared/observed value pair. Owner: querycontract.DriftedAttributeView.",
+                            "properties": {
+                              "attribute": {"type": "string", "description": "Allowlisted comparable attribute name emitted by querycontract.DriftedAttributeView.Attribute."},
                                 "declared_value": {"type": "string", "description": "Terraform-state value emitted by querycontract.DriftedAttributeView.Declared."},
                                 "observed_value": {"type": "string", "description": "AWS-observed cloud value emitted by querycontract.DriftedAttributeView.Observed."}
                               },

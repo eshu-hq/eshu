@@ -29,6 +29,7 @@ const ReplatformingSelectors = `
                       "description": "Active AWS collector scopes that can anchor replatforming reads, emitted by the iac selectors handler from the active-generation inventory.",
                       "items": {
                         "type": "object",
+                        "description": "One active scope row. Owner: iac selectors handler.",
                         "properties": {
                           "scope_id": {"type": "string", "description": "Canonical AWS collector scope id."},
                           "account_id": {"type": "string", "description": "AWS account id parsed from the canonical scope."},

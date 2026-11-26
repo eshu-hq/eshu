@@ -91,6 +91,7 @@ const Semantic = `
                       "description": "Bounded retrieval results in final rank order; reranking only reorders, never changes truth labels. Owner: semanticsearch.semanticSearchResponseFromRetrieval.",
                       "items": {
                         "type": "object",
+                        "description": "One retrieval result. Owner: semanticsearch.semanticSearchResponseFromRetrieval.",
                         "properties": {
                           "rank": {"type": "integer", "description": "Final rank of the result in the response order. Owner: semanticsearch.semanticSearchResponseFromRetrieval."},
                           "score": {"type": "number", "description": "Retrieval score of the result. Owner: semanticsearch.semanticSearchResponseFromRetrieval."},
@@ -110,6 +111,7 @@ const Semantic = `
                                 "description": "Entity references carried by the document. Owner: semanticsearch.semanticSearchEntityRefs.",
                                 "items": {
                                   "type": "object",
+                                  "description": "One entity reference. Owner: semanticsearch.semanticSearchEntityRefs.",
                                   "properties": {
                                     "id": {"type": "string", "description": "Referenced entity id. Owner: semanticsearch.semanticSearchEntityRefs."},
                                     "type": {"type": "string", "description": "Referenced entity type, present when known. Owner: semanticsearch.semanticSearchEntityRefs."},
@@ -125,6 +127,7 @@ const Semantic = `
                                 "description": "Graph handles for the document. Owner: semanticsearch.semanticSearchGraphHandles.",
                                 "items": {
                                   "type": "object",
+                                  "description": "One document graph handle. Owner: semanticsearch.semanticSearchGraphHandles.",
                                   "properties": {
                                     "kind": {"type": "string", "description": "Graph handle kind. Owner: semanticsearch.semanticSearchGraphHandles."},
                                     "id": {"type": "string", "description": "Graph handle id. Owner: semanticsearch.semanticSearchGraphHandles."}
@@ -170,6 +173,7 @@ const Semantic = `
                             "description": "Graph handles for the result. Owner: semanticsearch.semanticSearchGraphHandles.",
                             "items": {
                               "type": "object",
+                              "description": "One result graph handle. Owner: semanticsearch.semanticSearchGraphHandles.",
                               "properties": {
                                 "kind": {"type": "string", "description": "Graph handle kind. Owner: semanticsearch.semanticSearchGraphHandles."},
                                 "id": {"type": "string", "description": "Graph handle id. Owner: semanticsearch.semanticSearchGraphHandles."}
@@ -206,6 +210,7 @@ const Semantic = `
                                 "description": "Graph signals that moved the result, present when any contributed. Owner: semanticsearch.semanticSearchRerankResults.",
                                 "items": {
                                   "type": "object",
+                                  "description": "One graph signal contribution. Owner: semanticsearch.semanticSearchContribution.",
                                   "properties": {
                                     "kind": {"type": "string", "description": "Graph signal kind. Owner: semanticsearch.semanticSearchContribution."},
                                     "handle": {"type": "string", "description": "Bounded kind:id handle that moved the result, present when the signal names one. Owner: semanticsearch.semanticSearchContribution."},
@@ -231,6 +236,7 @@ const Semantic = `
                       "description": "Bounded first-class read tools to advance the investigation from the results. Present only when rerank was requested.",
                       "items": {
                         "type": "object",
+                        "description": "One first-class read tool call. Owner: semanticsearch.semanticSearchCall.",
                         "properties": {
                           "tool": {"type": "string", "description": "First-class tool name to call next. Owner: semanticsearch.semanticSearchCall."},
                           "arguments": {"type": "object", "additionalProperties": true, "description": "Bounded tool arguments keyed by argument name. Owner: semanticsearch.semanticSearchCall."},

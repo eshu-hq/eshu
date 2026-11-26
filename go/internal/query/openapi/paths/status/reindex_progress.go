@@ -46,6 +46,7 @@ const ReindexProgress = `
                       "description": "At most 10 samples, unfinished scopes first; never null.",
                       "items": {
                         "type": "object",
+                        "description": "One reindex progress sample. Owner: admin reindex progress handler.",
                         "required": ["scope_id", "state", "requested_at", "last_stored_full_at", "active_generation_id"],
                         "properties": {
                           "scope_id": {"type": "string", "description": "Ingestion scope the sample covers."},

@@ -99,7 +99,7 @@ const Score = `
                           "id": {"type": "string", "description": "Prompt id scored by answerquality.Score."},
                           "family": {"type": "string", "description": "Prompt family scored by answerquality.Score."},
                           "pass": {"type": "boolean", "description": "Prompt pass verdict emitted by answerquality.Score."},
-                          "criteria": {"type": "array", "description": "Per-criterion scores for the prompt emitted by answerquality.Score.", "items": {"type": "object", "additionalProperties": true}}
+                          "criteria": {"type": "array", "description": "Per-criterion scores for the prompt emitted by answerquality.Score.", "items": {"type": "object", "description": "One per-criterion score (open map). Owner: answerquality.Score.", "additionalProperties": true}}
                         },
                         "required": ["id", "family", "pass", "criteria"]
                       }

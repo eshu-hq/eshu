@@ -161,7 +161,7 @@ const Investigations = `
                     "environment": {"type": "string", "description": "Optional environment selector carried by InvestigationOptions in service/investigation_packet.go; present only when requested."},
                     "intent": {"type": "string", "description": "Optional investigation intent (for example runbook or onboarding) in InvestigationOptions; present only when requested."},
                     "question": {"type": "string", "description": "Optional user question preserved in InvestigationOptions; present only when requested."},
-                    "repositories_considered": {"type": "array", "items": {"type": "object", "properties": {
+                    "repositories_considered": {"type": "array", "items": {"type": "object", "description": "One considered repository (or the __truncated__ marker row past the cap). Owner: service/investigation_packet.go serviceInvestigationRepositories.", "properties": {
                       "repo_id": {"type": "string", "description": "Repository id merged by serviceInvestigationRepositories in service/investigation_packet.go; __truncated__ on the marker row that closes a cut list."},
                       "repo_name": {"type": "string", "description": "Repository display name; empty on the __truncated__ marker row."},
                       "roles": {"type": "array", "items": {"type": "string"}, "description": "Roles the repository plays in the investigation (service_owner, deployment_source, deployment_target, graph_dependent, content_consumer, provisioning_source)."},
@@ -169,7 +169,7 @@ const Investigations = `
                       "evidence_family_count": {"type": "integer", "description": "Number of evidence families on this row, from addInvestigationRepo."},
                       "note": {"type": "string", "description": "Present only on the __truncated__ marker row that closes a list cut at the 50-row cap."}
                     }}, "description": "Repositories merged from the workload context by serviceInvestigationRepositories in service/investigation_packet.go, sorted by repo_id and capped at 50 rows."},
-                    "repositories_with_evidence": {"type": "array", "items": {"type": "object", "properties": {
+                    "repositories_with_evidence": {"type": "array", "items": {"type": "object", "description": "One repository with evidence. Owner: service/investigation_packet.go buildServiceInvestigationPacketWithContext.", "properties": {
                       "repo_id": {"type": "string", "description": "Repository id from repositoriesWithEvidence in service/investigation_packet.go (never the marker row)."},
                       "repo_name": {"type": "string", "description": "Repository display name."},
                       "roles": {"type": "array", "items": {"type": "string"}, "description": "Roles the repository plays in the investigation."},
@@ -190,12 +190,12 @@ const Investigations = `
                       "evidence_file_read_limit": {"type": "integer", "description": "Indexed-file bound on the service repository's own file read (5000, serviceEvidenceFileLimit)."},
                       "truncated": {"type": "boolean", "description": "True when the repository list was capped or a bounded dependent/consumer/chain read hit its bound."}
                     }, "required": ["state", "reason", "repository_count", "repositories_truncated", "repositories_with_evidence_count", "evidence_family_count", "result_limit", "downstream_read_limit", "evidence_file_read_limit", "truncated"]},
-                    "investigation_findings": {"type": "array", "items": {"type": "object", "properties": {
+                    "investigation_findings": {"type": "array", "items": {"type": "object", "description": "One evidence-family finding. Owner: service/investigation_packet.go serviceInvestigationFindingsWithContext.", "properties": {
                       "family": {"type": "string", "description": "Evidence family from serviceInvestigationFindingsWithContext in service/investigation_packet.go."},
                       "summary": {"type": "string", "description": "Human-readable family summary; carries a (bounded) suffix when the counts behind it hit a bound (#5720)."},
                       "evidence_path": {"type": "string", "description": "Workload-context path backing the finding, from serviceInvestigationEvidencePath."}
                     }, "required": ["family", "summary", "evidence_path"]}, "description": "One finding per evidence family, from serviceInvestigationFindingsWithContext."},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "properties": {
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "description": "One recommended follow-up call. Owner: service/investigation_packet.go serviceInvestigationNextCalls.", "properties": {
                       "tool": {"type": "string", "description": "MCP tool to call next, from serviceInvestigationNextCalls in service/investigation_packet.go."},
                       "reason": {"type": "string", "description": "Why the follow-up call is recommended."},
                       "arguments": {"type": "object", "description": "Tool arguments from serviceInvestigationNextCalls: workload_id for dossier and context calls, service_name plus include_related_module_usage for chain walks, or resolved_id for relationship dereference.", "additionalProperties": {}}

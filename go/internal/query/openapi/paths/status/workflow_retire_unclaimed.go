@@ -45,6 +45,7 @@ const WorkflowRetireUnclaimed = `
                       "description": "One entry per retired work item.",
                       "items": {
                         "type": "object",
+                        "description": "One retired work item entry. Owner: admin workflow-retire handler.",
                         "required": ["work_item_id", "scope_id"],
                         "properties": {
                           "work_item_id": {"type": "string", "description": "Retired work item id."},

@@ -104,7 +104,7 @@ const Graph = `
                             "scope_keys": {"type": "array", "description": "Every privacy-safe observation scope reconciled onto this node, per visualization.VisualizationNode.", "items": {"type": "string"}},
                             "truth_label": {"type": "string", "description": "Per-node truth label carried from the source response, per visualization.VisualizationNode."},
                             "evidence_handle": {"type": "object", "description": "Evidence-citation handle back to the source response evidence, per visualization.VisualizationNode.", "additionalProperties": true},
-                            "evidence_handles": {"type": "array", "description": "Every supported observation handle reconciled onto this node, per visualization.VisualizationNode.", "items": {"type": "object", "additionalProperties": true}}
+                            "evidence_handles": {"type": "array", "description": "Every supported observation handle reconciled onto this node, per visualization.VisualizationNode.", "items": {"type": "object", "description": "One reconciled observation handle (open map). Owner: querycontract/visualization VisualizationNode.", "additionalProperties": true}}
                           },
                           "required": ["id", "type", "label"]
                         }},
@@ -116,7 +116,7 @@ const Graph = `
                             "relationship": {"type": "string", "description": "Relationship label (graph relationship type or incident slot transition), per visualization.VisualizationEdge."},
                             "truth_label": {"type": "string", "description": "Truth label carried from the source response, per visualization.VisualizationEdge."},
                             "evidence_handle": {"type": "object", "description": "Evidence-citation handle for the relationship, per visualization.VisualizationEdge.", "additionalProperties": true},
-                            "evidence_handles": {"type": "array", "description": "Every supported relationship handle collapsed onto this edge, per visualization.VisualizationEdge.", "items": {"type": "object", "additionalProperties": true}}
+                            "evidence_handles": {"type": "array", "description": "Every supported relationship handle collapsed onto this edge, per visualization.VisualizationEdge.", "items": {"type": "object", "description": "One collapsed relationship handle (open map). Owner: querycontract/visualization VisualizationEdge.", "additionalProperties": true}}
                           },
                           "required": ["id", "source", "target", "relationship"]
                         }},

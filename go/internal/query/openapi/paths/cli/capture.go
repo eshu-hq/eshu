@@ -195,7 +195,7 @@ const Capture = `
                             "freshness": {"type": "object", "description": "Freshness state stored by reportbundle.Capture.", "additionalProperties": true},
                             "reason": {"type": "string", "description": "Human-readable truth reason stored by reportbundle.Capture, when set."},
                             "truncated": {"type": "boolean", "description": "Envelope-level truncation marker stored by reportbundle.Capture, when set."},
-                            "omissions": {"type": "array", "description": "Sections withheld or reduced under the caller's selection, per reportbundle.Capture.", "items": {"type": "object", "additionalProperties": true}}
+                            "omissions": {"type": "array", "description": "Sections withheld or reduced under the caller's selection, per reportbundle.Capture.", "items": {"type": "object", "description": "One withheld or reduced section (open map). Owner: querycontract.TruthOmission.", "additionalProperties": true}}
                           },
                           "required": ["level", "freshness"]},
                         "error": {"type": "object", "description": "Verbatim querycontract.ErrorEnvelope stored by reportbundle.Capture when the captured call failed.",
@@ -217,8 +217,8 @@ const Capture = `
                       "type": "object",
                       "description": "Citation and fact-reference trail (reportbundle.EvidenceContext); references only, never inline payload bytes.",
                       "properties": {
-                        "citations": {"type": "array", "description": "Share-safe citation references (reportbundle.CitationRef) resolved for the captured response.", "items": {"type": "object", "additionalProperties": true}},
-                        "fact_refs": {"type": "array", "description": "Durable fact envelope references (reportbundle.FactRef); never carry payload bytes.", "items": {"type": "object", "additionalProperties": true}},
+                        "citations": {"type": "array", "description": "Share-safe citation references (reportbundle.CitationRef) resolved for the captured response.", "items": {"type": "object", "description": "One share-safe citation reference. Owner: reportbundle.CitationRef.", "additionalProperties": true}},
+                        "fact_refs": {"type": "array", "description": "Durable fact envelope references (reportbundle.FactRef); never carry payload bytes.", "items": {"type": "object", "description": "One durable fact envelope reference. Owner: reportbundle.FactRef.", "additionalProperties": true}},
                         "fact_refs_state": {"type": "string", "description": "resolved when fact refs were hydrated at capture time, unavailable when no public fact-record read let the CLI resolve them, per reportbundle.Capture."},
                         "fact_refs_reason": {"type": "string", "description": "Why fact refs are unavailable, per reportbundle.Capture."}
                       },
@@ -238,8 +238,8 @@ const Capture = `
                       "description": "Private-triage-only raw bytes (reportbundle.PayloadAttachment); present only when the capture used --include-payloads.",
                       "properties": {
                         "warning": {"type": "string", "description": "Self-describing private-triage warning emitted by reportbundle.Capture, always the first field."},
-                        "excerpts": {"type": "array", "description": "Raw citation excerpts carried only under --include-payloads by reportbundle.Capture.", "items": {"type": "object", "additionalProperties": true}},
-                        "facts": {"type": "array", "description": "Raw fact envelopes carried only under --include-payloads by reportbundle.Capture.", "items": {"type": "object", "additionalProperties": true}}
+                        "excerpts": {"type": "array", "description": "Raw citation excerpts carried only under --include-payloads by reportbundle.Capture.", "items": {"type": "object", "description": "One raw citation excerpt. Owner: reportbundle.Capture.", "additionalProperties": true}},
+                        "facts": {"type": "array", "description": "Raw fact envelopes carried only under --include-payloads by reportbundle.Capture.", "items": {"type": "object", "description": "One raw fact envelope. Owner: reportbundle.Capture.", "additionalProperties": true}}
                       },
                       "required": ["warning"]
                     },

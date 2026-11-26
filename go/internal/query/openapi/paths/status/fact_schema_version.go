@@ -38,6 +38,7 @@ const FactSchemaVersion = `
                       "description": "One entry per core fact kind in the in-binary registry from go/internal/facts.",
                       "items": {
                         "type": "object",
+                        "description": "One core fact kind entry. Owner: in-binary registry go/internal/facts.",
                         "properties": {
                           "fact_kind": {"type": "string", "description": "Core fact kind, for example terraform_state_resource."},
                           "schema_version": {"type": "string", "description": "Schema version the current binary supports for the fact kind."}

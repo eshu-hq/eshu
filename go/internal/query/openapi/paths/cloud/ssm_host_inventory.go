@@ -38,6 +38,7 @@ const SSMHostInventory = `
                       "description": "Page of SSM host views, emitted by query.ssmHostInventoryResponse from ssmHostInventoryReadModel.Hosts.",
                       "items": {
                         "type": "object",
+                        "description": "One SSM host view. Owner: query.ssmHostInventoryResponse.",
                         "properties": {
                           "partition": {"type": "string", "description": "AWS partition of the managed node, emitted by query.ssmHostView.Partition."},
                           "account_id": {"type": "string", "description": "AWS account of the managed node, emitted by query.ssmHostView.AccountID."},
@@ -53,6 +54,7 @@ const SSMHostInventory = `
                             "description": "Committed allowlisted application rows, capped per host with applications_truncated set when the cap bites. Emitted by query.ssmHostView.Applications via the ssm_host_inventory_overlay application projection.",
                             "items": {
                               "type": "object",
+                            "description": "One allowlisted application row. Owner: ssm_host_inventory_overlay application projection.",
                               "properties": {
                                 "uid": {"type": "string", "description": "Application row identity emitted by the ssm_host_inventory_overlay application projection."},
                                 "name": {"type": "string", "description": "Application name emitted by the ssm_host_inventory_overlay application projection."},
@@ -72,6 +74,7 @@ const SSMHostInventory = `
                             "description": "Platform detail rows for the host, emitted by query.ssmHostView.Platforms via the ssm_host_inventory_overlay platform projection.",
                             "items": {
                               "type": "object",
+                            "description": "One platform detail row. Owner: ssm_host_inventory_overlay platform projection.",
                               "properties": {
                                 "uid": {"type": "string", "description": "Platform row identity emitted by the ssm_host_inventory_overlay platform projection."},
                                 "source_type": {"type": "string", "description": "Platform source class emitted by the ssm_host_inventory_overlay platform projection."},

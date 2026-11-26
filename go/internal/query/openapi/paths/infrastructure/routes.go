@@ -51,7 +51,7 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "results": {"type": "array", "description": "Bounded graph-backed infrastructure resource rows, emitted by the query infra search handler from the hydrated row projection.", "items": {"type": "object", "properties": {
+                    "results": {"type": "array", "description": "Bounded graph-backed infrastructure resource rows, emitted by the query infra search handler from the hydrated row projection.", "items": {"type": "object", "description": "One infrastructure resource row. Owner: query infra search handler.", "properties": {
                       "id": {"type": "string", "description": "Graph resource identity emitted by the query infra search row projection."},
                       "name": {"type": "string", "description": "Resource display name emitted by the query infra search row projection."},
                       "labels": {"type": "array", "items": {"type": "string"}, "description": "Graph node labels emitted by the query infra search row projection."},
@@ -207,6 +207,7 @@ const Routes = `
                       "description": "Most-connected functions by call degree, emitted by query.graphSummaryHotEntities (Neo4j degree aggregate with the codemodel raw-path fallback).",
                       "items": {
                         "type": "object",
+                        "description": "One most-connected function. Owner: query.graphSummaryHotEntities.",
                         "properties": {
                           "function_id": {"type": "string", "description": "Function identity (graph id with uid fallback) emitted by the query graph-summary hot-entity projection."},
                           "function_name": {"type": "string", "description": "Function name emitted by the query graph-summary hot-entity projection."},
@@ -262,6 +263,7 @@ const Routes = `
                       "description": "Typed-edge verb catalog entries, emitted by the query relationships-catalog handler as []query.relationshipVerbTile.",
                       "items": {
                         "type": "object",
+                        "description": "One typed-edge verb catalog entry. Owner: query relationships-catalog handler (query.relationshipVerbTile).",
                         "properties": {
                           "verb": {"type": "string", "description": "Relationship verb emitted by query.relationshipVerbTile.Verb."},
                           "layer": {"type": "string", "description": "Graph layer of the verb emitted by query.relationshipVerbTile.Layer."},
@@ -329,6 +331,7 @@ const Routes = `
                       "description": "Bounded concrete typed edges for the verb, emitted by the query relationship-edges handler as []query.relationshipEdge.",
                       "items": {
                         "type": "object",
+                        "description": "One concrete typed edge. Owner: query relationship-edges handler (query.relationshipEdge).",
                         "properties": {
                           "source_id": {"type": "string", "description": "Source endpoint identity emitted by query.relationshipEdge.SourceID."},
                           "source_name": {"type": "string", "description": "Source endpoint name emitted by query.relationshipEdge.SourceName."},

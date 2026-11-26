@@ -40,6 +40,7 @@ const Kubernetes = `
                       "description": "Page of Kubernetes workload ownership and drift correlation rows, emitted by the kubernetes handler from the reducer read model as []kubernetes.CorrelationResult.",
                       "items": {
                         "type": "object",
+                        "description": "One Kubernetes workload ownership and drift correlation row. Owner: kubernetes handler reducer read model.",
                         "properties": {
                           "correlation_id": {"type": "string", "description": "Correlation identity emitted by kubernetes.CorrelationResult.CorrelationID."},
                           "cluster_id": {"type": "string", "description": "Cluster anchoring the lookup, emitted by kubernetes.CorrelationResult.ClusterID."},

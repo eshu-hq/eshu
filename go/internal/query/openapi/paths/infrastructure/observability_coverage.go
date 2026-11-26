@@ -42,6 +42,7 @@ const ObservabilityCoverage = `
                       "description": "Page of observability coverage correlation rows, emitted by the coverage handler from the reducer read model as []coverage.CorrelationResult.",
                       "items": {
                         "type": "object",
+                        "description": "One observability coverage correlation row. Owner: coverage handler reducer read model (coverage.CorrelationResult).",
                         "properties": {
                           "correlation_id": {"type": "string", "description": "Correlation identity emitted by coverage.CorrelationResult.CorrelationID."},
                           "provider": {"type": "string", "description": "Observability provider emitted by coverage.CorrelationResult.Provider."},

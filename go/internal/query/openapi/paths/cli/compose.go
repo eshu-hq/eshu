@@ -142,8 +142,8 @@ const Compose = `
                             "truth": {"type": "object", "description": "Copy of the envelope TruthEnvelope, per answer.AnswerPacket.", "additionalProperties": true},
                             "limitations": {"type": "array", "description": "Bounded human-readable caveats, per answer.AnswerPacket.", "items": {"type": "string"}},
                             "truncated": {"type": "boolean", "description": "Result-set truncation mirrored from the underlying query, per answer.AnswerPacket."},
-                            "missing_evidence": {"type": "array", "description": "Evidence handles requested but not resolved, per answer.AnswerPacket.", "items": {"type": "object", "additionalProperties": true}},
-                            "evidence_handles": {"type": "array", "description": "Addressable evidence handles behind the answer, per answer.AnswerPacket.", "items": {"type": "object", "additionalProperties": true}}
+                            "missing_evidence": {"type": "array", "description": "Evidence handles requested but not resolved, per answer.AnswerPacket.", "items": {"type": "object", "description": "One missing evidence handle (open map). Owner: answer.AnswerPacket.", "additionalProperties": true}},
+                            "evidence_handles": {"type": "array", "description": "Addressable evidence handles behind the answer, per answer.AnswerPacket.", "items": {"type": "object", "description": "One addressable evidence handle (open map). Owner: answer.AnswerPacket.", "additionalProperties": true}}
                           },
                           "required": ["truth_class", "supported", "partial"]
                         }
@@ -170,7 +170,7 @@ const Compose = `
                     "suggested_investigations": {
                       "type": "array",
                       "description": "Deterministic guided investigations derived from evidence gaps by the composeReport handler; empty when no section carries a supporting basis.",
-                      "items": {"type": "object", "additionalProperties": true}
+                      "items": {"type": "object", "description": "One guided investigation (open map). Owner: composeReport handler.", "additionalProperties": true}
                     }
                   },
                   "required": ["schema", "subject", "supported", "partial", "truth_class", "sections"]

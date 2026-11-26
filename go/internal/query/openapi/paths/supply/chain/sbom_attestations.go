@@ -41,7 +41,7 @@ const SBOMAttestations = `
                       "type": "array",
                       "description": "Reducer-owned SBOM and attestation attachment rows emitted by listSBOMAttachments (SBOMAttestationAttachmentResult).",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One SBOM attestation attachment row. emitted by listSBOMAttachments (SBOMAttestationAttachmentResult).",
                         "properties": {
                           "attachment_id": {"type": "string", "description": "Attachment id emitted by listSBOMAttachments (SBOMAttestationAttachmentResult.AttachmentID)."},
                           "subject_digest": {"type": "string", "description": "Subject digest the attachment anchors to, emitted by listSBOMAttachments (SBOMAttestationAttachmentResult.SubjectDigest)."},
@@ -66,7 +66,7 @@ const SBOMAttestations = `
                             "type": "array",
                             "description": "Bounded, deduplicated sbom.component evidence rows for this document (write-time capped at 100 per document), emitted by listSBOMAttachments (ComponentEvidenceRow).",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One component evidence row. emitted by listSBOMAttachments (ComponentEvidenceRow).",
                               "properties": {
                                 "component_id": {"type": "string", "description": "Component id emitted by listSBOMAttachments (ComponentEvidenceRow.ComponentID)."},
                                 "name": {"type": "string", "description": "Component name emitted by listSBOMAttachments (ComponentEvidenceRow.Name)."},
@@ -85,7 +85,7 @@ const SBOMAttestations = `
                             "type": "array",
                             "description": "Bounded, deduplicated sbom.dependency_relationship evidence rows for this document (write-time capped at 100 per document), emitted by listSBOMAttachments (DependencyRelationshipRow).",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One dependency relationship row. emitted by listSBOMAttachments (DependencyRelationshipRow).",
                               "properties": {
                                 "from_component_id": {"type": "string", "description": "Source component id emitted by listSBOMAttachments (DependencyRelationshipRow.FromComponentID)."},
                                 "to_component_id": {"type": "string", "description": "Target component id emitted by listSBOMAttachments (DependencyRelationshipRow.ToComponentID)."},
@@ -107,7 +107,7 @@ const SBOMAttestations = `
                             "type": "array",
                             "description": "Bounded, deduplicated sbom.external_reference evidence rows for this document (write-time capped at 50 per document), emitted by listSBOMAttachments (ExternalReferenceRow).",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One external reference row. emitted by listSBOMAttachments (ExternalReferenceRow).",
                               "properties": {
                                 "component_id": {"type": "string", "description": "Component id emitted by listSBOMAttachments (ExternalReferenceRow.ComponentID)."},
                                 "reference_type": {"type": "string", "description": "Reference type emitted by listSBOMAttachments (ExternalReferenceRow.ReferenceType)."},
@@ -137,7 +137,7 @@ const SBOMAttestations = `
                             "type": "array",
                             "description": "Bounded, write-time capped set of the joined attestation.slsa_provenance fact's materials/resolved dependencies (write-time capped at 20 per statement), emitted by listSBOMAttachments (SLSAMaterialRow).",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One SLSA provenance material row. emitted by listSBOMAttachments (SLSAMaterialRow).",
                               "properties": {
                                 "uri": {"type": "string", "description": "Material URI emitted by listSBOMAttachments (SLSAMaterialRow.URI)."},
                                 "digest": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Material digests by algorithm emitted by listSBOMAttachments (SLSAMaterialRow.Digest)."}

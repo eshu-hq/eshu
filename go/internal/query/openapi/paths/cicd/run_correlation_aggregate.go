@@ -78,6 +78,7 @@ const RunCorrelationAggregate = `
                       "description": "Grouped count buckets ordered by count desc, per the inventory handler.",
                       "items": {
                         "type": "object",
+                        "description": "One grouped count bucket. Owner: cicd run-correlations inventory handler.",
                         "properties": {
                           "dimension": {"type": "string", "description": "Bucket dimension value; the label comes from the group_by request value."},
                           "value": {"type": "string", "description": "Group value."},

@@ -80,7 +80,7 @@ const ContainerImageIdentityAggregate = `
                       "type": "array",
                       "description": "Grouped count buckets ordered by count desc, emitted by the identity inventory aggregate handler (ContainerImageIdentityInventoryRow).",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One grouped count bucket. emitted by the identity inventory aggregate handler.",
                         "properties": {
                           "dimension": {"type": "string", "description": "Bucket dimension value; the label comes from the group_by request value."},
                           "value": {"type": "string", "description": "Group value."},

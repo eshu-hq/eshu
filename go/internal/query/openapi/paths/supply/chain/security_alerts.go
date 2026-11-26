@@ -40,7 +40,7 @@ const SecurityAlerts = `
                       "type": "array",
                       "description": "Reducer-owned reconciliation rows emitted by listSecurityAlertReconciliations (SecurityAlertReconciliationRow).",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One security-alert reconciliation row. emitted by listSecurityAlertReconciliations (SecurityAlertReconciliationRow).",
                         "properties": {
                           "reconciliation_id": {"type": "string", "description": "Reconciliation fact id emitted by listSecurityAlertReconciliations (SecurityAlertReconciliationRow.ReconciliationID)."},
                           "provider_alert": {
@@ -65,7 +65,7 @@ const SecurityAlerts = `
                               "severity": {"type": "string", "description": "Provider-reported severity emitted by alerts.decodeRow (ProviderSecurityAlertRow.Severity)."},
                               "cvss": {"type": "object", "additionalProperties": {}, "description": "Provider-reported CVSS map with provider-defined keys, emitted by alerts.decodeRow (ProviderSecurityAlertRow.CVSS)."},
                               "epss": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Provider-reported EPSS entries as string pairs, emitted by alerts.decodeRow (ProviderSecurityAlertRow.EPSS)."},
-                              "cwes": {"type": "array", "items": {"type": "object", "additionalProperties": {"type": "string"}}, "description": "Provider-reported CWE entries as string maps, emitted by alerts.decodeRow (ProviderSecurityAlertRow.CWEs)."},
+                              "cwes": {"type": "array", "items": {"type": "object", "description": "One provider CWE entry (open string map). emitted by alerts.decodeRow (ProviderSecurityAlertRow.CWEs).", "additionalProperties": {"type": "string"}}, "description": "Provider-reported CWE entries as string maps, emitted by alerts.decodeRow (ProviderSecurityAlertRow.CWEs)."},
                               "summary": {"type": "string", "description": "Provider alert summary emitted by alerts.decodeRow (ProviderSecurityAlertRow.Summary)."},
                               "source_url": {"type": "string", "description": "Provider alert URL emitted by alerts.decodeRow (ProviderSecurityAlertRow.SourceURL)."},
                               "created_at": {"type": "string", "description": "Provider alert creation time emitted by alerts.decodeRow (ProviderSecurityAlertRow.CreatedAt)."},
@@ -107,7 +107,7 @@ const SecurityAlerts = `
                             "type": "array",
                             "description": "Structured row-level gaps that explain provider-only, stale, unsupported, or ambiguous outcomes without embedding raw provider payloads, emitted by alerts.decodeRow (SecurityAlertMissingEvidence).",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One missing-evidence entry. emitted by alerts.decodeRow (SecurityAlertMissingEvidence).",
                               "properties": {
                                 "kind": {"type": "string", "enum": ["owned_dependency", "impact_finding", "current_manifest", "ecosystem_matcher"], "description": "Gap kind emitted by alerts.decodeRow (SecurityAlertMissingEvidence.Kind)."},
                                 "reason": {"type": "string", "description": "Human reason for the gap, emitted by alerts.decodeRow (SecurityAlertMissingEvidence.Reason)."},

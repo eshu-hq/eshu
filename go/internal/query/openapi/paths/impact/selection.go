@@ -37,21 +37,23 @@ const traceDeploymentSelectionResponseProperties = `                    "evidenc
                       "description": "One entry per selectable family (the sections enum). detail is full, handles, or omitted; returned is the rows emitted and total the rows the route held before the cut (existing *_limits objects still report query caps). A family not returned in full names the trace_deployment_chain drilldown that returns it in full, with the direct_only, max_depth, and include_related_module_usage the response was built with, so replaying it builds the same families. The same non-full families appear in truth.omissions as {section, detail, total}.",
                       "additionalProperties": {
                         "type": "object",
+                        "description": "One selectable family's detail entry. Owner: impact/deployment.ApplySectionSelection.",
                         "required": ["detail", "returned", "total"],
                         "properties": {
-                          "detail": {"type": "string", "enum": ["full", "handles", "omitted"]},
-                          "returned": {"type": "integer"},
-                          "total": {"type": "integer"},
-                          "drilldown_tool": {"type": "string", "enum": ["trace_deployment_chain"]},
+                          "detail": {"type": "string", "enum": ["full", "handles", "omitted"], "description": "How the family shipped. Owner: impact/deployment.ApplySectionSelection."},
+                          "returned": {"type": "integer", "description": "Rows emitted for the family. Owner: impact/deployment.ApplySectionSelection."},
+                          "total": {"type": "integer", "description": "Rows the route held for the family before the cut. Owner: impact/deployment.ApplySectionSelection."},
+                          "drilldown_tool": {"type": "string", "enum": ["trace_deployment_chain"], "description": "Drilldown returning the family in full; present only when detail is not full. Owner: impact/deployment.ApplySectionSelection."},
                           "drilldown_arguments": {
                             "type": "object",
+                            "description": "Replay arguments rebuilding the same families via the drilldown tool. Owner: impact/deployment.ApplySectionSelection.",
                             "properties": {
-                              "service_name": {"type": "string"},
-                              "sections": {"type": "array", "items": {"type": "string"}},
-                              "evidence_detail": {"type": "string", "enum": ["full"]},
-                              "direct_only": {"type": "boolean"},
-                              "max_depth": {"type": "integer"},
-                              "include_related_module_usage": {"type": "boolean"}
+                              "service_name": {"type": "string", "description": "Traced service name replayed into the drilldown. Owner: impact/deployment.ApplySectionSelection."},
+                              "sections": {"type": "array", "description": "Family names replayed into the drilldown. Owner: impact/deployment.ApplySectionSelection.", "items": {"type": "string"}},
+                              "evidence_detail": {"type": "string", "enum": ["full"], "description": "Full detail replayed into the drilldown. Owner: impact/deployment.ApplySectionSelection."},
+                              "direct_only": {"type": "boolean", "description": "Request direct_only replayed into the drilldown. Owner: impact/deployment.ApplySectionSelection."},
+                              "max_depth": {"type": "integer", "description": "Request max_depth replayed into the drilldown. Owner: impact/deployment.ApplySectionSelection."},
+                              "include_related_module_usage": {"type": "boolean", "description": "Request include_related_module_usage replayed into the drilldown. Owner: impact/deployment.ApplySectionSelection."}
                             }
                           }
                         }

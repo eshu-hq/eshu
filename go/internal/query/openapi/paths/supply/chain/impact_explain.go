@@ -49,7 +49,7 @@ const impactExplain = `
                       "type": "object",
                       "description": "The same finding shape returned by the list route, emitted by explainImpact (packet.FindingResult via impact.BuildFindingResult), including read-time runtime context, exact digest-bound Kubernetes runtime refs, and bounded probe metadata.",
                       "properties": {
-                        "kubernetes_runtime_workload_refs": {"type": "array", "description": "Exact digest-bound Kubernetes workload refs emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef).", "items": {"type": "object", "properties": {"workload_uid": {"type": "string", "description": "Workload uid emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.UID)."}, "cluster_id": {"type": "string", "description": "Cluster id emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.ClusterID)."}, "namespace": {"type": "string", "description": "Workload namespace emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.Namespace)."}, "name": {"type": "string", "description": "Workload name emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.Name)."}}, "required": ["workload_uid"]}},
+                        "kubernetes_runtime_workload_refs": {"type": "array", "description": "Exact digest-bound Kubernetes workload refs emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef).", "items": {"type": "object", "description": "One digest-bound Kubernetes workload ref. emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef).", "properties": {"workload_uid": {"type": "string", "description": "Workload uid emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.UID)."}, "cluster_id": {"type": "string", "description": "Cluster id emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.ClusterID)."}, "namespace": {"type": "string", "description": "Workload namespace emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.Namespace)."}, "name": {"type": "string", "description": "Workload name emitted by explainImpact (packet.KubernetesRuntimeWorkloadRef.Name)."}}, "required": ["workload_uid"]}},
                         "kubernetes_runtime_probe": {"type": "object", "description": "The page-weighted digest probe budget and nullable truncation state from the list finding contract, emitted by explainImpact (packet.KubernetesRuntimeProbeMetadata); a single explanation keeps the full 200-reference cap.", "properties": {"candidate_limit": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Digest-local candidate budget emitted by explainImpact (packet.KubernetesRuntimeProbeMetadata.CandidateLimit)."}, "workload_refs_truncated": {"type": "boolean", "nullable": true, "description": "Whether authorized refs exceeded the budget, emitted by explainImpact (packet.KubernetesRuntimeProbeMetadata.WorkloadRefsTruncated); null when authorization hides the answer."}}, "required": ["candidate_limit", "workload_refs_truncated"]},
                         "runtime_context": ` + RuntimeContext + `
                       },
@@ -66,7 +66,7 @@ const impactExplain = `
                         "selected_severity_source": {"type": "string", "description": "Severity source emitted by explainImpact (packet.AdvisoryExplanation.SelectedSeveritySource)."},
                         "selected_fixed_version_source": {"type": "string", "description": "Fixed-version source emitted by explainImpact (packet.AdvisoryExplanation.SelectedFixedVersionSource)."},
                         "sources": {"type": "array", "description": "Source observations behind the advisory, emitted by explainImpact (packet.AdvisorySource).", "items": {
-                          "type": "object",
+                          "type": "object", "description": "One advisory source evidence row. emitted by explainImpact (packet.AdvisorySource).",
                           "properties": {
                             "source": {"type": "string", "description": "Advisory source emitted by explainImpact (packet.AdvisorySource.Source)."},
                             "advisory_id": {"type": "string", "description": "Source-native advisory id emitted by explainImpact (packet.AdvisorySource.AdvisoryID)."},
@@ -133,7 +133,7 @@ const impactExplain = `
                         "catalog_entities": {"type": "array", "items": {"type": "string"}, "description": "Catalog entities emitted by explainImpact (packet.ExplanationAnchors.CatalogEntities)."},
                         "catalog_owners": {"type": "array", "items": {"type": "string"}, "description": "Catalog owners emitted by explainImpact (packet.ExplanationAnchors.CatalogOwners)."},
                         "provider_alerts": {"type": "array", "description": "Provider alert evidence preserved without promoting it into owned truth, emitted by explainImpact (packet.ProviderAlertAnchor).", "items": {
-                          "type": "object",
+                          "type": "object", "description": "One provider alert row. emitted by explainImpact (packet.ProviderAlertAnchor).",
                           "properties": {
                             "provider": {"type": "string", "description": "Alert provider emitted by explainImpact (packet.ProviderAlertAnchor.Provider)."},
                             "alert_id": {"type": "string", "description": "Provider alert id emitted by explainImpact (packet.ProviderAlertAnchor.AlertID)."},
@@ -148,7 +148,7 @@ const impactExplain = `
                       "type": "array",
                       "description": "Reducer-owned present and missing hops from advisory/package evidence to repository, image, workload, deployment, service, and environment evidence, emitted by explainImpact (packet.PathHop). Missing hops remain explicit and are not inferred from names or tags.",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One impact path row. emitted by explainImpact (packet.PathHop).",
                         "properties": {
                           "hop": {"type": "string", "description": "Hop name emitted by explainImpact (packet.PathHop.Hop)."},
                           "status": {"type": "string", "enum": ["present", "missing_evidence"], "description": "Hop status emitted by explainImpact (packet.PathHop.Status)."},
@@ -162,7 +162,7 @@ const impactExplain = `
                       "type": "array",
                       "description": "Compact previews of the bounded evidence fact ids referenced by the finding, emitted by explainImpact (packet.EvidenceFactSummary); raw advisory and provider payloads are not returned.",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One evidence row. emitted by explainImpact (packet.EvidenceFactSummary).",
                         "properties": {
                           "fact_id": {"type": "string", "description": "Evidence fact id emitted by explainImpact (packet.EvidenceFactSummary.FactID)."},
                           "fact_kind": {"type": "string", "description": "Evidence fact kind emitted by explainImpact (packet.EvidenceFactSummary.FactKind)."},
@@ -199,7 +199,7 @@ const impactExplain = `
                           "type": "array",
                           "description": "Every published fixed-version branch emitted by explainImpact (packet.FixedVersionBranch).",
                           "items": {
-                            "type": "object",
+                            "type": "object", "description": "One patched version branch. emitted by explainImpact (packet.FixedVersionBranch).",
                             "properties": {
                               "version": {"type": "string", "description": "Fixed version emitted by explainImpact (packet.FixedVersionBranch.Version)."},
                               "source": {"type": "string", "description": "Advisory source of the branch emitted by explainImpact (packet.FixedVersionBranch.Source)."}

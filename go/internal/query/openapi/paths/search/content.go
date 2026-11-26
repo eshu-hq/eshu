@@ -324,6 +324,7 @@ const Content = `
                       "description": "Persisted install entity rows in full sort-key order. Owner: contentread.searchDockerfileInstalls.",
                       "items": {
                         "type": "object",
+                        "description": "One persisted install entity row. Owner: contentread.searchDockerfileInstalls.",
                         "properties": {
                           "entity_id": {"type": "string", "description": "Canonical content-entity id of the install row. Owner: contentread.searchDockerfileInstalls."},
                           "repo_id": {"type": "string", "description": "Repository id holding the install row. Owner: contentread.searchDockerfileInstalls."},

@@ -35,7 +35,7 @@ const TagHistory = `
                       "type": "array",
                       "description": "Captured tag-observation history emitted by listTagHistory (taghistory.Row); set-once first observations, not a full event log.",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One tag history row. emitted by listTagHistory (taghistory.Row).",
                         "properties": {
                           "tag": {"type": "string", "description": "Observed tag emitted by listTagHistory (taghistory.Row.Tag)."},
                           "resolved_digest": {"type": "string", "description": "Digest the tag resolved to, emitted by listTagHistory (taghistory.Row.ResolvedDigest)."},

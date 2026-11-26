@@ -41,13 +41,13 @@ const componentsSemanticEvidence = `      "SemanticEvidenceRow": {
           "redaction_state": {"type": "string", "description": "Bounded redaction state carried on the payload, projected by query.semanticEvidencePublicRow; present when the payload carries one."},
           "redaction_summary": {"type": "string", "description": "Human-readable redaction summary carried on the payload, projected by query.semanticEvidencePublicRow; present when the payload carries one."},
           "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Attribution layers the payload reports as missing, projected verbatim by query.semanticEvidencePublicRow from facts/semantic SemanticDocumentationObservationPayload and SemanticCodeHintPayload; present when the payload names any."},
-          "evidence_refs": {"type": "array", "description": "Evidence references used by the payload, filtered by query.semanticEvidencePublicRow over the docs.EvidenceRef allowlist; present when the payload carries any.", "items": {"type": "object", "properties": {
+          "evidence_refs": {"type": "array", "description": "Evidence references used by the payload, filtered by query.semanticEvidencePublicRow over the docs.EvidenceRef allowlist; present when the payload carries any.", "items": {"type": "object", "description": "One evidence reference from the payload, filtered to kind, id, uri, and confidence. Owner: query.semanticEvidencePublicRow over the docs.EvidenceRef allowlist.", "properties": {
             "kind": {"type": "string", "description": "Evidence reference kind. Owner: docs.EvidenceRef.Kind."},
             "id": {"type": "string", "description": "Evidence reference identity. Owner: docs.EvidenceRef.ID."},
             "uri": {"type": "string", "description": "Evidence locator URI. Owner: docs.EvidenceRef.URI; present when the payload carries one."},
             "confidence": {"type": "string", "description": "Reference confidence. Owner: docs.EvidenceRef.Confidence; present when the payload carries one."}
           }}},
-          "object_refs": {"type": "array", "description": "Code entities the hint references, filtered by query.semanticEvidencePublicRow over the facts/semantic SemanticCodeEntityRef allowlist; present on code-hint rows that reference objects.", "items": {"type": "object", "properties": {
+          "object_refs": {"type": "array", "description": "Code entities the hint references, filtered by query.semanticEvidencePublicRow over the facts/semantic SemanticCodeEntityRef allowlist; present on code-hint rows that reference objects.", "items": {"type": "object", "description": "One referenced code entity from the payload, filtered to repository_id, relative_path, entity_kind, entity_id, line_start, and line_end. Owner: query.semanticEvidencePublicRow over the facts/semantic SemanticCodeEntityRef allowlist.", "properties": {
             "repository_id": {"type": "string", "description": "Referenced entity repository. Owner: facts/semantic SemanticCodeEntityRef.RepositoryID."},
             "relative_path": {"type": "string", "description": "Referenced entity file path. Owner: facts/semantic SemanticCodeEntityRef.RelativePath; present when the payload carries one."},
             "entity_kind": {"type": "string", "description": "Referenced entity kind. Owner: facts/semantic SemanticCodeEntityRef.EntityKind."},
@@ -104,26 +104,28 @@ const componentsSemanticEvidence = `      "SemanticEvidenceRow": {
       },
       "SemanticObservationList": {
         "type": "object",
+        "description": "Semantic documentation observation page. Owner: query.semanticEvidenceResponse.",
         "properties": {
-          "observations": {"type": "array", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
-          "count": {"type": "integer"},
-          "limit": {"type": "integer"},
-          "truncated": {"type": "boolean"},
+          "observations": {"type": "array", "description": "Observation rows in the page. Owner: query.semanticEvidenceResponse.", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
+          "count": {"type": "integer", "description": "Rows returned in this page. Owner: query.semanticEvidenceResponse."},
+          "limit": {"type": "integer", "description": "Page bound the rows were cut to. Owner: query.semanticEvidenceResponse."},
+          "truncated": {"type": "boolean", "description": "True when more rows exist past this page. Owner: query.semanticEvidenceResponse."},
           "states": {"type": "array", "items": {"type": "string"}, "description": "An empty page reports no_semantic_evidence and, when proven, scope_not_found or no_active_generation."},
-          "generation_binding": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
-          "next_cursor": {"type": "string"}
+          "generation_binding": {"type": "object", "description": "Generation the page was read at. Owner: query.documentationGenerationBindingResponse.", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"], "description": "Whether the read used the active generation or an explicit one. Owner: query.documentationGenerationBindingResponse."}, "generation_id": {"type": "string", "description": "Explicit generation id; empty on the active path. Owner: query.documentationGenerationBindingResponse."}, "is_active": {"type": "boolean", "description": "Whether the bound generation is the active one. Owner: query.documentationGenerationBindingResponse."}}, "required": ["mode", "generation_id", "is_active"]},
+          "next_cursor": {"type": "string", "description": "Opaque cursor for the next page; absent when the page is complete. Owner: query.semanticEvidenceResponse."}
         }
       },
       "SemanticCodeHintList": {
         "type": "object",
+        "description": "Semantic code hint page. Owner: query.semanticEvidenceResponse.",
         "properties": {
-          "code_hints": {"type": "array", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
-          "count": {"type": "integer"},
-          "limit": {"type": "integer"},
-          "truncated": {"type": "boolean"},
+          "code_hints": {"type": "array", "description": "Code hint rows in the page. Owner: query.semanticEvidenceResponse.", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
+          "count": {"type": "integer", "description": "Rows returned in this page. Owner: query.semanticEvidenceResponse."},
+          "limit": {"type": "integer", "description": "Page bound the rows were cut to. Owner: query.semanticEvidenceResponse."},
+          "truncated": {"type": "boolean", "description": "True when more rows exist past this page. Owner: query.semanticEvidenceResponse."},
           "states": {"type": "array", "items": {"type": "string"}, "description": "An empty page reports no_semantic_evidence and, when proven, scope_not_found or no_active_generation."},
-          "generation_binding": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
-          "next_cursor": {"type": "string"}
+          "generation_binding": {"type": "object", "description": "Generation the page was read at. Owner: query.documentationGenerationBindingResponse.", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"], "description": "Whether the read used the active generation or an explicit one. Owner: query.documentationGenerationBindingResponse."}, "generation_id": {"type": "string", "description": "Explicit generation id; empty on the active path. Owner: query.documentationGenerationBindingResponse."}, "is_active": {"type": "boolean", "description": "Whether the bound generation is active. Owner: query.documentationGenerationBindingResponse."}}, "required": ["mode", "generation_id", "is_active"]},
+          "next_cursor": {"type": "string", "description": "Opaque cursor for the next page; absent when the page is complete. Owner: query.semanticEvidenceResponse."}
         }
       },
 `

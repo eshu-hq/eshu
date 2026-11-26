@@ -50,6 +50,7 @@ const RuntimeDeclarations = `
                       "description": "Bounded page of declared runtime versions, emitted by the declaration handler from the RuntimeDeclaration graph nodes as declaration rows.",
                       "items": {
                         "type": "object",
+                        "description": "One declared runtime version. Owner: declaration handler RuntimeDeclaration graph nodes.",
                         "properties": {
                           "repo_id": {"type": "string", "description": "Repository identity emitted by the declaration row."},
                           "repo_name": {"type": "string", "description": "Repository name emitted by the declaration row. Omitted when the name read degraded; see partial_reasons."},
