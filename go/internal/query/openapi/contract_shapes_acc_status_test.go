@@ -213,6 +213,30 @@ func TestContractShapesAccStatus(t *testing.T) {
 		}
 	})
 
+	t.Run("capture request covers every CaptureInput field, described", func(t *testing.T) {
+		t.Parallel()
+		// Owner: reportbundle.CaptureInput — DisallowUnknownFields rejects
+		// anything not in the schema, so every decoded field must be
+		// present and described, or valid captures get a 400.
+		schema := accStatusRequestSchema(t, paths, "/api/v0/report/bundle/capture", "post")
+		props := lane4PropsOf(t, schema, "capture request")
+		for _, key := range []string{
+			"surface", "target", "method", "params", "profile",
+			"reporter_note", "envelope", "truncated", "citations",
+			"fact_refs", "fact_refs_reason", "include_payloads",
+			"payload_excerpts", "payload_facts",
+		} {
+			node, ok := props[key].(map[string]any)
+			if !ok {
+				t.Errorf("capture request missing CaptureInput field %q", key)
+				continue
+			}
+			if desc, _ := node["description"].(string); desc == "" {
+				t.Errorf("capture request field %q has no description", key)
+			}
+		}
+	})
+
 	t.Run("trace deployment chain defaults direct_only false", func(t *testing.T) {
 		t.Parallel()
 		// Owner: query/impact/trace_deployment.go decodes an absent

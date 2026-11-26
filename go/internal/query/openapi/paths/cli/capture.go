@@ -23,12 +23,12 @@ const Capture = `
                 "additionalProperties": false,
                 "required": ["surface", "target", "envelope"],
                 "properties": {
-                  "surface": {"type": "string"},
-                  "target": {"type": "string"},
-                  "method": {"type": "string"},
+                  "surface": {"type": "string", "description": "Capture surface: \"api\" or \"mcp\". Owner: reportbundle.CaptureInput.Surface."},
+                  "target": {"type": "string", "description": "Endpoint path (no query string) or MCP tool name being captured. Owner: reportbundle.CaptureInput.Target."},
+                  "method": {"type": "string", "description": "HTTP method of the captured call, when known. Owner: reportbundle.CaptureInput.Method."},
                   "params": {"type": "object", "additionalProperties": true, "description": "Query/body parameters as issued (including any parsed out of the target query string); every sensitive-named key is removed by the reportbundle redaction walk, so keys are the caller-issued parameter names. Owner: reportbundle.CaptureInput.Params."},
-                  "profile": {"type": "string"},
-                  "reporter_note": {"type": "string"},
+                  "profile": {"type": "string", "description": "Query profile in effect at capture time, when known. Owner: reportbundle.CaptureInput.Profile."},
+                  "reporter_note": {"type": "string", "description": "Reporter-supplied note describing what they expected (commonly a pasted curl); scanned by Capture, never pre-redacted by callers. Owner: reportbundle.CaptureInput.ReporterNote."},
                   "envelope": {"type": "object", "description": "Query response envelope the capture reads the answer from: data carries the rows, truth the envelope, error the failure. Owner: querycontract.ResponseEnvelope via reportbundle.CaptureInput.Envelope.",
                     "properties": {
                       "data": {"type": "object", "additionalProperties": true, "description": "Response data the capture redacts and digests; keys are the captured route's data keys. Owner: querycontract.ResponseEnvelope.Data."},
@@ -80,7 +80,7 @@ const Capture = `
                         "required": ["code", "message"]}
                     },
                     "required": ["data", "truth", "error"]},
-                  "truncated": {"type": "boolean"},
+                  "truncated": {"type": "boolean", "description": "Observed read-model truncation flag found in the response data (for example AnswerPacket.Truncated), supplied by the caller since truncation is not part of the envelope contract itself. Owner: reportbundle.CaptureInput.Truncated."},
                   "citations": {"type": "array", "description": "Share-safe citation references resolved for the captured response. Owner: reportbundle.CitationRef via reportbundle.CaptureInput.Citations.",
                     "items": {"type": "object", "description": "One share-safe citation reference: the evidence handle fields plus resolved citation_id, content_hash, and commit_sha; excerpt bytes never ride here. Owner: reportbundle.CitationRef.",
                       "properties": {
@@ -107,8 +107,8 @@ const Capture = `
                         "scope_id": {"type": "string", "description": "Scope id supplied by the caller. Owner: reportbundle.FactRef."},
                         "generation_id": {"type": "string", "description": "Generation id supplied by the caller. Owner: reportbundle.FactRef."}
                       }}},
-                  "fact_refs_reason": {"type": "string"},
-                  "include_payloads": {"type": "boolean"},
+                  "fact_refs_reason": {"type": "string", "description": "Why fact refs are unavailable, supplied by the caller when known; otherwise Capture records the default reason. Owner: reportbundle.CaptureInput.FactRefsReason."},
+                  "include_payloads": {"type": "boolean", "description": "Flips the bundle redaction profile to private triage and attaches payload excerpts and facts verbatim; every other section stays redacted and re-validated. Owner: reportbundle.CaptureInput.IncludePayloads."},
                   "payload_excerpts": {"type": "array", "description": "Raw citation excerpts carried only under --include-payloads. Owner: reportbundle.CitationExcerpt via reportbundle.CaptureInput.PayloadExcerpts.",
                     "items": {"type": "object", "description": "One citation reference paired with its raw excerpt bytes; only ever inside the private-triage payload attachment. Owner: reportbundle.CitationExcerpt.",
                       "properties": {
