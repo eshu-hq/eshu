@@ -119,6 +119,11 @@ tests:
     class: postgres_ci
     reason: "#10837 prove-theory shim for direction C: N writers (1,2,4) mark the same 162 hot keys through the staging plain INSERT and the shipped capture upsert on one host and run, plus GROUP BY collapse over a 162x150 staged wave, a mostly-distinct worst-partition wave, and a staging vacuum note; pre-registered kill threshold at the 4-writer stratum"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_settle_skip_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9975 drain discriminator: the applied drain skip split (rows queued outside the chunk vs inside with a moved version) on scratch PostgreSQL 18, with a mid-tick version bump emulating the convert self-bump effect and a staged re-mark folded between passes emulating the next-tick collapse re-bump"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_winners_landing_distinct_total_cost_live_test.go
     tag: ~
     class: postgres_ci

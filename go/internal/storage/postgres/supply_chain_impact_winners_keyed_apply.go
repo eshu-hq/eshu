@@ -145,7 +145,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 			if _, err := tx.ExecContext(ctx, resetWinnersResweepStatementTimeoutSQL); err != nil {
 				return fmt.Errorf("lift supply chain impact winners resweep statement timeout: %w", err)
 			}
-			tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, true, nil)
+			tally, remaining, remainingMin, upperBound, _, err := settleWinnersKeyedDirtyLog(ctx, tx, true, nil)
 			if err != nil {
 				return err
 			}
@@ -232,10 +232,18 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	result.ChunkScannedCopies = scanned
 	result.ChunkTruncatedBy = winnersChunkTruncatedBy(chunk)
 	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
-		tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, false, &result.ScopeRemainderConverted)
+		tally, remaining, remainingMin, upperBound, skips, err := settleWinnersKeyedDirtyLog(ctx, tx, false, &result.ScopeRemainderConverted)
 		if err != nil {
 			return err
 		}
+		result.SettleSkippedNotInChunk = skips.NotInChunk
+		result.SettleSkippedVersionMismatch = skips.VersionMismatch
+		// The #9975 drain discriminator, recorded where the tick computes
+		// it, like the scope-remainder count above: admitted rows the
+		// applied drain left queued, by reason. The maintainer's
+		// recordKeyedSignals stays untouched, so the signal counts once.
+		s.Instruments.RecordSupplyChainImpactWinnersSettleSkipped(ctx, telemetry.SupplyChainImpactWinnersSettleSkipNotInChunk, result.SettleSkippedNotInChunk)
+		s.Instruments.RecordSupplyChainImpactWinnersSettleSkipped(ctx, telemetry.SupplyChainImpactWinnersSettleSkipVersionMismatch, result.SettleSkippedVersionMismatch)
 		s.Instruments.RecordSupplyChainImpactWinnersScopeRemainderConverted(ctx, result.ScopeRemainderConverted)
 		result.Identifiers = tally.total()
 		result.TriggerCaptured = tally.triggerSources()

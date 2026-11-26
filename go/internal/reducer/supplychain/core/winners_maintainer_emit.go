@@ -140,5 +140,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		slog.Int64("chunk_scanned_copies", r.ChunkScannedCopies),
 		slog.String("chunk_truncated_by", r.ChunkTruncatedBy),
 		slog.Int64("remainder_rows_converted", r.ScopeRemainderConverted),
+		slog.Int64("settle_skipped_not_in_chunk", r.SettleSkippedNotInChunk),
+		slog.Int64("settle_skipped_version_mismatch", r.SettleSkippedVersionMismatch),
 	)
 }

@@ -154,6 +154,20 @@ type SupplyChainImpactWinnersResweep struct {
 	// row (#11145). Each keeps the scope row's capture time, so the
 	// watermark holds under that scope mark while any is queued.
 	ScopeRemainderConverted int64
+	// SettleSkippedNotInChunk counts admitted dirty-log rows the applied
+	// drain left queued because the chunk did not apply them (#9975 drain
+	// discriminator): the bounded-tick remainder the next tick re-admits.
+	// A rising share of the admitted window here with a flat watermark
+	// means the chunk bound, not the version recheck, holds the drain.
+	SettleSkippedNotInChunk int64
+	// SettleSkippedVersionMismatch counts admitted dirty-log rows the
+	// applied drain left queued inside the chunk (#9975 drain
+	// discriminator): their dirty_version moved after admission, so the
+	// version recheck kept them. The tick's own scope-remainder convert is
+	// the only in-tick log writer that can move them. A rising count here
+	// with a rising scope_remainder_converted rate names convert self-bump
+	// as the suppressor.
+	SettleSkippedVersionMismatch int64
 	// Watermark is the watermark the tick committed: the DB-clock tick stamp
 	// on a drained tick, the horizon over the remainder on a bounded one, the
 	// DB clock capped under the residual marks on a full resweep (#11117),

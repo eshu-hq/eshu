@@ -1636,6 +1636,10 @@ type Instruments struct {
 	// of a partly applied scope row (#11145). Registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments.
 	SupplyChainImpactWinnersScopeRemainderConverted metric.Int64Counter
+	// SupplyChainImpactWinnersSettleSkipped counts admitted dirty-log rows
+	// the applied drain left queued, by reason (#9975 drain discriminator).
+	// Registered by registerSupplyChainImpactWinnersKeyedInstruments.
+	SupplyChainImpactWinnersSettleSkipped metric.Int64Counter
 	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
 	// the resweep lock, so ran no verification and queued nothing (#9957).
 	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter

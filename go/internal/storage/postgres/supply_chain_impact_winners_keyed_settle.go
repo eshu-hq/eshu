@@ -82,11 +82,42 @@ pruned AS (
 )
 `
 
+// winnersSettleSkips counts admitted rows the applied drain left queued, by
+// reason (#9975 drain discriminator). NotInChunk counts admitted survivors
+// the chunk did not apply: the bounded-tick remainder the next tick
+// re-admits. VersionMismatch counts admitted survivors the chunk applied but
+// whose dirty_version moved after admission, so the version recheck kept
+// them: the tick's own scope-remainder convert is the only in-tick log
+// writer that can move them (capture owners stage, the collapse runs before
+// admission). Both are row counts over the admitted window, not version
+// sums; the over-cap fallback reports zeros (it builds no chunk table).
+type winnersSettleSkips struct {
+	NotInChunk      int64
+	VersionMismatch int64
+}
+
+// countWinnersKeyedSettleSkips reads the two skip counts after the applied
+// drain deleted, in the same tick transaction. Both are read-only SELECTs
+// over the admitted window joined to the log by seq; they take no row locks
+// and change no statement, lock, or ordering the tick already takes.
+func countWinnersKeyedSettleSkips(ctx context.Context, tx db.Transaction) (winnersSettleSkips, error) {
+	var skips winnersSettleSkips
+	var err error
+	if skips.NotInChunk, err = scanWinnersInt64(ctx, tx, countWinnersKeyedSettleSkippedNotInChunkSQL, "count settle-skipped admitted rows outside the chunk"); err != nil {
+		return winnersSettleSkips{}, err
+	}
+	if skips.VersionMismatch, err = scanWinnersInt64(ctx, tx, countWinnersKeyedSettleSkippedVersionMismatchSQL, "count settle-skipped admitted rows with a moved version"); err != nil {
+		return winnersSettleSkips{}, err
+	}
+	return skips, nil
+}
+
 // settleWinnersKeyedDirtyLog makes the dirty log match what the chunk
 // applied, inside the tick transaction: it converts a partially applied
 // scope row's remainder to fact rows, deletes exactly the applied rows
 // (deleteWinnersKeyedAppliedDirtySQL, or the admitted rows for the
-// full-rebuild fallback), tallies the deleted rows by capture source, counts
+// full-rebuild fallback), tallies the deleted rows by capture source, splits
+// the admitted survivors by skip reason on the applied path, counts
 // what remains, and reads the remainder's earliest capture time. The order is
 // a named constraint (#10706): convert runs before delete so a scope row's
 // deletion and its remainder rows' insertion commit atomically, and the min
@@ -104,18 +135,18 @@ pruned AS (
 // (#10851). The tally sums dirty_version: one deleted row counts every mark
 // it collapsed. The returned bool reports that the remaining depth is an
 // upper bound: the staging residual past its exact-count cap (#11129).
-func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool, converted *int64) (winnersCaptureTally, int64, sql.NullTime, bool, error) {
+func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool, converted *int64) (winnersCaptureTally, int64, sql.NullTime, bool, winnersSettleSkips, error) {
 	deleteSQL := deleteWinnersKeyedAppliedDirtySQL
 	if fallback {
 		deleteSQL = deleteWinnersKeyedAllDirtySQL
 	} else if n, err := convertWinnersKeyedScopeRemainder(ctx, tx); err != nil {
-		return nil, 0, sql.NullTime{}, false, err
+		return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, err
 	} else if converted != nil {
 		*converted = n
 	}
 	rows, err := tx.QueryContext(ctx, deleteSQL)
 	if err != nil {
-		return nil, 0, sql.NullTime{}, false, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
 	}
 	tally := winnersCaptureTally{}
 	for rows.Next() {
@@ -123,34 +154,44 @@ func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback
 		var n int64
 		if err := rows.Scan(&source, &n); err != nil {
 			_ = rows.Close()
-			return nil, 0, sql.NullTime{}, false, fmt.Errorf("scan deleted supply chain impact winners dirty rows: %w", err)
+			return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, fmt.Errorf("scan deleted supply chain impact winners dirty rows: %w", err)
 		}
 		tally[source] += n
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
-		return nil, 0, sql.NullTime{}, false, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		return nil, 0, sql.NullTime{}, false, fmt.Errorf("close deleted supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, fmt.Errorf("close deleted supply chain impact winners dirty rows: %w", err)
+	}
+	// The skip split runs only on the applied path, after the delete so the
+	// join to the log sees exactly the admitted survivors. The fallback
+	// builds no chunk table, so it reports zeros.
+	var skips winnersSettleSkips
+	if !fallback {
+		var err error
+		if skips, err = countWinnersKeyedSettleSkips(ctx, tx); err != nil {
+			return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, err
+		}
 	}
 	remaining, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count remaining dirty rows")
 	if err != nil {
-		return nil, 0, sql.NullTime{}, false, err
+		return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, err
 	}
 	remainingMin, err := selectWinnersRemainingMin(ctx, tx)
 	if err != nil {
-		return nil, 0, sql.NullTime{}, false, err
+		return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, err
 	}
 	// The residual unions the staging queue (#10837 direction C): the
 	// collapse folded at most its row budget before admission, so post-bound
 	// and mid-tick staged rows stay queued and the horizon must cover them.
 	staged, err := countWinnersStagingResidual(ctx, tx, "count remaining staging rows")
 	if err != nil {
-		return nil, 0, sql.NullTime{}, false, err
+		return nil, 0, sql.NullTime{}, false, winnersSettleSkips{}, err
 	}
 	remaining, remainingMin = stagingUnionRemaining(remaining, remainingMin, staged)
-	return tally, remaining, remainingMin, staged.upperBound, nil
+	return tally, remaining, remainingMin, staged.upperBound, skips, nil
 }
 
 // countWinnersKeyedKeptFacts counts the kept facts the identifier probe built.

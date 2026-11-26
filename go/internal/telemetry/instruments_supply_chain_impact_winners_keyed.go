@@ -46,6 +46,22 @@ const (
 	SupplyChainImpactWinnersPathAudit = "audit"
 )
 
+// Settle skip reason label values for
+// eshu_dp_supply_chain_impact_winners_settle_skipped_rows_total (#9975 drain
+// discriminator). They name why an admitted row stayed queued after the
+// applied drain deleted, and are the closed set of the reason label on that
+// counter.
+const (
+	// SupplyChainImpactWinnersSettleSkipNotInChunk is an admitted row the
+	// chunk did not apply: the bounded-tick remainder the next tick
+	// re-admits.
+	SupplyChainImpactWinnersSettleSkipNotInChunk = "admitted_not_in_chunk"
+	// SupplyChainImpactWinnersSettleSkipVersionMismatch is an admitted row
+	// the chunk applied but whose dirty_version moved after admission, so
+	// the version recheck kept it queued.
+	SupplyChainImpactWinnersSettleSkipVersionMismatch = "in_chunk_version_mismatch"
+)
+
 // Dirty-log capture source label values for
 // eshu_dp_supply_chain_impact_winners_capture_rows_total. They match the source
 // column of supply_chain_impact_winners_dirty_log, and are the closed set of the
@@ -323,6 +339,12 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersScopeRemainderConverted counter: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersSettleSkipped, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_settle_skipped_rows_total",
+		metric.WithDescription("Supply-chain impact winners admitted dirty-log rows the applied drain left queued, by reason (admitted_not_in_chunk: the chunk did not apply them, the bounded-tick remainder; in_chunk_version_mismatch: the chunk applied them but their dirty_version moved after admission, so the version recheck kept them). A dominant admitted_not_in_chunk share with a flat watermark means the chunk bound holds the drain; a rising in_chunk_version_mismatch with a rising scope_remainder_converted rate names convert self-bump as the suppressor."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersSettleSkipped counter: %w", err)
+	}
 	if inst.SupplyChainImpactWinnersWriteConflicts, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_write_conflicts_total",
 		metric.WithDescription("Supply-chain impact winners writer and tick statements the database aborted with a deadlock (40P01) or a serialization failure (40001), by site (writer_capture, writer_commit, tick) and failure_class (deadlock, serialization_failure). The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it."),
@@ -402,6 +424,24 @@ func (i *Instruments) RecordSupplyChainImpactWinnersScopeRemainderConverted(ctx 
 		return
 	}
 	i.SupplyChainImpactWinnersScopeRemainderConverted.Add(ctx, rows)
+}
+
+// RecordSupplyChainImpactWinnersSettleSkipped counts admitted dirty-log rows
+// the applied drain left queued under reason (#9975 drain discriminator).
+// reason must be one of the SupplyChainImpactWinnersSettleSkip* constants; a
+// zero count or an unknown reason records nothing, so a tick that drained its
+// window leaves the series flat. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersSettleSkipped(ctx context.Context, reason string, rows int64) {
+	if i == nil || i.SupplyChainImpactWinnersSettleSkipped == nil || rows <= 0 {
+		return
+	}
+	switch reason {
+	case SupplyChainImpactWinnersSettleSkipNotInChunk,
+		SupplyChainImpactWinnersSettleSkipVersionMismatch:
+	default:
+		return
+	}
+	i.SupplyChainImpactWinnersSettleSkipped.Add(ctx, rows, metric.WithAttributes(attribute.String(MetricDimensionReason, reason)))
 }
 
 // RecordSupplyChainImpactWinnersWriteConflict counts one writer or tick
