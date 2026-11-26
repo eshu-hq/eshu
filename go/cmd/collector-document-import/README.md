@@ -219,6 +219,23 @@ operator-supplied 64-hex-character pin strings; terminal counts unchanged.
 No-Observability-Change: no new metric, label, span, or log line; the
 instruments above are untouched.
 
+Follow-up (`zstd-libs` 1.5.6-r2 -> 1.6.0-r1 pin re-recording, #11511).
+No-Regression Evidence: `ocrLibraryPins` updates the pinned path and SHA-256
+entry for `libzstd.so.1.6.0` on `linux/amd64` and `linux/arm64` to match
+`specs/satellite-pins/ocr.{amd64,arm64}.json` and Alpine v3.21; a data-table
+pin update with no control-flow, I/O, Cypher, queue, or concurrency delta.
+Baseline `origin/main` (`54c0f3e4a5`); after measurement at this HEAD,
+`go test -race -count=1 ./cmd/collector-document-import/...` (`1.77s`),
+`scripts/verify-apk-floors.sh --dockerfile docker/satellites/ocr/Dockerfile`
+(`PASS`, 36 comparisons), and both `linux/amd64` and `linux/arm64` gated
+`docker/satellites/ocr/Dockerfile` builds (`GATE PASS`, 22 libraries) pass.
+Backend: local `go` toolchain and Alpine 3.21 (`alpine:3.21@sha256:48b0309c`);
+no Neo4j/Postgres touched. Input shape: 22-entry static pin table per arch;
+terminal counts unchanged.
+
+No-Observability-Change: no new metric, label, span, or log line; `engine.go`
+emits no signals and existing extraction/commit signals are untouched.
+
 ## Gotchas / invariants
 
 - Disabled means exit 0 with zero commits: the binary is built but never
