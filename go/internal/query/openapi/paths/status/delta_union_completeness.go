@@ -16,7 +16,61 @@ const DeltaUnionCompleteness = `
           {"name": "scope", "in": "query", "description": "Scope id filter, repeatable, at least one required.", "schema": {"type": "string"}}
         ],
         "responses": {
-          "200": {"description": "Completeness report: one entry per checked repository with outcome complete, mismatch, or skipped."},
+          "200": {
+            "description": "Completeness report: one entry per checked repository with outcome complete, mismatch, or skipped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Delta-union completeness report sorted by repository id. Owner: recovery.DeltaUnionCompletenessReport served by admin.deltaUnionCompleteness.",
+                  "required": ["repos", "mismatches"],
+                  "properties": {
+                    "repos": {
+                      "type": "array",
+                      "description": "One completeness entry per checked repository. Owner: recovery.DeltaUnionCompletenessReport Repos.",
+                      "items": {
+                        "type": "object",
+                        "description": "One repository's completeness result. Owner: recovery.DeltaUnionRepoReport.",
+                        "required": ["repo_id", "scope_id", "outcome", "base", "active", "graph_files", "active_files"],
+                        "properties": {
+                          "repo_id": {"type": "string", "description": "Checked repository id. Owner: recovery.DeltaUnionRepoReport RepoID."},
+                          "scope_id": {"type": "string", "description": "Ingestion scope id of the repository. Owner: recovery.DeltaUnionRepoReport ScopeID."},
+                          "outcome": {"type": "string", "enum": ["complete", "mismatch", "skipped"], "description": "Completeness verdict. Owner: recovery.DeltaUnionRepoOutcome."},
+                          "base": {
+                            "type": "object",
+                            "description": "Union-base generation behind the verdict. Owner: recovery.DeltaUnionRepoReport Base.",
+                            "required": ["GenerationID", "Status", "IsDelta"],
+                            "properties": {
+                              "GenerationID": {"type": "string", "description": "Base generation name, empty when absent. Owner: recovery.DeltaUnionGeneration GenerationID."},
+                              "Status": {"type": "string", "description": "Base generation status. Owner: recovery.DeltaUnionGeneration Status."},
+                              "IsDelta": {"type": "boolean", "description": "Whether the base carries only file-scoped changes. Owner: recovery.DeltaUnionGeneration IsDelta."}
+                            }
+                          },
+                          "active": {
+                            "type": "object",
+                            "description": "Active generation behind the verdict. Owner: recovery.DeltaUnionRepoReport Active.",
+                            "required": ["GenerationID", "Status", "IsDelta"],
+                            "properties": {
+                              "GenerationID": {"type": "string", "description": "Active generation name, empty when absent. Owner: recovery.DeltaUnionGeneration GenerationID."},
+                              "Status": {"type": "string", "description": "Active generation status. Owner: recovery.DeltaUnionGeneration Status."},
+                              "IsDelta": {"type": "boolean", "description": "Whether the active generation carries only file-scoped changes. Owner: recovery.DeltaUnionGeneration IsDelta."}
+                            }
+                          },
+                          "graph_files": {"type": "integer", "description": "File count on the GRAPH side. Owner: recovery.DeltaUnionRepoReport GraphFiles."},
+                          "active_files": {"type": "integer", "description": "File count on the ACTIVE side. Owner: recovery.DeltaUnionRepoReport ActiveFiles."},
+                          "missing": {"type": "array", "items": {"type": "string"}, "description": "ACTIVE paths absent from the graph; present only on a mismatch. Owner: recovery.DeltaUnionRepoReport Missing."},
+                          "extra": {"type": "array", "items": {"type": "string"}, "description": "Graph paths absent from ACTIVE; present only on a mismatch. Owner: recovery.DeltaUnionRepoReport Extra."},
+                          "drifted": {"type": "array", "items": {"type": "string"}, "description": "Paths whose entity counts disagree; present only on a mismatch. Owner: recovery.DeltaUnionRepoReport Drifted."},
+                          "annotation": {"type": "string", "description": "Generations behind the verdict, for repair. Owner: recovery.DeltaUnionRepoReport Annotation."}
+                        }
+                      }
+                    },
+                    "mismatches": {"type": "integer", "description": "Repositories with a mismatch outcome. Owner: recovery.DeltaUnionCompletenessReport Mismatches."}
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {

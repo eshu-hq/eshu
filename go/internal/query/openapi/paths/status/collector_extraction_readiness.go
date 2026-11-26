@@ -8,33 +8,38 @@ package status
 // drilldown responses.
 const collectorExtractionReadinessSchema = `{
                       "type": "object",
+                      "description": "Advisory extraction readiness for one collector family. Owner: query/collector_extraction_readiness.go serving extraction.Readiness.",
                       "properties": {
-                        "family": {"type": "string"},
-                        "display_name": {"type": "string"},
-                        "classification": {"type": "string", "enum": ["keep_in_tree", "extraction_candidate", "blocked", "external_ready"]},
+                        "family": {"type": "string", "description": "Canonical collector family kind. Owner: extraction.Readiness Family."},
+                        "display_name": {"type": "string", "description": "Human label for the family. Owner: extraction.Readiness DisplayName."},
+                        "classification": {"type": "string", "enum": ["keep_in_tree", "extraction_candidate", "blocked", "external_ready"], "description": "Advisory extraction verdict. Owner: extraction.Readiness Classification."},
                         "criteria": {
                           "type": "array",
+                          "description": "Per-criterion checklist in canonical order. Owner: extraction.Readiness Criteria.",
                           "items": {
                             "type": "object",
+                            "description": "Evaluated state of one extraction criterion. Owner: extraction.CriterionResult.",
                             "properties": {
-                              "criterion": {"type": "string"},
-                              "state": {"type": "string", "enum": ["met", "unmet", "not_applicable"]},
-                              "detail": {"type": "string"}
+                              "criterion": {"type": "string", "description": "Policy row this result describes. Owner: extraction.CriterionResult Criterion."},
+                              "state": {"type": "string", "enum": ["met", "unmet", "not_applicable"], "description": "Evidence state of the criterion. Owner: extraction.CriterionResult State."},
+                              "detail": {"type": "string", "description": "Stable operator-facing reason for the state; absent when empty. Owner: extraction.CriterionResult Detail."}
                             }
                           }
                         },
                         "blockers": {
                           "type": "array",
+                          "description": "Criteria whose state is unmet; empty unless the classification is blocked, absent when none. Owner: extraction.Readiness Blockers.",
                           "items": {
                             "type": "object",
+                            "description": "One unmet extraction criterion. Owner: extraction.CriterionResult.",
                             "properties": {
-                              "criterion": {"type": "string"},
-                              "state": {"type": "string", "enum": ["met", "unmet", "not_applicable"]},
-                              "detail": {"type": "string"}
+                              "criterion": {"type": "string", "description": "Policy row this result describes. Owner: extraction.CriterionResult Criterion."},
+                              "state": {"type": "string", "enum": ["met", "unmet", "not_applicable"], "description": "Evidence state of the criterion. Owner: extraction.CriterionResult State."},
+                              "detail": {"type": "string", "description": "Stable operator-facing reason for the state; absent when empty. Owner: extraction.CriterionResult Detail."}
                             }
                           }
                         },
-                        "rationale": {"type": "string"}
+                        "rationale": {"type": "string", "description": "Why the family received its classification. Owner: extraction.Readiness Rationale."}
                       }
                     }`
 
@@ -66,17 +71,20 @@ const CollectorExtractionReadiness = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Advisory collector extraction readiness catalog. Owner: query/collector_extraction_readiness.go CollectorExtractionReadinessListResponse.",
+                  "required": ["schema_version", "status", "families", "count", "total_count", "limit", "truncated"],
                   "properties": {
-                    "schema_version": {"type": "string"},
-                    "status": {"type": "string", "enum": ["available"]},
+                    "schema_version": {"type": "string", "description": "Catalog schema version. Owner: query/collector_extraction_readiness.go collectorExtractionReadinessSchemaVersion."},
+                    "status": {"type": "string", "enum": ["available"], "description": "Catalog availability. Owner: query/collector_extraction_readiness.go list."},
                     "families": {
                       "type": "array",
+                      "description": "One readiness row per tracked collector family. Owner: query/collector_extraction_readiness.go list.",
                       "items": ` + collectorExtractionReadinessSchema + `
                     },
-                    "count": {"type": "integer"},
-                    "total_count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "count": {"type": "integer", "description": "Families returned on this page. Owner: query/collector_extraction_readiness.go list."},
+                    "total_count": {"type": "integer", "description": "Families in the catalog before truncation. Owner: query/collector_extraction_readiness.go list."},
+                    "limit": {"type": "integer", "description": "Applied per-page family cap. Owner: query/collector_extraction_readiness.go limit."},
+                    "truncated": {"type": "boolean", "description": "True when the catalog holds more families than the limit. Owner: query/collector_extraction_readiness.go list."}
                   }
                 }
               }
@@ -109,9 +117,11 @@ const CollectorExtractionReadiness = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Advisory extraction readiness for one collector family. Owner: query/collector_extraction_readiness.go CollectorExtractionReadinessFamilyResponse.",
+                  "required": ["schema_version", "status", "family"],
                   "properties": {
-                    "schema_version": {"type": "string"},
-                    "status": {"type": "string", "enum": ["available"]},
+                    "schema_version": {"type": "string", "description": "Catalog schema version. Owner: query/collector_extraction_readiness.go collectorExtractionReadinessSchemaVersion."},
+                    "status": {"type": "string", "enum": ["available"], "description": "Drilldown availability. Owner: query/collector_extraction_readiness.go getFamily."},
                     "family": ` + collectorExtractionReadinessSchema + `
                   }
                 }
