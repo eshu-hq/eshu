@@ -93,6 +93,13 @@ type fanOutSplitStats struct {
 	splitChunks int
 	hotIDs      int
 	maxMass     int64
+	// hotLaneStatements and coldLaneStatements count the executed holder
+	// statements per #11520 H2 lane: probe-hot singletons run in the hot
+	// lane, every other shipped statement in the cold lane. A key-range
+	// read counts its executed statements in the hot lane, so below the
+	// gate hot+cold equals statements exactly.
+	hotLaneStatements  int
+	coldLaneStatements int
 	// keyRangedIDs counts hot singleton ids read as key ranges (#10643,
 	// gated by HolderKeyRangeMassGate since #10972 H2 A2) and
 	// keyRangeStatements the key-range statements they ran. Each key-range
@@ -107,6 +114,8 @@ func (s *fanOutSplitStats) add(other fanOutSplitStats) {
 	s.statements += other.statements
 	s.splitChunks += other.splitChunks
 	s.hotIDs += other.hotIDs
+	s.hotLaneStatements += other.hotLaneStatements
+	s.coldLaneStatements += other.coldLaneStatements
 	s.keyRangedIDs += other.keyRangedIDs
 	s.keyRangeStatements += other.keyRangeStatements
 	if other.maxMass > s.maxMass {
@@ -148,15 +157,32 @@ func planHolderReadStatements(chunk []string, masses map[string]int64) [][]strin
 	return out
 }
 
-// holderStatement is one planned holder-read statement: its lookup ids and
+// holderStatement is one planned holder-read statement: its lookup ids,
 // whether it runs as a key-range read (#10972 H2 A2, Lane-1b: a probe-hot
 // singleton whose routing mass sits above HolderKeyRangeMassGate, on a port
-// with both the routing-mass and key-range seams). Every other statement runs the
+// with both the routing-mass and key-range seams), and whether it runs in
+// the #11520 H2 hot lane (a probe-hot singleton: measured mass over
+// fanOutHolderHotMassRows). Every other statement runs the
 // already-shipped single holder statement (FindSupplyChainImpactHoldersQuery)
 // once.
 type holderStatement struct {
 	ids    []string
 	ranged bool
+	hot    bool
+}
+
+// h2HotLane reports whether one planned holder statement runs in the hot
+// lane: a singleton whose measured probe mass sits over the hot-mass
+// threshold. The threshold matches planHolderReadStatements exactly, so a
+// statement's lane never moves an id: hot singletons are alone by plan,
+// and every other statement (cold packs, unmeasured singletons, the
+// no-probe legacy whole) reads cold.
+func h2HotLane(ids []string, masses map[string]int64) bool {
+	if len(ids) != 1 {
+		return false
+	}
+	mass, ok := masses[ids[0]]
+	return ok && mass > fanOutHolderHotMassRows
 }
 
 // readHolderScopesSplit runs one chunk's holder read as the planned
@@ -238,7 +264,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	}
 	statements := make([]holderStatement, 0, len(planned))
 	for _, ids := range planned {
-		stmt := holderStatement{ids: ids}
+		stmt := holderStatement{ids: ids, hot: h2HotLane(ids, masses)}
 		if canRange && len(ids) == 1 {
 			if mass, ok := routingMasses[ids[0]]; ok && mass > HolderKeyRangeMassGate {
 				stmt.ranged = true
@@ -247,6 +273,11 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		}
 		if !stmt.ranged {
 			stats.statements++
+			if stmt.hot {
+				stats.hotLaneStatements++
+			} else {
+				stats.coldLaneStatements++
+			}
 		}
 		statements = append(statements, stmt)
 	}
@@ -259,7 +290,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		}
 	}
 	if len(statements) == 1 && !statements[0].ranged {
-		found, err := h.findHolderScopes(ctx, ownScopeID, statements[0].ids)
+		found, err := h.findHolderScopes(ctx, ownScopeID, statements[0].ids, h2LaneKind(statements[0]))
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
 			return nil, stats, fanOutReadFailure(err, "find supply chain impact holders")
@@ -271,54 +302,43 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		return set, stats, nil
 	}
 	set := make(map[string]struct{})
-	var mu sync.Mutex
 	var firstErr error
+	// Both lanes share one semaphore: the H2 lanes isolate scheduling
+	// (hot singletons drain their own queue, cold packs theirs) under the
+	// SAME total bound of fanOutHolderReadParallelism, so a burning hot
+	// statement never takes more than the shipped budget and a cold pack
+	// still completes beside it.
 	sem := make(chan struct{}, fanOutHolderReadParallelism)
 	var wg sync.WaitGroup
+	// Hot singletons launch first: they are the statements that can burn
+	// toward the guard, so they must never wait behind a cold queue.
+	var hotLane, coldLane []holderStatement
 	for _, stmt := range statements {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(stmt holderStatement) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			var found []string
-			var err error
-			if stmt.ranged {
-				var read HolderKeyRangeRead
-				start := time.Now()
-				read, err = rangeReader.FindHolderScopesByKeyRange(ctx, ownScopeID, stmt.ids, ranges)
-				// The statement counts come from the read that ran: the
-				// long-id fallback runs one shipped statement, not one
-				// per range, and a failed read still lists the statements
-				// it ran.
-				mu.Lock()
-				stats.keyRangeStatements += len(read.Statements)
-				stats.statements += len(read.Statements)
-				mu.Unlock()
-				h.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
-				nonCVE := lookupHoldsNonCVEID(stmt.ids)
-				for _, done := range read.Statements {
-					h.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
-					h.noteKeyRangeStatement(ctx, done, len(ranges), nonCVE, read.Fallback)
-				}
-				found = read.Scopes
-			} else {
-				found, err = h.findHolderScopes(ctx, ownScopeID, stmt.ids)
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				if firstErr == nil {
-					firstErr = err
-				}
-				return
-			}
-			for _, id := range found {
-				set[id] = struct{}{}
-			}
-		}(stmt)
+		if stmt.hot {
+			hotLane = append(hotLane, stmt)
+		} else {
+			coldLane = append(coldLane, stmt)
+		}
+	}
+	runner := &h2LaneRunner{
+		handler: h, rangeReader: rangeReader, ranges: ranges,
+		ownScopeID: ownScopeID, set: set, stats: &stats,
+	}
+	for _, lane := range [][]holderStatement{hotLane, coldLane} {
+		for _, stmt := range lane {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(stmt holderStatement) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				runner.run(ctx, stmt)
+			}(stmt)
+		}
 	}
 	wg.Wait()
+	// Wait returns after every lane goroutine, so these reads need no
+	// lock: they observe only completed writes.
+	set, firstErr = runner.set, runner.firstErr
 	if firstErr != nil {
 		h.countFanOutRead(ctx, cause, firstErr, telemetry.FanOutReadSiteHolders)
 		return nil, stats, fanOutReadFailure(firstErr, "find supply chain impact holders")
@@ -326,11 +346,83 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	return set, stats, nil
 }
 
+// h2LaneRunner carries one chunk's lane-execution state: the union set,
+// the first error (fail-closed), and the lane stats. Both lanes share one
+// runner, so the union, error, and counting behavior match the shipped
+// single-queue path exactly; only the launch order is laned.
+type h2LaneRunner struct {
+	handler     SupplyChainImpactHandler
+	rangeReader HolderKeyRangeReader
+	ranges      []HolderKeyRange
+	ownScopeID  string
+	mu          sync.Mutex
+	set         map[string]struct{}
+	firstErr    error
+	stats       *fanOutSplitStats
+}
+
+// run executes one planned holder statement: the shipped text under the
+// same per-statement guard, attributing the read to its lane. The union,
+// the first error, and the executed-statement counts are shared across
+// the lanes, so they stay under the runner's mutex, the way the shipped
+// path guarded its own.
+func (r *h2LaneRunner) run(ctx context.Context, stmt holderStatement) {
+	var found []string
+	var err error
+	var read HolderKeyRangeRead
+	if stmt.ranged {
+		start := time.Now()
+		read, err = r.rangeReader.FindHolderScopesByKeyRange(ctx, r.ownScopeID, stmt.ids, r.ranges)
+		r.handler.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
+		nonCVE := lookupHoldsNonCVEID(stmt.ids)
+		for _, done := range read.Statements {
+			r.handler.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
+			r.handler.noteKeyRangeStatement(ctx, done, len(r.ranges), nonCVE, read.Fallback)
+		}
+		found = read.Scopes
+	} else {
+		found, err = r.handler.findHolderScopes(ctx, r.ownScopeID, stmt.ids, h2LaneKind(stmt))
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if stmt.ranged {
+		// The statement counts come from the read that ran: the
+		// long-id fallback runs one shipped statement, not one
+		// per range, and a failed read still lists the statements
+		// it ran. A ranged read is a hot singleton's read, so its
+		// executed statements count in the hot lane.
+		r.stats.keyRangeStatements += len(read.Statements)
+		r.stats.statements += len(read.Statements)
+		r.stats.hotLaneStatements += len(read.Statements)
+	}
+	if err != nil {
+		if r.firstErr == nil {
+			r.firstErr = err
+		}
+		return
+	}
+	for _, id := range found {
+		r.set[id] = struct{}{}
+	}
+}
+
+// h2LaneKind names the read-duration kind for one unranged holder
+// statement: the hot lane for a probe-hot singleton, the cold lane for
+// every other shipped statement. The statement text, guard, and fences
+// are identical; only the lane label differs, so a 3 AM operator sees
+// which lane burned the guard.
+func h2LaneKind(stmt holderStatement) string {
+	if stmt.hot {
+		return telemetry.FanOutReadKindHoldersHot
+	}
+	return telemetry.FanOutReadKindHoldersCold
+}
+
 // findHolderScopes runs one shipped holder statement and records its
-// duration under the holders read kind.
-func (h SupplyChainImpactHandler) findHolderScopes(ctx context.Context, ownScopeID string, ids []string) ([]string, error) {
+// duration under the given lane read kind.
+func (h SupplyChainImpactHandler) findHolderScopes(ctx context.Context, ownScopeID string, ids []string, kind string) ([]string, error) {
 	start := time.Now()
 	found, err := h.FanOut.FindHolderScopes(ctx, ownScopeID, ids)
-	h.observeFanOutRead(ctx, telemetry.FanOutReadKindHolders, time.Since(start), err)
+	h.observeFanOutRead(ctx, kind, time.Since(start), err)
 	return found, err
 }

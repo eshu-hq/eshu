@@ -63,11 +63,17 @@ const (
 )
 
 // quietReproveLoad1 reads the 1-minute load average from /proc/loadavg and
-// fails closed when the host cannot prove it is quiet.
+// fails closed when the host cannot prove it is quiet. A platform without
+// /proc/loadavg (e.g. macOS) skips instead: there is no load signal to gate
+// on, and a skip is honest where a pass would be unproven. Present-but-bad
+// content still fails closed below.
 func quietReproveLoad1(t *testing.T) float64 {
 	t.Helper()
 	raw, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("quiet re-prove SKIP: no /proc/loadavg on this platform; the quiet-host proof needs Linux: %v", err)
+		}
 		t.Fatalf("quiet re-prove VOID: cannot read /proc/loadavg: %v", err)
 	}
 	fields := strings.Fields(string(raw))

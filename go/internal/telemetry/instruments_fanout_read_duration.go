@@ -14,8 +14,21 @@ import (
 // of the supply-chain impact holder fan-out a read-duration sample measures.
 const (
 	// FanOutReadKindHolders is the shipped holder statement: one packed chunk
-	// of cold ids, or a hot singleton on a port without key ranges.
+	// of cold ids, or a hot singleton on a port without key ranges. Since
+	// #11520 H2 the split read reports its lane instead (holders_hot for a
+	// probe-hot singleton, holders_cold for every other shipped statement),
+	// so this kind now marks only the long-id fallback statement a hot read
+	// runs for a lookup id over 1,024 bytes.
 	FanOutReadKindHolders = "holders"
+	// FanOutReadKindHoldersHot is one hot-lane holder statement of the #11520
+	// H2 split read: a probe-hot singleton id, running the shipped single
+	// holder statement text under the same 10 s guard.
+	FanOutReadKindHoldersHot = "holders_hot"
+	// FanOutReadKindHoldersCold is one cold-lane holder statement of the
+	// #11520 H2 split read: a packed cold statement or any other shipped
+	// single holder statement that is not a probe-hot singleton, running the
+	// shipped statement text under the same 10 s guard.
+	FanOutReadKindHoldersCold = "holders_cold"
 	// FanOutReadKindHoldersKeyRange is one fact_id key-range statement of a
 	// hot singleton id: its cve_id and advisory_id arms over the range and,
 	// since #10643 PR 2, its share of the advisory-group member arm as the
@@ -48,7 +61,8 @@ func AttrFanOutReadKind(v string) attribute.KeyValue {
 
 // registerFanOutReadDurationInstruments registers the #10643 holder fan-out
 // read-duration histogram on inst: one sample per holder-read statement, by
-// kind (holders, holders_key_range, mass_probe,
+// kind (holders, holders_hot and holders_cold for the #11520 H2 lanes,
+// holders_key_range, mass_probe,
 // holders_key_range_read for a whole key-range read, and holder_prefilter for
 // the #10972 queued-holder set read) and
 // outcome (ok, read_timeout, read_error). The buckets bracket the 2 s
@@ -59,7 +73,7 @@ func registerFanOutReadDurationInstruments(meter metric.Meter, inst *Instruments
 	var err error
 	if inst.SupplyChainImpactFanOutReadDuration, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_fanout_read_duration_seconds",
-		metric.WithDescription("Supply-chain impact holder fan-out read statement duration in seconds by kind (holders, holders_key_range, mass_probe, holders_key_range_read) and outcome (ok, read_timeout, read_error) (#10643)"),
+		metric.WithDescription("Supply-chain impact holder fan-out read statement duration in seconds by kind (holders, holders_hot, holders_cold, holders_key_range, mass_probe, holders_key_range_read) and outcome (ok, read_timeout, read_error) (#10643)"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 180),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactFanOutReadDuration histogram: %w", err)

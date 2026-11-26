@@ -67,6 +67,10 @@ type fanOutResult struct {
 	splitChunks      int
 	hotIDs           int
 	maxIDMassRows    int64
+	// hotLaneStatements and coldLaneStatements count the executed holder
+	// statements per #11520 H2 lane, for the sub-signals, span, and log.
+	hotLaneStatements  int
+	coldLaneStatements int
 	// keyRangedIDs and keyRangeStatements record the hot singleton ids read
 	// as fact_id key ranges and the key-range statements they ran (#10643).
 	keyRangedIDs       int
@@ -161,6 +165,8 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 		slog.Int("deferred", r.deferred),
 		slog.Bool("crash_recovery", r.crashRecovery),
 		slog.Int("holder_statements", r.holderStatements),
+		slog.Int("holder_statements_hot", r.hotLaneStatements),
+		slog.Int("holder_statements_cold", r.coldLaneStatements),
 		slog.Int("split_chunks", r.splitChunks),
 		slog.Int("hot_ids", r.hotIDs),
 		slog.Int64("max_id_mass_rows", r.maxIDMassRows),
@@ -237,6 +243,8 @@ func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_holders"] = float64(r.holders)
 	subSignals["fanout_prefiltered_pending"] = float64(r.prefiltered)
 	subSignals["fanout_holder_statements"] = float64(r.holderStatements)
+	subSignals["fanout_holder_statements_hot"] = float64(r.hotLaneStatements)
+	subSignals["fanout_holder_statements_cold"] = float64(r.coldLaneStatements)
 	subSignals["fanout_hot_ids"] = float64(r.hotIDs)
 	subSignals["fanout_max_id_mass_rows"] = float64(r.maxIDMassRows)
 	subSignals["fanout_key_ranged_ids"] = float64(r.keyRangedIDs)
@@ -379,6 +387,8 @@ func (r fanOutResult) setSpanAttributes(span trace.Span) {
 		attribute.Int("deferred", r.deferred),
 		attribute.Int("prefiltered_pending", r.prefiltered),
 		attribute.Int("holder_statements", r.holderStatements),
+		attribute.Int("holder_statements_hot", r.hotLaneStatements),
+		attribute.Int("holder_statements_cold", r.coldLaneStatements),
 		attribute.Int("split_chunks", r.splitChunks),
 		attribute.Int("hot_ids", r.hotIDs),
 		attribute.Int64("max_id_mass_rows", r.maxIDMassRows),

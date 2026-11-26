@@ -180,7 +180,8 @@ func TestHotSingletonSingleStatementFailureFailsClosed(t *testing.T) {
 
 // TestSingleStatementReadRecordsDurationByKind proves the read-duration
 // histogram on the below-gate path: one sample per shipped holder statement
-// (the hot singleton reads as one holders statement, not key-range
+// (the hot singleton reads as one holders_hot statement in the hot lane and
+// the cold id as one holders_cold statement in the cold lane, not key-range
 // statements), by kind and outcome, so an operator reads per-statement p95
 // and the timeout share per read kind. The DeepEqual also pins that no
 // holders_key_range sample is recorded. The mass_probe count is 1: the
@@ -209,8 +210,9 @@ func TestSingleStatementReadRecordsDurationByKind(t *testing.T) {
 	}
 	got := fanOutReadDurationCounts(t, reader)
 	want := map[string]uint64{
-		telemetry.FanOutReadKindMassProbe + "/ok": 1,
-		telemetry.FanOutReadKindHolders + "/ok":   2,
+		telemetry.FanOutReadKindMassProbe + "/ok":   1,
+		telemetry.FanOutReadKindHoldersHot + "/ok":  1,
+		telemetry.FanOutReadKindHoldersCold + "/ok": 1,
 		// The #10972 queued-holder prefilter runs once per claim with holders.
 		telemetry.FanOutReadKindHolderPrefilter + "/ok": 1,
 		// The genuine pass's load-end in-flight claim read (#10972 D4b).
