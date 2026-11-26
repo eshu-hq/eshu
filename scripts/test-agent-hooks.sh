@@ -654,12 +654,13 @@ fi
 telem_xdg="$(mktemp -d)"
 sid=$((sid + 1))
 XDG_DATA_HOME="$telem_xdg" bash "$hooks_dir/skill-nudge.sh" \
-  <<<"$(payload "${run_tag}${sid}" "$repo_root/go/cmd/api/main.go")" >/dev/null 2>&1 || true
-if [ ! -s "$telem_xdg/eshu-agent-kit/skills-usage.jsonl" ]; then
+  <<<"$(payload "${run_tag}${sid}" "$repo_root/go/cmd/api/main.go")" >/dev/null 2>&1
+telem_rc=$?
+if [ "$telem_rc" -eq 2 ] && [ ! -e "$telem_xdg/eshu-agent-kit/skills-usage.jsonl" ]; then
   printf 'ok - suite suppresses skills-usage telemetry writes\n'
   passed=$((passed + 1))
 else
-  printf 'FAIL - suite leaked synthetic telemetry into skills-usage.jsonl\n' >&2
+  printf 'FAIL - suite telemetry suppression check failed (exit=%s)\n' "$telem_rc" >&2
   failed=$((failed + 1))
 fi
 rm -rf "$telem_xdg"
