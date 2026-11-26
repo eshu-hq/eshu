@@ -334,6 +334,8 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		maxIDMassRows:      split.maxMass,
 		keyRangedIDs:       split.keyRangedIDs,
 		keyRangeStatements: split.keyRangeStatements,
+		hotLaneStatements:  split.hotLaneStatements,
+		coldLaneStatements: split.coldLaneStatements,
 		inFlight:           inFlight,
 	}
 	if len(remaining) == 0 {
