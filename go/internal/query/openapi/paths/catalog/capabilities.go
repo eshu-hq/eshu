@@ -39,6 +39,7 @@ const Capabilities = `
                           "description": "Product roles emitted by capability.Handler.list (capabilitycatalog.BuiltInRole).",
                           "items": {
                             "type": "object",
+                            "description": "One product role. Owner: capability.Handler.list (capabilitycatalog.BuiltInRole).",
                             "properties": {
                               "role": {"type": "string", "description": "Role id emitted by capability.Handler.list (capabilitycatalog.BuiltInRole.Role)."},
                               "display_name": {"type": "string", "description": "Role display name emitted by capability.Handler.list (capabilitycatalog.BuiltInRole.DisplayName)."},
@@ -49,6 +50,7 @@ const Capabilities = `
                                 "description": "Role grants emitted by capability.Handler.list (capabilitycatalog.RoleGrant).",
                                 "items": {
                                   "type": "object",
+                                  "description": "One role grant. Owner: capability.Handler.list (capabilitycatalog.RoleGrant).",
                                   "properties": {
                                     "action": {"type": "string", "description": "Granted action emitted by capability.Handler.list (capabilitycatalog.RoleGrant.Action)."},
                                     "data_classes": {"type": "array", "items": {"type": "string"}, "description": "Grant data classes emitted by capability.Handler.list (capabilitycatalog.RoleGrant.DataClasses)."},
@@ -64,6 +66,7 @@ const Capabilities = `
                           "description": "Data classes emitted by capability.Handler.list (capabilitycatalog.DataClass).",
                           "items": {
                             "type": "object",
+                            "description": "One data class. Owner: capability.Handler.list (capabilitycatalog.DataClass).",
                             "properties": {
                               "data_class": {"type": "string", "description": "Data class id emitted by capability.Handler.list (capabilitycatalog.DataClass.DataClass)."},
                               "sensitivity": {"type": "string", "enum": ["restricted", "sensitive"], "description": "Data class sensitivity emitted by capability.Handler.list (capabilitycatalog.DataClass.Sensitivity)."},
@@ -76,6 +79,7 @@ const Capabilities = `
                           "description": "Permission families emitted by capability.Handler.list (capabilitycatalog.PermissionFamily).",
                           "items": {
                             "type": "object",
+                            "description": "One permission family. Owner: capability.Handler.list (capabilitycatalog.PermissionFamily).",
                             "properties": {
                               "family": {"type": "string", "description": "Family id emitted by capability.Handler.list (capabilitycatalog.PermissionFamily.Family)."},
                               "description": {"type": "string", "description": "Family description emitted by capability.Handler.list (capabilitycatalog.PermissionFamily.Description)."},
@@ -118,6 +122,7 @@ const Capabilities = `
                       "description": "Capability entries emitted by capability.Handler.list (capabilitycatalog.Entry in full view, CompactEntry in compact view).",
                       "items": {
                         "type": "object",
+                        "description": "One capability entry. Owner: capability.Handler.list (capabilitycatalog.Entry).",
                         "properties": {
                           "capability": {"type": "string", "description": "Capability id emitted by capability.Handler.list (capabilitycatalog.Entry.Capability)."},
                           "answering_stores": {"type": "array", "items": {"type": "string"}, "description": "Store or stores that answer the capability's reads, emitted by capability.Handler.list (capabilitycatalog.Entry.AnsweringStores): graph, fact_records_reducer, fact_records_collector, read_table:<table>, content_search, or status_fixed. Full view only."},
@@ -145,6 +150,7 @@ const Capabilities = `
                             "description": "Classified public surfaces emitted by capability.Handler.list (capabilitycatalog.Surface).",
                             "items": {
                               "type": "object",
+                              "description": "One classified public surface. Owner: capability.Handler.list (capabilitycatalog.Surface).",
                               "properties": {
                                 "tool": {"type": "string", "description": "Surface/tool name emitted by capability.Handler.list (capabilitycatalog.Surface.Tool)."},
                                 "kind": {"type": "string", "description": "Surface kind emitted by capability.Handler.list (capabilitycatalog.Surface.Kind)."}
@@ -156,6 +162,7 @@ const Capabilities = `
                             "description": "Deduplicated verification signals emitted by capability.Handler.list (capabilitycatalog.ProofSignal). Full view only.",
                             "items": {
                               "type": "object",
+                              "description": "One verification signal. Owner: capability.Handler.list (capabilitycatalog.ProofSignal).",
                               "properties": {
                                 "kind": {"type": "string", "description": "Proof kind emitted by capability.Handler.list (capabilitycatalog.ProofSignal.Kind)."},
                                 "ref": {"type": "string", "description": "Proof reference emitted by capability.Handler.list (capabilitycatalog.ProofSignal.Ref)."}

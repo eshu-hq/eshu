@@ -39,6 +39,7 @@ const WorkItem = `
                       "description": "Work-item source evidence rows served by listWorkItemEvidence in query/workitem/handler.go from active facts.",
                       "items": {
                         "type": "object",
+                        "description": "One work-item source evidence row. Owner: query/workitem/handler.go listWorkItemEvidence.",
                         "properties": {
                           "fact_id": {"type": "string", "description": "Fact id of this evidence row from the workitem store."},
                           "fact_kind": {"type": "string", "description": "Fact kind of this evidence row from the workitem store."},

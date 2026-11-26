@@ -50,6 +50,7 @@ const Routes = `
                       "description": "Derived provider entries for the tenant's login picker, per DeriveAuthPosture.",
                       "items": {
                         "type": "object",
+                        "description": "One derived provider entry. Owner: DeriveAuthPosture.",
                         "required": ["provider_config_id", "display_label", "provider_kind", "icon_hint"],
                         "properties": {
                           "provider_config_id": {

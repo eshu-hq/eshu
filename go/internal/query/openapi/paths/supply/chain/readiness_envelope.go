@@ -36,7 +36,7 @@ const supplyChainReadinessEnvelope = `"readiness": {
                           "type": "array",
                           "description": "Per-family source-evidence summary for the requested scope, emitted by packet.BuildReadiness (packet.EvidenceFamily).",
                           "items": {
-                            "type": "object",
+                            "type": "object", "description": "One evidence family row. emitted by packet.BuildReadiness (packet.EvidenceFamily).",
                             "properties": {
                               "family": {"type": "string", "enum": ["vulnerability.advisory", "vulnerability.exploitability", "package.consumption", "package.registry", "sbom.component", "sbom.attestation", "container_image.identity", "vulnerability.os_package", "scanner_worker.analysis"], "description": "Evidence family emitted by packet.BuildReadiness (packet.EvidenceFamily.Family)."},
                               "fact_count": {"type": "integer", "minimum": 0, "description": "Fact count for the family emitted by packet.BuildReadiness (packet.EvidenceFamily.FactCount)."},
@@ -50,7 +50,7 @@ const supplyChainReadinessEnvelope = `"readiness": {
                           "type": "array",
                           "description": "Vulnerability source snapshot cache metadata emitted by packet.BuildReadiness (packet.SourceSnapshot); raw advisory payloads are not returned.",
                           "items": {
-                            "type": "object",
+                            "type": "object", "description": "One source snapshot row. emitted by packet.BuildReadiness (packet.SourceSnapshot).",
                             "properties": {
                               "source": {"type": "string", "description": "Snapshot source emitted by packet.BuildReadiness (packet.SourceSnapshot.Source)."},
                               "ecosystem": {"type": "string", "description": "Snapshot ecosystem emitted by packet.BuildReadiness (packet.SourceSnapshot.Ecosystem)."},
@@ -69,7 +69,7 @@ const supplyChainReadinessEnvelope = `"readiness": {
                           "type": "array",
                           "description": "Durable source freshness, checkpoint, retry, and terminal status per bounded vulnerability source target, emitted by packet.BuildReadiness (packet.SourceState).",
                           "items": {
-                            "type": "object",
+                            "type": "object", "description": "One source state row. emitted by packet.BuildReadiness (packet.SourceState).",
                             "properties": {
                               "collector_instance_id": {"type": "string", "description": "Collector instance id emitted by packet.BuildReadiness (packet.SourceState.CollectorInstanceID)."},
                               "scope_id": {"type": "string", "description": "Collection scope id emitted by packet.BuildReadiness (packet.SourceState.ScopeID)."},
@@ -115,7 +115,7 @@ const supplyChainReadinessEnvelope = `"readiness": {
                           "type": "array",
                           "description": "Observed vulnerability target evidence the matcher cannot resolve, emitted by packet.BuildReadiness (packet.UnsupportedTarget). Each entry is bounded coverage-gap evidence; counts MUST NOT be interpreted as clean or affected results. Surfaced alongside readiness_state=unsupported when no finding can be admitted for the scope, and additively for ready states when only some targets are unsupported.",
                           "items": {
-                            "type": "object",
+                            "type": "object", "description": "One unsupported target row. emitted by packet.BuildReadiness (packet.UnsupportedTarget).",
                             "properties": {
                               "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "dependency_source", "sbom_target", "package_registry_metadata", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, VCS/path/URL/editable dependency source evidence, malformed/unsupported SBOM document tied to the requested subject digest, oversized package-registry metadata, or container image target without a supported analyzer."},
                               "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, vcs_dependency_unsupported, path_dependency_unsupported, unsupported_field, malformed_document, metadata_too_large)."},

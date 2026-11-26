@@ -71,7 +71,7 @@ const componentsReplatforming = `      "ReplatformingReadinessCounts": {
             }}
           }},
           "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Attribution layers that resolved nothing, surfaced explicitly rather than read as agreement. Owner: iac/replatforming_ownership.go replatformingOwnershipPacket.MissingEvidence."},
-          "recommended_next_calls": {"type": "array", "description": "Bounded follow-up collector or query calls to resolve a missing or contested attribution. Owner: iac/replatforming_ownership.go ownershipRecommendedNextCalls.", "items": {"type": "object", "properties": {
+          "recommended_next_calls": {"type": "array", "description": "Bounded follow-up collector or query calls to resolve a missing or contested attribution. Owner: iac/replatforming_ownership.go ownershipRecommendedNextCalls.", "items": {"type": "object", "description": "One follow-up call. Owner: iac/replatforming_ownership.go ownershipRecommendedNextCalls.", "properties": {
             "tool": {"type": "string", "description": "MCP tool a consumer can call to resolve the gap. Owner: iac/replatforming_ownership.go ownershipRecommendedNextCalls."},
             "route": {"type": "string", "description": "HTTP route a consumer can call to resolve the gap. Owner: iac/replatforming_ownership.go ownershipRecommendedNextCalls."},
             "reason": {"type": "string", "description": "Why this call resolves the gap. Owner: iac/replatforming_ownership.go ownershipRecommendedNextCalls."}

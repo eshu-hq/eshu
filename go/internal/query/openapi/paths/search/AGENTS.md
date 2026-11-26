@@ -6,9 +6,10 @@ Scope: `go/internal/query/openapi/paths/search/` (package `search`).
 
 This leaf owns the OpenAPI 3.0 path documentation for the read/retrieval
 surface: `content.go` (`Content`), `ask.go` (`Ask`), `entities.go`
-(`Entities`), `graph_entities.go` (`GraphEntities`), `semantic.go`
-(`Semantic`), and `semantic_evidence.go` (`SemanticEvidence`). Each file is
-a JSON string constant only — no handler logic, no HTTP wiring.
+(`Entities`), `story.go` (`ServiceStory`), `graph_entities.go`
+(`GraphEntities`), `semantic.go` (`Semantic`), and `semantic_evidence.go`
+(`SemanticEvidence`). Each file is a JSON string constant only — no handler
+logic, no HTTP wiring.
 
 - `entities.go` imports `openapi/schema` (`schema.EvidenceBoundaries`); the
   other five files import nothing from this repo. This package MUST NOT

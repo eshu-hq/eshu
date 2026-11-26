@@ -13,7 +13,7 @@ const componentsEvidencePacket = `
         "type": "object",
         "description": "Portable investigation_evidence_packet.v2 artifact. The packet separates source facts, reducer decisions, graph/query answers, missing evidence, reproduce handles, bounds, redaction, and validation state.",
         "properties": {
-          "schema": {"type": "string", "enum": ["investigation_evidence_packet.v2"]},
+          "schema": {"type": "string", "enum": ["investigation_evidence_packet.v2"], "description": "Artifact schema identifier; always investigation_evidence_packet.v2. Owner: querycontract/packet build.go."},
           "packet_id": {"type": "string", "description": "Deterministic identity derived from the packet identity plus a content digest; the same inputs always produce the same id."},
           "identity": {"type": "object", "description": "Names the investigation a packet describes: its family, the canonical scope keys, the question, the observed generation, and the active profile/backend. Owner: querycontract/packet buildPacketIdentity (envelope.go PacketIdentity).", "required": ["family", "subject", "basis"], "properties": {
             "family": {"type": "string", "enum": ["supply_chain_impact", "deployable_unit", "drift", "service_context"], "description": "Closed investigation family set (envelope.go SupportedInvestigationFamilies). An unrecognized family yields a refusal packet, never a silently empty artifact."},
@@ -24,7 +24,27 @@ const componentsEvidencePacket = `
             "backend": {"type": "string", "enum": ["neo4j", "nornicdb"], "description": "Active graph backend."},
             "basis": {"type": "string", "enum": ["deterministic", "semantic_augmented"], "description": "deterministic: built only from reducer-owned deterministic evidence. semantic_augmented: additionally carries labeled semantic observations."}
           }},
-          "truth": {"type": "object", "description": "Truth envelope: level, capability, profile, basis, backend, freshness, reason, and omissions. Absent (never null) when no truth applies. omissions (absent when the response carries every section in full) lists {section, detail, total} for each section a route withheld (detail omitted) or reduced to identity handles (detail handles), such as trace-deployment-chain under evidence_detail handles or an explicit sections list."},
+          "truth": {"type": "object", "description": "Truth envelope: level, capability, profile, basis, backend, freshness, reason, and omissions. Absent (never null) when no truth applies. omissions (absent when the response carries every section in full) lists {section, detail, total} for each section a route withheld (detail carries \"omitted\") or reduced to identity handles (detail handles), such as trace-deployment-chain under evidence_detail handles or an explicit sections list. Owner: querycontract/truth.go TruthEnvelope via BuildTruthEnvelope.", "required": ["level", "freshness"], "properties": {
+            "level": {"type": "string", "enum": ["exact", "derived", "partial", "fallback"], "description": "How directly evidence supports the answer. Owner: querycontract/truth.go TruthEnvelope.Level."},
+            "capability": {"type": "string", "description": "Capability that produced the response. Owner: querycontract/truth.go TruthEnvelope.Capability."},
+            "profile": {"type": "string", "description": "Runtime profile the response was built under. Owner: querycontract/truth.go TruthEnvelope.Profile."},
+            "basis": {"type": "string", "description": "Evidence basis behind the response. Owner: querycontract/truth.go TruthEnvelope.Basis."},
+            "backend": {"type": "string", "description": "Graph backend behind the response. Owner: querycontract/truth.go TruthEnvelope.Backend."},
+            "freshness": {"type": "object", "description": "Freshness state and proven cause. Owner: querycontract/truth.go TruthEnvelope.Freshness.", "required": ["state"], "properties": {
+              "state": {"type": "string", "enum": ["fresh", "stale", "building", "unavailable"], "description": "Whether the evidence is current and available. Owner: querycontract TruthFreshness.State."},
+              "observed_at": {"type": "string", "format": "date-time", "description": "When freshness was observed. Owner: querycontract TruthFreshness.ObservedAt."},
+              "detail": {"type": "string", "description": "Freshness detail. Owner: querycontract TruthFreshness.Detail."},
+              "cause": {"type": "string", "description": "Proven cause when the answer is not fresh. Owner: querycontract TruthFreshness.Cause."},
+              "next_check": {"type": "object", "additionalProperties": true, "description": "Bounded follow-up call drilling into the cause. Owner: querycontract TruthFreshness.NextCheck."}
+            }},
+            "reason": {"type": "string", "description": "Human-readable truth reason. Owner: querycontract/truth.go TruthEnvelope.Reason."},
+            "truncated": {"type": "boolean", "description": "True when the answer is a page; absent when false. Owner: querycontract/truth.go TruthEnvelope.Truncated."},
+            "omissions": {"type": "array", "description": "Response sections the route withheld or reduced. Owner: querycontract/truth.go TruthEnvelope.Omissions.", "items": {"type": "object", "description": "One withheld section. Owner: querycontract/truth.go TruthOmission.", "required": ["section", "detail", "total"], "properties": {
+              "section": {"type": "string", "description": "Withheld section. Owner: querycontract/truth.go TruthOmission.Section."},
+              "detail": {"type": "string", "description": "How the section was reduced (handles, omitted, or response_byte_budget). Owner: querycontract/truth.go TruthOmission.Detail."},
+              "total": {"type": "integer", "description": "Rows the section held before the cut. Owner: querycontract/truth.go TruthOmission.Total."}
+            }}}
+          }},
           "freshness": {"type": "object", "description": "Top-level freshness label copied from the truth envelope for quick scanning. Owner: querycontract/packet build.go packetFreshness over querycontract TruthFreshness.", "required": ["state"], "properties": {
             "state": {"type": "string", "enum": ["fresh", "stale", "building", "unavailable"], "description": "Whether the evidence is current and available."},
             "observed_at": {"type": "string", "format": "date-time", "description": "When the freshness state was observed."},
@@ -45,7 +65,7 @@ const componentsEvidencePacket = `
             "limitations": {"type": "array", "items": {"type": "string"}, "description": "Bounded human-readable caveats."},
             "unsupported_reasons": {"type": "array", "items": {"type": "string"}, "description": "Explains why the answer is unsupported or partial."}
           }},
-          "source_facts": {"type": "array", "description": "Raw-evidence layer: observed facts before any reducer decision. Each entry carries identity and a bounded redaction-safe summary plus an optional addressable citation handle, never the raw payload. Owner: querycontract/packet envelope.go PacketSourceFact.", "items": {"type": "object", "properties": {
+          "source_facts": {"type": "array", "description": "Raw-evidence layer: observed facts before any reducer decision. Each entry carries identity and a bounded redaction-safe summary plus an optional addressable citation handle, never the raw payload. Owner: querycontract/packet envelope.go PacketSourceFact.", "items": {"type": "object", "description": "One observed fact with its identity, redaction-safe summary, and optional citation handle. Owner: querycontract/packet envelope.go PacketSourceFact.", "properties": {
             "fact_id": {"type": "string", "description": "Generation-scoped fact identity; optional when stable_key is set."},
             "stable_key": {"type": "string", "description": "Generation-independent durable fact key, preferred for cross-generation references."},
             "evidence_family": {"type": "string", "description": "Fact family (for example vulnerability_advisory, sbom_component, deployment_config)."},
@@ -59,7 +79,7 @@ const componentsEvidencePacket = `
               "start_line": {"type": "integer", "description": "First cited line."}, "end_line": {"type": "integer", "description": "Last cited line."}, "confidence": {"type": "number", "description": "Provider-reported confidence; presentation only, never truth."}
             }}
           }}},
-          "reducer_decisions": {"type": "array", "description": "Reducer-decision layer: reducer-owned admission, correlation, or drift decisions. Owner: querycontract/packet envelope.go PacketReducerDecision.", "items": {"type": "object", "required": ["state"], "properties": {
+          "reducer_decisions": {"type": "array", "description": "Reducer-decision layer: reducer-owned admission, correlation, or drift decisions. Owner: querycontract/packet envelope.go PacketReducerDecision.", "items": {"type": "object", "description": "One reducer-owned admission, correlation, or drift decision. Owner: querycontract/packet envelope.go PacketReducerDecision.", "required": ["state"], "properties": {
             "domain": {"type": "string", "description": "Reducer domain that owns the decision."},
             "subject": {"type": "string", "description": "Canonical entity the decision is about."},
             "state": {"type": "string", "description": "Admission-audit outcome: admitted, rejected, ambiguous, stale, or missing_evidence."},
@@ -68,7 +88,7 @@ const componentsEvidencePacket = `
             "generation": {"type": "string", "description": "Generation the decision was made at."},
             "source_fact_ids": {"type": "array", "items": {"type": "string"}, "description": "References into the source-facts layer (by fact_id or stable_key) the decision was based on."}
           }}},
-          "graph_answers": {"type": "array", "description": "Graph/query-truth layer: materialized edge or path hops the query surface returns, with prompt-facing truth classes. Owner: querycontract/packet envelope.go PacketGraphAnswer.", "items": {"type": "object", "required": ["present"], "properties": {
+          "graph_answers": {"type": "array", "description": "Graph/query-truth layer: materialized edge or path hops the query surface returns, with prompt-facing truth classes. Owner: querycontract/packet envelope.go PacketGraphAnswer.", "items": {"type": "object", "description": "One materialized edge or path hop with its prompt-facing truth class. Owner: querycontract/packet envelope.go PacketGraphAnswer.", "required": ["present"], "properties": {
             "relationship": {"type": "string", "description": "Edge type (for example RUNS_IN, HANDLES_ROUTE)."},
             "from": {"type": "string", "description": "Canonical source node reference."},
             "to": {"type": "string", "description": "Canonical target node reference."},
@@ -77,7 +97,7 @@ const componentsEvidencePacket = `
             "truth_class": {"type": "string", "enum": ["deterministic", "derived", "fallback", "semantic_observation", "code_hint", "unsupported"], "description": "Prompt-facing classification of the answer truth."},
             "source_fact_ids": {"type": "array", "items": {"type": "string"}, "description": "Source-fact ids backing a present hop, so a reader can trace the graph answer to raw evidence."}
           }}},
-          "citations": {"type": "array", "description": "Addressable-evidence layer in the evidence-citation handle shape. Owner: querycontract/evidence citation_handle.go EvidenceCitationHandle.", "items": {"type": "object", "properties": {
+          "citations": {"type": "array", "description": "Addressable-evidence layer in the evidence-citation handle shape. Owner: querycontract/evidence citation_handle.go EvidenceCitationHandle.", "items": {"type": "object", "description": "One addressable evidence citation handle. Owner: querycontract/evidence citation_handle.go EvidenceCitationHandle.", "properties": {
             "kind": {"type": "string", "description": "Citation kind."},
             "repo_id": {"type": "string", "description": "Repository the cited evidence belongs to."},
             "relative_path": {"type": "string", "description": "Repository-relative file path of the cited evidence."},
@@ -88,19 +108,19 @@ const componentsEvidencePacket = `
             "end_line": {"type": "integer", "description": "Last cited line."},
             "confidence": {"type": "number", "description": "Provider-reported confidence; presentation only, never truth."}
           }}},
-          "missing_evidence": {"type": "array", "description": "Explicit missing-hop layer: a gap is named and explained, never silently dropped. Owner: querycontract/packet envelope.go PacketMissingHop.", "items": {"type": "object", "required": ["hop", "reason"], "properties": {
+          "missing_evidence": {"type": "array", "description": "Explicit missing-hop layer: a gap is named and explained, never silently dropped. Owner: querycontract/packet envelope.go PacketMissingHop.", "items": {"type": "object", "description": "One named and explained evidence gap. Owner: querycontract/packet envelope.go PacketMissingHop.", "required": ["hop", "reason"], "properties": {
             "hop": {"type": "string", "description": "Path-hop label that could not be resolved."},
             "reason": {"type": "string", "description": "Why the hop is unresolved."},
             "next_check": {"type": "object", "additionalProperties": true, "description": "Free-form optional bounded follow-up call (tool/route/reason shape) that would resolve or explain the gap."}
           }}},
-          "semantic_observations": {"type": "array", "description": "Optional policy-gated semantic layer, only permitted under the semantic_augmented basis; never deterministic truth. Owner: querycontract/packet envelope.go PacketSemanticObservation.", "items": {"type": "object", "required": ["label", "observation"], "properties": {
+          "semantic_observations": {"type": "array", "description": "Optional policy-gated semantic layer, only permitted under the semantic_augmented basis; never deterministic truth. Owner: querycontract/packet envelope.go PacketSemanticObservation.", "items": {"type": "object", "description": "One policy-gated semantic observation. Owner: querycontract/packet envelope.go PacketSemanticObservation.", "required": ["label", "observation"], "properties": {
             "label": {"type": "string", "description": "Always semantic_observation so a reader can never mistake the entry for deterministic truth."},
             "provider": {"type": "string", "description": "Semantic provider that produced the observation."},
             "observation": {"type": "string", "description": "Bounded semantic note."},
             "confidence": {"type": "string", "description": "Optional provider-reported confidence label."},
             "source_fact_ids": {"type": "array", "items": {"type": "string"}, "description": "Source facts the observation was derived from."}
           }}},
-          "reproduce": {"type": "array", "description": "Bounded commands, routes, or tools a reader can run to reproduce the packet evidence. Owner: querycontract/packet envelope.go PacketReproduceStep.", "items": {"type": "object", "properties": {
+          "reproduce": {"type": "array", "description": "Bounded commands, routes, or tools a reader can run to reproduce the packet evidence. Owner: querycontract/packet envelope.go PacketReproduceStep.", "items": {"type": "object", "description": "One bounded reproduce step: a command, route, or tool that reproduces the packet evidence. Owner: querycontract/packet envelope.go PacketReproduceStep.", "properties": {
             "description": {"type": "string", "description": "What the step reproduces."},
             "route": {"type": "string", "description": "HTTP route that produced the evidence."},
             "tool": {"type": "string", "description": "MCP tool that produced the evidence."},
@@ -124,7 +144,7 @@ const componentsEvidencePacket = `
           }},
           "validation": {"type": "object", "description": "Artifact validation outcome. Owner: querycontract/packet validateInvestigationPacket.", "required": ["status", "checks"], "properties": {
             "status": {"type": "string", "enum": ["passed", "failed"], "description": "Overall validation outcome."},
-            "checks": {"type": "array", "description": "Every gate result so a reader sees which rule a packet broke.", "items": {"type": "object", "required": ["id", "ok"], "properties": {
+            "checks": {"type": "array", "description": "Every gate result so a reader sees which rule a packet broke.", "items": {"type": "object", "description": "One artifact validation gate result. Owner: querycontract/packet validateInvestigationPacket.", "required": ["id", "ok"], "properties": {
               "id": {"type": "string", "description": "Stable gate identifier (for example schema_consistent)."},
               "ok": {"type": "boolean", "description": "Whether the gate passed."}
             }}}

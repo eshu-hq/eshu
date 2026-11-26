@@ -63,6 +63,7 @@ const Routes = `
                       "description": "Page of dead-IaC candidate findings, emitted by iac.writeMaterializedDeadIaC or the content fallback from analyzeDeadIaC as []iac.deadIaCFinding.",
                       "items": {
                         "type": "object",
+                        "description": "One dead-IaC candidate finding. Owner: iac.deadIaCFinding.",
                         "properties": {
                           "id": {"type": "string", "description": "Finding identity emitted by iac.deadIaCFinding.ID."},
                           "family": {"type": "string", "description": "IaC family of the candidate (terraform, helm, kustomize, ansible, compose), emitted by iac.deadIaCFinding.Family."},
@@ -143,6 +144,7 @@ const Routes = `
                       "description": "Finding counts grouped by management status and finding kind, emitted by iac.managementFindingGroups.",
                       "items": {
                         "type": "object",
+                        "description": "One finding group. Owner: iac.managementFindingGroup.",
                         "properties": {
                           "management_status": {"type": "string", "description": "Management-status bucket emitted by iac.managementFindingGroup.ManagementStatus."},
                           "finding_kind": {"type": "string", "description": "Finding-kind bucket emitted by iac.managementFindingGroup.FindingKind."},
@@ -179,6 +181,7 @@ const Routes = `
                       "description": "Page of unmanaged-resource management findings, emitted by the iac unmanaged-resources handler from normalizeIaCManagementFindingsSafety as []iac.ManagementFindingRow.",
                       "items": {
                         "type": "object",
+                        "description": "One unmanaged-resource management finding. Owner: iac.ManagementFindingRow.",
                         "properties": {
                           "id": {"type": "string", "description": "Finding row identity emitted by iac.ManagementFindingRow.ID."},
                           "provider": {"type": "string", "description": "Cloud provider of the finding, emitted by iac.ManagementFindingRow.Provider."},
@@ -237,6 +240,7 @@ const Routes = `
                             "description": "Evidence atoms explaining the finding with sensitive values redacted, emitted by iac.ManagementFindingRow.Evidence via sanitizeIaCManagementEvidence.",
                             "items": {
                               "type": "object",
+                              "description": "One evidence atom. Owner: iac.ManagementEvidenceRow.",
                               "properties": {
                                 "id": {"type": "string", "description": "Evidence atom identity emitted by iac.ManagementEvidenceRow.ID."},
                                 "source_system": {"type": "string", "description": "Source system of the atom, emitted by iac.ManagementEvidenceRow.SourceSystem."},
@@ -255,6 +259,7 @@ const Routes = `
                             "description": "Bounded declared/observed value pairs for an image_version_drift finding, paired by iac.DriftedAttributesFromAWSEvidence and emitted by iac.ManagementFindingRow.DriftedAttributes (omitted for every other kind).",
                             "items": {
                               "type": "object",
+                              "description": "One declared/observed value pair. Owner: querycontract.DriftedAttributeView.",
                               "properties": {
                                 "attribute": {"type": "string", "description": "Allowlisted comparable attribute name emitted by querycontract.DriftedAttributeView.Attribute."},
                                 "declared_value": {"type": "string", "description": "Terraform-state value emitted by querycontract.DriftedAttributeView.Declared."},
@@ -354,6 +359,7 @@ const Routes = `
                       "description": "Page of import-plan candidates, emitted by iac.buildTerraformImportPlanCandidates as []iac.terraformImportPlanCandidate.",
                       "items": {
                         "type": "object",
+                        "description": "One import-plan candidate. Owner: iac.terraformImportPlanCandidate.",
                         "properties": {
                           "id": {"type": "string", "description": "Candidate identity emitted by iac.terraformImportPlanCandidate.ID."},
                           "finding_id": {"type": "string", "description": "Source finding identity emitted by iac.terraformImportPlanCandidate.FindingID."},

@@ -79,6 +79,7 @@ const IntelligenceReport = `
                       "truncated": {"type": "boolean", "description": "Whether the answer is a page, emitted by getServiceIntelligenceReport (querycontract.TruthEnvelope.Truncated)."},
                       "omissions": {"type": "array", "description": "Response sections withheld or reduced, emitted by getServiceIntelligenceReport (querycontract.TruthOmission).", "items": {
                         "type": "object",
+                        "description": "One withheld section. Owner: getServiceIntelligenceReport (querycontract.TruthOmission).",
                         "properties": {
                           "section": {"type": "string", "description": "Omitted section emitted by getServiceIntelligenceReport (querycontract.TruthOmission.Section)."},
                           "detail": {"type": "string", "description": "Omission detail emitted by getServiceIntelligenceReport (querycontract.TruthOmission.Detail)."},
@@ -88,6 +89,7 @@ const IntelligenceReport = `
                     }},
                     "sections": {"type": "array", "description": "Every fixed section in canonical order emitted by getServiceIntelligenceReport (serviceintel.ReportSection); unsupported sections stay visible with limitations and next calls.", "items": {
                       "type": "object",
+                      "description": "One fixed report section. Owner: getServiceIntelligenceReport (serviceintel.ReportSection).",
                       "properties": {
                         "kind": {"type": "string", "enum": ["identity", "code_to_runtime", "deployment_config", "supply_chain", "incidents_support"], "description": "Fixed section kind emitted by getServiceIntelligenceReport (serviceintel.SectionKind)."},
                         "title": {"type": "string", "description": "Section title emitted by getServiceIntelligenceReport (serviceintel.ReportSection.Title)."},
@@ -124,8 +126,9 @@ const IntelligenceReport = `
                             "reason": {"type": "string", "description": "Truth reason emitted by getServiceIntelligenceReport (querycontract.TruthEnvelope.Reason)."},
                             "truncated": {"type": "boolean", "description": "Whether the answer is a page, emitted by getServiceIntelligenceReport (querycontract.TruthEnvelope.Truncated)."},
                             "omissions": {"type": "array", "description": "Withheld sections emitted by getServiceIntelligenceReport (querycontract.TruthOmission).", "items": {
-                              "type": "object",
-                              "properties": {
+                            "type": "object",
+                            "description": "One withheld section. Owner: getServiceIntelligenceReport (querycontract.TruthOmission).",
+                            "properties": {
                                 "section": {"type": "string", "description": "Omitted section emitted by getServiceIntelligenceReport (querycontract.TruthOmission.Section)."},
                                 "detail": {"type": "string", "description": "Omission detail emitted by getServiceIntelligenceReport (querycontract.TruthOmission.Detail)."},
                                 "total": {"type": "integer", "description": "Row count held before the cut, emitted by getServiceIntelligenceReport (querycontract.TruthOmission.Total)."}
@@ -136,6 +139,7 @@ const IntelligenceReport = `
                           "truncated": {"type": "boolean", "description": "Underlying result-set truncation emitted by getServiceIntelligenceReport (answer.AnswerPacket.Truncated)."},
                           "missing_evidence": {"type": "array", "description": "Evidence handles requested but not resolved, emitted by getServiceIntelligenceReport (evidence.EvidenceCitationHandle).", "items": {
                             "type": "object",
+                            "description": "One missing evidence handle. Owner: getServiceIntelligenceReport (evidence.EvidenceCitationHandle).",
                             "properties": {
                               "kind": {"type": "string", "description": "Handle kind emitted by getServiceIntelligenceReport (evidence.EvidenceCitationHandle.Kind)."},
                               "repo_id": {"type": "string", "description": "Repository id emitted by getServiceIntelligenceReport (evidence.EvidenceCitationHandle.RepoID)."},
@@ -150,6 +154,7 @@ const IntelligenceReport = `
                           }},
                           "evidence_handles": {"type": "array", "description": "Addressable evidence handles emitted by getServiceIntelligenceReport (evidence.EvidenceCitationHandle).", "items": {
                             "type": "object",
+                            "description": "One addressable evidence handle. Owner: getServiceIntelligenceReport (evidence.EvidenceCitationHandle).",
                             "properties": {
                               "kind": {"type": "string", "description": "Handle kind emitted by getServiceIntelligenceReport (evidence.EvidenceCitationHandle.Kind)."},
                               "repo_id": {"type": "string", "description": "Repository id emitted by getServiceIntelligenceReport (evidence.EvidenceCitationHandle.RepoID)."},
@@ -163,7 +168,7 @@ const IntelligenceReport = `
                             }
                           }},
                           "citation_ref": {"type": "string", "description": "Citation packet reference emitted by getServiceIntelligenceReport (answer.AnswerPacket.CitationRef)."},
-                          "recommended_next_calls": {"type": "array", "description": "Bounded follow-up calls in the evidence-citation shape, emitted by getServiceIntelligenceReport (answer.AnswerPacket.RecommendedNextCalls).", "items": {"type": "object", "additionalProperties": {}}},
+                          "recommended_next_calls": {"type": "array", "description": "Bounded follow-up calls in the evidence-citation shape, emitted by getServiceIntelligenceReport (answer.AnswerPacket.RecommendedNextCalls).", "items": {"type": "object", "description": "One follow-up call (open map). Owner: getServiceIntelligenceReport (answer.AnswerPacket.RecommendedNextCalls).", "additionalProperties": {}}},
                           "unsupported_reasons": {"type": "array", "items": {"type": "string"}, "description": "Why the answer is unsupported or partial, emitted by getServiceIntelligenceReport (answer.AnswerPacket.UnsupportedReasons)."}
                         }}
                       }
@@ -171,6 +176,7 @@ const IntelligenceReport = `
                     "limitations": {"type": "array", "items": {"type": "string"}, "description": "De-duplicated bounded caveats across sections emitted by getServiceIntelligenceReport (serviceintel.Report.Limitations)."},
                     "recommended_next_calls": {"type": "array", "description": "De-duplicated bounded follow-up calls emitted by getServiceIntelligenceReport (serviceintel.NextCall).", "items": {
                       "type": "object",
+                      "description": "One follow-up call. Owner: getServiceIntelligenceReport (serviceintel.NextCall).",
                       "properties": {
                         "tool": {"type": "string", "description": "MCP tool to call, emitted by getServiceIntelligenceReport (serviceintel.NextCall.Tool)."},
                         "route": {"type": "string", "description": "HTTP route to call, emitted by getServiceIntelligenceReport (serviceintel.NextCall.Route)."},
@@ -181,6 +187,7 @@ const IntelligenceReport = `
                     }},
                     "suggested_investigations": {"type": "array", "description": "Deterministic guided investigations emitted by getServiceIntelligenceReport (serviceintel.SuggestedInvestigation).", "items": {
                       "type": "object",
+                      "description": "One guided investigation. Owner: getServiceIntelligenceReport (serviceintel.SuggestedInvestigation).",
                       "properties": {
                         "id": {"type": "string", "description": "Stable suggestion id emitted by getServiceIntelligenceReport (serviceintel.SuggestedInvestigation.ID)."},
                         "section": {"type": "string", "description": "Source section emitted by getServiceIntelligenceReport (serviceintel.SuggestedInvestigation.Section)."},

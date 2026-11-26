@@ -37,6 +37,7 @@ const ManifestDependencies = `
                       "description": "Bounded declared manifest dependency rows, emitted by the manifest handler from the page as []manifest.ManifestDependencyRow.",
                       "items": {
                         "type": "object",
+                        "description": "One declared manifest dependency row. Owner: manifest handler (manifest.ManifestDependencyRow).",
                         "properties": {
                           "package_name": {"type": "string", "description": "Declared package name emitted by manifest.ManifestDependencyRow.PackageName."},
                           "declared_range": {"type": "string", "description": "Declared version or range emitted by manifest.ManifestDependencyRow.DeclaredRange."},

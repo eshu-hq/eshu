@@ -71,6 +71,7 @@ const Contract = `
                       "description": "Endpoint contract rows from contractImpactHTTPProviders, sorted by contract_key; workload_id and workload_name appear only when the endpoint row carries them.",
                       "items": {
                         "type": "object",
+                        "description": "One endpoint contract row. Owner: contractImpactHTTPProviders.",
                         "required": ["family", "contract_key", "provider_repo_id", "provider_repo", "route", "http_method", "endpoint_id", "source_kinds", "source_paths", "operation_ids", "evidence_state"],
                         "properties": {
                           "family": {"type": "string", "description": "Contract family of the row, always http from contractImpactHTTPProviders."},
@@ -89,7 +90,7 @@ const Contract = `
                         }
                       }
                     },
-                    "consumers": {"type": "array", "description": "Consumer-side contract rows; contractImpactResponse always emits an empty list until deterministic consumer projection lands, so no row shape is pinned.", "items": {"type": "object", "description": "Reserved consumer row shape; never populated today.", "properties": {}}},
+                    "consumers": {"type": "array", "description": "Consumer-side contract rows; contractImpactResponse always emits an empty list until deterministic consumer projection lands, so no row shape is pinned.", "items": {"type": "object", "description": "Reserved consumer row shape, open by reservation; never populated today because contractImpactResponse always emits an empty list. Owner: contractImpactResponse.", "additionalProperties": true}},
                     "coverage": {
                       "type": "object",
                       "description": "Read-shape disclosure from contractImpactResponse; query_shape names the registry read that ran.",

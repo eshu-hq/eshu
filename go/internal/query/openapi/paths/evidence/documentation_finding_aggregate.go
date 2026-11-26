@@ -32,10 +32,10 @@ const DocumentationFindingAggregate = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "total_findings": {"type": "integer"},
-                    "by_status": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "by_truth_level": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "by_freshness_state": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "total_findings": {"type": "integer", "description": "Findings matching the filters. Owner: query.DocumentationHandler.countDocumentationFindings."},
+                    "by_status": {"type": "object", "description": "Findings by status. Owner: query.DocumentationHandler.countDocumentationFindings.", "additionalProperties": {"type": "integer"}},
+                    "by_truth_level": {"type": "object", "description": "Findings by truth level. Owner: query.DocumentationHandler.countDocumentationFindings.", "additionalProperties": {"type": "integer"}},
+                    "by_freshness_state": {"type": "object", "description": "Findings by freshness state. Owner: query.DocumentationHandler.countDocumentationFindings.", "additionalProperties": {"type": "integer"}},
                     "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the request filters as string pairs; only non-empty filters (scope_id, finding_type, source_id, document_id, status, truth_level, freshness_state) appear. Owner: query.documentationFindingAggregateScope."}
                   }
                 }
@@ -84,20 +84,22 @@ const DocumentationFindingAggregate = `
                   "properties": {
                     "buckets": {
                       "type": "array",
+                      "description": "Grouped count buckets ordered by count desc. Owner: query.DocumentationHandler.documentationFindingInventory.",
                       "items": {
                         "type": "object",
+                        "description": "One grouped count bucket. Owner: query.DocumentationHandler.documentationFindingInventory.",
                         "properties": {
-                          "dimension": {"type": "string"},
-                          "value": {"type": "string"},
-                          "count": {"type": "integer"}
+                          "dimension": {"type": "string", "description": "Bucket dimension. Owner: query.DocumentationHandler.documentationFindingInventory."},
+                          "value": {"type": "string", "description": "Bucket value. Owner: query.DocumentationHandler.documentationFindingInventory."},
+                          "count": {"type": "integer", "description": "Findings in the bucket. Owner: query.DocumentationHandler.documentationFindingInventory."}
                         }
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "group_by": {"type": "string"},
-                    "truncated": {"type": "boolean"},
+                    "count": {"type": "integer", "description": "Buckets returned in this page. Owner: query.DocumentationHandler.documentationFindingInventory."},
+                    "limit": {"type": "integer", "description": "Page bound the buckets were cut to. Owner: query.DocumentationHandler.documentationFindingInventory."},
+                    "offset": {"type": "integer", "description": "Buckets skipped for paging. Owner: query.DocumentationHandler.documentationFindingInventory."},
+                    "group_by": {"type": "string", "description": "Grouping dimension echoed from the request. Owner: query.DocumentationHandler.documentationFindingInventory."},
+                    "truncated": {"type": "boolean", "description": "True when more buckets matched than this page carries. Owner: query.DocumentationHandler.documentationFindingInventory."},
                     "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
                     "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the request filters as string pairs; only non-empty filters (scope_id, finding_type, source_id, document_id, status, truth_level, freshness_state) appear. Owner: query.documentationFindingAggregateScope."}
                   }

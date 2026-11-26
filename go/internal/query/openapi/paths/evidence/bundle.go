@@ -23,12 +23,12 @@ const Bundle = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "schema_version": {"type": "string", "enum": ["evidence_bundle.v1"]},
-                    "bundle_id": {"type": "string"},
-                    "identity": {"type": "object", "properties": {
-                      "scope_id": {"type": "string"},
-                      "profile": {"type": "string"},
-                      "created_at": {"type": "string", "format": "date-time"}
+                    "schema_version": {"type": "string", "enum": ["evidence_bundle.v1"], "description": "Artifact schema identifier; always evidence_bundle.v1. Owner: evidencebundle.BuildLiveBundle."},
+                    "bundle_id": {"type": "string", "description": "Deterministic bundle identity. Owner: evidencebundle.BuildLiveBundle."},
+                    "identity": {"type": "object", "description": "Bundle identity: the scope, profile, and creation time the bundle was built for. Owner: evidencebundle.BuildLiveBundle.", "properties": {
+                      "scope_id": {"type": "string", "description": "Scope the bundle was built for. Owner: evidencebundle.BuildLiveBundle."},
+                      "profile": {"type": "string", "description": "Runtime profile the bundle was built under. Owner: evidencebundle.BuildLiveBundle."},
+                      "created_at": {"type": "string", "format": "date-time", "description": "When the bundle was built. Owner: evidencebundle.BuildLiveBundle."}
                     }},
                     "source": {"type": "object", "description": "Redacted source identity. Owner: evidencebundle.BuildLiveBundle stamping SourceIdentity{Repository: live:stack}.", "required": ["repository"], "properties": {"repository": {"type": "string", "description": "Redacted source repository; always live:stack on the live route. Owner: evidencebundle.BuildLiveBundle."}, "deployment": {"type": "string", "description": "Redacted deployment; absent on the live route. Owner: evidencebundle.SourceIdentity."}}},
                     "redaction": {"type": "object", "description": "Share-safe policy applied before serialization. Owner: evidencebundle.BuildLiveBundle stamping RedactionProfile{Profile: share_safe_v1}.", "required": ["profile", "rules"], "properties": {"profile": {"type": "string", "description": "Redaction profile; always share_safe_v1 on the live route. Owner: evidencebundle.BuildLiveBundle."}, "rules": {"type": "array", "items": {"type": "string"}, "description": "Screen rules applied (handles_only, screened_private_endpoints, screened_credentials, screened_model_inputs_or_outputs). Owner: evidencebundle.BuildLiveBundle."}}},
@@ -41,9 +41,9 @@ const Bundle = `
                     "reproduce": {"type": "array", "description": "Bounded commands, routes, and tools reproducing the bundle. Owner: evidencebundle.BuildLiveBundle.", "items": {"type": "object", "description": "One reproduce call. Owner: evidencebundle.ReproduceCall.", "required": ["kind", "target"], "properties": {"kind": {"type": "string", "description": "Call kind (cli, api). Owner: evidencebundle.ReproduceCall."}, "target": {"type": "string", "description": "Command, route, or tool target. Owner: evidencebundle.ReproduceCall."}, "args": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Call arguments as string pairs, present when the call carries any. Owner: evidencebundle.ReproduceCall."}}}},
                     "bounds": {"type": "object", "description": "Per-layer caps and truncation state. Owner: evidencebundle.Bounds.", "required": ["max_answer_packets", "max_investigation_packets", "max_handles", "truncated"], "properties": {"max_answer_packets": {"type": "integer", "description": "Answer-packet layer cap. Owner: evidencebundle.Bounds."}, "max_investigation_packets": {"type": "integer", "description": "Investigation-packet layer cap. Owner: evidencebundle.Bounds."}, "max_handles": {"type": "integer", "description": "Handle layer cap. Owner: evidencebundle.Bounds."}, "truncated": {"type": "boolean", "description": "True when a layer was capped (domain_backlogs on the live route). Owner: evidencebundle.Bounds."}, "truncated_layers": {"type": "array", "items": {"type": "string"}, "description": "Capped layer names, present when truncated. Owner: evidencebundle.Bounds."}}},
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
-                    "validation": {"type": "object", "properties": {
-                      "status": {"type": "string", "enum": ["passed"]},
-                      "checks": {"type": "array", "items": {"type": "string"}}
+                    "validation": {"type": "object", "description": "Bundle validation outcome. Owner: evidencebundle.BuildLiveBundle.", "properties": {
+                      "status": {"type": "string", "enum": ["passed"], "description": "Validation outcome; always passed on the live route. Owner: evidencebundle.BuildLiveBundle."},
+                      "checks": {"type": "array", "description": "Validation gate names that passed. Owner: evidencebundle.BuildLiveBundle.", "items": {"type": "string"}}
                     }}
                   },
                   "required": ["schema_version", "bundle_id", "identity", "redaction", "contents", "reproduce", "bounds", "validation"]

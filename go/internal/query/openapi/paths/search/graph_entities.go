@@ -35,6 +35,7 @@ const GraphEntities = `
                       "description": "Per-kind facet counts in graphEntityKinds display order. Owner: query/graph_entity_inventory_counts.go decodeGraphEntityKindCounts.",
                       "items": {
                         "type": "object",
+                        "description": "One entity kind row. Owner: query/graph handler entity kinds.",
                         "properties": {
                           "kind": {"type": "string", "description": "Stable console-facing facet id from graphEntityKinds (services, repositories, libraries, container_images, environments, cloud_resources, identity_iam, networking). Owner: query/graph_entity_inventory.go graphEntityKind.key."},
                           "label": {"type": "string", "description": "Single graph label the facet counts (for example Workload for services). Owner: query/graph_entity_inventory.go graphEntityKind.label."},
@@ -49,6 +50,7 @@ const GraphEntities = `
                       "description": "Bounded name-searchable entity page for the requested kind, ordered by name; empty when no kind filter is applied. Owner: query/graph_entity_inventory.go listEntities via graphEntityKindListCypher.",
                       "items": {
                         "type": "object",
+                        "description": "One name-searchable entity. Owner: query/graph handler.",
                         "properties": {
                           "id": {"type": "string", "description": "Graph node id (coalesced to empty when absent). Owner: query/graph_entity_inventory.go listEntities."},
                           "name": {"type": "string", "description": "Human-readable name from the facet nameProp (principal_value for identity_iam). Owner: query/graph_entity_inventory.go listEntities."},

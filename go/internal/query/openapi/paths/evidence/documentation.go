@@ -39,28 +39,30 @@ const Documentation = `
                   "properties": {
                     "facts": {
                       "type": "array",
+                      "description": "Documentation fact rows in the page. Owner: query.documentationFactsResponse.",
                       "items": {
                         "type": "object",
+                        "description": "One documentation fact row. Owner: query.documentationFactsResponse over the Postgres documentation read model.",
                         "properties": {
-                          "fact_id": {"type": "string"},
-                          "fact_kind": {"type": "string"},
-                          "scope_id": {"type": "string"},
-                          "generation_id": {"type": "string"},
-                          "source_system": {"type": "string"},
-                          "source_uri": {"type": "string"},
-                          "source_record_id": {"type": "string"},
-                          "observed_at": {"type": "string", "format": "date-time"},
+                          "fact_id": {"type": "string", "description": "Durable fact identifier. Owner: query.documentationFactsResponse."},
+                          "fact_kind": {"type": "string", "description": "Durable fact kind. Owner: query.documentationFactsResponse."},
+                          "scope_id": {"type": "string", "description": "Scope the fact was observed in. Owner: query.documentationFactsResponse."},
+                          "generation_id": {"type": "string", "description": "Generation the fact was observed at. Owner: query.documentationFactsResponse."},
+                          "source_system": {"type": "string", "description": "Source system behind the fact. Owner: query.documentationFactsResponse."},
+                          "source_uri": {"type": "string", "description": "Source URI behind the fact. Owner: query.documentationFactsResponse."},
+                          "source_record_id": {"type": "string", "description": "Source record id behind the fact. Owner: query.documentationFactsResponse."},
+                          "observed_at": {"type": "string", "format": "date-time", "description": "When the fact was observed. Owner: query.documentationFactsResponse."},
                           "payload": {"type": "object", "additionalProperties": true, "description": "Raw fact_records.payload surfaced verbatim; keys dispatch on fact_kind (source, document, section, link, entity_mention, claim_candidate, semantic_observation, documentation_observation, semantic_documentation_observation, and the documentation_* aliases). Owner: the Postgres documentation read model via query.documentationFactsResponse."}
                         },
                         "required": ["fact_id", "fact_kind", "scope_id", "generation_id", "source_system", "observed_at", "payload"]
                       }
                     },
                     "count": {"type": "integer", "description": "Number of facts returned in this bounded page; not the total population."},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "limit": {"type": "integer", "description": "Page bound the facts were cut to. Owner: query.documentationFactsResponse."},
+                    "truncated": {"type": "boolean", "description": "True when more facts exist past this page. Owner: query.documentationFactsResponse."},
                     "missing_evidence": {"type": "boolean", "description": "True when the scoped request was valid but returned no documentation facts."},
                     "states": {"type": "array", "items": {"type": "string"}, "description": "Bounded read states: no_documentation_facts for an empty page, plus scope_not_found when no scope has the requested scope_id (a scope a scoped token is not granted reads the same), or no_active_generation when the scope exists but has no active generation (a default read never falls back to another generation)."},
-                    "generation_binding": {"type": "object", "description": "Which generation this page was read from. mode is active when generation_id was omitted and explicit when it was set. generation_id is the bound generation, empty when the read spans the active generation of several scopes or the scope has no active generation. is_active mirrors is_active on GET /api/v0/freshness/generations.", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
+                    "generation_binding": {"type": "object", "description": "Which generation this page was read from. mode is active when generation_id was omitted and explicit when it was set. generation_id is the bound generation, empty when the read spans the active generation of several scopes or the scope has no active generation. is_active mirrors is_active on GET /api/v0/freshness/generations. Owner: query.documentationGenerationBindingResponse.", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"], "description": "Whether the read used the active generation or an explicit one. Owner: query.documentationGenerationBindingResponse."}, "generation_id": {"type": "string", "description": "Bound generation id; empty when the read spans generations. Owner: query.documentationGenerationBindingResponse."}, "is_active": {"type": "boolean", "description": "Whether the bound generation is active. Owner: query.documentationGenerationBindingResponse."}}, "required": ["mode", "generation_id", "is_active"]},
                     "next_cursor": {"type": "string", "description": "Cursor to pass as cursor when truncated is true."}
                   },
                   "required": ["facts", "count", "limit", "truncated", "missing_evidence", "states", "generation_binding"]
@@ -116,9 +118,9 @@ const Documentation = `
                   "type": "object",
                   "properties": {
                     "findings": {"type": "array", "items": {"type": "object", "additionalProperties": true, "description": "Stored documentation finding-fact row (finding_id, finding_type, status, source_id, document_id, summary, permissions) plus the computed access_disposition family (access_disposition, permission_denied, content_withheld) with truth/freshness labels preserved on withheld rows. Owner: query.documentationFindingsResponse over stored documentation finding facts."}, "description": "Each finding carries an access_disposition (visible|access_denied|partial|stale|missing) enforced from its bounded source_acl_state and per-caller read decision (#2164). A finding the caller cannot read is disclosed with access_disposition=access_denied, permission_denied=true, content_withheld=true, and its protected content stripped — it is NOT silently dropped, so a reader can distinguish 'no evidence' from 'evidence exists but is denied/partial/stale'. The freshness/truth labels (#2138) are preserved on a withheld finding and never collapsed into the permission error."},
-                    "next_cursor": {"type": "string"},
+                    "next_cursor": {"type": "string", "description": "Opaque cursor for the next page; absent when the page is complete. Owner: query.documentationFindingsResponse."},
                     "states": {"type": "array", "items": {"type": "string"}, "description": "An empty page reports no_documentation_findings and, when proven, scope_not_found or no_active_generation."},
-                    "generation_binding": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
+                    "generation_binding": {"type": "object", "description": "Which generation this page was read from. Owner: query.documentationGenerationBindingResponse.", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"], "description": "Whether the read used the active generation or an explicit one. Owner: query.documentationGenerationBindingResponse."}, "generation_id": {"type": "string", "description": "Bound generation id. Owner: query.documentationGenerationBindingResponse."}, "is_active": {"type": "boolean", "description": "Whether the bound generation is active. Owner: query.documentationGenerationBindingResponse."}}, "required": ["mode", "generation_id", "is_active"]},
                     "coverage": {"type": "object", "description": "Present on target-scoped requests; reports the selected target, target-matching findings returned for explicit targets, related raw fact count, fact-kind buckets, and truncation. Owner: querycontract.DocumentationTargetCoverage.", "properties": {"target": {"type": "object", "description": "What the readback is anchored to (repository, target_kind, target_id, service_id). Owner: querycontract.DocumentationTargetScope.", "properties": {"repository": {"type": "string", "description": "Anchored repository. Owner: querycontract.DocumentationTargetScope."}, "target_kind": {"type": "string", "description": "Anchored target kind. Owner: querycontract.DocumentationTargetScope."}, "target_id": {"type": "string", "description": "Anchored target id. Owner: querycontract.DocumentationTargetScope."}, "service_id": {"type": "string", "description": "Anchored service id. Owner: querycontract.DocumentationTargetScope."}}}, "findings_returned": {"type": "integer", "description": "Target-matching findings returned. Owner: querycontract.DocumentationTargetCoverage."}, "target_fact_count": {"type": "integer", "description": "Related raw fact count. Owner: querycontract.DocumentationTargetCoverage."}, "target_fact_kinds": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Fact-kind buckets for target facts. Owner: querycontract.DocumentationTargetCoverage."}, "source_only_count": {"type": "integer", "description": "Source-only fact count, present when the readback found any. Owner: querycontract.DocumentationTargetCoverage."}, "source_only_fact_kinds": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Fact-kind buckets for source-only facts. Owner: querycontract.DocumentationTargetCoverage."}, "truncated": {"type": "boolean", "description": "Whether the fact preview was cut at its limit. Owner: querycontract.DocumentationTargetCoverage."}}},
                     "related_facts": {"type": "array", "items": {"type": "object", "additionalProperties": true, "description": "Raw documentation fact row (fact_id, fact_kind, scope_id, generation_id, source_system, observed_at, fact-kind-dispatched payload). Owner: the Postgres documentation read model via query.documentationFindingsResponse."}, "description": "Bounded preview of raw documentation facts that reference the selected target scope."},
                     "missing_evidence": {"type": "array", "items": {"type": "object", "description": "One reason the readback came back thin. Owner: querycontract.DocumentationMissingEvidence.", "required": ["reason"], "properties": {"reason": {"type": "string", "description": "Why the readback is thin. Owner: querycontract.DocumentationMissingEvidence."}, "detail": {"type": "string", "description": "Detail for the reason. Owner: querycontract.DocumentationMissingEvidence."}}}, "description": "Reasons an empty target-scoped findings page is not the same as true documentation absence."}
@@ -167,28 +169,28 @@ const Documentation = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "packet_id": {"type": "string"},
-                    "packet_version": {"type": "string"},
-                    "generated_at": {"type": "string", "format": "date-time"},
+                    "packet_id": {"type": "string", "description": "Stored evidence packet id. Owner: query.ContentReader.DocumentationEvidencePacket."},
+                    "packet_version": {"type": "string", "description": "Stored evidence packet version. Owner: query.ContentReader.DocumentationEvidencePacket."},
+                    "generated_at": {"type": "string", "format": "date-time", "description": "When the packet was generated. Owner: query.ContentReader.DocumentationEvidencePacket."},
                     "finding": {"type": "object", "additionalProperties": true, "description": "Stored finding layer of the documentation evidence packet (finding identity and truth/freshness labels for packet_version). Owner: the stored documentation evidence packet read by query.ContentReader.DocumentationEvidencePacket."},
                     "document": {"type": "object", "additionalProperties": true, "description": "Stored document layer of the documentation evidence packet (source document identity and metadata for packet_version). Owner: the stored documentation evidence packet read by query.ContentReader.DocumentationEvidencePacket."},
                     "section": {"type": "object", "additionalProperties": true, "description": "Stored section layer of the documentation evidence packet (section identity and heading for packet_version). Owner: the stored documentation evidence packet read by query.ContentReader.DocumentationEvidencePacket."},
                     "bounded_excerpt": {"type": "object", "additionalProperties": true, "description": "Stored bounded excerpt layer of the documentation evidence packet (content window for packet_version). Owner: the stored documentation evidence packet read by query.ContentReader.DocumentationEvidencePacket."},
                     "linked_entities": {"type": "array", "description": "Stored linked-entity rows of the documentation evidence packet. Owner: the stored documentation evidence packet read by query.ContentReader.DocumentationEvidencePacket.", "items": {"type": "object", "additionalProperties": true, "description": "One linked entity (entity_type, entity_id). Owner: the stored documentation evidence packet."}},
                     "current_truth": {"type": "object", "additionalProperties": true, "description": "Stored current-truth layer of the documentation evidence packet for packet_version. Owner: the stored documentation evidence packet read by query.ContentReader.DocumentationEvidencePacket."},
-                    "unified_evidence": {"type": "object", "description": "Canonical truth.Evidence projection of this finding (#3489, #3637): confidence, citation (entity_id + content_hash + byte_offset/byte_length when captured), and typed provenance, so documentation evidence describes proof with the same shape as relationship evidence and citation packets. byte_offset and byte_length are omitted when the byte window was not captured during extraction; callers must not fabricate a window when these fields are absent.", "properties": {
-                      "kind": {"type": "string"},
-                      "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                      "citation": {"type": "object", "properties": {
-                        "entity_id": {"type": "string"},
-                        "content_hash": {"type": "string"},
+                    "unified_evidence": {"type": "object", "description": "Canonical truth.Evidence projection of this finding (#3489, #3637): confidence, citation (entity_id + content_hash + byte_offset/byte_length when captured), and typed provenance, so documentation evidence describes proof with the same shape as relationship evidence and citation packets. byte_offset and byte_length are omitted when the byte window was not captured during extraction; callers must not fabricate a window when these fields are absent. Owner: querycontract truth.Evidence.", "properties": {
+                      "kind": {"type": "string", "description": "Evidence kind. Owner: querycontract truth.Evidence."},
+                      "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Evidence confidence. Owner: querycontract truth.Evidence."},
+                      "citation": {"type": "object", "description": "Addressable citation into the underlying evidence. Owner: querycontract truth.Evidence citation.", "properties": {
+                        "entity_id": {"type": "string", "description": "Cited entity id. Owner: querycontract truth.Evidence citation."},
+                        "content_hash": {"type": "string", "description": "Content hash of the cited bytes. Owner: querycontract truth.Evidence citation."},
                         "byte_offset": {"type": "integer", "description": "Document-absolute byte offset of the first byte of the cited claim text. Present only when the byte window was captured during extraction; absent means the citation is valid via entity_id alone."},
                         "byte_length": {"type": "integer", "description": "Byte length of the cited claim text window. Present only alongside byte_offset; a zero or absent value means the byte window was not captured."}
                       }},
-                      "provenance": {"type": "object", "properties": {
-                        "basis": {"type": "string", "enum": ["source_content", "graph_projection", "assertion", "derived"]},
-                        "rationale": {"type": "string"},
-                        "source": {"type": "string"}
+                      "provenance": {"type": "object", "description": "Typed evidence provenance. Owner: querycontract truth.Evidence provenance.", "properties": {
+                        "basis": {"type": "string", "enum": ["source_content", "graph_projection", "assertion", "derived"], "description": "Provenance basis. Owner: querycontract truth.Evidence provenance."},
+                        "rationale": {"type": "string", "description": "Provenance rationale. Owner: querycontract truth.Evidence provenance."},
+                        "source": {"type": "string", "description": "Provenance source. Owner: querycontract truth.Evidence provenance."}
                       }}
                     }},
                     "evidence_refs": {"type": "array", "description": "Stored evidence-reference rows of the documentation evidence packet. Owner: the stored documentation evidence packet read by query.ContentReader.DocumentationEvidencePacket.", "items": {"type": "object", "additionalProperties": true, "description": "One evidence reference row. Owner: the stored documentation evidence packet."}},
@@ -251,10 +253,10 @@ const Documentation = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "packet_id": {"type": "string"},
-                    "packet_version": {"type": "string"},
-                    "freshness_state": {"type": "string"},
-                    "latest_packet_version": {"type": "string"}
+                    "packet_id": {"type": "string", "description": "Stored evidence packet id. Owner: query.ContentReader.DocumentationEvidencePacketFreshness."},
+                    "packet_version": {"type": "string", "description": "Stored evidence packet version. Owner: query.ContentReader.DocumentationEvidencePacketFreshness."},
+                    "freshness_state": {"type": "string", "description": "Packet freshness state. Owner: query.ContentReader.DocumentationEvidencePacketFreshness."},
+                    "latest_packet_version": {"type": "string", "description": "Latest stored packet version for the finding. Owner: query.ContentReader.DocumentationEvidencePacketFreshness."}
                   },
                   "required": ["packet_id", "packet_version", "freshness_state", "latest_packet_version"]
                 }

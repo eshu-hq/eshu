@@ -293,13 +293,14 @@ const ComponentsWorkloadSession = `      "WorkloadContext": {
                   "description": "Direct-runtime platforms attached to this instance; empty when none attached.",
                   "items": {
                     "type": "object",
+                    "description": "One direct-runtime platform with its supporting RUNS_ON relationships. Owner: entity/workload_platform.go attachDirectPlatforms.",
                     "required": ["topology_basis"],
                     "properties": {
                       "platform_id": {"type": "string", "description": "Canonical graph Platform identity; never derived from the display name."},
                       "platform_name": {"type": "string", "description": "Platform display name from the RUNS_ON edge target."},
-                      "platform_kind": {"type": "string"},
-                      "platform_confidence": {"type": "number"},
-                      "platform_reason": {"type": "string"},
+                      "platform_kind": {"type": "string", "description": "Platform kind from the RUNS_ON edge target; empty when the edge carries none."},
+                      "platform_confidence": {"type": "number", "description": "Confidence of this attached platform (0.0 when the edge carries none)."},
+                      "platform_reason": {"type": "string", "description": "Rationale of this attached platform (empty when the edge carries none)."},
                       "topology_basis": {"type": "string", "enum": ["direct_runtime"], "description": "The platform is supported by an exact WorkloadInstance RUNS_ON Platform relationship."},
                       "topology_edges": {
                         "type": "array",
@@ -368,8 +369,8 @@ const ComponentsWorkloadSession = `      "WorkloadContext": {
                 "platform_provider": {"type": "string", "description": "Platform provider from the provisioning edge target; empty when the node carries none."},
                 "platform_region": {"type": "string", "description": "Platform region from the provisioning edge target; empty when the node carries none."},
                 "platform_locator": {"type": "string", "description": "Platform locator from the provisioning edge target."},
-                "platform_confidence": {"type": "number"},
-                "platform_reason": {"type": "string"},
+                "platform_confidence": {"type": "number", "description": "Confidence of this fallback platform (0.0 when the edge carries none)."},
+                "platform_reason": {"type": "string", "description": "Rationale of this fallback platform (empty when the edge carries none)."},
                 "topology_basis": {"type": "string", "enum": ["provisioning_fallback"], "description": "The platform is supported by exact repository provisioning relationships, not a WorkloadInstance RUNS_ON relationship."},
                 "topology_edges": {
                   "type": "array",

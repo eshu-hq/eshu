@@ -44,7 +44,7 @@ const AdvisoryEvidence = `
                       "type": "array",
                       "description": "Canonical advisory rows emitted by listAdvisoryEvidence from advisory.EvidenceRow; source evidence only, no repository, image, workload, or deployment impact implied.",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One canonical advisory row. emitted by listAdvisoryEvidence.",
                         "properties": {
                           "advisory_key": {"type": "string", "description": "Canonical advisory key emitted by listAdvisoryEvidence (advisory.EvidenceRow.Key)."},
                           "canonical_id": {"type": "string", "description": "Canonical advisory id emitted by listAdvisoryEvidence (advisory.EvidenceRow.CanonicalID)."},
@@ -56,7 +56,7 @@ const AdvisoryEvidence = `
                             "type": "array",
                             "description": "Source-reported advisory identity, CVSS v3/v4 vectors, severity, CWE, and withdrawal evidence, emitted by listAdvisoryEvidence (advisory.SourceEvidence).",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One advisory source evidence row. emitted by listAdvisoryEvidence (advisory.SourceEvidence).",
                               "properties": {
                                 "source": {"type": "string", "description": "Source system that reported the observation, emitted by listAdvisoryEvidence (advisory.SourceEvidence.Source)."},
                                 "advisory_id": {"type": "string", "description": "Source-native advisory id, emitted by listAdvisoryEvidence (advisory.SourceEvidence.ID)."},
@@ -73,7 +73,7 @@ const AdvisoryEvidence = `
                                 "cvss_v3": {"type": "string", "description": "Source CVSS v3 vector, emitted by listAdvisoryEvidence (advisory.SourceEvidence.CVSSVectorV3)."},
                                 "cvss_v4": {"type": "string", "description": "Source CVSS v4 vector, emitted by listAdvisoryEvidence (advisory.SourceEvidence.CVSSVectorV4)."},
                                 "cvss_metrics": {"type": "object", "additionalProperties": {}, "description": "Source CVSS metric map with implementation-defined keys, emitted by listAdvisoryEvidence (advisory.SourceEvidence.CVSSMetrics)."},
-                                "severity": {"type": "array", "items": {"type": "object", "additionalProperties": {"type": "string"}}, "description": "Source severity entries as string maps, emitted by listAdvisoryEvidence (advisory.SourceEvidence.Severity)."},
+                                "severity": {"type": "array", "items": {"type": "object", "description": "One source severity entry (open string map). emitted by listAdvisoryEvidence (advisory.SourceEvidence.Severity).", "additionalProperties": {"type": "string"}}, "description": "Source severity entries as string maps, emitted by listAdvisoryEvidence (advisory.SourceEvidence.Severity)."},
                                 "cwes": {"type": "array", "items": {"type": "string"}, "description": "CWE ids reported by the source, emitted by listAdvisoryEvidence (advisory.SourceEvidence.CWEs)."},
                                 "source_fact_ids": {"type": "array", "items": {"type": "string"}, "description": "Source fact ids behind the observation, emitted by listAdvisoryEvidence (advisory.SourceEvidence.SourceFactIDs)."}
                               }
@@ -83,7 +83,7 @@ const AdvisoryEvidence = `
                             "type": "array",
                             "description": "Source-reported package ranges and fixed versions emitted by listAdvisoryEvidence (advisory.AffectedPackage). These are not installed-version or repository impact claims.",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One affected package row. emitted by listAdvisoryEvidence (advisory.AffectedPackage).",
                               "properties": {
                                 "source": {"type": "string", "description": "Source system that reported the range, emitted by listAdvisoryEvidence (advisory.AffectedPackage.Source)."},
                                 "advisory_id": {"type": "string", "description": "Source-native advisory id, emitted by listAdvisoryEvidence (advisory.AffectedPackage.ID)."},
@@ -94,7 +94,7 @@ const AdvisoryEvidence = `
                                 "purl": {"type": "string", "description": "Package URL, emitted by listAdvisoryEvidence (advisory.AffectedPackage.PURL)."},
                                 "affected_range": {"type": "string", "description": "Affected version range, emitted by listAdvisoryEvidence (advisory.AffectedPackage.AffectedRange)."},
                                 "parsed_affected_range": {"type": "object", "additionalProperties": {}, "description": "Parsed affected-range map with source-defined keys, emitted by listAdvisoryEvidence (advisory.AffectedPackage.ParsedAffectedRange)."},
-                                "affected_ranges": {"type": "array", "items": {"type": "object", "additionalProperties": {}}, "description": "Affected range entries as open maps, emitted by listAdvisoryEvidence (advisory.AffectedPackage.AffectedRanges)."},
+                                "affected_ranges": {"type": "array", "items": {"type": "object", "description": "One affected range entry (open map). emitted by listAdvisoryEvidence (advisory.AffectedPackage.AffectedRanges).", "additionalProperties": {}}, "description": "Affected range entries as open maps, emitted by listAdvisoryEvidence (advisory.AffectedPackage.AffectedRanges)."},
                                 "affected_versions": {"type": "array", "items": {"type": "string"}, "description": "Affected versions, emitted by listAdvisoryEvidence (advisory.AffectedPackage.AffectedVersions)."},
                                 "fixed_versions": {"type": "array", "items": {"type": "string"}, "description": "Fixed versions, emitted by listAdvisoryEvidence (advisory.AffectedPackage.FixedVersions)."},
                                 "source_fact_id": {"type": "string", "description": "Source fact id behind the row, emitted by listAdvisoryEvidence (advisory.AffectedPackage.SourceFactID)."}
@@ -105,7 +105,7 @@ const AdvisoryEvidence = `
                             "type": "array",
                             "description": "NVD CPE/product applicability rows emitted by listAdvisoryEvidence (advisory.AffectedProduct). These are product evidence only.",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One affected product row. emitted by listAdvisoryEvidence (advisory.AffectedProduct).",
                               "properties": {
                                 "source": {"type": "string", "description": "Source system that reported the product row, emitted by listAdvisoryEvidence (advisory.AffectedProduct.Source)."},
                                 "cve_id": {"type": "string", "description": "CVE id the product row applies to, emitted by listAdvisoryEvidence (advisory.AffectedProduct.CVEID)."},
@@ -125,7 +125,7 @@ const AdvisoryEvidence = `
                             }
                           },
                           "epss": {"type": "array", "description": "FIRST EPSS score observations emitted by listAdvisoryEvidence (advisory.EPSSObservation).", "items": {
-                            "type": "object",
+                            "type": "object", "description": "One EPSS score observation. emitted by listAdvisoryEvidence (advisory.EPSSObservation).",
                             "properties": {
                               "source": {"type": "string", "description": "Source system behind the observation, emitted by listAdvisoryEvidence (advisory.EPSSObservation.Source)."},
                               "cve_id": {"type": "string", "description": "CVE id the score applies to, emitted by listAdvisoryEvidence (advisory.EPSSObservation.CVEID)."},
@@ -136,7 +136,7 @@ const AdvisoryEvidence = `
                             }
                           }},
                           "kev": {"type": "array", "description": "CISA KEV known-exploited observations emitted by listAdvisoryEvidence (advisory.KEVObservation).", "items": {
-                            "type": "object",
+                            "type": "object", "description": "One known-exploited entry. emitted by listAdvisoryEvidence (advisory.KEVObservation).",
                             "properties": {
                               "source": {"type": "string", "description": "Source system behind the observation, emitted by listAdvisoryEvidence (advisory.KEVObservation.Source)."},
                               "cve_id": {"type": "string", "description": "CVE id the KEV entry applies to, emitted by listAdvisoryEvidence (advisory.KEVObservation.CVEID)."},
@@ -149,7 +149,7 @@ const AdvisoryEvidence = `
                             }
                           }},
                           "references": {"type": "array", "description": "Sanitized source reference URLs emitted by listAdvisoryEvidence (advisory.ReferenceEvidence).", "items": {
-                            "type": "object",
+                            "type": "object", "description": "One advisory reference. emitted by listAdvisoryEvidence (advisory.ReferenceEvidence).",
                             "properties": {
                               "source": {"type": "string", "description": "Source system behind the reference, emitted by listAdvisoryEvidence (advisory.ReferenceEvidence.Source)."},
                               "advisory_id": {"type": "string", "description": "Source-native advisory id, emitted by listAdvisoryEvidence (advisory.ReferenceEvidence.ID)."},
@@ -163,11 +163,11 @@ const AdvisoryEvidence = `
                             "type": "array",
                             "description": "Source-level disagreement on severity, withdrawn status, affected ranges, or fixed versions without selecting a winner, emitted by listAdvisoryEvidence (advisory.SourceDisagreement).",
                             "items": {
-                              "type": "object",
+                              "type": "object", "description": "One source disagreement row. emitted by listAdvisoryEvidence (advisory.SourceDisagreement).",
                               "properties": {
                                 "field": {"type": "string", "description": "Disagreed field, emitted by listAdvisoryEvidence (advisory.SourceDisagreement.Field)."},
                                 "values": {"type": "array", "description": "One value per disagreeing source, emitted by listAdvisoryEvidence (advisory.DisagreementValue).", "items": {
-                                  "type": "object",
+                                  "type": "object", "description": "One disagreement value. emitted by listAdvisoryEvidence (advisory.DisagreementValue).",
                                   "properties": {
                                     "source": {"type": "string", "description": "Disagreeing source, emitted by listAdvisoryEvidence (advisory.DisagreementValue.Source)."},
                                     "value": {"type": "string", "description": "That source's value, emitted by listAdvisoryEvidence (advisory.DisagreementValue.Value)."}
@@ -227,7 +227,7 @@ const AdvisoryEvidence = `
                     "osv_ids": {"type": "array", "items": {"type": "string"}, "description": "Every recognized OSV-family/source advisory id on the advisory (PYSEC, GO, RUSTSEC, MAL, OSV, distro, and colon-suffixed errata ids) emitted by getVulnerabilityDetail (advisory.EvidenceRow.OSVIDs)."},
                     "source_ids": {"type": "array", "items": {"type": "string"}, "description": "Per-source advisory identities as source:advisory_id pairs, emitted by getVulnerabilityDetail (advisory.EvidenceRow.SourceIDs)."},
                     "sources": {"type": "array", "description": "Source-reported advisory identity, CVSS vectors, severity, CWE, and withdrawal evidence, emitted by getVulnerabilityDetail (advisory.SourceEvidence with the same keys as the evidence page sources items).", "items": {
-                      "type": "object",
+                      "type": "object", "description": "One advisory source evidence row. emitted by getVulnerabilityDetail (advisory.SourceEvidence with the same keys as the evidence page sources items).",
                       "properties": {
                         "source": {"type": "string", "description": "Source system that reported the observation, emitted by getVulnerabilityDetail (advisory.SourceEvidence.Source)."},
                         "advisory_id": {"type": "string", "description": "Source-native advisory id, emitted by getVulnerabilityDetail (advisory.SourceEvidence.ID)."},
@@ -244,13 +244,13 @@ const AdvisoryEvidence = `
                         "cvss_v3": {"type": "string", "description": "Source CVSS v3 vector, emitted by getVulnerabilityDetail (advisory.SourceEvidence.CVSSVectorV3)."},
                         "cvss_v4": {"type": "string", "description": "Source CVSS v4 vector, emitted by getVulnerabilityDetail (advisory.SourceEvidence.CVSSVectorV4)."},
                         "cvss_metrics": {"type": "object", "additionalProperties": {}, "description": "Source CVSS metric map with implementation-defined keys, emitted by getVulnerabilityDetail (advisory.SourceEvidence.CVSSMetrics)."},
-                        "severity": {"type": "array", "items": {"type": "object", "additionalProperties": {"type": "string"}}, "description": "Source severity entries as string maps, emitted by getVulnerabilityDetail (advisory.SourceEvidence.Severity)."},
+                        "severity": {"type": "array", "items": {"type": "object", "description": "One source severity entry (open string map). emitted by getVulnerabilityDetail (advisory.SourceEvidence.Severity).", "additionalProperties": {"type": "string"}}, "description": "Source severity entries as string maps, emitted by getVulnerabilityDetail (advisory.SourceEvidence.Severity)."},
                         "cwes": {"type": "array", "items": {"type": "string"}, "description": "CWE ids reported by the source, emitted by getVulnerabilityDetail (advisory.SourceEvidence.CWEs)."},
                         "source_fact_ids": {"type": "array", "items": {"type": "string"}, "description": "Source fact ids behind the observation, emitted by getVulnerabilityDetail (advisory.SourceEvidence.SourceFactIDs)."}
                       }
                     }},
                     "affected_packages": {"type": "array", "description": "Source-reported package ranges and fixed versions, emitted by getVulnerabilityDetail (advisory.AffectedPackage with the same keys as the evidence page affected_packages items).", "items": {
-                      "type": "object",
+                      "type": "object", "description": "One affected package row. emitted by getVulnerabilityDetail (advisory.AffectedPackage with the same keys as the evidence page affected_packages items).",
                       "properties": {
                         "source": {"type": "string", "description": "Source system that reported the range, emitted by getVulnerabilityDetail (advisory.AffectedPackage.Source)."},
                         "advisory_id": {"type": "string", "description": "Source-native advisory id, emitted by getVulnerabilityDetail (advisory.AffectedPackage.ID)."},
@@ -261,14 +261,14 @@ const AdvisoryEvidence = `
                         "purl": {"type": "string", "description": "Package URL, emitted by getVulnerabilityDetail (advisory.AffectedPackage.PURL)."},
                         "affected_range": {"type": "string", "description": "Affected version range, emitted by getVulnerabilityDetail (advisory.AffectedPackage.AffectedRange)."},
                         "parsed_affected_range": {"type": "object", "additionalProperties": {}, "description": "Parsed affected-range map with source-defined keys, emitted by getVulnerabilityDetail (advisory.AffectedPackage.ParsedAffectedRange)."},
-                        "affected_ranges": {"type": "array", "items": {"type": "object", "additionalProperties": {}}, "description": "Affected range entries as open maps, emitted by getVulnerabilityDetail (advisory.AffectedPackage.AffectedRanges)."},
+                        "affected_ranges": {"type": "array", "items": {"type": "object", "description": "One affected range entry (open map). emitted by getVulnerabilityDetail (advisory.AffectedPackage.AffectedRanges).", "additionalProperties": {}}, "description": "Affected range entries as open maps, emitted by getVulnerabilityDetail (advisory.AffectedPackage.AffectedRanges)."},
                         "affected_versions": {"type": "array", "items": {"type": "string"}, "description": "Affected versions, emitted by getVulnerabilityDetail (advisory.AffectedPackage.AffectedVersions)."},
                         "fixed_versions": {"type": "array", "items": {"type": "string"}, "description": "Fixed versions, emitted by getVulnerabilityDetail (advisory.AffectedPackage.FixedVersions)."},
                         "source_fact_id": {"type": "string", "description": "Source fact id behind the row, emitted by getVulnerabilityDetail (advisory.AffectedPackage.SourceFactID)."}
                       }
                     }},
                     "affected_products": {"type": "array", "description": "NVD CPE/product applicability rows, emitted by getVulnerabilityDetail (advisory.AffectedProduct with the same keys as the evidence page affected_products items).", "items": {
-                      "type": "object",
+                      "type": "object", "description": "One affected product row. emitted by getVulnerabilityDetail (advisory.AffectedProduct with the same keys as the evidence page affected_products items).",
                       "properties": {
                         "source": {"type": "string", "description": "Source system that reported the product row, emitted by getVulnerabilityDetail (advisory.AffectedProduct.Source)."},
                         "cve_id": {"type": "string", "description": "CVE id the product row applies to, emitted by getVulnerabilityDetail (advisory.AffectedProduct.CVEID)."},
@@ -287,7 +287,7 @@ const AdvisoryEvidence = `
                       }
                     }},
                     "epss": {"type": "array", "description": "FIRST EPSS score observations, emitted by getVulnerabilityDetail (advisory.EPSSObservation with the same keys as the evidence page epss items).", "items": {
-                      "type": "object",
+                      "type": "object", "description": "One EPSS score observation. emitted by getVulnerabilityDetail (advisory.EPSSObservation with the same keys as the evidence page epss items).",
                       "properties": {
                         "source": {"type": "string", "description": "Source system behind the observation, emitted by getVulnerabilityDetail (advisory.EPSSObservation.Source)."},
                         "cve_id": {"type": "string", "description": "CVE id the score applies to, emitted by getVulnerabilityDetail (advisory.EPSSObservation.CVEID)."},
@@ -298,7 +298,7 @@ const AdvisoryEvidence = `
                       }
                     }},
                     "kev": {"type": "array", "description": "CISA KEV known-exploited observations, emitted by getVulnerabilityDetail (advisory.KEVObservation with the same keys as the evidence page kev items).", "items": {
-                      "type": "object",
+                      "type": "object", "description": "One known-exploited entry. emitted by getVulnerabilityDetail (advisory.KEVObservation with the same keys as the evidence page kev items).",
                       "properties": {
                         "source": {"type": "string", "description": "Source system behind the observation, emitted by getVulnerabilityDetail (advisory.KEVObservation.Source)."},
                         "cve_id": {"type": "string", "description": "CVE id the KEV entry applies to, emitted by getVulnerabilityDetail (advisory.KEVObservation.CVEID)."},
@@ -311,7 +311,7 @@ const AdvisoryEvidence = `
                       }
                     }},
                     "references": {"type": "array", "description": "Sanitized source reference URLs, emitted by getVulnerabilityDetail (advisory.ReferenceEvidence with the same keys as the evidence page references items).", "items": {
-                      "type": "object",
+                      "type": "object", "description": "One advisory reference. emitted by getVulnerabilityDetail (advisory.ReferenceEvidence with the same keys as the evidence page references items).",
                       "properties": {
                         "source": {"type": "string", "description": "Source system behind the reference, emitted by getVulnerabilityDetail (advisory.ReferenceEvidence.Source)."},
                         "advisory_id": {"type": "string", "description": "Source-native advisory id, emitted by getVulnerabilityDetail (advisory.ReferenceEvidence.ID)."},
@@ -322,11 +322,11 @@ const AdvisoryEvidence = `
                       }
                     }},
                     "source_disagreements": {"type": "array", "description": "Source-level disagreement without selecting a winner, emitted by getVulnerabilityDetail (advisory.SourceDisagreement with the same keys as the evidence page source_disagreements items).", "items": {
-                      "type": "object",
+                      "type": "object", "description": "One source disagreement row. emitted by getVulnerabilityDetail (advisory.SourceDisagreement with the same keys as the evidence page source_disagreements items).",
                       "properties": {
                         "field": {"type": "string", "description": "Disagreed field, emitted by getVulnerabilityDetail (advisory.SourceDisagreement.Field)."},
                         "values": {"type": "array", "description": "One value per disagreeing source, emitted by getVulnerabilityDetail (advisory.DisagreementValue).", "items": {
-                          "type": "object",
+                          "type": "object", "description": "One disagreement value. emitted by getVulnerabilityDetail (advisory.DisagreementValue).",
                           "properties": {
                             "source": {"type": "string", "description": "Disagreeing source, emitted by getVulnerabilityDetail (advisory.DisagreementValue.Source)."},
                             "value": {"type": "string", "description": "That source's value, emitted by getVulnerabilityDetail (advisory.DisagreementValue.Value)."}

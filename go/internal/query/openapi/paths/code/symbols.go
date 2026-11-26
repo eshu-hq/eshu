@@ -104,7 +104,7 @@ const Symbols = `
                     "language": {"type": "string", "description": "Language filter echoed by handleStructuralInventory."},
                     "inventory_kind": {"type": "string", "description": "Inventory kind echoed by handleStructuralInventory."},
                     "entity_kind": {"type": "string", "description": "Entity kind echoed by handleStructuralInventory."},
-                    "results": {"type": "array", "description": "Inventory rows. Entity rows carry source_cache clipped at read time to 4096 bytes: a clipped row adds source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes, and source_handle locates the full body for get_entity_content or get_file_lines. The docstring, and every echo derived from it, is clipped the same way to 512 bytes: a clipped row adds docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.", "items": {"type": "object", "additionalProperties": true}},
+                    "results": {"type": "array", "description": "Inventory rows. Entity rows carry source_cache clipped at read time to 4096 bytes: a clipped row adds source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes, and source_handle locates the full body for get_entity_content or get_file_lines. The docstring, and every echo derived from it, is clipped the same way to 512 bytes: a clipped row adds docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.", "items": {"type": "object", "description": "One structure inventory row (open map). Owner: structure inventory handler.", "additionalProperties": true}},
                     "count": {"type": "integer", "description": "Rows on this page counted by handleStructuralInventory."},
                     "limit": {"type": "integer", "description": "Page bound echoed by handleStructuralInventory."},
                     "offset": {"type": "integer", "description": "Page offset echoed by handleStructuralInventory."},
@@ -175,13 +175,14 @@ const Symbols = `
                   "properties": {
                     "query_type": {"type": "string", "description": "Query type echoed by handleImportDependencyInvestigation."},
                     "scope": {"type": "object", "description": "Resolved investigation scope keyed by scope field names, per handleImportDependencyInvestigation.", "additionalProperties": true},
-                    "dependencies": {"type": "array", "description": "Canonical rows for imports_by_file, importers, and module_dependencies query_type values. One row per (file, module) pair, which is the identity of the underlying File-[:IMPORTS]->Module edge. imported_name and alias are populated only when every import statement joining that file to that module agrees on them: a file importing two symbols from one module returns the row with both fields empty rather than naming an arbitrary one of the two.", "items": {"type": "object", "additionalProperties": true}},
-                    "modules": {"type": "array", "description": "Canonical rows for package_imports query_type.", "items": {"type": "object", "additionalProperties": true}},
+                    "dependencies": {"type": "array", "description": "Canonical rows for imports_by_file, importers, and module_dependencies query_type values. One row per (file, module) pair, which is the identity of the underlying File-[:IMPORTS]->Module edge. imported_name and alias are populated only when every import statement joining that file to that module agrees on them: a file importing two symbols from one module returns the row with both fields empty rather than naming an arbitrary one of the two. Owner: handleImportDependencyInvestigation.", "items": {"type": "object", "description": "One (file, module) dependency row (open map). Owner: handleImportDependencyInvestigation.", "additionalProperties": true}},
+                    "modules": {"type": "array", "description": "Canonical rows for package_imports query_type. Owner: handleImportDependencyInvestigation.", "items": {"type": "object", "description": "One package import row (open map). Owner: handleImportDependencyInvestigation.", "additionalProperties": true}},
                     "cycles": {
                       "type": "array",
                       "description": "Canonical rows for file_import_cycles query_type: bounded simple Python import cycles ordered length-ascending, then normalized path. cycle_length counts edges; cycle_path closes back on its first file; cycle_edges carries one IMPORTS proof edge per hop. Enumeration stops at 1000 cycles or at a fixed step budget, whichever comes first, and reports truncated:true with coverage.cycle_enumeration_cap, coverage.cycle_enumeration_step_budget, and coverage.cycle_enumeration_stop_reason.",
                       "items": {
                         "type": "object",
+                        "description": "One import cycle row. Owner: handleImportDependencyInvestigation.",
                         "properties": {
                           "repo_id": {"type": "string", "description": "Repository id of the cycle, per handleImportDependencyInvestigation."},
                           "repo_name": {"type": "string", "description": "Repository name of the cycle, per handleImportDependencyInvestigation."},
@@ -200,6 +201,7 @@ const Symbols = `
                             "description": "One IMPORTS proof edge per cycle hop, per handleImportDependencyInvestigation.",
                             "items": {
                               "type": "object",
+                              "description": "One IMPORTS proof edge. Owner: handleImportDependencyInvestigation.",
                               "properties": {
                                 "relationship_type": {"type": "string", "description": "Always IMPORTS for cycle edges, per handleImportDependencyInvestigation.", "enum": ["IMPORTS"]},
                                 "source_file": {"type": "string", "description": "Edge source file, per handleImportDependencyInvestigation."},
@@ -216,7 +218,7 @@ const Symbols = `
                         "additionalProperties": true
                       }
                     },
-                    "cross_module_calls": {"type": "array", "description": "Canonical rows for cross_module_calls query_type.", "items": {"type": "object", "additionalProperties": true}},
+                    "cross_module_calls": {"type": "array", "description": "Canonical rows for cross_module_calls query_type. Owner: handleImportDependencyInvestigation.", "items": {"type": "object", "description": "One cross-module call row (open map). Owner: handleImportDependencyInvestigation.", "additionalProperties": true}},
                     "count": {"type": "integer", "description": "Rows on this page counted by handleImportDependencyInvestigation."},
                     "limit": {"type": "integer", "description": "Page bound echoed by handleImportDependencyInvestigation."},
                     "offset": {"type": "integer", "description": "Page offset echoed by handleImportDependencyInvestigation."},
@@ -286,7 +288,7 @@ const Symbols = `
                   "properties": {
                     "metric_type": {"type": "string", "description": "Metric type echoed by handleCallGraphMetrics."},
                     "scope": {"type": "object", "description": "Resolved read scope keyed by scope field names, per handleCallGraphMetrics.", "additionalProperties": true},
-                    "functions": {"type": "array", "description": "Canonical call graph metric rows.", "items": {"type": "object", "additionalProperties": true}},
+                    "functions": {"type": "array", "description": "Canonical call graph metric rows. Owner: call-graph metrics handler.", "items": {"type": "object", "description": "One call graph metric row (open map). Owner: call-graph metrics handler.", "additionalProperties": true}},
                     "count": {"type": "integer", "description": "Rows on this page counted by handleCallGraphMetrics."},
                     "limit": {"type": "integer", "description": "Page bound echoed by handleCallGraphMetrics."},
                     "offset": {"type": "integer", "description": "Page offset echoed by handleCallGraphMetrics."},
@@ -358,11 +360,11 @@ const Symbols = `
                     "intent": {"type": "string", "description": "Caller intent echoed by handleTopicInvestigation."},
                     "scope": {"type": "object", "description": "Resolved investigation scope (codeTopicScope) keyed by scope field names, per handleTopicInvestigation.", "additionalProperties": true},
                     "searched_terms": {"type": "array", "description": "Search terms probed for the topic, per handleTopicInvestigation.", "items": {"type": "string"}},
-                    "matched_files": {"type": "array", "description": "Ranked file matches (content-index rows) returned by handleTopicInvestigation.", "items": {"type": "object", "additionalProperties": true}},
-                    "matched_symbols": {"type": "array", "description": "Ranked symbol matches (content-index rows) returned by handleTopicInvestigation.", "items": {"type": "object", "additionalProperties": true}},
-                    "evidence_groups": {"type": "array", "description": "Grouped evidence assembled by handleTopicInvestigation.", "items": {"type": "object", "additionalProperties": true}},
-                    "call_graph_handles": {"type": "array", "description": "Call-graph follow-up handles for the top row, per codeTopicCallGraphHandle.", "items": {"type": "object", "additionalProperties": true}},
-                    "recommended_next_calls": {"type": "array", "description": "Follow-up calls from codeTopicRecommendedNextCalls: source reads for the top row, or find_symbol plus search_file_content probes when no rows matched.", "items": {"type": "object", "additionalProperties": true}},
+                    "matched_files": {"type": "array", "description": "Ranked file matches (content-index rows) returned by handleTopicInvestigation.", "items": {"type": "object", "description": "One ranked file match (open map). Owner: handleTopicInvestigation.", "additionalProperties": true}},
+                    "matched_symbols": {"type": "array", "description": "Ranked symbol matches (content-index rows) returned by handleTopicInvestigation.", "items": {"type": "object", "description": "One ranked symbol match (open map). Owner: handleTopicInvestigation.", "additionalProperties": true}},
+                    "evidence_groups": {"type": "array", "description": "Grouped evidence assembled by handleTopicInvestigation.", "items": {"type": "object", "description": "One evidence group (open map). Owner: handleTopicInvestigation.", "additionalProperties": true}},
+                    "call_graph_handles": {"type": "array", "description": "Call-graph follow-up handles for the top row, per codeTopicCallGraphHandle.", "items": {"type": "object", "description": "One call-graph follow-up handle (open map). Owner: codeTopicCallGraphHandle.", "additionalProperties": true}},
+                    "recommended_next_calls": {"type": "array", "description": "Follow-up calls from codeTopicRecommendedNextCalls: source reads for the top row, or find_symbol plus search_file_content probes when no rows matched.", "items": {"type": "object", "description": "One follow-up call (open map). Owner: codeTopicRecommendedNextCalls.", "additionalProperties": true}},
                     "count": {"type": "integer", "description": "Rows on this page emitted by handleTopicInvestigation."},
                     "limit": {"type": "integer", "description": "Page bound echoed by handleTopicInvestigation."},
                     "offset": {"type": "integer", "description": "Page offset echoed by handleTopicInvestigation."},
@@ -374,13 +376,13 @@ const Symbols = `
                     "answer_metadata": {"type": "object", "description": "Normalized additive answer companion (answer.AnswerMetadata) derived from this payload by answer.AttachAnswerMetadata via handleTopicInvestigation.",
                       "properties": {
                         "schema_version": {"type": "string", "description": "Answer metadata schema version emitted by answer.BuildAnswerMetadata."},
-                        "evidence_handles": {"type": "array", "description": "Evidence handles carried by the topic payload, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}},
-                        "missing_evidence": {"type": "array", "description": "Evidence the topic payload lacks, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}},
-                        "limitations": {"type": "array", "description": "Bounded caveats for the topic answer, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}},
+                        "evidence_handles": {"type": "array", "description": "Evidence handles carried by the topic payload, per answer.BuildAnswerMetadata.", "items": {"type": "object", "description": "One evidence handle (open map). Owner: answer.BuildAnswerMetadata.", "additionalProperties": true}},
+                        "missing_evidence": {"type": "array", "description": "Evidence the topic payload lacks, per answer.BuildAnswerMetadata.", "items": {"type": "object", "description": "One missing-evidence entry (open map). Owner: answer.BuildAnswerMetadata.", "additionalProperties": true}},
+                        "limitations": {"type": "array", "description": "Bounded caveats for the topic answer, per answer.BuildAnswerMetadata.", "items": {"type": "object", "description": "One bounded caveat (open map). Owner: answer.BuildAnswerMetadata.", "additionalProperties": true}},
                         "truncated": {"type": "boolean", "description": "True when the topic answer or its coverage is truncated, per answer.BuildAnswerMetadata."},
                         "coverage": {"type": "object", "description": "Topic answer coverage keyed by coverage field names, per answer.BuildAnswerMetadata.", "additionalProperties": true},
                         "partial_reasons": {"type": "array", "description": "Why the topic answer is partial, per answer.BuildAnswerMetadata.", "items": {"type": "string"}},
-                        "recommended_next_calls": {"type": "array", "description": "Follow-up calls for the topic answer, per answer.BuildAnswerMetadata.", "items": {"type": "object", "additionalProperties": true}}
+                        "recommended_next_calls": {"type": "array", "description": "Follow-up calls for the topic answer, per answer.BuildAnswerMetadata.", "items": {"type": "object", "description": "One follow-up call (open map). Owner: answer.BuildAnswerMetadata.", "additionalProperties": true}}
                       },
                       "required": ["schema_version", "evidence_handles", "missing_evidence", "limitations", "truncated", "coverage", "partial_reasons", "recommended_next_calls"]
                     }

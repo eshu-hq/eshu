@@ -138,6 +138,7 @@ const ManagementExplanation = `
                       "description": "Reducer evidence atoms grouped by evidence layer, emitted by iac.managementEvidenceGroups.",
                       "items": {
                         "type": "object",
+                        "description": "One evidence layer group. Owner: iac.managementEvidenceGroup.",
                         "properties": {
                           "layer": {"type": "string", "description": "Evidence layer bucket emitted by iac.managementEvidenceGroup.Layer."},
                           "count": {"type": "integer", "description": "Atoms in this layer, emitted by iac.managementEvidenceGroup.Count."},
@@ -146,6 +147,7 @@ const ManagementExplanation = `
                             "description": "Evidence atoms in this layer with sensitive values redacted, emitted by iac.managementEvidenceGroup.Evidence via sanitizeIaCManagementEvidence.",
                             "items": {
                               "type": "object",
+                              "description": "One evidence atom. Owner: iac.ManagementEvidenceRow.",
                               "properties": {
                                 "id": {"type": "string", "description": "Evidence atom identity emitted by iac.ManagementEvidenceRow.ID."},
                                 "source_system": {"type": "string", "description": "Source system of the atom, emitted by iac.ManagementEvidenceRow.SourceSystem."},

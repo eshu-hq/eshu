@@ -26,33 +26,35 @@ const SurfaceInventory = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "version": {"type": "string"},
-                    "total": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "version": {"type": "string", "description": "Embedded surface inventory artifact version. Owner: query.SurfaceInventoryHandler over capabilitycatalog.SurfaceInventory."},
+                    "total": {"type": "integer", "description": "Surfaces matching the filters before paging. Owner: query.SurfaceInventoryHandler."},
+                    "limit": {"type": "integer", "description": "Maximum surfaces returned. Owner: query.SurfaceInventoryHandler."},
+                    "offset": {"type": "integer", "description": "Surfaces skipped for paging. Owner: query.SurfaceInventoryHandler."},
+                    "truncated": {"type": "boolean", "description": "True when more surfaces matched than this page carries. Owner: query.SurfaceInventoryHandler."},
                     "surfaces": {
                       "type": "array",
+                      "description": "Surface rows in the page. Owner: query.SurfaceInventoryHandler over capabilitycatalog.SurfaceInventory.",
                       "items": {
                         "type": "object",
+                        "description": "One platform surface with its readiness lane, owner, promotion proof, docs, notes, and collector contract. Owner: query.SurfaceInventoryHandler over capabilitycatalog.SurfaceRecord.",
                         "properties": {
-                          "category": {"type": "string"},
-                          "name": {"type": "string"},
-                          "readiness": {"type": "string"},
-                          "owner": {"type": "string"},
-                          "proof": {"type": "string"},
-                          "docs": {"type": "array", "items": {"type": "string"}},
-                          "notes": {"type": "string"},
+                          "category": {"type": "string", "description": "Surface category (command, collector, reducer_domain, api_route, mcp_tool, or console_page). Owner: query.SurfaceInventoryHandler."},
+                          "name": {"type": "string", "description": "Surface name. Owner: query.SurfaceInventoryHandler."},
+                          "readiness": {"type": "string", "description": "Readiness lane of the surface. Owner: query.SurfaceInventoryHandler."},
+                          "owner": {"type": "string", "description": "Owning team or system. Owner: query.SurfaceInventoryHandler."},
+                          "proof": {"type": "string", "description": "Promotion proof behind the readiness lane. Owner: query.SurfaceInventoryHandler."},
+                          "docs": {"type": "array", "description": "Documentation references for the surface. Owner: query.SurfaceInventoryHandler.", "items": {"type": "string"}},
+                          "notes": {"type": "string", "description": "Operator notes for the surface. Owner: query.SurfaceInventoryHandler."},
                           "collector_contract": {
                             "type": "object",
-                            "description": "Collector-only source-to-read-surface provenance contract. Omitted for non-collector surfaces.",
+                            "description": "Collector-only source-to-read-surface provenance contract. Omitted for non-collector surfaces. Owner: capabilitycatalog collector contract.",
                             "properties": {
-                              "fact_kinds": {"type": "array", "items": {"type": "string"}},
-                              "projection_surfaces": {"type": "array", "items": {"type": "string"}},
-                              "read_surfaces": {"type": "array", "items": {"type": "string"}},
-                              "proof_gates": {"type": "array", "items": {"type": "string"}},
-                              "fixture_refs": {"type": "array", "items": {"type": "string"}},
-                              "truth_profile": {"type": "string", "enum": ["deterministic", "provider_gated", "optional_semantic"]}
+                              "fact_kinds": {"type": "array", "description": "Fact kinds the collector emits. Owner: capabilitycatalog collector contract.", "items": {"type": "string"}},
+                              "projection_surfaces": {"type": "array", "description": "Projection surfaces fed by the fact kinds. Owner: capabilitycatalog collector contract.", "items": {"type": "string"}},
+                              "read_surfaces": {"type": "array", "description": "Read surfaces fed by the fact kinds. Owner: capabilitycatalog collector contract.", "items": {"type": "string"}},
+                              "proof_gates": {"type": "array", "description": "Proof gates behind the contract. Owner: capabilitycatalog collector contract.", "items": {"type": "string"}},
+                              "fixture_refs": {"type": "array", "description": "Fixture references behind the contract. Owner: capabilitycatalog collector contract.", "items": {"type": "string"}},
+                              "truth_profile": {"type": "string", "enum": ["deterministic", "provider_gated", "optional_semantic"], "description": "Truth profile distinguishing deterministic, provider-gated, and optional semantic output. Owner: capabilitycatalog collector contract."}
                             }
                           }
                         }

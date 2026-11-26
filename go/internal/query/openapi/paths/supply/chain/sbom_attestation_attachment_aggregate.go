@@ -81,7 +81,7 @@ const SBOMAttestationAttachmentAggregate = `
                       "type": "array",
                       "description": "Grouped count buckets ordered by count desc, emitted by the SBOM attestation attachment inventory aggregate handler (SBOMAttestationAttachmentInventoryRow).",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One grouped count bucket. emitted by the SBOM attestation attachment inventory aggregate handler.",
                         "properties": {
                           "dimension": {"type": "string", "description": "Bucket dimension value emitted by the attachment inventory aggregate handler (SBOMAttestationAttachmentInventoryRow.Dimension); the label comes from the group_by request value."},
                           "value": {"type": "string", "description": "Group value emitted by the attachment inventory aggregate handler (SBOMAttestationAttachmentInventoryRow.Value)."},

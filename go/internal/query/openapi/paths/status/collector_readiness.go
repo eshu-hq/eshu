@@ -20,6 +20,7 @@ const collectorReadinessResponseSchema = `{
                       "description": "One redacted readiness record per collector family or instance, ordered as the promotion proofs project them.",
                       "items": {
                         "type": "object",
+                        "description": "One redacted collector readiness record. Owner: collector readiness handler promotion proofs.",
                         "required": ["collector_kind", "promotion_state", "reducer_readback", "claim_driven", "recommended_next_action"],
                         "properties": {
                           "collector_kind": {"type": "string", "description": "Collector family kind, for example security_alert."},

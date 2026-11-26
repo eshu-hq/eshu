@@ -114,6 +114,7 @@ const StatsAndCoverage = `
                       "description": "Per-language file counts emitted by the repository coverage handler from taxonomy.CoverageLanguageMaps.",
                       "items": {
                         "type": "object",
+                        "description": "One per-language file count. Owner: taxonomy.CoverageLanguageMaps.",
                         "properties": {
                           "language": {"type": "string", "description": "Language name emitted by taxonomy.CoverageLanguageMaps."},
                           "file_count": {"type": "integer", "description": "Files of this language emitted by taxonomy.CoverageLanguageMaps."}

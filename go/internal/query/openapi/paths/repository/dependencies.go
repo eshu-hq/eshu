@@ -36,6 +36,7 @@ const Dependencies = `
                       "description": "Bounded package-native dependency edges, emitted by the dependency handler as []dependency.Row.",
                       "items": {
                         "type": "object",
+                        "description": "One package-native dependency edge. Owner: dependency handler (dependency.Row).",
                         "properties": {
                           "direction": {"type": "string", "enum": ["forward", "reverse"], "description": "View direction of this edge emitted by dependency.Row.Direction (forward: related package is the dependency target; reverse: related package is the dependent)."},
                           "anchor_package_id": {"type": "string", "description": "Anchor package identity emitted by dependency.Row.AnchorPackageID (absent when the graph did not materialize a stable identity)."},

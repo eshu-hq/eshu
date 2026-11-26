@@ -31,6 +31,7 @@ const Playbooks = `
                     "schema_version": {"type": "string", "description": "Catalog schema version emitted by playbook.Handler.list."},
                     "playbooks": {"type": "array", "description": "Playbook rows emitted by playbook.Handler.list: playbook.Summary in compact view (id/name/version/prompt_family/description), playbook.Definition in full view.", "items": {
                       "type": "object",
+                      "description": "One playbook row. Owner: playbook.Handler.list.",
                       "properties": {
                         "id": {"type": "string", "description": "Playbook id emitted by playbook.Handler.list (playbook.Definition.ID)."},
                         "name": {"type": "string", "description": "Playbook name emitted by playbook.Handler.list (playbook.Definition.Name)."},
@@ -39,6 +40,7 @@ const Playbooks = `
                         "description": {"type": "string", "description": "Playbook description emitted by playbook.Handler.list (playbook.Definition.Description)."},
                         "required_inputs": {"type": "array", "description": "Declared inputs emitted by playbook.Handler.list (playbook.Input). Full view only.", "items": {
                           "type": "object",
+                          "description": "One declared input. Owner: playbook.Handler.list (playbook.Input).",
                           "properties": {
                             "name": {"type": "string", "description": "Input key emitted by playbook.Handler.list (playbook.Input.Name)."},
                             "type": {"type": "string", "description": "Declared value kind emitted by playbook.Handler.list (playbook.Input.Type)."},
@@ -48,11 +50,13 @@ const Playbooks = `
                         }},
                         "steps": {"type": "array", "description": "Ordered bounded calls emitted by playbook.Handler.list (playbook.Step). Full view only.", "items": {
                           "type": "object",
+                          "description": "One ordered call. Owner: playbook.Handler.list (playbook.Step).",
                           "properties": {
                             "id": {"type": "string", "description": "Step id emitted by playbook.Handler.list (playbook.Step.ID)."},
                             "tool": {"type": "string", "description": "First-class tool the step invokes, emitted by playbook.Handler.list (playbook.Step.Tool)."},
                             "params": {"type": "array", "description": "Bounded call arguments emitted by playbook.Handler.list (playbook.Param).", "items": {
                               "type": "object",
+                              "description": "One call argument. Owner: playbook.Handler.list (playbook.Param).",
                               "properties": {
                                 "name": {"type": "string", "description": "Argument key emitted by playbook.Handler.list (playbook.Param.Name)."},
                                 "from_input": {"type": "string", "description": "Declared input the argument binds to, emitted by playbook.Handler.list (playbook.Param.FromInput)."},
@@ -65,6 +69,7 @@ const Playbooks = `
                             "evidence_expected": {"type": "string", "description": "Expected evidence emitted by playbook.Handler.list (playbook.Step.EvidenceExpected)."},
                             "drilldowns": {"type": "array", "description": "Optional follow-up calls emitted by playbook.Handler.list (playbook.Drilldown).", "items": {
                               "type": "object",
+                              "description": "One follow-up call. Owner: playbook.Handler.list (playbook.Drilldown).",
                               "properties": {
                                 "tool": {"type": "string", "description": "Drilldown tool emitted by playbook.Handler.list (playbook.Drilldown.Tool)."},
                                 "reason": {"type": "string", "description": "Drilldown reason emitted by playbook.Handler.list (playbook.Drilldown.Reason)."}
@@ -74,6 +79,7 @@ const Playbooks = `
                         }},
                         "failure_modes": {"type": "array", "description": "Declared truth/error conditions and fallbacks emitted by playbook.Handler.list (playbook.FailureMode). Full view only.", "items": {
                           "type": "object",
+                          "description": "One declared failure mode. Owner: playbook.Handler.list (playbook.FailureMode).",
                           "properties": {
                             "condition": {"type": "string", "description": "Truth/error condition emitted by playbook.Handler.list (playbook.FailureMode.Condition)."},
                             "meaning": {"type": "string", "description": "Condition meaning emitted by playbook.Handler.list (playbook.FailureMode.Meaning)."},
@@ -84,6 +90,7 @@ const Playbooks = `
                     }},
                     "versions": {"type": "array", "description": "Catalog (id, version) pairs emitted by playbook.Handler.list (playbook.VersionRef).", "items": {
                       "type": "object",
+                      "description": "One catalog version pair. Owner: playbook.Handler.list (playbook.VersionRef).",
                       "properties": {
                         "id": {"type": "string", "description": "Playbook id emitted by playbook.Handler.list (playbook.VersionRef.ID)."},
                         "version": {"type": "string", "description": "Playbook version emitted by playbook.Handler.list (playbook.VersionRef.Version)."}
@@ -139,16 +146,14 @@ const Playbooks = `
                       "playbook_id": {"type": "string", "description": "Resolved playbook id emitted by playbook.Handler.resolve (playbook.ResolvedPlaybook.PlaybookID)."},
                       "version": {"type": "string", "description": "Resolved playbook version emitted by playbook.Handler.resolve (playbook.ResolvedPlaybook.Version)."},
                       "prompt_family": {"type": "string", "description": "Prompt family emitted by playbook.Handler.resolve (playbook.ResolvedPlaybook.PromptFamily)."},
-                      "calls": {"type": "array", "description": "Ordered fully specified calls emitted by playbook.Handler.resolve (playbook.ResolvedCall).", "items": {
-                        "type": "object",
+                      "calls": {"type": "array", "description": "Ordered fully specified calls emitted by playbook.Handler.resolve (playbook.ResolvedCall).", "items": {"type": "object", "description": "One resolved call. Owner: playbook.Handler.resolve (playbook.ResolvedCall).",
                         "properties": {
                           "step_id": {"type": "string", "description": "Originating step id emitted by playbook.Handler.resolve (playbook.ResolvedCall.StepID)."},
                           "tool": {"type": "string", "description": "First-class tool to call, emitted by playbook.Handler.resolve (playbook.ResolvedCall.Tool)."},
                           "arguments": {"type": "object", "additionalProperties": {}, "description": "Concrete bounded call arguments keyed by argument name, emitted by playbook.Handler.resolve (playbook.ResolvedCall.Arguments)."},
                           "expected_truth": {"type": "string", "description": "Expected truth class emitted by playbook.Handler.resolve (playbook.ResolvedCall.ExpectedTruth)."},
                           "evidence_expected": {"type": "string", "description": "Expected evidence emitted by playbook.Handler.resolve (playbook.ResolvedCall.EvidenceExpected)."},
-                          "drilldowns": {"type": "array", "description": "Optional follow-up calls emitted by playbook.Handler.resolve (playbook.Drilldown).", "items": {
-                            "type": "object",
+                          "drilldowns": {"type": "array", "description": "Optional follow-up calls emitted by playbook.Handler.resolve (playbook.Drilldown).", "items": {"type": "object", "description": "One follow-up call. Owner: playbook.Handler.resolve (playbook.Drilldown).",
                             "properties": {
                               "tool": {"type": "string", "description": "Drilldown tool emitted by playbook.Handler.resolve (playbook.Drilldown.Tool)."},
                               "reason": {"type": "string", "description": "Drilldown reason emitted by playbook.Handler.resolve (playbook.Drilldown.Reason)."}
@@ -158,6 +163,7 @@ const Playbooks = `
                       }},
                       "failure_modes": {"type": "array", "description": "Declared truth/error conditions and fallbacks carried forward, emitted by playbook.Handler.resolve (playbook.FailureMode).", "items": {
                         "type": "object",
+                        "description": "One declared failure mode. Owner: playbook.Handler.resolve (playbook.FailureMode).",
                         "properties": {
                           "condition": {"type": "string", "description": "Truth/error condition emitted by playbook.Handler.resolve (playbook.FailureMode.Condition)."},
                           "meaning": {"type": "string", "description": "Condition meaning emitted by playbook.Handler.resolve (playbook.FailureMode.Meaning)."},

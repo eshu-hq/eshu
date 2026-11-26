@@ -34,6 +34,7 @@ const InvestigationWorkflows = `
                       "description": "Workflow page in catalog order. Owner: query/investigation_workflow_handler.go list. Compact view (default) returns one InvestigationWorkflowSummary per row (id, name, version, domain, description); view=full returns the complete InvestigationWorkflow rows, which additionally carry required_inputs, required_evidence, optional_evidence, output_packet, tool_groups, starter_prompts, failure_modes, and missing_evidence_routes. Owner: query/investigation_workflow.go InvestigationWorkflowSummary and InvestigationWorkflow.",
                       "items": {
                         "type": "object",
+                        "description": "One investigation workflow. Owner: query/investigation_workflow.go InvestigationWorkflowSummary and InvestigationWorkflow.",
                         "properties": {
                           "id": {"type": "string", "description": "Stable workflow id (guided_vulnerable_dependency, guided_deployable_drift, guided_incident_context). Owner: query/investigation_workflow.go InvestigationWorkflowSummary."},
                           "name": {"type": "string", "description": "Human-readable workflow name. Owner: query/investigation_workflow.go InvestigationWorkflowSummary."},
@@ -47,9 +48,10 @@ const InvestigationWorkflows = `
                       "type": "array",
                       "description": "Ordered (id, version) refs for the whole catalog. Owner: query/investigation_workflow.go InvestigationWorkflowCatalogVersions.",
                       "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {"type": "string", "description": "Stable workflow id. Owner: query/investigation_workflow.go InvestigationWorkflowVersionRef."},
+                          "type": "object",
+                          "description": "One ordered (id, version) ref. Owner: query/investigation_workflow.go InvestigationWorkflowVersionRef.",
+                          "properties": {
+                            "id": {"type": "string", "description": "Stable workflow id. Owner: query/investigation_workflow.go InvestigationWorkflowVersionRef."},
                           "version": {"type": "string", "description": "Workflow version. Owner: query/investigation_workflow.go InvestigationWorkflowVersionRef."}
                         }
                       }
@@ -122,6 +124,7 @@ const InvestigationWorkflows = `
                           "description": "Concrete next calls for matched missing-evidence keys whose required anchor inputs were supplied. Owner: query/investigation_workflow.go InvestigationWorkflow Resolve.",
                           "items": {
                             "type": "object",
+                            "description": "One resolved workflow call. Owner: query/investigation_workflow.go ResolvedWorkflowCall.",
                             "properties": {
                               "id": {"type": "string", "description": "Call id within the missing-evidence route. Owner: query/investigation_workflow.go ResolvedWorkflowCall."},
                               "tool": {"type": "string", "description": "First-class tool to call. Owner: query/investigation_workflow.go ResolvedWorkflowCall."},
@@ -137,6 +140,7 @@ const InvestigationWorkflows = `
                           "description": "Present only when matched calls were blocked: next calls whose required anchor inputs the caller did not supply. Owner: query/investigation_workflow.go InvestigationWorkflow Resolve.",
                           "items": {
                             "type": "object",
+                            "description": "One blocked workflow call. Owner: query/investigation_workflow.go BlockedWorkflowCall.",
                             "properties": {
                               "id": {"type": "string", "description": "Call id within the missing-evidence route. Owner: query/investigation_workflow.go BlockedWorkflowCall."},
                               "tool": {"type": "string", "description": "First-class tool that was not recommended. Owner: query/investigation_workflow.go BlockedWorkflowCall."},

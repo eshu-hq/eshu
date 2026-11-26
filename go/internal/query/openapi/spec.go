@@ -78,6 +78,7 @@ func Spec() string {
 			repository.Branches+
 			repository.Freshness+
 			search.Entities+
+			search.ServiceStory+
 			evidence.Investigations+
 			service.IntelligenceReport+
 			code.Routes+

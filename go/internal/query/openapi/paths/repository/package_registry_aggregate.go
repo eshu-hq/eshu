@@ -76,6 +76,7 @@ const PackageRegistryAggregate = `
                       "description": "Grouped count buckets ordered by count desc, emitted by the registry aggregates handler as []registry.InventoryRow.",
                       "items": {
                         "type": "object",
+                        "description": "One grouped count bucket. Owner: registry aggregates handler.",
                         "properties": {
                           "dimension": {"type": "string", "description": "Bucket dimension value; the label comes from the group_by request value."},
                           "value": {"type": "string", "description": "Group value."},

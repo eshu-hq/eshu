@@ -69,6 +69,7 @@ const Freshness = `
                       "description": "Outstanding work grouped by stage, emitted by the repository freshness handler from repositoryFreshnessOutstandingToSlice.",
                       "items": {
                         "type": "object",
+                        "description": "One outstanding work row. Owner: repository.repositoryFreshnessOutstandingToSlice.",
                         "properties": {
                           "stage": {"type": "string", "description": "Pipeline stage emitted by repository.repositoryFreshnessOutstandingToSlice."},
                           "status": {"type": "string", "description": "Work status emitted by repository.repositoryFreshnessOutstandingToSlice."},
@@ -87,6 +88,7 @@ const Freshness = `
                           "description": "Pending enrichment domains, emitted by repository.repositoryFreshnessSharedEnrichmentToMap.",
                           "items": {
                             "type": "object",
+                            "description": "One pending enrichment domain. Owner: repository.repositoryFreshnessSharedEnrichmentToMap.",
                             "properties": {
                               "domain": {"type": "string", "description": "Enrichment domain emitted by repository.repositoryFreshnessSharedEnrichmentToMap."},
                               "count": {"type": "integer", "description": "Pending units in this domain emitted by repository.repositoryFreshnessSharedEnrichmentToMap."}

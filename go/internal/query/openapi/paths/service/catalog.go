@@ -41,6 +41,7 @@ const Catalog = `
                       "description": "Reducer-owned service catalog correlation rows emitted by listCorrelations (service.CatalogCorrelationResult).",
                       "items": {
                         "type": "object",
+                        "description": "One service catalog correlation row. Owner: listCorrelations (service.CatalogCorrelationResult).",
                         "properties": {
                           "correlation_id": {"type": "string", "description": "Correlation id emitted by listCorrelations (CatalogCorrelationResult.CorrelationID)."},
                           "provider": {"type": "string", "description": "Catalog provider emitted by listCorrelations (CatalogCorrelationResult.Provider)."},
@@ -77,6 +78,7 @@ const Catalog = `
                       "description": "Stable missing-evidence classes returned when an anchored read has no matching reducer correlation rows, emitted by listCorrelations (service.CatalogMissingEvidence).",
                       "items": {
                         "type": "object",
+                        "description": "One missing-evidence entry. Owner: listCorrelations (service.CatalogMissingEvidence).",
                         "properties": {
                           "class": {"type": "string", "enum": ["repository_service_catalog_correlation", "service_catalog_correlation", "workload_service_catalog_correlation", "entity_service_catalog_correlation", "owner_service_catalog_correlation", "scope_service_catalog_correlation"], "description": "Missing-evidence class emitted by listCorrelations (CatalogMissingEvidence.Class)."},
                           "reason": {"type": "string", "description": "Missing-evidence reason emitted by listCorrelations (CatalogMissingEvidence.Reason)."}
@@ -101,6 +103,7 @@ const Catalog = `
                               "description": "Bounded local descriptor facts emitted by listCorrelations (service.CatalogLocalDescriptorEvidenceFact).",
                               "items": {
                                 "type": "object",
+                                "description": "One local descriptor fact. Owner: listCorrelations (service.CatalogLocalDescriptorEvidenceFact).",
                                 "properties": {
                                   "fact_id": {"type": "string", "description": "Fact id emitted by listCorrelations (CatalogLocalDescriptorEvidenceFact.FactID)."},
                                   "fact_kind": {"type": "string", "description": "Fact kind emitted by listCorrelations (CatalogLocalDescriptorEvidenceFact.FactKind)."},

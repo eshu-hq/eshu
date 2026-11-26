@@ -14,6 +14,7 @@ const EvidenceBoundaries = `{
   "description": "Static disclosure of Postgres-only reducer domains this read surface omits from its graph-sourced sections. Absent when no boundary applies to the surface.",
   "items": {
     "type": "object",
+    "description": "One Postgres-only boundary: the domain, read surface, and reason. Owner: evidence.AttachEvidenceBoundaries over evidence.PostgresOnlyBoundary.",
     "properties": {
       "domain": {"type": "string", "description": "Postgres-only reducer domain name, e.g. ci_cd_run_correlation or container_image_identity."},
       "read_surface": {"type": "string", "description": "The read surface this boundary applies to, matching the current route."},

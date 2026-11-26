@@ -46,6 +46,7 @@ const Branches = `
                       "description": "Paged branch entries ordered by (kind, name), emitted by readmodel.RefWindowEntries as branch rows.",
                       "items": {
                         "type": "object",
+                        "description": "One branch entry. Owner: readmodel.RefWindowEntries.",
                         "properties": {
                           "name": {"type": "string", "description": "Branch name emitted by readmodel.RefWindowEntries (empty only on the legacy single-commit fallback)."},
                           "kind": {"type": "string", "description": "Ref kind emitted by readmodel.RefWindowEntries (branch)."},
@@ -62,6 +63,7 @@ const Branches = `
                       "description": "Paged tag entries ordered by (kind, name), emitted by readmodel.RefWindowEntries as tag rows.",
                       "items": {
                         "type": "object",
+                        "description": "One tag entry. Owner: readmodel.RefWindowEntries.",
                         "properties": {
                           "name": {"type": "string", "description": "Tag name emitted by readmodel.RefWindowEntries."},
                           "kind": {"type": "string", "description": "Ref kind emitted by readmodel.RefWindowEntries (tag)."},

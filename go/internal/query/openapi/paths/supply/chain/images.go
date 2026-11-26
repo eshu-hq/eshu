@@ -33,7 +33,7 @@ const Images = `
                       "type": "array",
                       "description": "Container image rows observed by the OCI registry collector over the authoritative graph, emitted by listImages (ImageRow).",
                       "items": {
-                        "type": "object",
+                        "type": "object", "description": "One image row. emitted by listImages (ImageRow).",
                         "properties": {
                           "id": {"type": "string", "description": "Image node id emitted by listImages (ImageRow.ID)."},
                           "digest": {"type": "string", "description": "Image digest emitted by listImages (ImageRow.Digest)."},

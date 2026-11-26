@@ -38,6 +38,7 @@ const Routes = `
                       "description": "Authorized page of cloud resource rows hydrated from the authoritative graph, emitted by query.writeCloudResourceListResponse.",
                       "items": {
                         "type": "object",
+                        "description": "One authorized cloud resource row. Owner: query.writeCloudResourceListResponse.",
                         "properties": {
                           "id": {"type": "string", "description": "Graph resource identity emitted by query.CloudResourceRow.ID."},
                           "resource_type": {"type": "string", "description": "Graph resource type emitted by query.CloudResourceRow.ResourceType."},

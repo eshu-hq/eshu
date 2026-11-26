@@ -122,6 +122,7 @@ const Routes = `
                                 "description": "Per-language file counts for this repository, emitted by repository.repositoryLanguageRepositoryMaps from coverageLanguageMaps.",
                                 "items": {
                                   "type": "object",
+                                  "description": "One per-language file count. Owner: repository.repositoryLanguageRepositoryMaps.",
                                   "properties": {
                                     "language": {"type": "string", "description": "Language name emitted by the repository language coverage maps."},
                                     "file_count": {"type": "integer", "description": "Files of this language emitted by the repository language coverage maps."}
@@ -174,6 +175,7 @@ const Routes = `
                       "description": "Aggregate repository and file counts per indexed language bucket, emitted by the repository language handler from repositoryLanguageInventoryMaps.",
                       "items": {
                         "type": "object",
+                        "description": "One language bucket row. Owner: repository.repositoryLanguageInventoryMaps.",
                         "properties": {
                           "language": {"type": "string", "description": "Language bucket name emitted by repository.repositoryLanguageInventoryMaps."},
                           "repository_count": {"type": "integer", "description": "Repositories containing this language, emitted by repository.repositoryLanguageInventoryMaps."},
@@ -288,6 +290,7 @@ const Routes = `
                       "description": "Directory and file entries for the listed level (or full subtree with recursive=true), emitted by the repository tree handler from the content-store file index.",
                       "items": {
                         "type": "object",
+                        "description": "One directory or file entry. Owner: repository tree handler file index.",
                         "properties": {
                           "name": {"type": "string", "description": "Entry name emitted by the repository tree handler from the file index."},
                           "type": {"type": "string", "enum": ["dir", "file"], "description": "Entry kind emitted by the repository tree handler from the file index."},

@@ -128,6 +128,7 @@ const CollectorTerminalFailureAcknowledgement = `
                       "description": "Stored acknowledgement rows, bounded by the limit.",
                       "items": {
                         "type": "object",
+                        "description": "One stored acknowledgement. Owner: admin acknowledgement handlers.",
                         "properties": {
                           "collector_kind": {"type": "string", "description": "Collector kind of the acknowledged instance."},
                           "instance_id": {"type": "string", "description": "Collector instance the failure belongs to."},
@@ -192,6 +193,7 @@ const CollectorTerminalFailureAcknowledgement = `
                       "description": "One entry per failed scope of the instance, newest unacknowledged and acknowledged failures as applicable.",
                       "items": {
                         "type": "object",
+                        "description": "One failed scope entry. Owner: admin collector-failures query.",
                         "properties": {
                           "scope_id": {"type": "string", "description": "Failed scope the acknowledge route accepts."},
                           "failure_class": {"type": "string", "description": "Bounded class of the scope's newest unresolved terminal failure."},

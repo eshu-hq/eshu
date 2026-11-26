@@ -57,6 +57,7 @@ const Ask = `
                       "description": "Rendered format artifacts with per-format validation state. Omitted when runtime citation/publish-safety guardrails suppress narrated prose.",
                       "items": {
                         "type": "object",
+                        "description": "One rendered format artifact. Owner: ask.Handler via render.Validate.",
                         "properties": {
                           "format": {"type": "string", "description": "Requested output format the artifact was rendered in. Owner: ask.Handler via render.Validate."},
                           "content": {"type": "string", "description": "Rendered artifact body for the format. Owner: ask.Handler via render.Validate."},
@@ -87,6 +88,7 @@ const Ask = `
                       "description": "Addressable evidence handles from the primary AnswerPacket. Owner: ask.Handler from the primary AnswerPacket.",
                       "items": {
                         "type": "object",
+                        "description": "One addressable evidence handle. Owner: ask.Handler from the primary AnswerPacket.",
                         "properties": {
                           "kind": {"type": "string", "description": "Evidence kind (file location or graph entity). Owner: querycontract/evidence.EvidenceCitationHandle."},
                           "repo_id": {"type": "string", "description": "Repository id the cited evidence belongs to. Owner: querycontract/evidence.EvidenceCitationHandle."},
@@ -105,6 +107,7 @@ const Ask = `
                       "description": "Tool-call trace in invocation order. Owner: ask.Handler from the engine run.",
                       "items": {
                         "type": "object",
+                        "description": "One tool-call trace entry. Owner: ask.traceEntry.",
                         "properties": {
                           "tool": {"type": "string", "description": "Tool name the agent invoked. Owner: ask.traceEntry."},
                           "args": {"type": "object", "additionalProperties": true, "description": "Tool arguments keyed by argument name. Owner: ask.traceEntry."},

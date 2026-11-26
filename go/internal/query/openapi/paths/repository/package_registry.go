@@ -36,6 +36,7 @@ const PackageRegistry = `
                       "description": "Package identity rows, emitted by the registry handler from the package read model.",
                       "items": {
                         "type": "object",
+                        "description": "One package identity row. Owner: registry handler package read model.",
                         "properties": {
                           "package_id": {"type": "string", "description": "Package identity emitted by the registry package row."},
                           "ecosystem": {"type": "string", "description": "Package ecosystem emitted by the registry package row."},
@@ -59,6 +60,7 @@ const PackageRegistry = `
                       "description": "Package-registry graph rows that could not be returned as valid package identities because required identity evidence was missing. Emitted by the registry handler from the identity-issue projection sharing the package identity fields.",
                       "items": {
                         "type": "object",
+                        "description": "One identity-issue row. Owner: registry handler package read model.",
                         "properties": {
                           "reason": {"type": "string", "enum": ["package_id_missing"], "description": "Issue reason emitted by the registry identity-issue projection."},
                           "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["package_id"]}, "description": "Missing evidence classes emitted by the registry identity-issue projection."},
@@ -121,6 +123,7 @@ const PackageRegistry = `
                       "description": "Package-version identity rows for the anchored package, emitted by the registry handler from the version read model.",
                       "items": {
                         "type": "object",
+                        "description": "One package-version row. Owner: registry handler version read model.",
                         "properties": {
                           "version_id": {"type": "string", "description": "Version identity emitted by the registry version row."},
                           "package_id": {"type": "string", "description": "Owning package identity emitted by the registry version row."},
@@ -183,6 +186,7 @@ const PackageRegistry = `
                       "description": "Package-native dependency edges for the anchored package, emitted by the registry handler from the dependency read model.",
                       "items": {
                         "type": "object",
+                        "description": "One package dependency edge. Owner: registry handler dependency read model.",
                         "properties": {
                           "dependency_id": {"type": "string", "description": "Edge identity emitted by the registry dependency row."},
                           "source_package_id": {"type": "string", "description": "Declaring package identity emitted by the registry dependency row."},
@@ -265,6 +269,7 @@ const PackageRegistry = `
                       "description": "Reducer-owned ownership, publication, and consumption correlations, emitted by the registry handler as []registry.CorrelationResult (provenance-only).",
                       "items": {
                         "type": "object",
+                        "description": "One package registry correlation. Owner: registry handler (registry.CorrelationResult).",
                         "properties": {
                           "correlation_id": {"type": "string", "description": "Correlation identity emitted by registry.CorrelationResult.CorrelationID."},
                           "relationship_kind": {"type": "string", "description": "Relationship kind (ownership, publication, consumption) emitted by registry.CorrelationResult.RelationshipKind."},
@@ -341,6 +346,7 @@ const PackageRegistry = `
                       "description": "Consumer-repo to package to publisher-repo chains resolved on the read side, emitted by the registry handler as []registry.PackageDependencyChainResult.",
                       "items": {
                         "type": "object",
+                        "description": "One package dependency chain. Owner: registry handler (registry.PackageDependencyChainResult).",
                         "properties": {
                           "consumer_repository_id": {"type": "string", "description": "Consumer repository identity emitted by registry.PackageDependencyChainResult.ConsumerRepositoryID."},
                           "consumer_repository_name": {"type": "string", "description": "Consumer repository name emitted by registry.PackageDependencyChainResult.ConsumerRepositoryName."},
@@ -357,6 +363,7 @@ const PackageRegistry = `
                             "description": "Inferred provenance-only publisher legs, emitted by registry.PackageDependencyChainResult.Publishers as []registry.PackageDependencyChainPublisherResult.",
                             "items": {
                               "type": "object",
+                              "description": "One inferred publisher leg. Owner: registry handler (registry.PackageDependencyChainResult.Publishers).",
                               "properties": {
                                 "correlation_id": {"type": "string", "description": "Correlation identity emitted by registry.PackageDependencyChainPublisherResult.CorrelationID."},
                                 "relationship_kind": {"type": "string", "description": "Relationship kind emitted by registry.PackageDependencyChainPublisherResult.RelationshipKind."},

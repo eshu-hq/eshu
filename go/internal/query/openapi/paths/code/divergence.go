@@ -219,7 +219,7 @@ const Divergence = `
                     "repo_id": {"type": "string", "description": "Repository selector echoed by handleDivergenceReport."},
                     "counts": {"type": "object", "description": "Assembled post-suppression finding counts by divergence family, per handleDivergenceReport; keys are family names (exact, renamed, drifted, wrapper_bypass, convention_outlier).", "additionalProperties": {"type": "integer"}},
                     "total": {"type": "integer", "description": "Total assembled findings across families counted by handleDivergenceReport."},
-                    "top": {"type": "object", "description": "Top findings per family in final score order, per handleDivergenceReport; keys are family names.", "additionalProperties": {"type": "array", "items": {"type": "object", "additionalProperties": true}}},
+                    "top": {"type": "object", "description": "Top findings per family in final score order, per handleDivergenceReport; keys are family names.", "additionalProperties": {"type": "array", "items": {"type": "object", "description": "One top finding (open map). Owner: handleDivergenceReport.", "additionalProperties": true}}},
                     "top_per_kind": {"type": "integer", "description": "Top-findings bound echoed by handleDivergenceReport."},
                     "truncated": {"type": "object", "description": "Per-family truncation flags marking capped windows, per handleDivergenceReport; keys are family names.", "additionalProperties": {"type": "boolean"}},
                     "suppressions": {"type": "object", "description": "Suppression counts by rule, per handleDivergenceReport; keys are suppression rule names.", "additionalProperties": {"type": "integer"}},
