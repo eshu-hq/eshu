@@ -96,15 +96,18 @@ func TestLocalPostgresPoolHoldersCoverEveryLocalProcessThatOpensAPool(t *testing
 		"eshu-core-api", // vulnscan one-shot; shares the binary with the session child.
 		"eshu-bootstrap-index",
 	}
-	got := make(map[string]bool, len(localPostgresPoolHolders))
+	// Compare multisets, not sets: two holders share the eshu-core-api
+	// binary, so a set fold would let a swapped duplicate pass silently.
+	got := make(map[string]int, len(localPostgresPoolHolders))
 	for _, holder := range localPostgresPoolHolders {
-		got[holder] = true
+		got[holder]++
 	}
 	for _, holder := range want {
-		if !got[holder] {
+		if got[holder] == 0 {
 			t.Fatalf("localPostgresPoolHolders is missing %q; it holds %v. Every process that opens a pool against the embedded server must be listed, because the ceiling is derived from len()",
 				holder, localPostgresPoolHolders)
 		}
+		got[holder]--
 	}
 	if len(localPostgresPoolHolders) != len(want) {
 		t.Fatalf("localPostgresPoolHolders = %v (%d entries), want the %d known holders; add the new holder to `want` here and to the budget note in docs/public/reference/postgres-tuning.md",

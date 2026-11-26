@@ -34,7 +34,7 @@ const (
 	// be reachable off the machine.
 	LocalAPIBindAddress = "127.0.0.1"
 	// LocalStartupTimeout bounds both the wait for the local service owner and
-	// the wait for the one-shot API to answer /healthz.
+	// the wait for the one-shot core to answer /health.
 	LocalStartupTimeout = 2 * time.Minute
 	// LocalPollInterval is how often those two waits re-check.
 	LocalPollInterval = 200 * time.Millisecond
