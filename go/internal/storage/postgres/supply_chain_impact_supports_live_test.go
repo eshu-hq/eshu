@@ -76,9 +76,10 @@ func supportsLiveAssertMirror(t *testing.T, ctx context.Context, db *sql.DB, sco
 	if !slices.Equal(want, got) {
 		t.Fatalf("%s: supports = %v, live facts = %v: a support must exist exactly for each live fact", step, got, want)
 	}
-	// The payload is stored verbatim apart from the two per-pass keys: since #10880 B3a
+	// The payload is stored verbatim apart from the per-pass keys: since #10880 B3a
 	// the write-on-change guard ignores intent_id and cause, so a row the pass confirmed
-	// keeps the intent id and cause of the pass that last changed it. Every other key is
+	// keeps the intent id and cause of the pass that last changed it; provenance.first_seen_at
+	// is likewise stamped per write (#11031). Every other key is
 	// equal, and the supports table becomes the only copy in PR-C, so a stripped content
 	// key is lost data. Rows a pass inserted or changed are byte-equal; the guard live
 	// tests (supply_chain_impact_supports_guard_live_test.go) assert that exactly.
@@ -87,7 +88,7 @@ func supportsLiveAssertMirror(t *testing.T, ctx context.Context, db *sql.DB, sco
 SELECT count(*) FROM supply_chain_impact_finding_supports AS s
 JOIN fact_records AS f ON f.fact_id = s.fact_id
 WHERE s.scope_id = $1 AND s.generation_id = $2
-  AND (s.payload - 'intent_id' - 'cause')::text IS DISTINCT FROM (f.payload - 'intent_id' - 'cause')::text`, scope, generation).Scan(&different); err != nil {
+  AND ((s.payload - 'intent_id' - 'cause') #- '{provenance,first_seen_at}')::text IS DISTINCT FROM ((f.payload - 'intent_id' - 'cause') #- '{provenance,first_seen_at}')::text`, scope, generation).Scan(&different); err != nil {
 		t.Fatalf("%s: compare payloads: %v", step, err)
 	}
 	if different != 0 {
