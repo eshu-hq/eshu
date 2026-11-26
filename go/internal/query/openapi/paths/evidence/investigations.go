@@ -158,9 +158,9 @@ const Investigations = `
                   "type": "object",
                   "properties": {
                     "service_name": {"type": "string", "description": "Canonical service name the packet was built for, from BuildServiceInvestigationPacket in service/investigation_packet.go."},
-                    "environment": {"type": "string", "description": "Optional environment selector echoed from InvestigationOptions in service/investigation_packet.go; present only when requested."},
-                    "intent": {"type": "string", "description": "Optional investigation intent (for example runbook or onboarding) from InvestigationOptions; present only when requested."},
-                    "question": {"type": "string", "description": "Optional user question preserved from InvestigationOptions; present only when requested."},
+                    "environment": {"type": "string", "description": "Optional environment selector carried by InvestigationOptions in service/investigation_packet.go; present only when requested."},
+                    "intent": {"type": "string", "description": "Optional investigation intent (for example runbook or onboarding) in InvestigationOptions; present only when requested."},
+                    "question": {"type": "string", "description": "Optional user question preserved in InvestigationOptions; present only when requested."},
                     "repositories_considered": {"type": "array", "items": {"type": "object", "properties": {
                       "repo_id": {"type": "string", "description": "Repository id merged by serviceInvestigationRepositories in service/investigation_packet.go; __truncated__ on the marker row that closes a cut list."},
                       "repo_name": {"type": "string", "description": "Repository display name; empty on the __truncated__ marker row."},

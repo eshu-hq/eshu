@@ -32,9 +32,9 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "lookup_basis": {"type": "string", "enum": ["resolved_id"], "description": "Lookup basis the drilldown used; scanRelationshipEvidenceByResolvedID in evidence_read_model.go always answers resolved_id."},
-                    "resolved_id": {"type": "string", "description": "Compact relationship pointer from resolved_relationships.resolved_id."},
+                    "resolved_id": {"type": "string", "description": "Compact relationship pointer in resolved_relationships.resolved_id."},
                     "postgres_lookup_id": {"type": "string", "description": "Postgres lookup id evidence_read_model.go used to fetch the row; mirrors resolved_id."},
-                    "generation_id": {"type": "string", "description": "Relationship generation id from resolved_relationships.generation_id; retention-scoped, so a swept generation reads as not_found."},
+                    "generation_id": {"type": "string", "description": "Relationship generation id in resolved_relationships.generation_id; retention-scoped, so a swept generation reads as not_found."},
                     "generation": {"type": "object", "description": "Generation the relationship belongs to, built by relationshipEvidenceGeneration in evidence_read_model.go from relationship_generations.", "properties": {
                       "id": {"type": "string", "description": "Generation id from relationship_generations.generation_id."},
                       "scope": {"type": "string", "description": "Ingestion scope that produced the generation."},
@@ -42,17 +42,17 @@ const Routes = `
                       "status": {"type": "string", "description": "Generation status at drilldown time."}
                     }, "required": ["id", "scope", "run_id", "status"]},
                     "source": {"type": "object", "description": "Source endpoint built by relationshipEvidenceEndpoint in evidence_read_model.go; entity_id is present only when the relationship carries a source entity.", "properties": {
-                      "repo_id": {"type": "string", "description": "Source repository id from resolved_relationships.source_repo_id."},
+                      "repo_id": {"type": "string", "description": "Source repository id in resolved_relationships.source_repo_id."},
                       "repo_name": {"type": "string", "description": "Source repository display name resolved from ingestion_scopes."},
                       "entity_id": {"type": "string", "description": "Source entity id; present only when the relationship carries one."}
                     }},
                     "target": {"type": "object", "description": "Target endpoint built by relationshipEvidenceEndpoint in evidence_read_model.go; entity_id is present only when the relationship carries a target entity.", "properties": {
-                      "repo_id": {"type": "string", "description": "Target repository id from resolved_relationships.target_repo_id."},
+                      "repo_id": {"type": "string", "description": "Target repository id in resolved_relationships.target_repo_id."},
                       "repo_name": {"type": "string", "description": "Target repository display name resolved from ingestion_scopes."},
                       "entity_id": {"type": "string", "description": "Target entity id; present only when the relationship carries one."}
                     }},
-                    "relationship_type": {"type": "string", "description": "Relationship verb from resolved_relationships.relationship_type."},
-                    "confidence": {"type": "number", "description": "Aggregated correlation confidence from resolved_relationships.confidence."},
+                    "relationship_type": {"type": "string", "description": "Relationship verb in resolved_relationships.relationship_type."},
+                    "confidence": {"type": "number", "description": "Aggregated correlation confidence in resolved_relationships.confidence."},
                     "confidence_basis": {"type": "string", "description": "Correlation confidence basis added by AddRelationshipConfidenceBasis: evidence_constant, evidence_aggregate, or assertion_override."},
                     "evidence_count": {"type": "integer", "description": "Number of evidence facts aggregated into this relationship."},
                     "evidence_kinds": {"type": "array", "items": {"type": "string"}, "description": "Normalized evidence kinds from repositoryRelationshipEvidenceKinds in repository_relationship_read_model.go; present only when the details carry kinds."},
@@ -60,16 +60,16 @@ const Routes = `
                     "evidence_preview": {"type": "array", "items": {"type": "object", "properties": {
                       "kind": {"type": "string", "description": "Evidence kind of one preview fact, written by relationships/resolver.go (at most 5 preview rows)."},
                       "confidence": {"type": "number", "description": "Confidence of that preview fact."},
-                      "details": {"type": "object", "description": "Raw per-fact detail map from relationships.EvidenceFact.Details; keys vary by evidence kind.", "additionalProperties": {}}
-                    }, "required": ["kind", "confidence"]}, "description": "Bounded preview of up to 5 evidence facts from resolved_relationships.details, written by relationships/resolver.go; null when the details carry no preview."},
+                      "details": {"type": "object", "description": "Raw per-fact detail map in relationships.EvidenceFact.Details; keys vary by evidence kind.", "additionalProperties": {}}
+                    }, "required": ["kind", "confidence"]}, "description": "Bounded preview of up to 5 evidence facts in resolved_relationships.details, written by relationships/resolver.go; null when the details carry no preview."},
                     "rationale": {"type": "string", "description": "Human-readable rationale aggregated from the evidence facts."},
                     "resolution_source": {"type": "string", "description": "How the relationship was resolved (for example graph or assertion); assertion outranks evidence in the confidence basis."},
-                    "details": {"type": "object", "description": "Reducer-owned detail map from resolved_relationships.details, written by relationships/resolver.go; carries evidence_kinds and evidence_preview, plus evidence_type when captured.", "properties": {
+                    "details": {"type": "object", "description": "Reducer-owned detail map in resolved_relationships.details, written by relationships/resolver.go; carries evidence_kinds and evidence_preview, plus evidence_type when captured.", "properties": {
                       "evidence_kinds": {"type": "array", "items": {"type": "string"}, "description": "Sorted evidence-kind keys written by relationships/resolver.go."},
                       "evidence_preview": {"type": "array", "items": {"type": "object", "properties": {
                         "kind": {"type": "string", "description": "Evidence kind of one preview fact."},
                         "confidence": {"type": "number", "description": "Confidence of that preview fact."},
-                        "details": {"type": "object", "description": "Raw per-fact detail map from relationships.EvidenceFact.Details; keys vary by evidence kind.", "additionalProperties": {}}
+                        "details": {"type": "object", "description": "Raw per-fact detail map in relationships.EvidenceFact.Details; keys vary by evidence kind.", "additionalProperties": {}}
                       }}, "description": "Bounded preview of up to 5 evidence facts."},
                       "evidence_type": {"type": "string", "description": "Normalized evidence type when the reducer captured one."}
                     }}
@@ -121,50 +121,50 @@ const Routes = `
                   "type": "object",
                   "properties": {
                     "decisions": {"type": "array", "items": {"type": "object", "properties": {
-                      "decision_id": {"type": "string", "description": "Reducer-owned decision id from packet.AdmissionDecisionResult (querycontract/packet/deployable_unit.go)."},
-                      "domain": {"type": "string", "description": "Reducer admission domain (for example deployable_unit) from packet.AdmissionDecisionResult."},
+                      "decision_id": {"type": "string", "description": "Reducer-owned decision id in packet.AdmissionDecisionResult (querycontract/packet/deployable_unit.go)."},
+                      "domain": {"type": "string", "description": "Reducer admission domain (for example deployable_unit) in packet.AdmissionDecisionResult."},
                       "state": {"type": "string", "description": "Decision state: admitted, rejected, ambiguous, stale, missing_evidence, permission_hidden, unsupported, or unsafe."},
-                      "domain_state": {"type": "string", "description": "Domain-specific state detail from packet.AdmissionDecisionResult; present only when the domain reports one."},
+                      "domain_state": {"type": "string", "description": "Domain-specific state detail in packet.AdmissionDecisionResult; present only when the domain reports one."},
                       "scope_id": {"type": "string", "description": "Ingestion scope id that bounds the decision."},
                       "generation_id": {"type": "string", "description": "Scope generation id that bounds the decision."},
                       "anchor_kind": {"type": "string", "description": "Anchor kind the decision was read under (for example service or workload)."},
                       "anchor_id": {"type": "string", "description": "Anchor id the decision was read under."},
-                      "candidate_kind": {"type": "string", "description": "Candidate kind from packet.AdmissionDecisionResult; present only when the decision carries a candidate."},
-                      "candidate_id": {"type": "string", "description": "Candidate id from packet.AdmissionDecisionResult; present only when the decision carries a candidate."},
-                      "confidence_score": {"type": "number", "description": "Correlation confidence score from packet.AdmissionDecisionResult; present only when scored."},
-                      "confidence_bucket": {"type": "string", "description": "Confidence bucket from packet.AdmissionDecisionResult; present only when bucketed."},
-                      "confidence_basis": {"type": "string", "description": "What the confidence rests on, from packet.AdmissionDecisionResult; present only when set."},
-                      "freshness_state": {"type": "string", "description": "Freshness state from packet.AdmissionDecisionResult; present only when the reader reports it."},
-                      "freshness_observed_at": {"type": "string", "format": "date-time", "description": "When freshness was observed, from packet.AdmissionDecisionResult; present only when reported."},
-                      "freshness_cause": {"type": "string", "description": "Why the freshness state holds, from packet.AdmissionDecisionResult; present only when reported."},
+                      "candidate_kind": {"type": "string", "description": "Candidate kind in packet.AdmissionDecisionResult; present only when the decision carries a candidate."},
+                      "candidate_id": {"type": "string", "description": "Candidate id in packet.AdmissionDecisionResult; present only when the decision carries a candidate."},
+                      "confidence_score": {"type": "number", "description": "Correlation confidence score in packet.AdmissionDecisionResult; present only when scored."},
+                      "confidence_bucket": {"type": "string", "description": "Confidence bucket in packet.AdmissionDecisionResult; present only when bucketed."},
+                      "confidence_basis": {"type": "string", "description": "What the confidence rests on, in packet.AdmissionDecisionResult; present only when set."},
+                      "freshness_state": {"type": "string", "description": "Freshness state in packet.AdmissionDecisionResult; present only when the reader reports it."},
+                      "freshness_observed_at": {"type": "string", "format": "date-time", "description": "When freshness was observed, in packet.AdmissionDecisionResult; present only when reported."},
+                      "freshness_cause": {"type": "string", "description": "Why the freshness state holds, in packet.AdmissionDecisionResult; present only when reported."},
                       "source_handles": {"type": "array", "items": {"type": "object", "properties": {
-                        "kind": {"type": "string", "description": "Source handle kind from packet.AdmissionDecisionSourceHandle."},
-                        "id": {"type": "string", "description": "Source handle id from packet.AdmissionDecisionSourceHandle."},
-                        "scope_id": {"type": "string", "description": "Scope the handle belongs to, from packet.AdmissionDecisionSourceHandle; present only when scoped."}
+                        "kind": {"type": "string", "description": "Source handle kind in packet.AdmissionDecisionSourceHandle."},
+                        "id": {"type": "string", "description": "Source handle id in packet.AdmissionDecisionSourceHandle."},
+                        "scope_id": {"type": "string", "description": "Scope the handle belongs to, in packet.AdmissionDecisionSourceHandle; present only when scoped."}
                       }, "required": ["kind", "id"]}, "description": "Source handles behind the decision, mapped by AdmissionDecisionResultFromRow in evidence/admission_decisions.go; never null."},
-                      "redaction_state": {"type": "string", "description": "Redaction state from packet.AdmissionDecisionResult; present only when redaction applies."},
-                      "redaction_reason": {"type": "string", "description": "Why redaction applies, from packet.AdmissionDecisionResult; present only when redacted."},
-                      "canonical_write": {"type": "object", "description": "Whether canonical graph/content truth was written for the decision, from packet.AdmissionDecisionCanonicalWrite.", "properties": {
+                      "redaction_state": {"type": "string", "description": "Redaction state in packet.AdmissionDecisionResult; present only when redaction applies."},
+                      "redaction_reason": {"type": "string", "description": "Why redaction applies, in packet.AdmissionDecisionResult; present only when redacted."},
+                      "canonical_write": {"type": "object", "description": "Whether canonical graph/content truth was written for the decision, in packet.AdmissionDecisionCanonicalWrite.", "properties": {
                         "eligible": {"type": "boolean", "description": "True when the decision was eligible for a canonical write."},
                         "written": {"type": "boolean", "description": "True when the canonical write happened."},
                         "target_kind": {"type": "string", "description": "Canonical target kind; present only when a target was named."},
                         "target_id": {"type": "string", "description": "Canonical target id; present only when a target was named."},
                         "skipped_reason": {"type": "string", "description": "Why the write was skipped; present only when skipped."}
                       }, "required": ["eligible", "written"]},
-                      "recommended_action": {"type": "object", "description": "Operator follow-up for a non-admitted decision, from packet.AdmissionDecisionNextAction.", "properties": {
+                      "recommended_action": {"type": "object", "description": "Operator follow-up for a non-admitted decision, in packet.AdmissionDecisionNextAction.", "properties": {
                         "action": {"type": "string", "description": "Follow-up action the operator should take."},
                         "reason": {"type": "string", "description": "Why this action is recommended; present only when set."},
                         "owner": {"type": "string", "description": "Team or system that owns the follow-up; present only when set."}
                       }, "required": ["action"]},
-                      "payload_version": {"type": "string", "description": "Decision payload version from packet.AdmissionDecisionResult; present only when versioned."},
-                      "decided_at": {"type": "string", "format": "date-time", "description": "When the reducer decided, from packet.AdmissionDecisionResult."},
-                      "updated_at": {"type": "string", "format": "date-time", "description": "When the decision was last updated, from packet.AdmissionDecisionResult."},
+                      "payload_version": {"type": "string", "description": "Decision payload version in packet.AdmissionDecisionResult; present only when versioned."},
+                      "decided_at": {"type": "string", "format": "date-time", "description": "When the reducer decided, in packet.AdmissionDecisionResult."},
+                      "updated_at": {"type": "string", "format": "date-time", "description": "When the decision was last updated, in packet.AdmissionDecisionResult."},
                       "evidence": {"type": "array", "items": {"type": "object", "properties": {
-                        "evidence_id": {"type": "string", "description": "Evidence row id from packet.AdmissionDecisionEvidenceRow."},
+                        "evidence_id": {"type": "string", "description": "Evidence row id in packet.AdmissionDecisionEvidenceRow."},
                         "decision_id": {"type": "string", "description": "Decision this evidence row belongs to."},
                         "source_handle": {"type": "string", "description": "Source handle the evidence was read from."},
                         "evidence_kind": {"type": "string", "description": "Kind of this evidence row."},
-                        "detail": {"type": "object", "description": "Per-row evidence detail map from packet.AdmissionDecisionEvidenceRow.Detail; keys vary by evidence kind.", "additionalProperties": {}},
+                        "detail": {"type": "object", "description": "Per-row evidence detail map in packet.AdmissionDecisionEvidenceRow.Detail; keys vary by evidence kind.", "additionalProperties": {}},
                         "created_at": {"type": "string", "format": "date-time", "description": "When the evidence row was recorded."}
                       }, "required": ["evidence_id", "decision_id", "source_handle", "evidence_kind", "created_at"]}, "description": "Present only when include_evidence=true; capped at 20 rows per decision by boundedAdmissionDecisionEvidence."},
                       "evidence_limit": {"type": "integer", "description": "Per-decision evidence row cap when evidence is included (20, from admissionDecisionEvidenceLimit)."},

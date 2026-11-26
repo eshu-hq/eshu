@@ -63,8 +63,8 @@ const components = `  "components": {
             "type": "object",
             "description": "Bounded numeric coverage emitted by querycontract.BuildCollectorListReadiness alongside the readiness state, so a reader can interpret the state without the raw payload.",
             "properties": {
-              "results_returned": {"type": "integer", "description": "Rows returned in this page, counted by querycontract.BuildCollectorListReadiness from the bounded query result."},
-              "results_truncated": {"type": "boolean", "description": "Whether at least one additional matching row exists beyond this page, as observed by querycontract.BuildCollectorListReadiness."}
+              "results_returned": {"type": "integer", "description": "Rows returned in this page, counted by querycontract.BuildCollectorListReadiness over the bounded query result."},
+              "results_truncated": {"type": "boolean", "description": "Whether at least one additional matching row exists beyond this page as observed by querycontract.BuildCollectorListReadiness."}
             },
             "required": ["results_returned", "results_truncated"]
           }
