@@ -3,6 +3,61 @@
 
 package status
 
+// collectorsListSchema is the listCollectors 200-response schema shared by
+// the canonical collector status route and its legacy alias. Both mux to
+// query.status listCollectors, so the alias carries the identical payload;
+// a single const keeps the two fragments from drifting.
+const collectorsListSchema = `{
+                  "type": "object",
+                  "properties": {
+                    "version": {"type": "string", "description": "Server build version. Owner: query.status listCollectors."},
+                    "collectors": {
+                      "type": "array",
+                      "description": "Collector runtime status rows. Owner: query.status listCollectors.",
+                      "items": {
+                        "type": "object",
+                        "description": "One collector runtime row. Owner: query.status listCollectors.",
+                        "properties": {
+                          "instance_id": {"type": "string", "description": "Collector instance id. Owner: query.status listCollectors."},
+                          "collector_kind": {"type": "string", "description": "Collector kind. Owner: query.status listCollectors."},
+                          "mode": {"type": "string", "description": "Collector mode. Owner: query.status listCollectors."},
+                          "runtime_mode": {"type": "string", "description": "Collector runtime mode. Owner: query.status listCollectors."},
+                          "status_category": {
+                            "type": "string",
+                            "enum": ["coordinator_managed", "direct_mode", "profile_gated", "disabled", "unregistered"],
+                            "description": "Registration classification. Owner: query.status listCollectors."
+                          },
+                          "coordinator_registered": {"type": "boolean", "description": "Whether the workflow coordinator registered this instance. Owner: query.status listCollectors."},
+                          "enabled": {"type": "boolean", "description": "Whether the collector is enabled. Owner: query.status listCollectors."},
+                          "claims_enabled": {"type": "boolean", "description": "Whether the collector accepts claims. Owner: query.status listCollectors."},
+                          "evidence_sources": {"type": "array", "items": {"type": "string"}, "description": "Evidence sources backing this collector. Owner: query.status listCollectors."},
+                          "source_systems": {"type": "array", "items": {"type": "string"}, "description": "Source systems this collector reads. Owner: query.status listCollectors."},
+                          "observation_count": {"type": "integer", "description": "Observations backing this row. Owner: query.status listCollectors."},
+                          "health": {"type": "string", "description": "Collector health. Owner: query.status listCollectors."},
+                          "detail": {"type": "string", "description": "Human-readable collector detail. Owner: query.status listCollectors."},
+                          "last_failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal. Owner: query.status listCollectors."},
+                          "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown. Owner: query.status listCollectors."},
+                          "last_failure_terminal": {"type": "boolean", "description": "Whether the newest failure is terminal. Owner: query.status listCollectors."},
+                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; present only with last_failure_terminal. Owner: query.status listCollectors."},
+                          "acknowledged_failure": {
+                            "type": "object",
+                            "description": "An operator-acknowledged terminal failure (POST /api/v0/admin/collector-failures/acknowledge). Health reads at least partial, never healthy (a stale vulnerability source or a degraded failure on the same instance keeps the higher health); last_failure_* stays absent unless another scope has an unacknowledged failure. Bounded tokens and times only; the operator's reason is never returned here. Omitted when none. Owner: query.status listCollectors.",
+                            "properties": {
+                              "failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"], "description": "Bounded failure class. Owner: query.status listCollectors."},
+                              "failure_operation": {"type": "string", "description": "Bounded operation token. Owner: query.status listCollectors."},
+                              "failed_at": {"type": "string", "format": "date-time", "description": "When the failure became terminal. Owner: query.status listCollectors."},
+                              "acknowledged_at": {"type": "string", "format": "date-time", "description": "When the operator acknowledged the failure. Owner: query.status listCollectors."}
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "count": {"type": "integer", "description": "Collector rows returned. Owner: query.status listCollectors."},
+                    "classification_basis": {"type": "string", "description": "What classified the rows. Owner: query.status listCollectors."},
+                    "updated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "When the snapshot was taken. Owner: query.status listCollectors."}
+                  }
+                }`
+
 // Routes is the OpenAPI path fragment documenting the `/api/v0/*` routes.
 // openapi.Spec concatenates it into the published document; keep it in
 // lockstep with the handlers and docs/public/reference/http-api.md.
@@ -42,11 +97,13 @@ const Routes = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Known ingesters with basic health info. Owner: query.status listIngesters.",
                   "properties": {
+                    "version": {"type": "string", "description": "Server build version. Owner: query.status listIngesters via buildinfo.AppVersion."},
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
-                    "ingesters": {"type": "array", "items": {"type": "object"}},
-                    "count": {"type": "integer"}
+                    "ingesters": {"type": "array", "description": "Known ingesters with basic health info. Owner: query.status listIngesters.", "items": {"type": "object", "description": "One known ingester row. Owner: query.status listIngesters.", "required": ["name", "runtime_family", "aliases"], "properties": {"name": {"type": "string", "description": "Ingester name; the only known ingester is repository. Owner: query.status listIngesters."}, "runtime_family": {"type": "string", "description": "Runtime family; always ingester. Owner: query.status listIngesters."}, "aliases": {"type": "array", "description": "Accepted ingester name aliases (repository, bootstrap-index, repo-sync, workspace-index). Owner: query.status listIngesters.", "items": {"type": "string"}}, "health": {"type": "string", "description": "Ingester health state from the status report; present only when a status reader is configured. Owner: query.status listIngesters via report.Health.State."}, "queue_outstanding": {"type": "integer", "description": "Outstanding queue depth from the status report; present only when a status reader is configured. Owner: query.status listIngesters via report.Queue.Outstanding."}, "collector_instances": {"type": "integer", "description": "Registered collector instances from the status report; present only when a status reader is configured and the report carries a coordinator. Owner: query.status listIngesters."}}}},
+                    "count": {"type": "integer", "description": "Ingesters returned. Owner: query.status listIngesters."}
                   }
                 }
               }
@@ -69,53 +126,7 @@ const Routes = `
             "description": "List of collector runtimes",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "version": {"type": "string"},
-                    "collectors": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "instance_id": {"type": "string"},
-                          "collector_kind": {"type": "string"},
-                          "mode": {"type": "string"},
-                          "runtime_mode": {"type": "string"},
-                          "status_category": {
-                            "type": "string",
-                            "enum": ["coordinator_managed", "direct_mode", "profile_gated", "disabled", "unregistered"]
-                          },
-                          "coordinator_registered": {"type": "boolean"},
-                          "enabled": {"type": "boolean"},
-                          "claims_enabled": {"type": "boolean"},
-                          "evidence_sources": {"type": "array", "items": {"type": "string"}},
-                          "source_systems": {"type": "array", "items": {"type": "string"}},
-                          "observation_count": {"type": "integer"},
-                          "health": {"type": "string"},
-                          "detail": {"type": "string"},
-                          "last_failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal. Each collector kind reports the common classes, the extension host classes, and its own; any other persisted value reads unknown, and a class an extension defines reads extension_defined, whether the kind is not first-party or the instance is a component-activated extension carrying a first-party kind."},
-                          "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown."},
-                          "last_failure_terminal": {"type": "boolean"},
-                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; present only with last_failure_terminal."},
-                          "acknowledged_failure": {
-                            "type": "object",
-                            "description": "An operator-acknowledged terminal failure (POST /api/v0/admin/collector-failures/acknowledge). Health reads at least partial, never healthy (a stale vulnerability source or a degraded failure on the same instance keeps the higher health); last_failure_* stays absent unless another scope has an unacknowledged failure. Bounded tokens and times only; the operator's reason is never returned here. Omitted when none.",
-                            "properties": {
-                              "failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"]},
-                              "failure_operation": {"type": "string"},
-                              "failed_at": {"type": "string", "format": "date-time"},
-                              "acknowledged_at": {"type": "string", "format": "date-time"}
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "count": {"type": "integer"},
-                    "classification_basis": {"type": "string"},
-                    "updated_at": {"type": "string", "format": "date-time", "nullable": true}
-                  }
-                }
+                "schema": ` + collectorsListSchema + `
               }
             }
           },
@@ -161,7 +172,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "List ingesters",
-        "description": "Legacy compatibility alias for the Go-owned ingester status list.",
+        "description": "Legacy compatibility alias for the Go-owned ingester status list. Serves the identical listIngesters payload as the canonical route.",
         "operationId": "listIngestersLegacy",
         "responses": {
           "200": {
@@ -170,11 +181,13 @@ const Routes = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Known ingesters with basic health info. Owner: query.status listIngesters.",
                   "properties": {
+                    "version": {"type": "string", "description": "Server build version. Owner: query.status listIngesters via buildinfo.AppVersion."},
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
-                    "ingesters": {"type": "array", "items": {"type": "object"}},
-                    "count": {"type": "integer"}
+                    "ingesters": {"type": "array", "description": "Known ingesters with basic health info. Owner: query.status listIngesters.", "items": {"type": "object", "description": "One known ingester row. Owner: query.status listIngesters.", "required": ["name", "runtime_family", "aliases"], "properties": {"name": {"type": "string", "description": "Ingester name; the only known ingester is repository. Owner: query.status listIngesters."}, "runtime_family": {"type": "string", "description": "Runtime family; always ingester. Owner: query.status listIngesters."}, "aliases": {"type": "array", "description": "Accepted ingester name aliases (repository, bootstrap-index, repo-sync, workspace-index). Owner: query.status listIngesters.", "items": {"type": "string"}}, "health": {"type": "string", "description": "Ingester health state from the status report; present only when a status reader is configured. Owner: query.status listIngesters via report.Health.State."}, "queue_outstanding": {"type": "integer", "description": "Outstanding queue depth from the status report; present only when a status reader is configured. Owner: query.status listIngesters via report.Queue.Outstanding."}, "collector_instances": {"type": "integer", "description": "Registered collector instances from the status report; present only when a status reader is configured and the report carries a coordinator. Owner: query.status listIngesters."}}}},
+                    "count": {"type": "integer", "description": "Ingesters returned. Owner: query.status listIngesters."}
                   }
                 }
               }
@@ -195,7 +208,7 @@ const Routes = `
             "description": "List of collector runtimes",
             "content": {
               "application/json": {
-                "schema": {"type": "object"}
+                "schema": ` + collectorsListSchema + `
               }
             }
           },
@@ -381,7 +394,7 @@ const Routes = `
             "description": "OpenAPI specification",
             "content": {
               "application/json": {
-                "schema": {"type": "object"}
+                "schema": {"type": "object", "additionalProperties": true, "description": "The served OpenAPI 3.0 document itself: its openapi, info, paths, and components blocks. The shape is self-referential, so no fixed property set is pinned. Owner: query openapi.Spec."}
               }
             }
           }
