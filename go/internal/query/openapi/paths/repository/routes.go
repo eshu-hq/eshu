@@ -3,15 +3,14 @@
 
 package repository
 
-import (
-	"github.com/eshu-hq/eshu/go/internal/query/openapi/schema"
-)
-
 // Routes is the OpenAPI path fragment documenting its routes, among them
 // `/api/v0/catalog`, `/api/v0/repositories`,
 // `/api/v0/repositories/by-language`. openapi.Spec concatenates it into the
 // published document; keep it in lockstep with the handlers and
 // docs/public/reference/http-api.md.
+//
+// The context and story routes live in Context and Story (same package) to
+// keep this file under the source size cap.
 const Routes = `
     "/health": {
       "get": {
@@ -27,7 +26,7 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {"type": "string", "example": "ok"}
+                    "status": {"type": "string", "example": "ok", "description": "Health status emitted by the API health handler (always ok on a live instance)."}
                   }
                 }
               }
@@ -59,13 +58,14 @@ const Routes = `
                   "properties": {
                     "repositories": {
                       "type": "array",
+                      "description": "Bounded page of repository rows, emitted by the repository list handler as shared Repository rows (full projection) or identity rows (compact projection).",
                       "items": {"$ref": "#/components/schemas/Repository"}
                     },
                     "count": {"type": "integer", "description": "Number of repositories returned in this page."},
                     "total": {"type": "integer", "description": "True total repository count independent of page size. Use this field — not count — to display the overall repository count on dashboards and sidebars. With the name filter present, counts the filtered set: omit name for the full inventory count."},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the repository list handler from the normalized limit."},
+                    "offset": {"type": "integer", "description": "Echo of the caller's result offset, emitted by the repository list handler from the normalized offset."},
+                    "truncated": {"type": "boolean", "description": "True when more repositories exist past this page, emitted by the repository list handler from the lookahead row."},
                     "projection": {"type": "string", "enum": ["full", "compact"], "description": "Row shape served for this page: full rows or compact identity rows."},
                     "result_limits": {"type": "object", "description": "Additive drilldown block for the inventory form of get_repository_stats: bounded page limit/offset, deterministic ordering, repository count, truncation flag, and the get_repository_stats drilldown plus inventory context path.", "additionalProperties": true},
                     "partial_reasons": {"type": "array", "description": "Explicit reasons the response is partial. repository_inventory_truncated means more repositories exist beyond this page (mirrors truncated above). repository_group_evidence_missing means at least one returned repository has no source-backed grouping evidence. dependency_marker_evidence_incomplete means the bounded DEPENDS_ON edge read backing each repository's is_dependency field (and its dependency-cluster grouping) failed or was truncated for this request; is_dependency may be under-reported (false where evidence was actually true) on affected rows, and this reason is independent of truncated -- it never means more repositories exist beyond the page. Always present (possibly empty) so the envelope shape is stable.", "items": {"type": "string"}}
@@ -102,39 +102,42 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "language": {"type": "string"},
-                    "normalized_languages": {"type": "array", "items": {"type": "string"}},
-                    "repository_count": {"type": "integer"},
-                    "file_count": {"type": "integer"},
-                    "last_indexed_at": {"type": "string", "format": "date-time"},
+                    "language": {"type": "string", "description": "Echo of the caller's language family selector, emitted by the repository language handler from the normalized language param."},
+                    "normalized_languages": {"type": "array", "items": {"type": "string"}, "description": "Language aliases the selector expanded to (e.g. typescript includes tsx), emitted by the repository language handler from the normalized language family."},
+                    "repository_count": {"type": "integer", "description": "Repositories containing files of this language family, emitted by the repository language handler from the language aggregate."},
+                    "file_count": {"type": "integer", "description": "Files of this language family, emitted by the repository language handler from the language aggregate."},
+                    "last_indexed_at": {"type": "string", "format": "date-time", "description": "Newest index timestamp across the family, emitted by the repository language handler from the language aggregate."},
                     "repositories": {
                       "type": "array",
+                      "description": "Bounded page of repositories in this language family, emitted by the repository language handler from repositoryLanguageRepositoryMaps as shared Repository rows extended with per-language counts.",
                       "items": {
                         "allOf": [
                           {"$ref": "#/components/schemas/Repository"},
                           {
                             "type": "object",
                             "properties": {
-                              "file_count": {"type": "integer"},
+                              "file_count": {"type": "integer", "description": "Family file count for this repository, emitted by repository.repositoryLanguageRepositoryMaps."},
                               "languages": {
                                 "type": "array",
+                                "description": "Per-language file counts for this repository, emitted by repository.repositoryLanguageRepositoryMaps from coverageLanguageMaps.",
                                 "items": {
                                   "type": "object",
                                   "properties": {
-                                    "language": {"type": "string"},
-                                    "file_count": {"type": "integer"}
-                                  }
+                                    "language": {"type": "string", "description": "Language name emitted by the repository language coverage maps."},
+                                    "file_count": {"type": "integer", "description": "Files of this language emitted by the repository language coverage maps."}
+                                  },
+                                  "required": ["language"]
                                 }
                               },
-                              "last_indexed_at": {"type": "string", "format": "date-time"}
+                              "last_indexed_at": {"type": "string", "format": "date-time", "description": "Index timestamp for this repository, emitted by repository.repositoryLanguageRepositoryMaps."}
                             }
                           }
                         ]
                       }
                     },
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the repository language handler from the normalized limit."},
+                    "offset": {"type": "integer", "description": "Echo of the caller's result offset, emitted by the repository language handler from the normalized offset."},
+                    "truncated": {"type": "boolean", "description": "True when more repositories exist past this page, emitted by the repository language handler from the lookahead row."}
                   }
                 }
               }
@@ -168,19 +171,21 @@ const Routes = `
                   "properties": {
                     "languages": {
                       "type": "array",
+                      "description": "Aggregate repository and file counts per indexed language bucket, emitted by the repository language handler from repositoryLanguageInventoryMaps.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "language": {"type": "string"},
-                          "repository_count": {"type": "integer"},
-                          "file_count": {"type": "integer"},
-                          "last_indexed_at": {"type": "string", "format": "date-time"}
-                        }
+                          "language": {"type": "string", "description": "Language bucket name emitted by repository.repositoryLanguageInventoryMaps."},
+                          "repository_count": {"type": "integer", "description": "Repositories containing this language, emitted by repository.repositoryLanguageInventoryMaps."},
+                          "file_count": {"type": "integer", "description": "Files of this language, emitted by repository.repositoryLanguageInventoryMaps."},
+                          "last_indexed_at": {"type": "string", "format": "date-time", "description": "Newest index timestamp in this bucket, emitted by repository.repositoryLanguageInventoryMaps."}
+                        },
+                        "required": ["language", "repository_count", "file_count"]
                       }
                     },
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the repository language handler from the normalized limit."},
+                    "offset": {"type": "integer", "description": "Echo of the caller's result offset, emitted by the repository language handler from the normalized offset."},
+                    "truncated": {"type": "boolean", "description": "True when more language buckets exist past this page, emitted by the repository language handler from the lookahead row."}
                   }
                 }
               }
@@ -221,19 +226,22 @@ const Routes = `
                   "properties": {
                     "repositories": {
                       "type": "array",
+                      "description": "Bounded repository handles for catalog navigation, emitted by the repository catalog handler (component shape).",
                       "items": {"$ref": "#/components/schemas/Repository"}
                     },
                     "workloads": {
                       "type": "array",
+                      "description": "Bounded workload handles for catalog navigation, emitted by the repository catalog handler (component shape).",
                       "items": {"$ref": "#/components/schemas/CatalogWorkload"}
                     },
                     "services": {
                       "type": "array",
+                      "description": "Bounded service handles for catalog navigation, emitted by the repository catalog handler (component shape).",
                       "items": {"$ref": "#/components/schemas/CatalogWorkload"}
                     },
-                    "counts": {"type": "object"},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
+                    "counts": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Row counts per catalog collection, emitted by the repository catalog handler from catalog counts. Keys are the collection names (repositories, workloads, services); values are the row counts in this page."},
+                    "count": {"type": "integer", "description": "Total rows returned across collections, emitted by the repository catalog handler."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page bound, emitted by the repository catalog handler from the normalized limit."},
                     "truncated": {"type": "boolean", "description": "True when any catalog collection (repositories or workloads/services) is itself a bounded partial page, i.e. more rows exist beyond limit. A degraded is_dependency read (see limitations) never sets this: the repository/workload rows returned are complete even when the auxiliary dependency marker on them is not."},
                     "workloads_truncated": {"type": "boolean", "description": "True only when the workload and service collections are a bounded partial page; repository-only truncation does not set this field."},
                     "limitations": {"type": "array", "description": "Explicit caveats about this response's completeness or truth basis. dependency_marker_evidence_incomplete means the bounded DEPENDS_ON edge read backing each repository's is_dependency field failed or was truncated for this request; is_dependency may be under-reported (false where evidence was actually true) on affected rows. \"workload and service catalog rows require an authoritative graph backend\" appears when no graph backend is configured. Distinct from truncated, which is about row-count paging, not evidence completeness.", "items": {"type": "string"}}
@@ -246,134 +254,7 @@ const Routes = `
         }
       }
     },
-    "/api/v0/repositories/{repo_id}/context": {
-      "get": {
-        "tags": ["repositories"],
-        "summary": "Get repository context",
-        "description": "Returns repository metadata with graph statistics. File count and languages use a content-files-only summary when available. A file-derived infrastructure overview beyond 5,000 files is explicitly marked partial. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
-        "operationId": "getRepositoryContext",
-        "x-scoped-token-support": true,
-        "parameters": [
-          {"$ref": "#/components/parameters/RepoId"},
-          {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How the context row lists are shaped. full (the HTTP default when absent) returns every list in full. handles projects relationships, relationship_overview.relationships, consumers, api_surface.endpoints, deployment_evidence.artifacts, deployment_artifacts, infrastructure_overview.deployment_artifacts, entry_points, and infrastructure to identity rows, drops the repeated relationship partition lists and the evidence_index regrouping with a pointer, keeps every count, and names each reduced family with its total in truth.omissions. The MCP get_repo_context tool defaults to handles. Unknown values return 400 invalid_argument."}
-        ],
-        "responses": {
-          "403": {"$ref": "#/components/responses/Forbidden"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
-          "504": {"$ref": "#/components/responses/GatewayTimeout"},
-          "200": {
-            "description": "Repository context",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "repository": {"$ref": "#/components/schemas/RepositoryRef"},
-                    "file_count": {"type": "integer"},
-                    "workload_count": {"type": "integer"},
-                    "platform_count": {"type": "integer"},
-                    "dependency_count": {"type": "integer"},
-                    "relationships": {
-                      "type": "array",
-                      "description": "Outgoing repository relationships.",
-                      "items": {"type": "object"}
-                    },
-                    "relationship_overview": {
-                      "type": "object",
-                      "description": "Incoming and outgoing typed repository relationships with lightweight evidence pointers."
-                    },
-                    "api_surface": {
-                      "type": "object",
-                      "description": "Graph-backed API endpoint surface exposed by this repository."
-                    },
-                    "deployment_evidence": {
-                      "type": "object",
-                      "description": "Deployment, CI, and environment evidence pointers. Artifacts include source_location plus resolved_id/generation_id for Postgres evidence drilldown; evidence_index groups those pointers by relationship type, artifact family, and evidence kind."
-                    },
-                    "consumers": {
-                      "type": "array",
-                      "description": "Repositories with incoming relationships to this repository.",
-                      "items": {"type": "object"}
-                    },
-                    "language_breakdown": {
-                      "type": "object",
-                      "description": "Per-language file counts for this repository, derived from indexed File nodes. Omitted when no language data is available. Keys are language names (e.g. go, python, yaml); values are integer file counts.",
-                      "additionalProperties": {"type": "integer"}
-                    },
-                    "source_tool_breakdown": {
-                      "type": "object",
-                      "description": "Per-source_tool outgoing relationship-edge counts for this repository. Omitted when no edges carry a source_tool property. Keys are canonical source_tool tokens (e.g. terraform, helm, ansible); values are integer edge counts.",
-                      "additionalProperties": {"type": "integer"}
-                    },
-                    "partial_reasons": {
-                      "type": "array",
-                      "description": "Explicit reasons the response is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed but the rest of the context still answers 200, relationships_read_degraded or consumers_read_degraded when one of the other auxiliary graph reads failed (each read has its own <read>_read_degraded value), or infrastructure_truncated when a healthy infrastructure read landed past its bound. repository_context_file_read_truncated_at_5000 means file-derived infrastructure and deployment-artifact overviews use only the first 5,000 files; repository_context_file_read_degraded means that file list failed and those overviews may be omitted; repository_context_content_coverage_degraded means the content-file summary failed and graph file counts/languages were used. deployment_artifacts_read_degraded means a content or graph read of the deployment-artifact stage failed, so deployment_artifacts and infrastructure_overview hold the artifacts from the loads that succeeded and lack the artifacts of the load that failed. deployment_artifacts_candidates_budget_reached means the request budget of 12,000 config-artifact candidates beyond the per-repository floor of 50 ran out, so at least one related repository had candidates inside its 5,000-file window that were not read and the config rows are a lower bound; deployment_artifacts_related_file_list_truncated_at_5000 means at least one related repository has more than 5,000 files, so its candidates past the window are unknown. Always present so the envelope shape is stable.",
-                      "items": {"type": "string"}
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {"$ref": "#/components/responses/BadRequest"},
-          "404": {"$ref": "#/components/responses/NotFound"},
-          "500": {"$ref": "#/components/responses/InternalError"}
-        }
-      }
-    },
-    "/api/v0/repositories/{repo_id}/story": {
-      "get": {
-        "tags": ["repositories"],
-        "summary": "Get repository story",
-        "description": "Returns a structured repository story with deployment, support, and bounded content-store coverage overviews. Missing coverage remains explicit and does not trigger whole-graph traversal. Scoped tokens receive the same shape; a repository outside the caller's grant 404s like sibling repository routes.",
-        "operationId": "getRepositoryStory",
-        "x-scoped-token-support": true,
-        "parameters": [
-          {"$ref": "#/components/parameters/RepoId"},
-          {"name": "evidence_detail", "in": "query", "required": false, "schema": {"type": "string", "enum": ["full", "handles"], "default": "full"}, "description": "How the story row lists are shaped. full (the HTTP default when absent) returns every list in full. handles projects relationship_overview.relationships, deployment_evidence.artifacts, deployment_artifacts, delivery_paths, delivery_workflows, target_documentation.findings, documentation_overview.target_documentation.related_facts, target_support.evidence, support_overview.target_support.ambiguous_evidence, and framework_summary.frameworks to identity rows, drops the repeated relationship partition lists and the evidence_index regrouping with a pointer, keeps every count, narrative, limitation, and drilldown, and names each reduced family with its total in truth.omissions. Each total is the rows the story held for that family before the cut; the target documentation and target support reads are capped at 10 rows, so their totals are lower bounds past the cap. The MCP get_repo_story tool defaults to handles. Unknown values return 400 invalid_argument."}
-        ],
-        "responses": {
-          "403": {"$ref": "#/components/responses/Forbidden"},
-          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
-          "504": {"$ref": "#/components/responses/GatewayTimeout"},
-          "200": {
-            "description": "Repository narrative",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "repository": {"$ref": "#/components/schemas/RepositoryRef"},
-                    "subject": {"type": "object"},
-                    "story": {"type": "string"},
-                    "story_sections": {"type": "array", "items": {"type": "object"}},
-                    "semantic_overview": {"type": "object"},
-                    "ci_cd_evidence": {"type": "object", "description": "Repository-scoped static workflow, live run, and artifact evidence. A file read that returns a sentinel row past the 5,000-file limit adds static_workflow_artifacts.candidate_pool_status=unknown_at_limit and missing_evidence class static_workflow_coverage_unknown. A repository with exactly 5,000 files is a complete scan and adds neither. Zero observed workflows on a truncated scan means state=unknown; positive counts describe the observed page. Uncapped serialization is preserved."},
-                    "deployment_overview": {"type": "object"},
-                    "gitops_overview": {"type": "object"},
-                    "documentation_overview": {"type": "object"},
-                    "support_overview": {"type": "object"},
-                    "coverage_summary": {"type": "object", "description": "Bounded content-store coverage, sharing the stats coverage contract. last_error, when present, is one fixed string from the same closed set as the stats coverage.last_error, never backend error text."},
-                    "limitations": {
-                      "type": "array",
-                      "description": "Explicit reasons the story is partial, e.g. infrastructure_read_degraded when the auxiliary infrastructure graph read failed, relationships_read_degraded when the outgoing dependencies read failed, infrastructure_truncated when a healthy infrastructure read landed past its bound, story_rows_truncated when the workload/platform/language narrative rows landed past their bound, or repository_semantic_read_truncated_at_5000 when the bounded semantic entity or file read found a row past its 5000-row cap, or deployment_artifacts_read_degraded when a content or graph read of the deployment-artifact stage failed and the artifacts hold the loads that succeeded and lack the artifacts of the load that failed, or deployment_artifacts_candidates_budget_reached means the request budget of 12,000 config-artifact candidates beyond the per-repository floor of 50 ran out, so at least one related repository had candidates inside its 5,000-file window that were not read and the config rows are a lower bound, or deployment_artifacts_related_file_list_truncated_at_5000 means at least one related repository has more than 5,000 files, so its candidates past the window are unknown; always present so the envelope shape is stable.",
-                      "items": {"type": "string"}
-                    },
-                    "truncated": {"type": "boolean", "description": "True when the workload/platform/language narrative rows landed past repositoryStoryStringRowLimit and were capped, OR the auxiliary infrastructure read landed past its own bound, OR the bounded semantic entity or file read found a row past its 5000-row cap, OR a deployment-artifact candidate bound bit (deployment_artifacts_candidates_budget_reached or deployment_artifacts_related_file_list_truncated_at_5000 in limitations); always present so the envelope shape is stable."},
-                    "drilldowns": {"type": "object"},
-                    "answer_metadata": {"type": "object", "description": "Normalized additive answer metadata with schema_version, evidence_handles, missing_evidence, limitations, truncated, coverage, partial_reasons, and recommended_next_calls."},
-                    "evidence_boundaries": ` + schema.EvidenceBoundaries + `
-                  }
-                }
-              }
-            }
-          },
-          "400": {"$ref": "#/components/responses/BadRequest"},
-          "404": {"$ref": "#/components/responses/NotFound"},
-          "500": {"$ref": "#/components/responses/InternalError"}
-        }
-      }
-    },
+` + Context + Story + `
     "/api/v0/repositories/{repo_id}/tree": {
       "get": {
         "tags": ["repositories"],
@@ -399,21 +280,23 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "ref": {"type": "string"},
-                    "path": {"type": "string"},
-                    "truncated": {"type": "boolean"},
+                    "ref": {"type": "string", "description": "Indexed commit SHA the tree was built from, emitted by the repository tree handler."},
+                    "path": {"type": "string", "description": "Echo of the caller's directory subpath, emitted by the repository tree handler from the normalized path."},
+                    "truncated": {"type": "boolean", "description": "True when the matching subtree exceeds the file cap, emitted by the repository tree handler from the bounded read."},
                     "entries": {
                       "type": "array",
+                      "description": "Directory and file entries for the listed level (or full subtree with recursive=true), emitted by the repository tree handler from the content-store file index.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "name": {"type": "string"},
-                          "type": {"type": "string", "enum": ["dir", "file"]},
-                          "path": {"type": "string"},
-                          "size": {"type": "integer"},
-                          "language": {"type": "string"},
-                          "child_count": {"type": "integer"}
-                        }
+                          "name": {"type": "string", "description": "Entry name emitted by the repository tree handler from the file index."},
+                          "type": {"type": "string", "enum": ["dir", "file"], "description": "Entry kind emitted by the repository tree handler from the file index."},
+                          "path": {"type": "string", "description": "Repository-relative entry path emitted by the repository tree handler from the file index."},
+                          "size": {"type": "integer", "description": "File byte length emitted by the repository tree handler from the file index (zero for directories)."},
+                          "language": {"type": "string", "description": "Entry language emitted by the repository tree handler from the file index (present when known)."},
+                          "child_count": {"type": "integer", "description": "Descendant file count for a directory, emitted by the repository tree handler from the file index (present on directories only)."}
+                        },
+                        "required": ["name", "type", "path"]
                       }
                     }
                   }
@@ -449,13 +332,13 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "path": {"type": "string"},
-                    "ref": {"type": "string"},
-                    "encoding": {"type": "string", "enum": ["utf-8", "base64"]},
-                    "content": {"type": "string"},
-                    "size": {"type": "integer"},
-                    "language": {"type": "string"},
-                    "truncated": {"type": "boolean"}
+                    "path": {"type": "string", "description": "Echo of the caller's repository-relative file path, emitted by the repository content handler."},
+                    "ref": {"type": "string", "description": "Indexed commit SHA the bytes were read from, emitted by the repository content handler."},
+                    "encoding": {"type": "string", "enum": ["utf-8", "base64"], "description": "Content encoding emitted by the repository content handler (utf-8 text, or base64 for non-UTF-8 bytes)."},
+                    "content": {"type": "string", "description": "File bytes as text or base64, emitted by the repository content handler from the content store (never redacted-collector content)."},
+                    "size": {"type": "integer", "description": "Original byte length emitted by the repository content handler from the content store."},
+                    "language": {"type": "string", "description": "File language emitted by the repository content handler from the file index (present when known)."},
+                    "truncated": {"type": "boolean", "description": "True when the byte cap was reached, emitted by the repository content handler from the bounded read."}
                   }
                 }
               }

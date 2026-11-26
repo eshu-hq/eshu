@@ -61,9 +61,10 @@ const components = `  "components": {
           "collector_kind": {"type": "string", "description": "Feeding collector family for the gated tool, such as sbom_attestation, package_registry, oci_registry, or ci_cd_run."},
           "counts": {
             "type": "object",
+            "description": "Bounded numeric coverage emitted by querycontract.BuildCollectorListReadiness alongside the readiness state, so a reader can interpret the state without the raw payload.",
             "properties": {
-              "results_returned": {"type": "integer"},
-              "results_truncated": {"type": "boolean"}
+              "results_returned": {"type": "integer", "description": "Rows returned in this page, counted by querycontract.BuildCollectorListReadiness over the bounded query result."},
+              "results_truncated": {"type": "boolean", "description": "Whether at least one additional matching row exists beyond this page as observed by querycontract.BuildCollectorListReadiness."}
             },
             "required": ["results_returned", "results_truncated"]
           }
@@ -170,24 +171,24 @@ const components = `  "components": {
         "type": "object",
         "description": "Sanitized semantic evidence fact row. Prompt payloads, credentials, and private provider responses are not exposed.",
         "properties": {
-          "fact_id": {"type": "string"},
-          "fact_kind": {"type": "string", "enum": ["semantic.documentation_observation", "semantic.code_hint"]},
-          "truth_basis": {"type": "string", "enum": ["semantic_observation", "code_hint"]},
-          "provider_profile_id": {"type": "string"},
-          "provider_kind": {"type": "string"},
-          "prompt_version": {"type": "string"},
-          "redaction_version": {"type": "string"},
-          "policy_state": {"type": "string"},
-          "freshness_state": {"type": "string"},
-          "admission_state": {"type": "string"},
-          "corroboration_state": {"type": "string"},
+          "fact_id": {"type": "string", "description": "Durable fact identifier emitted by query.semanticEvidencePublicRow from the fact record."},
+          "fact_kind": {"type": "string", "enum": ["semantic.documentation_observation", "semantic.code_hint"], "description": "Durable fact kind emitted by query.semanticEvidencePublicRow: a documentation observation or a code hint."},
+          "truth_basis": {"type": "string", "enum": ["semantic_observation", "code_hint"], "description": "Truth basis derived by query.semanticEvidenceTruthBasis from fact_kind."},
+          "provider_profile_id": {"type": "string", "description": "Provider profile that produced the fact, projected by query.semanticEvidencePublicRow from the payload provider block."},
+          "provider_kind": {"type": "string", "description": "Provider family that produced the fact, projected by query.semanticEvidencePublicRow from the payload provider block."},
+          "prompt_version": {"type": "string", "description": "Prompt version recorded in the payload chunk block, projected by query.semanticEvidencePublicRow."},
+          "redaction_version": {"type": "string", "description": "Redaction version recorded in the payload chunk block, projected by query.semanticEvidencePublicRow."},
+          "policy_state": {"type": "string", "description": "Bounded policy state carried on the payload, projected by query.semanticEvidencePublicRow."},
+          "freshness_state": {"type": "string", "description": "Bounded freshness state carried on the payload, projected by query.semanticEvidencePublicRow."},
+          "admission_state": {"type": "string", "description": "Bounded admission state carried on the payload, projected by query.semanticEvidencePublicRow."},
+          "corroboration_state": {"type": "string", "description": "Bounded corroboration state carried on the payload, projected by query.semanticEvidencePublicRow."},
           "source_acl_state": {"type": "string", "enum": ["allowed", "denied", "partial", "missing", "stale"], "description": "Bounded source-ACL-state observation from the collector, surfaced as a distinct access-posture axis kept separate from freshness_state and policy_state (#2138). Omitted when the source asserted no bounded ACL claim."},
           "access_disposition": {"type": "string", "enum": ["visible", "access_denied", "partial", "stale", "missing"], "description": "Bounded access disposition enforced from source_acl_state and the per-caller read decision (#2164). visible: content intact. access_denied: caller authenticated-but-not-authorized; content withheld and permission_denied set. partial: content withheld behind a partial marker. stale: permitted-but-stale; content intact. missing: source not found at origin. A distinct axis from freshness_state/policy_state; the row is disclosed (not silently dropped) so a reader can tell 'no evidence' from 'evidence exists but is denied/partial/stale'."},
           "permission_denied": {"type": "boolean", "description": "Set true when the caller is authenticated-but-not-authorized for the source (access_denied disposition). The protected content is withheld; only bounded state is disclosed."},
           "content_withheld": {"type": "boolean", "description": "Set true when protected content/excerpt was stripped from the row because the access posture (access_denied or partial) is not cleanly readable. Only bounded identity/state fields remain."},
-          "source": {"type": "object", "additionalProperties": true},
-          "chunk": {"type": "object", "additionalProperties": true},
-          "provider": {"type": "object", "additionalProperties": true}
+          "source": {"type": "object", "additionalProperties": true, "description": "Filtered source locator projected by query.semanticEvidencePublicRow. Keys are source_id, source_class, source_handle, repository_id, document_id, relative_path, external_anchor, section_id, and line/section/page bounds."},
+          "chunk": {"type": "object", "additionalProperties": true, "description": "Filtered chunk identity projected by query.semanticEvidencePublicRow. Keys are chunk_id, chunk_hash, source_hash, prompt_version, redaction_version, extractor_version, and extraction_mode."},
+          "provider": {"type": "object", "additionalProperties": true, "description": "Filtered provider identity projected by query.semanticEvidencePublicRow. Keys are provider_profile_id, provider_kind, model_id, and endpoint_profile_id."}
         }
       },
       "SemanticObservationList": {
@@ -292,7 +293,7 @@ const components = `  "components": {
             "method": {"type": "string", "description": "Code resolution_method, value-flow evidence_source, correlation confidence_basis/resolution_source, or unsupported when unavailable."},
             "source_family": {"type": "string", "enum": ["code_edge", "value_flow_edge", "correlation_edge", "unsupported"]}, "reason": {"type": "string"},
             "truth_state": {"type": "string", "enum": ["derived", "heuristic", "unsupported"]},
-            "why_trail": {"type": "array", "description": "Bounded ordered value-flow trail for TAINT_FLOWS_TO evidence, when available.", "items": {"type": "object"}}, "why_trail_truncated": {"type": "boolean"},
+            "why_trail": {"type": "array", "description": "Bounded ordered value-flow trail for TAINT_FLOWS_TO evidence, when available.", "items": {"type": "object", "additionalProperties": true, "description": "One ordered value-flow trail step decoded by codemodel.RelationshipStoryProvenance from the edge's why_trail_json. Keys name the step role (source/sink), function_uid, slot_kind, and slot_index; the step set varies with the evidence, so no fixed properties are pinned."}}, "why_trail_truncated": {"type": "boolean"},
             "derived": {"type": "boolean"}, "heuristic": {"type": "boolean"}, "unsupported": {"type": "boolean"}
           }},
           "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking."}
@@ -344,15 +345,15 @@ const components = `  "components": {
       "CodeSearchResult": {
         "type": "object",
         "properties": {
-          "entity_id": {"type": "string"},
-          "entity_name": {"type": "string"},
-          "entity_type": {"type": "string"},
-          "name": {"type": "string"},
-          "labels": {"type": "array", "items": {"type": "string"}},
-          "file_path": {"type": "string"},
-          "start_line": {"type": "integer"},
-          "end_line": {"type": "integer"},
-          "language": {"type": "string"},
+          "entity_id": {"type": "string", "description": "Entity identifier emitted by the codequery.CodeHandler search row builders."},
+          "entity_name": {"type": "string", "description": "Entity name emitted by the codequery.CodeHandler content row builder (searchEntityContentWithExact)."},
+          "entity_type": {"type": "string", "description": "Entity type emitted by the codequery.CodeHandler content row builder (searchEntityContentWithExact)."},
+          "name": {"type": "string", "description": "Matched name emitted by the codequery.CodeHandler graph row builder (searchGraphEntitiesWithExact)."},
+          "labels": {"type": "array", "items": {"type": "string"}, "description": "Graph labels emitted by the codequery.CodeHandler graph row builder (searchGraphEntitiesWithExact)."},
+          "file_path": {"type": "string", "description": "Repository-relative file path emitted by the codequery.CodeHandler search row builders."},
+          "start_line": {"type": "integer", "description": "1-based start line emitted by the codequery.CodeHandler search row builders."},
+          "end_line": {"type": "integer", "description": "1-based end line emitted by the codequery.CodeHandler search row builders."},
+          "language": {"type": "string", "description": "Entity language emitted by the codequery.CodeHandler search row builders."},
           "source_cache": {"type": "string", "description": "Stored source body, clipped at read time to 4096 bytes (see source_cache_clipped)."},
           "source_cache_clipped": {"type": "boolean", "description": "Present and true only when this row's source_cache was clipped at read time to source_cache_clip_bytes. The stored body is unchanged; use source_handle with get_entity_content or get_file_lines for the full text. Distinct from the write-time metadata.source_cache_truncated marker."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Present only on a clipped row: the read-time source_cache ceiling in bytes (4096)."},
@@ -376,49 +377,50 @@ const components = `  "components": {
             "additionalProperties": true,
             "description": "Optional parser metadata returned on content-backed fallback results. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."
           },
-          "repo_id": {"type": "string"},
-          "repo_name": {"type": "string"}
+          "repo_id": {"type": "string", "description": "Repository identifier emitted by the codequery.CodeHandler search row builders."},
+          "repo_name": {"type": "string", "description": "Repository name emitted by the codequery.CodeHandler graph row builder (searchGraphEntitiesWithExact)."}
         }
       },
       "CodeSearchResponse": {
         "type": "object",
         "required": ["source", "source_backend", "query", "repo_id", "results", "count", "limit", "truncated"],
         "properties": {
-          "source": {"type": "string", "enum": ["graph", "content"]},
-          "source_backend": {"type": "string"},
-          "query": {"type": "string"},
-          "repo_id": {"type": "string"},
+          "source": {"type": "string", "enum": ["graph", "content"], "description": "Row origin emitted by codemodel.CodeSearchPagePayloadFromPage: graph for graph-backed rows, content for content-store fallback rows."},
+          "source_backend": {"type": "string", "description": "Store backend that served the page, emitted by codemodel.CodeSearchPagePayloadFromPage."},
+          "query": {"type": "string", "description": "Echo of the request query, emitted by codemodel.CodeSearchPagePayloadFromPage."},
+          "repo_id": {"type": "string", "description": "Echo of the request repository selector, emitted by codemodel.CodeSearchPagePayloadFromPage."},
           "results": {
             "type": "array",
+            "description": "Page rows in offset order (re-ranked in place on the hybrid path), emitted by codemodel.CodeSearchPagePayloadFromPage.",
             "items": {"$ref": "#/components/schemas/CodeSearchResult"}
           },
           "count": {"type": "integer", "description": "Number of rows returned in this page."},
-          "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 200, "description": "Effective page limit the envelope was cut to, emitted by codemodel.CodeSearchPagePayloadFromPage."},
           "offset": {"type": "integer", "description": "Zero-based start of this page; present only when the request set a positive offset."},
           "truncated": {"type": "boolean", "description": "True when at least one additional matching row exists beyond this page."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
           "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."},
           "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
           "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."},
-          "rank_walk": {"$ref": "#/components/schemas/RankWalk"}
+          "rank_walk": {"$ref": "#/components/schemas/RankWalk", "description": "Rank-walk cursor block added by codequery.writeRankWalkPage on the rank_cursor path; absent on the offset path."}
         }
       },
       "SymbolSearchResult": {
         "type": "object",
         "properties": {
-          "entity_id": {"type": "string"},
-          "name": {"type": "string"},
-          "entity_name": {"type": "string"},
-          "entity_type": {"type": "string"},
-          "file_path": {"type": "string"},
-          "relative_path": {"type": "string"},
-          "repo_id": {"type": "string"},
-          "language": {"type": "string"},
-          "start_line": {"type": "integer"},
-          "end_line": {"type": "integer"},
-          "classification": {"type": "string", "enum": ["definition"]},
-          "match_kind": {"type": "string", "enum": ["exact", "fuzzy"]},
-          "rank": {"type": "integer"},
+          "entity_id": {"type": "string", "description": "Entity identifier emitted by codequery.symbolEntityResults (content path) or codequery.normalizeSymbolGraphResults (graph path)."},
+          "name": {"type": "string", "description": "Matched symbol name emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "entity_name": {"type": "string", "description": "Entity name emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "entity_type": {"type": "string", "description": "Entity type emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "file_path": {"type": "string", "description": "Repository-relative file path emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "relative_path": {"type": "string", "description": "Repository-relative path emitted by codequery.symbolEntityResults (content path)."},
+          "repo_id": {"type": "string", "description": "Repository identifier emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "language": {"type": "string", "description": "Entity language emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "start_line": {"type": "integer", "description": "1-based definition start line emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "end_line": {"type": "integer", "description": "1-based definition end line emitted by codequery.symbolEntityResults or codequery.normalizeSymbolGraphResults."},
+          "classification": {"type": "string", "enum": ["definition"], "description": "Row classification emitted by codequery.symbolEntityResults and codequery.normalizeSymbolGraphResults: always definition for symbol definition rows."},
+          "match_kind": {"type": "string", "enum": ["exact", "fuzzy"], "description": "Match mode that produced the row, emitted by codequery.symbolEntityResults and codequery.normalizeSymbolGraphResults."},
+          "rank": {"type": "integer", "description": "1-based position of the row in the bounded probe order, emitted by codequery.symbolEntityResults and codequery.normalizeSymbolGraphResults."},
           "source_handle": {"type": "object", "additionalProperties": true, "description": "{repo_id, file_path, start_line, end_line} locator for the full body via get_entity_content or get_file_lines."},
           "source_cache": {"type": "string", "description": "Stored source body, clipped at read time to 4096 bytes (see source_cache_clipped)."},
           "source_cache_clipped": {"type": "boolean", "description": "Present and true only when this row's source_cache was clipped at read time to source_cache_clip_bytes. The stored body is unchanged; use source_handle with get_entity_content or get_file_lines for the full text. Distinct from the write-time metadata.source_cache_truncated marker."},
@@ -428,31 +430,32 @@ const components = `  "components": {
           "docstring_clip_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the read-time docstring ceiling in bytes (512)."},
           "docstring_total_bytes": {"type": "integer", "description": "Present only on a row whose docstring was clipped: the stored docstring length in bytes before the clip."},
           "metadata": {"type": "object", "additionalProperties": true, "description": "Parser metadata for the entity. Store-internal parser fingerprint keys (body_fp_exact, body_fp_renamed, body_sketch, body_shingles, body_token_count) are never emitted."},
-          "semantic_summary": {"type": "string"},
-          "semantic_profile": {"type": "object", "additionalProperties": true}
+          "semantic_summary": {"type": "string", "description": "Optional first-class semantic summary attached by entitysemantics.AttachSemanticSummary from parser metadata."},
+          "semantic_profile": {"type": "object", "additionalProperties": true, "description": "Optional structured semantic signals attached by entitysemantics.AttachSemanticSummary. Keys vary with the parser metadata, so no fixed properties are pinned."}
         }
       },
       "SymbolSearchResponse": {
         "type": "object",
         "properties": {
-          "symbol": {"type": "string"},
-          "query": {"type": "string"},
-          "match_mode": {"type": "string"},
-          "repo_id": {"type": "string"},
-          "language": {"type": "string"},
-          "entity_types": {"type": "array", "items": {"type": "string"}},
-          "limit": {"type": "integer"},
-          "offset": {"type": "integer"},
-          "count": {"type": "integer"},
-          "truncated": {"type": "boolean"},
-          "source_backend": {"type": "string"},
-          "ambiguity": {"type": "object", "additionalProperties": true},
+          "symbol": {"type": "string", "description": "Resolved symbol the page answers, emitted by codequery.handleSymbolSearch from the request."},
+          "query": {"type": "string", "description": "Echo of the resolved symbol query, emitted by codequery.handleSymbolSearch."},
+          "match_mode": {"type": "string", "description": "Match mode that produced the page, emitted by codequery.handleSymbolSearch: exact or fuzzy."},
+          "repo_id": {"type": "string", "description": "Echo of the request repository selector, emitted by codequery.handleSymbolSearch."},
+          "language": {"type": "string", "description": "Echo of the request language filter, emitted by codequery.handleSymbolSearch."},
+          "entity_types": {"type": "array", "items": {"type": "string"}, "description": "Echo of the request entity-type filter, emitted by codequery.handleSymbolSearch."},
+          "limit": {"type": "integer", "description": "Page limit the rows were cut to, emitted by codequery.handleSymbolSearch."},
+          "offset": {"type": "integer", "description": "Echo of the request offset, emitted by codequery.handleSymbolSearch."},
+          "count": {"type": "integer", "description": "Number of rows returned in this page, emitted by codequery.handleSymbolSearch."},
+          "truncated": {"type": "boolean", "description": "Whether at least one additional matching row exists beyond this page, emitted by codequery.handleSymbolSearch."},
+          "source_backend": {"type": "string", "description": "Backend that served the page, emitted by codequery.handleSymbolSearch: graph, content store, or name fallback."},
+          "ambiguity": {"type": "object", "additionalProperties": true, "description": "Symbol disambiguation verdict emitted by codequery.handleSymbolSearch. Keys are ambiguous (whether the symbol matched multiple definitions) and reason."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Read-time source_cache ceiling in bytes (4096) applied to every row of this response; always present."},
           "source_cache_clipped_rows": {"type": "integer", "description": "Number of returned rows whose source_cache was clipped to source_cache_clip_bytes; 0 when none. Clipped rows carry source_cache_clipped, source_cache_clip_bytes, and source_cache_total_bytes."},
           "docstring_clip_bytes": {"type": "integer", "description": "Read-time docstring ceiling in bytes (512) applied to every row of this response; always present."},
           "docstring_clipped_rows": {"type": "integer", "description": "Number of returned rows whose docstring was clipped; 0 when none."},
           "results": {
             "type": "array",
+            "description": "Bounded definition rows for the symbol, emitted by codequery.handleSymbolSearch.",
             "items": {"$ref": "#/components/schemas/SymbolSearchResult"}
           }
         }
@@ -460,11 +463,12 @@ const components = `  "components": {
       "LanguageQueryResponse": {
         "type": "object",
         "properties": {
-          "language": {"type": "string"},
-          "entity_type": {"type": "string"},
-          "query": {"type": "string"},
+          "language": {"type": "string", "description": "Echo of the request language, emitted by language.languageQueryResponseBody."},
+          "entity_type": {"type": "string", "description": "Echo of the request entity type, emitted by language.languageQueryResponseBody."},
+          "query": {"type": "string", "description": "Echo of the request query, emitted by language.languageQueryResponseBody."},
           "results": {
             "type": "array",
+            "description": "Entity rows for the language/entity-type query, emitted by language.languageQueryResponseBody.",
             "items": {"$ref": "#/components/schemas/CodeSearchResult"}
           },
           "source_backend": {"type": "string", "enum": ["graph", "hybrid_graph_and_content", "postgres_content_store", "no_backend_read", "unavailable"], "description": "Which backend actually served this response: \"graph\" for an authoritative graph-only read, \"hybrid_graph_and_content\" when content-store metadata was merged into graph rows, \"postgres_content_store\" when the content store served the entire answer (no graph reader configured, or a graph-first read returned zero rows), \"no_backend_read\" when no backend was read at all (the empty page a scoped caller whose grant admits no repository receives, which carries the matching no_backend_read truth basis), \"unavailable\" as a defensive fallback for a truth basis this route does not otherwise recognize."}

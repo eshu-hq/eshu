@@ -58,9 +58,9 @@ const Ask = `
                       "items": {
                         "type": "object",
                         "properties": {
-                          "format": {"type": "string"},
-                          "content": {"type": "string"},
-                          "issues": {"type": "array", "items": {"type": "string"}}
+                          "format": {"type": "string", "description": "Requested output format the artifact was rendered in. Owner: ask.Handler via render.Validate."},
+                          "content": {"type": "string", "description": "Rendered artifact body for the format. Owner: ask.Handler via render.Validate."},
+                          "issues": {"type": "array", "items": {"type": "string"}, "description": "Per-format validation issues found while rendering the artifact. Owner: ask.Handler via render.Validate."}
                         }
                       }
                     },
@@ -71,28 +71,46 @@ const Ask = `
                     },
                     "result_ref": {
                       "type": "string",
-                      "description": "Addressable reference to the primary AnswerPacket's canonical API result. Exact indexed-repository counts use eshu://api-result/repositories."
+                      "description": "Addressable reference to the primary AnswerPacket's canonical API result. Exact indexed-repository counts use eshu://api-result/repositories. Owner: ask.Handler from the primary AnswerPacket."
+                    },
+                    "citation_ref": {
+                      "type": "string",
+                      "description": "Packet-level citation coverage reference that hydrates the primary packet's evidence handles. Present when publish-safe evidence handles or a citation packet cover the answer prose. Owner: ask.Handler from the primary AnswerPacket's CitationRef."
                     },
                     "result": {
                       "type": "object",
-                      "description": "Bounded embedded projection of the canonical result. Exact indexed-repository counts expose the authoritative total here rather than the current page count."
+                      "additionalProperties": true,
+                      "description": "Bounded embedded projection of the canonical result, keyed by the canonical result fields. Exact indexed-repository counts expose the authoritative total here rather than the current page count. Owner: ask.Handler from the primary AnswerPacket."
                     },
                     "evidence_handles": {
                       "type": "array",
-                      "description": "Addressable evidence handles from the primary AnswerPacket.",
-                      "items": {"type": "object"}
-                    },
-                    "query_trace": {
-                      "type": "array",
-                      "description": "Tool-call trace in invocation order.",
+                      "description": "Addressable evidence handles from the primary AnswerPacket. Owner: ask.Handler from the primary AnswerPacket.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "tool": {"type": "string"},
-                          "args": {"type": "object"},
-                          "supported": {"type": "boolean"},
-                          "truth_class": {"type": "string"},
-                          "err": {"type": "string"}
+                          "kind": {"type": "string", "description": "Evidence kind (file location or graph entity). Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "repo_id": {"type": "string", "description": "Repository id the cited evidence belongs to. Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "relative_path": {"type": "string", "description": "Repository-relative path of the cited file evidence. Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "entity_id": {"type": "string", "description": "Canonical id of the cited graph entity. Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "evidence_family": {"type": "string", "description": "Evidence family the handle resolves through. Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "reason": {"type": "string", "description": "Why this handle was cited for the answer. Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "start_line": {"type": "integer", "description": "First cited line, present for range evidence. Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "end_line": {"type": "integer", "description": "Last cited line, present for range evidence. Owner: querycontract/evidence.EvidenceCitationHandle."},
+                          "confidence": {"type": "number", "description": "Citation confidence, present when the emitter scored the handle. Owner: querycontract/evidence.EvidenceCitationHandle."}
+                        }
+                      }
+                    },
+                    "query_trace": {
+                      "type": "array",
+                      "description": "Tool-call trace in invocation order. Owner: ask.Handler from the engine run.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tool": {"type": "string", "description": "Tool name the agent invoked. Owner: ask.traceEntry."},
+                          "args": {"type": "object", "additionalProperties": true, "description": "Tool arguments keyed by argument name. Owner: ask.traceEntry."},
+                          "supported": {"type": "boolean", "description": "Whether the tool is scope-supported for the caller. Owner: ask.traceEntry."},
+                          "truth_class": {"type": "string", "description": "Truth classification of the tool result. Owner: ask.traceEntry."},
+                          "err": {"type": "string", "description": "Tool error, present when the call failed. Owner: ask.traceEntry."}
                         }
                       }
                     },
@@ -143,8 +161,8 @@ const Ask = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "state": {"type": "string", "enum": ["unavailable"]},
-                    "reason": {"type": "string"}
+                    "state": {"type": "string", "enum": ["unavailable"], "description": "Fixed unavailability state for a disabled or unconfigured ask endpoint. Owner: ask.askUnavailableResponse."},
+                    "reason": {"type": "string", "description": "Human-readable reason the ask endpoint is unavailable. Owner: ask.askUnavailableResponse."}
                   }
                 }
               }

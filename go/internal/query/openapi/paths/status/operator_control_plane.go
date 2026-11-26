@@ -23,10 +23,11 @@ const OperatorControlPlane = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Operator control-plane read model. Owner: query.operatorControlPlaneToMap.",
                   "properties": {
-                    "version": {"type": "string"},
-                    "as_of": {"type": "string", "format": "date-time"},
-                    "scoped": {"type": "boolean"},
+                    "version": {"type": "string", "description": "API binary version. Owner: query.operatorControlPlaneToMap via buildinfo."},
+                    "as_of": {"type": "string", "format": "date-time", "description": "Snapshot time in UTC. Owner: query.operatorControlPlaneToMap via ControlPlane AsOf."},
+                    "scoped": {"type": "boolean", "description": "True when raw identifiers are withheld for a scoped caller. Owner: query.operatorControlPlaneToMap."},
                     "health": ` + healthSchema + `,
                     "queue": {
                       "type": "object",
@@ -40,110 +41,116 @@ const OperatorControlPlane = `
                         "dead_letter": {"type": "integer", "description": "Items in dead_letter after exhausting retries or a non-retryable failure."},
                         "claim_latency": {
                           "type": "object",
-                          "description": "Claim latency signals over the outstanding set.",
+                          "description": "Claim latency signals over the outstanding set. Owner: query.operatorQueueToMap.",
                           "properties": {
-                            "overdue_claims": {"type": "integer", "description": "Claims past their claim_until without a terminal update."},
-                            "oldest_outstanding_age": {"type": "number", "description": "Age in seconds of the oldest outstanding item."},
-                            "oldest_outstanding_age_ms": {"type": "integer", "description": "Age in whole milliseconds of the oldest outstanding item."},
-                            "coordinator_oldest_pending": {"type": "number", "description": "Age in seconds of the oldest pending coordinator claim."}
+                            "overdue_claims": {"type": "integer", "description": "Claims past their claim_until without a terminal update. Owner: query.operatorQueueToMap via OverdueClaims."},
+                            "oldest_outstanding_age": {"type": "number", "description": "Age in seconds of the oldest outstanding item. Owner: query.operatorQueueToMap via OldestOutstandingAge."},
+                            "oldest_outstanding_age_ms": {"type": "integer", "description": "Age in whole milliseconds of the oldest outstanding item. Owner: query.operatorQueueToMap via OldestOutstandingAge."},
+                            "coordinator_oldest_pending": {"type": "number", "description": "Age in seconds of the oldest pending coordinator claim. Owner: query.operatorQueueToMap via OldestPendingAge."}
                           }
                         },
                         "stuck": {
                           "type": "object",
-                          "description": "Stuck-work signals: the oldest outstanding age beside the blocked-conflict count.",
+                          "description": "Stuck-work signals: the oldest outstanding age beside the blocked-conflict count. Owner: query.operatorQueueToMap.",
                           "properties": {
-                            "oldest_outstanding_age": {"type": "number", "description": "Age in seconds of the oldest outstanding item."},
-                            "blocked_conflicts": {"type": "integer", "description": "Conflicts currently holding work items."}
+                            "oldest_outstanding_age": {"type": "number", "description": "Age in seconds of the oldest outstanding item. Owner: query.operatorQueueToMap via OldestOutstandingAge."},
+                            "blocked_conflicts": {"type": "integer", "description": "Conflicts currently holding work items. Owner: query.operatorQueueToMap via BlockedConflicts."}
                           }
                         }
                       }
                     },
                     "reducer_domains": {
                       "type": "array",
-                      "description": "Per-domain backlog depth. Scoped callers receive the same counts with raw identifiers withheld.",
+                      "description": "Per-domain backlog depth. Scoped callers receive the same counts with raw identifiers withheld. Owner: query.operatorReducerDomainsToSlice.",
                       "items": {
                         "type": "object",
+                        "description": "One reducer-domain backlog row. Owner: query.operatorReducerDomainsToSlice via status.DomainBacklog.",
                         "properties": {
-                          "domain": {"type": "string"},
-                          "outstanding": {"type": "integer"},
-                          "in_flight": {"type": "integer"},
-                          "retrying": {"type": "integer"},
-                          "dead_letter": {"type": "integer"},
-                          "failed": {"type": "integer"},
-                          "oldest_age": {"type": "number", "description": "Age in seconds of the oldest backlog item."}
+                          "domain": {"type": "string", "description": "Reducer or projection domain name. Owner: query.operatorReducerDomainsToSlice via Domain."},
+                          "outstanding": {"type": "integer", "description": "Backlog items not in a terminal state. Owner: query.operatorReducerDomainsToSlice via Outstanding."},
+                          "in_flight": {"type": "integer", "description": "Items under an active claim or lease. Owner: query.operatorReducerDomainsToSlice via InFlight."},
+                          "retrying": {"type": "integer", "description": "Items scheduled for another attempt. Owner: query.operatorReducerDomainsToSlice via Retrying."},
+                          "dead_letter": {"type": "integer", "description": "Terminal dead-letter items. Owner: query.operatorReducerDomainsToSlice via DeadLetter."},
+                          "failed": {"type": "integer", "description": "Terminal failures outside dead_letter. Owner: query.operatorReducerDomainsToSlice via Failed."},
+                          "oldest_age": {"type": "number", "description": "Age in seconds of the oldest backlog item. Owner: query.operatorReducerDomainsToSlice via OldestAge."}
                         }
                       }
                     },
                     "collector_families": {
                       "type": "array",
-                      "description": "Collector-family promotion verdicts. Scoped callers receive the same verdicts with display_name and blockers withheld.",
+                      "description": "Collector-family promotion verdicts. Scoped callers receive the same verdicts with display_name and blockers withheld. Owner: query.operatorCollectorFamiliesToSlice.",
                       "items": {
                         "type": "object",
+                        "description": "One collector-family promotion verdict. Owner: query.operatorCollectorFamiliesToSlice via status.OperatorCollectorFamily.",
                         "properties": {
-                          "collector_kind": {"type": "string"},
-                          "promotion_state": {"type": "string"},
-                          "health": {"type": "string"},
-                          "claim_state": {"type": "string"},
-                          "reducer_readback": {"type": "string"},
-                          "last_observed_at": {"type": ["string", "null"], "format": "date-time"},
-                          "telemetry": {"type": "array", "items": {"type": "string"}, "description": "Stable metric and span names for diagnosing this family."},
-                          "display_name": {"type": "string", "description": "Withheld from scoped callers."},
-                          "blockers": {"type": "array", "items": {"type": "string"}, "description": "Instance-level blockers, including terminal fetch failures; withheld from scoped callers."}
+                          "collector_kind": {"type": "string", "description": "Collector family kind. Owner: query.operatorCollectorFamiliesToSlice via CollectorKind."},
+                          "promotion_state": {"type": "string", "description": "Family promotion verdict. Owner: query.operatorCollectorFamiliesToSlice via PromotionState."},
+                          "health": {"type": "string", "description": "Family health token. Owner: query.operatorCollectorFamiliesToSlice via Health."},
+                          "claim_state": {"type": "string", "description": "Family claim state. Owner: query.operatorCollectorFamiliesToSlice via ClaimState."},
+                          "reducer_readback": {"type": "string", "description": "Reducer readback state for the family. Owner: query.operatorCollectorFamiliesToSlice via ReducerReadback."},
+                          "last_observed_at": {"type": ["string", "null"], "format": "date-time", "description": "Last observation time, null when never observed. Owner: query.operatorCollectorFamiliesToSlice via LastObservedAt."},
+                          "telemetry": {"type": "array", "items": {"type": "string"}, "description": "Stable metric and span names for diagnosing this family. Owner: query.operatorCollectorFamiliesToSlice via TelemetryHandles."},
+                          "display_name": {"type": "string", "description": "Family display name. Withheld from scoped callers. Owner: query.operatorCollectorFamiliesToSlice via DisplayName."},
+                          "blockers": {"type": "array", "items": {"type": "string"}, "description": "Instance-level blockers, including terminal fetch failures; withheld from scoped callers. Owner: query.operatorCollectorFamiliesToSlice via Blockers."}
                         }
                       }
                     },
                     "dead_letters": {
                       "type": "object",
-                      "description": "Dead-letter state classed by reducer domain and collector-generation commit.",
+                      "description": "Dead-letter state classed by reducer domain and collector-generation commit. Owner: query.operatorDeadLettersToMap.",
                       "properties": {
-                        "queue_dead_letter": {"type": "integer", "description": "Total dead-letter items across the queue."},
+                        "queue_dead_letter": {"type": "integer", "description": "Total dead-letter items across the queue. Owner: query.operatorDeadLettersToMap via QueueDeadLetter."},
                         "by_domain": {
                           "type": "array",
+                          "description": "Dead-letter items by reducer domain. Owner: query.operatorDeadLettersToMap.",
                           "items": {
                             "type": "object",
+                            "description": "One domain's dead-letter row. Owner: query.operatorDeadLettersToMap.",
                             "properties": {
-                              "domain": {"type": "string"},
-                              "dead_letter": {"type": "integer"},
-                              "oldest_age": {"type": "number", "description": "Age in seconds of the oldest dead-letter item in this domain."}
+                              "domain": {"type": "string", "description": "Reducer or projection domain name. Owner: query.operatorDeadLettersToMap via Domain."},
+                              "dead_letter": {"type": "integer", "description": "Terminal dead-letter items in this domain. Owner: query.operatorDeadLettersToMap via DeadLetter."},
+                              "oldest_age": {"type": "number", "description": "Age in seconds of the oldest dead-letter item in this domain. Owner: query.operatorDeadLettersToMap via OldestAge."}
                             }
                           }
                         },
                         "collector_generation": {
                           "type": "object",
-                          "description": "Dead-letter state of the collector-generation commit path.",
+                          "description": "Dead-letter state of the collector-generation commit path. Owner: query.collectorGenerationDeadLettersToMap.",
                           "properties": {
-                            "dead_letter": {"type": "integer"},
-                            "replay_requested": {"type": "integer", "description": "Collector-generation items awaiting replay after a dead-lettered commit."},
-                            "replay_attempts": {"type": "integer"},
-                            "oldest_dead_letter_age": {"type": "number", "description": "Age in seconds of the oldest dead-letter item."},
-                            "oldest_dead_letter_age_ms": {"type": "integer", "description": "Age in whole milliseconds of the oldest dead-letter item."}
+                            "dead_letter": {"type": "integer", "description": "Collector-generation dead-letter items. Owner: query.collectorGenerationDeadLettersToMap via DeadLetter."},
+                            "replay_requested": {"type": "integer", "description": "Collector-generation items awaiting replay after a dead-lettered commit. Owner: query.collectorGenerationDeadLettersToMap via ReplayRequested."},
+                            "replay_attempts": {"type": "integer", "description": "Collector-generation replay attempts. Owner: query.collectorGenerationDeadLettersToMap via ReplayAttempts."},
+                            "oldest_dead_letter_age": {"type": "number", "description": "Age in seconds of the oldest dead-letter item. Owner: query.collectorGenerationDeadLettersToMap via OldestDeadLetterAge."},
+                            "oldest_dead_letter_age_ms": {"type": "integer", "description": "Age in whole milliseconds of the oldest dead-letter item. Owner: query.collectorGenerationDeadLettersToMap via OldestDeadLetterAge."}
                           }
                         },
                         "latest_failure": {
                           "type": "object",
                           "nullable": true,
-                          "description": "Newest dead-letter failure. Null when no failure exists so an all-empty object never reads as a failure record; raw work-item, scope, and generation ids are withheld from scoped callers.",
+                          "description": "Newest dead-letter failure. Null when no failure exists so an all-empty object never reads as a failure record; raw work-item, scope, and generation ids are withheld from scoped callers. Owner: query.operatorDeadLettersToMap.",
                           "properties": {
-                            "failure_class": {"type": "string"},
-                            "domain": {"type": "string"},
-                            "at": {"type": ["string", "null"], "format": "date-time"},
-                            "work_item_id": {"type": "string", "description": "Withheld from scoped callers."},
-                            "scope_id": {"type": "string", "description": "Withheld from scoped callers."},
-                            "generation_id": {"type": "string", "description": "Withheld from scoped callers."}
+                            "failure_class": {"type": "string", "description": "Machine failure class of the newest dead letter. Owner: query.operatorDeadLettersToMap via LatestFailureClass."},
+                            "domain": {"type": "string", "description": "Domain of the newest dead letter. Owner: query.operatorDeadLettersToMap via LatestFailureDomain."},
+                            "at": {"type": ["string", "null"], "format": "date-time", "description": "Failure time, null when the failure carries no timestamp. Owner: query.operatorDeadLettersToMap via LatestFailureAt."},
+                            "work_item_id": {"type": "string", "description": "Failed work-item id. Withheld from scoped callers. Owner: query.operatorDeadLettersToMap via LatestFailureWorkItemID."},
+                            "scope_id": {"type": "string", "description": "Failed scope id. Withheld from scoped callers. Owner: query.operatorDeadLettersToMap via LatestFailureScopeID."},
+                            "generation_id": {"type": "string", "description": "Failed generation id. Withheld from scoped callers. Owner: query.operatorDeadLettersToMap via LatestFailureGenerationID."}
                           }
                         }
                       }
                     },
                     "retry_policies": {
                       "type": "array",
+                      "description": "Per-stage projection retry policies. Owner: query.retryPoliciesToSlice.",
                       "items": {
                         "type": "object",
+                        "description": "One stage retry policy. Owner: query.retryPoliciesToSlice via status.RetryPolicySummary.",
                         "properties": {
-                          "stage": {"type": "string"},
-                          "max_attempts": {"type": "integer"},
-                          "retry_delay": {"type": "string", "description": "Go duration string of the retry delay."},
-                          "retry_delay_ms": {"type": "integer"},
-                          "retry_delay_seconds": {"type": "number"}
+                          "stage": {"type": "string", "description": "Pipeline stage name. Owner: query.retryPoliciesToSlice via Stage."},
+                          "max_attempts": {"type": "integer", "description": "Maximum claim attempts for the stage. Owner: query.retryPoliciesToSlice via MaxAttempts."},
+                          "retry_delay": {"type": "string", "description": "Go duration string of the retry delay. Owner: query.retryPoliciesToSlice via RetryDelay."},
+                          "retry_delay_ms": {"type": "integer", "description": "Retry delay in whole milliseconds. Owner: query.retryPoliciesToSlice via RetryDelay."},
+                          "retry_delay_seconds": {"type": "number", "description": "Retry delay in seconds. Owner: query.retryPoliciesToSlice via RetryDelay."}
                         }
                       }
                     },

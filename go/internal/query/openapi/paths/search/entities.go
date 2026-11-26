@@ -47,11 +47,12 @@ const Entities = `
                   "properties": {
                     "entities": {
                       "type": "array",
+                      "description": "Ranked matches carrying kind, canonical id, and next selector. Owner: entity.resolvedEntityResponse via Handler.ResolveEntity.",
                       "items": {"$ref": "#/components/schemas/EntityRef"}
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "count": {"type": "integer", "description": "Rows in this page after the limit is applied. Owner: entity.resolvedEntityResponse."},
+                    "limit": {"type": "integer", "description": "Normalized page bound the lookup ran under. Owner: entity.NormalizeResolveEntityLimit via Handler.ResolveEntity."},
+                    "truncated": {"type": "boolean", "description": "True when more matches exist past the page bound. Owner: entity.trimResolvedEntityPage via Handler.ResolveEntity."}
                   }
                 }
               }
@@ -84,20 +85,23 @@ const Entities = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {"type": "string"},
-                    "labels": {"type": "array", "items": {"type": "string"}},
-                    "name": {"type": "string"},
-                    "file_path": {"type": "string"},
-                    "language": {"type": "string"},
-                    "start_line": {"type": "integer"},
-                    "end_line": {"type": "integer"},
-                    "metadata": {"type": "object", "additionalProperties": true},
-                    "semantic_summary": {"type": "string"},
-                    "semantic_profile": {"type": "object", "additionalProperties": true},
-                    "story": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "repo_name": {"type": "string"},
-                    "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
+                    "id": {"type": "string", "description": "Canonical entity id the context was read for. Owner: entity.Handler.GetEntityContext."},
+                    "labels": {"type": "array", "items": {"type": "string"}, "description": "Graph labels of the resolved entity. Owner: entity.Handler.GetEntityContext."},
+                    "name": {"type": "string", "description": "Entity name from the graph row. Owner: entity.Handler.GetEntityContext."},
+                    "file_path": {"type": "string", "description": "Repository-relative file path of the entity, empty when the node carries none. Owner: entity.Handler.GetEntityContext."},
+                    "language": {"type": "string", "description": "Entity language, coalesced from the entity and file rows. Owner: entity.Handler.GetEntityContext."},
+                    "start_line": {"type": "integer", "description": "First entity line from the graph row. Owner: entity.Handler.GetEntityContext."},
+                    "end_line": {"type": "integer", "description": "Last entity line from the graph row. Owner: entity.Handler.GetEntityContext."},
+                    "metadata": {"type": "object", "additionalProperties": true, "description": "Parser-emitted entity metadata keyed by parser field name, hydrated from the content store when the graph row is sparse. Owner: entity.Handler.EnrichEntityResultsWithContentMetadata."},
+                    "semantic_summary": {"type": "string", "description": "One-line derived summary, present when metadata yields one. Owner: entitysemantics.AttachSemanticSummary."},
+                    "semantic_profile": {"type": "object", "additionalProperties": true, "description": "Highest-signal structured semantics keyed by signal name, present when metadata yields any. Owner: entitysemantics.BuildEntitySemanticProfile via AttachSemanticSummary."},
+                    "python_semantics": {"type": "object", "additionalProperties": true, "description": "Python-only semantic fields keyed by field name, present for python entities. Owner: entitysemantics.AttachSemanticSummary."},
+                    "javascript_semantics": {"type": "object", "additionalProperties": true, "description": "JavaScript semantic fields keyed by field name, present when extraction yields any. Owner: entitysemantics.AttachSemanticSummary."},
+                    "typescript_semantics": {"type": "object", "additionalProperties": true, "description": "TypeScript semantic fields keyed by field name, present for typescript/tsx entities. Owner: entitysemantics.AttachSemanticSummary."},
+                    "story": {"type": "string", "description": "One-line entity story rendered from the semantic summary, present when a summary exists. Owner: entitysemantics.buildEntityStory via AttachSemanticSummary."},
+                    "repo_id": {"type": "string", "description": "Repository id resolved through the REPO_CONTAINS file enrichment. Owner: entity.Handler.GetEntityContext."},
+                    "repo_name": {"type": "string", "description": "Repository name resolved through the REPO_CONTAINS file enrichment. Owner: entity.Handler.GetEntityContext."},
+                    "relationships": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}, "description": "Distinct outgoing relationships of the entity. Owner: entity.extractRelationships via GetEntityContext."},
                     "relationships_complete": {"type": "boolean", "description": "Present and false only when a relationship build is incomplete: either a k8s SELECTS K8sResource candidate scan reached the repository entity limit (issue #5343 follow-up #5367), or a GitHub Actions workflow source_cache reached its 32 KiB cap. Absent when the relationship build completed."},
                     "relationships_truncation_reason": {"type": "string", "description": "Machine-readable reason paired with relationships_complete=false. k8s_resource_candidate_scan_truncated_at_5000 means the k8s SELECTS candidate scan reached its repository limit; github_actions_source_cache_truncated means a GitHub Actions workflow source_cache reached its 32 KiB cap before dependency extraction completed.", "enum": ["k8s_resource_candidate_scan_truncated_at_5000", "github_actions_source_cache_truncated"]},
                     "result_limits": {"type": "object", "description": "Additive drilldown block: bounded relationship limit, deterministic ordering, relationship count, truncation flag, and the get_relationship_evidence drilldown plus context path.", "additionalProperties": true},
@@ -162,9 +166,9 @@ const Entities = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "workload_id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "story": {"type": "string"},
+                    "workload_id": {"type": "string", "description": "Resolved workload node id the story was built for. Owner: entity.Handler.GetWorkloadStory."},
+                    "name": {"type": "string", "description": "Workload name from the resolved context. Owner: entity.Handler.GetWorkloadStory."},
+                    "story": {"type": "string", "description": "Narrative summary rendered from the workload context. Owner: entity.buildWorkloadStory via GetWorkloadStory."},
                     "result_limits": {"type": "object", "description": "Additive drilldown block: bounded limit, deterministic ordering, instance/dependent/consumer counts, truncation flag, and the get_workload_context drilldown plus context path.", "additionalProperties": true},
                     "partial_reasons": {"type": "array", "description": "Explicit limitations or unsupported-evidence reasons for the workload story read; always present so the envelope shape is stable.", "items": {"type": "string"}},
                     "evidence_boundaries": ` + schema.EvidenceBoundaries + `
@@ -357,14 +361,41 @@ const Entities = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "service_name": {"type": "string"},
+                    "service_name": {"type": "string", "description": "Canonical service name the page was read for. Owner: entity.Handler.GetServiceAPISurfaceEndpoints."},
+                    "truth_basis": {"type": "string", "description": "Truth basis of the surface rows, always graph. Owner: repository.buildGraphAPISurface."},
                     "endpoint_count": {"type": "integer", "description": "True total from the count query, not the page size."},
-                    "endpoints": {"type": "array", "items": {"type": "object"}},
+                    "method_count": {"type": "integer", "description": "HTTP methods counted across the page rows. Owner: repository.buildGraphAPISurface."},
+                    "operation_id_count": {"type": "integer", "description": "Operation ids counted across the page rows. Owner: repository.buildGraphAPISurface."},
+                    "endpoints": {
+                      "type": "array",
+                      "description": "API endpoint rows in path, endpoint_id order. Owner: repository.buildGraphAPISurface.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string", "description": "Endpoint id from the graph row. Owner: repository.buildGraphAPISurface."},
+                          "path": {"type": "string", "description": "Endpoint path from the graph row. Owner: repository.buildGraphAPISurface."},
+                          "methods": {"type": "array", "items": {"type": "string"}, "description": "Lowercased HTTP methods of the endpoint. Owner: repository.buildGraphAPISurface."},
+                          "operation_ids": {"type": "array", "items": {"type": "string"}, "description": "Sorted operation ids of the endpoint. Owner: repository.buildGraphAPISurface."},
+                          "source": {"type": "string", "description": "Row source, always graph. Owner: repository.buildGraphAPISurface."},
+                          "source_kinds": {"type": "array", "items": {"type": "string"}, "description": "Sorted parser source kinds behind the endpoint. Owner: repository.buildGraphAPISurface."},
+                          "source_paths": {"type": "array", "items": {"type": "string"}, "description": "Sorted source paths behind the endpoint. Owner: repository.buildGraphAPISurface."},
+                          "evidence_source": {"type": "string", "description": "Evidence source of the endpoint row. Owner: repository.buildGraphAPISurface."},
+                          "workload_id": {"type": "string", "description": "Owning workload id, present when the row carries one. Owner: repository.buildGraphAPISurface."},
+                          "workload_name": {"type": "string", "description": "Owning workload name, present when the row carries one. Owner: repository.buildGraphAPISurface."}
+                        }
+                      }
+                    },
+                    "source_paths": {"type": "array", "items": {"type": "string"}, "description": "Sorted source paths across the page rows. Owner: repository.buildGraphAPISurface."},
+                    "spec_paths": {"type": "array", "items": {"type": "string"}, "description": "Sorted spec paths across the page rows. Owner: repository.buildGraphAPISurface."},
+                    "spec_versions": {"type": "array", "items": {"type": "string"}, "description": "Sorted spec versions across the page rows. Owner: repository.buildGraphAPISurface."},
+                    "api_versions": {"type": "array", "items": {"type": "string"}, "description": "Sorted API versions across the page rows. Owner: repository.buildGraphAPISurface."},
                     "detail_limit": {"type": "integer", "description": "Page size the detail read ran under."},
                     "detail_truncated": {"type": "boolean", "description": "True when rows remain past this page."},
-                    "offset": {"type": "integer"},
+                    "offset": {"type": "integer", "description": "Rows skipped, from the request offset. Owner: repository.QueryRepoAPISurfacePaged."},
                     "next_offset": {"type": "integer", "description": "Absent when the page is complete; pass as offset for the next page.", "nullable": true},
-                    "ordering": {"type": "string", "description": "Deterministic page order: path, endpoint_id."}
+                    "ordering": {"type": "string", "description": "Deterministic page order: path, endpoint_id."},
+                    "frameworks": {"type": "array", "items": {"type": "string"}, "description": "Parser framework names derived from source kinds, present when any row carries one. Owner: repository.buildGraphAPISurface via frameworkNamesFromSourceKinds."},
+                    "framework_route_count": {"type": "integer", "description": "Endpoint rows carrying a framework source kind, present with frameworks. Owner: repository.buildGraphAPISurface via countFrameworkEndpointRows."}
                   }
                 }
               }
@@ -404,16 +435,38 @@ const Entities = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "service_name": {"type": "string"},
-                    "consumers": {"type": "array", "items": {"type": "object"}},
+                    "service_name": {"type": "string", "description": "Canonical service name the page was read for. Owner: entity.Handler.GetServiceDownstreamConsumers."},
+                    "consumers": {
+                      "type": "array",
+                      "description": "Downstream consumer repository rows in (repository, repo_id) order. Owner: entity.Handler.GetServiceDownstreamConsumers over service.ListServiceDownstreamConsumers.",
+                      "items": {"type": "object", "additionalProperties": true}
+                    },
                     "truncated": {"type": "boolean", "description": "True when more rows exist past this page or a read bound fired."},
-                    "next_cursor": {"type": "object", "description": "Absent when the page is terminal; pass after_repository/after_repo_id from it for the next page.", "nullable": true},
-                    "consumer_truncation_sources": {"type": "object", "description": "Which read bound fired: candidates, evidence_files, hostnames, searches, merge_cap."},
+                    "next_cursor": {
+                      "type": "object",
+                      "description": "Absent when the page is terminal; pass after_repository/after_repo_id from it for the next page.",
+                      "nullable": true,
+                      "properties": {
+                        "repository": {"type": "string", "description": "Cursor repository of the last served row. Owner: entity.Handler.GetServiceDownstreamConsumers."},
+                        "repo_id": {"type": "string", "description": "Cursor repo_id of the last served row. Owner: entity.Handler.GetServiceDownstreamConsumers."}
+                      }
+                    },
+                    "consumer_truncation_sources": {
+                      "type": "object",
+                      "description": "Which read bound fired: candidates, evidence_files, hostnames, searches, merge_cap. Owner: entity.Handler.GetServiceDownstreamConsumers from the consumer page sources.",
+                      "properties": {
+                        "candidates": {"type": "boolean", "description": "True when the candidate read hit its bound. Owner: entity.Handler.GetServiceDownstreamConsumers."},
+                        "evidence_files": {"type": "boolean", "description": "True when the evidence-file read hit its bound. Owner: entity.Handler.GetServiceDownstreamConsumers."},
+                        "hostnames": {"type": "boolean", "description": "True when the hostname read hit its bound. Owner: entity.Handler.GetServiceDownstreamConsumers."},
+                        "searches": {"type": "boolean", "description": "True when the search read hit its bound. Owner: entity.Handler.GetServiceDownstreamConsumers."},
+                        "merge_cap": {"type": "boolean", "description": "True when the merged set was trimmed at the internal read ceiling. Owner: entity.Handler.GetServiceDownstreamConsumers."}
+                      }
+                    },
                     "searched_hostnames": {"type": "array", "items": {"type": "string"}, "description": "Hostname list actually searched."},
                     "effective_read_bound": {"type": "integer", "description": "Internal read bound the page was recomputed under."},
                     "lower_bound": {"type": "boolean", "description": "True only when a read bound fired (then the paged set is not a census); false when the read completed without hitting a bound."},
                     "ordering": {"type": "string", "description": "Deterministic page order: repository, repo_id."},
-                    "page_size": {"type": "integer"},
+                    "page_size": {"type": "integer", "description": "Consumers per page from the request limit. Owner: entity.Handler.GetServiceDownstreamConsumers."},
                     "ceiling_reached": {"type": "boolean", "description": "Present and true only when the merged set was trimmed at the internal read ceiling."}
                   }
                 }

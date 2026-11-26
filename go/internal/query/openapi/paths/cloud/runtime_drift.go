@@ -71,53 +71,81 @@ const RuntimeDrift = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "scope_id": {"type": "string"},
-                    "provider": {"type": "string"},
-                    "cloud_resource_uid": {"type": "string"},
-                    "story": {"type": "string"},
-                    "finding_kinds": {"type": "array", "items": {"type": "string"}},
-                    "source_state_groups": {"type": "array", "items": {"type": "object"}},
-                    "findings_count": {"type": "integer"},
-                    "total_findings_count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_offset": {"type": "integer"},
-                    "truth_basis": {"type": "string"},
-                    "analysis_status": {"type": "string"},
-                    "limitations": {"type": "array", "items": {"type": "string"}},
-                    "drift_findings": {
+                    "scope_id": {"type": "string", "description": "Echo of the caller's scope_id filter, emitted by query.writeCloudRuntimeDriftFindings from MultiCloudRuntimeDriftFilter.ScopeID."},
+                    "provider": {"type": "string", "description": "Echo of the caller's provider filter (empty when unfiltered), emitted by query.writeCloudRuntimeDriftFindings from MultiCloudRuntimeDriftFilter.Provider."},
+                    "cloud_resource_uid": {"type": "string", "description": "Echo of the caller's canonical resource uid filter (empty when unfiltered; matches only gcp/azure findings), emitted by query.writeCloudRuntimeDriftFindings from MultiCloudRuntimeDriftFilter.CloudResourceUID."},
+                    "story": {"type": "string", "description": "One-line page summary rendered by query.cloudRuntimeDriftStory from the caller's filter and the page counts."},
+                    "finding_kinds": {"type": "array", "items": {"type": "string"}, "description": "Echo of the caller's normalized finding-kind filter, emitted by query.writeCloudRuntimeDriftFindings from MultiCloudRuntimeDriftFilter.FindingKinds."},
+                    "source_state_groups": {
                       "type": "array",
+                      "description": "Finding counts grouped by provider-neutral source state with drilldown uids, emitted by query.cloudRuntimeDriftSourceStateGroups.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "fact_id": {"type": "string"},
-                          "provider": {"type": "string", "enum": ["aws", "gcp", "azure"]},
-                          "scope_id": {"type": "string"},
-                          "generation_id": {"type": "string"},
-                          "source_system": {"type": "string"},
-                          "cloud_resource_uid": {"type": "string"},
-                          "finding_kind": {"type": "string"},
-                          "management_status": {"type": "string"},
-                          "confidence": {"type": "number"},
-                          "source_state": {"type": "string", "description": "Provider-neutral source-state taxonomy value derived from management_status and the safety gate."},
-                          "matched_terraform_state_address": {"type": "string"},
-                          "missing_evidence": {"type": "array", "items": {"type": "string"}},
-                          "recommended_action": {"type": "string"},
+                          "source_state": {"type": "string", "description": "Provider-neutral source-state bucket emitted by query.cloudRuntimeDriftSourceStateGroup.SourceState."},
+                          "count": {"type": "integer", "description": "Number of page findings in this source-state bucket, emitted by query.cloudRuntimeDriftSourceStateGroup.Count."},
+                          "cloud_resource_uids": {"type": "array", "items": {"type": "string"}, "description": "Sorted canonical uids of the page findings in this bucket, emitted by query.cloudRuntimeDriftSourceStateGroup.CloudResourceUIDs."}
+                        },
+                        "required": ["source_state", "count"]
+                      }
+                    },
+                    "findings_count": {"type": "integer", "description": "Number of findings in this page, emitted by query.writeCloudRuntimeDriftFindings as len(views)."},
+                    "total_findings_count": {"type": "integer", "description": "Total active findings matching the filter, emitted by query.writeCloudRuntimeDriftFindings from the store count."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by query.writeCloudRuntimeDriftFindings from MultiCloudRuntimeDriftFilter.Limit."},
+                    "offset": {"type": "integer", "description": "Echo of the caller's result offset, emitted by query.writeCloudRuntimeDriftFindings from MultiCloudRuntimeDriftFilter.Offset."},
+                    "truncated": {"type": "boolean", "description": "True when more findings exist past this page, emitted by query.cloudRuntimeDriftTruncated."},
+                    "next_offset": {"type": "integer", "description": "Offset to fetch the next page (0 when not truncated), emitted by query.cloudRuntimeDriftNextOffset."},
+                    "truth_basis": {"type": "string", "description": "Truth-basis label for this readback, emitted by query.writeCloudRuntimeDriftFindings (always materialized_reducer_rows)."},
+                    "analysis_status": {"type": "string", "description": "Read-model status label for this readback, emitted by query.writeCloudRuntimeDriftFindings (always materialized_multi_cloud_runtime_drift)."},
+                    "limitations": {"type": "array", "items": {"type": "string"}, "description": "Fixed limitation strings for this readback, emitted by query.writeCloudRuntimeDriftFindings."},
+                    "drift_findings": {
+                      "type": "array",
+                      "description": "Page of provider-neutral runtime drift finding views, emitted by query.cloudRuntimeDriftFindingViews.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "fact_id": {"type": "string", "description": "Reducer fact identity emitted by packet.CloudRuntimeDriftFindingView.FactID."},
+                          "provider": {"type": "string", "enum": ["aws", "gcp", "azure"], "description": "Cloud provider of the finding, emitted by packet.CloudRuntimeDriftFindingView.Provider."},
+                          "scope_id": {"type": "string", "description": "Canonical ingestion scope of the finding, emitted by packet.CloudRuntimeDriftFindingView.ScopeID."},
+                          "generation_id": {"type": "string", "description": "Reducer generation that produced the finding, emitted by packet.CloudRuntimeDriftFindingView.GenerationID."},
+                          "source_system": {"type": "string", "description": "Source system that admitted the finding, emitted by packet.CloudRuntimeDriftFindingView.SourceSystem."},
+                          "cloud_resource_uid": {"type": "string", "description": "Canonical cross-provider resource identity, emitted by packet.CloudRuntimeDriftFindingView.CloudResourceUID."},
+                          "finding_kind": {"type": "string", "description": "Drift finding kind emitted by packet.CloudRuntimeDriftFindingView.FindingKind."},
+                          "management_status": {"type": "string", "description": "Normalized management status emitted by packet.CloudRuntimeDriftFindingView.ManagementStatus."},
+                          "confidence": {"type": "number", "description": "Finding confidence emitted by packet.CloudRuntimeDriftFindingView.Confidence."},
+                          "source_state": {"type": "string", "description": "Provider-neutral source-state taxonomy value derived from management_status and the safety gate, emitted by packet.CloudRuntimeDriftFindingView.SourceState via query.ResolveReplatformingSourceState."},
+                          "matched_terraform_state_address": {"type": "string", "description": "Matched Terraform state address when the finding correlates to managed state, emitted by packet.CloudRuntimeDriftFindingView.MatchedTerraformStateAddress."},
+                          "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Evidence the read could not produce, emitted by packet.CloudRuntimeDriftFindingView.MissingEvidence."},
+                          "recommended_action": {"type": "string", "description": "Read-only recommended next action, emitted by packet.CloudRuntimeDriftFindingView.RecommendedAction."},
                           "drifted_attributes": {
                             "type": "array",
-                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison), one pair per comparison that ran and disagreed. Empty for every other kind, including value_comparison_inconclusive, which reports that this pass cannot speak for the covered values -- either no comparison could be made at all, or the ones that ran agreed while another covered comparable was unreadable. Both kinds name any comparable they could not READ in missing_evidence as comparable_attribute:<key>, so an image_version_drift carrying one is a verdict reached on partial evidence.",
+                            "description": "Bounded declared/observed value pairs for an image_version_drift finding (ami, image_uri, version, or the ECS container image comparison), one pair per comparison that ran and disagreed. Empty for every other kind, including value_comparison_inconclusive, which reports that this pass cannot speak for the covered values -- either no comparison could be made at all, or the ones that ran agreed while another covered comparable was unreadable. Both kinds name any comparable they could not READ in missing_evidence as comparable_attribute:<key>, so an image_version_drift carrying one is a verdict reached on partial evidence. Emitted by packet.CloudRuntimeDriftFindingView.DriftedAttributes.",
                             "items": {
                               "type": "object",
                               "properties": {
-                                "attribute": {"type": "string"},
-                                "declared_value": {"type": "string"},
-                                "observed_value": {"type": "string"}
-                              }
+                                "attribute": {"type": "string", "description": "Allowlisted comparable attribute name emitted by querycontract.DriftedAttributeView.Attribute."},
+                                "declared_value": {"type": "string", "description": "Terraform-state value emitted by querycontract.DriftedAttributeView.Declared."},
+                                "observed_value": {"type": "string", "description": "Cloud-observed value emitted by querycontract.DriftedAttributeView.Observed."}
+                              },
+                              "required": ["attribute", "declared_value", "observed_value"]
                             }
                           },
-                          "safety_gate": {"type": "object"}
-                        }
+                          "safety_gate": {
+                            "type": "object",
+                            "description": "Safety decision before a caller turns this read-only finding into a task, emitted by packet.CloudRuntimeDriftFindingView.SafetyGate via iacManagementSafetyGate.",
+                            "properties": {
+                              "outcome": {"type": "string", "description": "Safety outcome emitted by packet.ManagementSafetyGate.Outcome."},
+                              "read_only": {"type": "boolean", "description": "Whether the finding is read-only, emitted by packet.ManagementSafetyGate.ReadOnly."},
+                              "review_required": {"type": "boolean", "description": "Whether human review is required, emitted by packet.ManagementSafetyGate.ReviewRequired."},
+                              "refused_actions": {"type": "array", "items": {"type": "string"}, "description": "Actions the gate refuses, emitted by packet.ManagementSafetyGate.RefusedActions."},
+                              "warnings": {"type": "array", "items": {"type": "string"}, "description": "Gate warnings emitted by packet.ManagementSafetyGate.Warnings."},
+                              "redactions": {"type": "array", "items": {"type": "string"}, "description": "Fields the gate redacted, emitted by packet.ManagementSafetyGate.Redactions."},
+                              "audit_expectation": {"type": "string", "description": "Audit expectation set by the gate, emitted by packet.ManagementSafetyGate.AuditExpectation."}
+                            },
+                            "required": ["outcome", "read_only", "review_required", "audit_expectation"]
+                          }
+                        },
+                        "required": ["fact_id", "provider", "scope_id", "finding_kind", "management_status", "confidence", "source_state", "safety_gate"]
                       }
                     }
                   }

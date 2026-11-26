@@ -35,57 +35,62 @@ const SSMHostInventory = `
                   "properties": {
                     "hosts": {
                       "type": "array",
+                      "description": "Page of SSM host views, emitted by query.ssmHostInventoryResponse from ssmHostInventoryReadModel.Hosts.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "partition": {"type": "string"},
-                          "account_id": {"type": "string"},
-                          "region": {"type": "string"},
-                          "instance_id": {"type": "string"},
-                          "status": {"type": "string", "enum": ["successful", "partial", "stale", "unknown"]},
-                          "status_reason": {"type": "string"},
-                          "capture_time": {"type": "string"},
-                          "scope_id": {"type": "string"},
-                          "generation_id": {"type": "string"},
+                          "partition": {"type": "string", "description": "AWS partition of the managed node, emitted by query.ssmHostView.Partition."},
+                          "account_id": {"type": "string", "description": "AWS account of the managed node, emitted by query.ssmHostView.AccountID."},
+                          "region": {"type": "string", "description": "AWS region of the managed node, emitted by query.ssmHostView.Region."},
+                          "instance_id": {"type": "string", "description": "EC2 managed node instance id, emitted by query.ssmHostView.InstanceID."},
+                          "status": {"type": "string", "enum": ["successful", "partial", "stale", "unknown"], "description": "Read-time capture status overlaid from the active generation's admitted facts, emitted by query.ssmHostView.Status."},
+                          "status_reason": {"type": "string", "description": "Machine-readable reason for a non-successful status, emitted by query.ssmHostView.StatusReason."},
+                          "capture_time": {"type": "string", "description": "Observation capture time emitted by query.ssmHostView.CaptureTime."},
+                          "scope_id": {"type": "string", "description": "Canonical ingestion scope of the host, emitted by query.ssmHostView.ScopeID."},
+                          "generation_id": {"type": "string", "description": "Active generation the overlay was assessed against, emitted by query.ssmHostView.GenerationID."},
                           "applications": {
                             "type": "array",
-                            "description": "Committed allowlisted application rows, capped per host with applications_truncated set when the cap bites.",
+                            "description": "Committed allowlisted application rows, capped per host with applications_truncated set when the cap bites. Emitted by query.ssmHostView.Applications via the ssm_host_inventory_overlay application projection.",
                             "items": {
                               "type": "object",
                               "properties": {
-                                "uid": {"type": "string"},
-                                "name": {"type": "string"},
-                                "version": {"type": "string"},
-                                "release": {"type": "string"},
-                                "epoch": {"type": "string"},
-                                "package_id": {"type": "string"},
-                                "architecture": {"type": "string"},
-                                "capture_time": {"type": "string"}
-                              }
+                                "uid": {"type": "string", "description": "Application row identity emitted by the ssm_host_inventory_overlay application projection."},
+                                "name": {"type": "string", "description": "Application name emitted by the ssm_host_inventory_overlay application projection."},
+                                "version": {"type": "string", "description": "Application version emitted by the ssm_host_inventory_overlay application projection."},
+                                "release": {"type": "string", "description": "Application release emitted by the ssm_host_inventory_overlay application projection."},
+                                "epoch": {"type": "string", "description": "Application epoch emitted by the ssm_host_inventory_overlay application projection."},
+                                "package_id": {"type": "string", "description": "Application package identity emitted by the ssm_host_inventory_overlay application projection."},
+                                "architecture": {"type": "string", "description": "Application architecture emitted by the ssm_host_inventory_overlay application projection."},
+                                "capture_time": {"type": "string", "description": "Application capture time emitted by the ssm_host_inventory_overlay application projection."}
+                              },
+                              "required": ["uid"]
                             }
                           },
-                          "applications_truncated": {"type": "boolean"},
+                          "applications_truncated": {"type": "boolean", "description": "True when the per-host application cap bit, emitted by query.ssmHostView.ApplicationsTruncated."},
                           "platforms": {
                             "type": "array",
+                            "description": "Platform detail rows for the host, emitted by query.ssmHostView.Platforms via the ssm_host_inventory_overlay platform projection.",
                             "items": {
                               "type": "object",
                               "properties": {
-                                "uid": {"type": "string"},
-                                "source_type": {"type": "string"},
-                                "platform_type": {"type": "string"},
-                                "platform_name": {"type": "string"},
-                                "platform_version": {"type": "string"},
-                                "capture_time": {"type": "string"},
-                                "observation_time": {"type": "string"}
-                              }
+                                "uid": {"type": "string", "description": "Platform row identity emitted by the ssm_host_inventory_overlay platform projection."},
+                                "source_type": {"type": "string", "description": "Platform source class emitted by the ssm_host_inventory_overlay platform projection."},
+                                "platform_type": {"type": "string", "description": "Platform type emitted by the ssm_host_inventory_overlay platform projection."},
+                                "platform_name": {"type": "string", "description": "Platform name emitted by the ssm_host_inventory_overlay platform projection."},
+                                "platform_version": {"type": "string", "description": "Platform version emitted by the ssm_host_inventory_overlay platform projection."},
+                                "capture_time": {"type": "string", "description": "Platform capture time emitted by the ssm_host_inventory_overlay platform projection."},
+                                "observation_time": {"type": "string", "description": "Platform observation time emitted by the ssm_host_inventory_overlay platform projection."}
+                              },
+                              "required": ["uid"]
                             }
                           },
-                          "facts_truncated": {"type": "boolean"}
-                        }
+                          "facts_truncated": {"type": "boolean", "description": "True when admitted facts for this host were capped, emitted by query.ssmHostView.FactsTruncated."}
+                        },
+                        "required": ["partition", "account_id", "region", "instance_id", "status"]
                       }
                     },
-                    "malformed_facts": {"type": "integer"},
-                    "next_cursor": {"type": "string"}
+                    "malformed_facts": {"type": "integer", "description": "Count of admitted facts skipped as undecodable for this page, emitted by query.ssmHostInventoryResponse from ssmHostInventoryReadModel.MalformedFacts."},
+                    "next_cursor": {"type": "string", "description": "Continuation cursor: merged-universe host offset for the next page (empty when the universe is exhausted), emitted by query.ssmHostInventoryResponse from ssmHostInventoryReadModel.NextCursor."}
                   }
                 }
               }

@@ -32,28 +32,31 @@ const HostedReadiness = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Fail-closed hosted readiness report. Owner: query.hostedReadinessReport built by buildHostedReadinessReport.",
                   "properties": {
-                    "version": {"type": "string"},
-                    "state": {"type": "string", "enum": ["ready", "not_ready"]},
-                    "ready": {"type": "boolean"},
-                    "summary": {"type": "string"},
-                    "generated_at": {"type": "string", "format": "date-time"},
-                    "failure_classes": {"type": "array", "items": {"type": "string"}},
-                    "repository_count": {"type": "integer"},
+                    "version": {"type": "string", "description": "API binary version. Owner: query.buildHostedReadinessReport via buildinfo."},
+                    "state": {"type": "string", "enum": ["ready", "not_ready"], "description": "Aggregate readiness state. Owner: query.buildHostedReadinessReport."},
+                    "ready": {"type": "boolean", "description": "True when the state is ready. Owner: query.buildHostedReadinessReport."},
+                    "summary": {"type": "string", "description": "Human readiness summary. Owner: query.hostedReadinessSummary."},
+                    "generated_at": {"type": "string", "format": "date-time", "description": "Snapshot time in UTC. Owner: query.buildHostedReadinessReport via report.AsOf."},
+                    "failure_classes": {"type": "array", "items": {"type": "string"}, "description": "Deduplicated failure classes behind a not_ready state; empty when ready. Owner: query.hostedReadinessBuilder."},
+                    "repository_count": {"type": "integer", "description": "Repositories read back from the graph. Owner: query.readHostedRepositoryCount."},
                     "queue": ` + queueSnapshotSchema + `,
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
                     "coordinator": ` + coordinatorSchema + `,
                     "checks": {
                       "type": "array",
+                      "description": "Per-check readiness verdicts. Owner: query.hostedReadinessBuilder.",
                       "items": {
                         "type": "object",
+                        "description": "One readiness check verdict. Owner: query.hostedReadinessCheck.",
                         "properties": {
-                          "name": {"type": "string"},
-                          "state": {"type": "string", "enum": ["pass", "fail", "unknown"]},
-                          "failure_class": {"type": "string"},
-                          "detail": {"type": "string"},
-                          "next_diagnostic": {"type": "string"}
+                          "name": {"type": "string", "description": "Check name. Owner: query.hostedReadinessCheck Name."},
+                          "state": {"type": "string", "enum": ["pass", "fail", "unknown"], "description": "Check verdict. Owner: query.hostedReadinessCheck State."},
+                          "failure_class": {"type": "string", "description": "Machine failure class; present only on a fail. Owner: query.hostedReadinessCheck FailureClass."},
+                          "detail": {"type": "string", "description": "Human detail for the verdict. Owner: query.hostedReadinessCheck Detail."},
+                          "next_diagnostic": {"type": "string", "description": "Follow-up read for the operator; present only on a fail. Owner: query.hostedReadinessCheck NextDiagnostic."}
                         }
                       }
                     },

@@ -35,11 +35,11 @@ const ResourceAggregate = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "total_resources": {"type": "integer"},
-                    "by_provider": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "by_environment": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "by_label": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "scope": {"type": "object"}
+                    "total_resources": {"type": "integer", "description": "Canonical graph population total emitted by the query infra aggregates handler from the aggregate count."},
+                    "by_provider": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Count per provider emitted by the query infra aggregates handler. Keys are provider names."},
+                    "by_environment": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Count per environment emitted by the query infra aggregates handler. Keys are environment names."},
+                    "by_label": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Count per graph label emitted by the query infra aggregates handler. Keys are node label names."},
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Bounded filter scope applied to the aggregate, emitted by query.infraResourceAggregateScope. Keys are the caller-supplied filter names (category, kind, resource_type, provider, environment, resource_service, resource_category); values are the caller-supplied filter strings. Empty filters are omitted."}
                   }
                 }
               }
@@ -80,22 +80,24 @@ const ResourceAggregate = `
                   "properties": {
                     "buckets": {
                       "type": "array",
+                      "description": "Grouped count buckets ordered by count desc, emitted by the query infra aggregates handler as []query.InfraResourceInventoryRow.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "dimension": {"type": "string"},
-                          "value": {"type": "string"},
-                          "count": {"type": "integer"}
-                        }
+                          "dimension": {"type": "string", "description": "Group-by dimension emitted by query.InfraResourceInventoryRow.Dimension."},
+                          "value": {"type": "string", "description": "Bucket value emitted by query.InfraResourceInventoryRow.Value."},
+                          "count": {"type": "integer", "description": "Bucket count emitted by query.InfraResourceInventoryRow.Count."}
+                        },
+                        "required": ["dimension", "value", "count"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "group_by": {"type": "string"},
-                    "truncated": {"type": "boolean"},
-                    "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
-                    "scope": {"type": "object"}
+                    "count": {"type": "integer", "description": "Buckets returned in this page, emitted by the query infra aggregates handler as len(rows)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the query infra aggregates handler from the normalized limit."},
+                    "offset": {"type": "integer", "description": "Echo of the caller's result offset, emitted by the query infra aggregates handler from the normalized offset."},
+                    "group_by": {"type": "string", "description": "Echo of the caller's group-by dimension, emitted by the query infra aggregates handler from the normalized dimension."},
+                    "truncated": {"type": "boolean", "description": "True when more buckets exist past this page, emitted by the query infra aggregates handler from the lookahead row."},
+                    "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true (null when the page is complete or when the next offset would exceed the documented maximum (10000)), emitted by query.nextInfraResourceAggregateOffset."},
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Bounded filter scope applied to the inventory, emitted by query.infraResourceAggregateScope. Keys are the caller-supplied filter names (category, kind, resource_type, provider, environment, resource_service, resource_category); values are the caller-supplied filter strings. Empty filters are omitted."}
                   }
                 }
               }

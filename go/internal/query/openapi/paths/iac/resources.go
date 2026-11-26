@@ -97,49 +97,54 @@ const Resources = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "kind": {"type": "string"},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "kind": {"type": "string", "description": "Echo of the caller's node kind, emitted by the iac resources handler from the normalized resourceKind (resource, module, or data-source)."},
+                    "count": {"type": "integer", "description": "Number of resources in this page, emitted by the iac resources handler as len(results)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the iac resources handler from the normalized limit."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page, emitted by the iac resources handler from the lookahead row."},
                     "summary": {
                       "type": "object",
-                      "description": "Authoritative current totals and bounded selector facets; present when include_facets=true.",
+                      "description": "Authoritative current totals and bounded selector facets, emitted by iac.InventorySummary via PostgresIaCInventoryStore.Summary; present when include_facets=true.",
                       "properties": {
-                        "total": {"type": "integer"},
-                        "by_kind": {"type": "object", "additionalProperties": {"type": "integer"}},
-                        "types": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string"}, "value": {"type": "string"}, "count": {"type": "integer"}}}},
-                        "providers": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string"}, "value": {"type": "string"}, "count": {"type": "integer"}}}},
-                        "modules": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string"}, "value": {"type": "string"}, "count": {"type": "integer"}}}},
-                        "repositories": {"type": "array", "items": {"type": "object", "properties": {"value": {"type": "string"}, "count": {"type": "integer"}}}},
-                        "facet_limit": {"type": "integer"},
-                        "truncated": {"type": "object", "additionalProperties": {"type": "boolean"}}
-                      }
+                        "total": {"type": "integer", "description": "Caller-authorized current inventory total, emitted by iac.InventorySummary.Total."},
+                        "by_kind": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Count per IaC node kind, emitted by iac.InventorySummary.ByKind. Keys are the resourceKind names (resource, module, data-source)."},
+                        "types": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string", "description": "Node kind of this facet row, emitted by iac.InventoryFacet.Kind."}, "value": {"type": "string", "description": "Terraform type of this facet row, emitted by iac.InventoryFacet.Value."}, "count": {"type": "integer", "description": "Resources of this type, emitted by iac.InventoryFacet.Count."}}}, "description": "Bounded type facets emitted by iac.InventorySummary.Types."},
+                        "providers": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string", "description": "Node kind of this facet row, emitted by iac.InventoryFacet.Kind."}, "value": {"type": "string", "description": "Provider of this facet row, emitted by iac.InventoryFacet.Value."}, "count": {"type": "integer", "description": "Resources of this provider, emitted by iac.InventoryFacet.Count."}}}, "description": "Bounded provider facets emitted by iac.InventorySummary.Providers."},
+                        "modules": {"type": "array", "items": {"type": "object", "properties": {"kind": {"type": "string", "description": "Node kind of this facet row, emitted by iac.InventoryFacet.Kind."}, "value": {"type": "string", "description": "Module of this facet row, emitted by iac.InventoryFacet.Value."}, "count": {"type": "integer", "description": "Resources of this module, emitted by iac.InventoryFacet.Count."}}}, "description": "Bounded module facets emitted by iac.InventorySummary.Modules."},
+                        "repositories": {"type": "array", "items": {"type": "object", "properties": {"value": {"type": "string", "description": "Repository id of this facet row, emitted by iac.InventoryFacet.Value (kind is omitted for repository facets)."}, "count": {"type": "integer", "description": "Resources of this repository, emitted by iac.InventoryFacet.Count."}}}, "description": "Bounded repository facets emitted by iac.InventorySummary.Repositories."},
+                        "facet_limit": {"type": "integer", "description": "Bound applied to each facet list, emitted by iac.InventorySummary.FacetLimit."},
+                        "truncated": {"type": "object", "additionalProperties": {"type": "boolean"}, "description": "Per-dimension facet cap flags emitted by iac.InventorySummary.Truncated. Keys are the facet dimension names (types, providers, modules, repositories)."}
+                      },
+                      "required": ["total", "by_kind", "types", "providers", "modules", "repositories", "facet_limit", "truncated"]
                     },
                     "next_cursor": {
                       "type": "object",
+                      "description": "Keyset cursor for the next page (present only when truncated), emitted by the iac resources handler from the last page row.",
                       "properties": {
-                        "after_name": {"type": "string"},
-                        "after_id": {"type": "string"}
-                      }
+                        "after_name": {"type": "string", "description": "Name of the last row, emitted by the iac resources handler from last.Name."},
+                        "after_id": {"type": "string", "description": "Tiebreaker id of the last row, emitted by the iac resources handler from last.ID."}
+                      },
+                      "required": ["after_name", "after_id"]
                     },
                     "resources": {
                       "type": "array",
+                      "description": "Page of IaC resource rows hydrated from the authoritative graph, emitted by the iac resources handler from resourceRowFromGraph as []iac.resourceRow.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {"type": "string"},
-                          "kind": {"type": "string"},
-                          "name": {"type": "string"},
-                          "resource_name": {"type": "string"},
-                          "type": {"type": "string"},
-                          "provider": {"type": "string"},
-                          "resource_service": {"type": "string"},
-                          "resource_category": {"type": "string"},
-                          "module": {"type": "string"},
-                          "repo_id": {"type": "string"},
-                          "relative_path": {"type": "string"},
-                          "line_number": {"type": "integer"}
-                        }
+                          "id": {"type": "string", "description": "Graph resource identity emitted by iac.resourceRow.ID."},
+                          "kind": {"type": "string", "description": "IaC node kind emitted by iac.resourceRow.Kind."},
+                          "name": {"type": "string", "description": "Resource name emitted by iac.resourceRow.Name."},
+                          "resource_name": {"type": "string", "description": "Terraform resource name emitted by iac.resourceRow.ResourceName."},
+                          "type": {"type": "string", "description": "Terraform resource or data type emitted by iac.resourceRow.Type."},
+                          "provider": {"type": "string", "description": "Provider emitted by iac.resourceRow.Provider."},
+                          "resource_service": {"type": "string", "description": "Owning service emitted by iac.resourceRow.Service."},
+                          "resource_category": {"type": "string", "description": "Resource category emitted by iac.resourceRow.Category."},
+                          "module": {"type": "string", "description": "Module address emitted by iac.resourceRow.Module."},
+                          "repo_id": {"type": "string", "description": "Canonical repository id emitted by iac.resourceRow.RepoID."},
+                          "relative_path": {"type": "string", "description": "Source-relative path emitted by iac.resourceRow.RelativePath."},
+                          "line_number": {"type": "integer", "description": "Source line number emitted by iac.resourceRow.LineNumber."}
+                        },
+                        "required": ["id", "kind", "name"]
                       }
                     }
                   }

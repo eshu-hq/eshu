@@ -31,45 +31,49 @@ const ManifestDependencies = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "repository_id": {"type": "string"},
+                    "repository_id": {"type": "string", "description": "Echo of the caller's repository scope anchor, emitted by the manifest handler from the normalized repository id."},
                     "dependencies": {
                       "type": "array",
+                      "description": "Bounded declared manifest dependency rows, emitted by the manifest handler from the page as []manifest.ManifestDependencyRow.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "package_name": {"type": "string"},
-                          "declared_range": {"type": "string"},
-                          "manifest_file": {"type": "string"},
-                          "ecosystem": {"type": "string"},
-                          "package_manager": {"type": "string"},
-                          "section": {"type": "string"},
-                          "scope": {"type": "string", "enum": ["runtime", "dev", "test"]},
-                          "fact_id": {"type": "string"},
-                          "generation_id": {"type": "string"},
-                          "observed_at": {"type": "string", "format": "date-time"}
+                          "package_name": {"type": "string", "description": "Declared package name emitted by manifest.ManifestDependencyRow.PackageName."},
+                          "declared_range": {"type": "string", "description": "Declared version or range emitted by manifest.ManifestDependencyRow.DeclaredRange."},
+                          "manifest_file": {"type": "string", "description": "Manifest file carrying the declaration, emitted by manifest.ManifestDependencyRow.ManifestFile."},
+                          "ecosystem": {"type": "string", "description": "Package ecosystem emitted by manifest.ManifestDependencyRow.Ecosystem."},
+                          "package_manager": {"type": "string", "description": "Package manager emitted by manifest.ManifestDependencyRow.PackageManager."},
+                          "section": {"type": "string", "description": "Manifest section emitted by manifest.ManifestDependencyRow.Section."},
+                          "scope": {"type": "string", "enum": ["runtime", "dev", "test"], "description": "Normalized dependency scope emitted by manifest.ManifestDependencyRow.Scope."},
+                          "fact_id": {"type": "string", "description": "Declaring fact identity emitted by manifest.ManifestDependencyRow.FactID."},
+                          "generation_id": {"type": "string", "description": "Generation that admitted the declaration, emitted by manifest.ManifestDependencyRow.GenerationID."},
+                          "observed_at": {"type": "string", "format": "date-time", "description": "Declaration observation time emitted by manifest.ManifestDependencyRow.ObservedAt."}
                         },
                         "required": ["package_name", "scope", "fact_id"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "include_dev_dependencies": {"type": "boolean"},
+                    "count": {"type": "integer", "description": "Rows returned in this page, emitted by the manifest handler as len(rows)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the manifest handler from the normalized limit."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page, emitted by the manifest handler from the lookahead row."},
+                    "include_dev_dependencies": {"type": "boolean", "description": "Echo of the caller's dev-dependency flag, emitted by the manifest handler from the normalized includeDev."},
                     "next_cursor": {
                       "type": "object",
+                      "description": "Keyset cursor for the next page (present only when truncated), emitted by the manifest handler from the last row.",
                       "properties": {
-                        "after_observed_at": {"type": "string", "format": "date-time"},
-                        "after_fact_id": {"type": "string"}
-                      }
+                        "after_observed_at": {"type": "string", "format": "date-time", "description": "Observed_at of the last row, emitted by the manifest handler from the last ManifestDependencyRow.ObservedAt."},
+                        "after_fact_id": {"type": "string", "description": "Fact id of the last row, emitted by the manifest handler from the last ManifestDependencyRow.FactID."}
+                      },
+                      "required": ["after_observed_at", "after_fact_id"]
                     },
                     "freshness": {
                       "type": "object",
+                      "description": "Generation state behind this page, emitted by the manifest handler from ManifestDependencyPage.Freshness.",
                       "properties": {
-                        "scope_found": {"type": "boolean"},
-                        "active_generation_id": {"type": "string"},
-                        "generation_status": {"type": "string"},
-                        "observed_at": {"type": "string", "format": "date-time"},
-                        "freshness_state": {"type": "string", "enum": ["fresh", "unavailable"]}
+                        "scope_found": {"type": "boolean", "description": "Whether the scope resolved, emitted by manifest.ManifestDependencyFreshness.ScopeFound."},
+                        "active_generation_id": {"type": "string", "description": "Active generation identity emitted by manifest.ManifestDependencyFreshness.ActiveGenerationID."},
+                        "generation_status": {"type": "string", "description": "Generation status emitted by manifest.ManifestDependencyFreshness.GenerationStatus."},
+                        "observed_at": {"type": "string", "format": "date-time", "description": "Freshness observation time emitted by manifest.ManifestDependencyFreshness.ObservedAt."},
+                        "freshness_state": {"type": "string", "enum": ["fresh", "unavailable"], "description": "Freshness verdict emitted by manifest.ManifestDependencyFreshness.FreshnessState."}
                       },
                       "required": ["scope_found", "freshness_state"]
                     }

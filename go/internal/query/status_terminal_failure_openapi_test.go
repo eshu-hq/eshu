@@ -6,6 +6,7 @@ package query
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
@@ -18,9 +19,7 @@ import (
 // reports, plus unknown, and pins last_failure_at as omitted-when-absent
 // (never null) on all four (#8803). A class added to the status set
 // without the OpenAPI enum fails here. The alias counts because it is
-// served by the same getCollectorReadiness handler (status.go), so it
-// always carried the identical wire payload; the contract used to
-// under-describe it as a bare object.
+// served by the same getCollectorReadiness handler (status.go:116-117).
 func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 	t.Parallel()
 	var spec map[string]any
@@ -32,11 +31,34 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 
 	var classes, timestamps []map[string]any
 	collectTerminalFailureProperties(spec, &classes, &timestamps)
-	if len(classes) != 4 || len(timestamps) != 4 {
-		t.Fatalf("found %d last_failure_class and %d last_failure_at schemas, want 4 each (collectors, collector readiness and its legacy alias, operations board)",
-			len(classes), len(timestamps))
-	}
+	// The admin poisoned-links read carries its own last_failure_class
+	// (admin.ChangedSincePoisonedLink LastFailureClass): a free-form class
+	// string for a changed-since cursor, not the collector bounded set, so
+	// it carries no enum. The census partitions on the enum: exactly the
+	// four collector routes carry the bounded set (the legacy alias serves
+	// the identical getCollectorReadiness payload).
+	var bounded, unbounded []map[string]any
 	for _, schema := range classes {
+		if _, ok := schema["enum"]; ok {
+			bounded = append(bounded, schema)
+		} else {
+			unbounded = append(unbounded, schema)
+		}
+	}
+	if len(bounded) != 4 || len(timestamps) != 4 {
+		t.Fatalf("found %d bounded last_failure_class and %d last_failure_at schemas, want 4 each (collectors, collector readiness and its legacy alias, operations board)",
+			len(bounded), len(timestamps))
+	}
+	if len(unbounded) != 1 {
+		t.Fatalf("found %d unbounded last_failure_class schemas, want 1 (admin poisoned-links)", len(unbounded))
+	}
+	if typ, _ := unbounded[0]["type"].(string); typ != "string" {
+		t.Fatalf("admin poisoned-links last_failure_class type = %q, want string", typ)
+	}
+	if desc, _ := unbounded[0]["description"].(string); !strings.Contains(desc, "ChangedSincePoisonedLink") {
+		t.Fatalf("admin poisoned-links last_failure_class description does not name its owner: %q", desc)
+	}
+	for _, schema := range bounded {
 		raw, _ := schema["enum"].([]any)
 		got := make([]string, 0, len(raw))
 		for _, value := range raw {

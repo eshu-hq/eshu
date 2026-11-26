@@ -179,10 +179,10 @@ const Content = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "results": {"type": "array", "items": {"$ref": "#/components/schemas/FileContent"}},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
+                    "results": {"type": "array", "items": {"$ref": "#/components/schemas/FileContent"}, "description": "File rows in the page, an ordered prefix of the exact answer on a partial page. Owner: contentread.contentSearchResponse."},
+                    "count": {"type": "integer", "description": "Matching rows found for the request before offset is applied. Owner: contentread.contentSearchResponse."},
+                    "limit": {"type": "integer", "description": "Page size the search ran under. Owner: contentread.contentSearchResponse."},
+                    "offset": {"type": "integer", "description": "Rows skipped, from the request offset. Owner: contentread.contentSearchResponse."},
                     "truncated": {"type": "boolean", "description": "True when another matching row follows the page, and always true when partial is present."},
                     "documents_not_searched": {"type": "integer", "description": "Documents no completed statement read on a search with no repository filter: the rows strictly after the resume cursor on a partial page, 0 on an exact page. -1 means the count statement itself was cancelled and the number is unknown, never zero."},
                     "documents_not_searched_state": {"type": "string", "enum": ["exact", "partial", "unknown"], "description": "In-band label for documents_not_searched on a counted answer: exact when it is 0, partial when it is positive, unknown when it is -1. The empty-access response carries neither field; absent on scoped searches and on the entity route, which carry no count."},
@@ -190,21 +190,22 @@ const Content = `
                       "type": "object",
                       "description": "Present only when a search with no repository filter ended at its work budget before the page was proven complete. results is then an ordered prefix of the exact answer.",
                       "properties": {
-                        "reason": {"type": "string", "enum": ["candidate_budget_exceeded", "budget_exceeded_on_large_document", "pattern_has_no_trigram"]},
+                        "reason": {"type": "string", "enum": ["candidate_budget_exceeded", "budget_exceeded_on_large_document", "pattern_has_no_trigram"], "description": "Machine-readable reason the budget walk stopped before proving the page. Owner: contentread.searchFilesUnscoped via the unscoped page."},
                         "rows_scanned_in_order": {"type": "integer", "description": "Rows this call visited in repo_id, relative_path order, up to and including cursor; a resumed call counts from its request cursor."},
                         "rows_matched": {"type": "integer", "description": "Matching rows found so far, before the request offset is applied."},
                         "cursor": {
                           "type": "object",
+                          "description": "Resume key strictly after the last scanned row; pass as the request cursor with offset max(0, offset - rows_matched). Owner: contentread.searchFilesUnscoped via the unscoped page.",
                           "properties": {
-                            "repo_id": {"type": "string"},
-                            "relative_path": {"type": "string"}
+                            "repo_id": {"type": "string", "description": "Resume repository id of the last scanned row. Owner: contentread.searchFilesUnscoped via the unscoped page."},
+                            "relative_path": {"type": "string", "description": "Resume relative path of the last scanned row. Owner: contentread.searchFilesUnscoped via the unscoped page."}
                           }
                         },
                         "budget_ms": {"type": "integer", "description": "The requested work budget."},
                         "elapsed_ms": {"type": "integer", "description": "SQL wall time the server measured."},
                         "overrun_ms": {"type": "integer", "description": "How far a cancelled statement ran past its own timeout; above 100 the reason is budget_exceeded_on_large_document."},
                         "progressed": {"type": "boolean", "description": "True when this call advanced the cursor past the request cursor. False means it scanned nothing inside the budget and resuming repeats the identical request."},
-                        "hint": {"type": "string"}
+                        "hint": {"type": "string", "description": "Human-readable guidance for completing the search (scope with repo_id, raise budget, or stop). Owner: contentread.searchFilesUnscoped via the unscoped page."}
                       }
                     }
                   }
@@ -310,7 +311,51 @@ const Content = `
           }}}
         },
         "responses": {
-          "200": {"description": "Ordered install entity page with matches, truncated and optional next_cursor"},
+          "200": {
+            "description": "Ordered install entity page with matches, truncated and optional next_cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "package": {"type": "string", "description": "Exact install name the page was read for, echoed from the request. Owner: contentread.writeDockerfileInstallSearch."},
+                    "matches": {
+                      "type": "array",
+                      "description": "Persisted install entity rows in full sort-key order. Owner: contentread.searchDockerfileInstalls.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "entity_id": {"type": "string", "description": "Canonical content-entity id of the install row. Owner: contentread.searchDockerfileInstalls."},
+                          "repo_id": {"type": "string", "description": "Repository id holding the install row. Owner: contentread.searchDockerfileInstalls."},
+                          "relative_path": {"type": "string", "description": "Dockerfile path carrying the install declaration. Owner: contentread.searchDockerfileInstalls."},
+                          "line_number": {"type": "integer", "description": "Line number of the install declaration. Owner: contentread.searchDockerfileInstalls."},
+                          "name": {"type": "string", "description": "Declared install name. Owner: contentread.searchDockerfileInstalls."},
+                          "manager": {"type": "string", "description": "Package manager that declared the install. Owner: contentread.searchDockerfileInstalls."},
+                          "category": {"type": "string", "description": "Install category from entity metadata. Owner: contentread.searchDockerfileInstalls."},
+                          "stage": {"type": "string", "description": "Build stage from entity metadata. Owner: contentread.searchDockerfileInstalls."},
+                          "version": {"type": "string", "description": "Declared version, present when the entity metadata carries one. Owner: contentread.searchDockerfileInstalls."}
+                        }
+                      }
+                    },
+                    "limit": {"type": "integer", "description": "Page size the install read ran under. Owner: contentread.writeDockerfileInstallSearch."},
+                    "truncated": {"type": "boolean", "description": "True when install rows remain past this page. Owner: contentread.writeDockerfileInstallSearch."},
+                    "next_cursor": {
+                      "type": "object",
+                      "description": "Absent on the terminal page; pass as cursor for the next page. Owner: contentread.searchDockerfileInstalls.",
+                      "nullable": true,
+                      "properties": {
+                        "basis": {"type": "string", "description": "Query hash binding the cursor to its package and repository scope. Owner: contentread.dockerfileInstallCursorBasis."},
+                        "repo_id": {"type": "string", "description": "Repository id of the last served row. Owner: contentread.searchDockerfileInstalls."},
+                        "relative_path": {"type": "string", "description": "Relative path of the last served row. Owner: contentread.searchDockerfileInstalls."},
+                        "start_line": {"type": "integer", "description": "Start line of the last served row. Owner: contentread.searchDockerfileInstalls."},
+                        "entity_id": {"type": "string", "description": "Entity id of the last served row. Owner: contentread.searchDockerfileInstalls."}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"}
@@ -338,10 +383,10 @@ const Content = `
           "200": {"description": "Guarded configuration entity page", "content": {"application/json": {"schema": {
             "type": "object", "required": ["results", "count", "limit", "truncated"],
             "properties": {
-              "results": {"type": "array", "items": {"$ref": "#/components/schemas/EntityContent"}},
-              "count": {"type": "integer"},
-              "limit": {"type": "integer"},
-              "truncated": {"type": "boolean"},
+              "results": {"type": "array", "items": {"$ref": "#/components/schemas/EntityContent"}, "description": "Guarded configuration entity rows in the page; source bodies are withheld. Owner: contentread.writePHPConfigSearch."},
+              "count": {"type": "integer", "description": "Rows in this page. Owner: contentread.writePHPConfigSearch."},
+              "limit": {"type": "integer", "description": "Page size the configuration read ran under. Owner: contentread.writePHPConfigSearch."},
+              "truncated": {"type": "boolean", "description": "True when configuration rows remain past this page. Owner: contentread.writePHPConfigSearch."},
               "next_cursor": {"type": "string", "description": "Present when truncated is true; pass as cursor to continue"}
             }
           }}}},

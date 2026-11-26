@@ -16,7 +16,7 @@ const Admin = `
         "responses": {
           "200": {
             "description": "Refinalize request accepted. Alongside status, enqueued, scope_ids, and the five dedup counters it carries skipped_scopes, the scopes named in the request that were considered but not re-enqueued, by reason, delta_active_scopes, the re-enqueued scopes whose generation is a delta and whose graph stays incomplete until a full generation activates, and reindex_requests_written, the per-repository reindex watermarks written for them in the same transaction.",
-            "content": {"application/json": {"schema": {"type": "object", "properties": {"skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}, "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"}, "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"}}}}}
+            "content": {"application/json": {"schema": {"type": "object", "description": "Refinalize outcome. Owner: admin.refinalize serving recovery.RefinalizeResult.", "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "generations_retired", "shared_projection_acceptance_cleared", "skipped_scopes", "delta_active_scopes", "reindex_requests_written"], "properties": {"status": {"type": "string", "enum": ["accepted"], "description": "Request disposition. Owner: admin.refinalize."}, "enqueued": {"type": "integer", "description": "Scope generations re-enqueued. Owner: admin.refinalize via Enqueued."}, "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes re-enqueued. Owner: admin.refinalize via ScopeIDs."}, "reducer_work_deleted": {"type": "integer", "description": "Succeeded reducer work items removed. Owner: admin.refinalize via ReducerWorkDeleted."}, "shared_intents_reopened": {"type": "integer", "description": "Shared projection intents reopened. Owner: admin.refinalize via SharedIntentsReopened."}, "readiness_phases_cleared": {"type": "integer", "description": "Graph projection phase rows removed. Owner: admin.refinalize via ReadinessPhasesCleared."}, "generations_retired": {"type": "integer", "description": "Active relationship generations superseded. Owner: admin.refinalize via GenerationsRetired."}, "shared_projection_acceptance_cleared": {"type": "integer", "description": "Shared projection acceptance rows deleted. Owner: admin.refinalize via SharedProjectionAcceptanceCleared."}, "skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"}, "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"}, "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"}}}}}
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"description": "Recovery could not acquire the reducer claim fence within its bounded retry window; response contains blocked/claim_fence_busy. Retry after queue contention subsides."},
@@ -54,31 +54,33 @@ const Admin = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Reindex watermark recorded. Owner: admin.reindex and admin.reindexRepositories.",
                   "required": ["status", "ingester", "scope", "force", "detail"],
                   "properties": {
-                    "status": {"type": "string", "enum": ["accepted"]},
-                    "ingester": {"type": "string", "enum": ["repository"]},
-                    "scope": {"type": "string", "enum": ["workspace", "repository"]},
-                    "force": {"type": "boolean", "enum": [true]},
-                    "requested_at": {"type": "string", "format": "date-time", "description": "scope workspace only: the stored fleet reindex watermark in UTC. A request never lowers it."},
+                    "status": {"type": "string", "enum": ["accepted"], "description": "Request disposition. Owner: admin.reindex."},
+                    "ingester": {"type": "string", "enum": ["repository"], "description": "Honoring ingester. Owner: admin.decodeReindexRequest via Ingester."},
+                    "scope": {"type": "string", "enum": ["workspace", "repository"], "description": "Request scope. Owner: admin.decodeReindexRequest via Scope."},
+                    "force": {"type": "boolean", "enum": [true], "description": "A reindex always forces a full re-parse. Owner: admin.reindex via Force."},
+                    "requested_at": {"type": "string", "format": "date-time", "description": "scope workspace only: the stored fleet reindex watermark in UTC. A request never lowers it. Owner: admin.reindex via RequestedAt."},
                     "repositories": {
                       "type": "array",
-                      "description": "scope repository only: one entry per distinct repository scope, sorted by scope_id.",
+                      "description": "scope repository only: one entry per distinct repository scope, sorted by scope_id. Owner: admin.reindexRepositories.",
                       "items": {
                         "type": "object",
+                        "description": "One repository watermark. Owner: admin.reindexRepositories.",
                         "required": ["repository_id", "scope_id", "requested_at"],
                         "properties": {
-                          "repository_id": {"type": "string"},
-                          "scope_id": {"type": "string"},
-                          "requested_at": {"type": "string", "format": "date-time", "description": "The stored per-repository reindex watermark in UTC. A request never lowers it."}
+                          "repository_id": {"type": "string", "description": "Reindexed repository id. Owner: admin.reindexRepositories via repositoryIDByScope."},
+                          "scope_id": {"type": "string", "description": "Reindexed scope id. Owner: admin.reindexRepositories via ScopeID."},
+                          "requested_at": {"type": "string", "format": "date-time", "description": "The stored per-repository reindex watermark in UTC. A request never lowers it. Owner: admin.reindexRepositories via RequestedAt."}
                         }
                       }
                     },
-                    "detail": {"type": "string"}
+                    "detail": {"type": "string", "description": "Watermark contract text. Owner: admin.reindexAcceptedDetail and admin.repositoryReindexAcceptedDetail."}
                   },
                   "oneOf": [
-                    {"required": ["requested_at"], "properties": {"scope": {"enum": ["workspace"]}}},
-                    {"required": ["repositories"], "properties": {"scope": {"enum": ["repository"]}}}
+                    {"required": ["requested_at"], "properties": {"scope": {"enum": ["workspace"], "description": "Workspace scope: fleet watermark in requested_at. Owner: admin.reindex."}}},
+                    {"required": ["repositories"], "properties": {"scope": {"enum": ["repository"], "description": "Repository scope: per-repository watermarks in repositories. Owner: admin.reindexRepositories."}}}
                   ]
                 }
               }
@@ -128,19 +130,19 @@ const Admin = `
                       "description": "Recovery performed by this call. Alongside status, enqueued, and scope_ids it reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer. After a graph wipe all five counters should be non-zero; five zeros mean the rebuild will restore source-local structure and nothing else.",
                       "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "generations_retired", "shared_projection_acceptance_cleared", "skipped_scopes", "delta_active_scopes", "reindex_requests_written", "idempotency_key", "duplicate"],
                       "properties": {
-                        "status": {"type": "string", "enum": ["recovered"]},
-                        "enqueued": {"type": "integer", "description": "Scope generations re-enqueued for projection."},
-                        "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes actually re-enqueued."},
-                        "reducer_work_deleted": {"type": "integer", "description": "Succeeded reducer work items removed so the re-projection's enqueue is not deduplicated away."},
-                        "shared_intents_reopened": {"type": "integer", "description": "Shared projection intents whose completed_at was cleared so the partition workers drain them again."},
-                        "readiness_phases_cleared": {"type": "integer", "description": "Graph projection phase rows removed, because they outlive a graph wipe and would otherwise assert canonical nodes are committed for an empty graph."},
-                        "generations_retired": {"type": "integer", "description": "Active relationship generations superseded so the re-projection never consumes the prior wave's resolved rows as current truth."},
-                        "shared_projection_acceptance_cleared": {"type": "integer", "description": "Shared projection acceptance rows deleted so the repo_dependency lane cannot project edges for a refinalized generation from its pre-wipe watermark; the re-projection's intent commits re-advance acceptance."},
+                        "status": {"type": "string", "enum": ["recovered"], "description": "Recovery disposition. Owner: admin.recoverGenerations."},
+                        "enqueued": {"type": "integer", "description": "Scope generations re-enqueued for projection. Owner: admin.recoverGenerations via Enqueued."},
+                        "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes actually re-enqueued. Owner: admin.recoverGenerations via ScopeIDs."},
+                        "reducer_work_deleted": {"type": "integer", "description": "Succeeded reducer work items removed so the re-projection's enqueue is not deduplicated away. Owner: admin.recoverGenerations via ReducerWorkDeleted."},
+                        "shared_intents_reopened": {"type": "integer", "description": "Shared projection intents whose completed_at was cleared so the partition workers drain them again. Owner: admin.recoverGenerations via SharedIntentsReopened."},
+                        "readiness_phases_cleared": {"type": "integer", "description": "Graph projection phase rows removed, because they outlive a graph wipe and would otherwise assert canonical nodes are committed for an empty graph. Owner: admin.recoverGenerations via ReadinessPhasesCleared."},
+                        "generations_retired": {"type": "integer", "description": "Active relationship generations superseded so the re-projection never consumes the prior wave's resolved rows as current truth. Owner: admin.recoverGenerations via GenerationsRetired."},
+                        "shared_projection_acceptance_cleared": {"type": "integer", "description": "Shared projection acceptance rows deleted so the repo_dependency lane cannot project edges for a refinalized generation from its pre-wipe watermark; the re-projection's intent commits re-advance acceptance. Owner: admin.recoverGenerations via SharedProjectionAcceptanceCleared."},
                         "skipped_scopes": {"$ref": "#/components/schemas/SkippedScopesReport"},
                         "delta_active_scopes": {"$ref": "#/components/schemas/DeltaActiveScopesReport"},
                         "reindex_requests_written": {"$ref": "#/components/schemas/ReindexRequestsWrittenReport"},
-                        "idempotency_key": {"type": "string"},
-                        "duplicate": {"type": "boolean", "enum": [false]}
+                        "idempotency_key": {"type": "string", "description": "Echo of the request key. Owner: admin.recoverGenerations via IdempotencyKey."},
+                        "duplicate": {"type": "boolean", "enum": [false], "description": "False: this call performed the recovery. Owner: admin.recoverGenerations."}
                       }
                     },
                     {
@@ -148,11 +150,11 @@ const Admin = `
                       "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The five dedup counters, skipped_scopes, delta_active_scopes, and reindex_requests_written are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
                       "required": ["status", "enqueued", "scope_ids", "idempotency_key", "duplicate"],
                       "properties": {
-                        "status": {"type": "string", "enum": ["recovered"]},
-                        "enqueued": {"type": "integer", "description": "Scope generations the original recovery re-enqueued."},
-                        "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes the original recovery re-enqueued."},
-                        "idempotency_key": {"type": "string"},
-                        "duplicate": {"type": "boolean", "enum": [true]}
+                        "status": {"type": "string", "enum": ["recovered"], "description": "Recovery disposition. Owner: admin.respondDuplicateRecoverGenerations."},
+                        "enqueued": {"type": "integer", "description": "Scope generations the original recovery re-enqueued. Owner: admin.respondDuplicateRecoverGenerations via ReplayedCount."},
+                        "scope_ids": {"type": "array", "items": {"type": "string"}, "description": "Scopes the original recovery re-enqueued. Owner: admin.respondDuplicateRecoverGenerations via WorkItemIDs."},
+                        "idempotency_key": {"type": "string", "description": "Echo of the request key. Owner: admin.respondDuplicateRecoverGenerations via IdempotencyKey."},
+                        "duplicate": {"type": "boolean", "enum": [true], "description": "True: the prior outcome was replayed. Owner: admin.respondDuplicateRecoverGenerations."}
                       }
                     }
                   ]
@@ -173,7 +175,7 @@ const Admin = `
         "tags": ["admin"],
         "summary": "Get shared projection tuning guidance",
         "responses": {
-          "200": {"description": "Shared projection tuning report"}
+          "200": {"description": "Shared projection tuning report", "content": {"application/json": {"schema": {"type": "object", "description": "Pinned static tuning report. Owner: admin.tuningReport serving SharedProjectionTuningReportStatus and SharedProjectionTuningReportDetail.", "required": ["status", "detail"], "properties": {"status": {"type": "string", "enum": ["not_applicable"], "description": "Pinned report status; shared-write tuning is not an operator surface. Owner: admin.SharedProjectionTuningReportStatus."}, "detail": {"type": "string", "description": "Pinned report detail. Owner: admin.SharedProjectionTuningReportDetail."}}}}}}
         }
       }
     },
@@ -183,7 +185,7 @@ const Admin = `
         "summary": "Query fact work items",
         "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.work_items.list in its error envelope.",
         "responses": {
-          "200": {"description": "Admin work-item query results. Each item carries replay_attempt_baseline: the attempt_count a projector row had at its last operator replay, or 0 when it was never replayed (#11182)."},
+          "200": {"description": "Admin work-item query results. Each item carries replay_attempt_baseline: the attempt_count a projector row had at its last operator replay, or 0 when it was never replayed (#11182).", "content": {"application/json": {"schema": {"type": "object", "description": "Admin work-item query results. Owner: admin.listWorkItems.", "required": ["count", "items"], "properties": {"count": {"type": "integer", "description": "Rows returned. Owner: admin.listWorkItems."}, "items": {"type": "array", "description": "Work-item rows. Owner: admin.listWorkItems via workItemsToSlice.", "items": ` + adminWorkItemSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -196,7 +198,7 @@ const Admin = `
         "summary": "Query projection decisions",
         "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.decisions.list, or operator.decision_evidence.list for the include_evidence read in its error envelope.",
         "responses": {
-          "200": {"description": "Projection decision query results"},
+          "200": {"description": "Projection decision query results", "content": {"application/json": {"schema": {"type": "object", "description": "Projection decision query results. Owner: admin.listDecisions.", "required": ["count", "decisions"], "properties": {"count": {"type": "integer", "description": "Decisions returned. Owner: admin.listDecisions."}, "decisions": {"type": "array", "description": "Decision rows, with evidence only when include_evidence is set. Owner: admin.listDecisions.", "items": ` + adminDecisionSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -231,7 +233,7 @@ const Admin = `
           }
         },
         "responses": {
-          "200": {"description": "Bounded dead-letter page with schema_version, limit, count, truncated, and items"},
+          "200": {"description": "Bounded dead-letter page with schema_version, limit, count, truncated, and items", "content": {"application/json": {"schema": {"type": "object", "description": "Bounded dead-letter page. Owner: admin.writeDeadLetterList.", "required": ["schema_version", "limit", "count", "truncated", "items"], "properties": {"schema_version": {"type": "string", "description": "Page schema version. Owner: admin.deadLetterListSchemaVersion."}, "limit": {"type": "integer", "description": "Requested page limit. Owner: admin.listDeadLetters."}, "count": {"type": "integer", "description": "Rows on this page. Owner: admin.writeDeadLetterList."}, "truncated": {"type": "boolean", "description": "True when more rows matched than the limit. Owner: admin.listDeadLetters."}, "items": {"type": "array", "description": "Dead-letter rows. Owner: admin.deadLetterItemsToSlice.", "items": ` + adminDeadLetterItemSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"description": "Dead-letter query exceeded its timeout_ms budget while the read ran (fixed message dead-letter query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
@@ -266,7 +268,7 @@ const Admin = `
           }
         },
         "responses": {
-          "200": {"description": "Bounded input_invalid quarantine page with schema_version, limit, count, truncated, and items"},
+          "200": {"description": "Bounded input_invalid quarantine page with schema_version, limit, count, truncated, and items", "content": {"application/json": {"schema": {"type": "object", "description": "Bounded input_invalid quarantine page. Owner: admin.writeInputInvalidFactList.", "required": ["schema_version", "limit", "count", "truncated", "items"], "properties": {"schema_version": {"type": "string", "description": "Page schema version. Owner: admin.inputInvalidFactListSchemaVersion."}, "limit": {"type": "integer", "description": "Requested page limit. Owner: admin.listInputInvalidFacts."}, "count": {"type": "integer", "description": "Rows on this page. Owner: admin.writeInputInvalidFactList."}, "truncated": {"type": "boolean", "description": "True when more rows matched than the limit. Owner: admin.listInputInvalidFacts."}, "items": {"type": "array", "description": "Quarantined fact rows. Owner: admin.nonNilInputInvalidFacts.", "items": ` + adminInputInvalidFactSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"description": "Input-invalid-facts query exceeded its timeout_ms budget while the read ran (fixed message input-invalid-facts query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
@@ -300,7 +302,7 @@ const Admin = `
           }
         },
         "responses": {
-          "200": {"description": "Bounded changed-since poisoned/retrying link page with schema_version, limit, count, truncated, next_cursor, and items"},
+          "200": {"description": "Bounded changed-since poisoned/retrying link page with schema_version, limit, count, truncated, next_cursor, and items", "content": {"application/json": {"schema": {"type": "object", "description": "Bounded poisoned/retrying link page. Owner: admin.writeChangedSincePoisonedLinkList.", "required": ["schema_version", "limit", "count", "truncated", "items"], "properties": {"schema_version": {"type": "string", "description": "Page schema version. Owner: admin.changedSincePoisonedLinkSchemaVersion."}, "limit": {"type": "integer", "description": "Requested page limit. Owner: admin.listChangedSincePoisonedLinks."}, "count": {"type": "integer", "description": "Rows on this page. Owner: admin.writeChangedSincePoisonedLinkList."}, "truncated": {"type": "boolean", "description": "True when more rows matched than the limit. Owner: admin.listChangedSincePoisonedLinks."}, "next_cursor": {"type": "string", "description": "Forward keyset cursor: the last scope_id of this page; present only on a truncated page. Owner: admin.writeChangedSincePoisonedLinkList."}, "items": {"type": "array", "description": "Poisoned or retrying link rows. Owner: admin.nonNilChangedSincePoisonedLinks.", "items": ` + adminPoisonedLinkSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "504": {"description": "Changed-since poisoned-links query exceeded its timeout_ms budget while the read ran (fixed message changed-since poisoned-links query timed out). If the budget expires during reader setup instead, the status depends on the reader topology: a single PostgreSQL reader answers the retryable 503 reader verdict; with reader fleet members, a budget that expires while the reader waits for a member slot or between member attempts answers this 504, and one that expires inside a member attempt answers the retryable 503. Keep timeout_ms well above reader setup latency."},
@@ -315,7 +317,7 @@ const Admin = `
         "summary": "Dead-letter work items",
         "description": "A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "responses": {
-          "200": {"description": "Dead-letter request results"},
+          "200": {"description": "Dead-letter request results", "content": {"application/json": {"schema": {"type": "object", "description": "Dead-letter mutation results. Owner: admin.deadLetter.", "required": ["count", "items"], "properties": {"count": {"type": "integer", "description": "Rows transitioned by this call. Owner: admin.deadLetter."}, "items": {"type": "array", "description": "Transitioned work-item rows. Owner: admin.deadLetter via workItemsToSlice.", "items": ` + adminWorkItemSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -328,7 +330,7 @@ const Admin = `
         "summary": "Skip repository work items",
         "description": "Dead-letters at most 100 pending, retrying, or failed work items for a repository or scope. Claimed, running, succeeded, superseded, and already dead-lettered items are left unchanged. The response count includes only rows transitioned by this call. The repository_id accepts a scope id or a source key; a selector matching more than one scope fails closed with 409, naming the matched scopes. A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "responses": {
-          "200": {"description": "Skip request results"},
+          "200": {"description": "Skip request results", "content": {"application/json": {"schema": {"type": "object", "description": "Skip mutation results. Owner: admin.skip.", "required": ["count", "items"], "properties": {"count": {"type": "integer", "description": "Rows transitioned by this call. Owner: admin.skip."}, "items": {"type": "array", "description": "Transitioned work-item rows. Owner: admin.skip via workItemsToSlice.", "items": ` + adminWorkItemSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"$ref": "#/components/responses/Conflict"},
           "500": {"$ref": "#/components/responses/InternalError"},
@@ -364,7 +366,7 @@ const Admin = `
           }
         },
         "responses": {
-          "200": {"description": "Replay request results (duplicate=true when an idempotent prior outcome is returned)"},
+          "200": {"description": "Replay request results (duplicate=true when an idempotent prior outcome is returned)", "content": {"application/json": {"schema": {"description": "Replay outcome: performed by this call, or the prior outcome replayed. Owner: admin.replay and admin.respondDuplicateReplay.", "oneOf": [{"type": "object", "description": "Replay performed by this call. Owner: admin.replay.", "required": ["status", "replayed_count", "work_item_ids", "replayed", "idempotency_key", "duplicate"], "properties": {"status": {"type": "string", "enum": ["replayed"], "description": "Replay disposition. Owner: admin.replay."}, "replayed_count": {"type": "integer", "description": "Work items replayed. Owner: admin.replay."}, "work_item_ids": {"type": "array", "items": {"type": "string"}, "description": "Replayed work-item ids. Owner: admin.replay via workItemIDList."}, "replayed": {"type": "array", "description": "Replayed work-item rows. Owner: admin.replay via workItemsToSlice.", "items": ` + adminWorkItemSchema + `}, "idempotency_key": {"type": "string", "description": "Echo of the request key. Owner: admin.replay via IdempotencyKey."}, "duplicate": {"type": "boolean", "enum": [false], "description": "False: this call performed the replay. Owner: admin.replay."}}}, {"type": "object", "description": "Idempotent replay: this key already completed. Owner: admin.respondDuplicateReplay.", "required": ["status", "replayed_count", "work_item_ids", "idempotency_key", "duplicate"], "properties": {"status": {"type": "string", "enum": ["replayed"], "description": "Replay disposition. Owner: admin.respondDuplicateReplay."}, "replayed_count": {"type": "integer", "description": "Work items the original replay moved. Owner: admin.respondDuplicateReplay via ReplayedCount."}, "work_item_ids": {"type": "array", "items": {"type": "string"}, "description": "Work-item ids the original replay moved. Owner: admin.respondDuplicateReplay via WorkItemIDs."}, "idempotency_key": {"type": "string", "description": "Echo of the request key. Owner: admin.respondDuplicateReplay via IdempotencyKey."}, "duplicate": {"type": "boolean", "enum": [true], "description": "True: the prior outcome was replayed. Owner: admin.respondDuplicateReplay."}}}]}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"description": "Replay requires an admin (all-scopes) token"},
           "409": {"description": "Idempotency key already in progress or reused with different parameters"},
@@ -374,23 +376,25 @@ const Admin = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Replay refusal. Owner: admin.replay, admin.refuseUnsafeExplicitReplay, and admin.refuseSupersededExplicitReplay.",
                   "required": ["status", "reason", "detail"],
                   "properties": {
-                    "status": {"type": "string", "enum": ["refused"]},
-                    "reason": {"type": "string"},
-                    "detail": {"type": "string"},
-                    "failure_class": {"type": "string", "description": "Present when the failure_class selector itself was refused."},
+                    "status": {"type": "string", "enum": ["refused"], "description": "Refusal disposition. Owner: admin.replay."},
+                    "reason": {"type": "string", "description": "Machine-readable refusal reason. Owner: admin.replay and admin.refuseUnsafeExplicitReplay."},
+                    "detail": {"type": "string", "description": "Operator guidance for the refusal. Owner: admin.replay and admin.refuseUnsafeExplicitReplay."},
+                    "failure_class": {"type": "string", "description": "Present when the failure_class selector itself was refused. Owner: admin.replay."},
                     "refused_work_items": {
                       "type": "array",
-                      "description": "Present when explicit work_item_ids were refused; sorted by work_item_id.",
+                      "description": "Present when explicit work_item_ids were refused; sorted by work_item_id. Owner: admin.refuseUnsafeExplicitReplay and admin.refuseSupersededExplicitReplay.",
                       "items": {
                         "type": "object",
+                        "description": "One refused work item. Owner: admin.refuseUnsafeExplicitReplay and admin.refuseSupersededExplicitReplay.",
                         "required": ["work_item_id", "failure_class", "reason"],
                         "properties": {
-                          "work_item_id": {"type": "string"},
-                          "failure_class": {"type": "string"},
-                          "generation_id": {"type": "string", "description": "Present for a superseded-generation refusal: the superseded generation the row belongs to."},
-                          "reason": {"type": "string", "description": "Operator guidance for the class."}
+                          "work_item_id": {"type": "string", "description": "Refused work-item id. Owner: admin.refuseUnsafeExplicitReplay."},
+                          "failure_class": {"type": "string", "description": "Refused failure class; the superseded-generation class on superseded rows. Owner: admin.refuseUnsafeExplicitReplay and admin.refuseSupersededExplicitReplay."},
+                          "generation_id": {"type": "string", "description": "Present for a superseded-generation refusal: the superseded generation the row belongs to. Owner: admin.refuseSupersededExplicitReplay."},
+                          "reason": {"type": "string", "description": "Operator guidance for the class. Owner: admin.refuseUnsafeExplicitReplay and admin.refuseSupersededExplicitReplay."}
                         }
                       }
                     }
@@ -428,7 +432,7 @@ const Admin = `
           }
         },
         "responses": {
-          "200": {"description": "Reopen request results (duplicate=true when an idempotent prior outcome is returned)"},
+          "200": {"description": "Reopen request results (duplicate=true when an idempotent prior outcome is returned)", "content": {"application/json": {"schema": {"description": "Reopen outcome: performed by this call with the reducer/intent split, or the prior totals replayed. Owner: admin.reopen and admin.respondDuplicateReopen.", "oneOf": [{"type": "object", "description": "Reopen performed by this call. Owner: admin.reopen.", "required": ["status", "domain", "scope_id", "generation_id", "reopened_reducer_count", "reopened_reducer_ids", "reopened_intent_count", "reopened_intent_ids", "reopened_units", "reopened_total_count", "idempotency_key", "duplicate"], "properties": {"status": {"type": "string", "enum": ["reopened"], "description": "Reopen disposition. Owner: admin.reopen."}, "domain": {"type": "string", "enum": ["repo_dependency", "workload_materialization", "submodule_pin"], "description": "Reopened domain. Owner: admin.reopen via Domain."}, "scope_id": {"type": "string", "description": "Reopened scope id. Owner: admin.reopen via ScopeID."}, "generation_id": {"type": "string", "description": "Active generation work was reopened for. Owner: admin.reopen via GenerationID."}, "reopened_reducer_count": {"type": "integer", "description": "Reducer rows reopened. Owner: admin.reopen."}, "reopened_reducer_ids": {"type": "array", "items": {"type": "string"}, "description": "Reopened reducer work-item ids. Owner: admin.reopen via orEmptyStrings."}, "reopened_intent_count": {"type": "integer", "description": "Shared-projection intents reopened. Owner: admin.reopen."}, "reopened_intent_ids": {"type": "array", "items": {"type": "string"}, "description": "Reopened intent ids. Owner: admin.reopen via orEmptyStrings."}, "reopened_units": {"type": "array", "description": "Reopened acceptance units. Owner: admin.reopen via reopenedUnitsToSlice.", "items": ` + adminReopenedUnitSchema + `}, "reopened_total_count": {"type": "integer", "description": "Total rows reopened. Owner: admin.reopen."}, "idempotency_key": {"type": "string", "description": "Echo of the request key. Owner: admin.reopen via IdempotencyKey."}, "duplicate": {"type": "boolean", "enum": [false], "description": "False: this call performed the reopen. Owner: admin.reopen."}}}, {"type": "object", "description": "Idempotent replay: totals without the reducer/intent split. Owner: admin.respondDuplicateReopen.", "required": ["status", "reopened_total_count", "reopened_ids", "idempotency_key", "duplicate"], "properties": {"status": {"type": "string", "enum": ["reopened"], "description": "Reopen disposition. Owner: admin.respondDuplicateReopen."}, "reopened_total_count": {"type": "integer", "description": "Total rows the original reopen moved. Owner: admin.respondDuplicateReopen via ReplayedCount."}, "reopened_ids": {"type": "array", "items": {"type": "string"}, "description": "Combined reopened ids. Owner: admin.respondDuplicateReopen via orEmptyStrings."}, "idempotency_key": {"type": "string", "description": "Echo of the request key. Owner: admin.respondDuplicateReopen via IdempotencyKey."}, "duplicate": {"type": "boolean", "enum": [true], "description": "True: the prior outcome was replayed. Owner: admin.respondDuplicateReopen."}}}]}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
@@ -439,12 +443,13 @@ const Admin = `
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "description": "Reopen refusal. Owner: admin.reopen.",
                   "required": ["status", "reason", "detail"],
                   "properties": {
-                    "status": {"type": "string", "enum": ["refused"]},
-                    "domain": {"type": "string", "description": "Present when the domain itself was refused."},
-                    "reason": {"type": "string"},
-                    "detail": {"type": "string"}
+                    "status": {"type": "string", "enum": ["refused"], "description": "Refusal disposition. Owner: admin.reopen."},
+                    "domain": {"type": "string", "description": "Present when the domain itself was refused. Owner: admin.reopen."},
+                    "reason": {"type": "string", "description": "Machine-readable refusal reason. Owner: admin.reopen."},
+                    "detail": {"type": "string", "description": "Operator guidance for the refusal. Owner: admin.reopen."}
                   }
                 }
               }
@@ -461,7 +466,7 @@ const Admin = `
         "summary": "Request a backfill",
         "description": "A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "responses": {
-          "200": {"description": "Backfill request results"},
+          "200": {"description": "Backfill request results", "content": {"application/json": {"schema": {"type": "object", "description": "Backfill request record. Owner: admin.backfill.", "required": ["status", "backfill_request"], "properties": {"status": {"type": "string", "enum": ["accepted"], "description": "Request disposition. Owner: admin.backfill."}, "backfill_request": ` + adminBackfillRequestSchema + `}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -474,7 +479,7 @@ const Admin = `
         "summary": "Query replay events",
         "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.replay_events.list in its error envelope.",
         "responses": {
-          "200": {"description": "Replay-event query results. Each event carries replay_attempt_baseline (the baseline the replay set on a projector row) and prior_admission_wait_attempts (the admission waits the row had spent before the replay reset them); both are null for reducer rows and for events written before migration 334 (#11182)."},
+          "200": {"description": "Replay-event query results. Each event carries replay_attempt_baseline (the baseline the replay set on a projector row) and prior_admission_wait_attempts (the admission waits the row had spent before the replay reset them); both are null for reducer rows and for events written before migration 334 (#11182).", "content": {"application/json": {"schema": {"type": "object", "description": "Replay-event query results. Owner: admin.listReplayEvents.", "required": ["count", "events"], "properties": {"count": {"type": "integer", "description": "Events returned. Owner: admin.listReplayEvents."}, "events": {"type": "array", "description": "Replay-event audit rows. Owner: admin.listReplayEvents.", "items": ` + adminReplayEventSchema + `}}}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}

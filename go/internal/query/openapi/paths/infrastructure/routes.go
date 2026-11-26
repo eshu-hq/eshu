@@ -51,29 +51,29 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "results": {"type": "array", "items": {"type": "object", "properties": {
-                      "id": {"type": "string"},
-                      "name": {"type": "string"},
-                      "labels": {"type": "array", "items": {"type": "string"}},
-                      "kind": {"type": "string"},
-                      "provider": {"type": "string"},
-                      "environment": {"type": "string"},
-                      "source": {"type": "string"},
-                      "config_path": {"type": "string"},
-                      "resource_type": {"type": "string"},
-                      "resource_service": {"type": "string"},
-                      "resource_category": {"type": "string"},
-                      "resource_id": {"type": "string"},
-                      "arn": {"type": "string"},
-                      "account_id": {"type": "string"},
-                      "region": {"type": "string"},
-                      "service_kind": {"type": "string"},
+                    "results": {"type": "array", "description": "Bounded graph-backed infrastructure resource rows, emitted by the query infra search handler from the hydrated row projection.", "items": {"type": "object", "properties": {
+                      "id": {"type": "string", "description": "Graph resource identity emitted by the query infra search row projection."},
+                      "name": {"type": "string", "description": "Resource display name emitted by the query infra search row projection."},
+                      "labels": {"type": "array", "items": {"type": "string"}, "description": "Graph node labels emitted by the query infra search row projection."},
+                      "kind": {"type": "string", "description": "Infrastructure node kind emitted by the query infra search row projection."},
+                      "provider": {"type": "string", "description": "Collector provider derived by query.infraSearchProviderFromRow (empty for non-cloud nodes)."},
+                      "environment": {"type": "string", "description": "Environment label emitted by the query infra search row projection."},
+                      "source": {"type": "string", "description": "Source system label emitted by the query infra search row projection."},
+                      "config_path": {"type": "string", "description": "Source config path emitted by the query infra search row projection."},
+                      "resource_type": {"type": "string", "description": "Provider resource type emitted by the query infra search row projection (present only when the row carries one)."},
+                      "resource_service": {"type": "string", "description": "Owning service emitted by the query infra search row projection (present only when the row carries one)."},
+                      "resource_category": {"type": "string", "description": "Resource category emitted by the query infra search row projection (present only when the row carries one)."},
+                      "resource_id": {"type": "string", "description": "Provider resource identity emitted by the query infra search row projection (present only when the row carries one)."},
+                      "arn": {"type": "string", "description": "Provider ARN emitted by the query infra search row projection (present only when the row carries one)."},
+                      "account_id": {"type": "string", "description": "Cloud account id emitted by the query infra search row projection (present only when the row carries one)."},
+                      "region": {"type": "string", "description": "Cloud region emitted by the query infra search row projection (present only when the row carries one)."},
+                      "service_kind": {"type": "string", "description": "Service kind emitted by the query infra search row projection (present only when the row carries one)."},
                       "running_image_ref": {"type": "string", "description": "The deployed container image reference (registry/repository, tag-qualified when reported) for an ECS running task or Lambda container-image function. Present only on those CloudResource types."},
                       "running_image_digest": {"type": "string", "description": "The BARE digest (\"sha256:<hex>\", never the full registry/repository@digest reference) of the deployed image, when the source resolved one. Same shape for ECS and Lambda; see running_image_ref for the full reference."}
                     }}},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "count": {"type": "integer", "description": "Rows returned in this page, emitted by the query infra search handler as len(results)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the query infra search handler from the search request limit."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page, emitted by the query infra search handler from the lookahead row."}
                   }
                 }
               }
@@ -121,11 +121,11 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "labels": {"type": "array", "items": {"type": "string"}},
-                    "outgoing": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}},
-                    "incoming": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}}
+                    "id": {"type": "string", "description": "Graph entity identity emitted by the query infra relationships read from the entity row."},
+                    "name": {"type": "string", "description": "Graph entity display name emitted by the query infra relationships read from the entity row."},
+                    "labels": {"type": "array", "items": {"type": "string"}, "description": "Graph entity labels emitted by the query infra relationships read from the entity row."},
+                    "outgoing": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}, "description": "Outgoing typed edges filtered to the requested relationship types, emitted by the query infra relationships read (component shape)."},
+                    "incoming": {"type": "array", "items": {"$ref": "#/components/schemas/Relationship"}, "description": "Incoming typed edges filtered to the requested relationship types, emitted by the query infra relationships read (component shape)."}
                   }
                 }
               }
@@ -155,10 +155,10 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "repo_count": {"type": "integer"},
-                    "workload_count": {"type": "integer"},
-                    "platform_count": {"type": "integer"},
-                    "instance_count": {"type": "integer"}
+                    "repo_count": {"type": "integer", "description": "Repository node count emitted by query.runEcosystemOverviewCounts (zero for a scoped caller with no grants, without a graph read)."},
+                    "workload_count": {"type": "integer", "description": "Workload node count emitted by query.runEcosystemOverviewCounts (zero for a scoped caller with no grants, without a graph read)."},
+                    "platform_count": {"type": "integer", "description": "Platform node count emitted by query.runEcosystemOverviewCounts (zero for a scoped caller with no grants, without a graph read)."},
+                    "instance_count": {"type": "integer", "description": "Workload-instance node count emitted by query.runEcosystemOverviewCounts (zero for a scoped caller with no grants, without a graph read)."}
                   }
                 }
               }
@@ -200,13 +200,28 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "scope": {"type": "string"},
-                    "repo_id": {"type": "string"},
-                    "hot_entities": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
-                    "hot_entities_truncated": {"type": "boolean"},
-                    "key_relationships": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "ecosystem_map": {"type": "object", "additionalProperties": true},
-                    "note": {"type": "string"}
+                    "scope": {"type": "string", "description": "Packet scope emitted by the query graph-summary handler (repository for the repo-scoped packet, ecosystem for the ecosystem-wide packet)."},
+                    "repo_id": {"type": "string", "description": "Echo of the caller's repo_id, emitted by the query graph-summary handler from the repo-scoped packet request (absent on the ecosystem-wide packet)."},
+                    "hot_entities": {
+                      "type": "array",
+                      "description": "Most-connected functions by call degree, emitted by query.graphSummaryHotEntities (Neo4j degree aggregate with the codemodel raw-path fallback).",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "function_id": {"type": "string", "description": "Function identity (graph id with uid fallback) emitted by the query graph-summary hot-entity projection."},
+                          "function_name": {"type": "string", "description": "Function name emitted by the query graph-summary hot-entity projection."},
+                          "file_path": {"type": "string", "description": "File path of the function emitted by the query graph-summary hot-entity projection."},
+                          "incoming_calls": {"type": "integer", "description": "Incoming CALLS edge count emitted by the query graph-summary hot-entity projection."},
+                          "outgoing_calls": {"type": "integer", "description": "Outgoing CALLS edge count emitted by the query graph-summary hot-entity projection."},
+                          "total_degree": {"type": "integer", "description": "Total call degree emitted by the query graph-summary hot-entity projection."}
+                        },
+                        "required": ["function_id", "function_name", "file_path", "incoming_calls", "outgoing_calls", "total_degree"]
+                      }
+                    },
+                    "hot_entities_truncated": {"type": "boolean", "description": "True when the hot-entity list hit the degree rank limit, emitted by query.graphSummaryHotEntities."},
+                    "key_relationships": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Bounded per-type edge counts emitted by query.graphSummaryRelationshipCounts. Keys are the fixed code relationship types (CALLS, IMPORTS, INHERITS, OVERRIDES, REFERENCES); values are the repo-scoped edge counts."},
+                    "ecosystem_map": {"type": "object", "additionalProperties": true, "description": "Structural count map emitted by query.graphSummaryRepoEcosystemMap (repo-scoped: file_count, workload_count, platform_count, dependency_count plus the languages string list) or query.runEcosystemOverviewCounts (ecosystem-wide: repo_count, workload_count, platform_count, instance_count). Keys are the count field names; values are counts (or the languages list on the repo-scoped packet)."},
+                    "note": {"type": "string", "description": "Needs-repo note emitted by the query graph-summary handler on the ecosystem-wide packet (absent on the repo-scoped packet)."}
                   }
                 }
               }
@@ -244,21 +259,23 @@ const Routes = `
                   "properties": {
                     "verbs": {
                       "type": "array",
+                      "description": "Typed-edge verb catalog entries, emitted by the query relationships-catalog handler as []query.relationshipVerbTile.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "verb": {"type": "string"},
-                          "layer": {"type": "string"},
-                          "count": {"type": "integer"},
-                          "evidence": {"type": "string"},
-                          "detail": {"type": "string"},
-                          "source_tools": {"type": "object", "additionalProperties": {"type": "integer"}}
-                        }
+                          "verb": {"type": "string", "description": "Relationship verb emitted by query.relationshipVerbTile.Verb."},
+                          "layer": {"type": "string", "description": "Graph layer of the verb emitted by query.relationshipVerbTile.Layer."},
+                          "count": {"type": "integer", "description": "Whole-graph edge population for the verb emitted by query.relationshipVerbTile.Count."},
+                          "evidence": {"type": "string", "description": "Evidence/source label for the verb emitted by query.relationshipVerbTile.Evidence."},
+                          "detail": {"type": "string", "description": "Verb detail emitted by query.relationshipVerbTile.Detail."},
+                          "source_tools": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Per-source-tool edge breakdown emitted by query.relationshipVerbTile.SourceTools (present only for Tier-2 verbs that stamp source_tool). Keys are the canonical source-tool tokens; values are the per-token edge counts."}
+                        },
+                        "required": ["verb", "layer", "count", "evidence", "detail"]
                       }
                     },
-                    "verb_count": {"type": "integer"},
-                    "total_edges": {"type": "integer"},
-                    "layer_count": {"type": "integer"}
+                    "verb_count": {"type": "integer", "description": "Catalog verbs returned, emitted by the query relationships-catalog handler as len(tiles)."},
+                    "total_edges": {"type": "integer", "description": "Whole-graph edge population summed across verbs, emitted by the query relationships-catalog handler."},
+                    "layer_count": {"type": "integer", "description": "Distinct layers in the catalog, emitted by the query relationships-catalog handler as len(layers)."}
                   }
                 }
               }
@@ -303,26 +320,29 @@ const Routes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "verb": {"type": "string"},
-                    "layer": {"type": "string"},
-                    "evidence": {"type": "string"},
-                    "detail": {"type": "string"},
+                    "verb": {"type": "string", "description": "Echo of the caller's catalog verb, emitted by the query relationship-edges handler from the resolved catalog entry."},
+                    "layer": {"type": "string", "description": "Graph layer of the verb, emitted by the query relationship-edges handler from the resolved catalog entry."},
+                    "evidence": {"type": "string", "description": "Evidence/source label of the verb, emitted by the query relationship-edges handler from the resolved catalog entry."},
+                    "detail": {"type": "string", "description": "Verb detail, emitted by the query relationship-edges handler from the resolved catalog entry."},
                     "edges": {
                       "type": "array",
+                      "description": "Bounded concrete typed edges for the verb, emitted by the query relationship-edges handler as []query.relationshipEdge.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "source_id": {"type": "string"},
-                          "source_name": {"type": "string"},
-                          "target_id": {"type": "string", "description": "Canonical target endpoint identity. Usually the target's id or uid; for verbs whose target has neither, it is the target's own identity key. IMPORTS targets a Module identified by (name, language) and so reads name@language, e.g. time@go, with an empty suffix (time@) when the language could not be determined."},
-                          "target_name": {"type": "string"},
-                          "evidence": {"type": "string"},
-                          "source_tool": {"type": "string"}
-                        }
+                          "source_id": {"type": "string", "description": "Source endpoint identity emitted by query.relationshipEdge.SourceID."},
+                          "source_name": {"type": "string", "description": "Source endpoint name emitted by query.relationshipEdge.SourceName."},
+                          "target_id": {"type": "string", "description": "Canonical target endpoint identity emitted by query.relationshipEdge.TargetID. Usually the target's id or uid; for verbs whose target has neither, it is the target's own identity key. IMPORTS targets a Module identified by (name, language) and so reads name@language, e.g. time@go, with an empty suffix (time@) when the language could not be determined."},
+                          "target_name": {"type": "string", "description": "Target endpoint name emitted by query.relationshipEdge.TargetName."},
+                          "evidence": {"type": "string", "description": "Edge evidence label emitted by query.relationshipEdge.Evidence."},
+                          "source_tool": {"type": "string", "description": "Source-tool token stamped by the Tier-2 resolver, emitted by query.relationshipEdge.SourceTool (present only when the edge carries one)."}
+                        },
+                        "required": ["source_id", "source_name", "target_id", "target_name"]
                       }
                     },
-                    "truncated": {"type": "boolean"},
-                    "limit": {"type": "integer"}
+                    "truncated": {"type": "boolean", "description": "True when more edges exist past this page, emitted by the query relationship-edges handler from the lookahead row."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the query relationship-edges handler from the clamped edges limit."},
+                    "source_tool": {"type": "string", "description": "Echo of the caller's source_tool filter, emitted by the query relationship-edges handler (present only when the caller filtered to one source tool)."}
                   }
                 }
               }

@@ -26,32 +26,34 @@ const ReplatformingSelectors = `
                   "properties": {
                     "scopes": {
                       "type": "array",
+                      "description": "Active AWS collector scopes that can anchor replatforming reads, emitted by the iac selectors handler from the active-generation inventory.",
                       "items": {
                         "type": "object",
                         "properties": {
                           "scope_id": {"type": "string", "description": "Canonical AWS collector scope id."},
                           "account_id": {"type": "string", "description": "AWS account id parsed from the canonical scope."},
-                          "region": {"type": "string"},
-                          "service": {"type": "string"},
+                          "region": {"type": "string", "description": "AWS region parsed from the canonical scope, emitted by the iac selectors handler scope rows."},
+                          "service": {"type": "string", "description": "Collector service parsed from the canonical scope, emitted by the iac selectors handler scope rows."},
                           "label": {"type": "string", "description": "Human-readable service, region, and masked-account label."},
                           "finding_count": {"type": "integer", "minimum": 0, "description": "Active-generation replatforming finding count; zero is authoritative when the scope is active."}
                         },
                         "required": ["scope_id", "account_id", "region", "service", "label", "finding_count"]
                       }
                     },
-                    "count": {"type": "integer", "minimum": 0},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "empty_scope_count": {"type": "integer", "minimum": 0},
-                    "supported_scope_kinds": {"type": "array", "items": {"type": "string", "enum": ["account", "region", "service"]}},
-                    "finding_kinds": {"type": "array", "items": {"type": "string"}},
-                    "page_sizes": {"type": "array", "items": {"type": "integer"}},
+                    "count": {"type": "integer", "minimum": 0, "description": "Scopes returned in this page, emitted by the iac selectors handler as len(scopes)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the iac selectors handler from the normalized limit."},
+                    "truncated": {"type": "boolean", "description": "True when more scopes exist past this page, emitted by the iac selectors handler from the lookahead row."},
+                    "empty_scope_count": {"type": "integer", "minimum": 0, "description": "Active scopes with zero findings included as authoritative-empty choices, counted by the iac selectors handler."},
+                    "supported_scope_kinds": {"type": "array", "items": {"type": "string", "enum": ["account", "region", "service"]}, "description": "Scope dimensions the replatforming reads accept, emitted by the iac selectors handler (always account, region, service)."},
+                    "finding_kinds": {"type": "array", "items": {"type": "string"}, "description": "Finding kinds anchoring the selector counts, emitted by the iac selectors handler from the replatforming finding kinds."},
+                    "page_sizes": {"type": "array", "items": {"type": "integer"}, "description": "Supported page sizes for the replatforming reads, emitted by the iac selectors handler (always 25, 50, 100, 200)."},
                     "readiness": {
                       "type": "object",
+                      "description": "Selector readiness verdict, emitted by iac.replatformingSelectorReadiness.",
                       "properties": {
-                        "state": {"type": "string", "enum": ["ready", "collector_evidence_absent", "no_authorized_scopes"]},
-                        "detail": {"type": "string"},
-                        "next_action": {"type": "string"}
+                        "state": {"type": "string", "enum": ["ready", "collector_evidence_absent", "no_authorized_scopes"], "description": "Readiness state emitted by iac.replatformingSelectorReadiness."},
+                        "detail": {"type": "string", "description": "Human-readable readiness detail emitted by iac.replatformingSelectorReadiness."},
+                        "next_action": {"type": "string", "description": "Next action for a non-ready state, emitted by iac.replatformingSelectorReadiness."}
                       },
                       "required": ["state", "detail", "next_action"]
                     }

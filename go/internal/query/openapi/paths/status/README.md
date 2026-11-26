@@ -75,3 +75,17 @@ name-only `Workload` nodes with a scoped twin remain, fails with
 `legacy_workload_detection_unavailable` when its bounded graph read errors, and
 is `unknown` off Neo4j or when its examined cap hid the rest (the check `state`
 enum is `pass`, `fail`, `unknown`). See `docs/public/reference/http-api/hosted-readiness-leftovers.md`.
+
+## PR-B contract completion: no-regression note
+
+No-Regression Evidence: this wave changes OpenAPI fragment strings and pin
+tests only; no handler, query, lock, claim, lease, queue, or worker code is
+touched. Baseline and after: `go test -count=1 ./internal/query/openapi/...`
+green (all packages), `scripts/verify-openapi.sh` clean (281 HandleFunc
+routes, 281 OpenAPI path entries), and
+`TestOpenAPITerminalFailureFieldsMatchStatusContract` green (4 bounded
+collector schemas + 1 unbounded admin schema). The perf gate's hot-content
+hit is the literal phrase "SKIP LOCKED" inside a reopen-route contract
+description that quotes the admin store's documented behavior, not new
+concurrency code. No-Observability-Change: no emitters, spans, metrics, or
+logs touched; no handler behavior changed.

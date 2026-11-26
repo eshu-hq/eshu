@@ -39,42 +39,44 @@ const ObservabilityCoverage = `
                   "properties": {
                     "correlations": {
                       "type": "array",
+                      "description": "Page of observability coverage correlation rows, emitted by the coverage handler from the reducer read model as []coverage.CorrelationResult.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "correlation_id": {"type": "string"},
-                          "provider": {"type": "string"},
-                          "coverage_signal": {"type": "string"},
-                          "observability_object_ref": {"type": "string"},
-                          "observability_resource_uid": {"type": "string"},
-                          "target_uid": {"type": "string"},
-                          "target_service_ref": {"type": "string"},
-                          "outcome": {"type": "string"},
-                          "reason": {"type": "string"},
-                          "coverage_status": {"type": "string"},
-                          "provenance_only": {"type": "boolean"},
-                          "resolution_mode": {"type": "string"},
-                          "source_class": {"type": "string"},
-                          "source_classes": {"type": "array", "items": {"type": "string"}},
-                          "source_kind": {"type": "string"},
-                          "source_kinds": {"type": "array", "items": {"type": "string"}},
-                          "source_outcome": {"type": "string"},
-                          "source_outcomes": {"type": "array", "items": {"type": "string"}},
-                          "resource_class": {"type": "string"},
-                          "freshness_state": {"type": "string"},
-                          "candidate_target_uids": {"type": "array", "items": {"type": "string"}},
-                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+                          "correlation_id": {"type": "string", "description": "Correlation identity emitted by coverage.CorrelationResult.CorrelationID."},
+                          "provider": {"type": "string", "description": "Observability provider emitted by coverage.CorrelationResult.Provider."},
+                          "coverage_signal": {"type": "string", "description": "Coverage signal class emitted by coverage.CorrelationResult.CoverageSignal."},
+                          "observability_object_ref": {"type": "string", "description": "Provider-native observability object reference emitted by coverage.CorrelationResult.ObservabilityObjectRef."},
+                          "observability_resource_uid": {"type": "string", "description": "Observability resource UID emitted by coverage.CorrelationResult.ObservabilityUID."},
+                          "target_uid": {"type": "string", "description": "Monitored resource UID emitted by coverage.CorrelationResult.TargetUID."},
+                          "target_service_ref": {"type": "string", "description": "Target service reference emitted by coverage.CorrelationResult.TargetServiceRef."},
+                          "outcome": {"type": "string", "description": "Correlation outcome emitted by coverage.CorrelationResult.Outcome."},
+                          "reason": {"type": "string", "description": "Machine-readable reason emitted by coverage.CorrelationResult.Reason."},
+                          "coverage_status": {"type": "string", "description": "Coverage status (covered or gap) emitted by coverage.CorrelationResult.CoverageStatus."},
+                          "provenance_only": {"type": "boolean", "description": "Whether the row is provenance-only, emitted by coverage.CorrelationResult.ProvenanceOnly."},
+                          "resolution_mode": {"type": "string", "description": "Resolution mode emitted by coverage.CorrelationResult.ResolutionMode."},
+                          "source_class": {"type": "string", "description": "Primary evidence class emitted by coverage.CorrelationResult.SourceClass."},
+                          "source_classes": {"type": "array", "items": {"type": "string"}, "description": "Contributing evidence classes emitted by coverage.CorrelationResult.SourceClasses."},
+                          "source_kind": {"type": "string", "description": "Primary source kind emitted by coverage.CorrelationResult.SourceKind."},
+                          "source_kinds": {"type": "array", "items": {"type": "string"}, "description": "Contributing source kinds emitted by coverage.CorrelationResult.SourceKinds."},
+                          "source_outcome": {"type": "string", "description": "Primary source outcome emitted by coverage.CorrelationResult.SourceOutcome."},
+                          "source_outcomes": {"type": "array", "items": {"type": "string"}, "description": "Contributing source outcomes emitted by coverage.CorrelationResult.SourceOutcomes."},
+                          "resource_class": {"type": "string", "description": "Provider resource class emitted by coverage.CorrelationResult.ResourceClass."},
+                          "freshness_state": {"type": "string", "description": "Freshness state emitted by coverage.CorrelationResult.FreshnessState."},
+                          "candidate_target_uids": {"type": "array", "items": {"type": "string"}, "description": "Candidate target UIDs emitted by coverage.CorrelationResult.CandidateTargetUIDs."},
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}, "description": "Backing evidence fact ids emitted by coverage.CorrelationResult.EvidenceFactIDs."}
                         },
                         "required": ["correlation_id", "outcome", "provenance_only"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "count": {"type": "integer", "description": "Rows returned in this page, emitted by the coverage handler as len(results)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the coverage handler from the normalized limit."},
+                    "truncated": {"type": "boolean", "description": "True when more rows exist past this page, emitted by the coverage handler from the lookahead row."},
                     "next_cursor": {
                       "type": "object",
+                      "description": "Continuation cursor for the next page (present only when truncated), emitted by the coverage handler from the last row.",
                       "properties": {
-                        "after_correlation_id": {"type": "string"}
+                        "after_correlation_id": {"type": "string", "description": "Correlation id of the last row, emitted by the coverage handler from the last CorrelationResult.CorrelationID."}
                       },
                       "required": ["after_correlation_id"]
                     }
