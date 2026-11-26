@@ -32,10 +32,10 @@
     {"path": "/usr/lib/libwebp.so.7.1.9", "sha256": "91f261e152028a1667acd3c65e1830395c29cc52db53a194161fc072f68ee3d9"},
     {"path": "/usr/lib/libwebpmux.so.3.1.0", "sha256": "7363240cdaf3615c834d723398b200f97fd5e393f9146fd01221452a41f08902"},
     {"path": "/usr/lib/libz.so.1.4", "sha256": "d948400330d462b285d528e2f2666c027918b09b3dc4c9ceef2d4a4a732e312f"},
-    {"path": "/usr/lib/libzstd.so.1.5.6", "sha256": "5bb12332ec61c069eb01fd1a71c882732e8ae6402121516e2f4fa7e29c636df8"},
+    {"path": "/usr/lib/libzstd.so.1.6.0", "sha256": "6cf4f35110e1e5121ff2422fdd5e1a86791168c6e592a7455b35ee660b172e62"},
     {"path": "/usr/lib/ossl-modules/legacy.so", "sha256": "c4e9b6e541797ab7830cdcb068f1f34aa5e88cac7985ae4dfc3011ee8d2a98cf"}
   ],
-  "libraries_set_sha256": "b12e879db0b27b0d97487d82451a7698bd38bde70be4bfc8946b59a3a86add6c",
+  "libraries_set_sha256": "74a1b3d81a7c9629552065d8ba344a364ed79bf751514bbd874a7e78260c0916",
   "model": {
     "path": "/usr/share/tessdata/eng.traineddata",
     "sha256": "daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047"
@@ -56,10 +56,10 @@
     "libpng": "1.6.59-r0",
     "tiff": "4.7.2-r0",
     "zlib": "1.4-r0",
-    "zstd-libs": "1.5.6-r2",
+    "zstd-libs": "1.6.0-r1",
     "libssl3": "3.3.7-r2",
     "libcrypto3": "3.3.7-r2"
   },
-  "measured": "2026-11-04, native arm64 reference run against the pinned base plus the exact apk versions above; binary and model match scripts/prove-ocr-sandbox.sh EXPECTED_* for arm64",
-  "notes": "musl and zlib are one revision past the proof Dockerfile (r12/r1 vs r11/r0): the Alpine 3.21 index moved, so the set hash differs from the proof-era 5556b1aa. The per-file list is the operator's ESHU_DOC_IMPORT_TESSERACT_LIBRARIES source; the set hash is the Dockerfile gate input."
+  "measured": "2026-11-26, native arm64 reference run against the pinned base (alpine:3.21@sha256:48b0309c) with default apk signature verification (no --allow-untrusted); zstd-libs moved 1.5.6-r2 -> 1.6.0-r1 (/usr/lib/libzstd.so.1.6.0); all other 21 library files plus binary and model byte-identical. Full image build re-run to GATE PASS on this host.",
+  "notes": "Set-hash lineage: proof-era 5556b1aa -> 2026-11-04/06 record b12e879d -> this record 74a1b3d8 (zstd-libs 1.5.6-r2 -> 1.6.0-r1, #11511). The per-file list is the operator's ESHU_DOC_IMPORT_TESSERACT_LIBRARIES source; the set hash is the Dockerfile gate input."
 }
