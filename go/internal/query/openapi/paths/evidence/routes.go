@@ -53,7 +53,7 @@ const Routes = `
                     }},
                     "relationship_type": {"type": "string", "description": "Relationship verb in resolved_relationships.relationship_type."},
                     "confidence": {"type": "number", "description": "Aggregated correlation confidence in resolved_relationships.confidence."},
-                    "confidence_basis": {"type": "string", "description": "Correlation confidence basis added by AddRelationshipConfidenceBasis: evidence_constant, evidence_aggregate, or assertion_override."},
+                    "confidence_basis": {"type": "string", "description": "Correlation confidence basis added by AddRelationshipConfidenceBasis: evidence_constant, evidence_aggregate, or assertion_override. Present only when the row carries a positive confidence backed by evidence or an assertion; absent on zero-confidence rows."},
                     "evidence_count": {"type": "integer", "description": "Number of evidence facts aggregated into this relationship."},
                     "evidence_kinds": {"type": "array", "items": {"type": "string"}, "description": "Normalized evidence kinds from repositoryRelationshipEvidenceKinds in repository_relationship_read_model.go; present only when the details carry kinds."},
                     "evidence_type": {"type": "string", "description": "Normalized evidence type from repositoryRelationshipEvidenceType in repository_relationship_read_model.go; present only when derivable from the details."},
@@ -74,7 +74,7 @@ const Routes = `
                       "evidence_type": {"type": "string", "description": "Normalized evidence type when the reducer captured one."}
                     }}
                   },
-                  "required": ["lookup_basis", "resolved_id", "generation_id", "source", "target", "relationship_type", "confidence", "evidence_count"]
+                  "required": ["lookup_basis", "resolved_id", "generation_id", "source", "target", "relationship_type", "confidence", "evidence_count", "rationale", "resolution_source", "generation", "details", "evidence_preview", "postgres_lookup_id"]
                 }
               }
             }
@@ -272,7 +272,7 @@ const Routes = `
                         }, "required": ["basis"]},
                         "excerpt": {"type": "string", "description": "Bounded line excerpt of the cited window from boundedLineExcerpt in evidence/citation.go."}
                       },
-                      "required": ["citation_id", "kind", "evidence_family", "confidence", "provenance", "excerpt"]
+                      "required": ["citation_id", "rank", "kind", "evidence_family", "confidence", "provenance", "excerpt"]
                     }, "description": "Resolved citations from citationFromFile and citationFromEntity in evidence/citation.go."},
                     "missing_handles": {"type": "array", "items": {"type": "object", "description": "One handle that resolved to no citation. Owner: evidence/citation.go buildEvidenceCitations.", "properties": {
                       "kind": {"type": "string", "description": "Handle kind from querycontract/evidence.EvidenceCitationHandle."},

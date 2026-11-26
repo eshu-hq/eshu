@@ -254,6 +254,7 @@ const Semantic = `
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"description": "Canonical repository id maps to multiple active ingestion scopes; retry after repairing repository scope identity"},
           "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
