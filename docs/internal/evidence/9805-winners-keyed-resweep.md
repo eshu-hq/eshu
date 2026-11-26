@@ -299,8 +299,11 @@ fact directly. No defect is claimed.
 ## Scale and writer cost
 
 The 1x / 5x / 10x before and after tables, the plan-stability proof, the
-remaining floor and the writer-cost rounds are in
-[9805-winners-keyed-resweep-scale.md](9805-winners-keyed-resweep-scale.md).
+remaining floor and the writer-cost rounds were in the scale companion
+`9805-winners-keyed-resweep-scale.md`, deleted under #10990 (Refs #9805).
+The harness that carries the proof is
+`TestSupplyChainImpactWinnersResweepScaleProofLive`
+(`go/internal/storage/postgres/supply_chain_impact_winners_keyed_scale_live_test.go`).
 In short: the keyed tick fell from 1.07 s (good plan) or 2 m 38.6 s (flipped
 plan) to 358.9 ms at 1x, from over 600 s (capped, a lower bound) to 6.15 s at
 5x (measured at load1 69 to 92, so not a clean read), and from 231 s to 2.94 s
