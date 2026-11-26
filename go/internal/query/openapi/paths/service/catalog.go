@@ -12,7 +12,7 @@ const Catalog = `
       "get": {
         "tags": ["service-catalog"],
         "summary": "List service catalog correlations",
-        "description": "Lists reducer-owned service catalog ownership and drift correlation rows. Catalog declarations remain provenance until graph, runtime, deployment, or source evidence corroborates them.",
+        "description": "Lists reducer-owned service catalog ownership and drift correlation rows. Catalog declarations remain provenance until graph, runtime, deployment, or source evidence corroborates them. At least one anchor (scope_id, entity_ref, repository_id, service_id, workload_id, or owner_ref) is required: a request with none answers 400. Unknown selectors answer 404 and ambiguous selectors answer 409.",
         "operationId": "listServiceCatalogCorrelations",
         "x-scoped-token-support": true,
         "parameters": [
@@ -150,6 +150,8 @@ const Catalog = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}

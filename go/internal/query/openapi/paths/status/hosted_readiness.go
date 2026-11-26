@@ -21,7 +21,7 @@ const HostedReadiness = `
             "in": "query",
             "required": false,
             "schema": {"type": "string", "enum": ["json", "text"], "default": "json"},
-            "description": "Return a plain-text human summary when set to text."
+            "description": "Return a plain-text human summary when set to text. The value is not validated: only text selects the text/plain rendering, and any other value serves the JSON 200. Owner: query.statusHostedReadiness via QueryParam format."
           }
         ],
         "responses": {

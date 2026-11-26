@@ -569,7 +569,7 @@ become deployment truth by themselves.
 `repository_id` accepts a canonical source repository id or the same human
 repository selectors used by repository context routes. Eshu resolves selectors
 before reading reducer CI/CD correlation facts for the list, count, and
-inventory routes; unknown or ambiguous selectors return a selector error.
+inventory routes; unknown selectors answer `404`, ambiguous ones `409`.
 `image_ref` is also accepted by the list, count, and inventory routes so
 target-story and MCP callers can prove tag-or-reference CI/CD evidence without
 fetching a repository-wide page and filtering client-side.

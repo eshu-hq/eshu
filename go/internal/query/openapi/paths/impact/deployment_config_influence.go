@@ -98,7 +98,8 @@ const deploymentConfigInfluence = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": ` + traceDeploymentNotFoundResponse + `,
           "409": {"$ref": "#/components/responses/Conflict"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },`

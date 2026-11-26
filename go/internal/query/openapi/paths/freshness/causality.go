@@ -78,14 +78,14 @@ const Causality = `
                           "status": {"type": "string", "description": "Lifecycle status projected by freshnessTransitionsToSlice."},
                           "trigger_kind": {"type": "string", "description": "What triggered the generation, per freshnessTransitionsToSlice."},
                           "freshness_hint": {"type": "string", "description": "Freshness hint for the transition, per freshnessTransitionsToSlice."},
-                          "observed_at": {"type": "string", "format": "date-time", "description": "When the generation was observed, per freshnessTransitionsToSlice."},
-                          "superseded_at": {"type": "string", "format": "date-time", "description": "When the generation was superseded, per freshnessTransitionsToSlice."}
+                          "observed_at": {"type": ["string", "null"], "format": "date-time", "description": "When the generation was observed, per freshnessTransitionsToSlice; null when not yet observed."},
+                          "superseded_at": {"type": ["string", "null"], "format": "date-time", "description": "When the generation was superseded, per freshnessTransitionsToSlice; null while the generation is still current."}
                         },
                         "required": ["status", "trigger_kind", "freshness_hint", "observed_at", "superseded_at"]
                       }},
-                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource", "description": "Active work source attached by withActiveWorkSource."}
+                    "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource", "description": "Active work source attached by withActiveWorkSource; present only when the status reader reports a source, and absent when the reader predates the marker."}
                   },
-                  "required": ["version", "as_of", "scoped", "state", "causes", "generations", "pending_projection", "recent_transitions", "active_work_source"]
+                  "required": ["version", "as_of", "scoped", "state", "causes", "generations", "pending_projection", "recent_transitions"]
                 }
               }
             }

@@ -20,6 +20,7 @@ const Capture = `
             "application/json": {
               "schema": {
                 "type": "object",
+                "additionalProperties": false,
                 "required": ["surface", "target", "envelope"],
                 "properties": {
                   "surface": {"type": "string"},

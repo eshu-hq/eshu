@@ -102,7 +102,9 @@ No body carries backend error text.
 These routes write through the writer store. Only the repository reindex
 and repository retirement selector lookups read through the guarded reader,
 so they alone can answer the reader-verdict `503` with `Retry-After`. They
-run with no route deadline and never answer `504`. Every mutation can still answer the checkpoint `503`
+run with no route deadline, so no route-level timeout answers `504`; the
+retirement selector lookup still answers `504` when its graph read outruns
+the backend deadline. Every mutation can still answer the checkpoint `503`
 and its configuration `503`, as described in [Statuses](#statuses).
 
 ### Claim-fence busy responses
@@ -143,7 +145,8 @@ so retry with a fresh `idempotency_key`.
 | `POST /api/v0/admin/reopen` (ledger finalize) | ledger finalize | `reopen applied but recording its idempotency outcome failed` |
 
 A selector that matches no repository, or several, still answers `400` and
-names the selector. A failed catalog lookup answers `500` without it.
+names the selector. A failed catalog lookup answers `500` without it,
+unless the graph read outran its deadline (`504`).
 
 A `409` or `500` from the retirement trigger carries the trigger's
 per-repository entries alongside the fixed `detail` (#8614): one
