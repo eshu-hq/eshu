@@ -94,12 +94,13 @@ func TestReadRefusesAnEmptyFamily(t *testing.T) {
 	}
 }
 
-// TestDigestExcludesTheRunNamingColumns pins what the digest leaves out: a support payload's intent_id and cause
-// and a winner's materialization stamp name the delivering run, not the finding.
+// TestDigestExcludesTheRunNamingColumns pins what the digest leaves out: a support payload's intent_id and cause,
+// a winner's materialization stamp, and the per-write observation timestamp provenance.first_seen_at on both
+// name the delivering run or write, not the finding.
 func TestDigestExcludesTheRunNamingColumns(t *testing.T) {
 	t.Parallel()
 
-	for _, want := range []string{"s.payload - 'intent_id' - 'cause'", "to_jsonb(w) - 'materialized_at'", "ORDER BY s.fact_id", "ORDER BY w.canonical_key"} {
+	for _, want := range []string{"s.payload - 'intent_id' - 'cause'", "to_jsonb(w) - 'materialized_at'", "(s.payload - 'intent_id' - 'cause') #- '{provenance,first_seen_at}'", "w.payload #- '{provenance,first_seen_at}'", "ORDER BY s.fact_id", "ORDER BY w.canonical_key"} {
 		if !strings.Contains(DigestSQL, want) {
 			t.Fatalf("DigestSQL lost %q: equal runs would hash differently", want)
 		}

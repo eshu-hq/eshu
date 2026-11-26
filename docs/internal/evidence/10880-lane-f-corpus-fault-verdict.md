@@ -47,7 +47,7 @@ designed fail-closed behavior, not a stuck fence.
 
 Why not (iii): no gate step seeds finding facts. The only direct fact INSERT
 (the malformed-suppression fixture) writes `vulnerability.suppression`, a kind
-the 357 trigger does not cover; corpus source facts flow through the projector
+the 358 trigger does not cover; corpus source facts flow through the projector
 normally and drains pass.
 
 `readiness_unavailable` is a secondary symptom on the same response: the
@@ -74,7 +74,7 @@ WARN on the converted run to close this sub-question.
    rebuild.
 3. No expected-output edits: B-7c pins hold on the winners route by the B2a
    parity contract; the malformed-fixture path needs no change (suppression
-   kind unaffected by trigger 357). Legacy reads are unseedable by design, so
+   kind unaffected by trigger 358). Legacy reads are unseedable by design, so
    enabling winners reads is required, not optional.
 
 ## Q2: `cell_impact_family` rationale mismatch — harness, not product

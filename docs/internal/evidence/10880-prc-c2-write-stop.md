@@ -12,7 +12,7 @@ records what changed, what each proof shows, what is owed, and what C2 m will de
 | h2 | The in-memory upsert drops tombstoned rows and rows of another kind, as the fact-derived WHERE did. | Planted tombstone and foreign-kind rows are not bound. |
 | i | Retraction is `DELETE FROM supports ... RETURNING` feeding the winners dirty staging and the retracted keys. The per-row fencing predicate is gone; the admission row orders passes. The scoped variant filters on the `cve_id` column. | Staging and counts tail hashes to the base tail; no `fencing_token`, `fact_records` or `is_tombstone` in the statement. |
 | j | `WriteSupplyChainImpactFindingRows` no longer inserts fact rows and refuses a transaction without the supports maintainer. | A full and a scoped pass issue no INSERT into or UPDATE of `fact_records`. |
-| k | Migration 355: the reject trigger. `k2`: the reducer reads `pg_trigger.tgenabled`, exports the armed gauge, and the impact entry gate defers while it reads 0. | Pinned-pair text test with 11 seeded RED plants; census guard; gate RED/GREEN pair. |
+| k | Migration 358: the reject trigger. `k2`: the reducer reads `pg_trigger.tgenabled`, exports the armed gauge, and the impact entry gate defers while it reads 0. | Pinned-pair text test with 11 seeded RED plants; census guard; gate RED/GREEN pair. |
 | l | Every audit statement that read facts reads supports by declared counted swaps (panic at init on drift): audit winner select, keyed active and operator reads, scope expansion, pending select, keyed range with its oversize and operator arms, NULL-key probe, staged batch, staged ident fetch. | Each derives from its legacy statement by exactly the declared swaps; none names `fact_records`. |
 | n | Route coverage: every `ReadRoute` label has a declared sweep request; the live half scrapes `eshu_dp_supply_chain_impact_read_route_total` around each. | Table routes to its labels by the stores' pure functions; planted scrapes and a fake core. |
 | o | The latency gate seeds the winners corpus through the supports step. | Seed rows shape; seeded-table counts include supports. |
@@ -22,8 +22,8 @@ stop is the last independent oracle.
 
 ## The trigger
 
-Migration 355 (the next free slot above C1's 350 to 354; 349 was reserved before C1 and renumbered
-while nothing had applied it). `BEFORE INSERT OR UPDATE ON fact_records FOR EACH ROW WHEN (NEW.fact_kind
+Migration 358 (355 is the winners scope-capture migration, 356 the canonical identifier index and 357 the
+first-seen stamp, so 358 was the next free slot). `BEFORE INSERT OR UPDATE ON fact_records FOR EACH ROW WHEN (NEW.fact_kind
 = 'reducer_supply_chain_impact_finding')`, raising `ERRCODE '55000'`, `CONSTRAINT
 'fact_records_reject_supply_chain_impact_finding'`, `TABLE 'fact_records'`: the C0 classifier fires only on
 that pair, and the repo's older triggers raise with ERRCODE alone. Unconditional, no DELETE, `pg_trigger`
@@ -103,7 +103,7 @@ coordinator slot); `NOT_CHECKED` means no test of that kind exists yet.
 | 22 | The live sweep reaches every label and `legacy` never rises | `TestSweepRouteCoverageAgainstAFakeCore`, `TestRouteRiseComparator`; the gate run itself | planted scrape and fake-core cases | the gate's API key and a granted key | the gate corpus | comparator: pass; live gate run not run |
 | 23 | The impact work budget never loosens | `TestImpactWorkBudgetsNeverLoosen` | `TestImpactWorkBudgetRatchetCatchesALoosenedRow` | none | the two shipped tables | hermetic: pass; lowering to 2,403 needs a live run |
 | 24 | The gate seeds the winners corpus through the supports step | `TestWinnersFindingVersionedRowsShape` | rows carry kind and anchor | none | 10 seeded findings | hermetic: pass |
-| 25 | The trigger migration is numbered 355, applies in one order and is pinned | `TestMigrationChecksumManifestPinsEveryShippedMigration`, `TestBootstrapDefinitionsMatchesPreRefactorGolden` | the manifest's tamper and delete tests | none | the migration set | hermetic: pass |
+| 25 | The trigger migration is numbered 358, applies in one order and is pinned | `TestMigrationChecksumManifestPinsEveryShippedMigration`, `TestBootstrapDefinitionsMatchesPreRefactorGolden` | the manifest's tamper and delete tests | none | the migration set | hermetic: pass |
 | 26 | The impact family's digest (supports plus winners) is equal at 1, 2 and 4 workers, one handler execution per work item, zero dead letters, and equals the pin when one is committed | `TestSupplyChainImpactSupportsFamilyDigestEqualAcrossWorkersLive` | `TestSupplyChainImpactSupportsFamilySeededRedsLive` (a dropped support changes the digest; `impactdigest.Read` refuses empty tables, `TestReadRefusesAnEmptyFamily`) | n/a (superuser clone) | 3 worker counts over the 3 committed supply-chain-demo cassettes | NOT_CHECKED: compiled and enrolled, not run (needs the live slot) |
 | 27 | A killed worker's claimed row is reclaimed after its real lease and the digest equals the baseline | `TestSupplyChainImpactSupportsFamilyKillAfterClaimLive` | the digest equality fails on a dropped support (above) | n/a | 1 dropped claim, 2-second real lease (`familyShortLease`, shape: the 3 demo cassettes, passes of milliseconds) | NOT_CHECKED |
 | 28 | A pass whose lease expired after its fencing token was issued is refused by admission and changes zero rows (by `xmin` on supports, winners and retracted keys); the faulted intent runs exactly twice | `TestSupplyChainImpactSupportsFamilyLeaseExpiresMidHandlerLive` | the same test fails if the stale pass returns nil or moves a row version | n/a | 1 parked pass, 2 passes of the faulted intent, 2-second real lease | NOT_CHECKED |
