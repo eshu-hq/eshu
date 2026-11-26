@@ -69,16 +69,20 @@ func (r *prevFakeRows) Scan(dest ...any) error {
 func (r *prevFakeRows) Err() error   { return nil }
 func (r *prevFakeRows) Close() error { return nil }
 
-// prevFakeTx scripts the watermark stamp sites: the first
-// selectWinnersWatermarkSQL read reports pre (the pre-stamp R), later ones
-// report post (the committed C). The stamp statements' RETURNING columns
-// report post, the way GREATEST makes the RETURNING subquery read the
-// post-upsert value.
+// prevFakeTx scripts the watermark stamp sites with production snapshot
+// semantics: the selectWinnersWatermarkSQL read reports pre (the pre-stamp R)
+// only while no stamp statement has run; once a stamp statement has been
+// served, later watermark reads report post (the committed C), the way READ
+// COMMITTED observes the tick's own write. This makes an order-swap mutant
+// (pre-read moved after the stamp) fail: its pre-read observes post.
+// The stamp statements' RETURNING columns report post, the way GREATEST makes
+// the RETURNING subquery read the post-upsert value.
 type prevFakeTx struct {
 	pre      time.Time
 	post     time.Time
 	preEmpty bool
 	reads    int
+	stamped  bool
 	queries  []string
 }
 
@@ -87,27 +91,52 @@ func (tx *prevFakeTx) QueryContext(_ context.Context, query string, _ ...any) (d
 	switch query {
 	case selectWinnersWatermarkSQL:
 		tx.reads++
-		if tx.reads == 1 && !tx.preEmpty {
+		if !tx.stamped && tx.reads == 1 && !tx.preEmpty {
 			return &prevFakeRows{values: []any{tx.pre}}, nil
 		}
-		if tx.reads == 1 && tx.preEmpty {
+		if !tx.stamped && tx.reads == 1 && tx.preEmpty {
 			return &prevFakeRows{}, nil
 		}
 		return &prevFakeRows{values: []any{tx.post}}, nil
 	case stampWinnersWatermarkSQL:
+		tx.stamped = true
 		return &prevFakeRows{values: []any{sql.NullTime{Time: tx.post, Valid: true}}}, nil
 	case applyWinnersKeyedSQL:
+		tx.stamped = true
 		return &prevFakeRows{values: []any{
 			int64(1), int64(0), int64(0), int64(0), int64(1),
 			sql.NullTime{Time: tx.post, Valid: true},
 		}}, nil
 	case rebuildSupplyChainImpactWinnersSQL:
+		tx.stamped = true
 		return &prevFakeRows{values: []any{
 			int64(1), int64(0), int64(0), int64(0),
 			sql.NullTime{Time: tx.post, Valid: true},
 		}}, nil
 	}
 	return nil, fmt.Errorf("unscripted query %q", query)
+}
+
+// requirePreReadImmediatelyPrecedesStamp asserts the load-bearing order: the
+// pre-stamp watermark read is the statement right before the stamp statement,
+// so the read cannot observe the tick's own write.
+func requirePreReadImmediatelyPrecedesStamp(t *testing.T, tx *prevFakeTx, stampSQL string) {
+	t.Helper()
+	preIdx, stampIdx := -1, -1
+	for i, q := range tx.queries {
+		if q == selectWinnersWatermarkSQL && preIdx < 0 {
+			preIdx = i
+		}
+		if q == stampSQL {
+			stampIdx = i
+		}
+	}
+	if preIdx < 0 {
+		t.Fatalf("no %q read before the stamp statement (queries: %q)", selectWinnersWatermarkSQL, tx.queries)
+	}
+	if stampIdx != preIdx+1 {
+		t.Fatalf("pre-stamp read at queries[%d], stamp at queries[%d], want adjacency (queries: %q)", preIdx, stampIdx, tx.queries)
+	}
 }
 
 type prevFakeResult struct{}
@@ -141,6 +170,7 @@ func TestStampWinnersWatermarkReportsReplacedValue(t *testing.T) {
 	if tx.reads != 1 {
 		t.Fatalf("pre-stamp reads = %d, want exactly one before the stamp statement", tx.reads)
 	}
+	requirePreReadImmediatelyPrecedesStamp(t, tx, stampWinnersWatermarkSQL)
 }
 
 // TestStampSitesReportPreStampOnAdvance pins the advancing side: when the
@@ -162,6 +192,7 @@ func TestStampSitesReportPreStampOnAdvance(t *testing.T) {
 		if !got.PreviousWatermark.Equal(pre) {
 			t.Fatalf("apply PreviousWatermark = %v, want the pre-stamp %v", got.PreviousWatermark, pre)
 		}
+		requirePreReadImmediatelyPrecedesStamp(t, tx, applyWinnersKeyedSQL)
 	})
 
 	t.Run("rebuild", func(t *testing.T) {
@@ -174,6 +205,7 @@ func TestStampSitesReportPreStampOnAdvance(t *testing.T) {
 		if !got.PreviousWatermark.Equal(pre) {
 			t.Fatalf("rebuild PreviousWatermark = %v, want the pre-stamp %v", got.PreviousWatermark, pre)
 		}
+		requirePreReadImmediatelyPrecedesStamp(t, tx, rebuildSupplyChainImpactWinnersSQL)
 	})
 }
 
