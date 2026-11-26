@@ -27,10 +27,11 @@ func main() {
 	apiBaseURL := flag.String("api-base-url", envOr("READ_API_LATENCY_GATE_BASE_URL", "http://localhost:18080"), "running eshu-api satellite or eshu-core-api base URL (same read surface; flag overrides the default and the env)")
 	mcpBaseURL := flag.String("mcp-base-url", "", "running MCP HTTP transport base URL for pilot tools/call")
 	apiKey := flag.String("api-key", os.Getenv("ESHU_API_KEY"), "eshu-api bearer token")
+	coverage := registerCoverageFlags()
 	totalScopes := flag.Int("total-scopes", 800, "total ingestion_scopes rows to seed")
 	nodesPerLabel := flag.Int("nodes-per-label", 150000, "synthetic graph nodes to seed per infra label")
 	iacFactCount := flag.Int("iac-fact-count", 150000, "IaC content_entity fact_records rows to seed (issue #6793: currentInventoryCTE jsonb detoast cost)")
-	winnersFactCount := flag.Int("winners-fact-count", 20000, "reducer_supply_chain_impact_finding fact_records rows to seed for the winners-read leg (issue #11170: rebuilt into supply_chain_impact_canonical_winners so findings serve byte-identical from the read model)")
+	winnersFactCount := flag.Int("winners-fact-count", 20000, "reducer_supply_chain_impact_finding rows to seed into the supports table for the winners-read leg (issue #11170: rebuilt into supply_chain_impact_canonical_winners so findings serve byte-identical from the read model)")
 	sharedIntentCount := flag.Int("shared-intent-count", defaultSharedIntentCount, "shared_projection_intents rows to seed, newest 1% pending (issue #6820: the status routes' domain backlog aggregate must read pending intents by index, not scan the table)")
 	iterations := flag.Int("iterations", 20, "requests per route for the p95 sweep")
 	runs := flag.Int("runs", 1, "counted sweeps per route after discarded warmups; later passes have no additional warmup (default 1: P95 uses the first counted pass)")
@@ -61,6 +62,7 @@ func main() {
 		apiBaseURL:         *apiBaseURL,
 		mcpBaseURL:         *mcpBaseURL,
 		apiKey:             *apiKey,
+		coverage:           coverage.settings(),
 		totalScopes:        *totalScopes,
 		nodesPerLabel:      *nodesPerLabel,
 		iacFactCount:       *iacFactCount,
@@ -99,6 +101,7 @@ type runOptions struct {
 	apiBaseURL         string
 	mcpBaseURL         string
 	apiKey             string
+	coverage           coverageSettings
 	totalScopes        int
 	nodesPerLabel      int
 	iacFactCount       int
@@ -174,23 +177,9 @@ func run(opts runOptions) (runErr error) {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: sweeping %d read operations x %d iterations\n", len(routes), opts.iterations)
-
-	results, err := SweepRoutes(SweepOptions{
-		BaseURL:     opts.apiBaseURL,
-		MCPBaseURL:  opts.mcpBaseURL,
-		Operations:  operations,
-		APIKey:      opts.apiKey,
-		Routes:      routes,
-		QueryArgs:   RouteQueryArgs,
-		Iterations:  opts.iterations,
-		Runs:        opts.runs,
-		Timeout:     opts.requestTimeout,
-		Meter:       meter,
-		Context:     ctx,
-		Diagnostics: opts.diagnostics,
-	})
+	results, coverageProblems, err := sweepWithCoverage(ctx, opts, meter, routes, operations)
 	if err != nil {
-		return fmt.Errorf("sweep routes: %w", err)
+		return err
 	}
 	if err := writeWorkReportFile(opts.workReportPath, results); err != nil {
 		return err
@@ -269,6 +258,7 @@ func run(opts runOptions) (runErr error) {
 		failures = append(failures, fmt.Sprintf("%d explicitly-budgeted route(s) were not exercised", len(missing)))
 	}
 	failures = append(failures, pilotFailures(results, operations)...)
+	failures = append(failures, coverageFailures(os.Stderr, coverageProblems)...)
 
 	if len(failures) > 0 {
 		return fmt.Errorf("%s", strings.Join(failures, "; "))
@@ -326,23 +316,25 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("seed cloud/state facts: %w", err)
 	}
 
-	// The winners-read leg (issue #11170) needs live finding facts AND the
-	// reconciled read model: seed reducer_supply_chain_impact_finding facts
-	// across every scope's active generation, then rebuild the winners table
-	// through the maintainer's own full resweep so the table cannot drift
-	// from what production would derive. A bulk COPY of facts the
-	// active-facts join cannot match (wrong generation, tombstoned) would
-	// pass this count check while leaving winners empty, so the rebuild
-	// counts and the non-empty-table proof below are the real validity
-	// gate for the leg.
-	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d supply-chain impact finding facts for the winners-read leg\n", opts.winnersFactCount)
+	// The winners-read leg (issue #11170) needs live findings AND the
+	// reconciled read model: seed reducer_supply_chain_impact_finding rows
+	// across every scope's active generation through the impact writer's own
+	// supports step (#10880 PR-C2 o: the kind is no longer written to
+	// fact_records, which a reject trigger refuses), then rebuild the winners
+	// table through the maintainer's own full resweep so the table cannot
+	// drift from what production would derive. A seed the resweep cannot
+	// match (wrong generation) would pass the count check while leaving
+	// winners empty, so the rebuild counts and the non-empty-table proof
+	// below are the real validity gate for the leg.
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d supply-chain impact finding supports for the winners-read leg\n", opts.winnersFactCount)
 	winnersFacts := BuildWinnersFindingFacts(winnersAnchorsFromPlan(plan), opts.winnersFactCount, winnersSourcesPerGroup)
-	if err := SeedWinnersFactRecords(ctx, pool, winnersFacts, time.Now().UTC()); err != nil {
-		return fmt.Errorf("seed winners finding facts: %w", err)
+	if err := seedWinnersSupportsFromDSN(ctx, opts.postgresDSN, winnersFacts); err != nil {
+		return fmt.Errorf("seed winners finding supports: %w", err)
 	}
 
 	expectedCounts := expectedRelationalCounts(plan, iacFacts)
-	expectedCounts["fact_records"] += len(cloudStateFacts) + len(winnersFacts)
+	expectedCounts["fact_records"] += len(cloudStateFacts)
+	expectedCounts["supply_chain_impact_finding_supports"] = len(winnersFacts)
 	addSharedIntentCounts(expectedCounts, intents)
 	if err := VerifyRelationalCounts(ctx, pool, expectedCounts); err != nil {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)

@@ -429,7 +429,7 @@ func TestOwedMarkerIsRecordedInsideTheWriteTransaction(t *testing.T) {
 		switch call.Query {
 		case "mark-owed":
 			mark = i
-		case factwrite.BatchInsertVersionedQuery:
+		case fakeSupportsUpsertQuery:
 			upsert = i
 		}
 	}

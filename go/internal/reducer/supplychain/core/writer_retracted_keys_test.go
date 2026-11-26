@@ -22,36 +22,50 @@ func sha256Hex(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// The digests are those of the four statements at origin/main f1f45ddad3, before
-// C1 c: the frozen text each derived statement must reduce to.
+// The recovery-read digests are those of the two fact statements at origin/main
+// f1f45ddad3, before C1 c: the frozen text each fact leg must still equal.
 const (
-	baseRetractQueryDigest       = "56ac1d7e1230533276ea045a51c6fc3bfd6b679e5d3d40853e4183876fa7db29"
-	baseRetractScopedQueryDigest = "b8bfbc5f5ce1b0dbdf38976673ef2d463b9bb4dbeafa5838de1c291b1bc21837"
-	baseCVEIDsQueryDigest        = "4ddd8b647ea5604443de05b555bfc4e514d415cc6d67c8ebde5d4b32f71c3d50"
-	baseGroupIDsQueryDigest      = "c9b079f3198ea4933c820e54c2f36820871258c158c5da9346df5c40b294d504"
+	baseCVEIDsQueryDigest   = "4ddd8b647ea5604443de05b555bfc4e514d415cc6d67c8ebde5d4b32f71c3d50"
+	baseGroupIDsQueryDigest = "c9b079f3198ea4933c820e54c2f36820871258c158c5da9346df5c40b294d504"
+	// baseRetractStagingTailDigest is the digest of both retraction statements from the
+	// dirty staging CTE to the end, with the key record removed, as they stood when the
+	// retraction tombstoned fact rows (origin/main 4c547ccff7 plus PR-C1). PR-C2 i changed
+	// only what feeds that tail, so the tail must still hash to it.
+	baseRetractStagingTailDigest = "c306941c58fae0bbef972065ee55a1efb4d31c7b2c0cd452a6b69d1e004bc4ca"
 )
 
-// TestRetractionStatementsOnlyGainTheKeyFill proves both retraction statements
-// reduce to their base text once the two shared fragments are removed, so nothing
-// else about the tombstone, the dirty staging or the counts changed, and that the
-// fill is the same text in both.
-func TestRetractionStatementsOnlyGainTheKeyFill(t *testing.T) {
+// TestRetractionStatementsKeepTheStagingTailAndGainTheKeyFill proves both
+// retraction statements still stage and count exactly as the tombstone statements
+// did: from the dirty staging CTE on, with the shared key record removed, each
+// hashes to the base tail, and each carries the shared fragments once, so the two
+// cannot drift. Only the head (what is retracted, and from where) changed.
+func TestRetractionStatementsKeepTheStagingTailAndGainTheKeyFill(t *testing.T) {
 	t.Parallel()
 
-	for name, c := range map[string]struct{ query, base string }{
-		"replace-set": {retractSupersededSupplyChainImpactFindingsQuery, baseRetractQueryDigest},
-		"scoped":      {retractSupersededSupplyChainImpactFindingsScopedQuery, baseRetractScopedQueryDigest},
+	for name, query := range map[string]string{
+		"replace-set": retractSupersededSupplyChainImpactFindingsQuery,
+		"scoped":      retractSupersededSupplyChainImpactFindingsScopedQuery,
 	} {
-		if got := strings.Count(c.query, retractedFindingKeysReturningSQL); got != 1 {
-			t.Errorf("%s statement carries the RETURNING fragment %d times, want 1", name, got)
+		for fragment, text := range map[string]string{
+			"returning": retractedSupportsReturningSQL,
+			"staging":   retractedStagingSQL,
+			"record":    retractedFindingKeysRecordSQL,
+			"counts":    retractedCountsSQL,
+		} {
+			if got := strings.Count(query, text); got != 1 {
+				t.Errorf("%s statement carries the %s fragment %d times, want 1", name, fragment, got)
+			}
 		}
-		if got := strings.Count(c.query, retractedFindingKeysRecordSQL); got != 1 {
-			t.Errorf("%s statement carries the record fragment %d times, want 1", name, got)
+		_, tail, ok := strings.Cut(query, "\nordered AS (")
+		if !ok {
+			t.Fatalf("%s statement has no staging CTE", name)
 		}
-		stripped := strings.Replace(c.query, retractedFindingKeysReturningSQL, "", 1)
-		stripped = strings.Replace(stripped, retractedFindingKeysRecordSQL, "", 1)
-		if got := sha256Hex(stripped); got != c.base {
-			t.Errorf("%s statement without the key fill hashes to %s, want the base %s: something else changed", name, got, c.base)
+		tail = strings.Replace(tail, retractedFindingKeysRecordSQL, "", 1)
+		// The first count's alias was renamed with the statement's meaning (tombstoned to
+		// deleted); the rest of the tail is the base text.
+		tail = strings.Replace(tail, "AS deleted,", "AS tombstoned,", 1)
+		if got := sha256Hex(tail); got != baseRetractStagingTailDigest {
+			t.Errorf("%s statement tail without the key record hashes to %s, want the base %s: staging or counts changed", name, got, baseRetractStagingTailDigest)
 		}
 	}
 }
@@ -68,14 +82,14 @@ func TestRetractedKeysFillShape(t *testing.T) {
 	for name, want := range map[string]string{
 		"target table":   "INSERT INTO supply_chain_impact_retracted_finding_keys",
 		"columns":        "(generation_id, scope_id, key_hash, cve_id, advisory_id, members)",
-		"generation arg": "$3::text",
-		"scope arg":      "$2::text",
+		"generation arg": "$2::text",
+		"scope arg":      "$1::text",
 		"hash":           "encode(sha256(convert_to(",
 		"distinct":       "SELECT DISTINCT",
 		"source":         "FROM retracted",
 		"idempotent":     "WHERE NOT EXISTS (",
-		"pk probe":       "known.generation_id = $3::text",
-		"pk probe scope": "known.scope_id = $2::text",
+		"pk probe":       "known.generation_id = $2::text",
+		"pk probe scope": "known.scope_id = $1::text",
 		"pk probe key":   "known.key_hash = hashed.key_hash",
 	} {
 		if !strings.Contains(fill, want) {
@@ -88,8 +102,8 @@ func TestRetractedKeysFillShape(t *testing.T) {
 	if strings.Contains(strings.ToLower(fill), "md5") {
 		t.Fatal("the key fill uses md5: the FIPS sweep forbids it, use sha256")
 	}
-	returning := retractedFindingKeysReturningSQL
-	for _, want := range []string{"AS cve_id", "AS members", "advisory_group_members"} {
+	returning := retractedSupportsReturningSQL
+	for _, want := range []string{"\n        cve_id,", "AS members", "advisory_group_members"} {
 		if !strings.Contains(returning, want) {
 			t.Errorf("the RETURNING fragment lacks %q", want)
 		}

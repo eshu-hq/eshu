@@ -57,16 +57,23 @@ func TestSupplyChainImpactWinnersResweepAuditRangeCostAtScaleLive(t *testing.T) 
   (SELECT string_agg(md5(fact_id || i::text), '') FROM generate_series(1, 64) AS i))
 WHERE fact_kind = 'reducer_supply_chain_impact_finding'`)
 	h.exec(`VACUUM ANALYZE fact_records`)
+	// The audit reads the supports table (#10880 PR-C2 l): carry the padded payloads over, and
+	// give the planner the supports statistics before the plan is read.
+	h.syncSupports()
+	h.exec(`VACUUM ANALYZE supply_chain_impact_finding_supports`)
 	auditRangePerturb(t, h)
 	t.Logf("seeded %d live facts over %d identifiers in %s", live, identifiers, time.Since(seedStart).Round(time.Second))
 
 	plan := h.explain("EXPLAIN (ANALYZE, BUFFERS) "+postgres.WinnersAuditFirstRangeSQLForTest, postgres.DefaultWinnersAuditRangeBudget)
-	if assertPlan && !strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
-		t.Errorf("range plan does not read the keyed winners index:\n%s", plan)
+	if assertPlan && !strings.Contains(plan, "supply_chain_impact_finding_supports_keyed_probe_idx") {
+		t.Errorf("range plan does not read the keyed probe index on the supports table:\n%s", plan)
 	}
 	for _, line := range strings.Split(plan, "\n") {
-		if assertPlan && strings.Contains(line, "Seq Scan on fact_records") {
-			t.Errorf("range plan scans fact_records sequentially: %s", strings.TrimSpace(line))
+		if assertPlan && strings.Contains(line, "Seq Scan on supply_chain_impact_finding_supports") {
+			t.Errorf("range plan scans the supports table sequentially: %s", strings.TrimSpace(line))
+		}
+		if strings.Contains(line, "fact_records") {
+			t.Errorf("range plan touches fact_records: %s", strings.TrimSpace(line))
 		}
 	}
 	t.Logf("first range plan:\n%s", plan)

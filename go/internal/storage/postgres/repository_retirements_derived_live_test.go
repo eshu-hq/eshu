@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // derivedLiveFairnessKey is the partition key a derived Go reachability scope
@@ -231,14 +233,20 @@ func TestRetirementDerivedScopeCapturesWinnersDirtyLive(t *testing.T) {
 	const repo = "repository:r_0000000d"
 	gitScope := seedDerivedLiveRepository(t, ctx, database, repo, true)
 	derived := derivedLiveScopeID(repo)
-	if _, err := database.ExecContext(ctx, `INSERT INTO fact_records
+	// The plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database is armed and
+	// the raw finding-fact insert would raise 55000 outside it, while the
+	// fence and the purge under test run armed.
+	postgresproof.SeedFindingFacts(t, database, func() {
+		if _, err := database.ExecContext(ctx, `INSERT INTO fact_records
 		(fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
 		 source_fact_key, observed_at, ingested_at, payload)
 		VALUES ('finding-1', $1, $2, 'reducer_supply_chain_impact_finding', 'finding-1', 'scanner_worker',
 		 'finding-1', NOW(), NOW(), jsonb_build_object('repository_id', $3::text, 'cve_id', 'CVE-2026-0001'))`,
-		derived, derived+"/gen-1", repo); err != nil {
-		t.Fatalf("seed finding: %v", err)
-	}
+			derived, derived+"/gen-1", repo); err != nil {
+			t.Fatalf("seed finding: %v", err)
+		}
+	})
 	if _, err := database.ExecContext(ctx, `DELETE FROM supply_chain_impact_winners_dirty_log`); err != nil {
 		t.Fatalf("clear dirty log: %v", err)
 	}

@@ -58,7 +58,7 @@ VALUES ($1, $2, $3, $4, $1, 'synthetic', $1, now(), now(), FALSE,
 // table becomes ready again. A write that carries the setting (the new writer),
 // a fact of another kind, and a real writer pass mark nothing.
 func TestSupplyChainImpactSupportsOldWriterFenceLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	store := postgres.SQLDB{DB: db}
 	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: store, ChunkSize: 2}
 	writer := replaceSetWriter(db)
@@ -170,7 +170,7 @@ func supportsDirtyVersion(t *testing.T, ctx context.Context, db *sql.DB) (versio
 // A clear that ignores the version deletes the mark and leaves the fact with no
 // support while the table reads ready.
 func TestSupplyChainImpactSupportsDrainKeepsAMarkLandedDuringTheDrainLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	store := postgres.SQLDB{DB: db}
 	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: store, ChunkSize: 2}
 	if _, err := replaceSetWriter(db).WriteSupplyChainImpactFindings(ctx, replaceSetWrite("intent:10880:drain-race",
@@ -259,7 +259,7 @@ WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE 
 // verification keeps the table not ready until it is drained, and the marker
 // completes in the same step that finds the fence empty.
 func TestSupplyChainImpactSupportsMarkerWaitsForTheFenceLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	store := postgres.SQLDB{DB: db}
 	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: store, ChunkSize: 100}
 	if _, err := replaceSetWriter(db).WriteSupplyChainImpactFindings(ctx, replaceSetWrite("intent:10880:fence-marker",
@@ -290,7 +290,7 @@ func TestSupplyChainImpactSupportsMarkerWaitsForTheFenceLive(t *testing.T) {
 // database needs no sweep: the first steps find nothing to back up, verify, and
 // set the marker.
 func TestSupplyChainImpactSupportsFreshInstallMarksImmediatelyLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	store := postgres.SQLDB{DB: db}
 	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: store}
 	if steps := supportsBackfillRunToCompletion(t, ctx, backfill); steps > 2 {
@@ -306,7 +306,7 @@ func TestSupplyChainImpactSupportsFreshInstallMarksImmediatelyLive(t *testing.T)
 // from the stored cursor and finishes, and a second full sweep over a reset
 // marker rewrites no support row.
 func TestSupplyChainImpactSupportsResumeAfterKillLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	store := postgres.SQLDB{DB: db}
@@ -340,7 +340,7 @@ SET completed_at = NULL, cursor_scope_id = '', cursor_generation_id = '', cursor
 // stored marker for a higher contract version (a newer binary ran the sweep)
 // reads as not ready to this binary: its reads must answer 503.
 func TestSupplyChainImpactSupportsMarkerAboveTheBinaryIsNotReadyLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	store := postgres.SQLDB{DB: db}
 	supportsBackfillRunToCompletion(t, ctx, postgres.SupplyChainImpactSupportsBackfill{DB: store})
 	if _, err := db.ExecContext(ctx, `
@@ -362,7 +362,7 @@ VALUES ('supply_chain_impact_finding_supports_v99', 99, now())`); err != nil {
 // suppression store. A finding written for the operator scope lands in supports
 // with that scope id, and marks nothing dirty.
 func TestSupplyChainImpactSupportsOperatorScopeWriteLive(t *testing.T) {
-	ctx, db := openReplaceSetLiveDB(t)
+	ctx, db := openPreC2ReplaceSetLiveDB(t)
 	const scope, generation = "operator:vulnerability_suppressions", "generation:10880:operator"
 	for _, statement := range []string{
 		`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, payload)

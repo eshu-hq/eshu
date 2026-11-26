@@ -117,7 +117,6 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 			SourceConfidence: facts.SourceConfidenceInferred,
 			SourceSystem:     write.SourceSystem,
 			SourceFactKey:    write.IntentID,
-			FencingToken:     write.FencingToken,
 			ObservedAt:       now,
 			IngestedAt:       now,
 			Payload:          string(payloadJSON),

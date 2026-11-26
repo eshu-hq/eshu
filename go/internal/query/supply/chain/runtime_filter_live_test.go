@@ -20,6 +20,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	// Registers the "pgx" driver this test opens by name. Other files in this
 	// package also blank-import it, so the driver would resolve without this
 	// line today -- but only by accident of what else compiles into the test
@@ -72,6 +73,13 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	bootstrapRuntimeFilterSchema(t, ctx, db)
+	// The seeds plant frozen pre-C2 finding facts inside this test's
+	// rolled-back transaction on the shared proof DSN (#10880 PR-C2 k). A
+	// scoped SeedFindingFacts would re-arm from a second connection while
+	// this transaction still holds its uncommitted fact writes, so the
+	// sanctioned whole-test form is used; the re-arm runs at cleanup after
+	// the rollback above.
+	postgresproof.DisarmFindingWriteStopForTest(t, db)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin transaction: %v", err)

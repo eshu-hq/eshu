@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/gomodules"
@@ -173,18 +174,17 @@ func (t *recheckHookTx) RecordWinnersCapture(ctx context.Context, source string,
 	}
 }
 
-func (t *recheckHookTx) UpsertImpactSupports(ctx context.Context, factIDs []string) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
+func (t *recheckHookTx) UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
 	if maintainer, ok := t.tx.(supplychaincore.SupplyChainImpactSupportsMaintainer); ok {
-		return maintainer.UpsertImpactSupports(ctx, factIDs)
+		return maintainer.UpsertImpactSupportRows(ctx, rows)
 	}
 	return supplychaincore.SupplyChainImpactSupportsWrite{}, nil
 }
 
-func (t *recheckHookTx) DeleteRetractedImpactSupports(ctx context.Context, scopeID, generationID string) (int64, error) {
+func (t *recheckHookTx) RecordRetractedImpactSupports(ctx context.Context, rows int64) {
 	if maintainer, ok := t.tx.(supplychaincore.SupplyChainImpactSupportsMaintainer); ok {
-		return maintainer.DeleteRetractedImpactSupports(ctx, scopeID, generationID)
+		maintainer.RecordRetractedImpactSupports(ctx, rows)
 	}
-	return 0, nil
 }
 
 func (t *recheckHookTx) AuthorizeProtectedScanImpactResults(ctx context.Context, set supplychaincore.ProtectedScanImpactPublicationSet) error {

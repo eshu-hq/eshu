@@ -111,9 +111,9 @@ func TestNegatedProductsRetractThePreviouslyWrittenFindingThroughTheWriter(t *te
 		if call.Query != retractSupersededSupplyChainImpactFindingsQuery {
 			continue
 		}
-		keep, ok := call.Args[3].([]string)
+		keep, ok := call.Args[2].([]string)
 		if !ok {
-			t.Fatalf("retraction keep-set arg = %T, want []string", call.Args[3])
+			t.Fatalf("retraction keep-set arg = %T, want []string", call.Args[2])
 		}
 		retractions = append(retractions, keep)
 	}

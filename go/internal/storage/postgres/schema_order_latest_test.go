@@ -220,9 +220,11 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 357 (#11031) adds the durable set-once first-seen stamp
 	// table backing per-source publish-to-finding lag measurement.
 	"supply_chain_impact_finding_first_seen",
+	// Migration 358 (#10880 PR-C2 k) installs the reject trigger on fact_records for
+	// the finding kind (a function and a trigger, no new relation).
+	"supply_chain_impact_finding_fact_write_stop",
 	// Migration 359 (#11466) adds the durable set-once-per-value
 	// enrichment first-carry stamp table backing per-source
-	// enrichment-arrival-to-rescore measurement (358 is the open #11476
-	// write-stop lane).
+	// enrichment-arrival-to-rescore measurement.
 	"supply_chain_impact_winners_enrichment_first_carry",
 }

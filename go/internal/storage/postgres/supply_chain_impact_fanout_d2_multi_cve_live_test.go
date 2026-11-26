@@ -48,13 +48,15 @@ func (c *convergence) seedMultiCVEScope() {
 }
 
 // outOfStampRowVersions returns the xmin of every active finding row of the
-// multi-CVE scope whose CVE the stamp does not name.
+// multi-CVE scope whose CVE the stamp does not name, read from the supports
+// table (#10880 PR-C2). The writer's write-on-change guard leaves an
+// untouched support at its xmin, so the byte-identity proof reads it there.
 func (c *convergence) outOfStampRowVersions() map[string]string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT fact_id, xmin::text FROM fact_records
-WHERE scope_id = $1 AND fact_kind = $2 AND NOT is_tombstone AND payload->>'cve_id' = ANY($3)`,
-		d2MultiCVEScope, facts.ReducerSupplyChainImpactFindingFactKind, []string{d2CVEs[1], d2CVEs[2]})
+SELECT fact_id, xmin::text FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND cve_id = ANY($2)`,
+		d2MultiCVEScope, []string{d2CVEs[1], d2CVEs[2]})
 	if err != nil {
 		c.t.Fatal(err)
 	}

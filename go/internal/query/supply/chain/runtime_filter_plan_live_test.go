@@ -29,6 +29,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const runtimeFilterHighCardinalityEnvironment = "shared-production-5747"
@@ -48,6 +49,13 @@ func TestSupplyChainImpactRuntimeFilterPlansLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	bootstrapRuntimeFilterSchema(t, ctx, db)
+	// The seeds plant frozen pre-C2 finding facts inside this test's
+	// rolled-back transaction on the shared proof DSN (#10880 PR-C2 k). A
+	// scoped SeedFindingFacts would re-arm from a second connection while
+	// this transaction still holds its uncommitted fact writes, so the
+	// sanctioned whole-test form is used; the re-arm runs at cleanup after
+	// the rollback below.
+	postgresproof.DisarmFindingWriteStopForTest(t, db)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin transaction: %v", err)

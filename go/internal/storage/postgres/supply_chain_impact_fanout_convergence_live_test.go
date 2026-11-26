@@ -231,13 +231,16 @@ func (c *convergence) setSourceStatus(status string) {
 	}
 }
 
-// copies returns each scope's active finding state for the CVE.
+// copies returns each scope's active finding state for the CVE, read from
+// the supports table the writer maintains (#10880 PR-C2). The frozen finding
+// facts stay as history; the supports are the only live copy, so the
+// active-generation join runs against them.
 func (c *convergence) copies() map[string]string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT f.scope_id, COALESCE(f.payload->>'suppression_state','') FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = $1 AND NOT f.is_tombstone AND f.payload->>'cve_id' = $2`, facts.ReducerSupplyChainImpactFindingFactKind, convergenceCVE)
+SELECT s.scope_id, s.suppression_state FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.cve_id = $1`, convergenceCVE)
 	if err != nil {
 		c.t.Fatalf("read copies: %v", err)
 	}

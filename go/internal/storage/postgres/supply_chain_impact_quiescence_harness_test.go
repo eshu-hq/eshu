@@ -164,12 +164,14 @@ func (c *convergence) queryStringPairs(query string, args ...any) map[string]str
 }
 
 // findingXmins returns the xmin of every finding row the scopes hold, keyed by
-// fact id. A pass that rewrites an unchanged row gives it a new xmin.
+// fact id, read from the supports table (#10880 PR-C2). A pass that rewrites
+// an unchanged row gives it a new xmin; a retraction deletes the row, which
+// the changed-keys comparison reports as a removal.
 func (c *convergence) findingXmins(scopes []string) map[string]string {
 	c.t.Helper()
 	return c.queryStringPairs(`
-SELECT fact_id, xmin::text FROM fact_records WHERE scope_id = ANY($1) AND fact_kind = $2`,
-		scopes, facts.ReducerSupplyChainImpactFindingFactKind)
+SELECT fact_id, xmin::text FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($1)`,
+		scopes)
 }
 
 // reopenedAts returns every supply_chain_impact item's reopened_at, keyed by

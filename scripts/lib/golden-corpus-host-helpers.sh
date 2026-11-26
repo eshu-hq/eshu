@@ -71,6 +71,24 @@ start_bg() {
 	printf -v "${pidvar}" '%s' "${pid}"
 }
 
+# start_api_with_winners_resweep runs the production winners resweep over the
+# drained generations (#10880 PR-C2: eshu-ifa impact-digest -resweep rebuilds
+# supply_chain_impact_canonical_winners through the winners maintainer's own
+# store port, retrying only the single-flight skip), then starts eshu-api for
+# query truth. The gate exports ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true, so
+# the findings served from here come from that rebuilt read model instead of
+# the read-time dedup over fact_records (empty post-C2). The resweep runs after
+# the maintenance drains -- the last writers of impact facts -- and before any
+# query-truth read.
+start_api_with_winners_resweep() {
+	log "production winners resweep over the drained generations (#10880 PR-C2)"
+	"${bin_dir}/eshu-ifa" impact-digest -resweep >"${log_dir}/ifa-impact-resweep.log" 2>&1 \
+		|| { tail -40 "${log_dir}/ifa-impact-resweep.log" || true; die "production winners resweep failed"; }
+	log "start eshu-api for query truth"
+	start_bg api api_pid "${bin_dir}/eshu-api"
+	wait_for_gate_http "eshu-api /readyz never returned on port ${GATE_API_PORT}" "http://localhost:${GATE_API_PORT}/readyz" "api"
+}
+
 # wait_for_gate_http <failure-message> <url> <log-name> polls url until it
 # answers, dying with the service log tail otherwise. Extracted from the
 # orchestrator's eshu-api /readyz and eshu-mcp-server /health waits to keep

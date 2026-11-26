@@ -60,7 +60,7 @@ func lastSupplyChainImpactKeepSet(t *testing.T, beginner fakeImpactBeginner) []s
 	for i := len(beginner.state.all) - 1; i >= 0; i-- {
 		call := beginner.state.all[i]
 		if call.Query == retractSupersededSupplyChainImpactFindingsQuery {
-			return call.Args[3].([]string)
+			return call.Args[2].([]string)
 		}
 	}
 	t.Fatal("no retraction statement")

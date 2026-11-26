@@ -114,7 +114,7 @@ func TestSupportsGuardDoesNotChangeTheVersion1Statements(t *testing.T) {
 	statements := supplyChainImpactSupportsContractStatements()
 	c1Upsert := supplyChainImpactUpsertSupportsStatementGuarded(
 		supplyChainImpactSupportsSelectSQL("fact.fact_id = ANY($1::text[])"), supplyChainImpactSupportFillOnlyColumns, nil)
-	c1 := append([]string{c1Upsert}, statements[1:]...)
+	c1 := append([]string{c1Upsert}, statements[1:6]...)
 	if got := supplyChainImpactSupportsContractHashOf(c1); got != supportsContractVersion1C1Pin {
 		t.Fatalf("the statements without the guard strip hash to %s, want the C1 version-1 pin %s: B3a changed more than the guard", got, supportsContractVersion1C1Pin)
 	}

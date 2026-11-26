@@ -242,3 +242,28 @@ than there are entries here.
 131. baseline-advisory-group (#10466) -- family-scoped fault-free baseline; twenty-ninth direct-materialization family in this gate (dispatched here, after the uses_service_account trio, by gate order). Winners-fed shape: the cell drains, asserts zero AFFECTED_BY edges, runs the production winners rebuild + enqueuer (eshu-ifa enqueue-advisory-groups), drains again, then exact-asserts the two-edge set and the AdvisoryGroup node member union.
 132. kill-worker-after-claim-advisory-group (#10466) -- lease reclaim proof (fact_records lock holds the handler's winners read; scoped advisory_group_projection reducer for the kill window).
 133. fail-graph-write-once-then-succeed-advisory-group (#10466) -- AFFECTED_BY retry proof.
+134. impact-family (#10880 PR-C2) -- one fault-free cell with no graph digest: the real projector and reducer at the gate's
+   four workers drain the three supply-chain-demo cassettes (vulnerability intelligence, SBOM, package registry) with the
+   finding-fact reject trigger armed. It passes when `eshu-ifa impact-digest -resweep` (supports plus winners, the statement the
+   in-process family shares) equals the pin in `testdata/golden/ifa-impact-family-digest.txt`, no work item is dead-lettered, no
+   work item carries the `supply_chain_impact_fact_write_stopped` failure class, and the trigger still reads enabled. It fails
+   while the pin is blank. The faults run in process, on a real lease (see the section below).
+
+## In-process families (not dispatched by the Compose gate)
+
+These are not numbered cells: they run in process against a disposable Postgres in the CI live job and the
+coordinator's slots, so `scripts/test-verify-ifa-fault-injection.sh` does not count them.
+
+- **impact family (#10880 PR-C2).** The supply-chain impact domain writes no graph, so the graph-dump digest of
+  the Compose cells cannot see it. A cassette-driven family runs the real replay driver, the projector queue's own
+  claim and ack, the projector's `BuildSupplyChainImpactReducerIntent`, the real reducer queue and the real impact
+  handler in process (`go/internal/storage/postgres/supply_chain_impact_family_live_test.go` and
+  `..._faults_live_test.go`), at 1, 2 and 4 workers, against an armed database. Its digest covers the supports and
+  winners tables (without `intent_id`, `cause` and the winners' materialization stamp). Cells: fault-free at 1, 2
+  and 4 workers (equal digests, one execution per work item, zero dead letters); kill-after-claim (a really claimed
+  row is dropped, the real lease expires, another worker reclaims it); lease-expired-mid-handler (a worker is held
+  after its fencing token is issued, its lease expires, another worker finishes, and the released stale pass is
+  rejected by the admission row and changes zero rows, asserted by row version); duplicate delivery of an already
+  succeeded intent (no row version); and two seeded reds (a dropped support changes the digest; a planted
+  finding-fact write fails with SQLSTATE 55000). The fault cells use a short real lease and real elapsed time,
+  never an injected clock.

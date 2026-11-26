@@ -9,7 +9,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
@@ -78,8 +77,8 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	if all[2].Query != listStoredSupplyChainImpactFindingsQuery {
 		t.Fatalf("statement 2 = %q, want the stored-row read", all[2].Query)
 	}
-	if all[3].Query != factwrite.BatchInsertVersionedQuery {
-		t.Fatalf("statement 3 = %q, want the batched upsert", all[3].Query)
+	if all[3].Query != fakeSupportsUpsertQuery {
+		t.Fatalf("statement 3 = %q, want the supports upsert", all[3].Query)
 	}
 	retract := all[4]
 	if retract.Query != retractSupersededSupplyChainImpactFindingsQuery {
@@ -92,15 +91,15 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 	if all[5].Query != supplyChainImpactScopePassStateQuery {
 		t.Fatalf("statement 5 = %q, want the per-scope pass-state fence last", all[5].Query)
 	}
-	wantArgs := []any{supplyChainImpactFactKind, write.ScopeID, write.GenerationID}
+	wantArgs := []any{write.ScopeID, write.GenerationID}
 	for i, want := range wantArgs {
 		if retract.Args[i] != want {
 			t.Fatalf("retract arg %d = %v, want %v", i, retract.Args[i], want)
 		}
 	}
-	keep, ok := retract.Args[3].([]string)
+	keep, ok := retract.Args[2].([]string)
 	if !ok {
-		t.Fatalf("retract keep arg = %T, want []string", retract.Args[3])
+		t.Fatalf("retract keep arg = %T, want []string", retract.Args[2])
 	}
 	wantKeep := []string{
 		supplyChainImpactFactID(write, write.Findings[0]),
@@ -134,7 +133,7 @@ func TestWriteSupplyChainImpactFindingsEmptyPassRetractsAll(t *testing.T) {
 		control[3].Query != supplyChainImpactScopePassStateQuery {
 		t.Fatalf("control statements = %#v, want lock, admission, retraction, pass-state fence last", control)
 	}
-	if keep := control[2].Args[3].([]string); len(keep) != 0 {
+	if keep := control[2].Args[2].([]string); len(keep) != 0 {
 		t.Fatalf("keep set = %q, want empty", keep)
 	}
 }
@@ -171,7 +170,7 @@ func TestWriteSupplyChainImpactFindingsRollsBackOnFailure(t *testing.T) {
 		lockSupplyChainImpactConflictDomainQuery,
 		supplyChainImpactAdmissionQuery,
 		supplyChainImpactScopePassStateQuery,
-		factwrite.BatchInsertVersionedQuery,
+		fakeSupportsUpsertQuery,
 		retractSupersededSupplyChainImpactFindingsQuery,
 	} {
 		beginner := newFakeImpactBeginner(&testutil.FakeExecer{})

@@ -1597,6 +1597,7 @@ type Instruments struct {
 	SupplyChainImpactSupportsDrainDuration        metric.Float64Histogram
 	SupplyChainImpactSupportsBackfillReady        metric.Int64Gauge
 	SupplyChainImpactSupportsDirtyScopes          metric.Int64Gauge
+	SupplyChainImpactFactWriteStopArmed           metric.Int64Gauge
 	SupplyChainImpactSupportsBackfillLastSuccess  metric.Int64Gauge
 	SupplyChainImpactSupportsBackfillStepDuration metric.Float64Histogram
 	// The bounded verification slices of the supports backfill (#10880

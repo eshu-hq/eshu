@@ -18,6 +18,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	dbpkg "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -39,6 +40,11 @@ func fanOutLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	db := openAdvisorySuppressionIsolatedDB(t)
 	db.SetMaxOpenConns(24)
 	t.Cleanup(func() { _ = db.Close() })
+	// The fan-out proofs plant finding facts with raw SQL across their files while the code
+	// under test (the holder reads) reads the supports table: the trigger is disabled for the
+	// test and re-armed at cleanup (allowlisted; converting each plant to SeedFindingFacts is
+	// the follow-up). Registered after the close above so the re-arm runs first.
+	postgresproof.DisarmFindingWriteStopForTest(t, db)
 	return ctx, db
 }
 

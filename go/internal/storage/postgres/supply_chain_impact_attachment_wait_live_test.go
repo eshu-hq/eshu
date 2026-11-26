@@ -194,17 +194,16 @@ func (w *attachWait) runImpact(intent reducercontract.Intent) error {
 	return nil
 }
 
-// attachedFindings counts the active, attachment-backed findings for the CVE
-// in scope: the finding the attachment exists to produce.
+// attachedFindings counts the attachment-backed findings for the CVE in scope: the finding the attachment exists to
+// produce. The impact writer stores a finding only in the supports table since #10880 PR-C2, so this counts supports.
 func (w *attachWait) attachedFindings(scope string) int {
 	w.t.Helper()
 	var count int
 	if err := w.db.QueryRowContext(w.ctx, `
-SELECT count(*) FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.scope_id = $1 AND f.fact_kind = $2 AND NOT f.is_tombstone
-  AND f.payload->>'cve_id' = $3 AND f.payload->>'subject_digest' = $4`,
-		scope, facts.ReducerSupplyChainImpactFindingFactKind, attachWaitCVE, attachWaitDigest).Scan(&count); err != nil {
+SELECT count(*) FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1 AND s.cve_id = $2 AND s.subject_digest = $3`,
+		scope, attachWaitCVE, attachWaitDigest).Scan(&count); err != nil {
 		w.t.Fatalf("count findings: %v", err)
 	}
 	return count

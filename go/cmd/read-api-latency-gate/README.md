@@ -256,3 +256,20 @@ The local proof compared OFF/ON/ON/OFF on one retained full seeded database,
 with fresh API processes and identical request/work settings. That comparison
 provides local observations for the touched status path; it does not establish
 a quantitative overhead bound, hosted performance, or overhead on other routes.
+
+## Impact route coverage (#10880 PR-C2 n)
+
+The impact reads are answered from several read models and count the one they took on
+`eshu_dp_supply_chain_impact_read_route_total{route}`. The generic sweep runs one unscoped call per
+route, so it reaches only some labels. `route_coverage.go` declares, per label, the one sweep request
+that reaches it (`routeCoverageRows`). The hermetic test calls the stores' own pure route functions
+(`impact.RouteForCall`, `impact.ExplainRoutesForCall`) and requires each request to route to its declared
+label, every `impact.AllReadRoutes` label except `legacy` to have a request, and a planted new label or a
+request that routes elsewhere to fail.
+
+With `-metrics-url` set (the verify script passes the core's metrics endpoint, on `GATE_METRICS_PORT`,
+on the winners leg), `SweepRouteCoverage` scrapes the counter before and after each request in the
+metered sequential sweep and fails the run when a declared label does not rise by at least one, when
+any other label rises, when the `supports_grant` request has no granted key (`-granted-api-key` /
+`GATE_GRANTED_API_KEY`), or when `legacy` rises over the whole sweep. Each request has its own latency
+and work row (`route:<label>`); regenerate the work table from a GREEN run to name them.

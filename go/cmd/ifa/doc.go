@@ -61,8 +61,8 @@
 // the mid-drive step of the advisory_group live cells (#10466). The
 // drive holds the cassette's finding facts back from ingestion
 // (re-projecting them would retract them as superseded); this verb
-// admits them through the production impact writer transaction (facts plus
-// their supports, #11201), then runs
+// admits them through the production impact writer transaction (their supports,
+// #11201; no finding fact since #10880 PR-C2), then runs
 // one full winners resweep through the production winners store (the
 // rebuild the maintainer runs on its cadence), one
 // advisory_group_projection enqueue per group through the production
@@ -70,6 +70,13 @@
 // second resweep so the winners watermark covers the enqueue the
 // handler defers on. It invents no fact kind and writes no graph state;
 // the reducer drain that follows does the projection.
+//
+// `ifa impact-digest [-resweep] [-expect DIGEST | -expect-file FILE]` (#10880
+// PR-C2) is the Compose cell's truth read for the supply-chain impact family,
+// which writes no graph. It optionally runs one production winners resweep,
+// prints the sha256 over the supports and winners tables
+// (internal/ifa/impact/digest, the statement the in-process family shares),
+// refuses an empty family, and fails when a pinned digest differs.
 //
 // `ifa assert-edges -domain DOMAIN -expected FILE` (#5351) is the
 // materialized-edge exhaustiveness gate's live, set-exact non-vacuity

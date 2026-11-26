@@ -11,11 +11,12 @@ import (
 
 // WinnersAuditFirstRangeSQLForTest and WinnersAuditNextRangeSQLForTest expose
 // the shipped range statements (#11131), so the differential can derive its
-// seeded mutation from them instead of hand-copying.
+// seeded mutation from them instead of hand-copying. They are the statements the
+// audit runs: over the supports table since #10880 PR-C2 l.
 var (
-	WinnersAuditFirstRangeSQLForTest = selectWinnersAuditFirstRangeSQL
-	WinnersAuditNextRangeSQLForTest  = selectWinnersAuditNextRangeSQL
-	WinnersAuditNullProbeSQLForTest  = probeWinnersAuditNullKeysSQL
+	WinnersAuditFirstRangeSQLForTest = selectWinnersAuditFirstRangeFromSupportsSQL
+	WinnersAuditNextRangeSQLForTest  = selectWinnersAuditNextRangeFromSupportsSQL
+	WinnersAuditNullProbeSQLForTest  = probeWinnersAuditNullKeysFromSupportsSQL
 )
 
 // WinnersAuditSingleScanFirstRangeSQLForTest and

@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	pgstore "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -121,7 +121,7 @@ func winnersFindingPayload(group, source int) map[string]any {
 		"service_ids":       []string{fmt.Sprintf("seed-svc-%02d", group%12)},
 		"workload_ids":      []string{fmt.Sprintf("seed-wl-%02d", group%8)},
 		"environments":      []string{fmt.Sprintf("seed-env-%d", group%3)},
-		"image_ref":         "",
+		"image_ref":         winnersSeedImageRef(group),
 	}
 }
 
@@ -143,43 +143,72 @@ func canonicalKeyFields(payload map[string]any) map[string]any {
 	return out
 }
 
-// winnersFindingFactRows shapes facts into rows matching iacFactColumns, the
-// shared fact_records COPY column order every seed in this tool uses. Split
-// from the COPY call so it stays unit-testable without a live Postgres,
-// same as seed_rows.go's shapers.
-func winnersFindingFactRows(facts []winnersFindingFact, now time.Time) ([][]any, error) {
-	rows := make([][]any, 0, len(facts))
+// winnersFindingVersionedRows shapes the seeded findings into the rows the impact
+// writer hands its supports step (supplychaincore.WriteSupplyChainImpactFindingRows):
+// the same VersionedRow the production writer builds, carrying the finding payload
+// verbatim. Split from the write so it stays unit-testable without a live Postgres.
+func winnersFindingVersionedRows(facts []winnersFindingFact, now time.Time) ([]factwrite.VersionedRow, error) {
+	rows := make([]factwrite.VersionedRow, 0, len(facts))
 	for _, f := range facts {
 		payload, err := json.Marshal(f.Payload)
 		if err != nil {
 			return nil, fmt.Errorf("marshal winners payload for fact %s: %w", f.FactID, err)
 		}
-		rows = append(rows, []any{
-			f.FactID, f.ScopeID, f.GenerationID, winnersSeedFactKind, f.FactID,
-			"synthetic", f.FactID, now, now, payload,
+		rows = append(rows, factwrite.VersionedRow{
+			FactID:           f.FactID,
+			ScopeID:          f.ScopeID,
+			GenerationID:     f.GenerationID,
+			FactKind:         winnersSeedFactKind,
+			StableFactKey:    f.FactID,
+			SchemaVersion:    "1.0.0",
+			SourceConfidence: "inferred",
+			SourceSystem:     "synthetic",
+			SourceFactKey:    f.FactID,
+			ObservedAt:       now,
+			IngestedAt:       now,
+			Payload:          string(payload),
 		})
 	}
 	return rows, nil
 }
 
-// SeedWinnersFactRecords bulk-inserts finding facts into fact_records via
-// COPY, mirroring SeedIaCFacts. It writes only the source facts; the winners
-// table itself is derived by RebuildWinnersReadModel through the production
-// rebuild port, never hand-written, so the leg cannot drift from the
-// maintainer's own derivation.
-func SeedWinnersFactRecords(ctx context.Context, pool *pgxpool.Pool, facts []winnersFindingFact, now time.Time) error {
-	rows, err := winnersFindingFactRows(facts, now)
+// SeedWinnersSupports writes the seeded findings through the production writer's own
+// supports step in one transaction (#10880 PR-C2 o). The finding kind is no longer
+// written to fact_records (a reject trigger refuses it), so the corpus the winners leg
+// sweeps is the per-support table the maintainer's full resweep reads. The winners table
+// itself is still derived by RebuildWinnersReadModel through the production rebuild
+// port, never hand-written, so the leg cannot drift from the maintainer's derivation.
+func SeedWinnersSupports(ctx context.Context, db *sql.DB, facts []winnersFindingFact, now time.Time) error {
+	rows, err := winnersFindingVersionedRows(facts, now)
 	if err != nil {
 		return err
 	}
-	if _, err := pool.CopyFrom(ctx,
-		pgx.Identifier{"fact_records"},
-		iacFactColumns,
-		pgx.CopyFromRows(rows),
-	); err != nil {
-		return fmt.Errorf("seed winners fact_records: %w", err)
+	tx, err := (pgstore.SupplyChainImpactBeginner{Beginner: pgstore.SQLDB{DB: db}}).BeginSupplyChainImpactTx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin winners supports seed: %w", err)
+	}
+	if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows, nil); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("seed winners supports: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit winners supports seed: %w", err)
 	}
 	return nil
+}
+
+// seedWinnersSupportsFromDSN opens its own handle for SeedWinnersSupports, as
+// rebuildSeededWinners does for the rebuild.
+func seedWinnersSupportsFromDSN(ctx context.Context, postgresDSN string, facts []winnersFindingFact) error {
+	db, err := sql.Open("pgx", postgresDSN)
+	if err != nil {
+		return fmt.Errorf("open postgres for winners supports seed: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping postgres for winners supports seed: %w", err)
+	}
+	return SeedWinnersSupports(ctx, db, facts, time.Now().UTC())
 }
 
 // RebuildWinnersReadModel reconciles the winners table to the seeded facts
@@ -284,3 +313,16 @@ func VerifyWinnersSeeded(ctx context.Context, db *sql.DB, wantWinners int64) err
 	}
 	return nil
 }
+
+// winnersSeedImageRef is the image reference of one seeded group: empty for every group but the first,
+// which carries the reference the route coverage sweep reaches the supports_image read through
+// (#10880 PR-C2 n). One group keeps the corpus the work budgets were measured on almost unchanged.
+func winnersSeedImageRef(group int) string {
+	if group == 0 {
+		return winnersCoverageImageRef
+	}
+	return ""
+}
+
+// winnersCoverageImageRef is the image reference of group 0.
+const winnersCoverageImageRef = "registry.example/seed-00:1"

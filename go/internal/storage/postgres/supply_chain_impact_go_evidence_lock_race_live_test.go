@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/coordination"
@@ -372,6 +373,57 @@ func TestGoEvidenceMultiRepositoryPassWithParallelFencesLive(t *testing.T) {
 	}
 }
 
+// maintainingRecordingBeginner is a recordingBeginner whose transactions also
+// maintain the supports table: it records every statement through the shared
+// recorder while delegating the maintainer port to the inner transaction, so a
+// recorded pass writes exactly what the plain transaction would.
+type maintainingRecordingBeginner struct {
+	recorder *recordingBeginner
+}
+
+func (b maintainingRecordingBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supplychaincore.SupplyChainImpactTx, error) {
+	tx, err := b.recorder.BeginSupplyChainImpactTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	inner, ok := tx.(*recordingTx)
+	if !ok {
+		return tx, nil
+	}
+	return &maintainingRecordingTx{recordingTx: inner}, nil
+}
+
+// maintainingRecordingTx is a recordingTx that provisions the supports
+// maintainer by delegating it to the inner transaction. The recording methods
+// delegate too, so the footprint the test asserts on is unchanged.
+type maintainingRecordingTx struct {
+	recordingTx *recordingTx
+}
+
+func (t *maintainingRecordingTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return t.recordingTx.ExecContext(ctx, query, args...)
+}
+
+func (t *maintainingRecordingTx) QueryContext(ctx context.Context, query string, args ...any) (supplychaincore.SupplyChainImpactRows, error) {
+	return t.recordingTx.QueryContext(ctx, query, args...)
+}
+
+func (t *maintainingRecordingTx) Commit() error   { return t.recordingTx.Commit() }
+func (t *maintainingRecordingTx) Rollback() error { return t.recordingTx.Rollback() }
+
+func (t *maintainingRecordingTx) UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
+	if maintainer, ok := t.recordingTx.inner.(supplychaincore.SupplyChainImpactSupportsMaintainer); ok {
+		return maintainer.UpsertImpactSupportRows(ctx, rows)
+	}
+	return supplychaincore.SupplyChainImpactSupportsWrite{}, nil
+}
+
+func (t *maintainingRecordingTx) RecordRetractedImpactSupports(ctx context.Context, rows int64) {
+	if maintainer, ok := t.recordingTx.inner.(supplychaincore.SupplyChainImpactSupportsMaintainer); ok {
+		maintainer.RecordRetractedImpactSupports(ctx, rows)
+	}
+}
+
 // TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive is ruling 4.7 on the real loader and
 // writer: three repositories asked, one go scope has no active generation, so the loader
 // resolves two pairs and the writer takes two shared locks and rechecks two pairs.
@@ -394,10 +446,15 @@ func TestGoEvidenceRecheckCoversExactlyTheLoadedPairsLive(t *testing.T) {
 		t.Fatalf("resolved pairs = %v, want the two scopes with an active generation of the three asked", evidence.Generations)
 	}
 
+	// The recorded pass must maintain the supports table like the plain
+	// transaction would: since PR-C2 the writer's finding step refuses a
+	// transaction without the supports maintainer, so the recording
+	// transaction provisions it by delegating to the inner transaction while
+	// still recording every statement the pass runs.
 	recorder := &recordingBeginner{inner: postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: c.db}}}
 	write := fenceWrite("intent:11327:pairs", seed.holder, fanOutGen(seed.holder, "g1"), fallbackFinding("CVE-2026-9101", "pkg:npm/a@1"))
 	write.GoEvidence = evidence.Generations
-	if _, err := (supplychaincore.PostgresSupplyChainImpactWriter{DB: recorder, Now: time.Now}).WriteSupplyChainImpactFindings(c.ctx, write); err != nil {
+	if _, err := (supplychaincore.PostgresSupplyChainImpactWriter{DB: maintainingRecordingBeginner{recorder: recorder}, Now: time.Now}).WriteSupplyChainImpactFindings(c.ctx, write); err != nil {
 		t.Fatalf("write error = %v", err)
 	}
 	locks, rechecked := 0, 0

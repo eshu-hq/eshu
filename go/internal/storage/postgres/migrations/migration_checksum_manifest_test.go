@@ -545,6 +545,9 @@ var migrationShippedChecksums = map[string]string{
 	// single-scan range (renumbered 350 to 356; 350-355 taken on main).
 	"356_supply_chain_impact_winners_canonical_ident_idx.sql": "b9da75613d73e4b1b6a06e33024a78f0859b2e7f894cb6400a745f13c68b5195",
 	"357_supply_chain_impact_finding_first_seen.sql":          "0a2cec32763684bcda023bec7f303da445ac46c506b9bd6b7569946fc2575064",
+	// #10880 PR-C2 k: the reject trigger on fact_records for the finding kind
+	// (numbered 358: main took 357 for the first-seen stamp).
+	"358_supply_chain_impact_finding_fact_write_stop.sql": "3e0df69f6781648750b9eb881bbccb94f3df79245ba92e042a84845935f8195f",
 	// #11466: the durable set-once-per-value enrichment first-carry stamp
 	// table backing per-source enrichment-arrival-to-rescore measurement
 	// (numbered 359: 358 is held by the open #11476 write-stop lane).

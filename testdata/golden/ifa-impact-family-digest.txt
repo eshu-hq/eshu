@@ -1,0 +1,5 @@
+# Pinned digest of the supply-chain impact family (supports plus winners; internal/ifa/impact/digest).
+# The in-process family (go/internal/storage/postgres/supply_chain_impact_family_live_test.go) and the Compose cell
+# cell_impact_family compare their digest with the first non-comment line below. Blank means not pinned yet: the
+# in-process family logs its digest (IMPACT_FAMILY_DIGEST) and the cell fails until a run pins it. Pin it from a
+# fault-free in-process run at the PR-C2 head; a change to the cassettes or the digest columns changes it on purpose.

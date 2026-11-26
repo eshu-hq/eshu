@@ -8,15 +8,15 @@ import (
 )
 
 // findingIdentities lists one scope's active finding rows as fact id, key,
-// and package triples, for the no-duplicate diagnosis.
+// and package triples, for the no-duplicate diagnosis, read from the
+// supports table (#10880 PR-C2).
 func (c *rekeyProof) findingIdentities(scope string) []string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT f.fact_id, f.stable_fact_key, COALESCE(f.payload->>'cve_id',''), COALESCE(f.payload->>'package_id','')
-FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1 ORDER BY 1, 2, 3`, scope)
+SELECT s.fact_id, COALESCE(s.stable_fact_key, ''), s.cve_id, s.package_id
+FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1 ORDER BY 1, 2, 3`, scope)
 	if err != nil {
 		c.t.Fatalf("read finding identities: %v", err)
 	}
@@ -36,14 +36,14 @@ WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
 }
 
 // findingStables returns the sorted stable keys of one scope's active
-// finding rows, for the convergence comparisons.
+// finding rows, for the convergence comparisons, read from the supports
+// table (#10880 PR-C2).
 func (c *rekeyProof) findingStables(scope string) []string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT DISTINCT f.stable_fact_key FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1 ORDER BY 1`, scope)
+SELECT DISTINCT COALESCE(s.stable_fact_key, '') FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1 ORDER BY 1`, scope)
 	if err != nil {
 		c.t.Fatalf("read finding stables: %v", err)
 	}
@@ -116,13 +116,14 @@ func TestRekeyTruncatedPassTombstonesNothingLive(t *testing.T) {
 		t.Fatalf("truncated holder findings_retracted = %v, want 0 (a partial pass proves no removal)", got)
 	}
 	// Fallback keys: with grouping disabled the truncated pass emits
-	// per-record rows with no advisory-group member sets.
+	// per-record rows with no advisory-group member sets. The support
+	// payload is the fact payload verbatim, so the member-set arm reads it
+	// there (#10880 PR-C2).
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT DISTINCT COALESCE(f.payload #>> '{provenance,advisory_group_members}', '')
-FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1`, rekeyHolder)
+SELECT DISTINCT COALESCE(s.payload #>> '{provenance,advisory_group_members}', '')
+FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1`, rekeyHolder)
 	if err != nil {
 		t.Fatalf("read holder member sets: %v", err)
 	}

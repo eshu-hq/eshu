@@ -16,13 +16,14 @@ import (
 )
 
 // TestCostBudget_SupplyChainImpact_WritesDoNotGrowWithFindings proves the
-// impact writer's write observations are constant per pass for any finding
-// count that fits one insert chunk, so the supports upsert added by #10880
-// PR-B1 is one statement per pass and not one per finding. Two findings cannot
-// show that: an N+1 supports write would read 7 there too. The bulk insert
-// already costs one more observation per 1,000 rows (the documented
-// ceil(N/1000) chunking), so the counts at 1,001 and 2,000 findings differ from
-// the single-chunk count by exactly that chunk and match each other.
+// impact writer's write observations are constant per pass at any finding
+// count: #10880 PR-C2 removed the fact bulk insert, so no Exec-side statement
+// chunks by finding count anymore (the unnest supports upsert is one
+// Query-side statement per 1,000-row chunk, outside both counted metrics).
+// The flat 4 across 1 to 2,000 findings proves no
+// per-finding Exec-side write; the N+1 companion
+// (TestCostBudget_SupplyChainImpact_N1_ExceedsBudget) proves per-call growth
+// still exceeds the budget.
 func TestCostBudget_SupplyChainImpact_WritesDoNotGrowWithFindings(t *testing.T) {
 	t.Parallel()
 
@@ -37,8 +38,8 @@ func TestCostBudget_SupplyChainImpact_WritesDoNotGrowWithFindings(t *testing.T) 
 		{findings: 10, want: maxWrites},
 		{findings: 200, want: maxWrites},
 		{findings: 1000, want: maxWrites},
-		{findings: 1001, want: maxWrites + 1},
-		{findings: 2000, want: maxWrites + 1},
+		{findings: 1001, want: maxWrites},
+		{findings: 2000, want: maxWrites},
 	} {
 		t.Run(fmt.Sprintf("%d findings", tc.findings), func(t *testing.T) {
 			t.Parallel()
@@ -81,7 +82,7 @@ func TestCostBudget_SupplyChainImpact_WritesDoNotGrowWithFindings(t *testing.T) 
 			}
 			got := collectAttributedHistogramCount(rm, "eshu_dp_postgres_query_duration_seconds", "operation", "write")
 			if uint64(got) != tc.want {
-				t.Fatalf("write observations at %d findings = %d, want %d (budget %d, one extra only per 1,000-row insert chunk)",
+				t.Fatalf("write observations at %d findings = %d, want %d (budget %d, flat per pass since PR-C2)",
 					tc.findings, got, tc.want, maxWrites)
 			}
 		})

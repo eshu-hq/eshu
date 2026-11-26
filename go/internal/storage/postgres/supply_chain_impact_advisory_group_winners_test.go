@@ -81,10 +81,10 @@ func TestAdvisoryGroupWinnersQueryShape(t *testing.T) {
 	if !strings.Contains(query, "LEFT JOIN fact_records") || !strings.Contains(query, "f.fact_id = w.winner_fact_id") {
 		t.Fatalf("winners query must join payload only via LEFT JOIN fact_records on winner_fact_id:\n%s", query)
 	}
-	if !strings.Contains(query, "f.payload #> '{provenance,advisory_group_members}'") || !strings.Contains(query, "->>'purl'") {
+	if !strings.Contains(query, advisoryGroupWinnerPayloadSQL+" #> '{provenance,advisory_group_members}'") || !strings.Contains(query, "->>'purl'") {
 		t.Fatalf("winners query must select provenance.advisory_group_members via #> and purl from the winner fact payload:\n%s", query)
 	}
-	if strings.Contains(query, "f.payload->'advisory_group_members'") {
+	if strings.Contains(query, advisoryGroupWinnerPayloadSQL+"->'advisory_group_members'") {
 		t.Fatalf("winners query must not read top-level advisory_group_members; production writes members only under provenance (#10475):\n%s", query)
 	}
 	if !strings.Contains(query, "ORDER BY") {

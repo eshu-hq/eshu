@@ -148,15 +148,16 @@ WHERE scope_id=$1 AND domain='supply_chain_impact' AND status='succeeded'`, scop
 }
 
 // findingKeys returns every scope's active finding rows as scope/cve/advisory
-// triples for diagnosis and convergence assertions.
+// triples for diagnosis and convergence assertions, read from the supports
+// table the writer maintains (#10880 PR-C2). The payload stays verbatim in
+// the support, so the member-set arm reads it there.
 func (c *rekeyProof) findingKeys() []string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT f.scope_id, COALESCE(f.payload->>'cve_id',''), COALESCE(f.payload->>'advisory_id',''),
-       COALESCE(f.payload #>> '{provenance,advisory_group_members}', '')
-FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
+SELECT s.scope_id, s.cve_id, s.advisory_id,
+       COALESCE(s.payload #>> '{provenance,advisory_group_members}', '')
+FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
 ORDER BY 1, 2, 3`)
 	if err != nil {
 		c.t.Fatalf("read finding keys: %v", err)
@@ -176,14 +177,14 @@ ORDER BY 1, 2, 3`)
 	return out
 }
 
-// keysByScope returns the sorted cve_id keys of one scope's active findings.
+// keysByScope returns the sorted cve_id keys of one scope's active findings,
+// read from the supports table (#10880 PR-C2).
 func (c *rekeyProof) keysByScope(scope string) []string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT DISTINCT COALESCE(f.payload->>'cve_id','') FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1 ORDER BY 1`, scope)
+SELECT DISTINCT s.cve_id FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1 ORDER BY 1`, scope)
 	if err != nil {
 		c.t.Fatalf("read scope keys: %v", err)
 	}

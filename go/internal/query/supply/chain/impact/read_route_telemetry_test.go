@@ -6,6 +6,9 @@ package impact
 import (
 	"context"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
 	"time"
@@ -352,5 +355,89 @@ func TestRefusedReadCountsItsRouteAndRecordsNoDuration(t *testing.T) {
 				t.Fatalf("a refused %s recorded duration samples %v, want none", what, durations)
 			}
 		})
+	}
+}
+
+// TestAllReadRoutesListsEveryConstant is the completeness check of the exported list: it parses
+// read_route.go and requires every constant of type ReadRoute to appear in AllReadRoutes, so a new
+// route cannot ship without the latency gate's route coverage declaring a request for it.
+func TestAllReadRoutesListsEveryConstant(t *testing.T) {
+	t.Parallel()
+
+	file, err := parser.ParseFile(token.NewFileSet(), "read_route.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse read_route.go: %v", err)
+	}
+	declared := map[ReadRoute]bool{}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok || value.Type == nil {
+				continue
+			}
+			if ident, ok := value.Type.(*ast.Ident); !ok || ident.Name != "ReadRoute" {
+				continue
+			}
+			for _, expr := range value.Values {
+				if lit, ok := expr.(*ast.BasicLit); ok {
+					declared[ReadRoute(strings.Trim(lit.Value, `"`))] = true
+				}
+			}
+		}
+	}
+	if len(declared) == 0 {
+		t.Fatal("found no ReadRoute constants: the check would pass vacuously")
+	}
+	listed := map[ReadRoute]bool{}
+	for _, route := range AllReadRoutes() {
+		if listed[route] {
+			t.Errorf("AllReadRoutes lists %q twice", route)
+		}
+		listed[route] = true
+	}
+	for route := range declared {
+		if !listed[route] {
+			t.Errorf("ReadRoute %q is declared but missing from AllReadRoutes", route)
+		}
+	}
+	for route := range listed {
+		if !declared[route] {
+			t.Errorf("AllReadRoutes lists %q, which is not a ReadRoute constant", route)
+		}
+	}
+}
+
+// TestRouteForCallAndExplainRoutesMatchTheStores pins that the exported pure functions answer what
+// the stores decide, for every input shape the gate's sweep declares.
+func TestRouteForCallAndExplainRoutesMatchTheStores(t *testing.T) {
+	t.Parallel()
+
+	for name, c := range map[string]struct {
+		got, want ReadRoute
+	}{
+		"gate off":        {RouteForCall(false, false, "", ""), RouteLegacy},
+		"unscoped":        {RouteForCall(true, false, "", ""), RouteWinners},
+		"precise":         {RouteForCall(true, false, "", ProfilePrecise), RouteWinnersSupplement},
+		"image":           {RouteForCall(true, false, "registry.example/app:1", ""), RouteSupportsImage},
+		"granted":         {RouteForCall(true, true, "", ""), RouteSupportsGrant},
+		"granted + image": {RouteForCall(true, true, "registry.example/app:1", ""), RouteSupportsGrant},
+	} {
+		if c.got != c.want {
+			t.Errorf("%s: route = %q, want %q", name, c.got, c.want)
+		}
+	}
+	publicID, selector := ExplainRoutesForCall(true, false, "", "CVE-2026-00000", "")
+	if publicID != RouteSupportsFindingID || selector != RouteSupportsSelector {
+		t.Errorf("ungranted explain = %q then %q, want supports_finding_id then supports_selector", publicID, selector)
+	}
+	if publicID, selector = ExplainRoutesForCall(true, true, "", "", ""); publicID != RouteSupportsGrant || selector != RouteSupportsGrant {
+		t.Errorf("granted explain = %q then %q, want supports_grant for both", publicID, selector)
+	}
+	if _, selector = ExplainRoutesForCall(true, false, "registry.example/app:1", "", ""); selector != RouteSupportsImage {
+		t.Errorf("ungranted explain with an image reference reads %q on a miss, want supports_image", selector)
 	}
 }

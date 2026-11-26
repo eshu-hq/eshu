@@ -74,16 +74,17 @@ func seedGoFenceChain(c *convergence) (holderItem, generationID string) {
 	return holderItem, generationID
 }
 
-// activeCopies counts one scope's active copies of the advisory's finding.
+// activeCopies counts one scope's active copies of the advisory's finding,
+// read from the supports table the writer maintains (#10880 PR-C2).
 func activeCopies(c *convergence, scopeID string) int {
 	c.t.Helper()
 	var count int
 	if err := c.db.QueryRowContext(c.ctx, `
 SELECT count(*)
-FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = $1 AND NOT f.is_tombstone AND f.scope_id = $2 AND f.payload->>'cve_id' = $3`,
-		facts.ReducerSupplyChainImpactFindingFactKind, scopeID, goFenceAdvisory).Scan(&count); err != nil {
+FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1 AND s.cve_id = $2`,
+		scopeID, goFenceAdvisory).Scan(&count); err != nil {
 		c.t.Fatalf("count the findings of %s: %v", scopeID, err)
 	}
 	return count

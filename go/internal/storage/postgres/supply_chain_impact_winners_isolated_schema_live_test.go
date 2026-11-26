@@ -40,6 +40,8 @@ func TestSupplyChainImpactWinnersResweepCaptureTriggersBindTheirOwnSchemaLive(t 
 			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database})
 		})
 	_, database := postgresproof.OpenIsolatedBootstrapTemplateClone(t, adminDSN, optIn, 5*time.Minute, template)
+	// Raw SQL plants finding facts for the capture proofs; whole-test disarm (allowlisted).
+	postgresproof.DisarmFindingWriteStopForTest(t, database)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	exec := func(query string, args ...any) {

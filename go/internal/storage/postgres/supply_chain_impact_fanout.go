@@ -131,6 +131,11 @@ type SupplyChainImpactFanOutStore struct {
 	// ReadTimeout overrides the holder-read statement timeout; zero uses
 	// supplyChainImpactFanOutReadTimeout. Tests shorten it.
 	ReadTimeout time.Duration
+	// FactWriteStop, when set, makes the handler-entry gate also require the finding-fact
+	// reject trigger to be enabled (#10880 PR-C2 k): the supports-only writer must not run
+	// before the stop that keeps an old writer from writing facts exists. Nil skips the check
+	// (tests, and a deployment of a schema without the trigger).
+	FactWriteStop *SupplyChainImpactFactWriteStopWatch
 }
 
 // RequireSupportsReady is the handler-entry gate of the holder reads
@@ -144,7 +149,31 @@ func (s SupplyChainImpactFanOutStore) RequireSupportsReady(ctx context.Context) 
 	if s.DB == nil {
 		return errors.New("supply chain impact fan-out database is required")
 	}
-	return requireSupplyChainImpactSupportsReady(ctx, s.DB, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHolders)
+	if err := requireSupplyChainImpactSupportsReady(ctx, s.DB, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHolders); err != nil {
+		return err
+	}
+	return s.requireFactWriteStopArmed(ctx)
+}
+
+// requireFactWriteStopArmed defers the pass, non-counting, while the finding-fact reject trigger is
+// not enabled, counted as not_ready under the fact_write_stop reader: a supports-only write before the
+// stop exists would let an old writer and a new one disagree about where a finding lives. An
+// unreadable trigger fails the gate (counted failed): it is not an enabled one.
+func (s SupplyChainImpactFanOutStore) requireFactWriteStopArmed(ctx context.Context) error {
+	if s.FactWriteStop == nil {
+		return nil
+	}
+	reader := telemetry.SupplyChainImpactSupportsReaderFactWriteStop
+	armed, err := s.FactWriteStop.Armed(ctx)
+	if err != nil {
+		s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
+		return err
+	}
+	if !armed {
+		s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadNotReady)
+		return &supplychaincore.SupplyChainImpactSupportsNotReadyError{Reader: reader}
+	}
+	return nil
 }
 
 // The store carries the handler-entry gate. The handler finds the gate by an

@@ -22,6 +22,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // seedFindingHolder writes a scope holding one active finding for the repository. A
@@ -36,7 +37,10 @@ func seedFindingHolder(t *testing.T, database *sql.DB, holderScopeID, repository
 
 // seedFindingHolderUnsettled is seedFindingHolder as an old-writer image leaves it: the
 // finding fact is committed, the dirty trigger has marked the scope, and no support row
-// exists until the backfill drains the mark.
+// exists until the backfill drains the mark. The plant runs in a scoped
+// postgresproof.SeedFindingFacts window: the proof database is armed, so the
+// raw finding-fact insert would raise 55000 outside it, while the fence and
+// the reopen under test run armed.
 func seedFindingHolderUnsettled(t *testing.T, database *sql.DB, holderScopeID, repositoryID, itemStatus string) string {
 	t.Helper()
 	ctx := t.Context()
@@ -56,15 +60,17 @@ VALUES ($1, $2, 'synthetic', now(), now(), 'active', now())`, generationID, hold
 		`UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1`, holderScopeID, generationID); err != nil {
 		t.Fatalf("activate holder generation: %v", err)
 	}
-	if _, err := database.ExecContext(ctx, `
+	postgresproof.SeedFindingFacts(t, database, func() {
+		if _, err := database.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
     observed_at, ingested_at, payload)
 VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1, 'reducer', $1, now(), now(),
     jsonb_build_object('repository_id', $4::text, 'cve_id', 'CVE-2026-10055', 'package_id', 'pkg:golang/example.com/m',
         'subject_digest', '', 'runtime_reachability', 'not_called'))`,
-		holderScopeID+"/finding", holderScopeID, generationID, repositoryID); err != nil {
-		t.Fatalf("seed holder finding: %v", err)
-	}
+			holderScopeID+"/finding", holderScopeID, generationID, repositoryID); err != nil {
+			t.Fatalf("seed holder finding: %v", err)
+		}
+	})
 	if itemStatus == "" {
 		return ""
 	}

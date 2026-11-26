@@ -16,10 +16,12 @@ import (
 )
 
 // fakeImpactBeginner adapts a testutil.FakeExecer into the writer's
-// transaction surface. Batched fact inserts land on inserts, so the existing
-// batched-insert assertions keep reading exactly the insert statements; every
-// other statement (the conflict-domain lock and the retraction) lands on
-// control. Every statement is also appended to all, in order.
+// transaction surface. The rows the writer hands to the supports maintainer land
+// on inserts in the batched versioned shape (deduplicated and chunked as the real
+// maintainer binds them), so the row-decoding and chunk-count assertions keep
+// reading what the writer built; every other statement (the conflict-domain lock
+// and the retraction) lands on control. Every statement, and the supports upsert
+// as fakeSupportsUpsertQuery, is also appended to all, in order.
 type fakeImpactBeginner struct {
 	inserts *testutil.FakeExecer
 	state   *fakeImpactTxState
@@ -166,11 +168,31 @@ func (t fakeImpactTx) ExecContext(ctx context.Context, query string, args ...any
 	if n, ok := t.state.rowsAffected[query]; ok {
 		return fakeImpactResult(n), nil
 	}
-	if query == factwrite.BatchInsertVersionedQuery {
-		return t.inserts.ExecContext(ctx, query, args...)
-	}
 	return t.state.control.ExecContext(ctx, query, args...)
 }
+
+// fakeSupportsUpsertQuery names the supports upsert in the fake's statement log:
+// the fake maintainer records the call there in place of a SQL text.
+const fakeSupportsUpsertQuery = "fake: supports upsert from the writer's rows"
+
+var _ SupplyChainImpactSupportsMaintainer = fakeImpactTx{}
+
+// UpsertImpactSupportRows records the rows the writer hands to the supports
+// maintainer: a statement-log entry, and the rows in the batched versioned shape on
+// inserts.
+func (t fakeImpactTx) UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (SupplyChainImpactSupportsWrite, error) {
+	t.state.all = append(t.state.all, testutil.ExecCall{Query: fakeSupportsUpsertQuery})
+	if t.state.failOn != "" && fakeSupportsUpsertQuery == t.state.failOn {
+		return SupplyChainImpactSupportsWrite{}, errFakeImpactStatement
+	}
+	if err := factwrite.BatchInsertVersionedFacts(ctx, t.inserts, rows); err != nil {
+		return SupplyChainImpactSupportsWrite{}, err
+	}
+	return SupplyChainImpactSupportsWrite{Inserted: int64(len(rows))}, nil
+}
+
+// RecordRetractedImpactSupports counts nothing: the fake has no instruments.
+func (fakeImpactTx) RecordRetractedImpactSupports(context.Context, int64) {}
 
 func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any) (SupplyChainImpactRows, error) {
 	t.state.all = append(t.state.all, testutil.ExecCall{Query: query, Args: args})

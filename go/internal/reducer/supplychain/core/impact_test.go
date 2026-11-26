@@ -318,9 +318,6 @@ func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t
 	if result.CanonicalWrites != 1 || result.FactsWritten != 1 {
 		t.Fatalf("result = %#v, want one canonical fact", result)
 	}
-	if !strings.Contains(db.Execs[0].Query, "schema_version") {
-		t.Fatalf("insert query missing schema_version column for governed reducer fact: %s", db.Execs[0].Query)
-	}
 	rows := testutil.DecodeBatchedVersionedFactCalls(t, db.Execs)
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)

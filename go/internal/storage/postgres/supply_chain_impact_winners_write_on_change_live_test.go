@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -87,13 +89,25 @@ func winnersLiveSyncSupports(t *testing.T, ctx context.Context, db *sql.DB) {
 
 func winnersLiveExec(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		t.Fatalf("exec %q: %v", query, err)
+	run := func() {
+		if _, err := db.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("exec %q: %v", query, err)
+		}
+	}
+	// A raw write of a finding fact is a plant of frozen history; the trigger is disabled
+	// for that statement only (the code under test, the writer and the maintainer, runs armed).
+	if winnersLiveFactWrite.MatchString(query) {
+		postgresproof.SeedFindingFacts(t, db, run)
+	} else {
+		run()
 	}
 	if strings.Contains(query, "fact_records") {
 		winnersLiveSyncSupports(t, ctx, db)
 	}
 }
+
+// winnersLiveFactWrite matches a statement that writes fact_records.
+var winnersLiveFactWrite = regexp.MustCompile(`(?i)(INSERT\s+INTO|UPDATE)\s+fact_records\b`)
 
 // winnersLiveRow is one stored winner: its row-version identity (xmin), the
 // time it was last written, and its content with materialized_at removed.

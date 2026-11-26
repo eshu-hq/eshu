@@ -94,8 +94,9 @@ func (r *censusRows) Scan(dest ...any) error {
 }
 
 // censusWrite is a pass that exercises every statement family of the writer
-// transaction: findings (fact upsert, supports, winners capture, retraction), the
-// protected-scan authorization and publication, the owed marker, and Go evidence.
+// transaction: findings (supports, winners capture, retraction; no fact upsert
+// since the C2 write stop), the protected-scan authorization and publication,
+// the owed marker, and Go evidence.
 func censusWrite() supplychaincore.SupplyChainImpactWrite {
 	intent := reducercontract.Intent{IntentID: "work-item-census"}
 	factID := "fact:census"
@@ -186,10 +187,20 @@ func TestImpactWriteTransactionTakesNothingTheFenceNeedsBeforeTheLock(t *testing
 			t.Errorf("statement %d before the lock %s:\n%s", i, why, statement)
 		}
 	}
+	// C2 removed the finding-fact upsert from the writer (claim 1), so no "fact
+	// upsert" family remains on the pass to prove exercised: the supports upsert
+	// below is the write family's vacuity witness now. The absence of the fact
+	// write is asserted before the loop; the reject trigger (migration 358) and
+	// TestNoGoFileWritesTheFindingKindToFactRecords enforce it elsewhere.
+	for _, statement := range statements {
+		if strings.Contains(statement, "INSERT INTO fact_records") ||
+			strings.Contains(statement, "UPDATE fact_records") {
+			t.Errorf("a pass statement writes fact_records after the C2 write stop:\n%s", statement)
+		}
+	}
 	for family, needle := range map[string]string{
 		"protected authorization": authorizeImpactPublicationQuery,
 		"protected publication":   publishImpactPublicationQuery,
-		"fact upsert":             "INSERT INTO fact_records",
 		"supports upsert":         "supply_chain_impact_finding_supports",
 		"pass state":              "supply_chain_impact_scope_pass_state",
 		"winners capture":         "supply_chain_impact_winners_dirty_staging",

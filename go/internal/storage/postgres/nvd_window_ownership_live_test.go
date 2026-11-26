@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -215,12 +216,25 @@ func TestNVDWindowOwnershipAccumulatesAcrossWindowsLive(t *testing.T) {
 	window1 := nvdWindowScopeForTest(window1Start, window1End)
 	window2 := nvdWindowScopeForTest(window1End, window2End)
 
-	if called, err := p.commitWindow(window1, "nvd-gen-w1", "hint-w1", false,
-		[]string{"CVE-A"}, 0, window1End.UnixMicro(), window1End.UnixMicro()); err != nil || !called {
+	// The commits stream finding envelopes as the winners fence input, which is
+	// frozen finding history on an armed database: each plant runs in a scoped
+	// postgresproof.SeedFindingFacts window. The trigger gates only the
+	// finding inserts, so the ownership, cursor, and skip logic under test runs
+	// armed in every other observable respect.
+	commit := func(scopeID, generationID, hint string, cves []string, advanceTo, head int64) (bool, error) {
+		var called bool
+		var err error
+		postgresproof.SeedFindingFacts(t, p.database, func() {
+			called, err = p.commitWindow(scopeID, generationID, hint, false, cves, 0, advanceTo, head)
+		})
+		return called, err
+	}
+	if called, err := commit(window1, "nvd-gen-w1", "hint-w1",
+		[]string{"CVE-A"}, window1End.UnixMicro(), window1End.UnixMicro()); err != nil || !called {
 		t.Fatalf("commit window 1 = (writer %v, err %v), want (true, nil)", called, err)
 	}
-	if called, err := p.commitWindow(window2, "nvd-gen-w2", "hint-w2", false,
-		[]string{"CVE-B"}, 0, window2End.UnixMicro(), window2End.UnixMicro()); err != nil || !called {
+	if called, err := commit(window2, "nvd-gen-w2", "hint-w2",
+		[]string{"CVE-B"}, window2End.UnixMicro(), window2End.UnixMicro()); err != nil || !called {
 		t.Fatalf("commit window 2 = (writer %v, err %v), want (true, nil)", called, err)
 	}
 	// The projector activates the committed generations; only then does

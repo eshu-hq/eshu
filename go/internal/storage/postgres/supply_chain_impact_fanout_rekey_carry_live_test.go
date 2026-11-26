@@ -133,15 +133,16 @@ WHERE scope_id = 'operator:vulnerability_suppressions' AND generation_id <> $1 A
 }
 
 // suppressionIDs returns each active finding key of one scope mapped to the
-// persisted suppressing suppression id (empty when none matched).
+// persisted suppressing suppression id (empty when none matched), read from
+// the supports table (#10880 PR-C2). The support payload is the fact payload
+// verbatim, so the suppression arm reads it there.
 func (c *rekeyProof) suppressionIDs(scope string) map[string]string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT COALESCE(f.payload->>'cve_id',''), COALESCE(f.payload #>> '{suppression,suppression_id}','')
-FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1`, scope)
+SELECT s.cve_id, COALESCE(s.payload #>> '{suppression,suppression_id}','')
+FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1`, scope)
 	if err != nil {
 		c.t.Fatalf("read suppression ids: %v", err)
 	}
@@ -161,15 +162,16 @@ WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
 }
 
 // countFindingRows returns the number of active finding rows of one scope,
-// for the no-duplicate assertions.
+// for the no-duplicate assertions, read from the supports table
+// (#10880 PR-C2). A retraction deletes the support, so live supports are the
+// active rows.
 func (c *rekeyProof) countFindingRows(scope string) int {
 	c.t.Helper()
 	var n int
 	if err := c.db.QueryRowContext(c.ctx, `
-SELECT COUNT(*) FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1`, scope).Scan(&n); err != nil {
+SELECT COUNT(*) FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1`, scope).Scan(&n); err != nil {
 		c.t.Fatalf("count finding rows: %v", err)
 	}
 	return n
@@ -251,15 +253,15 @@ ORDER BY fact_id`)
 }
 
 // suppressionStates returns each active finding key of one scope mapped to
-// its persisted suppression_state, for the carry assertions.
+// its persisted suppression_state, for the carry assertions, read from the
+// supports table (#10880 PR-C2).
 func (c *rekeyProof) suppressionStates(scope string) map[string]string {
 	c.t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT COALESCE(f.payload->>'cve_id',''), COALESCE(f.payload->>'suppression_state','')
-FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1`, scope)
+SELECT s.cve_id, s.suppression_state
+FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1`, scope)
 	if err != nil {
 		c.t.Fatalf("read suppression states: %v", err)
 	}

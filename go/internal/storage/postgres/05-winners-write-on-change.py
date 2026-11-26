@@ -2,6 +2,11 @@
 # Copyright (c) 2025-2026 eshu-hq
 """Write-on-change winners resweep measurement shim for eshu-hq/eshu#9774.
 
+LEGACY SHIM (#10880 PR-C2): this measures the fact-sourced resweep against a synthetic schema it creates itself,
+including its own fact_records. Production resweeps read the supports table since the finding-fact write stop
+(winners_supports_input.go), so a run here is no proof of the shipped path and a run against a real C2 database
+would see no finding facts. Keep it for the #9774 evidence trail only.
+
 Re-measures the FINAL shipped resweep SQL (rebuildSupplyChainImpactWinnersSQL)
 against a disposable PostgreSQL 18.6, seeded with synthetic
 reducer_supply_chain_impact_finding facts, and records row versions, WAL bytes

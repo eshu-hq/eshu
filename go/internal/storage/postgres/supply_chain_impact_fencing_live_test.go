@@ -15,7 +15,9 @@ import (
 	"time"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -123,6 +125,37 @@ func fencingAdmissionToken(t *testing.T, ctx context.Context, db *sql.DB) int64 
 	return token
 }
 
+// fencingActiveRepositories returns the repository_id of every live support
+// in the test's (scope, generation), sorted. The writer maintains supports,
+// not finding fact rows (#10880 PR-C2): supports are the active set, while
+// the frozen fact rows stay as history.
+func fencingActiveRepositories(t *testing.T, ctx context.Context, db *sql.DB) []string {
+	t.Helper()
+	rows, err := db.QueryContext(ctx, `
+SELECT COALESCE(repository_id, '')
+FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2
+ORDER BY 1, fact_id`,
+		replaceSetLiveScope, replaceSetLiveGeneration,
+	)
+	if err != nil {
+		t.Fatalf("list active findings: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := []string{}
+	for rows.Next() {
+		var repositoryID string
+		if err := rows.Scan(&repositoryID); err != nil {
+			t.Fatalf("scan active finding: %v", err)
+		}
+		out = append(out, repositoryID)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate active findings: %v", err)
+	}
+	return out
+}
+
 func isSuperseded(err error) bool {
 	var classified interface{ FailureClass() string }
 	return errors.As(err, &classified) && classified.FailureClass() == supplychaincore.SupplyChainImpactWriteSupersededFailureClass
@@ -184,7 +217,7 @@ func TestSupplyChainImpactStalePassResumingAfterReclaimCannotRetractFresherSetLi
 		Handle(ctx, fencingIntent("intent:7142:fresh-b")); err != nil {
 		t.Fatalf("fresher pass B: %v", err)
 	}
-	if active := replaceSetActiveRepositories(t, ctx, db); !slices.Equal(active, []string{repoB}) {
+	if active := fencingActiveRepositories(t, ctx, db); !slices.Equal(active, []string{repoB}) {
 		t.Fatalf("active set after B = %q, want only B's finding", active)
 	}
 	tokenB := fencingAdmissionToken(t, ctx, db)
@@ -194,13 +227,16 @@ func TestSupplyChainImpactStalePassResumingAfterReclaimCannotRetractFresherSetLi
 	if !isSuperseded(errA) {
 		t.Fatalf("stale pass A returned %v, want the retryable superseded rejection", errA)
 	}
-	if active := replaceSetActiveRepositories(t, ctx, db); !slices.Equal(active, []string{repoB}) {
+	if active := fencingActiveRepositories(t, ctx, db); !slices.Equal(active, []string{repoB}) {
 		t.Fatalf("active set after the stale pass finished last = %q, want B's finding untouched", active)
 	}
+	// A rejected pass writes nothing: no support for A's repository may
+	// exist. The writer maintains supports, not finding fact rows
+	// (#10880 PR-C2), so the active set above already reads them.
 	var aRows int
 	if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM fact_records WHERE fact_kind = $1 AND payload->>'repository_id' = $2`,
-		facts.ReducerSupplyChainImpactFindingFactKind, repoA).Scan(&aRows); err != nil {
+SELECT count(*) FROM supply_chain_impact_finding_supports WHERE scope_id = $1 AND generation_id = $2 AND repository_id = $3`,
+		replaceSetLiveScope, replaceSetLiveGeneration, repoA).Scan(&aRows); err != nil {
 		t.Fatalf("count A rows: %v", err)
 	}
 	if aRows != 0 {
@@ -237,13 +273,15 @@ func TestSupplyChainImpactEmptyFresherPassStillFencesOlderPassLive(t *testing.T)
 	}()
 	<-entered
 
-	// B derives nothing: no findings, so no fact_records row.
+	// B derives nothing: no findings, so the writer leaves no support behind
+	// (#10880 PR-C2). The fence cannot rely on a row for its watermark: the
+	// admission table carries it instead.
 	if _, err := fencingHandler(db, &fencingLoader{}, nil, nil).Handle(ctx, fencingIntent("intent:7142:empty-b")); err != nil {
 		t.Fatalf("empty fresher pass B: %v", err)
 	}
 	var rows int
-	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_records WHERE fact_kind = $1`,
-		facts.ReducerSupplyChainImpactFindingFactKind).Scan(&rows); err != nil || rows != 0 {
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE scope_id = $1 AND generation_id = $2`,
+		replaceSetLiveScope, replaceSetLiveGeneration).Scan(&rows); err != nil || rows != 0 {
 		t.Fatalf("finding rows after the empty pass = %d (err %v), want 0: the fence cannot rely on a row", rows, err)
 	}
 
@@ -251,15 +289,21 @@ func TestSupplyChainImpactEmptyFresherPassStillFencesOlderPassLive(t *testing.T)
 	if err := <-aDone; !isSuperseded(err) {
 		t.Fatalf("stale pass A returned %v, want the superseded rejection", err)
 	}
-	if active := replaceSetActiveRepositories(t, ctx, db); len(active) != 0 {
+	// B derives nothing: the writer maintains supports, not finding fact rows
+	// (#10880 PR-C2), so the active set reads supports and must stay empty.
+	if active := fencingActiveRepositories(t, ctx, db); len(active) != 0 {
 		t.Fatalf("active set = %q, want empty: the stale pass published findings the fresher evidence does not have", active)
 	}
 }
 
 // TestSupplyChainImpactRetractsLegacyZeroRowsAndStampsTokenLive pins the rolling
-// deploy state: finding rows written before the token existed carry 0. A pass
-// with a token updates a legacy row it derives (stamping its token) and retracts
-// a legacy row it does not, and the tombstone records the retiring pass.
+// deploy state: a finding fact an old writer wrote before the token existed
+// carries 0. The write stop freezes finding facts as history (#10880 PR-C2 k),
+// so the proof plants the legacy row in a scoped disarm and the pass under
+// test runs armed; the sync mints its support the way the backfill did for
+// rows the maintainer had not seen. The pass retracts the legacy row it does
+// not derive by deleting its support (#10880 PR-C2 i), and stamps its token
+// on the admission row instead of on each fact row.
 func TestSupplyChainImpactRetractsLegacyZeroRowsAndStampsTokenLive(t *testing.T) {
 	ctx, db := openReplaceSetLiveDB(t)
 	writer := replaceSetWriter(db)
@@ -267,12 +311,12 @@ func TestSupplyChainImpactRetractsLegacyZeroRowsAndStampsTokenLive(t *testing.T)
 	if _, err := writer.WriteSupplyChainImpactFindings(ctx, derived); err != nil {
 		t.Fatalf("seed derived finding: %v", err)
 	}
-	replaceSetPlantRow(t, ctx, db, "legacy-undelivered", replaceSetLiveScope, replaceSetLiveGeneration,
-		facts.ReducerSupplyChainImpactFindingFactKind, 0)
-	// Both rows now look like pre-token rows.
-	if _, err := db.ExecContext(ctx, `UPDATE fact_records SET fencing_token = 0 WHERE fact_kind = $1`,
-		facts.ReducerSupplyChainImpactFindingFactKind); err != nil {
-		t.Fatalf("reset to legacy tokens: %v", err)
+	postgresproof.SeedFindingFacts(t, db, func() {
+		replaceSetPlantRow(t, ctx, db, "legacy-undelivered", replaceSetLiveScope, replaceSetLiveGeneration,
+			facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	})
+	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("sync supports from the planted legacy row: %v", err)
 	}
 
 	pass := replaceSetWrite("intent:7142:legacy-pass", replaceSetFinding(replaceSetLiveRepository))
@@ -283,46 +327,57 @@ func TestSupplyChainImpactRetractsLegacyZeroRowsAndStampsTokenLive(t *testing.T)
 	if result.FactsRetracted != 1 {
 		t.Fatalf("FactsRetracted = %d, want 1 (the legacy row the pass does not derive)", result.FactsRetracted)
 	}
-	var retiredToken, derivedToken int64
-	if err := db.QueryRowContext(ctx, `SELECT fencing_token FROM fact_records WHERE fact_id = 'legacy-undelivered' AND is_tombstone`).Scan(&retiredToken); err != nil {
-		t.Fatalf("read tombstone: %v", err)
+	var legacySupports int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = 'legacy-undelivered'`).Scan(&legacySupports); err != nil || legacySupports != 0 {
+		t.Fatalf("legacy supports = %d (err %v), want 0: the pass retracted the row it does not derive", legacySupports, err)
 	}
-	if retiredToken != pass.FencingToken {
-		t.Fatalf("tombstone token = %d, want the retiring pass's token %d", retiredToken, pass.FencingToken)
+	// The frozen fact row stays exactly as the old writer left it: retraction
+	// deletes the support and never tombstones history.
+	var legacyToken int64
+	var legacyTombstone bool
+	if err := db.QueryRowContext(ctx, `SELECT fencing_token, is_tombstone FROM fact_records WHERE fact_id = 'legacy-undelivered'`).Scan(&legacyToken, &legacyTombstone); err != nil {
+		t.Fatalf("read legacy row: %v", err)
 	}
-	if err := db.QueryRowContext(ctx, `SELECT fencing_token FROM fact_records WHERE fact_kind = $1 AND NOT is_tombstone`,
-		facts.ReducerSupplyChainImpactFindingFactKind).Scan(&derivedToken); err != nil {
-		t.Fatalf("read derived row: %v", err)
+	if legacyToken != 0 || legacyTombstone {
+		t.Fatalf("legacy row = (token %d, tombstone %v), want the frozen (0, false): the pass leaves history alone", legacyToken, legacyTombstone)
 	}
-	if derivedToken != pass.FencingToken {
-		t.Fatalf("derived legacy row token = %d, want %d (updated by the fresher pass)", derivedToken, pass.FencingToken)
+	var derivedSupports int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE scope_id = $1 AND generation_id = $2`,
+		replaceSetLiveScope, replaceSetLiveGeneration).Scan(&derivedSupports); err != nil || derivedSupports != 1 {
+		t.Fatalf("derived supports = %d (err %v), want 1 (the finding the pass derives)", derivedSupports, err)
+	}
+	if got := fencingAdmissionToken(t, ctx, db); got != pass.FencingToken {
+		t.Fatalf("admission watermark = %d, want the pass's token %d (the pass stamps the admission row, not each fact row)", got, pass.FencingToken)
 	}
 }
 
 // TestSupplyChainImpactUpsertGuardRefusesAStaleReviveLive is the defense in
-// depth behind the admission: even a write that bypasses it cannot revive a row
-// a fresher pass tombstoned, because the retraction stamps its token on the
-// tombstone and the upsert applies only when existing <= incoming.
+// depth behind the admission. The older pass wrote the row; the fresher pass
+// retracted it by deleting its support (#10880 PR-C2 i). Bypass the admission:
+// replay the older pass's fact straight into the fact table with its older
+// token. The finding-fact write stop refuses the write (#10880 PR-C2 k, 55000),
+// so a write outside the writer cannot revive a row a fresher pass retracted.
 func TestSupplyChainImpactUpsertGuardRefusesAStaleReviveLive(t *testing.T) {
 	ctx, db := openReplaceSetLiveDB(t)
 	writer := replaceSetWriter(db)
 	older := replaceSetWrite("intent:7142:older", replaceSetFinding(replaceSetLiveRepository))
 	fresher := replaceSetWrite("intent:7142:fresher", replaceSetFinding("repository:r_7142_other"))
-	// The older pass wrote the row; the fresher pass retracted it.
 	if _, err := writer.WriteSupplyChainImpactFindings(ctx, older); err != nil {
 		t.Fatalf("older write: %v", err)
+	}
+	var factID string
+	if err := db.QueryRowContext(ctx, `SELECT fact_id FROM supply_chain_impact_finding_supports WHERE scope_id = $1 AND generation_id = $2`,
+		replaceSetLiveScope, replaceSetLiveGeneration).Scan(&factID); err != nil {
+		t.Fatalf("read the older support: %v", err)
 	}
 	if _, err := writer.WriteSupplyChainImpactFindings(ctx, fresher); err != nil {
 		t.Fatalf("fresher write: %v", err)
 	}
-	var factID string
-	if err := db.QueryRowContext(ctx, `SELECT fact_id FROM fact_records WHERE is_tombstone AND fact_kind = $1`,
-		facts.ReducerSupplyChainImpactFindingFactKind).Scan(&factID); err != nil {
-		t.Fatalf("find the retracted row: %v", err)
+	var retracted int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, factID).Scan(&retracted); err != nil || retracted != 0 {
+		t.Fatalf("retracted supports = %d (err %v), want 0 before the replay", retracted, err)
 	}
 
-	// Bypass the admission: replay the older pass's upsert straight into the
-	// batched writer with its older token.
 	row := factwrite.VersionedRow{
 		FactID: factID, ScopeID: replaceSetLiveScope, GenerationID: replaceSetLiveGeneration,
 		FactKind: facts.ReducerSupplyChainImpactFindingFactKind, StableFactKey: factID, SchemaVersion: facts.ReducerDerivedSchemaVersionV1,
@@ -330,11 +385,13 @@ func TestSupplyChainImpactUpsertGuardRefusesAStaleReviveLive(t *testing.T) {
 		SourceFactKey: "intent:7142:older", ObservedAt: replaceSetLiveNow, IngestedAt: replaceSetLiveNow,
 		Payload: "{}", FencingToken: older.FencingToken,
 	}
-	if err := factwrite.BatchInsertVersionedFacts(ctx, postgres.SQLDB{DB: db}, []factwrite.VersionedRow{row}); err != nil {
-		t.Fatalf("stale replay: %v", err)
+	replayErr := factwrite.BatchInsertVersionedFacts(ctx, postgres.SQLDB{DB: db}, []factwrite.VersionedRow{row})
+	var pgErr *pgconn.PgError
+	if replayErr == nil || !errors.As(replayErr, &pgErr) || pgErr.Code != "55000" {
+		t.Fatalf("stale replay error = %v, want the 55000 finding-fact write-stop refusal", replayErr)
 	}
-	if !replaceSetIsTombstone(t, ctx, db, factID) {
-		t.Fatal("a stale replay revived a row a fresher pass tombstoned")
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, factID).Scan(&retracted); err != nil || retracted != 0 {
+		t.Fatalf("retracted supports after the replay = %d (err %v), want 0: the refused write revived nothing", retracted, err)
 	}
 }
 

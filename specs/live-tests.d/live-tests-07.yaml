@@ -688,6 +688,36 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the supports backfill fills, verifies, restarts on a gap, and waits for the writer's conflict-domain lock"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fact_write_stop_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 k: reducer-contention proof that the finding-fact reject trigger (migration 358) raises a real *pgconn.PgError with SQLSTATE 55000, constraint fact_records_reject_supply_chain_impact_finding and table fact_records, that the reducer's impact transaction classifies it as supply_chain_impact_fact_write_stopped (retryable), that INSERT, upsert and UPDATE of the kind are refused and leave the row untouched while DELETE and other kinds pass, that a transaction opened before the trigger existed is refused whole when it writes after it, and that re-applying the migration keeps a disabled trigger disabled"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_rows_differential_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 h: reducer-contention proof that the supports the writer's in-memory upsert leaves for 60 planted findings equal, column for column, the supports the fact-derived upsert leaves for the same facts, and that a changed payload shows as a difference"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_advisory_group_winners_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 reducer-contention proof, on an armed clone, that the production writer leaves a finding only in supports, the production resweep derives its winner from supports, and the advisory group winners read still returns the purl and the provenance members (the fact_records-only join returned an empty purl and no members for every new winner)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fact_write_stop_role_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 role proof: reducer-contention proof, as the least-privilege runtime-writer login of the protected-publish proof (inventory required grants plus the DBA pregrant list), that the finding-fact reject trigger refuses a finding fact with the classified 55000 error and not a missing-privilege 42501 (another fact kind is written first to prove the grant), that the armed check reads pg_trigger as that login and sees a disabled trigger, and that the impact writer path leaves its finding in supports with no finding fact and retracts it through DELETE RETURNING on supports"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_family_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 impact family: reducer-contention proof that the committed supply-chain-demo cassettes, driven through the replay driver, the projector queue's claim and ack, the projector's impact intent builder, the real reducer queue and the real impact handler in process at 1, 2 and 4 workers, leave the same supports-and-winners digest, zero dead letters and one handler execution per impact work item; logs the digest for the PR-C1 head comparison"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_family_faults_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 impact family faults: reducer-contention proof, on an armed database and a short real lease, that a really claimed row dropped by a killed worker is reclaimed with the baseline digest, that a pass parked after its fencing token whose lease expired is rejected by admission and changes zero rows (by row version) while the faulted intent runs exactly twice, that redelivering a succeeded intent writes no row version, and that a dropped support changes the digest and a planted finding-fact write fails with 55000"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_stable_key_fill_live_test.go
     tag: ~
     class: dedicated_ci

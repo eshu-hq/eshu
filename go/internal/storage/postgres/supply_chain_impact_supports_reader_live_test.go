@@ -154,11 +154,14 @@ func b2cSeed(t *testing.T, ctx context.Context, db *sql.DB) {
 		b2cFinding("repo:r5", "pkg:npm/p7", "CVE-2026-0007", "", "7.0.0")))
 	write(b2cWrite(b2cScopeC, b2cGenC, "intent:c-2", b2cFinding("repo:r5", "pkg:npm/p7", "CVE-2026-0007", "", "7.0.0")))
 
-	// Alert and consumption facts get ids that interleave with the impact fact
-	// ids, so the merged statement's order is tested, not a concatenation.
-	impactIDs := b2cImpactFactIDs(t, ctx, db)
+	// Alert and consumption facts get ids that interleave with the impact
+	// support ids, so the merged statement's order is tested, not a
+	// concatenation. The seed reads the supports table, not fact_records: the
+	// C2 writer keeps findings in supports only, so no finding fact exists to
+	// interleave with on an armed database.
+	impactIDs := b2cSupportIDs(t, ctx, db)
 	if len(impactIDs) < 4 {
-		t.Fatalf("seeded %d impact facts, want at least 4", len(impactIDs))
+		t.Fatalf("seeded %d impact supports, want at least 4", len(impactIDs))
 	}
 	store := NewFactStore(SQLDB{DB: db})
 	if err := store.UpsertFacts(ctx, []facts.Envelope{
@@ -182,13 +185,15 @@ func b2cSeed(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 }
 
-// b2cImpactFactIDs lists the live impact fact ids in the database's order.
-func b2cImpactFactIDs(t *testing.T, ctx context.Context, db *sql.DB) []string {
+// b2cSupportIDs lists the impact support ids in the database's order. The
+// alert and consumption facts the seed mints from them only need stable,
+// ordered ids that interleave with the supports stream, so the supports table
+// is the source: finding facts no longer exist on an armed database.
+func b2cSupportIDs(t *testing.T, ctx context.Context, db *sql.DB) []string {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, `SELECT fact_id FROM fact_records WHERE fact_kind = $1 AND is_tombstone = FALSE ORDER BY fact_id`,
-		facts.ReducerSupplyChainImpactFindingFactKind)
+	rows, err := db.QueryContext(ctx, `SELECT fact_id FROM supply_chain_impact_finding_supports ORDER BY fact_id`)
 	if err != nil {
-		t.Fatalf("list impact fact ids: %v", err)
+		t.Fatalf("list impact support ids: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var ids []string
@@ -329,7 +334,7 @@ func b2cPayloadText(t *testing.T, raw string) string {
 // ids and payloads as the finding-fact reads on the multi-scope seed, for every
 // filter shape.
 func TestSecurityAlertReconciliationAndAdvisoryLoadersEqualFactReadsLive(t *testing.T) {
-	db, ctx := openIsolatedLiveDB(t, "b2c_reader_equality",
+	db, ctx := openPreC2IsolatedLiveDB(t, "b2c_reader_equality",
 		workflowControlIntegrationDSNEnv+" is not set; skipping Postgres integration test")
 	b2cSeed(t, ctx, db)
 	store := NewFactStore(SQLDB{DB: db})

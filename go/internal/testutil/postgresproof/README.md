@@ -201,3 +201,14 @@ go test ./internal/testutil/postgresproof -count=1
 is closed, the drop and its verification are skipped, and the clone's name is written to the test log (use `-v`). Drop it by
 hand when finished. Unset, every clone is dropped and verified as before. It is for lab measurements against a seeded database,
 never for CI.
+
+## Finding write stop
+
+Proof databases carry the finding-kind reject trigger
+(`fact_records_reject_supply_chain_impact_finding`, #10880 PR-C2 k, migration 358) **armed**, as
+production does: a forgotten disarm fails loudly with SQLSTATE 55000, where a forgotten arm
+would pass silently. A proof that must plant a frozen finding fact disables it around the
+plant with `SeedFindingFacts` (the code under test runs armed); a proof that models a schema
+from before C2 disables it for the whole test with `DisarmFindingWriteStopForTest`. Both
+re-arm and fail the test if the trigger does not read enabled afterwards. Every caller is named,
+with a reason, in the shrink-only allowlist of `finding_write_stop_allowlist_test.go`.

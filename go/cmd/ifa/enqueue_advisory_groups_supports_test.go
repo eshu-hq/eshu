@@ -55,18 +55,18 @@ func (t *recordingImpactTx) Rollback() error {
 	return nil
 }
 
-func (t *recordingImpactTx) UpsertImpactSupports(_ context.Context, factIDs []string) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
+func (t *recordingImpactTx) UpsertImpactSupportRows(_ context.Context, rows []factwrite.VersionedRow) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
 	t.events = append(t.events, "upsert supports")
-	t.supportFactIDs = append(t.supportFactIDs, factIDs...)
+	for _, row := range rows {
+		t.supportFactIDs = append(t.supportFactIDs, row.FactID)
+	}
 	if t.supportsErr != nil {
 		return supplychaincore.SupplyChainImpactSupportsWrite{}, t.supportsErr
 	}
-	return supplychaincore.SupplyChainImpactSupportsWrite{Inserted: int64(len(factIDs))}, nil
+	return supplychaincore.SupplyChainImpactSupportsWrite{Inserted: int64(len(rows))}, nil
 }
 
-func (t *recordingImpactTx) DeleteRetractedImpactSupports(context.Context, string, string) (int64, error) {
-	return 0, nil
-}
+func (t *recordingImpactTx) RecordRetractedImpactSupports(context.Context, int64) {}
 
 type recordingImpactBeginner struct {
 	tx supplychaincore.SupplyChainImpactTx
@@ -86,9 +86,9 @@ func findingRows() []factwrite.VersionedRow {
 
 // TestAdmitFindingRowsWritesSupportsInTheSameTransaction pins #11201: the
 // cell admits the cassette's findings through the production writer's
-// transaction shape. The supports of the live facts are upserted after the
-// facts and before the commit, a tombstoned fact gets no support, and the whole
-// admission is one transaction.
+// transaction shape. The supports of the rows are upserted under the lock and
+// before the commit, no fact row is written (the supports are the only copy,
+// #10880 PR-C2 j), and the whole admission is one transaction.
 func TestAdmitFindingRowsWritesSupportsInTheSameTransaction(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +97,7 @@ func TestAdmitFindingRowsWritesSupportsInTheSameTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admitFindingRowsWithSupports() error = %v, want nil", err)
 	}
-	if got, want := strings.Join(tx.events, ","), "lock,insert facts,upsert supports,commit"; got != want {
+	if got, want := strings.Join(tx.events, ","), "lock,upsert supports,commit"; got != want {
 		t.Fatalf("statement order = %s, want %s", got, want)
 	}
 	if got, want := strings.Join(tx.supportFactIDs, ","), "fact-live-1,fact-tombstone,fact-live-2"; got != want {
@@ -114,7 +114,7 @@ func TestAdmitFindingRowsRollsBackWhenTheSupportsWriteFails(t *testing.T) {
 	if err := admitFindingRows(context.Background(), recordingImpactBeginner{tx: tx}, "s", "g", findingRows()); err == nil {
 		t.Fatal("admitFindingRowsWithSupports() error = nil, want the supports failure")
 	}
-	if got, want := strings.Join(tx.events, ","), "lock,insert facts,upsert supports,rollback"; got != want {
+	if got, want := strings.Join(tx.events, ","), "lock,upsert supports,rollback"; got != want {
 		t.Fatalf("statement order = %s, want %s", got, want)
 	}
 }

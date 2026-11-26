@@ -38,11 +38,16 @@ type protectedPublishProof struct {
 // that can reach publish_impact_publication_v1 only through the contract.
 func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 	t.Helper()
-	adminDSN := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
 	optIn := os.Getenv("ESHU_POSTGRES_DISPOSABLE")
-	if adminDSN == "" {
+	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the protected publish proof")
 	}
+	// The family DSN names the proof's working database (for example "eshu" in
+	// the reducer contention gate); the disposable helpers require the
+	// administrative "postgres" database, so derive it the way
+	// openIsolatedLiveDB does instead of passing the family DSN through.
+	adminDSN := disposableAdminDSN(t, dsn)
 	// Clones the process template (#10148 PR-A) instead of bootstrapping again.
 	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
 		postgresproof.FlavourPublicBootstrap,
@@ -197,13 +202,22 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 	if revisionCount != 1 {
 		t.Fatalf("authority revisions = %d, want exactly one pinned static revision", revisionCount)
 	}
-	var factCount int
-	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM fact_records
-		WHERE scope_id=$1 AND generation_id=$2 AND NOT is_tombstone`, scopeID, generationID).Scan(&factCount); err != nil {
+	// The writer keeps a finding only in the supports table since #10880 PR-C2:
+	// the support exists and no finding fact was written (the reject trigger is armed).
+	var supportCount, factCount int
+	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports
+		WHERE scope_id=$1 AND generation_id=$2`, scopeID, generationID).Scan(&supportCount); err != nil {
 		t.Fatal(err)
 	}
-	if factCount != 1 {
-		t.Fatalf("live impact facts = %d, want the one committed finding", factCount)
+	if supportCount != 1 {
+		t.Fatalf("supports = %d, want the one committed finding", supportCount)
+	}
+	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM fact_records
+		WHERE scope_id=$1 AND generation_id=$2 AND fact_kind='reducer_supply_chain_impact_finding'`, scopeID, generationID).Scan(&factCount); err != nil {
+		t.Fatal(err)
+	}
+	if factCount != 0 {
+		t.Fatalf("finding facts = %d, want 0: the writer no longer writes them", factCount)
 	}
 
 	// A byte-identical retry at the same fence replays as a no-op instead

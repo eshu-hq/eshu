@@ -53,7 +53,10 @@ func TestGoldenHarnessIntegratesCapabilityFoundationsInOrder(t *testing.T) {
 	repositoryValidateAt := strings.Index(script, "\ngolden_changed_since_validate_current\n")
 	relationshipCaptureAt := strings.Index(script, "\ngolden_relationship_evidence_capture_resolved_id\n")
 	metricsAt := strings.Index(script, "\ngolden_metrics_source_start\n")
-	apiAt := strings.Index(script, "\nstart_bg api api_pid")
+	// #10880 PR-C2: the api starts inside start_api_with_winners_resweep
+	// (which runs the production resweep first, then the same
+	// start_bg api api_pid at this position).
+	apiAt := strings.Index(script, "\nstart_api_with_winners_resweep")
 	aggregateCaptureAt := strings.Index(script, "\ngolden_aggregate_counts_capture ")
 	if priorAt < 0 || repositoryPriorAt <= priorAt || mutateAt <= repositoryPriorAt || repositoryMutateAt <= mutateAt ||
 		maintenanceAt <= repositoryMutateAt || validateAt <= maintenanceAt || repositoryValidateAt <= validateAt ||

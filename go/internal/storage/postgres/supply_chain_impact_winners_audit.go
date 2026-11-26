@@ -29,7 +29,7 @@ import (
 // MVCC reads, so it never blocks a keyed tick or a writer.
 var createWinnersAuditCandidatesSQL = `
 CREATE TEMP TABLE winners_audit_candidates ON COMMIT DROP AS
-WITH winners_now AS (` + supplyChainImpactWinnerSelectSQL + `)
+WITH winners_now AS (` + supplyChainImpactWinnerSelectFromSupportsSQL + `)
 ` + winnersAuditDiffSelect("winners_now", "supply_chain_impact_canonical_winners")
 
 // winnersAuditDiffSelect renders the full-join diff of a recomputed set against
@@ -81,13 +81,13 @@ SELECT package_id, repository_id, subject_digest, c0, advisory_id
 FROM supply_chain_impact_winners_dirty_log
 WHERE kind = 'fact'
 UNION
-` + winnersScopeExpansionSelect("supply_chain_impact_winners_dirty_log") + `
+` + winnersScopeExpansionSelectFromSupports("supply_chain_impact_winners_dirty_log") + `
 UNION
 SELECT package_id, repository_id, subject_digest, c0, advisory_id
 FROM ` + winnersStagingTable + `
 WHERE kind = 'fact'
 UNION
-` + winnersScopeExpansionSelect(winnersStagingTable)
+` + winnersScopeExpansionSelectFromSupports(winnersStagingTable)
 
 // queueWinnersAuditRepairsSQL stages the verified stale keys that are not
 // already pending as source "audit" and reports how many (#10837 direction
@@ -120,7 +120,7 @@ const countWinnersAuditCandidatesSQL = `SELECT count(*) FROM ` + winnersAuditCan
 // shipped winner select the legacy path uses, so both branches name the same
 // candidate set: legacy path parity (the stale live proof mirrors the legacy
 // one) guards the twin.
-var selectWinnersAuditCandidatesSQL = `WITH winners_now AS (` + supplyChainImpactWinnerSelectSQL + `)
+var selectWinnersAuditCandidatesSQL = `WITH winners_now AS (` + supplyChainImpactWinnerSelectFromSupportsSQL + `)
 ` + winnersAuditDiffSelect("winners_now", "supply_chain_impact_canonical_winners")
 
 // createWinnersAuditStaleIdentsSQL builds the empty identifier table the split
@@ -239,7 +239,7 @@ func (s SupplyChainImpactWinnersStore) AuditWinners(
 	for _, stmt := range []string{
 		seedWinnersAuditIdentsSQL, analyzeWinnersKeyedIdentsSQL,
 		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsSQL, addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL,
+		buildWinnersKeyedActiveFactsFromSupportsSQL, addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditPendingSQL,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {

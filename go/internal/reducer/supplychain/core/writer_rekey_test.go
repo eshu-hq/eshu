@@ -117,9 +117,9 @@ func rekeyRetractKeepSet(t *testing.T, beginner fakeImpactBeginner) []string {
 		if call.Query != retractSupersededSupplyChainImpactFindingsQuery {
 			continue
 		}
-		keep, ok := call.Args[3].([]string)
+		keep, ok := call.Args[2].([]string)
 		if !ok {
-			t.Fatalf("retraction keep set has type %T, want []string", call.Args[3])
+			t.Fatalf("retraction keep set has type %T, want []string", call.Args[2])
 		}
 		return keep
 	}

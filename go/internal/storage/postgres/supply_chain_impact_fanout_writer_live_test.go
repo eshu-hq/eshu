@@ -111,26 +111,22 @@ func TestWriterReportsChangesAgainstThePreviousGenerationLive(t *testing.T) {
 	}
 	// A rescan that drops B and adds C. The previous generation is g2 only once
 	// g2 is current, so write the g1 baseline again and then the changed g2.
-	// The DELETE bypasses the writer, so it must also do the supports
-	// maintainer's share: supports hold only live rows (migration 338), and
-	// the stored read has no tombstone predicate by design, so an orphaned
-	// support would read as a baseline the fact read never had.
-	if _, err := db.ExecContext(ctx, `DELETE FROM fact_records WHERE scope_id = 'source' AND generation_id = $1`, fanOutGen("source", "g2")); err != nil {
-		t.Fatal(err)
-	}
+	// Retraction deletes supports, so the setup removes the g2 supports the
+	// same way (#10880 PR-C2): the writer no longer writes finding facts.
+	// (The tombstone UPDATE this replaces would fire migration 358's reject
+	// trigger on an armed database.)
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE scope_id = 'source' AND generation_id = $1`, fanOutGen("source", "g2")); err != nil {
 		t.Fatal(err)
 	}
 	if got := write("g2", false, "CVE-A", "CVE-C").ChangedCVEIDs; !reflect.DeepEqual(got, []string{"CVE-B", "CVE-C"}) {
 		t.Fatalf("changed rescan = %v, want the dropped CVE-B and the new CVE-C", got)
 	}
-	// A revived row: tombstone CVE-A's row, then derive it again. The read lists
-	// active rows only, so the revived row looks new and counts as changed.
-	// The tombstone bypasses the writer, so it must also remove the
-	// tombstoned fact's support the way the retraction's
-	// DeleteRetractedImpactSupports does: a stale support carries the old
-	// digest and would mask the revive as unchanged.
-	if _, err := db.ExecContext(ctx, `UPDATE fact_records SET is_tombstone = TRUE WHERE scope_id = 'source' AND generation_id = $1 AND payload->>'cve_id' = 'CVE-A'`, fanOutGen("source", "g2")); err != nil {
+	// A revived row: delete CVE-A's support, then derive it again. Supports
+	// hold only live rows, so the revived row looks new and counts as
+	// changed, the way a tombstoned fact row did. (The tombstone UPDATE this
+	// replaces would fire migration 358's reject trigger on an armed
+	// database.)
+	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE scope_id = 'source' AND generation_id = $1 AND cve_id = 'CVE-A'`, fanOutGen("source", "g2")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports AS supports

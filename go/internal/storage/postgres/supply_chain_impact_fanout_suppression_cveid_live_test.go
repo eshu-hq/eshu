@@ -137,13 +137,14 @@ func seedSupOperatorCVEID(t *testing.T, c *convergence) string {
 	return gen
 }
 
-// supCopies returns each scope's active finding suppression state for the CVE.
+// supCopies returns each scope's active finding suppression state for the
+// CVE, read from the supports table the writer maintains (#10880 PR-C2).
 func supCopies(t *testing.T, c *convergence) map[string]string {
 	t.Helper()
 	rows, err := c.db.QueryContext(c.ctx, `
-SELECT f.scope_id, COALESCE(f.payload->>'suppression_state','') FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone AND f.payload->>'cve_id' = $1`, supCVEID)
+SELECT s.scope_id, s.suppression_state FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.cve_id = $1`, supCVEID)
 	if err != nil {
 		t.Fatalf("read copies: %v", err)
 	}
@@ -166,10 +167,9 @@ func supAdvisory(t *testing.T, c *convergence) string {
 	t.Helper()
 	var advisory string
 	if err := c.db.QueryRowContext(c.ctx, `
-SELECT f.payload->>'advisory_id' FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
-  AND f.scope_id = $1 AND f.payload->>'cve_id' = $2`, supHolder, supCVEID).Scan(&advisory); err != nil {
+SELECT s.advisory_id FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1 AND s.cve_id = $2`, supHolder, supCVEID).Scan(&advisory); err != nil {
 		t.Fatalf("read holder advisory: %v", err)
 	}
 	return advisory
@@ -179,9 +179,9 @@ func countSupOperatorRows(t *testing.T, c *convergence) int {
 	t.Helper()
 	var n int
 	if err := c.db.QueryRowContext(c.ctx, `
-SELECT count(*) FROM fact_records f
-JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone AND f.scope_id = $1`, supOpScope).Scan(&n); err != nil {
+SELECT count(*) FROM supply_chain_impact_finding_supports s
+JOIN ingestion_scopes sc ON sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
+WHERE s.scope_id = $1`, supOpScope).Scan(&n); err != nil {
 		t.Fatalf("count operator rows: %v", err)
 	}
 	return n

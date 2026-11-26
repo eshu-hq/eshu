@@ -52,7 +52,14 @@ var supplyChainImpactSupportsContractPins = map[int]string{
 	// covered statements differ from the C1 pin only by that two-key strip, and the
 	// stored payload and every derived column are unchanged, so no support row changes
 	// and no backfill is owed.
-	1: "6b89c4b096c58c65a649ff24e4dd90201b34d9ad9da00c585189c891eca10713",
+	//
+	// Re-pinned again, not bumped, when #10880 PR-C2 h appended the writer's
+	// in-memory upsert: the support rows for the same facts are unchanged, and
+	// TestSupportRowsUpsertDiffersFromFactDerivedOnlyInTheSource proves the
+	// appended statement differs from the fact-derived upsert only in the row
+	// source. Re-derived on the lane-E rebase onto main (which carries B3a's
+	// guard strip): the covered upserts are the guarded ones.
+	1: "562247bd8c5b9f2d4a22083b7d9a707818df86611ee8be2f87a96945a5cb45f3",
 }
 
 // supplyChainImpactSupportsContractStatements returns, in a fixed order, the
@@ -69,6 +76,10 @@ func supplyChainImpactSupportsContractStatements() []string {
 		supplyChainImpactSupportsBackfillCompleteSQL,
 		supplyChainImpactSupportsReadySQL,
 		setSupplyChainImpactSupportsWriterSQL,
+		// Appended by #10880 PR-C2 h: the writer's in-memory upsert. It derives the same
+		// rows as the first statement from the rows the writer holds instead of from the
+		// fact rows, which TestSupportRowsUpsertDiffersFromFactDerivedOnlyInTheSource proves.
+		upsertSupplyChainImpactSupportRowsSQL,
 	}
 }
 

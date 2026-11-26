@@ -127,7 +127,12 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 // floor -- and answers the producer-quiescence probe with a registered scope
 // that has NOT finished publishing.
 func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact(t *testing.T) {
-	t.Parallel()
+	// Not parallel: this test executes a supply_chain_impact intent through
+	// the entry gate, which reads the reject-trigger state through the
+	// process-global write-stop watch. The reset below binds that watch to
+	// this test's fake; running parallel with another service builder would
+	// rebind it mid-test and read pg_trigger through the wrong fake.
+	resetFactWriteStopWatchForTest()
 
 	database := &supplyChainReadinessWiringDB{}
 	logged := &bytes.Buffer{}

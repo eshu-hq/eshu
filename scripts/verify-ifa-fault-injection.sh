@@ -488,6 +488,8 @@ ifa_fault_shard_run cell_failgraphwrite_uses_service_account
 ifa_fault_shard_run cell_baseline_advisory_group
 ifa_fault_shard_run cell_killworker_advisory_group
 ifa_fault_shard_run cell_failgraphwrite_advisory_group
+# supply_chain_impact (#10880 PR-C2): one fault-free Postgres-digest cell, trigger armed.
+ifa_fault_shard_run cell_impact_family
 
 log "PASS: fault-injection matrix green (project ${FAULT_COMPOSE_PROJECT}, postgres:${ESHU_POSTGRES_PORT}, neo4j-bolt:${NEO4J_BOLT_PORT})"
 for cell in "${!digests[@]}"; do

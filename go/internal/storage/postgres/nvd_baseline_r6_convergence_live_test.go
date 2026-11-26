@@ -96,13 +96,19 @@ type r6BaselineRow struct {
 }
 
 // r6Snapshot reads the whole committed row set of the chunk: every
-// non-tombstone fact row of the generation in kind/key order.
+// non-tombstone fact row of the generation plus one row per derived finding
+// from the supports table (since PR-C2 the writer stores findings as supports
+// only), in kind/key order.
 func r6Snapshot(t *testing.T, ctx context.Context, db *sql.DB, generation string) []r6BaselineRow {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `
 SELECT fact_kind, stable_fact_key, payload::text FROM fact_records
 WHERE scope_id = $1 AND generation_id = $2 AND NOT is_tombstone
-ORDER BY fact_kind, stable_fact_key`, r6BaselineScope, generation)
+UNION ALL
+SELECT '`+facts.ReducerSupplyChainImpactFindingFactKind+` AS fact_kind, fact_id AS stable_fact_key, payload::text
+FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2
+ORDER BY 1, 2`, r6BaselineScope, generation)
 	if err != nil {
 		t.Fatalf("read chunk rows: %v", err)
 	}
@@ -270,10 +276,11 @@ func TestNVDBaselineTwoPassesConvergeToOneRowSetLive(t *testing.T) {
 			t.Fatalf("pass 1 kind %s = %d rows, want %d (one per record)", kind, kinds[kind], r6BaselineCVECount)
 		}
 	}
+	// The writer stores derived findings as supports only, so the finding
+	// count reads the supports table, not the frozen fact rows.
 	findings := func() int {
-		return r6Count(t, ctx, db, `SELECT count(*) FROM fact_records
-WHERE scope_id = $1 AND generation_id = $2 AND NOT is_tombstone AND fact_kind = $3`,
-			r6BaselineScope, generation, facts.ReducerSupplyChainImpactFindingFactKind)
+		return r6Count(t, ctx, db, `SELECT count(*) FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2`, r6BaselineScope, generation)
 	}
 	if got := findings(); got != r6BaselineCVECount {
 		t.Fatalf("pass 1 findings = %d, want %d (one per record)", got, r6BaselineCVECount)
