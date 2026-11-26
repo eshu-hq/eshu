@@ -34,7 +34,8 @@ gates:
       - "scripts/lib/gate-diff-base.sh"
     local:
       command: "bash scripts/verify-telemetry-coverage.sh"
-      pre_push: floor
+      pre_push: deferred
+      pre_push_reason: "Measured across 56 local pre-push runs (p50 117s, 6,689s total): still runs via the go-telemetry-coverage pre-push hook, make pre-pr, and blocks merge via static-contract-gates.yml."
       test_command: "bash scripts/test-verify-telemetry-coverage.sh"
     ci:
       workflow: static-contract-gates.yml

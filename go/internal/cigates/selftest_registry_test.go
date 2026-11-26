@@ -65,6 +65,22 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 			"scripts/test-context-stories-doc-split.sh",
 			"scripts/test-context-stories-markdown-visible.sh",
 		},
+		"filename-stutter": {
+			"scripts/verify-filename-stutter.sh",
+			"scripts/test-verify-filename-stutter.sh",
+		},
+		"fips-md5-sql-sweep": {
+			"go/internal/storage/postgres/md5_sql_sweep_test.go",
+		},
+		"evidence-hygiene": {
+			"scripts/verify-evidence-hygiene.sh",
+			"scripts/test-verify-evidence-hygiene.sh",
+			"scripts/lib/gate-diff-base.sh",
+		},
+		"perf-evidence": {
+			"scripts/verify-performance-evidence.sh",
+			"scripts/test-verify-performance-evidence.sh",
+		},
 	}
 	goalHookCases, err := filepath.Glob(filepath.Join(repoRoot, "scripts", "test-goal-*cases*.sh"))
 	if err != nil {
@@ -111,6 +127,30 @@ func TestCommittedRegistryProductInputsSkipDistinctSelfTests(t *testing.T) {
 			"specs/product-claims.v1.yaml",
 			"AGENTS.md",
 			"README.md",
+		},
+		"filename-stutter": {
+			"go/internal/runtime/service.go",
+		},
+		"no-diff-fragments": {
+			"go/internal/runtime/service.go",
+		},
+		"scope-prefix-single-source": {
+			"go/internal/runtime/service.go",
+		},
+		"fips-md5-sql-sweep": {
+			"go/internal/runtime/service.go",
+		},
+		"index-key-guard-sweep": {
+			"go/internal/reducer/service.go",
+		},
+		"hot-cypher-source-coverage": {
+			"go/internal/query/service.go",
+		},
+		"evidence-hygiene": {
+			"docs/internal/evidence/note.md",
+		},
+		"perf-evidence": {
+			"go/internal/reducer/service.go",
 		},
 	}
 
