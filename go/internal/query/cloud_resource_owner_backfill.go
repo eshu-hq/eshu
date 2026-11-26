@@ -70,9 +70,9 @@ const cloudResourceOwnerBackfillProjection = `
 // over 150k nodes against the 10s graph-read deadline, #6842), while the
 // fenced page was served from Eshu's nornicdb_cloud_resource_uid_lookup index
 // in well under a second on the pre-1.5 backend (that separate index retired
-// in #11535; on 1.5.x the cloud_resource_uid_unique constraint carries its
-// own backing index, and the fenced page plan is re-measured by
-// TestCloudResourceOwnerBackfillerFirstPageMeetsDeadlineAtScale). The fence excludes a
+// in #11535; on 1.5.x the cloud_resource_uid_unique backing index serves
+// equality lookups while the fenced range page label-scans — measured
+// 2026-11-26 over 150k nodes, see the scale test). The fence excludes a
 // node whose uid is not a non-empty string (null, empty, or a non-string
 // value compares as null); the ledger cannot key such a node and it used to
 // abort startup as an unattributable row, and every production CloudResource
