@@ -48,10 +48,10 @@ const Branches = `
                         "type": "object",
                         "description": "One branch entry. Owner: readmodel.RefWindowEntries.",
                         "properties": {
-                          "name": {"type": "string", "description": "Branch name emitted by readmodel.RefWindowEntries (empty only on the legacy single-commit fallback)."},
-                          "kind": {"type": "string", "description": "Ref kind emitted by readmodel.RefWindowEntries (branch)."},
+                          "name": {"type": "string", "description": "Branch name emitted by readmodel.RefWindowEntries. On the legacy single-commit fallback the entry carries only name (empty) and head_sha, so it does not satisfy the item required fields; clients must not assume kind and is_default are present on that fallback."},
+                          "kind": {"type": "string", "description": "Ref kind emitted by readmodel.RefWindowEntries (branch; absent on the legacy single-commit fallback)."},
                           "head_sha": {"type": "string", "description": "Head commit SHA emitted by readmodel.RefWindowEntries (the indexed commit on the legacy fallback)."},
-                          "is_default": {"type": "boolean", "description": "Whether this branch is the default, emitted by readmodel.RefWindowEntries."},
+                          "is_default": {"type": "boolean", "description": "Whether this branch is the default, emitted by readmodel.RefWindowEntries (absent on the legacy single-commit fallback)."},
                           "observed_at": {"type": "string", "format": "date-time", "description": "Ingestion observation time emitted by readmodel.RefWindowEntries."},
                           "last_indexed_at": {"type": "string", "format": "date-time", "description": "Last content index time emitted by readmodel.RefWindowEntries."}
                         },
@@ -93,6 +93,7 @@ const Branches = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

@@ -80,6 +80,7 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -133,6 +134,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -146,6 +148,7 @@ const Routes = `
         "x-scoped-token-support": true,
         "responses": {
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -229,6 +232,8 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "422": {"description": "Scope too broad: the repo-scoped graph summary exceeds the internal edge scan limit"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}

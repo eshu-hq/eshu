@@ -40,8 +40,8 @@ const AdvisoryCatalog = `
                           "canonical_id": {"type": "string", "description": "Canonical advisory id emitted by listAdvisoryCatalog (advisory.CatalogRow.CanonicalID)."},
                           "cve_id": {"type": "string", "description": "CVE id emitted by listAdvisoryCatalog (advisory.CatalogRow.CVEID); absent when the advisory has none."},
                           "ghsa_id": {"type": "string", "description": "GHSA id emitted by listAdvisoryCatalog (advisory.CatalogRow.GHSAID); absent when the advisory has none."},
-                          "severity_label": {"type": "string", "description": "Canonical severity label emitted by listAdvisoryCatalog (advisory.CatalogRow.SeverityLabel)."},
-                          "cvss_score": {"type": "number", "description": "Catalog CVSS score emitted by listAdvisoryCatalog (advisory.CatalogRow.CVSSScore); the keyset cursor ordering key."},
+                          "severity_label": {"type": "string", "description": "Canonical severity label emitted by listAdvisoryCatalog (advisory.CatalogRow.SeverityLabel); absent when the source facts carry no severity."},
+                          "cvss_score": {"type": "number", "description": "Catalog CVSS score emitted by listAdvisoryCatalog (advisory.CatalogRow.CVSSScore); the keyset cursor ordering key. Absent when the source facts carry no CVSS score."},
                           "kev": {"type": "boolean", "description": "Whether the advisory is present in the CISA KEV catalog, emitted by listAdvisoryCatalog (advisory.CatalogRow.KEV)."},
                           "ecosystems": {"type": "array", "items": {"type": "string"}, "description": "Affected-package ecosystems emitted by listAdvisoryCatalog (advisory.CatalogRow.Ecosystems)."},
                           "package_ids": {"type": "array", "items": {"type": "string"}, "description": "Affected package ids emitted by listAdvisoryCatalog (advisory.CatalogRow.PackageIDs)."},
@@ -72,7 +72,8 @@ const AdvisoryCatalog = `
           },
           "400": {"description": "Missing limit, invalid kev flag, or incomplete cursor"},
           "501": {"description": "Capability unsupported for the active profile"},
-          "503": {"description": "Postgres source fact read model unavailable"}
+          "503": {"description": "Postgres source fact read model unavailable"},
+          "500": {"description": "Advisory catalog read failed"}
         }
       }
     },

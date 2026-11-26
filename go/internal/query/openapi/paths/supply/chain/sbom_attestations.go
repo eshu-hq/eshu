@@ -11,6 +11,7 @@ const SBOMAttestations = `
     "/api/v0/supply-chain/sbom-attestations/attachments": {
       "get": {
         "summary": "List SBOM and attestation attachments",
+        "description": "Lists reducer-owned SBOM and attestation attachment rows. At least one anchor (subject_digest, document_id, document_digest, repository_id, workload_id, or service_id) is required; a request with none returns 400.",
         "operationId": "listSBOMAttestationAttachments",
         "x-scoped-token-support": true,
         "parameters": [
@@ -27,7 +28,10 @@ const SBOMAttestations = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

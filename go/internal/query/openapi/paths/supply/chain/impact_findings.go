@@ -7,6 +7,7 @@ const impactFindings = `
     "/api/v0/supply-chain/impact/findings": {
       "get": {
         "summary": "List supply-chain impact findings",
+        "description": "Lists reducer-owned supply-chain impact finding rows with readiness coverage. At least one anchor (cve_id, advisory_id, package_id, repository_id, subject_digest, image_ref, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score above 0) is required; a request with none returns 400.",
         "operationId": "listSupplyChainImpactFindings",
         "x-scoped-token-support": true,
         "parameters": [
@@ -34,7 +35,10 @@ const impactFindings = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

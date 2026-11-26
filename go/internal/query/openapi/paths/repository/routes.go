@@ -295,7 +295,7 @@ const Routes = `
                           "name": {"type": "string", "description": "Entry name emitted by the repository tree handler from the file index."},
                           "type": {"type": "string", "enum": ["dir", "file"], "description": "Entry kind emitted by the repository tree handler from the file index."},
                           "path": {"type": "string", "description": "Repository-relative entry path emitted by the repository tree handler from the file index."},
-                          "size": {"type": "integer", "description": "File byte length emitted by the repository tree handler from the file index (zero for directories)."},
+                          "size": {"type": "integer", "description": "File byte length emitted by the repository tree handler from the file index (present on files with a positive line count only; omitted on directories and on files with no indexed lines)."},
                           "language": {"type": "string", "description": "Entry language emitted by the repository tree handler from the file index (present when known)."},
                           "child_count": {"type": "integer", "description": "Descendant file count for a directory, emitted by the repository tree handler from the file index (present on directories only)."}
                         },
