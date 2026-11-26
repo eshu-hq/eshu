@@ -257,6 +257,18 @@ require_invocation() {
 	fail "ambiguous ${label}: ${homes} unindented calls to ${fn}(); the invariant wants exactly one"
 }
 
+# #11513 backend-split query shell: the orchestrator delegates the shell to
+# an extracted lib and never builds/starts the eshu-api identity inline.
+# Sourced here (not with the earlier chunks) because these cases use the
+# mirror-local require/require_invocation helpers defined just above.
+query_shell_cases_lib="${repo_root}/scripts/lib/golden-corpus-query-shell-cases.sh"
+[[ -f "${query_shell_cases_lib}" ]] || fail "missing query shell cases lib: ${query_shell_cases_lib}"
+bash -n "${query_shell_cases_lib}" || fail "golden-corpus-query-shell-cases.sh has a syntax error"
+# shellcheck source=scripts/lib/golden-corpus-query-shell-cases.sh
+. "${query_shell_cases_lib}"
+[[ "${query_shell_cases_completed:-0}" -eq 1 ]] ||
+	fail "golden-corpus-query-shell-cases.sh did not run to completion (gutted, or returned early)"
+
 # Strict mode and self-cleanup.
 require "strict mode" "set -euo pipefail"
 require "exit trap" "trap cleanup EXIT"

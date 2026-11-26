@@ -249,6 +249,9 @@ mkdir -p "${ESHU_REPOS_DIR}"
 # start_bg, pg) to keep this orchestrator under the 500-line cap.
 # shellcheck source=scripts/lib/golden-corpus-host-helpers.sh
 . "${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
+# #11513 backend-split query shell (build_query_shell/start_query_shell).
+# shellcheck source=scripts/lib/golden-corpus-query-shell.sh
+. "${repo_root}/scripts/lib/golden-corpus-query-shell.sh"
 
 # ----------------------------------------------------------------------------
 log "stage minimal corpus (${#corpus_fixtures[@]} repos)"
@@ -263,7 +266,7 @@ log "build host binaries"
 build_bin bootstrap-index
 build_bin projector
 build_bin reducer
-build_bin api
+build_query_shell
 build_bin mcp-server
 build_bin golden-corpus-gate; build_bin ifa # ifa: #10880 PR-C2 winners resweep (impact-digest -resweep) before query truth
 build_bin eshu; build_bin collector-git # collector-git: #10022 delta-reader leg
@@ -374,14 +377,11 @@ golden_aggregate_counts_oracle="${log_dir}/persisted-aggregate-counts.json"
 	die "persisted aggregate-count oracle failed"
 golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"
 
-# #11453 decision 4 (record-why, not a repoint): the in-tree ./cmd/api stays
-# the query-truth shell for the default NornicDB leg. The gate proves
-# reducer/graph/handler truth and the in-tree shell mounts core's handlers;
-# relay fidelity to the satellite is proven by the parity and latency legs.
-# Repointing this start is a #11456 removal blocker (see build_bin).
-log "start eshu-api for query truth"
+# #11513 (refs #11456/#11467/#11514): core-api on Neo4j, eshu-local-api on
+# NornicDB; either serves GATE_API_PORT, so the MCP core-base-url is unchanged.
 golden_metrics_source_start
 golden_ask_source_start
+# Resweep (#10880) plus backend-split query shell (#11513).
 start_api_with_winners_resweep
 
 log "B-7 suppression producer truth: B-expired -> hidden -> A-expired"
@@ -394,7 +394,7 @@ log "B-7 suppression producer truth: B-expired -> hidden -> A-expired"
 # ~23s figure quoted around this change is an illustrative local reading, not
 # a captured measurement; see docs/internal/evidence/5837-aws-drift-reopen.md,
 # "Golden-gate phase-timing note". Bracket it so the phase keeps measuring what the
-# baseline note says it measures: eshu-api + eshu-mcp-server startup. Move these
+# baseline note says it measures: query-truth shell + eshu-mcp-server startup. Move these
 # stamps if the proof moves; do not delete them to "fix" a timing warning.
 phase_graph_query_excluded_starts+=("$(date +%s)")
 golden_suppression_verify_producer_truth
