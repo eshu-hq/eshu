@@ -1,6 +1,0 @@
-RESULT cve CVE-HOT (20% of the table)           V list                   median      96.4 p95     136.3 max     136.3 ms (n=8)
-RESULT cve CVE-HOT (20% of the table)           V count                  median      70.1 p95      80.3 max      80.3 ms (n=8)
-RESULT cve CVE-HOT (20% of the table)           V inventory status       median      68.7 p95      79.4 max      79.4 ms (n=8)
-RESULT no selector (precise)                    V list                   median     246.6 p95     255.2 max     255.2 ms (n=8)
-RESULT no selector (precise)                    V count                  median     243.4 p95     248.9 max     248.9 ms (n=8)
-RESULT no selector (precise)                    V inventory status       median     232.5 p95     234.6 max     234.6 ms (n=8)

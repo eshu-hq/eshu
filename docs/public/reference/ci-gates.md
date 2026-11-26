@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (49 gates)
+### Hygiene: Is the change well-formed? (50 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -88,6 +88,7 @@ results are derived from the inputs rather than written by hand. See
 - `docker-image-promotion` (advisory): Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish.
 - `cgo-cflags-guard` (blocking): Fails when a Go workflow, CGO_ENABLED=1 go script, or developer entrypoint lacks CGO_CFLAGS -std=gnu17, which keeps the perl grammar building on GCC 15 (#9066).
 - `nornicdb-ci-off` (blocking): Fails when a live CI job starts NornicDB, directly or via a script or composite action, or a disabled job keeps a blocking registry row (owner order, #7331).
+- `evidence-hygiene` (blocking): Keeps docs/internal/evidence/ free of raw dumps and enforces a plain-English summary and 150-line cap on new notes.
 - `root-cause-evidence` (advisory): Advisory local scan checking that any documented root-cause claim also records the observation that established it.
 - `codex-goal-continuation` (blocking): Exercises Codex Stop-hook error continuation and per-session goal progress handling.
 
@@ -308,6 +309,7 @@ results are derived from the inputs rather than written by hand. See
 | `docker-publish` | Docker image publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 4 path(s): go/**, Dockerfile, docker/satellites/**, … |
 | `satellite-gates` | Satellite digest gates hold for every satellite x arch | exactness | ci-heavy | true | — (CI-only: multi-arch image builds (including emulated whisper builds) run CI-only; the pins and floors are proven locally by the digest-gate builds and floor audits before merge) | docker-publish.yml / verify-satellite-gates | 7 path(s): docker/satellites/ocr/Dockerfile, docker/satellites/transcription/Dockerfile, docker/satellites/README.md, … |
 | `macos-build` | macOS build verification (nightly) | build | ci-heavy | false | — (CI-only: requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~30 macOS-min/day for the single nightly run)) | macos.yml / macos | 2 path(s): go/**, scripts/ci/go-mod-download-retry.sh |
+| `evidence-hygiene` | Internal evidence folder hygiene (Markdown-only, concise, no local links) | exactness | pre-commit | true | `bash scripts/verify-evidence-hygiene.sh`<br>then self-test: `bash scripts/test-verify-evidence-hygiene.sh` | test.yml / docs-helm-hygiene | 4 path(s): docs/internal/evidence/**, scripts/verify-evidence-hygiene.sh, scripts/test-verify-evidence-hygiene.sh, … |
 | `root-cause-evidence` | Root-cause claims carry observed evidence | exactness | pre-pr | false | `bash scripts/verify-root-cause-evidence.sh`<br>then self-test: `bash scripts/test-verify-root-cause-evidence.sh` | — | 7 path(s): docs/internal/evidence/**, scripts/verify-root-cause-evidence.sh, scripts/test-verify-root-cause-evidence.sh, … |
 | `perf-evidence` | Hot-path performance evidence | telemetry | pre-push | true | `bash scripts/dev/precommit-go.sh perf-evidence`<br>then self-test: `bash scripts/test-verify-performance-evidence.sh` | test.yml / verify-contracts | 23 path(s): go/cmd/reducer/**, go/internal/storage/**, go/internal/reducer/**, … |
 | `product-claim-ledger` | Product Claim Ledger (deterministic verify) | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode product-claims` | product-claim-ledger.yml / Verify product claim ledger | 5 path(s): specs/product-claims.v1.yaml, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml, … |

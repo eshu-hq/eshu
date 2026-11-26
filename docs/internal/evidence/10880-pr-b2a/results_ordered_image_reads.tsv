@@ -1,8 +1,0 @@
-# jit=on shared_buffers=2GB work_mem=16MB
-read	median_ms	max_ms	rows	note
-image_count_hot	1533.979	2193.492	5	warm-up 9718.216 ms
-image_count_typical	14.878	18.588	5	warm-up 511.200 ms
-image_inventory_hot	1191.643	1316.145	6	warm-up 875.138 ms
-image_inventory_typical	18.976	20.861	6	warm-up 13.126 ms
-image_list_hot	1144.624	1285.312	0	warm-up 1521.638 ms
-image_list_typical	8.933	9.730	0	warm-up 7.266 ms

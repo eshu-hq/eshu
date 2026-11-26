@@ -1,2 +1,0 @@
-ERROR:  canceling statement due to statement timeout
-ERROR:  current transaction is aborted, commands ignored until end of transaction block

@@ -586,17 +586,16 @@ fi
   for file in "${hot_files[@]}"; do
     printf '  - %s\n' "$file"
   done
-  printf '\nAdd a tracked docs/ADR/package note changed in this PR with a benchmark marker:\n'
+  printf '\nUpdate the owning package doc (go/internal/<pkg>/README.md), an ADR, or a workflow-artifact ref\n'
+  printf 'with a benchmark marker (do not dump raw logs into docs/internal/evidence/):\n'
   printf '  - Performance Evidence:\n'
   printf '  - Benchmark Evidence:\n'
   printf '  - No-Regression Evidence:\n'
   printf '\nAlso include an observability marker:\n'
   printf '  - Observability Evidence:\n'
   printf '  - No-Observability-Change:\n'
-  printf '\nThe note must name the baseline, after measurement, backend/version, input shape,\n'
-  printf 'terminal queue or row counts, telemetry/log/status evidence, and why the change\n'
-  printf 'is safe. PR text alone is not enough because future agents need the evidence\n'
-  printf 'in the repo.\n'
+  printf '\nState the baseline, after measurement, backend/version, input shape, and why\n'
+  printf 'the change is safe. See docs/internal/evidence/README.md for evidence hygiene.\n'
   perf_print_artifact_hint
   printf '\nThis gate is content-based as well as path-based, so new collectors that add\n'
   printf 'Cypher, worker claims, leases, batching, concurrency knobs, or runtime\n'

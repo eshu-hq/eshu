@@ -1,6 +1,0 @@
-# #10880 PR-B2c many-small-repository call through GetSupplyChainAdvisoriesForRepos, raw `go test -v` output.
-# TestSupplyChainAdvisoriesForReposManySmallRepositoriesLive: 200 repositories with 5 supports each, disposable PostgreSQL 18.6, fresh
-# bootstrap database; one readiness statement plus one page statement per repository id.
-    supply_chain_impact_supports_many_repositories_live_test.go:66: 200 repositories x 5 supports: 201 statements, 98ms wall time (0.49 ms a repository)
---- PASS: TestSupplyChainAdvisoriesForReposManySmallRepositoriesLive (3.45s)
-ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	3.492s

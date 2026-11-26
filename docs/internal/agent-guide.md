@@ -164,19 +164,15 @@ one observability marker:
 - `Observability Evidence:`
 - `No-Observability-Change:`
 
-PR text alone is not proof. Review acceptance requires the exact command, run,
-or measurement that proves the changed behavior.
+PR text alone is not proof; review requires the exact command or measurement.
+Prefer updating the owning package doc, an ADR, or a `workflow-artifact:` ref
+over creating new files in `docs/internal/evidence/` (see
+`docs/internal/evidence/README.md`; never commit raw `.txt`/`.sql` dumps).
 
-The five evidence markers above are the per-PR audit trail. The
-**telemetry discipline** — the X1 contract doc, X2 verifier, X3 CI gate,
-and X4 operator dashboard — is the machine-enforced link between the
-markers and a runnable signal. See
-[`docs/internal/telemetry-discipline-precedent.md`](telemetry-discipline-precedent.md)
-for the failure class the discipline prevents, the historical incidents
-(#3633 and earlier), and the contributor runbook for adding a new
-`eshu_dp_*` metric or a new pipeline stage. The CHANGELOG entry under
-"Unreleased" summarizes the four artifacts and the cross-link to the
-historical incidents.
+The five evidence markers above are the per-PR audit trail. Telemetry discipline
+(X1 doc, X2 verifier, X3 CI gate, X4 dashboard) links markers to runnable
+signals; see [`docs/internal/telemetry-discipline-precedent.md`](telemetry-discipline-precedent.md)
+for precedent (#3633) and the runbook for adding `eshu_dp_*` metrics or stages.
 
 ### Prove The Theory First
 

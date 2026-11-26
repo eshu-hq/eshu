@@ -1,4 +1,0 @@
-read	jit_on_median_ms	jit_off_median_ms	off_vs_on
-v_list_status_pruned	1199.459	557.955	-53.5%
-v_count_status_pruned	1435.656	1003.531	-30.1%
-v_count_none_pruned	1234.703	701.341	-43.2%

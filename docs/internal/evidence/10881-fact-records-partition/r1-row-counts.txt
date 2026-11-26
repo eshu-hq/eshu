@@ -1,9 +1,0 @@
-# Rows loaded per R1 database (load_pieces.sh output, load_r1.out); pieceC = non-giant sample, pieceB = giant scope (1,110,435 rows)
-load pieceC into div0: rows_in_db=960732 seconds=407.4
-load pieceC into und0: rows_in_db=960732 seconds=613.5
-load pieceB into und1: rows_in_db=1110435 seconds=356.6
-load pieceB into div1: rows_in_db=1110435 seconds=355.0
-load pieceC into div1: rows_in_db=2071167 seconds=329.9
-load pieceC into und1: rows_in_db=2071167 seconds=534.5
-# The first S1 load (migration, plans, first removal row) was 2,053,440 rows from a pull two hours earlier; the R1 reload is larger
-# because live ingestion added rows to the same scopes in between. All four R1 cells removed the same 389,603 rows.

@@ -30,13 +30,11 @@ whose sole committed evidence is a lower-tier test.
 
 Committed validation evidence lives in:
 
-- `docs/internal/evidence/*.md` — per-issue validation records, including live
-  NornicDB Bolt-driver before/after validations of query/graph truth.
-- `docs/internal/evidence/<issue>-<slice>/*.txt` — the raw run indexes, EXPLAIN plans
-  and timing transcripts a per-issue evidence note under `docs/internal/evidence/`
-  cites (for example `10880-prc-c1f-replica/`, the QA replica baseline and plans
-  for the ungranted explain). A timing or plan claim in such a note rests on these
-  files, not on a path under a user's cache.
+- `docs/internal/evidence/*.md` — concise, plain-English validation summaries
+  (see `docs/internal/evidence/README.md`). Never commit raw `.txt`/`.sql`/`.tsv`
+  run dumps or `*-raw/` directories here; raw EXPLAIN plans and timing logs
+  belong in untracked local scratch during review or in GitHub Actions workflow
+  artifacts.
 - `docs/internal/remote-validation/<slug>.md` — production-validation artifacts
   for capability-matrix `remote_validation` proof-IDs (#5407 gate).
 - `go/internal/**/*_test.go` (e.g. `internal/query`, `internal/mcp`) — the
