@@ -48,8 +48,10 @@ func openCappedScopeLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	if err := postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, postgres.SQLDB{DB: db}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
-	// The capped-scope proofs plant finding facts with raw SQL; whole-test disarm (allowlisted).
-	postgresproof.DisarmFindingWriteStopForTest(t, db)
+	// The capped-scope proof plants one frozen finding fact below, so it runs
+	// in a scoped postgresproof.SeedFindingFacts window: the proof database
+	// stays armed and the handler pass under test runs armed. The
+	// os_package and intel seeds are other kinds, so they need no window.
 	replaceSetSeedScope(t, ctx, db)
 	return ctx, db
 }
@@ -223,10 +225,13 @@ func TestSupplyChainImpactCappedScopeConvergesLive(t *testing.T) {
 	// The stale row: an earlier pass's finding the current evidence no longer
 	// derives. Same (scope, generation, kind) as the pass under test. The
 	// writer maintains supports, not finding facts (#10880 PR-C2), so the
-	// proof syncs the planted fact to its support afterwards: the stale
-	// support is what the pass under test must retire.
-	replaceSetPlantRow(t, ctx, db, "stale-finding:7154", replaceSetLiveScope, replaceSetLiveGeneration,
-		facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	// proof plants the frozen row in a scoped postgresproof.SeedFindingFacts
+	// window and syncs it to its support afterwards: the stale support is
+	// what the pass under test must retire.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		replaceSetPlantRow(t, ctx, db, "stale-finding:7154", replaceSetLiveScope, replaceSetLiveGeneration,
+			facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	})
 	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: db}); err != nil {
 		t.Fatalf("sync supports from the planted facts: %v", err)
 	}
