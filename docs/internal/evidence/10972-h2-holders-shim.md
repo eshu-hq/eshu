@@ -54,7 +54,7 @@ Warm n=5 statements per singleton set; A2 n=80 statements (5 reads x 16).
 | arm / set | warm exec ms (discard-cold first) | p95 | max | timeouts | verdict |
 |---|---|---|---|---|---|
 | A0 adv5 (5-in-one) | 6466, 6365, 5273, 6157, 7679 (discard-cold 6339; first touch observed >10s timeout, raw overwritten by protocol reruns) | 7679 | 7679 | 0 | FAIL |
-| A0 mixed (5-in-one) | 6/6 runs timeout; reference `SELECT` also exceeds 120s diagnostic timeout | — | >120s | 6 | FAIL |
+| A0 mixed (5-in-one) | 6/6 runs timeout (ledger:10972-h2-a0-mixed-timeouts); reference `SELECT` also exceeds 120s diagnostic timeout | — | >120s | 6 | FAIL |
 | A1 adv1..adv5 | ~1222–1321 each (colds 1579–1779) | 1276–1321 | 1276–1321 | 0 | PASS |
 | A1 cve (156,870) | 1237–1278 (cold 2817) | 1278 | 1278 | 0 | PASS |
 | A1 mix4 (42,388 direct-only) | 414–440 (cold 5761) | 440 | 440 | 0 | PASS |
