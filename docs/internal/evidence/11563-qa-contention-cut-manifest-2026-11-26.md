@@ -123,12 +123,11 @@ git worktree add <scratch worktree> origin/main
 kubectl -n eshu port-forward svc/eshu-postgresql-read 54399:5432
 # read-only DSN from the cluster secret (value never recorded)
 # harness (throwaway test file owned by this lane, deleted after the run;
-# only this manifest + the results note are kept)
-cd <scratch worktree>/go
-PGOPTIONS='-c statement_timeout=15000 -c default_transaction_read_only=on' \
-  ESHU_11563_QA_DSN="$READ_DSN" \
-  go test ./internal/storage/postgres/ -run TestH211563QAContentionCut \
-  -v -count=1 -timeout 20m
+# only this manifest + the results note are kept; the file no longer
+# exists, so this is a record, not a re-runnable command)
+# scored via the throwaway TestH211563QAContentionCut harness (verbose,
+# single count, 20 min timeout) against the read-only DSN above, with
+# 15 s statement timeout and read-only transactions on harness SQL
 ```
 
 ## 6. Time box

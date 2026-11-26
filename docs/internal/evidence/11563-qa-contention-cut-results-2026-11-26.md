@@ -61,7 +61,7 @@ signature of replica noise, not a lane effect.
    under this replica variance, not a systematic delta.
 3. Recommendation to the coordinator: disposition FAIL-P5 as band
    miscalibration (unpaired p95, ±15% too tight for n≈130 at CV≈20%),
-   and score any re-run on a paired-median bar (|median paired diff| ≤
+   and score any repeat run on a paired-median bar (|median paired diff| ≤
    100 ms) with the same P2/P3/P4/P6 guards. No code change is indicated:
    nothing in the lane split can move per-statement exec.
 
@@ -96,7 +96,7 @@ signature of replica noise, not a lane effect.
 - `git merge-base --is-ancestor f67e24903fc7501860388de7a59826e838313 origin/main` → exit 0.
 - Worktree `git worktree add …/eshu-wt-11563-qacut origin/main` → HEAD `d5fdb877e9` (H2 ancestor ✓).
 - `go vet ./internal/storage/postgres/` (worktree) → exit 0, final harness.
-- Scored: `go test ./internal/storage/postgres/ -run TestH211563QAContentionCut -v -count=1 -timeout 20m` → FAIL (P5 only, 688 s wall, exit 1). Raw per-statement log held 322 scored rows (scratch paths removed after the run; aggregates kept in this note).
+- Scored: the throwaway TestH211563QAContentionCut harness (verbose, single count, 20 min timeout) → FAIL (P5 only, 688 s wall, exit 1). Raw per-statement log held 322 scored rows (scratch paths removed after the run; aggregates kept in this note).
 - Replica identity each run: `pg_is_in_recovery()=true`, lag ≤ 0.2 s; lag re-checked every 8 rounds (no A3 trip).
 
 ## Cleanup
