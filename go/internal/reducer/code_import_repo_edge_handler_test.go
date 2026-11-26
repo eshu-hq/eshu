@@ -5,12 +5,16 @@ package reducer
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // stubCodeImportFactLoader serves the scope-local file facts and the cross-scope
@@ -318,4 +322,151 @@ func TestCodeImportRepoEdgeHandlerEmitsRefreshIntentWhenOwnerlessFullSnapshot(t 
 	if got := anyToString(row.Payload["repo_id"]); got != "consumer-repo" {
 		t.Errorf("repo_id = %q, want consumer-repo", got)
 	}
+}
+
+// spanCapturingTracer delegates to an SDK tracer while retaining every
+// started span so a test can inspect attributes mid-flight, before End.
+type spanCapturingTracer struct {
+	trace.Tracer
+	mu    sync.Mutex
+	spans []trace.Span
+}
+
+func (t *spanCapturingTracer) Start(
+	ctx context.Context,
+	name string,
+	opts ...trace.SpanStartOption,
+) (context.Context, trace.Span) {
+	ctx, span := t.Tracer.Start(ctx, name, opts...)
+	t.mu.Lock()
+	t.spans = append(t.spans, span)
+	t.mu.Unlock()
+	return ctx, span
+}
+
+func (t *spanCapturingTracer) latest() trace.Span {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.spans) == 0 {
+		return nil
+	}
+	return t.spans[len(t.spans)-1]
+}
+
+// hangingOwnershipLoader serves the scope-local file facts immediately and
+// blocks the cross-scope ownership load until ctx is done, simulating a hang
+// between the two loads (issue #11096).
+type hangingOwnershipLoader struct {
+	fileFacts []facts.Envelope
+	entered   chan struct{}
+	once      sync.Once
+}
+
+func (l *hangingOwnershipLoader) ListFacts(
+	context.Context,
+	string,
+	string,
+) ([]facts.Envelope, error) {
+	return l.fileFacts, nil
+}
+
+func (l *hangingOwnershipLoader) ListActivePackageOwnershipFacts(
+	ctx context.Context,
+) ([]facts.Envelope, error) {
+	l.once.Do(func() { close(l.entered) })
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// TestCodeImportRepoEdgeHandlerAttributesFileLoadBeforeOwnershipHang proves
+// the handler records the scope-local file-load span attribute as soon as the
+// file load finishes, so a hang in the cross-scope ownership load still leaves
+// the completed step attributed on the span (issue #11096).
+func TestCodeImportRepoEdgeHandlerAttributesFileLoadBeforeOwnershipHang(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
+	loader := &hangingOwnershipLoader{
+		fileFacts: []facts.Envelope{
+			makeCodeImportFileEnvelope("consumer-repo", "src/app.js", "javascript", []string{"express"}),
+		},
+		entered: make(chan struct{}),
+	}
+	provider := sdktrace.NewTracerProvider()
+	defer func() { _ = provider.Shutdown(context.Background()) }()
+	capturing := &spanCapturingTracer{Tracer: provider.Tracer("test")}
+	handler := CodeImportRepoEdgeHandler{
+		FactLoader:                 loader,
+		OwnershipLoader:            loader,
+		RepoDependencyIntentWriter: &recordingRepoDependencyIntentWriter{},
+		Tracer:                     capturing,
+		Now:                        func() time.Time { return observedAt },
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := handler.Handle(ctx, reducercontract.Intent{
+			IntentID:     "intent-hang",
+			ScopeID:      "git:consumer-repo",
+			GenerationID: "gen-1",
+			Domain:       DomainCodeImportRepoEdge,
+		})
+		done <- err
+	}()
+
+	select {
+	case <-loader.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ownership load did not start")
+	}
+
+	// The file load finished before the ownership load started; its span
+	// attribute must already be visible while the ownership load is hung.
+	const fileLoadKey = "eshu.reducer.code_import_repo_edge.file_load_ms"
+	found := false
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if spanHasAttribute(capturing.latest(), fileLoadKey) {
+			found = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// The ownership load must still be blocked: the handler must not have
+	// returned while the file-load attribute was observed.
+	select {
+	case err := <-done:
+		t.Fatalf("Handle() returned %v while the ownership load should still be hung", err)
+	default:
+	}
+	if !found {
+		t.Fatalf("span is missing %q while the ownership load hangs; the file-load cost is unattributed", fileLoadKey)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Handle() error = nil after the hung ownership load failed, want non-nil")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Handle() did not return after context cancel")
+	}
+}
+
+func spanHasAttribute(span trace.Span, key string) bool {
+	reader, ok := span.(interface {
+		Attributes() []attribute.KeyValue
+	})
+	if !ok || reader == nil {
+		return false
+	}
+	for _, kv := range reader.Attributes() {
+		if string(kv.Key) == key {
+			return true
+		}
+	}
+	return false
 }
