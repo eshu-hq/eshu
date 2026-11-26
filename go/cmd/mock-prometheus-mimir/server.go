@@ -15,7 +15,7 @@ const (
 	rangeEndpoint    = "/api/v1/query_range"
 	fixtureTenantID  = "golden-corpus"
 	fixtureStep      = "5m"
-	queueDepthPromQL = `sum(eshu_dp_queue_depth{status=~"pending|in_flight|retrying"})`
+	queueDepthPromQL = `max(eshu_dp_queue_depth{status=~"pending|in_flight|retrying"})`
 )
 
 type rangeResponse struct {

@@ -98,6 +98,50 @@ func TestPrometheusMetricExpressionsCoverSupportedMetrics(t *testing.T) {
 	}
 }
 
+func TestQueueDepthExpressionUsesMaxAggregation(t *testing.T) {
+	t.Parallel()
+
+	// eshu_dp_queue_depth is emitted identically by every reporter (ingester
+	// plus each reducer lane), so summing it multiplies the true depth by the
+	// reporter count (#11560). The trend API must collapse the reporter
+	// dimension with max(), matching the operator-dashboard panels.
+	const want = `max(eshu_dp_queue_depth{status=~"pending|in_flight|retrying"})`
+	if got := prometheusMetricExpressions["queue_depth"]; got != want {
+		t.Fatalf("queue_depth expression = %q, want %q", got, want)
+	}
+
+	var gotQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query().Get("query")
+		querycontract.WriteJSON(w, http.StatusOK, map[string]any{
+			"status": "success",
+			"data": map[string]any{
+				"resultType": "matrix",
+				"result":     []map[string]any{},
+			},
+		})
+	}))
+	defer server.Close()
+
+	source, err := NewPrometheusTimeSeriesSource(PrometheusTimeSeriesConfig{
+		BaseURL: server.URL,
+		Client:  server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewPrometheusTimeSeriesSource() error = %v, want nil", err)
+	}
+	if _, err := source.RangeQuery(context.Background(), RangeQuery{
+		Metric: "queue_depth",
+		Window: "1h",
+		Step:   "5m",
+	}); err != nil {
+		t.Fatalf("RangeQuery() error = %v, want nil", err)
+	}
+	if gotQuery != want {
+		t.Fatalf("queue_depth wire query = %q, want %q", gotQuery, want)
+	}
+}
+
 func TestPrometheusTimeSeriesSourceRejectsUnboundedRanges(t *testing.T) {
 	t.Parallel()
 
