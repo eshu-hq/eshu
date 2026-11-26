@@ -52,13 +52,20 @@ cat >"${work}/bin/docker" <<'STUB'
 set -euo pipefail
 echo "docker $*" >>"${STUB_DIR}/docker.log"
 digest=""
+prefer_index_false=0
 tags=()
 prev=""
 for a in "$@"; do
 	if [[ "${prev}" == "-t" ]]; then tags+=("${a}"); fi
+	[[ "${a}" == "--prefer-index=false" ]] && prefer_index_false=1
 	[[ "${a}" == *@sha256:* ]] && digest="${a##*@}"
 	prev="${a}"
 done
+if [[ "${SINGLE_ARCH_MANIFEST:-0}" == "1" && "${prefer_index_false}" != "1" ]]; then
+	# Real buildx imagetools create defaults to --prefer-index=true, which wraps
+	# a single-arch manifest in a new OCI index with a different digest.
+	digest="sha256:wrapped-${digest#sha256:}"
+fi
 if [[ "${RACE_LOSE_ONCE:-0}" == "1" && ! -f "${STUB_DIR}/raced" ]]; then
 	touch "${STUB_DIR}/raced"
 	digest="${RACE_DIGEST}"
@@ -290,6 +297,22 @@ for head_failure in 401 404 500 transport; do
  run_promote "refs/heads/main" 1
  check "main digest ${head_failure} cannot write tags" "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
 done
+
+# 13. Single-arch manifest (default workflow_dispatch platforms: linux/amd64,
+# provenance: false): imagetools create must pass --prefer-index=false so it
+# preserves the signed/attested manifest digest instead of wrapping in a new
+# unsigned OCI index whose digest fails promote_and_verify.
+fresh_case single-arch-main
+SINGLE_ARCH_MANIFEST=1 run_promote "refs/heads/main" 2
+check "single-arch main dispatch exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
+check "single-arch main dispatch passes --prefer-index=false" "$(rg -q -- '--prefer-index=false' "${STUB_DIR}/docker.log" && echo 0 || echo 1)"
+check "single-arch main dispatch preserves exact digest" "$(tag_is main "${D_MINE}" && tag_is latest "${D_MINE}" && echo 0 || echo 1)"
+
+fresh_case single-arch-branch
+SINGLE_ARCH_MANIFEST=1 run_promote "refs/heads/feature/x" 2
+check "single-arch branch dispatch exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
+check "single-arch branch dispatch passes --prefer-index=false" "$(rg -q -- '--prefer-index=false' "${STUB_DIR}/docker.log" && echo 0 || echo 1)"
+check "single-arch branch dispatch preserves exact digest" "$(tag_is feature-x "${D_MINE}" && echo 0 || echo 1)"
 
 printf 'test-promote-moving-tags: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" == "0" ]

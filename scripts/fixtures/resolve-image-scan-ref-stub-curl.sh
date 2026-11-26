@@ -17,12 +17,14 @@ minted="fixture-bearer-token"
 url=""
 head_mode=0
 bearer=""
+accept=""
 basic=0
 prev=""
 for a in "$@"; do
 	case "${a}" in
 	https://*) url="${a}" ;;
 	"Authorization: Bearer "*) bearer="${a#Authorization: Bearer }" ;;
+	"Accept: "*) accept="${a#Accept: }" ;;
 	-D) head_mode=1 ;;
 	esac
 	if [[ "${prev}" == "-u" ]]; then basic=1; fi
@@ -69,7 +71,12 @@ code=""
 if [ -n "${STUB_FORCE_CODE:-}" ]; then
 	code="${STUB_FORCE_CODE}"
 elif [ -f "${STUB_DIR}/tags/${tag}" ]; then
-	code="200"
+	stored_media="$(cat "${STUB_DIR}/tags/${tag}")"
+	if [[ "${stored_media}" == application/* && "${accept}" != *"${stored_media}"* ]]; then
+		code="404"
+	else
+		code="200"
+	fi
 else
 	code="404"
 fi

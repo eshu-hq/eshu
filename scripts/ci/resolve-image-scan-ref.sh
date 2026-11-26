@@ -39,7 +39,7 @@ fi
 
 tag="${ref##*:}"
 api="https://ghcr.io/v2/${repo}"
-manifest_accept='application/vnd.oci.image.index.v1+json'
+manifest_accept='application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json'
 
 # manifest_probe: prints the manifest response headers for a basic-auth
 # request, with the HTTP code on the last line. Fails when curl itself fails.

@@ -119,8 +119,12 @@ tag_revision() {
 
 # promote_and_verify: moves both tags to the digest in one command, then
 # re-reads both. Fails when either tag does not resolve to the digest.
+# --prefer-index=false preserves the exact signed/attested digest for both
+# multi-arch OCI indexes and single-arch image manifests (without it, buildx
+# wraps a single-arch manifest in a new unsigned OCI index with a new digest).
 promote_and_verify() {
 	docker buildx imagetools create \
+		--prefer-index=false \
 		-t "${image}:main" -t "${image}:latest" \
 		"${image}@${digest}" || return 1
 	local main_now="" latest_now=""
@@ -150,7 +154,7 @@ refs/heads/*)
 		exit 1
 	fi
 	echo "promote: dispatch on ${branch}; pushing branch tag unguarded"
-	docker buildx imagetools create -t "${image}:${tag}" "${image}@${digest}"
+	docker buildx imagetools create --prefer-index=false -t "${image}:${tag}" "${image}@${digest}"
 	exit $?
 	;;
 *)

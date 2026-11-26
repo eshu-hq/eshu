@@ -113,7 +113,7 @@ took 14 to 26 s when setup-go missed its cache. A warm `Set up Go` took 40 to
 82 s, most of it downloading a 1.8 GB entry that held the build cache again.
 
 Since #9462 every other `setup-go` step in `test.yml` (`pr-plan`,
-`merge-group-slim`, `verify-contracts`) sets `cache: false` too. They run on
+`dirgate`, `verify-contracts`) sets `cache: false` too. They run on
 the default `GOCACHE`, so they never shared the persisted directory — but each
 PR-scoped copy still counts against the 10 GB store whose evictions were
 emptying main's `gobuild-` entries. Each of those jobs already pre-warms its
