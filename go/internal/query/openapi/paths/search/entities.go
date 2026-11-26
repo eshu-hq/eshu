@@ -266,8 +266,13 @@ const Entities = `
                       "hostname_count": {"type": "integer", "description": "Hostname rows read; present only when hostnames were observed."},
                       "entrypoint_count": {"type": "integer", "description": "Entrypoint rows read; present only when entrypoints were observed."},
                       "network_path_count": {"type": "integer", "description": "Network-path rows read; present only when network paths were observed."},
-                      "api_surface": {"type": "object", "description": "API-surface counts without the endpoint rows; endpoints_shipped_at names where the rows ship.", "properties": {
-                        "endpoints_shipped_at": {"type": "string", "description": "Top-level key carrying the endpoint rows (api_surface.endpoints)."}
+                      "api_surface": {"type": "object", "description": "API-surface counts without the endpoint rows; endpoints_shipped_at names where the rows ship. The five normalized keys are always present; any other keys pass through from the workload context map.", "additionalProperties": true, "properties": {
+                        "endpoints_shipped_at": {"type": "string", "description": "Top-level key carrying the endpoint rows (api_surface.endpoints)."},
+                        "endpoint_count": {"type": "integer", "description": "Endpoint rows counted (context count, or rows shipped when absent)."},
+                        "method_count": {"type": "integer", "description": "Method count (context count, or 0 when absent)."},
+                        "spec_count": {"type": "integer", "description": "API spec count (context count, spec_files length, or spec_paths length)."},
+                        "endpoints": {"type": "array", "description": "Endpoint rows capped at the story item limit. Row shape follows evidence_detail: identity keys (id, path, methods) under handles, full rows under full.", "items": {"type": "object", "additionalProperties": true}},
+                        "truncated": {"type": "boolean", "description": "True when the endpoint rows were capped."}
                       }},
                       "dependent_count": {"type": "integer", "description": "Graph-derived dependent repositories; present only when dependents were observed."},
                       "consumer_repository_count": {"type": "integer", "description": "Consumer repositories; present only when consumers were observed."},

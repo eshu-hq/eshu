@@ -231,7 +231,6 @@ const components = `  "components": {
         "description": "Canonical bounded code-flow response. One of paths, definitions, functions, or summaries is populated depending on the operation. Each row carries a fact_label such as exact_parser_fact, derived_reducer_evidence, or partial_derived_summary.",
         "properties": {
           "kind": {"type": "string", "enum": ["taint_path", "reaching_def", "cfg_summary", "pdg_summary"]},
-          "scope": {"type": "object", "additionalProperties": true, "description": "Free-form object with no fixed keys: the code-flow read echoes no stable scope envelope (owner codequery/flow.go buildCodeFlowPayload emits only coverage, ambiguity, bounds, and one result family). Render as raw JSON, never as a fixed form."},
           "paths": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "definitions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "functions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},

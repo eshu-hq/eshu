@@ -24,7 +24,7 @@ const componentsEvidencePacket = `
             "backend": {"type": "string", "enum": ["neo4j", "nornicdb"], "description": "Active graph backend."},
             "basis": {"type": "string", "enum": ["deterministic", "semantic_augmented"], "description": "deterministic: built only from reducer-owned deterministic evidence. semantic_augmented: additionally carries labeled semantic observations."}
           }},
-          "truth": {"type": "object", "nullable": true, "description": "Truth envelope: level, capability, profile, basis, backend, freshness, reason, and omissions. omissions (absent when the response carries every section in full) lists {section, detail, total} for each section a route withheld (detail omitted) or reduced to identity handles (detail handles), such as trace-deployment-chain under evidence_detail handles or an explicit sections list."},
+          "truth": {"type": "object", "description": "Truth envelope: level, capability, profile, basis, backend, freshness, reason, and omissions. Absent (never null) when no truth applies. omissions (absent when the response carries every section in full) lists {section, detail, total} for each section a route withheld (detail omitted) or reduced to identity handles (detail handles), such as trace-deployment-chain under evidence_detail handles or an explicit sections list."},
           "freshness": {"type": "object", "description": "Top-level freshness label copied from the truth envelope for quick scanning. Owner: querycontract/packet build.go packetFreshness over querycontract TruthFreshness.", "required": ["state"], "properties": {
             "state": {"type": "string", "enum": ["fresh", "stale", "building", "unavailable"], "description": "Whether the evidence is current and available."},
             "observed_at": {"type": "string", "format": "date-time", "description": "When the freshness state was observed."},
@@ -129,7 +129,8 @@ const componentsEvidencePacket = `
               "ok": {"type": "boolean", "description": "Whether the gate passed."}
             }}}
           }},
-          "refusal": {"type": "string", "description": "Terminal refusal state for a packet that could not be built into a supported answer (unknown_family, scope_not_found, profile_unsupported, backend_unavailable); empty for a built packet."}
+          "refusal": {"type": "string", "description": "Terminal refusal state for a packet that could not be built into a supported answer (unknown_family, scope_not_found, profile_unsupported, backend_unavailable); absent (not empty) for a built packet."},
+          "limitations": {"type": "array", "items": {"type": "string"}, "description": "Packet-level bounded caveats; absent when none apply. Owner: querycontract/packet envelope.go Limitations plus build.go dedupeStrings."}
         }
       },
 `

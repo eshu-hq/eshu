@@ -101,6 +101,45 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		}
 	}
 
+	// requireScalarTypes pins the JSON scalar type of hand-written schema
+	// properties. Presence-only checks pass a boolean where the server
+	// emits an integer, so every hand-typed scalar needs its type pinned.
+	requireScalarTypes := func(t *testing.T, props map[string]any, where string, want map[string]string) {
+		t.Helper()
+		for key, typ := range want {
+			node, ok := props[key].(map[string]any)
+			if !ok {
+				t.Errorf("%s: missing property %q", where, key)
+				continue
+			}
+			if got, _ := node["type"].(string); got != typ {
+				t.Errorf("%s: property %q has type %q, want %q", where, key, got, typ)
+			}
+		}
+	}
+
+	// requireIntegerMaps asserts each named property is a string-keyed map of
+	// integers (the bucket-tally shape): a boolean or free-form value here
+	// would be a wire-type mismatch.
+	requireIntegerMaps := func(t *testing.T, props map[string]any, where string, keys ...string) {
+		t.Helper()
+		for _, key := range keys {
+			node, ok := props[key].(map[string]any)
+			if !ok {
+				t.Errorf("%s: missing property %q", where, key)
+				continue
+			}
+			if node["type"] != "object" {
+				t.Errorf("%s: property %q is not an object", where, key)
+				continue
+			}
+			additional, ok := node["additionalProperties"].(map[string]any)
+			if !ok || additional["type"] != "integer" {
+				t.Errorf("%s: property %q is not an integer-valued map", where, key)
+			}
+		}
+	}
+
 	// requireInventoryPage asserts the shared inventory envelope: typed bucket
 	// rows plus the described paging fields.
 	requireInventoryPage := func(t *testing.T, path string) {
@@ -115,10 +154,18 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: buckets has no items", where)
 		}
-		requireDescribed(t, propsOf(t, items, where+" buckets[]"), where+" buckets[]",
+		bucketProps := propsOf(t, items, where+" buckets[]")
+		requireDescribed(t, bucketProps, where+" buckets[]",
 			"dimension", "value", "count")
+		requireScalarTypes(t, bucketProps, where+" buckets[]", map[string]string{
+			"dimension": "string", "value": "string", "count": "integer",
+		})
 		requireDescribed(t, props, where,
 			"count", "limit", "offset", "group_by", "truncated", "next_offset")
+		requireScalarTypes(t, props, where, map[string]string{
+			"count": "integer", "limit": "integer", "offset": "integer",
+			"group_by": "string", "truncated": "boolean",
+		})
 		requireFilterEchoScope(t, props, where)
 	}
 
@@ -127,6 +174,8 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		props := propsOf(t, schemaAt(t, "/api/v0/supply-chain/sbom-attestations/attachments/count", "get"), "sbom-count")
 		requireDescribed(t, props, "sbom-count",
 			"total_attachments", "by_attachment_status", "by_artifact_kind", "missing_evidence")
+		requireScalarTypes(t, props, "sbom-count", map[string]string{"total_attachments": "integer"})
+		requireIntegerMaps(t, props, "sbom-count", "by_attachment_status", "by_artifact_kind")
 		requireFilterEchoScope(t, props, "sbom-count")
 	})
 
@@ -141,6 +190,9 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		requireDescribed(t, props, "security-count",
 			"total_reconciliations", "by_reconciliation_status", "by_provider",
 			"by_provider_state", "by_source_freshness")
+		requireScalarTypes(t, props, "security-count", map[string]string{"total_reconciliations": "integer"})
+		requireIntegerMaps(t, props, "security-count", "by_reconciliation_status", "by_provider",
+			"by_provider_state", "by_source_freshness")
 		requireFilterEchoScope(t, props, "security-count")
 	})
 
@@ -154,6 +206,8 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		props := propsOf(t, schemaAt(t, "/api/v0/supply-chain/container-images/identities/count", "get"), "container-count")
 		requireDescribed(t, props, "container-count",
 			"total_identities", "by_outcome", "by_identity_strength")
+		requireScalarTypes(t, props, "container-count", map[string]string{"total_identities": "integer"})
+		requireIntegerMaps(t, props, "container-count", "by_outcome", "by_identity_strength")
 		requireFilterEchoScope(t, props, "container-count")
 	})
 
@@ -166,6 +220,8 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		t.Parallel()
 		props := propsOf(t, schemaAt(t, "/api/v0/package-registry/packages/count", "get"), "registry-count")
 		requireDescribed(t, props, "registry-count", "total_packages", "by_ecosystem")
+		requireScalarTypes(t, props, "registry-count", map[string]string{"total_packages": "integer"})
+		requireIntegerMaps(t, props, "registry-count", "by_ecosystem")
 		requireFilterEchoScope(t, props, "registry-count")
 	})
 
@@ -179,6 +235,8 @@ func TestContractScopesSlice2FilterEcho(t *testing.T) {
 		props := propsOf(t, schemaAt(t, "/api/v0/ci-cd/run-correlations/count", "get"), "cicd-count")
 		requireDescribed(t, props, "cicd-count",
 			"total_correlations", "by_outcome", "by_environment", "by_provider")
+		requireScalarTypes(t, props, "cicd-count", map[string]string{"total_correlations": "integer"})
+		requireIntegerMaps(t, props, "cicd-count", "by_outcome", "by_environment", "by_provider")
 		requireFilterEchoScope(t, props, "cicd-count")
 	})
 

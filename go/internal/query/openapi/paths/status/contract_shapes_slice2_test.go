@@ -72,11 +72,59 @@ func TestContractShapesSlice2Status(t *testing.T) {
 		return items
 	}
 
-	requireKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
+	keySet := func(t *testing.T, props map[string]any, where string) map[string]bool {
 		t.Helper()
+		set := make(map[string]bool, len(props))
+		for key := range props {
+			set[key] = true
+		}
+		return set
+	}
+
+	equalSets := func(a, b map[string]bool) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for key := range a {
+			if !b[key] {
+				return false
+			}
+		}
+		return true
+	}
+
+	// requireScalarTypes pins the JSON scalar type of hand-written schema
+	// properties. Presence-only checks pass a boolean where the server
+	// emits an integer, so every hand-typed scalar needs its type pinned.
+	requireScalarTypes := func(t *testing.T, props map[string]any, where string, want map[string]string) {
+		t.Helper()
+		for key, typ := range want {
+			node, ok := props[key].(map[string]any)
+			if !ok {
+				t.Errorf("%s: missing property %q", where, key)
+				continue
+			}
+			if got, _ := node["type"].(string); got != typ {
+				t.Errorf("%s: property %q has type %q, want %q", where, key, got, typ)
+			}
+		}
+	}
+
+	// requireExactKeys pins the closed property set of an object whose
+	// owner emits a fixed key list: missing keys and phantom additions
+	// both fail.
+	requireExactKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
+		t.Helper()
+		want := make(map[string]bool, len(keys))
 		for _, key := range keys {
+			want[key] = true
 			if _, ok := props[key].(map[string]any); !ok {
 				t.Errorf("%s: missing property %q", where, key)
+			}
+		}
+		for key := range props {
+			if !want[key] {
+				t.Errorf("%s: phantom property %q not emitted by the owner", where, key)
 			}
 		}
 	}
@@ -94,9 +142,15 @@ func TestContractShapesSlice2Status(t *testing.T) {
 		awsProps := propsOf(t, aws, "aws_materialization")
 		domains := child(t, awsProps, "domains", "aws_materialization")
 		items := propsOf(t, itemsOf(t, domains, "domains"), "domains items")
-		requireKeys(t, items, "aws_materialization.domains[] items",
+		// Owner emits exactly these 9 keys; oldest_age is seconds as a number.
+		requireExactKeys(t, items, "aws_materialization.domains[] items",
 			"domain", "outstanding", "pending", "in_flight", "blocked",
 			"retrying", "dead_letter", "failed", "oldest_age")
+		requireScalarTypes(t, items, "aws_materialization.domains[] items", map[string]string{
+			"domain": "string", "outstanding": "integer", "pending": "integer",
+			"in_flight": "integer", "blocked": "integer", "retrying": "integer",
+			"dead_letter": "integer", "failed": "integer", "oldest_age": "number",
+		})
 	})
 
 	t.Run("legacy alias domains items name owner keys", func(t *testing.T) {
@@ -110,15 +164,20 @@ func TestContractShapesSlice2Status(t *testing.T) {
 		awsProps := propsOf(t, aws, "aws_materialization")
 		domains := child(t, awsProps, "domains", "aws_materialization")
 		items := propsOf(t, itemsOf(t, domains, "domains"), "domains items")
-		requireKeys(t, items, "aws_materialization.domains[] items",
+		requireExactKeys(t, items, "legacy aws_materialization.domains[] items",
 			"domain", "outstanding", "pending", "in_flight", "blocked",
 			"retrying", "dead_letter", "failed", "oldest_age")
+		requireScalarTypes(t, items, "legacy aws_materialization.domains[] items", map[string]string{
+			"domain": "string", "outstanding": "integer", "pending": "integer",
+			"in_flight": "integer", "blocked": "integer", "retrying": "integer",
+			"dead_letter": "integer", "failed": "integer", "oldest_age": "number",
+		})
 	})
 
 	t.Run("legacy alias lives outside Routes", func(t *testing.T) {
 		t.Parallel()
 		// routes.go stays under the 500-line cap: the legacy alias moved to
-		// index_status_legacy.go (IndexLegacy, concatenated into the
+		// index_legacy.go (IndexLegacy, concatenated into the
 		// spec right after Routes). Either side regaining the other's path
 		// is a split regression.
 		routesDoc := fragment(t, Routes, "Routes")
@@ -137,6 +196,25 @@ func TestContractShapesSlice2Status(t *testing.T) {
 		}
 	})
 
+	t.Run("legacy alias semantic extraction matches main block", func(t *testing.T) {
+		t.Parallel()
+		// Both routes share getIndexStatus, so their semantic_extraction
+		// key sets must be identical.
+		mainDoc := fragment(t, Routes, "Routes")
+		mainSchema := schemaAt(t, mainDoc, "/api/v0/status/index", "get")
+		mainProps := propsOf(t, mainSchema, "/api/v0/status/index")
+		mainSem := child(t, mainProps, "semantic_extraction", "index")
+		mainKeys := keySet(t, propsOf(t, mainSem, "index semantic_extraction"), "index semantic_extraction")
+		legacyDoc := fragment(t, IndexLegacy, "IndexLegacy")
+		legacySchema := schemaAt(t, legacyDoc, "/api/v0/index-status", "get")
+		legacyProps := propsOf(t, legacySchema, "/api/v0/index-status")
+		legacySem := child(t, legacyProps, "semantic_extraction", "legacy")
+		legacyKeys := keySet(t, propsOf(t, legacySem, "legacy semantic_extraction"), "legacy semantic_extraction")
+		if !equalSets(mainKeys, legacyKeys) {
+			t.Errorf("semantic_extraction key sets differ: index=%v legacy=%v", mainKeys, legacyKeys)
+		}
+	})
+
 	t.Run("semantic audit counts name owner keys", func(t *testing.T) {
 		t.Parallel()
 		// Owner: go/internal/status/semantic/extraction_observability_json.go:69
@@ -151,7 +229,11 @@ func TestContractShapesSlice2Status(t *testing.T) {
 		for _, key := range []string{"actor_class_counts", "acl_state_counts"} {
 			arr := child(t, auditProps, key, "audit")
 			items := propsOf(t, itemsOf(t, arr, key), key+" items")
-			requireKeys(t, items, "audit."+key+"[] items", "name", "count")
+			// Wire shape is exactly {name, count} (shared.NamedCountJSON).
+			requireExactKeys(t, items, "audit."+key+"[] items", "name", "count")
+			requireScalarTypes(t, items, "audit."+key+"[] items", map[string]string{
+				"name": "string", "count": "integer",
+			})
 		}
 	})
 }

@@ -9,11 +9,12 @@ import (
 )
 
 // TestContractShapesSlice2Dossier pins the lane-B shape-completeness fixes
-// (issue #11491): the service-dossier overview objects, the CodeFlowResponse
-// scope free-form marker, and the InvestigationEvidencePacket layers must
-// name their properties in the served spec instead of bare
-// {"type": "object"} shapes. Each entry names the Go owner that emits the
-// keys the contract asserts.
+// (issue #11491): the service-dossier overview objects and the
+// InvestigationEvidencePacket layers must name their properties in the
+// served spec instead of bare {"type": "object"} shapes, and
+// CodeFlowResponse must not carry the phantom scope its owner never
+// emits. Each entry names the Go owner that emits the keys the contract
+// asserts.
 func TestContractShapesSlice2Dossier(t *testing.T) {
 	t.Parallel()
 
@@ -71,7 +72,9 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 					continue
 				}
 				if items["type"] == "object" {
-					if _, hasProps := items["properties"]; !hasProps {
+					_, hasProps := items["properties"]
+					_, hasAdditional := items["additionalProperties"]
+					if !hasProps && !hasAdditional {
 						t.Errorf("%s: property %q has bare object items", where, key)
 					}
 				}
@@ -89,6 +92,42 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 			}
 			if desc, _ := node["description"].(string); desc == "" {
 				t.Errorf("%s: property %q has no description", where, key)
+			}
+		}
+	}
+
+	// requireScalarTypes pins the JSON scalar type of hand-written schema
+	// properties. Presence-only checks pass a boolean where the server
+	// emits an integer, so every hand-typed scalar needs its type pinned.
+	requireScalarTypes := func(t *testing.T, props map[string]any, where string, want map[string]string) {
+		t.Helper()
+		for key, typ := range want {
+			node, ok := props[key].(map[string]any)
+			if !ok {
+				t.Errorf("%s: missing property %q", where, key)
+				continue
+			}
+			if got, _ := node["type"].(string); got != typ {
+				t.Errorf("%s: property %q has type %q, want %q", where, key, got, typ)
+			}
+		}
+	}
+
+	// requireExactKeys pins the closed property set of an object whose
+	// owner emits a fixed key list: missing keys and phantom additions
+	// both fail.
+	requireExactKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
+		t.Helper()
+		want := make(map[string]bool, len(keys))
+		for _, key := range keys {
+			want[key] = true
+			if _, ok := props[key].(map[string]any); !ok {
+				t.Errorf("%s: missing property %q", where, key)
+			}
+		}
+		for key := range props {
+			if !want[key] {
+				t.Errorf("%s: phantom property %q not emitted by the owner", where, key)
 			}
 		}
 	}
@@ -115,6 +154,11 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		deployment := child(t, props, "deployment_overview", "service-story")
 		requireKeys(t, propsOf(t, deployment, "service-story.deployment_overview"), "service-story.deployment_overview",
 			"instance_count", "environment_count", "platform_count", "platforms")
+		// Owner: service/story_dossier.go buildServiceDossierAPISurface.
+		// The five normalized api_surface keys are always present.
+		surface := child(t, propsOf(t, deployment, "service-story.deployment_overview"), "api_surface", "deployment_overview")
+		requireKeys(t, propsOf(t, surface, "api_surface"), "deployment_overview.api_surface",
+			"endpoints_shipped_at", "endpoint_count", "method_count", "spec_count", "endpoints", "truncated")
 		requireDescribed(t, propsOf(t, deployment, "service-story.deployment_overview"), "service-story.deployment_overview",
 			"instance_count", "environment_count", "platform_count")
 
@@ -137,12 +181,22 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		props := propsOf(t, context, "WorkloadContext")
 
 		// Owner: service/story_overview.go buildServiceDocumentationOverview.
+		// The contract names exactly the 11 keys the builder emits.
 		documentation := child(t, props, "documentation_overview", "WorkloadContext")
-		requireKeys(t, propsOf(t, documentation, "WorkloadContext.documentation_overview"), "WorkloadContext.documentation_overview",
-			"repo_id", "repo_name", "docs_route_count", "api_spec_count", "entrypoint_host_count")
+		documentationProps := propsOf(t, documentation, "WorkloadContext.documentation_overview")
+		requireExactKeys(t, documentationProps, "WorkloadContext.documentation_overview",
+			"repo_id", "repo_name", "portable_identifier", "docs_route_count", "api_spec_count",
+			"entrypoint_host_count", "remote_url", "repo_slug", "has_remote",
+			"local_path_present", "api_spec_paths")
+		requireScalarTypes(t, documentationProps, "WorkloadContext.documentation_overview", map[string]string{
+			"repo_id": "string", "repo_name": "string", "portable_identifier": "string",
+			"docs_route_count": "integer", "api_spec_count": "integer",
+			"entrypoint_host_count": "integer", "remote_url": "string", "repo_slug": "string",
+			"has_remote": "boolean", "local_path_present": "boolean", "api_spec_paths": "array",
+		})
 	})
 
-	t.Run("code flow scope is free-form", func(t *testing.T) {
+	t.Run("code flow response carries no scope", func(t *testing.T) {
 		t.Parallel()
 		components, ok := spec["components"].(map[string]any)
 		if !ok {
@@ -152,15 +206,12 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		response := child(t, schemas, "CodeFlowResponse", "components.schemas")
 		props := propsOf(t, response, "CodeFlowResponse")
 
-		// Owner: codequery/flow.go buildCodeFlowPayload. The scope carries no
-		// fixed keys, so the contract documents it as free-form instead of
-		// leaving a bare undescribed object.
-		scope, ok := props["scope"].(map[string]any)
-		if !ok {
-			t.Fatal("CodeFlowResponse: missing property \"scope\"")
-		}
-		if desc, _ := scope["description"].(string); desc == "" {
-			t.Error("CodeFlowResponse: property \"scope\" has no description")
+		// Owner: codequery/flow.go buildCodeFlowPayload emits only coverage,
+		// ambiguity, bounds, and one result family; writeCodeFlowResponse
+		// adds only query and coverage. A scope property would be a
+		// phantom: assert its absence.
+		if _, ok := props["scope"]; ok {
+			t.Error("CodeFlowResponse: phantom property \"scope\" is not emitted by the owner")
 		}
 	})
 
@@ -174,19 +225,39 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		packet := child(t, schemas, "InvestigationEvidencePacket", "components.schemas")
 		props := propsOf(t, packet, "InvestigationEvidencePacket")
 
-		// Owner: querycontract/packet/envelope.go + build.go.
+		// Owner: querycontract/packet/envelope.go PacketIdentity.
 		identity := child(t, props, "identity", "packet")
-		requireKeys(t, propsOf(t, identity, "packet.identity"), "packet.identity",
-			"family", "subject", "basis")
+		identityProps := propsOf(t, identity, "packet.identity")
+		requireExactKeys(t, identityProps, "packet.identity",
+			"family", "subject", "question", "generation", "profile", "backend", "basis")
+		requireScalarTypes(t, identityProps, "packet.identity", map[string]string{
+			"family": "string", "subject": "object", "question": "string",
+			"generation": "string", "profile": "string", "backend": "string", "basis": "string",
+		})
 		freshness := child(t, props, "freshness", "packet")
 		requireKeys(t, propsOf(t, freshness, "packet.freshness"), "packet.freshness",
 			"state")
+		// Owner: querycontract/packet/envelope.go PacketAnswer.
 		answer := child(t, props, "answer", "packet")
-		requireKeys(t, propsOf(t, answer, "packet.answer"), "packet.answer",
-			"truth_class", "supported", "partial")
+		answerProps := propsOf(t, answer, "packet.answer")
+		requireExactKeys(t, answerProps, "packet.answer",
+			"truth_class", "summary", "supported", "partial", "limitations", "unsupported_reasons")
+		requireScalarTypes(t, answerProps, "packet.answer", map[string]string{
+			"truth_class": "string", "summary": "string", "supported": "boolean",
+			"partial": "boolean", "limitations": "array", "unsupported_reasons": "array",
+		})
+		// Owner: querycontract/packet/envelope.go PacketBounds.
 		bounds := child(t, props, "bounds", "packet")
-		requireKeys(t, propsOf(t, bounds, "packet.bounds"), "packet.bounds",
-			"max_source_facts", "truncated")
+		boundsProps := propsOf(t, bounds, "packet.bounds")
+		requireExactKeys(t, boundsProps, "packet.bounds",
+			"max_source_facts", "max_reducer_decisions", "max_graph_answers", "max_citations",
+			"max_semantic_observations", "max_missing_evidence", "truncated", "truncated_layers")
+		requireScalarTypes(t, boundsProps, "packet.bounds", map[string]string{
+			"max_source_facts": "integer", "max_reducer_decisions": "integer",
+			"max_graph_answers": "integer", "max_citations": "integer",
+			"max_semantic_observations": "integer", "max_missing_evidence": "integer",
+			"truncated": "boolean", "truncated_layers": "array",
+		})
 		redaction := child(t, props, "redaction", "packet")
 		requireKeys(t, propsOf(t, redaction, "packet.redaction"), "packet.redaction",
 			"profile", "version")
@@ -218,5 +289,13 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		reproduce := child(t, props, "reproduce", "packet")
 		requireKeys(t, propsOf(t, itemsOf(t, reproduce, "packet.reproduce"), "packet.reproduce[]"), "packet.reproduce[]",
 			"description")
+		// Owner: envelope.go Limitations plus build.go dedupeStrings.
+		limitations, ok := props["limitations"].(map[string]any)
+		if !ok {
+			t.Fatal("packet: missing property \"limitations\"")
+		}
+		if typ, _ := limitations["type"].(string); typ != "array" {
+			t.Errorf("packet: limitations has type %q, want array", typ)
+		}
 	})
 }
