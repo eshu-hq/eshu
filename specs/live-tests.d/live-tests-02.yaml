@@ -76,6 +76,11 @@ tests:
     class: ci
     reason: deterministic seeded proof of the id-anchor census Cypher (#7212) against the reference classification, with a planted id-only node and a null-uid node; the census is Neo4j-only, so the test itself self-skips on NornicDB; runs on Neo4j in the live-backend CI job
     backends: neo4j
+  - file: go/internal/graph/schema_nornicdb_11535_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip; proves the #11535 NornicDB dialect end state on 1.5.x (120 drops before 120 constraints, one schema object per label,uid, no retired lookup index left, idempotent filtered re-apply with no duplicate rows) on a fresh store and over legacy lookup indexes; local runs on nornicdb-local:main took 14s fresh and 4s legacy — promote to blocking with repeated timing evidence"
+    backends: nornicdb
   - file: go/internal/graph/legacy/workload/delete_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
