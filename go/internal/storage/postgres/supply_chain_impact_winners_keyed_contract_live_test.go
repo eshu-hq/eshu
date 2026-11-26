@@ -23,13 +23,15 @@ func TestSupplyChainImpactWinnersResweepVolatileDigestExcludedFieldsChangeNothin
 	h := newKeyedHarness(t, "#10880 volatile digest-excluded fields proof")
 	scopeA, _ := keyedSeedSettled(h)
 	before := keyedStoredWinnerPayloads(t, h)
+	// The rewrites below target the supports table, the writer's truth since
+	// #10880 PR-C2 (migration 358); fact_records carries no finding rows.
 	for _, key := range supplychaincore.DigestExcludedPayloadKeys() {
 		if key == "evidence_fact_ids" {
 			continue
 		}
-		h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, ARRAY[$2]::text[], to_jsonb('rewritten-'||$2::text), true) WHERE scope_id = $1`, scopeA, key)
+		h.exec(`UPDATE supply_chain_impact_finding_supports SET payload = jsonb_set(payload, ARRAY[$2]::text[], to_jsonb('rewritten-'||$2::text), true) WHERE scope_id = $1`, scopeA, key)
 	}
-	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{provenance,content_digest}', '"another"', true) WHERE scope_id = $1`, scopeA)
+	h.exec(`UPDATE supply_chain_impact_finding_supports SET payload = jsonb_set(payload, '{provenance,content_digest}', '"another"', true) WHERE scope_id = $1`, scopeA)
 	got, err := h.store.ResweepWinners(h.ctx)
 	if err != nil || got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 {
 		t.Fatalf("full resweep after rewriting volatile digest-excluded fields = %+v, %v; want no winner written", got, err)
@@ -47,7 +49,10 @@ func TestSupplyChainImpactWinnersResweepVolatileDigestExcludedFieldsChangeNothin
 func TestSupplyChainImpactWinnersResweepEvidenceFactIDsRefreshWinnerPayloadLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10880 evidence refresh proof")
 	scopeA, _ := keyedSeedSettled(h)
-	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{evidence_fact_ids}', '["ev-a","ev-b"]'::jsonb, true)
+	// Since #11566 the rewrite targets the supports table: migration 358 stops
+	// finding writes to fact_records, so the table carries no finding rows and
+	// a rewrite there matches nothing.
+	h.exec(`UPDATE supply_chain_impact_finding_supports SET payload = jsonb_set(payload, '{evidence_fact_ids}', '["ev-a","ev-b"]'::jsonb, true)
 WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
 	got, err := h.store.ResweepWinners(h.ctx)
 	if err != nil || got.Inserted != 0 || got.Updated != 1 || got.Deleted != 0 {
