@@ -154,11 +154,16 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		deployment := child(t, props, "deployment_overview", "service-story")
 		requireKeys(t, propsOf(t, deployment, "service-story.deployment_overview"), "service-story.deployment_overview",
 			"instance_count", "environment_count", "platform_count", "platforms")
-		// Owner: service/story_dossier.go buildServiceDossierAPISurface.
-		// The five normalized api_surface keys are always present.
+		// Owner: service/story_dossier.go buildServiceDossierAPISurface plus
+		// service/story_overview.go dropStoryOverviewEndpoints, which deletes
+		// the endpoint rows and names their location instead.
 		surface := child(t, propsOf(t, deployment, "service-story.deployment_overview"), "api_surface", "deployment_overview")
-		requireKeys(t, propsOf(t, surface, "api_surface"), "deployment_overview.api_surface",
-			"endpoints_shipped_at", "endpoint_count", "method_count", "spec_count", "endpoints", "truncated")
+		surfaceProps := propsOf(t, surface, "deployment_overview.api_surface")
+		requireKeys(t, surfaceProps, "deployment_overview.api_surface",
+			"endpoints_shipped_at", "endpoint_count", "method_count", "spec_count", "truncated")
+		if _, ok := surfaceProps["endpoints"]; ok {
+			t.Error("deployment_overview.api_surface: phantom property \"endpoints\" is dropped by dropStoryOverviewEndpoints")
+		}
 		requireDescribed(t, propsOf(t, deployment, "service-story.deployment_overview"), "service-story.deployment_overview",
 			"instance_count", "environment_count", "platform_count")
 
@@ -194,6 +199,30 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 			"entrypoint_host_count": "integer", "remote_url": "string", "repo_slug": "string",
 			"has_remote": "boolean", "local_path_present": "boolean", "api_spec_paths": "array",
 		})
+
+		// Owner: the same buildServiceDeploymentOverviewWithContext builder
+		// as the story route, but without dropStoryOverviewEndpoints, so the
+		// context keeps the api_surface endpoint rows and never carries
+		// endpoints_shipped_at.
+		workloadDeployment := child(t, props, "deployment_overview", "WorkloadContext")
+		workloadDeploymentProps := propsOf(t, workloadDeployment, "WorkloadContext.deployment_overview")
+		requireExactKeys(t, workloadDeploymentProps, "WorkloadContext.deployment_overview",
+			"instance_count", "environment_count", "materialized_environment_count",
+			"config_environment_count", "platform_count", "platforms", "environments",
+			"materialized_environments", "deployment_truth_tier", "config_environments",
+			"hostname_count", "entrypoint_count", "network_path_count", "api_surface",
+			"dependent_count", "consumer_repository_count", "provisioning_source_chain_count",
+			"cloud_resource_count", "cloud_relationship_basis", "uncorrelated_cloud_resource_count",
+			"missing_cloud_relationship", "deployment_tool_families",
+			"deployment_evidence_artifact_count", "delivery_path_count",
+			"delivery_workflow_count", "shared_config_path_count")
+		workloadSurface := child(t, workloadDeploymentProps, "api_surface", "WorkloadContext.deployment_overview")
+		workloadSurfaceProps := propsOf(t, workloadSurface, "WorkloadContext api_surface")
+		requireKeys(t, workloadSurfaceProps, "WorkloadContext api_surface",
+			"endpoint_count", "method_count", "spec_count", "endpoints", "truncated")
+		if _, ok := workloadSurfaceProps["endpoints_shipped_at"]; ok {
+			t.Error("WorkloadContext api_surface: phantom property \"endpoints_shipped_at\" is only added by the story route drop")
+		}
 	})
 
 	t.Run("code flow response carries no scope", func(t *testing.T) {
