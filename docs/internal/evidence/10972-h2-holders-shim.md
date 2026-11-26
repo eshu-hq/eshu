@@ -1,9 +1,10 @@
-# #10972 H2 theory shim: holder-read shape proof on the QA primary
+#10972 H2 theory shim: holder-read shape proof on the QA primary
 
 Refs #10972. Date: 2026-11-26. Lane: `drive/10972-h2-shim` (executor leaf).
-Binding ruling:
-[`arbiter-10972-h2shape.md`](../../.claude/arbiter-10972-h2shape.md)
-(Decision 1 spec, Decision 2 bars, Decision 3 winner rule; no second ruling needed).
+Binding ruling: `arbiter-10972-h2shape.md` (session-local arbiter record, not
+committed to the repo; essentials: Lane-0 four-arm shim spec, bars warm
+per-statement p95 <= 2s and max <= 5s with byte-equal holder sets,
+pre-committed winner rule with no second ruling needed).
 Skills active: `performance-rigor`, `postgres-rigor` (read-only), `golang-engineering`
 (generator helper only, removed after use).
 
@@ -58,7 +59,7 @@ Warm n=5 statements per singleton set; A2 n=80 statements (5 reads x 16).
 | A1 cve (156,870) | 1237–1278 (cold 2817) | 1278 | 1278 | 0 | PASS |
 | A1 mix4 (42,388 direct-only) | 414–440 (cold 5761) | 440 | 440 | 0 | PASS |
 | A1 long (synthetic, fallback) | ~1 | 1 | 6 | 0 | PASS |
-| A1 member (48k+48k) | 6/6 timeouts | — | >10s | 5 | FAIL |
+| A1 member (48k+48k) | 5/5 warm timeouts (cold also timed out, discarded per protocol) | — | >10s | 5 | FAIL |
 | A1 mix3 (44k+44k) | timeout, timeout, 3680, 1860, 1803 | 3680 | 3680 | 2 | FAIL |
 | A1 mix5 (40k+40k) | timeout x3, 6448, 1691 | 6448 | 6448 | 3 | FAIL |
 | A1 4-parallel adv1–4 (waves 2–6, n=20) | 1418–1818 / 1418–1505 / 3193–3492 / 3088–3163 / 2348–2367 | 3452 | 3492 | 0 | FAIL (p95) |
@@ -95,7 +96,9 @@ cve ~2.7–3.9s, member/mix ~1.5–2.0s. Snapshot hold = phase wall (~3–5s typ
 ## Exactness
 
 Holder sets byte-equal after `sort -u` (own scope `h2-shim-own-scope`,
-same for all arms; live primary, no drift observed in these ids):
+same for all arms; live primary, no drift observed in these ids). Counts
+below are session-asserted: no holder-list artifacts are committed, only
+plans; Lane-1b re-proves exactness independently:
 
 | comparison | holders | result |
 |---|---|---|
