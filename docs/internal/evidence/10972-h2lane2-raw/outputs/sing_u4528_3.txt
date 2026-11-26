@@ -1,0 +1,7 @@
+Time: 2.329 ms
+      lookup_id      | mass
+ GHSA-4528-x5fx-h6hg | 44378
+(1 row)
+Time: 104.139 ms
+Time: 0.116 ms
+Time: 0.051 ms

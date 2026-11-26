@@ -1,0 +1,11 @@
+Time: 2.271 ms
+      lookup_id      | mass
+ CVE-2026-82417      | 65299
+ CVE-2026-84375      | 64965
+ GHSA-23c5-xmqv-rm74 | 78436
+ GHSA-2883-xcg3-v3hh | 64965
+ GHSA-3ppc-4f35-3m26 | 78436
+(5 rows)
+Time: 58853.913 ms (00:58.854)
+Time: 0.079 ms
+Time: 0.637 ms

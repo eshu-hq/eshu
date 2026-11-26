@@ -1,0 +1,65 @@
+Time: 2.775 ms
+(242 rows)
+Time: 246.374 ms
+Time: 0.125 ms
+Time: 0.279 ms
+(243 rows)
+Time: 229.766 ms
+Time: 0.113 ms
+Time: 0.247 ms
+(242 rows)
+Time: 281.146 ms
+Time: 0.099 ms
+Time: 0.263 ms
+(243 rows)
+Time: 230.140 ms
+Time: 0.104 ms
+Time: 0.235 ms
+(243 rows)
+Time: 261.726 ms
+Time: 0.113 ms
+Time: 0.273 ms
+(242 rows)
+Time: 302.871 ms
+Time: 0.106 ms
+Time: 0.296 ms
+(243 rows)
+Time: 286.700 ms
+Time: 0.111 ms
+Time: 0.313 ms
+(242 rows)
+Time: 300.139 ms
+Time: 0.100 ms
+Time: 0.288 ms
+(242 rows)
+Time: 236.562 ms
+Time: 0.137 ms
+Time: 0.455 ms
+(242 rows)
+Time: 238.156 ms
+Time: 0.132 ms
+Time: 0.270 ms
+(242 rows)
+Time: 249.901 ms
+Time: 0.124 ms
+Time: 0.767 ms
+(243 rows)
+Time: 278.281 ms
+Time: 0.089 ms
+Time: 0.229 ms
+(242 rows)
+Time: 237.604 ms
+Time: 0.092 ms
+Time: 0.277 ms
+(243 rows)
+Time: 260.051 ms
+Time: 0.106 ms
+Time: 0.278 ms
+(242 rows)
+Time: 228.689 ms
+Time: 0.102 ms
+Time: 0.262 ms
+(243 rows)
+Time: 222.582 ms
+Time: 0.091 ms
+Time: 0.694 ms

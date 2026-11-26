@@ -1,0 +1,11 @@
+Time: 2.547 ms
+      lookup_id      | mass
+ GHSA-6j4f-fj2g-mc7p | 78436
+ GHSA-73wf-gq98-2v4g | 61997
+ GHSA-7r86-cg39-jmmj | 78436
+ GHSA-968p-4wvh-cqc8 | 78436
+ GHSA-c2c7-rcm5-vvqj | 67808
+(5 rows)
+Time: 92631.707 ms (01:32.632)
+Time: 0.135 ms
+Time: 0.979 ms

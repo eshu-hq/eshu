@@ -1,0 +1,11 @@
+Time: 2.031 ms
+      lookup_id      | mass
+ GHSA-7r86-cg39-jmmj | 78436
+ GHSA-23c5-xmqv-rm74 | 78436
+ GHSA-3ppc-4f35-3m26 | 78436
+ GHSA-g3hv-75wg-m249 | 78436
+ GHSA-hxm2-r34f-qmc5 | 78436
+(5 rows)
+Time: 39092.752 ms (00:39.093)
+Time: 0.120 ms
+Time: 0.726 ms

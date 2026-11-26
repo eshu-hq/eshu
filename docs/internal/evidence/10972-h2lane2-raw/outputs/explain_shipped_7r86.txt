@@ -1,0 +1,12 @@
+Time: 2.354 ms
+                       Index Cond: (cve_id = ANY ('{GHSA-7r86-cg39-jmmj}'::text[]))
+                       Recheck Cond: (advisory_id = ANY ('{GHSA-7r86-cg39-jmmj}'::text[]))
+                             Index Cond: (advisory_id = ANY ('{GHSA-7r86-cg39-jmmj}'::text[]))
+                       Recheck Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{GHSA-7r86-cg39-jmmj}'::text[])
+                             Index Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{GHSA-7r86-cg39-jmmj}'::text[])
+ Planning Time: 5.120 ms
+ Execution Time: 93445.707 ms
+(61 rows)
+Time: 93452.185 ms (01:33.452)
+Time: 0.067 ms
+Time: 0.847 ms

@@ -1,0 +1,65 @@
+Time: 2.956 ms
+(358 rows)
+Time: 1794.647 ms (00:01.795)
+Time: 0.119 ms
+Time: 0.258 ms
+(358 rows)
+Time: 1697.651 ms (00:01.698)
+Time: 0.087 ms
+Time: 0.256 ms
+(359 rows)
+Time: 1760.553 ms (00:01.761)
+Time: 0.102 ms
+Time: 0.264 ms
+(357 rows)
+Time: 1708.416 ms (00:01.708)
+Time: 0.109 ms
+Time: 0.269 ms
+(358 rows)
+Time: 1672.041 ms (00:01.672)
+Time: 0.098 ms
+Time: 0.244 ms
+(358 rows)
+Time: 1736.084 ms (00:01.736)
+Time: 0.098 ms
+Time: 0.275 ms
+(358 rows)
+Time: 1773.619 ms (00:01.774)
+Time: 0.130 ms
+Time: 0.373 ms
+(358 rows)
+Time: 1787.328 ms (00:01.787)
+Time: 0.120 ms
+Time: 0.331 ms
+(357 rows)
+Time: 1649.364 ms (00:01.649)
+Time: 0.083 ms
+Time: 0.199 ms
+(356 rows)
+Time: 1692.990 ms (00:01.693)
+Time: 0.115 ms
+Time: 0.300 ms
+(358 rows)
+Time: 1708.662 ms (00:01.709)
+Time: 0.094 ms
+Time: 0.293 ms
+(357 rows)
+Time: 1707.527 ms (00:01.708)
+Time: 0.120 ms
+Time: 0.273 ms
+(357 rows)
+Time: 1672.650 ms (00:01.673)
+Time: 0.097 ms
+Time: 0.281 ms
+(358 rows)
+Time: 1692.533 ms (00:01.693)
+Time: 0.095 ms
+Time: 0.276 ms
+(358 rows)
+Time: 1642.161 ms (00:01.642)
+Time: 0.086 ms
+Time: 0.230 ms
+(358 rows)
+Time: 1687.226 ms (00:01.687)
+Time: 0.112 ms
+Time: 0.563 ms

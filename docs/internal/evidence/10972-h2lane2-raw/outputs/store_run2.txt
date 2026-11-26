@@ -1,0 +1,22 @@
+session pid=1113490 mode=auto
+count  0 ids=[GHSA-cold-0001 GHSA-cold-0002 CVE-cold-0003] masses=map[CVE-cold-0003:0 GHSA-cold-0001:0 GHSA-cold-0002:0] (23ms) plan=GENERIC
+count  1 ids=[CVE-2026-42043] masses=map[CVE-2026-42043:78436] (279ms) plan=GENERIC
+count  2 ids=[GHSA-7r86-cg39-jmmj GHSA-23c5-xmqv-rm74 GHSA-3ppc-4f35-3m26 GHSA-g3hv-75wg-m249 GHSA-hxm2-r34f-qmc5] masses=map[GHSA-23c5-xmqv-rm74:78436 GHSA-3ppc-4f35-3m26:78436 GHSA-7r86-cg39-jmmj:78436 GHSA-g3hv-75wg-m249:78436 GHSA-hxm2-r34f-qmc5:78436] (1428ms) plan=GENERIC
+count  3 ids=[GHSA-4528-x5fx-h6hg] masses=map[GHSA-4528-x5fx-h6hg:44378] (169ms) plan=GENERIC
+count  4 ids=[CVE-2026-73569] masses=map[CVE-2026-73569:78436] (230ms) plan=GENERIC
+count  5 ids=[CVE-2026-112943] masses=map[CVE-2026-112943:78436] (433ms) plan=GENERIC
+count  6 ids=[CVE-2026-42043] masses=map[CVE-2026-42043:78436] (93ms) plan=GENERIC
+count  7 ids=[GHSA-7r86-cg39-jmmj] masses=map[GHSA-7r86-cg39-jmmj:78436] (71ms) plan=GENERIC
+count  8 ids=[GHSA-cold-0004 CVE-cold-0005] masses=map[CVE-cold-0005:0 GHSA-cold-0004:0] (10ms) plan=GENERIC
+count  9 ids=[CVE-2026-42043] masses=map[CVE-2026-42043:78436] (103ms) plan=GENERIC
+count 10 ids=[GHSA-23c5-xmqv-rm74 GHSA-3ppc-4f35-3m26] masses=map[GHSA-23c5-xmqv-rm74:78436 GHSA-3ppc-4f35-3m26:78436] (101ms) plan=GENERIC
+count 11 ids=[CVE-2026-73569] masses=map[CVE-2026-73569:78436] (113ms) plan=GENERIC
+session pid first=1113490 last=1113490 same=true
+AUTO-MODE routing text: entries=3 custom=12 generic=25
+AUTO-MODE supports texts: entries=3 custom=17 generic=8
+replay GHSA-7r86-cg39-jmmj scopes=243 stmts=16 slow(>2s)=5 total=23396ms
+replay CVE-2026-42043 scopes=259 stmts=16 slow(>2s)=0 total=2032ms
+replay CVE-2026-73569 scopes=312 stmts=16 slow(>2s)=0 total=2307ms
+replay CVE-2026-112943 scopes=359 stmts=16 slow(>2s)=0 total=1341ms
+replay under-gate scopes=265 total=8796ms
+REPLAY timeouts=0/65 statements

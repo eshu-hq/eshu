@@ -1,0 +1,22 @@
+session pid=1112456 mode=auto
+count  0 ids=[GHSA-cold-0001 GHSA-cold-0002 CVE-cold-0003] masses=map[CVE-cold-0003:0 GHSA-cold-0001:0 GHSA-cold-0002:0] (77ms)
+count  1 ids=[CVE-2026-42043] masses=map[CVE-2026-42043:78436] (808ms)
+count  2 ids=[GHSA-7r86-cg39-jmmj GHSA-23c5-xmqv-rm74 GHSA-3ppc-4f35-3m26 GHSA-g3hv-75wg-m249 GHSA-hxm2-r34f-qmc5] ERROR supply chain impact holder read timed out: ERROR: canceling statement due to statement timeout (SQLSTATE 57014) (10014ms)
+count  3 ids=[GHSA-4528-x5fx-h6hg] masses=map[GHSA-4528-x5fx-h6hg:44378] (438ms)
+count  4 ids=[CVE-2026-73569] masses=map[CVE-2026-73569:78436] (1303ms)
+count  5 ids=[CVE-2026-112943] masses=map[CVE-2026-112943:78436] (2619ms)
+count  6 ids=[CVE-2026-42043] masses=map[CVE-2026-42043:78436] (532ms)
+count  7 ids=[GHSA-7r86-cg39-jmmj] masses=map[GHSA-7r86-cg39-jmmj:78436] (561ms)
+count  8 ids=[GHSA-cold-0004 CVE-cold-0005] masses=map[CVE-cold-0005:0 GHSA-cold-0004:0] (16ms)
+count  9 ids=[CVE-2026-42043] masses=map[CVE-2026-42043:78436] (174ms)
+count 10 ids=[GHSA-23c5-xmqv-rm74 GHSA-3ppc-4f35-3m26] masses=map[GHSA-23c5-xmqv-rm74:78436 GHSA-3ppc-4f35-3m26:78436] (557ms)
+count 11 ids=[CVE-2026-73569] masses=map[CVE-2026-73569:78436] (386ms)
+session pid first=1112456 last=1112456 same=true
+AUTO-MODE routing text: entries=2 custom=9 generic=1
+AUTO-MODE supports texts: entries=3 custom=14 generic=8
+replay GHSA-7r86-cg39-jmmj scopes=243 stmts=16 slow(>2s)=15 total=45376ms
+replay CVE-2026-42043 scopes=259 stmts=16 slow(>2s)=0 total=14213ms
+replay CVE-2026-73569 scopes=312 stmts=16 slow(>2s)=0 total=6072ms
+replay CVE-2026-112943 scopes=359 stmts=16 slow(>2s)=0 total=1944ms
+replay under-gate ERROR supply chain impact holder read timed out: ERROR: canceling statement due to statement timeout (SQLSTATE 57014)
+REPLAY timeouts=1/65 statements

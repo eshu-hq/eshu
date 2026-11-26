@@ -1,0 +1,7 @@
+Time: 2.254 ms
+   lookup_id    | mass
+ CVE-2026-42043 | 78436
+(1 row)
+Time: 164.600 ms
+Time: 0.083 ms
+Time: 0.060 ms

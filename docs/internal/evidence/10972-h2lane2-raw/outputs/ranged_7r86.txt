@@ -1,0 +1,19 @@
+Time: 3.213 ms
+(242 rows)
+Time: 7600.106 ms (00:07.600)
+Time: 0.274 ms
+Time: 0.308 ms
+(243 rows)
+Time: 9163.757 ms (00:09.164)
+Time: 0.238 ms
+Time: 0.296 ms
+(242 rows)
+Time: 6948.488 ms (00:06.948)
+Time: 0.166 ms
+Time: 0.305 ms
+(243 rows)
+Time: 8725.952 ms (00:08.726)
+Time: 0.167 ms
+Time: 0.241 ms
+ERROR:  canceling statement due to statement timeout
+Time: 10001.871 ms (00:10.002)

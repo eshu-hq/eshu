@@ -125,6 +125,12 @@ func holderPlanStatements() []holderPlanStatement {
 			[]string{holderCveIdx, holderAdvisoryIdx, holderTokensIdx},
 		},
 		{
+			"routing-mass count, generic plan", postgres.HolderRoutingMassQuery, "force_generic_plan",
+			[]string{"text[]"},
+			[]string{five},
+			[]string{holderCveIdx, holderAdvisoryIdx, holderMembersIdx},
+		},
+		{
 			"mass probe, generic plan", postgres.HolderMassProbeQuery, "force_generic_plan",
 			[]string{"text[]"},
 			[]string{five},

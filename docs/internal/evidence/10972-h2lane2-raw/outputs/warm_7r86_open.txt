@@ -1,0 +1,5 @@
+Time: 2.984 ms
+(243 rows)
+Time: 7005.820 ms (00:07.006)
+Time: 0.098 ms
+Time: 0.503 ms
