@@ -157,13 +157,13 @@
       "id": 5,
       "type": "stat",
       "title": "Queue Depth",
-      "description": "Current queue depth summed across all queues and statuses. Sustained non-zero is backpressure; pair with eshu_dp_queue_oldest_age_seconds for staleness.",
+      "description": "Current queue depth across all queues and statuses (max: every reporter emits the same gauge value, so sum would multiply it; #11560). Sustained non-zero is backpressure; pair with eshu_dp_queue_oldest_age_seconds for staleness.",
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum(eshu_dp_queue_depth)",
+          "expr": "max(eshu_dp_queue_depth)",
           "legendFormat": "depth",
           "refId": "A"
         }
@@ -194,13 +194,13 @@
       "id": 7,
       "type": "timeseries",
       "title": "Queue Depth by Status",
-      "description": "Per-status queue depth (pending / claimed / done / failed). Pair with Queue Oldest Age below for staleness.",
+      "description": "Per-status queue depth (pending / claimed / done / failed), max across reporters (each reporter emits the same gauge value; #11560). Pair with Queue Oldest Age below for staleness.",
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum(eshu_dp_queue_depth{queue=~\"$queue\"}) by (status)",
+          "expr": "max(eshu_dp_queue_depth{queue=~\"$queue\"}) by (status)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
