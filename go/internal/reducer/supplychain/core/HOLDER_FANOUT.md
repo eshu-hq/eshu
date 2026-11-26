@@ -60,8 +60,8 @@ rules, the outcomes, and the open residual are in
   note — bounded by the same guard, fail-closed; #10681 caps every
   per-id arm at one row over the hot threshold (fill-to-cap K=100 on all
   three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
-  before while a hot id still reads hot; a mid-band cheap count saturates
-  to the cap and runs singleton, which only splits more).
+  before while a hot id still reads hot; a mid-band routing-mass count
+  saturates to gate+1 and reads as key-range statements (#10972 H2 Lane-1b).
 - A hot singleton id reads by routing mass (#10972 H2 A2, Lane-1b): one batched routing-mass count
   resolves each probe-hot singleton (the unsaturated summed per-arm count at or under the 78,435-row
   gate for direct-only and member<=100 ids, gate+1 above it; per-arm double-count and superseded
