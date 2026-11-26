@@ -167,11 +167,17 @@ bash "${repo_root}/scripts/lib/test-golden-corpus-aggregate-counts.sh" || fail "
 unset aggregate_counts_lib relationship_evidence_lib
 require "projector drain" "eshu-projector"
 require "reducer drain" "eshu-reducer"
-# `eshu-api` also names the /readyz failure message, and `eshu-golden-corpus-gate`
-# names both gate invocations; each is pinned to the one line that must exist.
+# The query-truth shell split (core-api on Neo4j, eshu-local-api on NornicDB,
+# never the eshu-api identity) moved out of the orchestrator into
+# scripts/lib/golden-corpus-query-shell.sh; its build/start invocations, the
+# per-backend /readyz failure messages, and the binary-absence static half are
+# asserted in scripts/lib/golden-corpus-query-shell-cases.sh (#11513). The
+# production winners resweep (#10880) still runs first inside the helper; only
+# the serving identity changed, not the resweep.
 # shellcheck disable=SC2016  # the needle is the literal orchestrator source line
 require_invocation "api for query truth" "start_api_with_winners_resweep"
-require_in "api launch in query-truth helper" "${host_helpers_lib}" 'start_bg api api_pid "${bin_dir}/eshu-api"'
+# The delegation to the backend split is asserted in
+# golden-corpus-query-shell-cases.sh, which owns the split contract.
 require "winners read model for query truth" "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true"
 require_in "production winners resweep before query truth" "${host_helpers_lib}" '"${bin_dir}/eshu-ifa" impact-digest -resweep'
 require "gate binary built" "build_bin golden-corpus-gate"

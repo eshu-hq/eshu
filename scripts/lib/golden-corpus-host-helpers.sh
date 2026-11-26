@@ -46,12 +46,21 @@ build_bin() {
 		build_satellite_bin
 		return
 	fi
+	if [[ "${cmd}" == "local-api" ]]; then
+		# #11513 NornicDB interim shell (#11499): the ./cmd/api tree built
+		# under the surviving interim name, so the gate's default-leg
+		# consumer references the name #11514 disposes — never the eshu-api
+		# identity #11456 deletes. Same cgo posture as the api build below.
+		eshu_export_cgo_cflags
+		CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-local-api" "./cmd/api" \
+			|| die "build local-api failed"
+		return
+	fi
 	# #11453 decision 4 (record-why, not a repoint): the api build stays the
-	# in-tree ./cmd/api for the query-truth shell the gate starts above. The
-	# gate proves reducer/graph/handler truth and the in-tree shell mounts
-	# core's handlers — the only shell for the default NornicDB leg — while
-	# relay fidelity to the shipped satellite is proven by the parity and
-	# latency legs. Removing this build is a #11456 blocker.
+	# in-tree ./cmd/api. Its remaining consumer is the read-api-latency gate
+	# (out of #11513 scope): the golden-corpus gate selects its shell via
+	# build_query_shell and never calls this branch. Removing this build is
+	# still a #11456 blocker.
 	eshu_export_cgo_cflags
 	CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}" \
 		|| die "build ${cmd} failed"
@@ -74,19 +83,19 @@ start_bg() {
 # start_api_with_winners_resweep runs the production winners resweep over the
 # drained generations (#10880 PR-C2: eshu-ifa impact-digest -resweep rebuilds
 # supply_chain_impact_canonical_winners through the winners maintainer's own
-# store port, retrying only the single-flight skip), then starts eshu-api for
-# query truth. The gate exports ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true, so
-# the findings served from here come from that rebuilt read model instead of
-# the read-time dedup over fact_records (empty post-C2). The resweep runs after
-# the maintenance drains -- the last writers of impact facts -- and before any
-# query-truth read.
+# store port, retrying only the single-flight skip), then starts the
+# backend-split query-truth shell (golden-corpus-query-shell.sh, #11513) in
+# place of the deleted eshu-api identity. The gate exports
+# ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true, so the findings served from here
+# come from that rebuilt read model instead of the read-time dedup over
+# fact_records (empty post-C2). The resweep runs after the maintenance
+# drains -- the last writers of impact facts -- and before any query-truth
+# read, on both backends.
 start_api_with_winners_resweep() {
 	log "production winners resweep over the drained generations (#10880 PR-C2)"
 	"${bin_dir}/eshu-ifa" impact-digest -resweep >"${log_dir}/ifa-impact-resweep.log" 2>&1 \
 		|| { tail -40 "${log_dir}/ifa-impact-resweep.log" || true; die "production winners resweep failed"; }
-	log "start eshu-api for query truth"
-	start_bg api api_pid "${bin_dir}/eshu-api"
-	wait_for_gate_http "eshu-api /readyz never returned on port ${GATE_API_PORT}" "http://localhost:${GATE_API_PORT}/readyz" "api"
+	start_query_shell
 }
 
 # wait_for_gate_http <failure-message> <url> <log-name> polls url until it

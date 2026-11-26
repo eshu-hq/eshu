@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin/retirement"
 	adminstore "github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/alerts"
@@ -196,6 +197,7 @@ func newCoreSupplyChainHandler(
 		Readiness:                    impact.NewPostgresReadinessStoreWithReadStore(reader),
 		SuppressionMutations:         suppressionAdmission,
 		CloudResourceInventory:       NewPostgresCloudResourceListStoreWithReadStore(reader),
+		KubernetesWorkloadInventory:  kubernetes.NewPostgresRuntimeWorkloadStoreWithReadStore(reader),
 		CollectorReadiness:           NewPostgresCollectorListReadinessStoreWithReadStore(reader),
 		SecurityAlertCollectionState: NewPostgresSecurityAlertCollectionStateStoreWithReadStore(reader),
 		PacketResponder:              NewSupplyChainImpactPacketResponder(),
