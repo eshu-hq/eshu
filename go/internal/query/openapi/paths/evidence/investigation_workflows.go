@@ -34,7 +34,7 @@ const InvestigationWorkflows = `
                       "description": "Workflow page in catalog order. Owner: query/investigation_workflow_handler.go list. Compact view (default) returns one InvestigationWorkflowSummary per row (id, name, version, domain, description); view=full returns the complete InvestigationWorkflow rows, which additionally carry required_inputs, required_evidence, optional_evidence, output_packet, tool_groups, starter_prompts, failure_modes, and missing_evidence_routes. Owner: query/investigation_workflow.go InvestigationWorkflowSummary and InvestigationWorkflow.",
                       "items": {
                         "description": "One investigation workflow: compact by default, full when view=full. Owner: query/investigation_workflow_handler.go list over query InvestigationWorkflowSummary and InvestigationWorkflow.",
-                        "oneOf": [
+                        "anyOf": [
                           {
                             "title": "compact",
                             "type": "object",

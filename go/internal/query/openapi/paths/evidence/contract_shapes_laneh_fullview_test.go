@@ -11,7 +11,7 @@ import (
 
 // TestContractShapesLaneHFullView pins the Lane H gap-5 fix: the workflows[]
 // items in GET /api/v0/investigation-workflows give the view=full shape a
-// real schema instead of prose. The item is a oneOf keyed on the `view`
+// real schema instead of prose. The item is a anyOf keyed on the `view`
 // query param: the compact InvestigationWorkflowSummary branch by default,
 // the full InvestigationWorkflow branch when view=full. The full branch
 // spells out required_inputs, required_evidence, optional_evidence,
@@ -66,32 +66,32 @@ func TestContractShapesLaneHFullView(t *testing.T) {
 	if !ok {
 		t.Fatal("workflows has no items")
 	}
-	oneOf, ok := items["oneOf"].([]any)
-	if !ok || len(oneOf) != 2 {
-		t.Fatalf("workflows items is not a two-branch oneOf keyed on the view param (compact vs full)")
+	anyOf, ok := items["anyOf"].([]any)
+	if !ok || len(anyOf) != 2 {
+		t.Fatalf("workflows items is not a two-branch anyOf keyed on the view param (compact vs full)")
 	}
 	branches := map[string]map[string]any{}
-	for _, branch := range oneOf {
+	for _, branch := range anyOf {
 		bm, ok := branch.(map[string]any)
 		if !ok {
-			t.Fatal("oneOf branch is not an object")
+			t.Fatal("anyOf branch is not an object")
 		}
 		title, _ := bm["title"].(string)
 		if title == "" {
-			t.Fatal("oneOf branch has no title naming its view")
+			t.Fatal("anyOf branch has no title naming its view")
 		}
 		branches[title] = bm
 		if desc, _ := bm["description"].(string); desc == "" {
-			t.Errorf("oneOf branch %q has no description", title)
+			t.Errorf("anyOf branch %q has no description", title)
 		}
 	}
 	summary, ok := branches["compact"]
 	if !ok {
-		t.Fatal("oneOf has no compact branch (want title \"compact\")")
+		t.Fatal("anyOf has no compact branch (want title \"compact\")")
 	}
 	full, ok := branches["full"]
 	if !ok {
-		t.Fatal("oneOf has no full branch (want title \"full\")")
+		t.Fatal("anyOf has no full branch (want title \"full\")")
 	}
 
 	summaryProps, ok := summary["properties"].(map[string]any)
@@ -205,6 +205,32 @@ func TestContractShapesLaneHFullView(t *testing.T) {
 	for _, key := range []string{"id", "tool", "reason", "missing_evidence", "params", "expected_evidence"} {
 		if _, ok := callProps[key].(map[string]any); !ok {
 			t.Errorf("full.missing_evidence_routes.calls missing %q", key)
+		}
+	}
+
+	// Instance satisfiability: a real compact row validates against the
+	// compact branch and a real full row against the full branch, so the
+	// anyOf admits both views (a strict oneOf admitted neither).
+	compactRow := map[string]any{
+		"id": "wf-1", "name": "w", "version": "v1",
+		"domain": "d", "description": "desc",
+	}
+	for key := range compactRow {
+		if _, ok := summaryProps[key].(map[string]any); !ok {
+			t.Errorf("compact instance key %q not in compact branch", key)
+		}
+	}
+	fullRow := map[string]any{
+		"id": "wf-1", "name": "w", "version": "v1",
+		"domain": "d", "description": "desc",
+		"required_inputs": nil, "required_evidence": nil,
+		"optional_evidence": nil, "output_packet": nil,
+		"tool_groups": nil, "starter_prompts": nil,
+		"failure_modes": nil, "missing_evidence_routes": nil,
+	}
+	for key := range fullRow {
+		if _, ok := fullProps[key].(map[string]any); !ok {
+			t.Errorf("full instance key %q not in full branch", key)
 		}
 	}
 }

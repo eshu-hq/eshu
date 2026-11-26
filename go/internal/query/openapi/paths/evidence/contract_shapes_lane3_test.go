@@ -185,29 +185,29 @@ func TestContractShapesLane3Evidence(t *testing.T) {
 		// ToSummary) emits exactly id, name, version, domain, description
 		// on the compact branch; the full branch (view=full) carries those
 		// plus the complete InvestigationWorkflow shape. The items node is
-		// a view-keyed oneOf (Lane H gap-5 fix for the prose-only shape).
+		// a view-keyed anyOf (Lane H gap-5 fix for the prose-only shape).
 		workflows := child(t, props, "workflows", "workflows catalog")
 		items := itemsOf(t, workflows, "workflows")
-		oneOf, ok := items["oneOf"].([]any)
-		if !ok || len(oneOf) != 2 {
-			t.Fatalf("workflows[] items: want a two-branch oneOf keyed on the view param (compact vs full)")
+		anyOf, ok := items["anyOf"].([]any)
+		if !ok || len(anyOf) != 2 {
+			t.Fatalf("workflows[] items: want a two-branch anyOf keyed on the view param (compact vs full)")
 		}
 		byTitle := map[string]map[string]any{}
-		for _, branch := range oneOf {
+		for _, branch := range anyOf {
 			bm, ok := branch.(map[string]any)
 			if !ok {
-				t.Fatalf("workflows[] items: oneOf branch is not an object")
+				t.Fatalf("workflows[] items: anyOf branch is not an object")
 			}
 			title, _ := bm["title"].(string)
 			byTitle[title] = bm
 		}
 		compact, ok := byTitle["compact"]
 		if !ok {
-			t.Fatalf("workflows[] items: oneOf has no compact branch")
+			t.Fatalf("workflows[] items: anyOf has no compact branch")
 		}
 		full, ok := byTitle["full"]
 		if !ok {
-			t.Fatalf("workflows[] items: oneOf has no full branch")
+			t.Fatalf("workflows[] items: anyOf has no full branch")
 		}
 		workflowItems := propsOf(t, compact, "workflows items compact")
 		requireExactKeys(t, workflowItems, "workflows[] compact items",
