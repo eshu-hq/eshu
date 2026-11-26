@@ -76,12 +76,57 @@ func advisoryCellCount(t *testing.T, ctx context.Context, database *sql.DB, quer
 	return count
 }
 
+// firstSeenStampOfSupport returns the support payload's first_seen_at
+// stamp, failing the proof when the payload shape cannot carry one or the
+// stamp is malformed. The admission stamps every row it upserts
+// (first_seen.go: firstSeenProvenanceKey), so a stamp-less or malformed
+// support means the stamp step was skipped or regressed.
+func firstSeenStampOfSupport(t *testing.T, factID string, payload any) string {
+	t.Helper()
+	doc, ok := payload.(map[string]any)
+	if !ok {
+		t.Fatalf("support payload for fact %s is not a JSON object", factID)
+	}
+	provenance, ok := doc["provenance"].(map[string]any)
+	if !ok {
+		t.Fatalf("support payload for fact %s carries no provenance object", factID)
+	}
+	stamp, _ := provenance["first_seen_at"].(string)
+	if stamp == "" {
+		return ""
+	}
+	if _, err := time.Parse(time.RFC3339Nano, stamp); err != nil {
+		t.Fatalf("support payload for fact %s carries malformed first_seen_at %q: %v", factID, stamp, err)
+	}
+	return stamp
+}
+
+// stripFirstSeenStampKeys deletes the admission's #11031 stamp keys
+// (first_seen.go: firstSeenProvenanceKey, publishSourceProvenanceKey) from a
+// decoded finding payload so the verbatim comparison sees the finding
+// content. It tolerates payloads without them, such as the cassette side.
+func stripFirstSeenStampKeys(payload any) {
+	doc, ok := payload.(map[string]any)
+	if !ok {
+		return
+	}
+	provenance, ok := doc["provenance"].(map[string]any)
+	if !ok {
+		return
+	}
+	delete(provenance, "first_seen_at")
+	delete(provenance, "selected_publish_source")
+}
+
 // advisoryCellSupportsEqualLiveRows proves every live cassette finding row
 // has exactly one support in the scope and that each support's payload is the
-// row's payload verbatim. The comparison parses both sides: the supports
-// table stores JSONB (whose text form orders keys its own way) while the rows
-// carry the cassette's re-marshaled bytes, so a text comparison would be
-// order-sensitive where the contract is content.
+// row's payload apart from the admission's #11031 first-seen stamp
+// (provenance.first_seen_at plus provenance.selected_publish_source, claimed
+// and stamped by admitFindingRowsInTx before the supports upsert). The
+// comparison parses both sides: the supports table stores JSONB (whose text
+// form orders keys its own way) while the rows carry the cassette's
+// re-marshaled bytes, so a text comparison would be order-sensitive where the
+// contract is content.
 func advisoryCellSupportsEqualLiveRows(t *testing.T, ctx context.Context, database *sql.DB, rows []factwrite.VersionedRow) {
 	t.Helper()
 	live := map[string]json.RawMessage{}
@@ -117,6 +162,14 @@ func advisoryCellSupportsEqualLiveRows(t *testing.T, ctx context.Context, databa
 		if err := json.Unmarshal([]byte(payload), &got); err != nil {
 			t.Fatalf("decode support payload %s: %v", factID, err)
 		}
+		// The admission stamps every row before the upsert, so the stamp
+		// keys cannot equal the cassette's; pin them instead of comparing
+		// them, then compare the rest verbatim.
+		if stamp := firstSeenStampOfSupport(t, factID, got); stamp == "" {
+			t.Fatalf("support payload for fact %s carries no first_seen_at stamp", factID)
+		}
+		stripFirstSeenStampKeys(want)
+		stripFirstSeenStampKeys(got)
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("support payload for fact %s differs from the cassette finding payload", factID)
 		}
@@ -159,10 +212,11 @@ func TestAdvisoryGroupCellAdmitsFindingsWithSupportsLive(t *testing.T) {
 	if got := advisoryCellCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE scope_id = $1`, advisoryCellScope); got != live {
 		t.Fatalf("supports rows = %d, want %d (one per live finding fact)", got, live)
 	}
-	// The payload is the finding payload verbatim: since PR-C2 the admission
-	// writes supports only and no finding fact, so the check compares each
-	// live cassette row's payload against its support's payload in Go (parsed
-	// JSON, keyed by fact id) instead of joining the frozen fact table.
+	// The payload is the finding payload apart from the #11031 first-seen
+	// stamp: since PR-C2 the admission writes supports only and no finding
+	// fact, so the check compares each live cassette row's payload against
+	// its support's payload in Go (parsed JSON, keyed by fact id) instead of
+	// joining the frozen fact table.
 	advisoryCellSupportsEqualLiveRows(t, ctx, database, rows)
 	if got := advisoryCellCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_finding_supports_dirty`); got != 0 {
 		t.Fatalf("dirty fence scopes = %d, want 0: the admission must run under the supports writer setting", got)
