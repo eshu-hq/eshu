@@ -52,8 +52,9 @@ func TestAdvisoryGroupWinnersQualifyingLive(t *testing.T) {
 	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
-	// The advisory-group fixtures plant finding facts with raw SQL; whole-test disarm (allowlisted).
-	postgresproof.DisarmFindingWriteStopForTest(t, db)
+	// The advisory-group winners proof plants frozen finding facts below, so
+	// they run in a scoped postgresproof.SeedFindingFacts window: the proof
+	// database stays armed and the winners reads under test run armed.
 
 	seedAdvisoryGroupWinnersLive(t, ctx, db)
 	t.Cleanup(func() {
@@ -210,34 +211,40 @@ INSERT INTO scope_generations (
 	); err != nil {
 		t.Fatalf("activate source generation: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `
-INSERT INTO fact_records (
-  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
-  source_system, source_fact_key, observed_at, ingested_at, payload
-) VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1,
-          'synthetic', $1, NOW(), NOW(), $4::jsonb)`,
-		p+"fact-members", p+"scope", p+"gen",
-		`{"purl": "pkg:npm/pkg-agw-a@1.2.3", "provenance": {"advisory_group_members": ["GHSA-10411-m1", "GHSA-10411-m2"]}}`,
-	); err != nil {
-		t.Fatalf("insert winner fact: %v", err)
-	}
-	// #10475: facts with absent or NULL provenance must project nil
-	// members without error.
-	for fact, payload := range map[string]string{
-		p + "fact-noprov":   `{"purl": "pkg:npm/pkg-agw-noprov@1.0.0"}`,
-		p + "fact-nullprov": `{"purl": "pkg:npm/pkg-agw-nullprov@1.0.0", "provenance": null}`,
-	} {
+	// The plants are frozen finding history, so they run in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and a raw finding-fact insert would raise 55000 outside it, while the
+	// winners reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
 		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (
   fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
   source_system, source_fact_key, observed_at, ingested_at, payload
 ) VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1,
           'synthetic', $1, NOW(), NOW(), $4::jsonb)`,
-			fact, p+"scope", p+"gen", payload,
+			p+"fact-members", p+"scope", p+"gen",
+			`{"purl": "pkg:npm/pkg-agw-a@1.2.3", "provenance": {"advisory_group_members": ["GHSA-10411-m1", "GHSA-10411-m2"]}}`,
 		); err != nil {
-			t.Fatalf("insert no-provenance winner fact %q: %v", fact, err)
+			t.Fatalf("insert winner fact: %v", err)
 		}
-	}
+		// #10475: facts with absent or NULL provenance must project nil
+		// members without error.
+		for fact, payload := range map[string]string{
+			p + "fact-noprov":   `{"purl": "pkg:npm/pkg-agw-noprov@1.0.0"}`,
+			p + "fact-nullprov": `{"purl": "pkg:npm/pkg-agw-nullprov@1.0.0", "provenance": null}`,
+		} {
+			if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  source_system, source_fact_key, observed_at, ingested_at, payload
+) VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1,
+          'synthetic', $1, NOW(), NOW(), $4::jsonb)`,
+				fact, p+"scope", p+"gen", payload,
+			); err != nil {
+				t.Fatalf("insert no-provenance winner fact %q: %v", fact, err)
+			}
+		}
+	})
 
 	type winner struct {
 		key, fact, scope, status, repo, pkg, eco, cve, advisory, suppression string
