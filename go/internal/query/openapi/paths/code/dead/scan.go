@@ -126,7 +126,8 @@ const Scan = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },

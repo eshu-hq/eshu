@@ -64,12 +64,11 @@ const Owners = `
                     },
                     "effective_owner": {
                       "type": "object",
-                      "description": "Owner resolved by manifest-vs-codeowners precedence, per ListOwnership.",
+                      "description": "Owner resolved by manifest-vs-codeowners precedence, per ListOwnership. Empty ({}) when nothing resolves, per the omitempty fields of EffectiveRepositoryOwner.",
                       "properties": {
                         "owner_ref": {"type": "string", "description": "Resolved owner reference, per ListOwnership."},
                         "source": {"type": "string", "enum": ["service_catalog", "codeowners"], "description": "Which declaration won precedence, per ListOwnership."}
-                      },
-                      "required": ["owner_ref", "source"]
+                      }
                     }
                   },
                   "required": ["ownership", "repository_id", "count", "limit", "truncated", "effective_owner"]
@@ -78,6 +77,7 @@ const Owners = `
             }
           },
           "400": {"description": "Missing repository_id, invalid limit, or a partial keyset cursor"},
+          "500": {"description": "Codeowners ownership graph read failed, or resolving the effective repository owner failed"},
           "501": {"description": "Capability unsupported for the active query profile"},
           "503": {"description": "Authoritative graph backend unavailable"}
         }

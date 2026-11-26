@@ -52,7 +52,8 @@ const Symbols = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -101,6 +102,11 @@ const Symbols = `
                   "description": "Structural code inventory page emitted by handleStructuralInventory.",
                   "properties": {
                     "repo_id": {"type": "string", "description": "Repository selector echoed by handleStructuralInventory."},
+                    "file_path": {"type": "string", "description": "File path filter echoed by handleStructuralInventory."},
+                    "symbol": {"type": "string", "description": "Entity name filter echoed by handleStructuralInventory."},
+                    "decorator": {"type": "string", "description": "Decorator filter echoed by handleStructuralInventory."},
+                    "method_name": {"type": "string", "description": "Method name filter echoed by handleStructuralInventory."},
+                    "class_name": {"type": "string", "description": "Class context filter echoed by handleStructuralInventory."},
                     "language": {"type": "string", "description": "Language filter echoed by handleStructuralInventory."},
                     "inventory_kind": {"type": "string", "description": "Inventory kind echoed by handleStructuralInventory."},
                     "entity_kind": {"type": "string", "description": "Entity kind echoed by handleStructuralInventory."},
@@ -123,7 +129,8 @@ const Symbols = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -242,7 +249,8 @@ const Symbols = `
             }
           },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -311,7 +319,8 @@ const Symbols = `
             }
           },
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -335,6 +344,7 @@ const Symbols = `
                 "properties": {
                   "topic": {"type": "string", "description": "Natural-language topic or behavior to investigate"},
                   "query": {"type": "string", "description": "Compatibility alias for topic"},
+                  "terms": {"type": "array", "description": "Optional explicit search terms; fed into the topic search alongside the derived terms, per handleTopicInvestigation.", "items": {"type": "string"}},
                   "intent": {"type": "string", "description": "Optional caller intent such as explain_flow or debug_issue"},
                   "repo_id": {"type": "string", "description": "Optional repository selector (canonical ID, name, slug, or path)"},
                   "language": {"type": "string", "description": "Optional language filter"},
@@ -406,7 +416,8 @@ const Symbols = `
               }
             }
           },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },

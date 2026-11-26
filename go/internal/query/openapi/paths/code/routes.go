@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package code
+package code //nolint:filelength // ~540 lines of OpenAPI path fragments for core code routes. Per paths/code/AGENTS.md, each file holds exactly one exported string constant; splitting the Routes literal across files breaks the per-fragment review boundary.
 
 // Routes is the OpenAPI path fragment documenting the `/api/v0/code/*`
 // routes. openapi.Spec concatenates it into the published document; keep it in
@@ -27,6 +27,7 @@ const Routes = `
                   "limit": {"type": "integer", "description": "Maximum returned page size (default 50, maximum 200)", "default": 50, "minimum": 1, "maximum": 200},
                   "offset": {"type": "integer", "description": "Zero-based start of the page inside the first 200 ranked matches; the effective limit shrinks so offset plus limit stays within 200.", "default": 0, "minimum": 0, "maximum": 199},
                   "exact": {"type": "boolean", "description": "When true, require a complete case-sensitive entity-name match. Exact global searches may be shorter than 3 characters.", "default": false},
+                  "search_type": {"type": "string", "description": "Optional search lane selector. \"variable\" serves the variable_lookup capability; any other value serves the default fuzzy_symbol capability, per handleSearch."},
                   "rank_cursor": {"type": "string", "description": "Opt-in walk (#7746, schema RankWalk). \"start\" reads the first 200 rows of the lane a plain request would read (graph first; content when the graph has no rows) and returns the first page; pass rank_walk.next_cursor for the next page. The graph lane keeps its own order; the content lane is ranked by hybrid BM25+vector relevance unless exact=true or no ranker is configured. Needs repo_id and refuses a positive offset (400 rank_cursor_unsupported). A changed lane, window, or ranked order answers 409 rank_cursor_basis_mismatch (schema RankCursorError); restart with \"start\". A malformed cursor answers 400 rank_cursor_invalid."}
                 }
               }
@@ -89,7 +90,16 @@ const Routes = `
                       "type_annotation",
                       "typedef",
                       "component",
+                      "guard",
+                      "protocol_implementation",
+                      "module_attribute",
                       "terraform_module",
+                      "terraform_backend",
+                      "terraform_check",
+                      "terraform_import",
+                      "terraform_lock_provider",
+                      "terraform_moved_block",
+                      "terraform_removed_block",
                       "terragrunt_config",
                       "terragrunt_dependency",
                       "terragrunt_local",
@@ -183,13 +193,16 @@ const Routes = `
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
-            "description": "Entity relationships",
+            "description": "Entity relationships, or the ambiguous-target variant (status/target_resolution/summary with empty legs) when the name resolves to several candidates",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "entity_id": {"type": "string", "description": "Anchor entity id resolved by handleRelationships."},
+                    "status": {"type": "string", "description": "Present only on the ambiguous-target answer (\"ambiguous\"); absent on resolved answers, per AmbiguousRelationshipsResponse."},
+                    "target_resolution": {"type": "object", "description": "Present only on the ambiguous-target answer: ambiguity candidates and truncation, per AmbiguousRelationshipsResponse.", "additionalProperties": true},
+                    "summary": {"type": "object", "description": "Present only on the ambiguous-target answer: candidate_count and truncated, per AmbiguousRelationshipsResponse.", "additionalProperties": true},
+                    "entity_id": {"type": "string", "description": "Anchor entity id resolved by handleRelationships; absent on the ambiguous-target answer."},
                     "name": {"type": "string", "description": "Anchor entity name resolved by handleRelationships."},
                     "labels": {"type": "array", "description": "Anchor entity graph labels reported by handleRelationships.", "items": {"type": "string"}},
                     "file_path": {"type": "string", "description": "Anchor entity repo-relative file path reported by handleRelationships."},
@@ -211,7 +224,8 @@ const Routes = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -280,7 +294,8 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -341,8 +356,21 @@ const Routes = `
                           "depth": {"type": "integer", "description": "Chain depth reported by handleCallChain."},
                           "chain": {
                             "type": "array",
-                            "description": "Entity hops of the chain (components.schemas.EntityRef), per handleCallChain.",
-                            "items": {"$ref": "#/components/schemas/EntityRef"}
+                            "description": "Entity hops of the chain, per handleCallChain. Not an EntityRef: hops carry docstring and method_kind and never carry file_path, start_line, end_line, repo_id, or repo_name.",
+                            "items": {
+                              "type": "object",
+                              "description": "One chain hop: the {id, name, labels, language, docstring, method_kind} projection of chain/cypher.go, plus metadata/semantic_summary only when the hop carries graph metadata, per attachCallChainNodeSemantics.",
+                              "properties": {
+                                "id": {"type": "string", "description": "Hop entity id projected by chain/cypher.go."},
+                                "name": {"type": "string", "description": "Hop entity name projected by chain/cypher.go."},
+                                "labels": {"type": "array", "description": "Hop graph labels projected by chain/cypher.go.", "items": {"type": "string"}},
+                                "language": {"type": "string", "description": "Hop entity language projected by chain/cypher.go."},
+                                "docstring": {"type": "string", "description": "Hop docstring projected by chain/cypher.go."},
+                                "method_kind": {"type": "string", "description": "Hop method kind projected by chain/cypher.go."},
+                                "metadata": {"type": "object", "description": "Hop parser metadata, present only when GraphResultMetadata is non-empty, per attachCallChainNodeSemantics.", "additionalProperties": true},
+                                "semantic_summary": {"type": "string", "description": "Hop semantic summary, present only alongside metadata, per attachCallChainNodeSemantics."}
+                              }
+                            }
                           }
                         }
                       }
@@ -353,7 +381,8 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -376,6 +405,7 @@ const Routes = `
                   "start_entity_id": {"type": "string", "description": "Canonical caller entity id. Takes precedence over start when provided."},
                   "end_entity_id": {"type": "string", "description": "Canonical callee entity id. Takes precedence over end when provided."},
                   "repo_id": {"type": "string", "description": "Required repository selector scoping both entities to one repository."},
+                  "cross_repo": {"type": "boolean", "description": "Single-repo v1 refuses cross_repo with 400; scope both entities to repo_id, per handleCompareCodePaths.", "default": false},
                   "max_depth": {"type": "integer", "description": "Maximum path depth (default 4, max 6)", "default": 4},
                   "max_paths": {"type": "integer", "description": "Maximum distinct simple paths (default 5, max 20)", "default": 5}
                 },
@@ -409,8 +439,16 @@ const Routes = `
                         "properties": {
                           "nodes": {
                             "type": "array",
-                            "description": "Entity nodes of the path (components.schemas.EntityRef), per handleCompareCodePaths.",
-                            "items": {"$ref": "#/components/schemas/EntityRef"}
+                            "description": "Entity nodes of the path ({id, name} only, not an EntityRef), per handleCompareCodePaths.",
+                            "items": {
+                              "type": "object",
+                              "description": "One compared-path node: entity id and name, per handleCompareCodePaths.",
+                              "properties": {
+                                "id": {"type": "string", "description": "Path node entity id, per handleCompareCodePaths."},
+                                "name": {"type": "string", "description": "Path node entity name, per handleCompareCodePaths."}
+                              },
+                              "required": ["id", "name"]
+                            }
                           },
                           "depth": {"type": "integer", "description": "Path depth reported by handleCompareCodePaths."},
                           "confidence": {"type": "number", "description": "Weakest-edge confidence of the path, per handleCompareCodePaths."}
@@ -428,7 +466,9 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -479,6 +519,8 @@ const Routes = `
                     "outgoing_count": {"type": "integer", "description": "Anchor outgoing relationship count reported by handleComplexity."},
                     "incoming_count": {"type": "integer", "description": "Anchor incoming relationship count reported by handleComplexity."},
                     "total_relationships": {"type": "integer", "description": "Anchor total relationship count reported by handleComplexity."},
+                    "complexity": {"type": "integer", "description": "Single-entity cyclomatic complexity reported by handleComplexity; present only on single-entity answers."},
+                    "result_key": {"type": "string", "description": "Row identity key (\"entity_id\") carried by list and empty answers, per handleComplexity."},
                     "results": {"type": "array", "description": "Most-complex-function rows (list mode). Each row's docstring is clipped at read time to docstring_clip_bytes; a clipped row carries docstring_clipped, docstring_clip_bytes, and docstring_total_bytes.", "items": {"type": "object", "description": "One most-complex-function row (open map). Owner: complexity list handler.", "additionalProperties": true}},
                     "limit": {"type": "integer", "description": "Page bound echoed by handleComplexity."},
                     "truncated": {"type": "boolean", "description": "True when more rows exist past the limit, per handleComplexity."},
