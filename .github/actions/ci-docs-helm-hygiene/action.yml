@@ -10,6 +10,12 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Verify evidence folder hygiene
+      if: ${{ inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'evidence-hygiene') }}
+      shell: bash
+      run: |
+        scripts/test-verify-evidence-hygiene.sh
+        scripts/verify-evidence-hygiene.sh
     - name: Verify docs-only CI carve-out wiring
       if: ${{ inputs.mode != 'smoke' }}
       shell: bash

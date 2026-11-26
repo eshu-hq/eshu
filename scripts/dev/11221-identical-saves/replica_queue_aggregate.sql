@@ -9,7 +9,8 @@
 -- filtered to the nine domains in the IN list below (the reducer domains that write fact_records and are named in
 -- the record, plus supply_chain_impact, which the record excludes), all with stage = 'reducer'.
 -- A reducer fact id includes the generation, so a same-id update needs the same intent to run
--- again for the same generation. Output: docs/internal/evidence/11221-identical-saves/queue-aggregate.txt
+-- again for the same generation. Summary recorded in
+-- docs/internal/design/11221-identical-reducer-saves-measurement.md.
 SELECT domain,
        count(*) FILTER (WHERE status = 'succeeded') AS succeeded_items,
        count(*) FILTER (WHERE status = 'succeeded' AND (attempt_count > 1 OR reopened_at IS NOT NULL)) AS resaved_items,

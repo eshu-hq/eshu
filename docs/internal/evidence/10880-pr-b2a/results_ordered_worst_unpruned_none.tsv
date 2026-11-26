@@ -1,3 +1,0 @@
-# jit=on shared_buffers=2GB work_mem=16MB
-read	median_ms	max_ms	rows	note
-v_count_none_unpruned	1318.859	1349.990	5	warm-up 1563.129 ms

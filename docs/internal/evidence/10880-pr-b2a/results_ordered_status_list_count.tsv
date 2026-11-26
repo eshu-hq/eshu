@@ -1,5 +1,0 @@
-# jit=on shared_buffers=2GB work_mem=16MB
-read	median_ms	max_ms	rows	note
-v_count_status_unpruned	773.909	793.262	5	warm-up 855.590 ms
-v_list_prio_status_unpruned	765.021	805.031	54	warm-up 749.097 ms
-v_list_status_unpruned	753.568	793.451	54	warm-up 767.949 ms

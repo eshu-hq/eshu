@@ -176,6 +176,13 @@ repos:
       # filters the paths it is handed to go/**.md and docs/**.md and verifies the pinned
       # ledger on every run, so a ledger-only commit is checked rather than
       # exiting 0 having evaluated nothing.
+      - id: evidence-hygiene
+        name: internal evidence folder hygiene (no raw dumps, concise summaries)
+        entry: scripts/verify-evidence-hygiene.sh --files
+        language: script
+        files: '^(docs/internal/evidence/|scripts/(test-)?verify-evidence-hygiene\.sh$)'
+        pass_filenames: true
+
       - id: markdown-file-cap
         name: 500-line Markdown file cap (go/ and docs/)
         entry: scripts/verify-markdown-line-cap.sh --files

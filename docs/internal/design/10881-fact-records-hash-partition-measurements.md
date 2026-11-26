@@ -32,7 +32,7 @@ rows; the 60 GB cap and the shared disk allowed 2.05M and 5.36M.
 
 The removal repair run (A2) reloaded S1 from a fresh pull two hours later, so its S1
 has 2,071,167 rows (live ingestion added rows to the same scopes) and its S0
-960,732; counts per load are in `r1-row-counts.txt` in the evidence folder.
+960,732 (raw `r1-row-counts.txt` pruned per `docs/internal/evidence/README.md`).
 
 **Two shapes, same rows.** Each size is one database holding the undivided table
 (`public.fact_records`) and a `HASH(scope_id)` modulus-32 twin (`d.fact_records`)
@@ -198,8 +198,8 @@ rows a call; the next is a 12,739-call projector probe at 178 ms mean. Writes an
 projector loads run on the primary, whose statistics were not read (out of
 bounds), so those are ranked by how often the code path runs: once per projection
 cycle, once per ingestion batch. The plans themselves are measured. `explain_loads.sql` runs the same five on both
-shapes; warm, third run, `EXPLAIN (ANALYZE, BUFFERS)`, retained index profile.
-Raw plans: `docs/internal/evidence/10881-fact-records-partition/`.
+shapes; warm, third run, `EXPLAIN (ANALYZE, BUFFERS)`, retained index profile
+(raw plans pruned per `docs/internal/evidence/README.md`).
 
 | # | Load | Undivided | Divided (32) | Divided plan |
 | --- | --- | --- | --- | --- |
@@ -224,8 +224,8 @@ What this means:
   cached; at production scale (12,646 scopes, cold parts) the estimate (2.6x here)
   is the number to watch. NOT_CHECKED at production scale.
 - The `scanner_image_result_*` tables the real L2 joins are empty in the
-  rehearsal schema; the scope scan is the part under test. The 153-index S1 plan
-  (undivided only) is kept in the evidence folder for reference.
+  rehearsal schema; the scope scan is the part under test (raw 153-index S1 plan
+  pruned per `docs/internal/evidence/README.md`).
 
 ## A2: removal, undivided against divided (R1, two sizes)
 
@@ -239,8 +239,8 @@ one session: the shipped retention drain (page of 100,000 ids, one committed
 transaction per page; fact_id-only SQL on the undivided table, the
 `scope_id AND fact_id` form on the divided one), then `VACUUM (VERBOSE)`. WAL is
 per-backend (`pg_stat_get_backend_wal`), so other cluster activity does not count.
-The decision rests on WAL bytes and page counts, not seconds. Raw output:
-`docs/internal/evidence/10881-fact-records-partition/r1-*`.
+The decision rests on WAL bytes and page counts, not seconds (raw output pruned
+per `docs/internal/evidence/README.md`).
 
 | Metric | S0 undivided | S0 divided | S1 undivided | S1 divided |
 | --- | --- | --- | --- | --- |
@@ -255,8 +255,8 @@ The decision rests on WAL bytes and page counts, not seconds. Raw output:
 | size before / after (bytes, sum of `pg_partition_tree` leaves for divided) | not captured / not captured | 4,445,921,280 / 4,438,810,624 | 7,545,962,496 / 7,545,880,576 | 7,280,558,080 / 7,273,725,952 |
 | host loadavg (1 min) and I/O pressure avg60 at cell start | 25.5 / 39 | 42.3 / 47 | 23.5 / 60 | 20.9 / 58 |
 
-(Delete and VACUUM seconds are in the raw output; they moved from 16 s to 498 s with
-host I/O and are not evidence.) The S0 undivided size was not captured because the
+(Delete and VACUUM seconds moved from 16 s to 498 s with host I/O and are not
+evidence; raw logs were pruned per `docs/internal/evidence/README.md`.) The S0 undivided size was not captured because the
 size query was fixed between cells (a plain table returns no `pg_partition_tree`
 leaf, so the first version reported NULL); the other three cells carry it.
 
@@ -311,8 +311,7 @@ different design (a snapshot-keyed layout) and was not measured here.
 
 These were prepared as design forks for HASH(scope_id). That design is rejected, so
 they are design inputs for #11202 (the snapshot-keyed layout issue), not forks for
-#10881 and not decisions. The sub-key skew what-if below
-(`skew_split.sql`, output in `docs/internal/evidence/10881-fact-records-partition/skew-census-output.txt`)
+#10881 and not decisions. The sub-key skew what-if below (`skew_split.sql`)
 belongs to that issue: any layout keyed on scope must say where a 12.9% scope lands.
 
 **Key choice: plain `HASH(scope_id)` mod 32, or a skew-aware key.** One scope holds

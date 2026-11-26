@@ -37,8 +37,9 @@ are a separate path and were not read for this record.
 (the replica's average for the largest reducer kind is 1.30 KB), one scope, on the
 production schema at two index profiles. Per-backend WAL (`pg_stat_get_backend_wal`),
 `VACUUM` and a checkpoint before the cold arms, and a second pass with no checkpoint for
-the steady arms. `scripts/dev/11221-identical-saves/` reproduces it; raw output is in
-`docs/internal/evidence/11221-identical-saves/fixture-wal.txt`. Per-backend WAL bytes do not
+the steady arms. `scripts/dev/11221-identical-saves/` reproduces it (raw WAL
+output was pruned per `docs/internal/evidence/README.md`; the measured figures
+stand in the table below). Per-backend WAL bytes do not
 depend on host load, which answers the "host load beside them"
 acceptance criterion for the WAL figures. The two replica queries
 behind the queue and sample tables are `replica_queue_aggregate.sql` and `replica_kind_sample.sql`
@@ -73,8 +74,7 @@ in the same script directory.
 reducer fact id includes the generation, so a first derivation of a generation inserts.
 An update needs the same intent to run again for the same generation: a retry
 (`attempt_count > 1`) or a reopen (`reopened_at` set). `fact_work_items` for the reducer
-stage, succeeded items; the last column is the last seven days
-(`docs/internal/evidence/11221-identical-saves/queue-aggregate.txt`):
+stage, succeeded items; the last column is the last seven days:
 
 | Domain (fact kind) | Succeeded items | Re-saved items | Succeeded in last 7 days | Re-saved in last 7 days |
 | --- | --- | --- | --- | --- |
@@ -89,7 +89,7 @@ stage, succeeded items; the last column is the last seven days
 | supply_chain_impact (excluded) | 928 | 874 | 328 | 304 |
 
 Row volume per kind comes from a 1% system sample of `fact_records` on the replica
-(954,192 rows; `replica-kind-sample.txt`): the search document kind is 30% of the sampled
+(954,192 rows; raw sample pruned per `docs/internal/evidence/README.md`): the search document kind is 30% of the sampled
 rows (287,067), the supply-chain impact finding 13% (122,213), code-drifted findings 0.3%
 (3,040); every other reducer kind is below 0.02%. Scaled by 100, search documents are
 about 2,300 rows per succeeded item and code-drifted findings about 38.
