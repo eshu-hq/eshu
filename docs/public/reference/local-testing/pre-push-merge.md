@@ -33,12 +33,14 @@ The step prints why it skipped or took the fast path instead of passing silently
 - The merged tree's Go inputs, meaning `go/` plus every local `replace`
   directory in `go/go.mod`, are identical to the base's. The merge adds nothing
   main's own CI has not already vetted, so the step skips.
-- HEAD already contains the base (the usual state right after a rebase) and Go
-  inputs changed. The merged tree is HEAD's own tree, so the step skips
-  materializing a duplicate checkout and runs whole-module `go vet ./...`
-  directly in the worktree's warm `go/` directory (ensuring cross-package
-  compile breakage is still caught locally while the `go-vet` registry gate is
-  `pre_push: deferred`).
+- HEAD already contains the base (the usual state right after a rebase), Go
+  inputs changed, and the worktree is clean. The merged tree is HEAD's own
+  tree, so the step skips materializing a duplicate checkout and runs
+  whole-module `go vet ./...` directly in the worktree's warm `go/` directory
+  (ensuring cross-package compile breakage is still caught locally while the
+  `go-vet` registry gate is `pre_push: deferred`). When the worktree has
+  uncommitted edits, it reports them and materializes committed HEAD instead
+  so uncommitted edits are never mixed into the merge check.
 
 ## Why `go vet` and a stable directory
 
