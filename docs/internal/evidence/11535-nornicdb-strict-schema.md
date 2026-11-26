@@ -87,7 +87,7 @@ Live proofs: `TestLiveNornicDBStrictSchemaApplyIsClean` and
 Divergence class: **impact list/explain read-model skew**. The findings
 list followed the `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` flag onto the
 maintained winners table while the explanation store stayed hardcoded to
-the legacy fact read (`reader, false` in `go/cmd/api/wiring_handlers.go`
+the legacy fact read (`reader, false` in `go/cmd/eshu-local-api/wiring_handlers.go`
 and `go/internal/query/d6_read_admission_wire.go`). The C2 write stop
 (#10880, migration 358) left the legacy fact read structurally empty, so
 every explain answered `ErrExplanationNotFound` while the list served the
