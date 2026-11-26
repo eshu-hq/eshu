@@ -35,20 +35,20 @@ const Routes = `
                     "resolved_id": {"type": "string", "description": "Compact relationship pointer in resolved_relationships.resolved_id."},
                     "postgres_lookup_id": {"type": "string", "description": "Postgres lookup id evidence_read_model.go used to fetch the row; mirrors resolved_id."},
                     "generation_id": {"type": "string", "description": "Relationship generation id in resolved_relationships.generation_id; retention-scoped, so a swept generation reads as not_found."},
-                    "generation": {"type": "object", "description": "Generation the relationship belongs to, built by relationshipEvidenceGeneration in evidence_read_model.go from relationship_generations.", "properties": {
-                      "id": {"type": "string", "description": "Generation id from relationship_generations.generation_id."},
+                    "generation": {"type": "object", "description": "Generation the relationship belongs to, built by relationshipEvidenceGeneration in evidence_read_model.go over the relationship_generations rows.", "properties": {
+                      "id": {"type": "string", "description": "Generation id in relationship_generations.generation_id."},
                       "scope": {"type": "string", "description": "Ingestion scope that produced the generation."},
                       "run_id": {"type": "string", "description": "Collector run that produced the generation."},
                       "status": {"type": "string", "description": "Generation status at drilldown time."}
                     }, "required": ["id", "scope", "run_id", "status"]},
                     "source": {"type": "object", "description": "Source endpoint built by relationshipEvidenceEndpoint in evidence_read_model.go; entity_id is present only when the relationship carries a source entity.", "properties": {
                       "repo_id": {"type": "string", "description": "Source repository id in resolved_relationships.source_repo_id."},
-                      "repo_name": {"type": "string", "description": "Source repository display name resolved from ingestion_scopes."},
+                      "repo_name": {"type": "string", "description": "Source repository display name resolved in ingestion_scopes."},
                       "entity_id": {"type": "string", "description": "Source entity id; present only when the relationship carries one."}
                     }},
                     "target": {"type": "object", "description": "Target endpoint built by relationshipEvidenceEndpoint in evidence_read_model.go; entity_id is present only when the relationship carries a target entity.", "properties": {
                       "repo_id": {"type": "string", "description": "Target repository id in resolved_relationships.target_repo_id."},
-                      "repo_name": {"type": "string", "description": "Target repository display name resolved from ingestion_scopes."},
+                      "repo_name": {"type": "string", "description": "Target repository display name resolved in ingestion_scopes."},
                       "entity_id": {"type": "string", "description": "Target entity id; present only when the relationship carries one."}
                     }},
                     "relationship_type": {"type": "string", "description": "Relationship verb in resolved_relationships.relationship_type."},
