@@ -223,7 +223,7 @@ func TestContractShapesLaneC14Impact(t *testing.T) {
 		}
 	})
 
-	t.Run("answer packets carry truth envelope and bounded result", func(t *testing.T) {
+	t.Run("answer packets carry truth envelope and no embedded result", func(t *testing.T) {
 		t.Parallel()
 		doc := fragment(t, Rest, "impact rest")
 		schema := schemaAt(t, doc, "/api/v0/impact/pre-change", "post")
@@ -231,15 +231,17 @@ func TestContractShapesLaneC14Impact(t *testing.T) {
 		packet := child(t, props, "answer_packet", "/api/v0/impact/pre-change")
 		packetProps := propsOf(t, packet, "/api/v0/impact/pre-change.answer_packet")
 		// Owner: ask.NewAnswerPacketFromMetadata over answer.AnswerPacket:
-		// truth is a copy of the envelope TruthEnvelope (querycontract),
-		// result a compact embedded copy of the envelope data.
+		// truth is a copy of the envelope TruthEnvelope (querycontract).
+		// Neither attach path sets EmbedResult or CitationRef, so the
+		// fragment must not name those phantom keys.
 		truth := child(t, packetProps, "truth", "/api/v0/impact/pre-change.answer_packet")
 		truthProps := propsOf(t, truth, "/api/v0/impact/pre-change.answer_packet.truth")
 		requireKeys(t, truthProps, "/api/v0/impact/pre-change.answer_packet.truth",
 			"level", "capability", "profile", "basis", "backend", "freshness", "reason", "truncated", "omissions")
-		result := child(t, packetProps, "result", "/api/v0/impact/pre-change.answer_packet")
-		if _, ok := result["additionalProperties"]; !ok {
-			t.Error("/api/v0/impact/pre-change.answer_packet.result: embedded envelope copy needs additionalProperties")
+		for _, phantom := range []string{"result", "citation_ref"} {
+			if _, ok := packetProps[phantom]; ok {
+				t.Errorf("/api/v0/impact/pre-change.answer_packet: phantom property %q not emitted by the owner", phantom)
+			}
 		}
 	})
 

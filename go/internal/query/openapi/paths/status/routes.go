@@ -157,7 +157,18 @@ const Routes = `
             "description": "Ingester status",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}, "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"}}}
+                "schema": {"type": "object", "description": "Detailed status for one ingester. Owner: query.status getIngesterStatus.", "properties": {
+                  "version": {"type": "string", "description": "Server build version. Owner: query.status getIngesterStatus via buildinfo.AppVersion."},
+                  "ingester": {"type": "string", "description": "Ingester name echoed from the path. Owner: query.status getIngesterStatus."},
+                  "runtime_family": {"type": "string", "description": "Runtime family; always ingester. Owner: query.status getIngesterStatus."},
+                  "health": ` + healthSchema + `,
+                  "queue": ` + queueSnapshotSchema + `,
+                  "coordinator": ` + coordinatorSchema + `,
+                  "scope_activity": ` + scopeActivitySchema + `,
+                  "stage_summaries": {"type": "array", "description": "Per-stage pipeline summaries. Owner: query.status getIngesterStatus via stageSummariesToSlice.", "items": ` + stageSummaryItemSchema + `},
+                  "domain_backlogs": {"type": "array", "description": "Per-domain backlog aggregates with the blocked share. Owner: query.status getIngesterStatus via domainBacklogsToSlice.", "items": ` + domainBacklogItemSchema + `},
+                  "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                  "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"}}}
               }
             }
           },
@@ -237,7 +248,18 @@ const Routes = `
             "description": "Ingester status",
             "content": {
               "application/json": {
-                "schema": {"type": "object", "properties": {"active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"}, "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"}}}
+                "schema": {"type": "object", "description": "Detailed status for one ingester. Owner: query.status getIngesterStatus; the legacy alias serves the identical payload.", "properties": {
+                  "version": {"type": "string", "description": "Server build version. Owner: query.status getIngesterStatus via buildinfo.AppVersion."},
+                  "ingester": {"type": "string", "description": "Ingester name echoed from the path. Owner: query.status getIngesterStatus."},
+                  "runtime_family": {"type": "string", "description": "Runtime family; always ingester. Owner: query.status getIngesterStatus."},
+                  "health": ` + healthSchema + `,
+                  "queue": ` + queueSnapshotSchema + `,
+                  "coordinator": ` + coordinatorSchema + `,
+                  "scope_activity": ` + scopeActivitySchema + `,
+                  "stage_summaries": {"type": "array", "description": "Per-stage pipeline summaries. Owner: query.status getIngesterStatus via stageSummariesToSlice.", "items": ` + stageSummaryItemSchema + `},
+                  "domain_backlogs": {"type": "array", "description": "Per-domain backlog aggregates with the blocked share. Owner: query.status getIngesterStatus via domainBacklogsToSlice.", "items": ` + domainBacklogItemSchema + `},
+                  "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
+                  "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"}}}
               }
             }
           },
