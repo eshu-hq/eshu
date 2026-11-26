@@ -32,6 +32,7 @@ const Setup = `
               }
             }
           },
+          "500": {"description": "Reading the setup state from the store failed, per the setup handler."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -66,6 +67,7 @@ const Setup = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "401": {"$ref": "#/components/responses/Unauthorized"},
           "410": {"description": "Setup is no longer available; an identity already exists."},
+          "500": {"description": "Checking the bootstrap credential or resolving the setup owner failed, per the setup claim handler."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -114,6 +116,7 @@ const Setup = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "401": {"$ref": "#/components/responses/Unauthorized"},
           "410": {"description": "Setup is no longer available; an identity already exists."},
+          "500": {"description": "Rotating the bootstrap password or resolving the setup owner failed, per the setup admin handler."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -169,7 +172,9 @@ const Setup = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "401": {"$ref": "#/components/responses/Unauthorized"},
+          "409": {"description": "Setup was already completed by a concurrent request; only the winner's recovery codes are valid."},
           "410": {"description": "Setup is no longer available; an identity already exists."},
+          "500": {"description": "Generating recovery codes, issuing the browser session, or committing setup completion failed, per the setup MFA handler."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }

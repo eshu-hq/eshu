@@ -105,6 +105,7 @@ func Spec() string {
 			catalog.Capabilities+
 			catalog.SurfaceInventory+
 			status.Admin+
+			status.AdminQueries+
 			status.DeltaUnionCompleteness+
 			status.ReindexProgress+
 			status.RepositoryRetirement+

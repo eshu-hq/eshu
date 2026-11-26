@@ -19,7 +19,9 @@ const Tokens = `
         "responses": {
           "201": {"description": "Generated API token created. The api_token value is returned once only.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityAPITokenResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"description": "Resolving the token owner's identity failed, per the token create handler."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       },
@@ -52,7 +54,7 @@ const Tokens = `
                           "expires_at": {"type": "string", "format": "date-time", "description": "When the token expires, per handleListAPITokens; absent when the row carries none."},
                           "revoked_at": {"type": "string", "format": "date-time", "description": "When the token was revoked, per handleListAPITokens; absent when the row carries none."}
                         },
-                        "required": ["token_id", "token_class", "issued_at"]
+                        "required": ["token_id", "issued_at"]
                       }
                     }
                   },
@@ -82,6 +84,7 @@ const Tokens = `
         "responses": {
           "204": {"description": "Generated API token revoked."},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -103,6 +106,7 @@ const Tokens = `
         "responses": {
           "201": {"description": "Replacement generated API token created. The api_token value is returned once only.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityAPITokenResponse"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}

@@ -238,6 +238,7 @@ const AdminProviderConfigs = `
           "400": {"description": "The provider cannot be enabled: either the connection test did not pass, or the stored configuration is missing a field required to resolve the provider for login."},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"description": "The provider config's active revision changed since it was tested; run test-connection again and retry enable."},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }

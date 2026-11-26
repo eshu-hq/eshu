@@ -111,7 +111,7 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -150,7 +150,6 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "401": {"$ref": "#/components/responses/Unauthorized"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -177,7 +176,7 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -216,7 +215,6 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "401": {"$ref": "#/components/responses/Unauthorized"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -364,6 +362,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"description": "Server-side ID generation failed; the only 500 path on this route, per the bootstrap handler."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -380,10 +379,18 @@ const Routes = `
         },
         "responses": {
           "200": {"description": "Authenticated and browser session created.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}},
-          "202": {"description": "Password accepted but MFA proof is required.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}},
-          "401": {"$ref": "#/components/responses/Unauthorized"},
-          "403": {"$ref": "#/components/responses/Forbidden"},
+          "202": {"description": "Credential accepted but more proof is required before a session is issued: MFA proof (mfa_required) or a password rotation (must_change_password).", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {
+            "description": "Wrong login_id, password, or MFA proof. The body is the error envelope, or the session response with status invalid (no session issued).",
+            "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/ErrorResponse"}, {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}]}}}
+          },
+          "403": {
+            "description": "Local sign-in is disabled for this caller: the tenant requires SSO, or the identity is disabled. The body is the error envelope, or the session response with status disabled (no session issued).",
+            "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/ErrorResponse"}, {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}]}}}
+          },
           "423": {"description": "Local identity is temporarily locked."},
+          "500": {"description": "Browser session creation failed after successful authentication, per the session issuance handler."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -542,6 +549,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "401": {"description": "Wrong current_password or unknown login_id."},
+          "403": {"description": "Local sign-in is disabled by tenant policy; sign in with SSO, or an admin may use break-glass local sign-in."},
           "423": {"description": "Local login is temporarily locked after repeated failed proof attempts."},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -628,6 +636,7 @@ const Routes = `
         },
         "responses": {
           "200": {"description": "Break-glass browser session created.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentitySessionResponse"}}}},
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "401": {"$ref": "#/components/responses/Unauthorized"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -789,7 +798,7 @@ const Routes = `
                         "has_active_mfa": {"type": "boolean", "description": "Whether the caller has an active MFA factor, per handleProfile."},
                         "factor_kind": {"type": "string", "description": "Active MFA factor kind, per handleProfile; empty when none."}
                       },
-                      "required": ["has_active_mfa", "factor_kind"]
+                      "required": ["has_active_mfa"]
                     },
                     "memberships": {
                       "type": "array",
@@ -862,7 +871,7 @@ const Routes = `
                           "current": {"type": "boolean", "description": "True for the row of the calling session, per the session list handler."},
                           "revoked_at": {"type": "string", "format": "date-time", "description": "When the session was revoked, per the session list handler; absent when active."}
                         },
-                        "required": ["issued_at", "last_seen_at", "idle_expires_at", "absolute_expires_at", "tenant_id", "workspace_id", "current"]
+                        "required": ["issued_at", "last_seen_at", "idle_expires_at", "absolute_expires_at", "current"]
                       }
                     },
                     "prev": {
