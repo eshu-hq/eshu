@@ -456,11 +456,11 @@ New in #6054. The `dirgate` job.
 ## Comment group 29
 
 New in #9462. Every remaining `setup-go` step in `test.yml` sets
-`cache: false`: the `pr-plan` step and the `merge-group-slim` and
-`verify-contracts` steps. They run on the default `GOCACHE`, so they never
-shared the persisted `/tmp/eshu-ci/go-build` directory — but each PR-scoped
-setup-go copy still counts against the 10 GB store whose evictions were
-emptying main's `gobuild-` entries. Each job already pre-warms its modules.
+`cache: false`: the `pr-plan`, `dirgate`, and `verify-contracts` steps. They
+run on the default `GOCACHE`, so they never shared the persisted
+`/tmp/eshu-ci/go-build` directory — but each PR-scoped setup-go copy still
+counts against the 10 GB store whose evictions were emptying main's `gobuild-`
+entries. Each job already pre-warms its modules.
 
 ```yaml
       # cache: false: setup-go would store the build cache a second time
@@ -469,12 +469,8 @@ emptying main's `gobuild-` entries. Each job already pre-warms its modules.
 
 ## Current timeout and cache notes
 
-The `merge-group-slim` timeout remains 25 minutes per #8665. Cold compilation
-and scoped vet consumed about 10.6 and 3.6 minutes in that proof; revisit the
-envelope if p95 exceeds 20 minutes. The `go-core` job persists its compiler
-cache across fresh runners per #8735. go-core and go-race set setup-go
-`cache: false` (#9598) and download modules with
-`scripts/ci/go-mod-download-retry.sh`. Since #9462 no other `setup-go` step
-in `test.yml` uses the built-in cache anymore: `pr-plan`,
-`merge-group-slim` and `verify-contracts` set `cache: false` too and pre-warm
-through the same script.
+The `go-core` job persists its compiler cache across fresh runners per #8735.
+`go-core` and `go-race` set setup-go `cache: false` (#9598) and download modules
+with `scripts/ci/go-mod-download-retry.sh`. Since #9462 no other `setup-go` step
+in `test.yml` uses the built-in cache anymore: `pr-plan`, `dirgate`, and
+`verify-contracts` set `cache: false` too and pre-warm through the same script.

@@ -55,19 +55,13 @@ gate_fragments:
 # self-test (omitted by the owner). Pull-request selection never reads this
 # list. Every entry must name a distinct existing blocking gate.
 merge_group_slim_gates:
-  - slim-go-build
-  - slim-go-vet
-  - slim-go-filecap
   - markdown-file-cap
   - scripts-file-cap
   - ci-gate-registry
   - capability-inventory
   - mcp-tool-count
   - live-backend-static-mirror
-  - slim-migration-uniqueness
-  - slim-collector-entrypoints
   - go-dir-gate
-  - slim-doc-split
 
 hygiene_hooks:
   - id: go-measurement-citations

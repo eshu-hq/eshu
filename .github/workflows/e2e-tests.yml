@@ -19,8 +19,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-leaf-e2e-tests-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-e2e-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 # #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
 # bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept

@@ -27,10 +27,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - examples/collector-extensions/scorecard/**
+      - sdk/go/collector/**
+      - sdk/go/factschema/**
+      - scripts/ci/go-mod-download-retry.sh
+      - .github/workflows/scorecard-example-conformance.yml
+      - specs/ci-pr-workflows.d/scorecard-example-conformance.yml
 
 concurrency:
-  group: ci-leaf-scorecard-example-conformance-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-scorecard-example-conformance-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 permissions:
   contents: read

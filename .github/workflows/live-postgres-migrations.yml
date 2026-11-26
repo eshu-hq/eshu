@@ -37,8 +37,8 @@ on:
       - '.github/workflows/required-gates.yml'
 
 concurrency:
-  group: ci-leaf-live-postgres-migrations-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-live-postgres-migrations-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 permissions:
   contents: read

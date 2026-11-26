@@ -41,11 +41,18 @@ on:
   push:
     branches:
       - main
+    paths:
+      - sdk/go/**
+      - .github/workflows/sdk-go.yml
+      - scripts/ci/install-apt-packages.sh
+      - scripts/ci/go-mod-download-retry.sh
+      - specs/ci-pr-workflows.d/sdk-go.yml
+      - '!**/*.md'
   workflow_dispatch:
 
 concurrency:
-  group: ci-leaf-sdk-go-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-sdk-go-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 permissions:
   contents: read

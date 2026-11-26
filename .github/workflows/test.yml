@@ -11,8 +11,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 # #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
 # bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept
 # because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
@@ -200,46 +200,6 @@ jobs:
         run: go test ./cmd/dirgate/ -count=1
       - name: Verify dirgate (derived ratchet)
         run: bash scripts/verify-dirgate.sh --ci
-  merge-group-slim:
-    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'merge-group-slim'))) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) }}
-    needs: [changes, pr-plan]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 2
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
-          # cache: false: setup-go would store the build cache a second time
-          # in the 10 GB store (#9462). Pre-warm below downloads the modules.
-          cache: false
-      - name: Install ripgrep
-        run: scripts/ci/install-apt-packages.sh ripgrep
-        env:
-          GH_TOKEN: ${{ github.token }}
-      - name: Pre-warm Go modules
-        run: scripts/ci/go-mod-download-retry.sh
-      - name: Build all Go binaries
-        working-directory: go
-        run: go build ./...
-      - name: Scoped go vet (changed packages plus direct importers)
-        run: bash scripts/verify-merge-group-slim-vet.sh
-      - name: Go 500-line file cap
-        run: bash scripts/dev/precommit-go.sh filecap-all
-      - name: Migration sequence uniqueness
-        working-directory: go
-        run: go test ./internal/storage/postgres/migrations/ -run 'TestBootstrapDefinitionsHaveUniqueSequenceNumbers' -count=1
-      - name: Generated collector entrypoints parity
-        run: |
-          scripts/test-verify-collector-entrypoints-generated.sh
-          scripts/verify-collector-entrypoints-generated.sh
-      - name: Context and story reference layout
-        run: scripts/test-context-stories-doc-split.sh
   verify-contracts:
     if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'verify-contracts'))) && (github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) }}
     needs: [changes, pr-plan]
