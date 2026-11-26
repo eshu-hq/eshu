@@ -78,6 +78,12 @@ func TestSupplyChainImpactRuntimeFilterPruningIsBehaviorIdenticalLive(t *testing
 	shippedStmt := "WITH " + shippedCTE + " SELECT filter_kind, repository_id FROM runtime_filter_repositories"
 	prunedStmt := "WITH " + prunedCTE + " SELECT filter_kind, repository_id FROM runtime_filter_repositories"
 
+	// SQL-level PREPARE persists on the session past transaction rollback,
+	// so a rerun on a reused pooled connection would fail with
+	// "prepared statement already exists". Drop the names first (ignoring
+	// the not-present error on a fresh session) to keep reruns isolated.
+	_, _ = tx.ExecContext(ctx, `DEALLOCATE shipped_prune_probe`)
+	_, _ = tx.ExecContext(ctx, `DEALLOCATE pruned_prune_probe`)
 	if _, err := tx.ExecContext(ctx, `PREPARE shipped_prune_probe(text, text, text[], text[]) AS `+shippedStmt); err != nil {
 		t.Fatalf("prepare shipped probe: %v", err)
 	}
