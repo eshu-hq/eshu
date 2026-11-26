@@ -170,9 +170,3 @@ runs:
       if: ${{ inputs.mode != 'smoke' }}
       shell: bash
       run: scripts/verify_accuracy_golden_gate.sh
-    - name: Verify golden-corpus filter exhaustiveness
-      if: ${{ inputs.mode != 'smoke' }}
-      shell: bash
-      run: |
-        scripts/test-verify-golden-corpus-filter-exhaustive.sh
-        scripts/verify-golden-corpus-filter-exhaustive.sh

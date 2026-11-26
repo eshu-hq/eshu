@@ -14,29 +14,13 @@ name: Reducer Contention Gate
 # not run the separately-tracked flaky conflict-fence proof.
 
 on:
-  workflow_call:
-    inputs:
-      plan_jobs:
-        required: true
-        type: string
-      plan_gates:
-        required: true
-        type: string
-      plan_mode:
-        required: true
-        type: string
-  push:
-    branches:
-      - main
-  # On PRs, only spin Postgres when claim-path code could be affected. main runs
-  # unconditionally above as the backstop, so a regression that reaches main via
-  # an unfiltered path is still caught (the repo has no required-status-check
-  # enforcement, so a skipped PR run never blocks merge).
+  schedule:
+    - cron: '45 */4 * * *'
   workflow_dispatch:
 
 concurrency:
-  group: ci-leaf-reducer-contention-gate-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-scheduled-reducer-contention-gate-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -49,7 +33,6 @@ env:
 
 jobs:
   contention-gate:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}
     name: reducer contention gate
     runs-on: ubuntu-24.04
     # #11252: this job runs the first half of the storage/postgres contention
@@ -84,9 +67,12 @@ jobs:
           POSTGRES_DB: eshu
           POSTGRES_USER: eshu
           POSTGRES_PASSWORD: change-me
+          POSTGRES_INITDB_ARGS: "--no-sync"
         ports:
           - 15432:5432
         options: >-
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --shm-size=512m
           --health-cmd "pg_isready -U eshu -d eshu"
           --health-interval 5s
           --health-timeout 5s
@@ -117,6 +103,14 @@ jobs:
       # failure that never claimed a row (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Tune ephemeral PostgreSQL for CI
+        run: >-
+          docker exec '${{ job.services.postgres.id }}' psql -v ON_ERROR_STOP=1 -U eshu -d postgres
+          -c "ALTER SYSTEM SET fsync = off;"
+          -c "ALTER SYSTEM SET synchronous_commit = off;"
+          -c "ALTER SYSTEM SET full_page_writes = off;"
+          -c "SELECT pg_reload_conf();"
 
       - name: Run reducer contention gate
         working-directory: go
@@ -505,7 +499,6 @@ jobs:
         run: go test ./internal/storage/postgres/status/summary/ -run 'Live$' -race -count=1 -timeout 300s -v
 
   contention-gate-storage-b:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate-storage-b') }}
     name: reducer contention gate (supply-chain proofs)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -517,9 +510,12 @@ jobs:
           POSTGRES_DB: eshu
           POSTGRES_USER: eshu
           POSTGRES_PASSWORD: change-me
+          POSTGRES_INITDB_ARGS: "--no-sync"
         ports:
           - 15432:5432
         options: >-
+          --tmpfs /var/lib/postgresql:rw,size=2g
+          --shm-size=512m
           --health-cmd "pg_isready -U eshu -d eshu"
           --health-interval 5s
           --health-timeout 5s
@@ -543,6 +539,14 @@ jobs:
       # failure that never claimed a row (#6615 follow-up to #6075).
       - name: Pre-warm Go modules (supply-chain proofs job)
         run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Tune ephemeral PostgreSQL for CI (supply-chain proofs job)
+        run: >-
+          docker exec '${{ job.services.postgres.id }}' psql -v ON_ERROR_STOP=1 -U eshu -d postgres
+          -c "ALTER SYSTEM SET fsync = off;"
+          -c "ALTER SYSTEM SET synchronous_commit = off;"
+          -c "ALTER SYSTEM SET full_page_writes = off;"
+          -c "SELECT pg_reload_conf();"
 
       - name: Run supply-chain and holder fan-out proofs
         working-directory: go

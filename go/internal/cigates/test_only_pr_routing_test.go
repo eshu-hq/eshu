@@ -49,15 +49,13 @@ func TestTestOnlyPRsSkipProductionOnlyWorkflowFragments(t *testing.T) {
 	for _, skipped := range []string{
 		"build.yml",
 		"golden-corpus-gate.yml",
+		"live-postgres-readiness.yml",
 		"frontend.yml",
 		"payload-usage-manifest.yml",
 	} {
 		if _, ok := planned11464[skipped]; ok {
 			t.Errorf("PR #11464 test-only path unexpectedly selected %s", skipped)
 		}
-	}
-	if _, ok := planned11464["live-postgres-readiness.yml"]; !ok {
-		t.Errorf("PR #11464 must still select live-postgres-readiness.yml")
 	}
 
 	// PR #11465: three *_test.go files under go/internal/storage/postgres/.
@@ -73,6 +71,7 @@ func TestTestOnlyPRsSkipProductionOnlyWorkflowFragments(t *testing.T) {
 	for _, skipped := range []string{
 		"build.yml",
 		"golden-corpus-gate.yml",
+		"live-postgres-readiness.yml",
 		"frontend.yml",
 		"payload-usage-manifest.yml",
 	} {
@@ -80,11 +79,8 @@ func TestTestOnlyPRsSkipProductionOnlyWorkflowFragments(t *testing.T) {
 			t.Errorf("PR #11465 test-only paths unexpectedly selected %s", skipped)
 		}
 	}
-	if _, ok := planned11465["live-postgres-readiness.yml"]; !ok {
-		t.Errorf("PR #11465 must still select live-postgres-readiness.yml")
-	}
 
-	// Production Go edit under go/internal/query/ must still select all production gates.
+	// Production Go edit under go/internal/query/ must still select all production PR gates.
 	prodQuery := []string{"go/internal/query/supply/chain/impact/store.go"}
 	plannedProd, err := PlanPRWorkflows(defs, prodQuery, false, "main", "full", nil)
 	if err != nil {
@@ -92,7 +88,6 @@ func TestTestOnlyPRsSkipProductionOnlyWorkflowFragments(t *testing.T) {
 	}
 	for _, want := range []string{
 		"build.yml",
-		"golden-corpus-gate.yml",
 		"frontend.yml",
 		"payload-usage-manifest.yml",
 	} {
@@ -127,26 +122,6 @@ func TestTestOnlyPRsSkipProductionOnlyWorkflowFragments(t *testing.T) {
 			name:     "payload usage reducer drift test",
 			path:     "go/internal/reducer/payload_usage_manifest_test.go",
 			workflow: "payload-usage-manifest.yml",
-		},
-		{
-			name:     "golden corpus ecosystem fixture _test.go",
-			path:     "tests/fixtures/ecosystems/go_sample/main_test.go",
-			workflow: "golden-corpus-gate.yml",
-		},
-		{
-			name:     "golden corpus B-7 containerimage demotion live proof",
-			path:     "go/internal/reducer/containerimage/container_image_identity_support_writer_demotion_postgres_live_test.go",
-			workflow: "golden-corpus-gate.yml",
-		},
-		{
-			name:     "golden corpus B-7 cloud reopen ordering live proof",
-			path:     "go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go",
-			workflow: "golden-corpus-gate.yml",
-		},
-		{
-			name:     "golden corpus B-7 cloud reopen ordering helper",
-			path:     "go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_helpers_test.go",
-			workflow: "golden-corpus-gate.yml",
 		},
 	} {
 		got, err := PlanPRWorkflows(defs, []string{tc.path}, false, "main", "full", nil)

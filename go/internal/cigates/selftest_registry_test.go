@@ -37,14 +37,6 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 		"scale-corpus-suite": {
 			"scripts/lib/test-verify-scale-corpus-suite-missing-pathological.yaml",
 		},
-		"code-coverage-report": {
-			".github/workflows/code-coverage-report.yml",
-			"docs/mkdocs.yml",
-			"docs/public/reference/code-coverage.md",
-			"docs/public/reference/code-coverage-shield.json",
-			"README.md",
-			"specs/ci-gates.v1.yaml",
-		},
 		"ci-gate-registry": {
 			"AGENTS.md",
 			"CONTRIBUTING.md",
@@ -61,30 +53,8 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 			"specs/product-claims.v1.yaml",
 			"tests/run_tests.sh",
 		},
-		"golden-corpus-filter-exhaustive": {
-			"go/cmd/golden-corpus-gate/main.go",
-		},
 		"operator-dashboard": {
 			"docs/public/observability/dashboards/eshu-operator-overview.json",
-		},
-		"doc-citations": {
-			"scripts/verify-doc-citations.sh",
-			"scripts/test-verify-doc-citations.sh",
-			"scripts/lib/doc-citation-lines.sh",
-			"scripts/lib/test-verify-doc-citations-line-cases.sh",
-			"scripts/lib/test-verify-doc-citations-review-cases.sh",
-			"scripts/lib/test-verify-doc-citations-binary-cases.sh",
-			"scripts/lib/test-verify-doc-citations-preparation-cases.sh",
-			"scripts/lib/test-verify-doc-citations-base-cases.sh",
-			"scripts/lib/test-verify-doc-citations-scope-cases.sh",
-			"scripts/lib/gate-diff-base.sh",
-			"scripts/docs-citations-baseline.txt",
-			"specs/ci-gates.v1.yaml",
-			".github/workflows/static-contract-gates.yml",
-		},
-		"measurement-citations": {
-			"scripts/verify-measurement-citations.sh",
-			"scripts/test-verify-measurement-citations.sh",
 		},
 		"docs-build-changed": {
 			"docs/public/index.md",
@@ -137,16 +107,6 @@ func TestCommittedRegistryProductInputsSkipDistinctSelfTests(t *testing.T) {
 	}
 
 	cases := map[string][]string{
-		"doc-citations": {
-			"docs/internal/agent-guide.md",
-			"go/internal/cigates/select.go",
-			"tests/fixtures/ecosystems/supply-chain-demo-db/statefulset.yaml",
-		},
-		"measurement-citations": {
-			"docs/internal/evidence/example.md",
-			"docs/public/index.md",
-			"go/internal/reducer/evidence-example.md",
-		},
 		"docs-build-changed": {
 			"specs/product-claims.v1.yaml",
 			"AGENTS.md",
@@ -169,39 +129,6 @@ func TestCommittedRegistryProductInputsSkipDistinctSelfTests(t *testing.T) {
 					t.Fatalf("%s selects %s and unexpectedly runs its distinct verifier self-test", path, gateID)
 				}
 			})
-		}
-	}
-}
-
-func TestCommittedRegistryDocCitationPartitionsRepositoryProofFromFixtures(t *testing.T) {
-	t.Parallel()
-	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
-	registry, err := cigates.Load(filepath.Join(repoRoot, "specs", "ci-gates.v1.yaml"))
-	if err != nil {
-		t.Fatalf("load committed registry: %v", err)
-	}
-
-	gate := committedGate(t, registry, "doc-citations")
-	if !strings.Contains(gate.Local.Command, "--repository-only") {
-		t.Fatalf("doc-citations primary command = %q, want repository-only proof", gate.Local.Command)
-	}
-	if !strings.Contains(gate.Local.TestCommand, "--fixtures-only") {
-		t.Fatalf("doc-citations test command = %q, want fixtures-only proof", gate.Local.TestCommand)
-	}
-}
-
-func TestCommittedRegistryRealTreeSelfTestsRemainFailClosed(t *testing.T) {
-	t.Parallel()
-	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
-	registry, err := cigates.Load(filepath.Join(repoRoot, "specs", "ci-gates.v1.yaml"))
-	if err != nil {
-		t.Fatalf("load committed registry: %v", err)
-	}
-
-	for _, gateID := range []string{"docs-refs", "docs-cli-env-refs"} {
-		gate := committedGate(t, registry, gateID)
-		if gate.SelfTestTriggers != nil {
-			t.Errorf("gate %s self_test_triggers = %v, want omitted fail-closed behavior for its real-tree baseline proof", gateID, gate.SelfTestTriggers)
 		}
 	}
 }

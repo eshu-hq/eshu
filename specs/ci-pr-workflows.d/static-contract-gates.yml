@@ -5,8 +5,6 @@ workflows:
   name: Static Contract Gates
   synchronize: true
   jobs:
-  - changes
   - gate
   job_names:
-    changes: Detect changed gate paths
-    gate: ${{ matrix.display }}
+    gate: Product Contract Gates

@@ -18,11 +18,6 @@ mkdir -p "${keep_bin}"
 keep_helper_path="scripts/lib/golden-corpus-keep-marker.sh"
 [[ "${keep_helper_path}" == scripts/lib/golden-corpus-*.sh ]] \
 	|| fail "#5987 helper escaped the shared golden-corpus trigger glob"
-require_workflow_path "#5987 keep-marker helper" "scripts/lib/golden-corpus-*.sh"
-for keep_gate_id in golden-corpus-mirror golden-corpus-gate; do
-	require_in_region "#5987 helper registry trigger ${keep_gate_id}" "${ci_gates}" \
-		"/^  - id: ${keep_gate_id}\$/,/^    local:/" '- "scripts/lib/golden-corpus-*.sh"'
-done
 require_matches "#5987 helper pre-pr live trigger" "${prepr}" \
 	"^(?!\\s*#)[^\\n]*run_or_defer golden-corpus \\\\\\n[^\\n]*scripts/lib/\\(golden-corpus-\\.\\+"
 

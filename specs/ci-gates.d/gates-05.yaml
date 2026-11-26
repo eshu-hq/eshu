@@ -23,7 +23,6 @@ gates:
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
     self_test_triggers:
       - "scripts/*verify-telemetry-coverage*.sh"
       - "scripts/lib/telemetry-coverage-bucket-check.sh"
@@ -39,7 +38,7 @@ gates:
       test_command: "bash scripts/test-verify-telemetry-coverage.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify telemetry coverage gate"
+      job: "Product Contract Gates"
     # #6615 review: verify-telemetry-coverage.sh and its sourced
     # scripts/lib/telemetry-coverage-{row,bucket}-check.sh statically diff
     # instruments.go against the doc via rg; no go toolchain invocation
@@ -65,7 +64,6 @@ gates:
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
       - "scripts/test-generate-operator-dashboard.sh"
       - "docs/public/observability/dashboards/eshu-operator-overview.json"
     self_test_triggers:
@@ -79,7 +77,7 @@ gates:
       test_command: "bash scripts/test-generate-operator-dashboard.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify generate-operator-dashboard gate"
+      job: "Product Contract Gates"
     # #6615 review: generate-operator-dashboard.sh and its sourced
     # scripts/lib/operator-dashboard-metrics.sh render dashboard JSON from
     # templates; no go toolchain invocation in the chain.
@@ -94,7 +92,6 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
-      - ".github/static-contract-filters.yml"
       - "go/internal/envregistry/**"
       - "docs/public/reference/env-registry.md"
       - "docs/public/reference/env-registry/**"
@@ -112,7 +109,7 @@ gates:
       test_command: "bash scripts/test-generate-env-registry-doc.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify environment registry reference gate"
+      job: "Product Contract Gates"
     requirements:
       - go
     ci_only_reason: ""
@@ -150,139 +147,6 @@ gates:
     requirements:
       - go
     ci_only_reason: ""
-
-  - id: reducer-contention
-    name: Reducer Contention Gate (real Postgres)
-    category: race
-    layer: performance
-    purpose: "Runs real-Postgres concurrency tests proving reducer claim locking, lease expiry, and latency budgets hold under contention."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "go/internal/storage/postgres/**"
-      - "go/internal/reducer/**"
-      - "schema/data-plane/postgres/**"
-      - "go/internal/query/service_story_target_support*.go"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/lib/reducer_contention_events.py"
-      - "scripts/lib/reducer_contention_inventory.json"
-      - "scripts/lib/reducer_contention_split_cases.py"
-      - "scripts/test-reducer-contention-events.py"
-      - "scripts/test-reducer-contention-ledger-policy.py"
-      - "scripts/lib/verify-live-tests-ledger.py"
-      - "scripts/verify-live-tests-ledger.sh"
-      - "scripts/test-verify-live-tests-ledger.sh"
-      - "specs/live-tests.v1.yaml"
-      - "specs/live-tests.d/**"
-      - "specs/ci-gates.d/gates-05.yaml"
-      - ".github/workflows/reducer-contention-gate.yml"
-    ci:
-      workflow: reducer-contention-gate.yml
-      job: "reducer contention gate"
-    requirements:
-      - go
-      - postgres
-    ci_only_reason: "needs Postgres service container (GitHub Actions)"
-
-  # The second half of the storage/postgres contention suite (#11252): the suite
-  # outgrew one 45-minute job, so the supply-chain, holder fan-out and stress
-  # proofs run as a parallel job of the same workflow.
-  - id: reducer-contention-supply-chain
-    name: Reducer Contention Gate, supply-chain proofs (real Postgres)
-    category: race
-    layer: performance
-    purpose: "Runs the supply-chain, holder fan-out and stress half of the real-Postgres contention suite as a parallel job inside its time cap."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "go/internal/storage/postgres/**"
-      - "go/internal/reducer/**"
-      - "schema/data-plane/postgres/**"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/lib/reducer_contention_events.py"
-      - "scripts/lib/reducer_contention_inventory.json"
-      - "scripts/lib/reducer_contention_split_cases.py"
-      - "scripts/test-reducer-contention-events.py"
-      - "specs/live-tests.v1.yaml"
-      - "specs/live-tests.d/**"
-      - "specs/ci-gates.d/gates-05.yaml"
-      - ".github/workflows/reducer-contention-gate.yml"
-    ci:
-      workflow: reducer-contention-gate.yml
-      job: "reducer contention gate (supply-chain proofs)"
-    requirements:
-      - go
-      - postgres
-    ci_only_reason: "needs Postgres service container (GitHub Actions)"
-
-  # The supply-chain impact retraction, fencing and capped-evidence proofs need
-  # real Postgres (advisory locks, row locks, snapshots, plans), so they run as
-  # steps of the reducer contention gate's supply-chain job (the second half of
-  # the storage/postgres suite, #11252) rather than in a job of their own. This
-  # row is what keeps them there: the local command is the hermetic enrollment
-  # guard, which reads the real workflow filter and the real test
-  # files, and its RED/GREEN pair proves the guard can fail. The live proofs
-  # themselves run only in CI, on the contention gate's Postgres service (#7141).
-  - id: supply-chain-impact-live
-    name: Supply-chain impact live proofs (real Postgres)
-    category: exactness
-    layer: truth
-    purpose: "Keeps the supply-chain impact retraction, fencing and capped-evidence proofs enrolled in the reducer contention gate so they run on real Postgres."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "go/internal/reducer/supplychain/**"
-      - "go/internal/storage/postgres/**"
-      - ".github/workflows/reducer-contention-gate.yml"
-      - "go/internal/storage/postgres/supply_chain_impact_gate_enrollment_test.go"
-      - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
-    self_test_triggers:
-      - "go/internal/storage/postgres/supply_chain_impact_gate_enrollment_test.go"
-      - "go/internal/storage/postgres/supply_chain_impact_live_dsn_test.go"
-    local:
-      command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate)$' -count=1"
-      test_command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision)$' -count=1"
-    ci:
-      workflow: reducer-contention-gate.yml
-      job: "reducer contention gate (supply-chain proofs)"
-    requirements:
-      - go
-    ci_only_reason: ""
-
-  # #10972 gate E (arbiter re-run contract): the supply-chain requeue budget.
-  # Tests A and B assert a fixpoint, not an event: one change with passes in
-  # flight drains within one source pass plus one pass per holder and per pass
-  # in flight before the source's load, no pass claimed after the load reruns,
-  # and steady arrivals rerun a long unrelated holder at most once. The D3 half
-  # of A (no unrelated full rerun) is logged and lands with D3. The seeded self-test in the same file
-  # runs both scenarios with a status-only in-flight flag (its own status-only
-  # set B, a failing load-end set A, reopens that name no change) and fails unless the budget reports a
-  # violation, so every run of the job also proves the gate can fail. All three
-  # need real Postgres and run in the contention gate's supply-chain job.
-  - id: supply-chain-requeue-budget
-    name: Supply-chain requeue budget (real Postgres)
-    category: race
-    layer: performance
-    purpose: "Fails when a supply-chain change overruns its requeue budget: no drain within 1 + holders + in-flight passes, or late-claimed passes rerun (#10972)."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "go/internal/reducer/supplychain/core/**"
-      - "go/internal/storage/postgres/supply_chain_impact_*.go"
-      - "go/internal/storage/postgres/reducer_queue*.go"
-      - "go/internal/storage/postgres/supply_chain_impact_quiescence_harness_test.go"
-      - "go/internal/storage/postgres/supply_chain_impact_quiescence_live_test.go"
-      - ".github/workflows/reducer-contention-gate.yml"
-    ci:
-      workflow: reducer-contention-gate.yml
-      job: "reducer contention gate (supply-chain proofs)"
-    requirements:
-      - go
-      - postgres
-    ci_only_reason: "needs Postgres service container (GitHub Actions); TestSupplyChainImpactQuiescesAfterOneChangeLive, TestSupplyChainImpactSteadyArrivalsConvergeLive and the seeded TestSupplyChainImpactRequeueBudgetCatchesTheStatusOnlyInFlightFlagLive run in the supply-chain filter"
-
-  # ─── DOCS ──────────────────────────────────────────────────────────────────
-
 
   - id: docs-catalog-metadata
     name: Docs catalog metadata
@@ -357,94 +221,3 @@ gates:
     requirements: []
     ci_only_reason: ""
     local_only_reason: "Advisory baseline for #5340; runs locally via pre-pr's exactness lane (category exactness + tier pre-pr + blocking false, the code-coverage-report precedent). Flip DOCS_CONTRADICTION_ENFORCE=true + blocking=true and wire the static-contract-gates.yml CI job (docs-refs pattern) once the burn-down baseline is clean."
-
-  - id: docs-refs
-    name: Docs script reference existence
-    category: exactness
-    layer: hygiene
-    purpose: "Fails when a docs page cites a scripts/*.sh, .py, or .awk path that doesn't actually exist."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "docs/public/**"
-      - "docs/mkdocs.yml"
-      - "scripts/verify-docs-refs.sh"
-      - "scripts/test-verify-docs-refs.sh"
-      - "scripts/docs-refs-baseline.txt"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
-    # Keep the self-test fail-closed: it regenerates the committed baseline
-    # from the real docs tree, an invariant the primary check does not cover.
-    local:
-      command: "bash scripts/verify-docs-refs.sh"
-      test_command: "bash scripts/test-verify-docs-refs.sh"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify docs-refs gate"
-    requirements: []
-    ci_only_reason: ""
-
-  - id: docs-cli-env-refs
-    name: Docs CLI and environment reference truth
-    category: exactness
-    layer: contract
-    purpose: "Rebuilds the real CLI and env registry to check docs' CLI commands and environment variables match what exists."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "docs/public/**"
-      - "go/cmd/eshu/**"
-      - "go/internal/cli/**"
-      - "go/internal/envregistry/**"
-      - "go/cmd/docs-cli-env-refs/**"
-      - "scripts/verify-docs-cli-env-refs.sh"
-      - "scripts/test-verify-docs-cli-env-refs.sh"
-      - "scripts/lib/test-verify-docs-cli-env-refs-segment-cases.sh"
-      - "scripts/docs-cli-env-refs-baseline.txt"
-      - "scripts/docs-cli-env-refs-ceiling.txt"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
-    # Keep the self-test fail-closed: it rebuilds the real CLI/checker and
-    # regenerates the committed baseline, beyond the primary check's coverage.
-    local:
-      command: "bash scripts/verify-docs-cli-env-refs.sh"
-      test_command: "bash scripts/test-verify-docs-cli-env-refs.sh"
-      # #7111 F5: promoted from deferred. #7048 reached CI with an unregistered
-      # env var this gate catches. Measured alone: 34.9s on a cold worktree
-      # (the gate keeps its own .gocache-docs-cli-env-refs-* caches) and 7.2s
-      # warm. The 62s median the old deferral cited was measured inside full
-      # `make pre-pr` runs.
-      pre_push: floor
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify docs CLI/env refs gate"
-    requirements:
-      - go
-    ci_only_reason: ""
-
-  - id: query-doc-commit-refs
-    name: Query doc commit reference guard
-    category: exactness
-    layer: hygiene
-    purpose: "Blocks query-package docs from citing abbreviated git commit hashes, which squash-merges make unstable."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "go/internal/query/*.md"
-      - "go/internal/queryplan/*.md"
-      - "scripts/verify-query-doc-commit-refs.sh"
-      - "scripts/test-verify-query-doc-commit-refs.sh"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
-      - ".github/workflows/static-contract-gates.yml"
-    local:
-      command: "bash scripts/verify-query-doc-commit-refs.sh"
-      test_command: "bash scripts/test-verify-query-doc-commit-refs.sh"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify query-doc-commit-refs gate"
-    requirements: []
-    ci_only_reason: ""

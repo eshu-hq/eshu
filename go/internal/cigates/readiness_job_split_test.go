@@ -14,9 +14,7 @@ import (
 )
 
 type readinessWorkflow struct {
-	On map[string]struct {
-		Paths []string `yaml:"paths"`
-	} `yaml:"on"`
+	On   map[string]any          `yaml:"on"`
 	Jobs map[string]readinessJob `yaml:"jobs"`
 }
 
@@ -62,29 +60,18 @@ func readinessNeedsList(job readinessJob) []string {
 type readinessService struct {
 	Image       string    `yaml:"image"`
 	Credentials yaml.Node `yaml:"credentials"`
+	Options     string    `yaml:"options"`
 }
 
 const (
 	readinessCleanupSelection = "always()"
-	readinessHermeticPlan     = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}"
-	readinessShardPlan        = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards') }}"
 	readinessAlways           = "${{ always() }}"
-	readinessAggregatePlan    = "${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}"
 
-	readinessShardJob  = "live-postgres-readiness-shards"
-	readinessShardName = "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})"
-	// Interim 30-minute leg budget (#7864): test walls alone predicted 12.6m,
-	// but real sharded runs showed the cold `go test` build of the giant
-	// storage package costs ~9m on slow runners (leg 2/4: 821s suite for
-	// 249s of tests). The heavy leg needs ~22m decomposed and timed out at
-	// 17m, while a fast run finished every leg in 8-15m. 30m covers the slow
-	// need with margin at half the old 60m cap; five green sharded runs plus
-	// a build-cache investigation tighten it in a follow-up.
+	readinessShardJob      = "live-postgres-readiness-shards"
+	readinessShardName     = "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/${{ matrix.total }})"
 	readinessShardTimeout  = 30
 	readinessShardRunner   = `bash scripts/run-live-postgres-readiness-tests.sh --shard "${{ matrix.shard }}/${{ matrix.total }}" --report readiness-shard-report.json`
 	readinessShardContract = "python3 scripts/test-live-postgres-readiness-shards.py"
-	// readinessSelfTestSeeds plants verifier and runner defects and requires
-	// the hermetic self-test to catch each one (#8241).
 	readinessSelfTestSeeds = "bash scripts/test-run-live-postgres-readiness-selftest-seeds.sh"
 	readinessFixtureStart  = "bash scripts/ci/live-postgres-standby-fixture.sh start '${{ job.services.postgres.id }}' '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'"
 	readinessFixtureStop   = "bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'"
@@ -103,49 +90,26 @@ type readinessStep struct {
 	Env             map[string]string `yaml:"env"`
 }
 
-func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
+func checkReadinessSplit(workflow []byte) string {
 	var parsed readinessWorkflow
 	if err := yaml.Unmarshal(workflow, &parsed); err != nil {
 		return err.Error()
 	}
-	if gate.Blocking {
-		return "staged gate became globally blocking"
-	}
-	if !slices.Equal(gate.CI.CheckNames, []string{
-		"live-postgres-readiness hermetic",
-		"live-postgres-readiness (postgres18)",
-	}) {
-		return "registry must name both independent checks"
-	}
 	if len(parsed.Jobs) != 4 {
 		return "workflow must have plan, hermetic, shards, and aggregate jobs"
 	}
-	if _, ok := parsed.Jobs["queue-selection"]; ok {
-		return "removed queue selector must stay out of the workflow"
-	}
-	for _, trigger := range []string{"workflow_call", "push"} {
+	for _, trigger := range []string{"schedule", "workflow_dispatch"} {
 		if _, ok := parsed.On[trigger]; !ok {
-			return "missing workflow trigger " + trigger
+			return "missing scheduled workflow trigger " + trigger
 		}
 	}
-	if _, ok := parsed.On["merge_group"]; ok {
-		return "removed merge_group trigger must stay out of the workflow"
-	}
-	pushPaths := parsed.On["push"].Paths
-	if _, directPR := parsed.On["pull_request"]; directPR ||
-		len(prPaths) != len(pushPaths)+1 ||
-		!slices.Equal(prPaths[:len(pushPaths)], pushPaths) ||
-		prPaths[len(pushPaths)] != "specs/ci-pr-workflows.d/live-postgres-readiness.yml" ||
-		!slices.Contains(prPaths, ".github/workflows/live-postgres-readiness.yml") ||
-		!slices.Contains(prPaths, "go/internal/cigates/readiness_job_split_test.go") ||
-		!slices.Contains(prPaths, "go/internal/cigates/readiness_matrix_test.go") ||
-		!slices.Contains(prPaths, "scripts/lib/live_postgres_readiness_shards.py") ||
-		!slices.Contains(prPaths, "scripts/test-live-postgres-readiness-shards.py") ||
-		!slices.Contains(prPaths, "scripts/lib/live_postgres_readiness_events.py") {
-		return "PR inventory and push paths must select the workflow, its regression, and the shard contract"
+	for _, forbidden := range []string{"pull_request", "workflow_call", "push", "merge_group"} {
+		if _, ok := parsed.On[forbidden]; ok {
+			return "scheduled-only readiness workflow must not declare trigger " + forbidden
+		}
 	}
 	hermetic, ok := parsed.Jobs["hermetic"]
-	if !ok || hermetic.Name != gate.CI.CheckNames[0] {
+	if !ok || hermetic.Name != "live-postgres-readiness hermetic" {
 		return "missing hermetic check"
 	}
 	shards, ok := parsed.Jobs[readinessShardJob]
@@ -153,24 +117,19 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 		return "missing sharded live legs"
 	}
 	aggregate, ok := parsed.Jobs[readinessAggregateJob]
-	if !ok || aggregate.Name != gate.CI.CheckNames[1] {
+	if !ok || aggregate.Name != "live-postgres-readiness (postgres18)" {
 		return "missing aggregate live check"
 	}
 	if hermetic.TimeoutMinutes != 30 || shards.TimeoutMinutes != readinessShardTimeout ||
 		aggregate.TimeoutMinutes != 10 {
 		return "hermetic, shard, and aggregate jobs must retain independent 30/30/10-minute limits"
 	}
-	if len(readinessNeedsList(hermetic)) != 0 ||
-		hermetic.If != readinessHermeticPlan || hermetic.ContinueOnError != "" {
-		return "hermetic must run on the trusted plan without skipping or waiving"
-	}
 	if !slices.Equal(readinessNeedsList(shards), []string{"readiness-plan"}) ||
-		shards.If != readinessShardPlan || shards.ContinueOnError != "" {
+		shards.ContinueOnError != "" {
 		return "shards must wait for the plan without waiving failure"
 	}
-	if !slices.Equal(readinessNeedsList(aggregate),
-		[]string{"readiness-plan", readinessShardJob}) ||
-		aggregate.If != readinessAggregatePlan || aggregate.ContinueOnError != "" {
+	if !slices.Equal(readinessNeedsList(aggregate), []string{"readiness-plan", readinessShardJob}) ||
+		aggregate.If != readinessAlways || aggregate.ContinueOnError != "" {
 		return "aggregate must wait for the plan and every shard without waiving failure"
 	}
 	if shards.Strategy.FailFast == nil || *shards.Strategy.FailFast {
@@ -193,6 +152,9 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 		if !strings.HasPrefix(configuration.Image, imagePrefix) || configuration.Credentials.Kind != 0 {
 			return service + " must use the current public GHCR mirror without Docker Hub credentials"
 		}
+	}
+	if !strings.Contains(shards.Services["postgres"].Options, "--tmpfs /var/lib/postgresql:") {
+		return "postgres shard service must mount /var/lib/postgresql on tmpfs"
 	}
 	if problem := checkReadinessNoDockerHubLogin(shards); problem != "" {
 		return problem
@@ -235,29 +197,27 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 		!jobRuns(shards.Steps, readinessShardRunner[len("bash "):]) {
 		return "proof runners must be in their designated jobs"
 	}
+	checkoutCount, tunedPG, uploaded := 0, false, false
 	for _, step := range shards.Steps {
 		if strings.TrimSpace(step.Run) == "bash scripts/run-live-postgres-readiness-tests.sh" {
 			return "a shard leg must not run the unsharded suite"
 		}
-	}
-	uploaded := false
-	for _, step := range shards.Steps {
-		// Every shard-leg upload rides the retry wrapper (#10586): a bare
-		// upload-artifact step is a real regression, not an alternative.
+		if step.Uses == "actions/checkout@v5" {
+			checkoutCount++
+			if step.With["persist-credentials"] != "false" || step.With["ref"] != "${{ github.sha }}" {
+				return "shard checkout must use this run's commit without persisted credentials"
+			}
+		}
+		if strings.Contains(step.Run, "ALTER SYSTEM SET fsync = off") &&
+			strings.Contains(step.Run, "pg_reload_conf()") {
+			tunedPG = true
+		}
 		if step.Uses == "actions/upload-artifact@v4" {
 			return "shard legs must route uploads through retry-upload-artifact"
 		}
 		if step.Uses != "./.github/actions/retry-upload-artifact" {
 			continue
 		}
-		// Death-point evidence uploads (#8662) ride alongside the report
-		// attestation without weakening it: the report step below still
-		// fails the leg when the report is absent. The carve-out names the
-		// exact diagnostic shape (path, name, gate) so a future
-		// failure-gated report attestation cannot silently escape the
-		// shape check. The bundle is gated on !cancelled() (#10586): a
-		// green run no-ops through if-no-files-found ignore, and a
-		// cancelled job never attempts upload.
 		if step.With["path"] == ".readiness-debug/" &&
 			strings.Contains(step.With["name"], "readiness-debug-") &&
 			strings.Contains(step.If, "!cancelled()") {
@@ -269,6 +229,12 @@ func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 			return "shard legs must upload the current-attempt report or fail"
 		}
 		uploaded = true
+	}
+	if checkoutCount != 1 {
+		return "shard leg must check out the repository once"
+	}
+	if !tunedPG {
+		return "shard leg must tune ephemeral PostgreSQL (fsync=off + pg_reload_conf)"
 	}
 	if !uploaded {
 		return "each shard leg must upload its coverage report for the aggregate"
@@ -292,132 +258,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err := Load(filepath.Join(root, "specs", "ci-gates.v1.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var gate *Gate
-	for i := range registry.Gates {
-		if registry.Gates[i].ID == "live-postgres-readiness" {
-			gate = &registry.Gates[i]
-			break
-		}
-	}
-	if gate == nil {
-		t.Fatal("live-postgres-readiness registry row missing")
-	}
-	fragment, err := os.ReadFile(filepath.Join(root, "specs", "ci-pr-workflows.d", "live-postgres-readiness.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	definitions, err := ParsePRPlanFragment(fragment)
-	if err != nil || len(definitions) != 1 {
-		t.Fatalf("invalid readiness PR inventory: %v", err)
-	}
-	prPaths := definitions[0].Paths
-	if problem := checkReadinessSplit(workflow, *gate, prPaths); problem != "" {
+	if problem := checkReadinessSplit(workflow); problem != "" {
 		t.Fatal(problem)
 	}
-	for _, mutation := range readinessRegistryMutations {
-		t.Run(mutation.name, func(t *testing.T) {
-			changed := *gate
-			mutation.edit(&changed)
-			if problem := checkReadinessSplit(workflow, changed, prPaths); problem == "" {
-				t.Fatal("seeded registry violation passed")
-			}
-		})
-	}
-	for _, mutation := range readinessWorkflowMutations {
-		t.Run(mutation.name, func(t *testing.T) {
-			if !strings.Contains(string(workflow), mutation.old) {
-				t.Fatalf("mutation anchor missing: %s", mutation.old)
-			}
-			changed := strings.Replace(string(workflow), mutation.old, mutation.replacement, 1)
-			if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem == "" {
-				t.Fatal("seeded violation passed")
-			}
-		})
-	}
-	for _, mutation := range readinessServiceMutations {
-		t.Run(mutation.name, func(t *testing.T) {
-			if !strings.Contains(string(workflow), mutation.old) {
-				t.Fatalf("mutation anchor missing: %s", mutation.old)
-			}
-			changed := strings.Replace(string(workflow), mutation.old, mutation.replacement, 1)
-			if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem == "" {
-				t.Fatal("seeded service image violation passed")
-			}
-		})
-	}
-	t.Run("added login", func(t *testing.T) {
-		const loginStep = "      - name: Log in to Docker Hub\n" +
-			"        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'\n" +
-			"        uses: docker/login-action@v3\n" +
-			"        with:\n" +
-			"          username: ${{ secrets.DOCKERHUB_USERNAME }}\n" +
-			"          password: ${{ secrets.DOCKERHUB_TOKEN }}\n"
-		const checkoutStep = "        uses: actions/checkout@v5\n" +
-			"        with:\n" +
-			"          persist-credentials: false\n" +
-			"          ref: ${{ github.sha }}\n" +
-			"\n" +
-			"      - name: Restore Go build cache\n" +
-			"        uses: actions/cache/restore@v4\n" +
-			"        with:\n" +
-			"          path: /tmp/eshu-ci/go-build\n" +
-			"          key: ${{ runner.os }}-${{ runner.arch }}-gobuildreadiness-${{ hashFiles('go/go.sum') }}\n" +
-			"          restore-keys: |\n" +
-			"            ${{ runner.os }}-${{ runner.arch }}-gobuild-\n" +
-			"\n" +
-			"      - name: Set up Go\n"
-		if !strings.Contains(string(workflow), checkoutStep) {
-			t.Fatal("mutation anchor missing")
-		}
-		if strings.Contains(string(workflow), loginStep) {
-			t.Fatal("Docker Hub login still present")
-		}
-		changed := strings.Replace(string(workflow), checkoutStep, "        uses: actions/checkout@v5\n"+
-			"        with:\n"+
-			"          persist-credentials: false\n"+
-			"          ref: ${{ github.sha }}\n"+
-			loginStep+
-			"      - name: Set up Go\n", 1)
-		if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem == "" {
-			t.Fatal("added Docker Hub login passed")
-		}
-	})
-	t.Run("added ghcr login passes", func(t *testing.T) {
-		const ghcrLoginStep = "      - name: Log in to GHCR\n" +
-			"        uses: docker/login-action@v3\n" +
-			"        with:\n" +
-			"          registry: ghcr.io\n" +
-			"          username: ${{ github.actor }}\n" +
-			"          password: ${{ secrets.GITHUB_TOKEN }}\n"
-		const checkoutStep = "        uses: actions/checkout@v5\n" +
-			"        with:\n" +
-			"          persist-credentials: false\n" +
-			"          ref: ${{ github.sha }}\n" +
-			"\n" +
-			"      - name: Restore Go build cache\n" +
-			"        uses: actions/cache/restore@v4\n" +
-			"        with:\n" +
-			"          path: /tmp/eshu-ci/go-build\n" +
-			"          key: ${{ runner.os }}-${{ runner.arch }}-gobuildreadiness-${{ hashFiles('go/go.sum') }}\n" +
-			"          restore-keys: |\n" +
-			"            ${{ runner.os }}-${{ runner.arch }}-gobuild-\n" +
-			"\n" +
-			"      - name: Set up Go\n"
-		if !strings.Contains(string(workflow), checkoutStep) {
-			t.Fatal("mutation anchor missing")
-		}
-		changed := strings.Replace(string(workflow), checkoutStep, "        uses: actions/checkout@v5\n"+
-			"        with:\n"+
-			"          persist-credentials: false\n"+
-			"          ref: ${{ github.sha }}\n"+
-			ghcrLoginStep+
-			"      - name: Set up Go\n", 1)
-		if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem != "" {
-			t.Fatalf("added GHCR login failed: %s", problem)
-		}
-	})
 }

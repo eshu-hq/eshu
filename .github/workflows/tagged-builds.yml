@@ -1,0 +1,77 @@
+name: Tagged Builds Sweep
+
+# Nightly sweep across all //go:build tag configurations (25-35m cold). Moved
+# out of static-contract-gates.yml so normal PRs and main merges do not pay a
+# 30-minute compilation sweep on every commit.
+on:
+  schedule:
+    - cron: '15 7 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-scheduled-tagged-builds-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# #9066: -std=gnu17 keeps go-sitter-forest/perl compiling on GCC 15 + glibc 2.43 (C23
+# bsearch macro) when the Go build cache is cold. "-O2 -g" is Go's own default, kept
+# because setting CGO_CFLAGS replaces it. Remove with scripts/lib/cgo-cflags.sh.
+env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
+
+jobs:
+  tagged-builds:
+    name: Verify tagged-builds sweep
+    timeout-minutes: 45
+    runs-on: ubuntu-24.04
+    defaults: {run: {shell: bash}}
+    container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
+    env:
+      GOTOOLCHAIN: local
+      GOCACHE: /tmp/eshu-ci/go-build
+      GOMODCACHE: /tmp/eshu-ci/go-mod
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Restore tagged-build cache
+        id: tagged-cache
+        uses: actions/cache/restore@v4
+        timeout-minutes: 2
+        continue-on-error: true
+        with:
+          path: /tmp/eshu-ci
+          key: "${{ runner.os }}-${{ runner.arch }}-go-${{ hashFiles('go/go.sum') }}"
+
+      - name: Report tagged-build cache outcome
+        id: tagged-cache-outcome
+        if: ${{ !cancelled() }}
+        env:
+          CACHE_OUTCOME: ${{ steps.tagged-cache.outcome }}
+          CACHE_HIT: ${{ steps.tagged-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          if [[ "${CACHE_OUTCOME}" != success ]]; then
+            echo "::warning::Tagged-build cache restore failed or timed out; discard partial cache and run the full cold proof."
+            for cache_dir in "${GOCACHE}" "${GOMODCACHE}"; do
+              if [[ -d "${cache_dir}" ]]; then
+                chmod -R u+w "${cache_dir}"
+              fi
+            done
+            rm -rf -- "${GOCACHE}" "${GOMODCACHE}"
+          elif [[ "${CACHE_HIT}" != true ]]; then
+            echo "::notice::Tagged-build cache miss; run the full cold proof."
+          else
+            echo "Tagged-build cache restored; run the full proof."
+          fi
+
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Run tagged-builds sweep
+        timeout-minutes: 35
+        run: bash scripts/verify-tagged-builds.sh --all

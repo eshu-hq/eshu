@@ -478,39 +478,6 @@ gates:
       - go
     ci_only_reason: "local equivalents are the local.command of ifa-determinism, ifa-dead-letter-matrix and ifa-fault-injection, which run the same three scripts; the Neo4j wiring guard (scripts/test-ifa-graph-backend-neo4j.sh) is a seconds-long static check with no local gate of its own; this row only owns the CI job that runs them together"
 
-  - id: ifa-load-saturation
-    name: Ifa P5 load/saturation Odù (corpus amplifier + throughput + #3560 saturation regression)
-    category: exactness
-    layer: performance
-    purpose: "Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - ".github/workflows/static-contract-gates.yml"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
-      - "go/internal/ifa/amplify.go"
-      - "go/internal/ifa/slots.go"
-      - "go/internal/ifa/saturation/**"
-      - "go/internal/ifa/throughput/**"
-      - "specs/scale-lab-corpus.v1.yaml"
-      - "go/internal/storage/cypher/backpressure_executor.go"
-      - "go/internal/storage/cypher/timeout_executor.go"
-      - "go/internal/storage/postgres/reducer_queue_helpers.go"
-      - "go/internal/storage/postgres/reducer_queue_readiness_sql.go"
-      - "go/internal/reducer/contract/intent.go"
-      - "go/internal/reducer/intent.go"
-    local:
-      command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
-      test_command: "cd go && go test ./internal/ifa/saturation/ ./internal/ifa/throughput/ -race -count=1"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify Ifa P5 load/saturation gate"
-    requirements:
-      - go
-    ci_only_reason: ""
-
   - id: cassette-author
     name: Cassette author gate (private-data scan + v1 format contract)
     category: security
@@ -536,7 +503,6 @@ gates:
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
     self_test_triggers:
       - "scripts/verify-cassette-author.sh"
       - "scripts/test-verify-cassette-author.sh"
@@ -548,7 +514,7 @@ gates:
       test_command: "bash scripts/test-verify-cassette-author.sh"
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify cassette author gate"
+      job: "Product Contract Gates"
     requirements:
       - go
     ci_only_reason: ""

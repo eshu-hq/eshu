@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // workflowExpressionRE splits a job name on its ${{ }} expressions so a
@@ -188,6 +190,103 @@ func WorkflowJobDisabled(repoRoot string, gate Gate) (bool, error) {
 		return false, fmt.Errorf("gate %q: no job named %q in workflow %q", gate.ID, gate.CI.Job, gate.CI.Workflow)
 	}
 	return true, nil
+}
+
+// WorkflowJobScheduled reports whether the workflow a gate's ci.workflow names
+// defines a non-empty `on.schedule` cron trigger AND every workflow job matched
+// by ci.job is live (not permanently off via `if: false` or `if: ${{ false }}`).
+// It returns an error when the gate has no ci.workflow/ci.job, the workflow
+// cannot be read or parsed, or no job matches ci.job, so a stale or broken
+// definition fails closed rather than reading as scheduled.
+func WorkflowJobScheduled(repoRoot string, gate Gate) (bool, error) {
+	if gate.CI.Workflow == "" || gate.CI.Job == "" {
+		return false, fmt.Errorf("gate %q has no ci.workflow and ci.job to check", gate.ID)
+	}
+	// filepath.Base confines the read to the workflows directory; the file name
+	// comes from the committed registry.
+	path := filepath.Join(repoRoot, ".github", "workflows", filepath.Base(gate.CI.Workflow))
+	raw, err := os.ReadFile(path) // #nosec G304 -- workflows-dir-confined path; name is registry-controlled
+	if err != nil {
+		return false, fmt.Errorf("gate %q: read workflow: %w", gate.ID, err)
+	}
+	hasSchedule, err := workflowHasSchedule(raw)
+	if err != nil {
+		return false, fmt.Errorf("gate %q: parse workflow triggers: %w", gate.ID, err)
+	}
+	jobs, err := parseOwnershipJobs(raw)
+	if err != nil {
+		return false, fmt.Errorf("gate %q: %w", gate.ID, err)
+	}
+	keys := make([]string, 0, len(jobs))
+	for key := range jobs {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	matched := 0
+	for _, key := range keys {
+		job := jobs[key]
+		if !jobNameMatches(key, job.Name, gate.CI.Job) {
+			continue
+		}
+		matched++
+		if jobOffCondition.MatchString(strings.TrimSpace(job.If)) {
+			return false, nil
+		}
+	}
+	if matched == 0 {
+		return false, fmt.Errorf("gate %q: no job named %q in workflow %q", gate.ID, gate.CI.Job, gate.CI.Workflow)
+	}
+	return hasSchedule, nil
+}
+
+// workflowHasSchedule inspects the top-level `on:` mapping of a GitHub Actions
+// workflow and reports whether `on.schedule` is a non-empty sequence containing
+// at least one entry with a non-empty trimmed `cron` scalar.
+func workflowHasSchedule(raw []byte) (bool, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return false, fmt.Errorf("unmarshal workflow yaml: %w", err)
+	}
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return false, fmt.Errorf("empty workflow document")
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return false, fmt.Errorf("workflow root must be a YAML mapping")
+	}
+	var onNode *yaml.Node
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == "on" {
+			onNode = root.Content[i+1]
+			break
+		}
+	}
+	if onNode == nil || onNode.Kind != yaml.MappingNode {
+		return false, nil
+	}
+	var schedNode *yaml.Node
+	for i := 0; i+1 < len(onNode.Content); i += 2 {
+		if onNode.Content[i].Value == "schedule" {
+			schedNode = onNode.Content[i+1]
+			break
+		}
+	}
+	if schedNode == nil || schedNode.Kind != yaml.SequenceNode || len(schedNode.Content) == 0 {
+		return false, nil
+	}
+	for _, entry := range schedNode.Content {
+		if entry.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(entry.Content); i += 2 {
+			if entry.Content[i].Value == "cron" &&
+				entry.Content[i+1].Kind == yaml.ScalarNode &&
+				strings.TrimSpace(entry.Content[i+1].Value) != "" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // jobNameMatches reports whether a workflow job (by key and name:) is the one a

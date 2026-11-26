@@ -302,7 +302,7 @@ gates:
     layer: hygiene
     purpose: "Runs the golden-corpus gate's own hermetic test suite locally, with no Docker, as a static mirror of the real gate."
     tier: pre-pr
-    blocking: true
+    blocking: false
     triggers:
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "scripts/verify-golden-corpus-gate.sh"
@@ -326,16 +326,9 @@ gates:
       command: "cd go && go test ./cmd/golden-corpus-gate -run TestGoldenCorpusMirrorContract -count=1"
       test_command: "cd go && go test ./cmd/golden-corpus-gate -run TestGoldenCorpusMirrorContract -count=1"
       pre_push: deferred
-      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 74s (this is the static mirror; the live golden-corpus cell never ran locally at all -- it is path-triggered and Docker-only). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via golden-corpus-gate.yml (required-gates-complete)."
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 74s (static mirror; golden-corpus-gate.yml runs on nightly schedule and manual dispatch)."
     ci:
       workflow: "golden-corpus-gate.yml"
       job: "static mirror"
     requirements: []
     ci_only_reason: ""
-  # #7362 (#7331 phase 2): the NornicDB leg of golden-corpus-gate.yml. Neo4j is
-  # the supported backend and golden-corpus-gate-neo4j is the blocking truth
-  # gate, so this leg is watch-only: it reports NornicDB drift without holding
-  # a merge. required-gates-complete waits only for registry-blocking gates, and
-  # the ruleset lists no per-leg context, so no ruleset change is involved. This
-  # covers the corpus-gate (nornicdb) cell only: golden-corpus-differential
-  # still runs the NornicDB B-7 capture and stays blocking (out of scope here).

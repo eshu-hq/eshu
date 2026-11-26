@@ -1,11 +1,11 @@
 version: v1
 gates:
-  - id: golden-corpus-gate
-    name: Golden Corpus Gate on NornicDB (Docker)
+  - id: golden-corpus-gate-neo4j
+    name: Golden Corpus Gate on Neo4j (Docker)
     category: exactness
-    layer: secondary
-    purpose: "Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate."
-    tier: manual
+    layer: truth
+    purpose: "Runs the full pipeline over the fixed golden corpus on Neo4j, the supported backend, and fails if queues don't drain or the graph differs from the snapshot."
+    tier: ci-heavy
     blocking: false
     triggers:
       - "scripts/lib/cgo-cflags.sh"
@@ -19,179 +19,6 @@ gates:
       - "go/internal/workloadid/**"
       - "go/internal/storage/**"
       - "sdk/go/factschema/**"
-      # #5538: this registry entry had drifted from the workflow's own
-      # on.pull_request.paths — missing the go/cmd/* binaries the gate builds
-      # and every package below. Brought back into lockstep here; a general
-      # registry-vs-workflow drift CHECK (so this cannot silently reopen) is
-      # tracked separately as #5546, not added by this change.
-      - "go/cmd/bootstrap-index/**"
-      - "go/cmd/ingester/**"
-      - "go/cmd/projector/**"
-      - "go/cmd/reducer/**"
-      # #6159: this read "go/cmd/collector-**", copied verbatim from the
-      # workflow's on.pull_request.paths. GitHub's "**" crosses "/", so the
-      # pattern works there; the registry's own matcher treats "**" as a whole
-      # segment, so "collector-**" was a single-segment wildcard that matched
-      # the DIRECTORY "go/cmd/collector-tempo" and no file under it. A change
-      # to any collector command selected none of this gate's triggers. The
-      # workflow copy is correct in its own dialect and is left alone.
-      - "go/cmd/collector-*/**"
-      - "go/cmd/golden-corpus-gate/**"
-      - "go/cmd/mock-prometheus-mimir/**"
-      - "go/cmd/mock-openai-compatible/**"
-      - "go/internal/demospec/**"
-      - "go/internal/mcp/**"
-      - "go/internal/goldengate/**"
-      - "go/internal/graph/**"
-      - "go/internal/graphowner/**"
-      - "go/internal/graphschemacompat/**"
-      - "go/internal/graphbackpressure/**"
-      - "go/internal/facts/**"
-      - "go/internal/queue/**"
-      - "go/internal/replay/**"
-      - "go/internal/content/**"
-      - "go/internal/contentrefs/**"
-      - "go/internal/codeprovenance/**"
-      - "go/internal/packageidentity/**"
-      - "go/internal/repositoryidentity/**"
-      - "go/internal/sourcetool/**"
-      - "go/internal/terraformschema/**"
-      - "go/internal/environment/**"
-      - "go/internal/exposure/**"
-      - "go/internal/doctruth/**"
-      - "go/internal/serviceintel/**"
-      - "go/internal/serviceintelhttp/**"
-      # #5538 review follow-up: mirrors the workflow's own correction of two
-      # wrong exclusions ("reducer correlation" and "workflowimage") plus the
-      # search/semantic family and the iacreachability/rubycontroller checks --
-      # see scripts/lib/golden-corpus-mirror-workflow-paths.sh for the evidence.
-      - "go/internal/correlation/**"
-      - "go/internal/truth/**"
-      - "go/internal/scope/**"
-      - "go/internal/factenvelope/**"
-      - "go/internal/ghactionsref/**"
-      - "go/internal/secret/**"
-      - "go/internal/workflowimage/**"
-      - "go/internal/searchretrieval/**"
-      - "go/internal/searchdocs/**"
-      - "go/internal/searchbench/**"
-      - "go/internal/searchdecay/**"
-      - "go/internal/searchhybrid/**"
-      - "go/internal/searchrerank/**"
-      - "go/internal/searchembed/**"
-      - "go/internal/searchembedprovider/**"
-      - "go/internal/searchembedruntime/**"
-      - "go/internal/searchvector/**"
-      - "go/internal/semanticqueue/**"
-      - "go/internal/semanticpolicy/**"
-      - "go/internal/semanticguard/**"
-      - "go/internal/semanticprofile/**"
-      - "go/internal/iacreachability/**"
-      - "go/internal/rubycontroller/**"
-      # #5538 second review round: capability/status/version surface --
-      # mirrors the workflow's own addition. See
-      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the per-package
-      # import evidence, and for why internal/component stays excluded.
-      - "go/internal/capabilitycatalog/**"
-      - "go/internal/extraction/**"
-      - "go/internal/governanceaudit/**"
-      - "go/internal/status/**"
-      - "go/internal/buildinfo/**"
-      # #5877 review: two corrected exclusions -- see the workflow's own
-      # comment and scripts/lib/golden-corpus-mirror-workflow-paths.sh for the
-      # per-package import evidence (boundedset.DedupeSortCap shapes asserted
-      # SBOM attachment fields; tfstatewarning.Classify shapes get_index_status's
-      # required "terraform_state" field).
-      - "go/internal/boundedset/**"
-      - "go/internal/tfstatewarning/**"
-      - "go/internal/ask/**"
-      - "go/internal/askwiring/**"
-      - "go/internal/answerguardrail/**"
-      - "go/internal/answernarration/**"
-      # #4045: query/evidence/bundle_live.go composes GET /api/v0/evidence/bundle
-      # from internal/evidencebundle, and the snapshot asserts that response. The
-      # workflow gained this entry then; the registry did not, so local gate
-      # selection has been missing it since. Restored here alongside the #6119
-      # entry below, in the same block, because the two lists are meant to agree.
-      - "go/internal/evidencebundle/**"
-      # #6119: internal/urlredact reaches this gate on the static-parse path --
-      # internal/collector/git_service_catalog_facts.go parses catalog-info.yaml
-      # from the repo corpus into servicecatalog.BackstageManifestEnvelopes, whose
-      # URL sanitizers call urlredact.CarriesUserinfo, against the
-      # deployable-config/catalog-info.yaml fixture this gate already loads. See
-      # scripts/lib/golden-corpus-mirror-workflow-paths.sh for the full evidence,
-      # including why internal/redact stays excluded and this does not.
-      - "go/internal/urlredact/**"
-      - "testdata/golden/**"
-      - "testdata/cassettes/**"
-      - "tests/fixtures/ecosystems/**"
-      - "specs/demo-first-answers.v1.yaml"
-      # The orchestrator and the libs it sources, including the live-gate mutex:
-      # an edit to any of them changes what this gate does.
-      - "scripts/verify-golden-corpus-gate.sh"
-      - "scripts/test-verify-golden-corpus-gate.sh"
-      - "scripts/test-golden-documentation-section-reseed.sh"
-      - "scripts/fixtures/golden-documentation-reseed-schema.sql"
-      - "scripts/lib/golden-corpus-*.sh"
-      - "scripts/lib/golden_corpus_identity.py"
-      - "scripts/test-golden-corpus-identity.py"
-      - "scripts/lib/verify-live-tests-ledger.py"
-      - "scripts/lib/live_tests_registry.py"
-      - "scripts/verify-live-tests-ledger.sh"
-      - "specs/live-tests.v1.yaml"
-      - "specs/live-tests.d/**"
-      - "scripts/lib/test-golden-corpus-*.sh"
-      - "scripts/lib/live-gate-lock.sh"
-      - "scripts/ci/install-apt-packages.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      # Compose lanes moved to eshu-hq/eshu-deploy under #8871: digest bumps
-      # there no longer select this gate from the eshu side. The workflow
-      # checks the deploy repo out at a pinned commit instead.
-      - ".github/workflows/golden-corpus-gate.yml"
-      - "scripts/ci/compose.sh"
-      - "scripts/lib/ci-image-compose.sh"
-      - "scripts/lib/ci_image_compose.py"
-      - "specs/ci-images.v1.json"
-      - "scripts/lib/ci_image_compose_signature.py"
-    local:
-      command: "bash scripts/verify-golden-corpus-gate.sh"
-      test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
-    ci:
-      workflow: golden-corpus-gate.yml
-      job: "corpus-gate"
-    requirements:
-      - go
-      - docker
-      - nornicdb
-    ci_only_reason: "Disabled by owner order (2026-11-05): the NornicDB corpus-gate cell does not run in CI while Neo4j is the supported backend (#7331); the Neo4j cell is the blocking truth gate (golden-corpus-gate-neo4j). Run it by hand with the local command; see docs/internal/ci-workflow-inventory.md (Re-enabling NornicDB CI)."
-    # D13 (#9669 removal prep): RETARGET at the removal PR, owner Leaf B
-    # cross-repo parity harness (checklist row 13). The corpus pipeline runs
-    # over HTTP, so the gate follows the satellite: replay the golden corpus
-    # against an eshu-api deployment instead of the in-tree binary.
-    # Removal-PR action: drop the go/cmd/api/** trigger above and add the
-    # satellite pin inputs (Dockerfile api-satellite pin / deploy checkout
-    # pin), mirroring the #8871 compose-lane move noted above. Triggers stay
-    # until then: the binary is still built in-tree.
-
-  - id: golden-corpus-gate-neo4j
-    name: Golden Corpus Gate on Neo4j (Docker)
-    category: exactness
-    layer: truth
-    purpose: "Runs the full pipeline over the fixed golden corpus on Neo4j, the supported backend, and fails if queues don't drain or the graph differs from the snapshot."
-    tier: ci-heavy
-    blocking: true
-    triggers:
-      - "scripts/lib/cgo-cflags.sh"
-      - "scripts/lib/ci-gates-resolved-fixtures.sh"
-      - "go/internal/collector/**"
-      - "go/internal/parser/**"
-      - "go/internal/projector/**"
-      - "go/internal/reducer/**"
-      - "go/internal/query/**"
-      - "go/internal/relationships/**"
-      - "go/internal/workloadid/**"
-      - "go/internal/storage/**"
-      - "sdk/go/factschema/**"
       - "go/cmd/bootstrap-index/**"
       - "go/cmd/ingester/**"
       - "go/cmd/projector/**"
@@ -278,9 +105,6 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
-      # Compose lanes moved to eshu-hq/eshu-deploy under #8871: digest bumps
-      # there no longer select this gate from the eshu side. The workflow
-      # checks the deploy repo out at a pinned commit instead.
       - ".github/workflows/golden-corpus-gate.yml"
       - "scripts/ci/compose.sh"
       - "scripts/lib/ci-image-compose.sh"
@@ -299,21 +123,7 @@ gates:
       - go
       - docker
     ci_only_reason: ""
-    # D13 (#9669 removal prep): RETARGET at the removal PR, owner Leaf B
-    # cross-repo parity harness (checklist row 13). Same retarget as the
-    # NornicDB cell above: replay the golden corpus against an eshu-api
-    # deployment instead of the in-tree binary. Removal-PR action: drop the
-    # go/cmd/api/** trigger above and add the satellite pin inputs.
-    # Triggers stay until then: the binary is still built in-tree.
 
-  # #6784 slice B: every CI-class row from specs/live-tests.v1.yaml runs on
-  # NornicDB and Neo4j. It landed non-blocking because required-gates judges
-  # a PR with main's registry: a new blocking check_name cannot be
-  # introduced in the PR that first produces it. Blocking flipped to true in
-  # the follow-up once main went green on this job (run 35901630978 on the
-  # slice-B merge commit). Triggers mirror the workflow
-  # paths (whole-module go/**: the ledger validator scans every go package
-  # for live tests, so any Go change can add an unclassified live test).
   - id: live-backend-tests
     name: Live Backend Tests on NornicDB and Neo4j (Docker)
     category: exactness
@@ -348,6 +158,18 @@ gates:
       - "scripts/lib/ci_image_compose.py"
       - "specs/ci-images.v1.json"
       - "scripts/lib/ci_image_compose_signature.py"
+    generator_inputs:
+      - "go/**/*.go"
+      - "go/**/*_test.go"
+    regenerate:
+      "specs/live-tests.v1.yaml": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:specs/live-tests.v1.yaml > specs/live-tests.v1.yaml && python3 scripts/generate-live-postgres-readiness.py"
+      "specs/live-tests.d/live-tests-readiness.generated.yaml": "python3 scripts/generate-live-postgres-readiness.py"
+      "specs/live-tests.d/live-tests-readiness-part*.generated.yaml": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_inventory_generated.py": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_inventory_gen_*.py": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_inventory_helpers.py": "python3 scripts/generate-live-postgres-readiness.py"
+      "scripts/lib/live_postgres_readiness_env.sh": "python3 scripts/generate-live-postgres-readiness.py"
+      ".github/workflows/live-postgres-readiness.yml": "git show ${ESHU_REGEN_BASE:?set_ESHU_REGEN_BASE}:.github/workflows/live-postgres-readiness.yml > .github/workflows/live-postgres-readiness.yml && python3 scripts/generate-live-postgres-readiness.py"
     local:
       command: "bash scripts/run-live-backend-tests.sh --backend both"
       test_command: "bash scripts/test-run-live-backend-tests.sh"

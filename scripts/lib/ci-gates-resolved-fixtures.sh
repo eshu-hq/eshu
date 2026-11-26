@@ -57,8 +57,14 @@ ci_gates_flat_view() {
 ci_gates_static_workflow_view() {
   local source="$1" output="$2" repo="$3" filters
   filters="${repo}/.github/static-contract-filters.yml"
-  [[ -f "${filters}" ]] || return 1
-  rg -q '^          filters: .github/static-contract-filters.yml$' "${source}" || return 1
+  if [[ ! -f "${filters}" ]]; then
+    cp "${source}" "${output}"
+    return $?
+  fi
+  rg -q '^          filters: .github/static-contract-filters.yml$' "${source}" || {
+    cp "${source}" "${output}"
+    return $?
+  }
   awk -v filters="${filters}" '
     $0 == "          filters: .github/static-contract-filters.yml" {
       print "          filters: |"

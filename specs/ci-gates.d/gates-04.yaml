@@ -246,7 +246,6 @@ gates:
       - ".github/workflows/static-contract-gates.yml"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
-      - ".github/static-contract-filters.yml"
       - "docs/**/*.md"
       - "*.md"
       - "go/internal/parser/**"
@@ -294,7 +293,7 @@ gates:
       pre_push_reason: "Measured across 67 local pre-pr gate reports: median 45s, ~6% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete)."
     ci:
       workflow: static-contract-gates.yml
-      job: "Verify parser relationship kit gate"
+      job: "Product Contract Gates"
     requirements:
       - go
     ci_only_reason: ""
@@ -318,28 +317,6 @@ gates:
     ci:
       workflow: test.yml
       job: "verify-contracts"
-    requirements:
-      - go
-    ci_only_reason: ""
-
-  - id: heredoc-budget
-    name: Heredoc Budget (bash 5.1+ pipe-buffer deadlock guard)
-    category: exactness
-    layer: hygiene
-    purpose: "Blocks new bash heredocs beyond a fixed budget to prevent a known bash 5.1+ pipe-buffer deadlock."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - ".github/static-contract-filters.yml"
-      - "scripts/**/*.sh"
-      - "scripts/heredoc-budget-baseline.txt"
-      - "go/cmd/heredoc-budget/**"
-    local:
-      command: "cd go && go test ./cmd/heredoc-budget -count=1"
-      test_command: "cd go && go test ./cmd/heredoc-budget -count=1"
-    ci:
-      workflow: static-contract-gates.yml
-      job: "Verify heredoc budget gate"
     requirements:
       - go
     ci_only_reason: ""

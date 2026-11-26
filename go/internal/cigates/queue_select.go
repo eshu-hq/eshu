@@ -30,8 +30,7 @@ func SelectQueueWorkflow(registries []*Registry, paths []string, truncated bool,
 	}
 	all := truncated || slices.Contains(paths, ".github/workflows/"+workflow) ||
 		slices.Contains(paths, ".github/workflows/queue-selection.yml") ||
-		slices.Contains(paths, "specs/ci-gates.v1.yaml") ||
-		(workflow == "static-contract-gates.yml" && slices.Contains(paths, ".github/static-contract-filters.yml"))
+		slices.Contains(paths, "specs/ci-gates.v1.yaml")
 	if !all {
 		for _, path := range paths {
 			if strings.HasPrefix(path, "specs/ci-gates.d/") {

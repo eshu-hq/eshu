@@ -19,9 +19,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// openMultiSupportDatabase seeds the multi-support corpus on a disposable
-// database and rebuilds the winners from it.
-func openMultiSupportDatabase(t *testing.T) (context.Context, *sql.DB) {
+// openMultiSupportSeededDatabase opens a disposable database and seeds the
+// multi-support corpus without running the supports backfill or winners build.
+// Callers that seed extra findings before backfill use this helper directly so
+// the backfill cursor is not already marked complete.
+func openMultiSupportSeededDatabase(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
 	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(
 		t,
@@ -33,6 +35,14 @@ func openMultiSupportDatabase(t *testing.T) (context.Context, *sql.DB) {
 		},
 	)
 	seedMultiSupportCorpus(t, ctx, database)
+	return ctx, database
+}
+
+// openMultiSupportDatabase seeds the multi-support corpus on a disposable
+// database, fills the supports table, and rebuilds the winners from it.
+func openMultiSupportDatabase(t *testing.T) (context.Context, *sql.DB) {
+	t.Helper()
+	ctx, database := openMultiSupportSeededDatabase(t)
 	// The winners build reads the supports table, so fill it with the real
 	// backfill before the rebuild.
 	runSupportsBackfillToCompletion(t, ctx, database)

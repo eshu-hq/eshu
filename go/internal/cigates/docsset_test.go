@@ -470,8 +470,8 @@ func TestNonGoWorkflowAndScriptPRsSkipGoSecurityMCPAndCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PlanPRWorkflows(goPR): %v", err)
 	}
-	if _, ok := planGo["code-coverage-report.yml"]; !ok {
-		t.Error("Go PR failed to plan code-coverage-report.yml")
+	if _, ok := planGo["code-coverage-report.yml"]; ok {
+		t.Error("Go PR unexpectedly planned scheduled-only code-coverage-report.yml")
 	}
 	if _, ok := planGo["build.yml"]; !ok {
 		t.Error("Go PR failed to plan build.yml")

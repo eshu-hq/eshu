@@ -36,7 +36,7 @@ var verifyScriptRE = regexp.MustCompile(`scripts/verify-[\w.-]+\.sh`)
 // do not hand-edit it without doing so.
 // The contention workflow also invokes verify-live-tests-ledger.sh, which
 // already runs in the live-backend workflow, so that gate leaves this subset.
-const scriptWorkflowSoundSubsetCount = 62
+const scriptWorkflowSoundSubsetCount = 43
 
 // runStep is the minimal shape needed to read a step's executable command.
 type runStep struct {
@@ -61,33 +61,6 @@ type runJob struct {
 type runWorkflowFile struct {
 	Defaults runDefaults       `yaml:"defaults"`
 	Jobs     map[string]runJob `yaml:"jobs"`
-}
-
-// workflowRunCommands returns every step `run:` block in raw, which is the only
-// place a workflow actually executes a script.
-//
-// Scanning the whole file instead counts a mention as an invocation, and the
-// two are routinely different: a dorny paths filter WATCHES scripts so the job
-// re-runs when they change. scripts/verify-golden-corpus-gate.sh is watched by
-// static-contract-gates.yml's maturitydrift filter and executed only by
-// golden-corpus-gate.yml, so a whole-file scan sees two hosts, fails the
-// "exactly one workflow" precondition, and silently skips golden-corpus-gate --
-// letting a cross-wired entry through the check built to catch it (#5748
-// review).
-func workflowRunCommands(raw []byte) []string {
-	var wf runWorkflowFile
-	if err := yaml.Unmarshal(raw, &wf); err != nil {
-		return nil
-	}
-	var cmds []string
-	for _, job := range wf.Jobs {
-		for _, step := range job.Steps {
-			if step.Run != "" {
-				cmds = append(cmds, step.Run)
-			}
-		}
-	}
-	return cmds
 }
 
 // workflowRunCommandsWithActions includes executable steps moved into local
@@ -137,28 +110,6 @@ func workflowRunCommandsWithActions(repoRoot string, raw []byte) ([]string, erro
 		}
 	}
 	return commands, nil
-}
-
-// workflowRunsScript reports whether raw invokes exactly this script.
-//
-// The leading boundary is why this is not a plain strings.Contains. A workflow
-// running "myscripts/verify-no-ai-attribution.sh" contains
-// "scripts/verify-no-ai-attribution.sh" as a substring while running a
-// different file. Counting it as a host gives the script two apparent owners,
-// which fails the "exactly one workflow" precondition below, which silently
-// skips the gate -- so a real mismatch becomes a pass, through the very check
-// meant to catch it (#5748).
-//
-// Note the sibling "scripts/test-verify-X.sh" harness is NOT such a case: the
-// "scripts/" prefix in the search string already excludes it. Only a path with
-// something glued to the left of "scripts/" collides.
-func workflowRunsScript(raw, script string) bool {
-	for _, cmd := range workflowRunCommands([]byte(raw)) {
-		if commandRunsScript(cmd, script) {
-			return true
-		}
-	}
-	return false
 }
 
 // commandRunsScript reports whether a single `run:` block invokes script.

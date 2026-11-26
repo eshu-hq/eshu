@@ -33,8 +33,8 @@ func TestStackedBasePlansSameGateSetAsMain(t *testing.T) {
 	}
 	// Guard the fixture: this path must select a callable leaf that declares
 	// `branches: [main]`, or the test proves nothing.
-	if len(mainJobs["golden-corpus-gate.yml"]) == 0 {
-		t.Fatal("test paths no longer select golden-corpus-gate.yml; the fixture does not exercise the branch filter")
+	if len(mainJobs["build.yml"]) == 0 {
+		t.Fatal("test paths no longer select build.yml; the fixture does not exercise the branch filter")
 	}
 	stackedJobs, err := PlanPRWorkflows(defs, paths, false, "drive/9766", "full", nil)
 	if err != nil {

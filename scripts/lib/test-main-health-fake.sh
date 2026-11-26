@@ -33,13 +33,14 @@ mkdir -p "${policy_root}/.github/workflows" "${policy_root}/specs"
 cat >"${policy_root}/.github/workflows/main-health.yml" <<'YAML'
 name: Main Health
 on:
-  workflow_run:
-    workflows:
-      - Build Test
-      - Static Contract Gates
-      - Frontend
-      - Security Scan
-    types: [completed]
+  schedule:
+    - cron: "*/15 * * * *"
+env:
+  MAIN_HEALTH_WORKFLOWS: |
+    Build Test
+    Static Contract Gates
+    Frontend
+    Security Scan
 YAML
 cat >"${policy_root}/.github/workflows/required-gates.yml" <<'YAML'
 name: Required Gates
@@ -213,7 +214,7 @@ ok() { "$@" && echo 0 || echo 1; }
 seed_empty_policy() {
 	empty_policy_root="${work}/empty-policy"
 	mkdir -p "${empty_policy_root}/.github/workflows" "${empty_policy_root}/specs"
-	printf 'name: Main Health\non:\n  workflow_run:\n    workflows: []\n    types: [completed]\n' >"${empty_policy_root}/.github/workflows/main-health.yml"
+	printf 'name: Main Health\non:\n  schedule:\n    - cron: "*/15 * * * *"\nenv:\n  MAIN_HEALTH_WORKFLOWS: ""\n' >"${empty_policy_root}/.github/workflows/main-health.yml"
 	cp "${policy_root}/.github/workflows/required-gates.yml" "${policy_root}/.github/workflows/test.yml" "${empty_policy_root}/.github/workflows/"
 	cp "${policy_root}/specs/ci-gates.v1.yaml" "${empty_policy_root}/specs/ci-gates.v1.yaml"
 }

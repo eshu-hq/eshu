@@ -93,12 +93,4 @@ def build(module):
                         "inactive|fail-closed",
                     )
 
-        def test_second_job_plan_gate_names_its_own_id(self) -> None:
-            """A plan gate that reuses the first job's id would run both or neither."""
-            old = "'contention-gate-storage-b') }}"
-            self.check(
-                lambda text: text.replace(old, "'contention-gate') }}", 1),
-                "inactive or non-fail-closed",
-            )
-
     return TwoJobSplitTest

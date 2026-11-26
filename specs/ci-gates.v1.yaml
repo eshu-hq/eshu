@@ -44,7 +44,6 @@ gate_fragments:
   - ci-gates.d/gates-16.yaml
   - ci-gates.d/gates-15.yaml
   - ci-gates.d/gates-17.yaml
-  - ci-gates.d/gates-18.yaml
 
 # Merge-group slim lane (#7859 P3): the owner-fixed ordered set of blocking
 # gate IDs selected on the merge_group event, ignoring changed paths. Source:
@@ -59,9 +58,7 @@ merge_group_slim_gates:
   - slim-go-build
   - slim-go-vet
   - slim-go-filecap
-  - tagged-builds
   - markdown-file-cap
-  - doc-citations
   - scripts-file-cap
   - ci-gate-registry
   - capability-inventory
@@ -73,6 +70,8 @@ merge_group_slim_gates:
   - slim-doc-split
 
 hygiene_hooks:
+  - id: go-measurement-citations
+    reason: "local pre-commit measurement-citation hygiene hook; retired from automatic CI static-contract-gates"
   - id: codex-spawn-guard
     reason: "pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI"
   - id: goal-role-routing
@@ -104,7 +103,7 @@ non_gate_workflows:
   - file: live-postgres-readiness-calibration.yml
     reason: "manual six-shard calibration for #9100; evidence only, never a PR or main-push acceptance gate"
   - file: main-health.yml
-    reason: "post-merge watcher on main (workflow_run + 6h schedule) that files the main-is-red issue and status; its script is gated by main-health-watcher, the workflow itself is not a PR gate"
+    reason: "post-merge watcher on main (15m schedule + manual dispatch) that files the main-is-red issue and status; its script is gated by main-health-watcher, the workflow itself is not a PR gate"
   - file: dirgate-main-alarm.yml
     reason: "post-merge dirgate alarm on main (workflow_run of Build Test + manual dispatch) that comments the merged PR with the directory and missing trailer; never a PR gate"
   - file: bench.yml
@@ -123,3 +122,11 @@ non_gate_workflows:
     reason: "daily CI cost census telemetry (#8617); reports run counts, cancelled share, and duration percentiles to a job summary, posts no merge-relevant status"
   - file: seed-publish.yml
     reason: "dispatch-only #8877 seed image publish (buildx provenance+SBOM, push, in-image smoke, digest output); never a PR or main-push acceptance gate"
+  - file: live-postgres-readiness.yml
+    reason: "4-hourly/manual deep PostgreSQL readiness EXPLAIN & correctness proofs; moved off per-PR and per-push main runs to eliminate CI burn and broken-window advisory noise"
+  - file: reducer-contention-gate.yml
+    reason: "4-hourly/manual deep PostgreSQL reducer contention & supply-chain proofs; moved off per-PR and per-push main runs"
+  - file: code-coverage-report.yml
+    reason: "nightly/manual advisory Go coverage report and module floor ranking; moved off per-PR and per-push main runs"
+  - file: tagged-builds.yml
+    reason: "nightly/manual 73-configuration //go:build sweep; moved out of static-contract-gates.yml"

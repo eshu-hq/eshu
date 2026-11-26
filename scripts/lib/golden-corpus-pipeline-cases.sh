@@ -15,15 +15,6 @@ require "filesystem managed-copy direct-mode pin" 'export ESHU_FILESYSTEM_DIRECT
 require_in_region "live corpus gate installs ripgrep before B-7" "${workflow}" \
 	'/^  corpus-gate:$/,/^      - name: Run B-7 golden corpus gate$/' \
 	'run: scripts/ci/install-apt-packages.sh ripgrep'
-for gate_path in \
-	'go/cmd/mock-openai-compatible/**' \
-	'go/internal/ask/**' \
-	'go/internal/askwiring/**' \
-	'go/internal/answerguardrail/**' \
-	'go/internal/answernarration/**'; do
-	require_in_region "ci-gates golden-corpus-gate trigger ${gate_path}" "${ci_gates}" \
-		'/^  - id: golden-corpus-gate$/,/^    local:/' "- \"${gate_path}\""
-done
 require_in_region "the pre-pr golden-corpus selector must match the Ask engine" "${prepr}" \
 	'/run_or_defer golden-corpus/,/run_or_defer replay-tier/' 'demospec|ask|askwiring|answerguardrail|answernarration'
 require_in_region "the pre-pr golden-corpus selector must match the Ask mock provider" "${prepr}" \
@@ -223,24 +214,5 @@ bash -n "${dead_code_lib}" || fail "dead-code fixture lib has a syntax error"
 vuln_readiness_lib="${repo_root}/scripts/lib/golden-corpus-vulnerability-readiness-fixture.sh"
 [[ -f "${vuln_readiness_lib}" ]] || fail "missing vulnerability-readiness fixture lib: ${vuln_readiness_lib}"
 bash -n "${vuln_readiness_lib}" || fail "vulnerability-readiness fixture lib has a syntax error"
-
-
-# Metadata edits must select the real B-7 cells and their existing mirror,
-# including merge-group selection through each gate's own registry row.
-for identity_path in \
-    'scripts/lib/golden_corpus_identity.py' \
-    'scripts/test-golden-corpus-identity.py' \
-    'scripts/lib/verify-live-tests-ledger.py' \
-    'scripts/lib/live_tests_registry.py' \
-    'scripts/verify-live-tests-ledger.sh' \
-    'specs/live-tests.v1.yaml' \
-    'specs/live-tests.d/**'; do
-    require_workflow_path "B-7 identity input ${identity_path}" "${identity_path}"
-    for identity_gate in golden-corpus-mirror golden-corpus-gate golden-corpus-gate-neo4j; do
-        require_in_region "${identity_gate} identity input ${identity_path}" "${ci_gates}" \
-            "/^  - id: ${identity_gate}\$/,/^    local:/" "- \"${identity_path}\""
-    done
-done
-unset identity_path identity_gate
 
 pipeline_cases_completed=1

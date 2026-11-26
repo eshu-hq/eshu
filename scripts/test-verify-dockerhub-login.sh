@@ -31,13 +31,6 @@ done
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 failures=0
-# These assertions inspect the same Go-validated registry and resolved hosted
-# filter model that the production drift check uses.
-source "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
-registry_view="${tmp_root}/ci-gates-flat.yaml"
-static_workflow_view="${tmp_root}/static-contract-gates.yml"
-ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry_view}" "${repo_root}"
-ci_gates_static_workflow_view "${repo_root}/.github/workflows/static-contract-gates.yml" "${static_workflow_view}" "${repo_root}"
 
 # One scratch base copy; each case copies it. The verifier reads the workflows,
 # the scripts they invoke, the compose files and the Dockerfile. The base keeps
@@ -330,24 +323,7 @@ d="$(new_case login-continue-on-error-false)"
 yq e -i "(.jobs.test.steps[] | select(${login_ref}) | .continue-on-error) = false" "${d}/.github/workflows/legacy-hub.yml"
 expect_green login-with-continue-on-error-false-passes "${d}"
 
-# --- G5: the gate's triggers cover the files whose names it derives from --------
-# The registry row and the static-contract-gates path filter must both list the
-# nested Dockerfile and compose globs (the lockstep gate keeps them equal).
-for glob in '**/Dockerfile*' '**/docker-compose*.y*ml'; do
-  if yq e '.gates[] | select(.id == "dockerhub-login") | .triggers[]' "${registry_view}" | rg -Fx -- "${glob}" >/dev/null; then
-    echo "ok - registry row triggers include ${glob}"
-  else
-    echo "not ok - registry row triggers include ${glob}"; failures=$((failures + 1))
-  fi
-  if yq e '.jobs.changes.steps[] | select(.id == "filter") | .with.filters' "${static_workflow_view}" |
-    yq e '.dockerhublogin[]' - | rg -Fx -- "${glob}" >/dev/null; then
-    echo "ok - path filter dockerhublogin includes ${glob}"
-  else
-    echo "not ok - path filter dockerhublogin includes ${glob}"; failures=$((failures + 1))
-  fi
-done
-
-# --- G7, H1, H3, H4: variable runtimes, Hub hosts, composite actions, triggers ---
+# --- G7, H1: variable runtimes, Hub hosts, composite actions ---
 # shellcheck source=lib/dockerhub-login-test-shapes.sh
 source "${repo_root}/scripts/lib/dockerhub-login-test-shapes.sh"
 # shellcheck source=lib/dockerhub-login-test-script-refs.sh

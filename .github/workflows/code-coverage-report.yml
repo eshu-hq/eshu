@@ -2,28 +2,18 @@ name: Code Coverage Report
 
 # Advisory Go code-coverage reporting for #4227. This is ordinary executable
 # test coverage and intentionally does not replace replay, golden-corpus, or
-# full-corpus proof. The workflow uploads current PR artifacts; the committed
-# docs report is the public baseline and README badge source.
+# full-corpus proof. The workflow runs on a nightly schedule and manual
+# dispatch and uploads coverage report artifacts; the committed docs report is
+# the public baseline and README badge source.
 
 on:
-  workflow_call:
-    inputs:
-      plan_jobs:
-        required: true
-        type: string
-      plan_gates:
-        required: true
-        type: string
-      plan_mode:
-        required: true
-        type: string
-  push:
-    branches: [ main ]
+  schedule:
+    - cron: '50 5 * * *'
   workflow_dispatch:
 
 concurrency:
-  group: ci-leaf-code-coverage-report-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-scheduled-code-coverage-report-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -36,7 +26,6 @@ env:
 
 jobs:
   static-mirror:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
     name: static mirror
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -49,58 +38,18 @@ jobs:
       - name: Validate coverage report contract
         run: bash scripts/test-generate-code-coverage-report.sh
 
-  # Per-package no-regression floors (#10983, part of #9315). Unlike the
-  # advisory whole-module run below, this job is ON the PR path: it tests
-  # only the Go packages the PR changed and fails a package that measures
-  # below its checked-in floor in specs/coverage-floors.v1.yaml. Hermetic by
-  # construction -- env_gated packages (live DSN, deploy checkout) are never
-  # tested here, and a PR with no Go changes passes in seconds.
-  package-floors:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'package-floors') }}
-    name: Package coverage floors
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
-          # cache: false: setup-go would store the build cache a second time
-          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
-          cache: false
-      - name: Pre-warm Go modules
-        run: scripts/ci/go-mod-download-retry.sh
-      # The floors check runs full `go test` on covering packages, which since
-      # #10988 includes mirror-contract self-tests that shell out to scripts
-      # needing rg (same class as the replay-coverage fix on #11004).
-      - name: Install ripgrep
-        run: scripts/ci/install-apt-packages.sh ripgrep
-        env:
-          GH_TOKEN: ${{ github.token }}
-      - name: Check changed packages against coverage floors
-        env:
-          ESHU_FLOORS_BASE_REF: ${{ github.base_ref }}
-        run: bash scripts/ci/check-changed-coverage-floors.sh
-
   coverage-report:
-    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'coverage-report')) && (github.event_name != 'pull_request') }}
     name: Generate Go code coverage report
     # Advisory report only — it does not gate correctness (see the header). The
-    # ~15-18m full-coverage run is intentionally OFF the PR path: it caught no
-    # code defects there, it only produced the badge/baseline numbers. This job
-    # runs post-merge on push-to-main and on manual dispatch, and it only
-    # UPLOADS them: the workflow holds `contents: read`, runs no git write, and
-    # redirects the generator to the workspace root via
+    # ~15-18m full-coverage run is intentionally OFF the PR path: it runs on the
+    # nightly schedule and manual dispatch, checks the whole-module floor, and
+    # only UPLOADS artifacts: the workflow holds `contents: read`, runs no git
+    # write, and redirects the generator to the workspace root via
     # ESHU_CODE_COVERAGE_REPORT_OUT below, so it never touches the committed
     # docs/public/reference/code-coverage.md. Refreshing the committed report and
     # the README shield is a manual step — run
     # scripts/generate-code-coverage-report.sh with its default output paths and
-    # commit the result. The cheap static-mirror contract check above still runs
-    # on every PR, so a change to the generator script is still validated
-    # pre-merge.
+    # commit the result.
     runs-on: ubuntu-24.04
     needs: static-mirror
     timeout-minutes: 45

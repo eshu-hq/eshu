@@ -52,6 +52,10 @@ type Inputs struct {
 	// names is really off. Nil means no marker can be confirmed, so every
 	// disabled-marked gate fails the blocking gate.
 	JobDisabled JobDisabledFunc
+	// JobScheduled confirms that a non-blocking tier: ci-heavy, non-secondary
+	// proof gate's workflow defines a cron schedule and its matched job is live.
+	// Nil fails closed on every non-blocking, non-disabled proof gate.
+	JobScheduled JobScheduledFunc
 	// Resolver verifies a manifest entry's scenario artifact exists.
 	Resolver Resolver
 	// Blocking flips every coverage finding from advisory to required. Local
@@ -82,7 +86,7 @@ func RunGate(in Inputs) (Coverage, CoverageReport, *goldengate.Report) {
 	cov := Reconcile(supported, surfaceManifest, in.Resolver)
 	var proofGateDetails proofGateValidationDetails
 	if in.ProofGates != nil {
-		proofGateDetails = proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates, in.JobDisabled)
+		proofGateDetails = proofGateValidationDetailsByScenario(manifest, in.AuthzProofs, in.ProofGates, in.JobDisabled, in.JobScheduled)
 		cov = applyProofGateValidation(cov, proofGateDetails)
 	}
 	cov = applyDepthExemptions(cov, depthExempt)

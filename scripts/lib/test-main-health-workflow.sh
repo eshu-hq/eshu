@@ -54,30 +54,22 @@ if [ ! -f "${watcher_wf}" ]; then
 	return 0
 fi
 
-# N1: the watcher wakes on exactly the workflows it judges (the script's own
-# derivation from its wake list), and never on the ruleset audit workflow.
-# Every Required Gates publisher run reported head_branch main (about 18 a
-# minute live), so as a trigger it would flood the watcher; its scheduled
-# ruleset verification is covered by the watcher's own schedule, which fires
-# after it, and by every evaluation.
+# N1: the watcher judges its declared MAIN_HEALTH_WORKFLOWS list on a 15-minute
+# schedule (no workflow_run completion storm) and never includes Required Gates.
 ruleset_wf="${repo_root}/.github/workflows/required-gates.yml"
 want="$(MAIN_HEALTH_REPO_ROOT="${repo_root}" "${target}" --print-required | sort -u)"
-have="$(yq '.on.workflow_run.workflows[]' "${watcher_wf}" | sort -u)"
+have="$(yq '.env.MAIN_HEALTH_WORKFLOWS // ""' "${watcher_wf}" | awk 'NF && $0 != "null"' | sort -u)"
 check "N1: the judged list is non-empty" "$([ -n "${want}" ] && echo 0 || echo 1)"
-check "N1: workflow_run list == the workflows the script judges" "$([ -n "${want}" ] && [ "${want}" = "${have}" ] && echo 0 || echo 1)"
+check "N1: MAIN_HEALTH_WORKFLOWS == the workflows the script judges" "$([ -n "${want}" ] && [ "${want}" = "${have}" ] && echo 0 || echo 1)"
 names="$(for f in "${repo_root}"/.github/workflows/*.yml "${repo_root}"/.github/workflows/*.yaml; do [[ -f "${f}" ]] || continue; yq '.name' "${f}"; done | sort -u)"
 check "N1: every judged name resolves to a real workflow file's .name" "$([ -z "$(printf '%s\n' "${want}" | rg -vxF -f <(printf '%s\n' "${names}"))" ] && echo 0 || echo 1)"
 check "N1: the sentinel Build Test is judged" "$(printf '%s\n' "${want}" | rg -qx 'Build Test' && echo 0 || echo 1)"
-check "N1: Required Gates itself is never a trigger" \
+check "N1: Required Gates itself is never in the judged list" \
 	"$(printf '%s\n' "${have}" | rg -qxF -- "$(yq '.name' "${ruleset_wf}")" && echo 1 || echo 0)"
-agg_cron="$(yq '.on.schedule[0].cron' "${ruleset_wf}")"
-own_cron="$(yq '.on.schedule[0].cron' "${watcher_wf}")"
-check "N1: the watcher's schedule runs after the ruleset verifier's, same hours" \
-	"$([ "${agg_cron#* }" = "${own_cron#* }" ] && [ "${own_cron%% *}" -gt "${agg_cron%% *}" ] 2>/dev/null && echo 0 || echo 1)"
+check "N1: no workflow_run trigger storm" "$([ "$(yq '.on.workflow_run // "null"' "${watcher_wf}")" = "null" ] && echo 0 || echo 1)"
 check "N1: no workflow-level concurrency (a guard-skipped run would hold it)" "$([ "$(yq '.concurrency' "${watcher_wf}")" = "null" ] && echo 0 || echo 1)"
 check "N1: the watch job owns the concurrency group" "$([ "$(yq '.jobs.watch.concurrency.group // ""' "${watcher_wf}")" != "" ] && echo 0 || echo 1)"
-check "workflow: main-only workflow_run" "$([ "$(yq '.on.workflow_run.branches[0]' "${watcher_wf}")" = "main" ] && echo 0 || echo 1)"
-check "workflow: has a 6h schedule" "$([ -n "$(yq '.on.schedule[0].cron' "${watcher_wf}")" ] && echo 0 || echo 1)"
+check "workflow: has a 15-minute schedule" "$([ "$(yq '.on.schedule[0].cron' "${watcher_wf}")" = "*/15 * * * *" ] && echo 0 || echo 1)"
 check "workflow: workflow_dispatch has a dry_run input" "$([ "$(yq '.on.workflow_dispatch.inputs.dry_run.type' "${watcher_wf}")" = "boolean" ] && echo 0 || echo 1)"
 perms="$(yq -o=json -I=0 '.permissions' "${watcher_wf}")"
 check "workflow: least-privilege permissions" "$([ "${perms}" = '{"actions":"read","contents":"read","issues":"write","statuses":"write"}' ] && echo 0 || echo 1)"
@@ -107,11 +99,9 @@ guard_is() { # <want true|false> <description> <context-json>
 	got="$(gh_if_eval "${guard}" "$3" 2>/dev/null || echo error)"
 	check "F6: guard $1 for $2" "$([ "${got}" = "$1" ] && echo 0 || echo 1)"
 }
-guard_is true "the 6h schedule" '{"github":{"event_name":"schedule","repository":"eshu-hq/eshu"}}'
+guard_is true "the 15m schedule" '{"github":{"event_name":"schedule","repository":"eshu-hq/eshu"}}'
 guard_is true "a manual dispatch" '{"github":{"event_name":"workflow_dispatch","repository":"eshu-hq/eshu"}}'
-guard_is true "a required workflow's push run" "$(wr_ctx 'Build Test' push)"
-guard_is true "a required workflow's scheduled run" "$(wr_ctx 'Security Scan' schedule)"
-guard_is true "Security Scan's workflow_run (image scan) run" "$(wr_ctx 'Security Scan' workflow_run)"
+guard_is false "a workflow_run event" "$(wr_ctx 'Build Test' push)"
 guard_is false "a fork pull_request run" "$(wr_ctx 'Build Test' pull_request 'fork/eshu')"
 guard_is false "a same-repo pull_request run" "$(wr_ctx 'Build Test' pull_request)"
 guard_is false "a pull_request_target run" "$(wr_ctx 'Build Test' pull_request_target)"
