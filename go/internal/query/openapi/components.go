@@ -127,7 +127,10 @@ const components = `  "components": {
           "environments": {"type": "array", "description": "Environments the workload was observed in. Owner: repository.Handler listCatalogWorkloads.", "items": {"type": "string"}},
           "instance_count": {"type": "integer", "description": "Materialized instance count. Owner: repository.Handler listCatalogWorkloads."},
           "same_name_siblings": {"type": "integer", "description": "SAME_NAME sibling workloads admitted by the caller grant (Decision D2, #5385); 0 when no admitted sibling shares the name."},
-          "materialization_status": {"type": "string", "description": "Materialization status (identity_only on the content-identity path). Owner: repository.Handler listCatalogWorkloads."}
+          "materialization_status": {"type": "string", "description": "Materialization status (identity_only on the content-identity path). Owner: repository.Handler listCatalogWorkloads."},
+          "tier": {"type": "string", "description": "Service tier from the correlated service-catalog manifest; present only when a correlated manifest exists for the workload's repository, stamped by repository.Handler.enrichCatalogWorkloadsFromCorrelations; absent otherwise."},
+          "category": {"type": "string", "description": "Service-catalog entity type (service, library, website) from the correlated manifest EntityType; present only when a correlated manifest exists for the workload's repository, stamped by repository.Handler.enrichCatalogWorkloadsFromCorrelations; absent otherwise."},
+          "domain": {"type": "string", "description": "Team/domain owner slug from the correlated manifest OwnerRef; present only when a correlated manifest exists for the workload's repository, stamped by repository.Handler.enrichCatalogWorkloadsFromCorrelations; absent otherwise."}
         }
       },
       "RepositoryRef": {

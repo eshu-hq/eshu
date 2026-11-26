@@ -28,6 +28,7 @@ const IndexLegacy = `
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
                     "terraform_state_source": {"$ref": "#/components/schemas/TerraformStateSource"},
+                    "version": {"type": "string", "description": "Server build version, always present on both the full and scoped shapes. Owner: query.StatusHandler.getIndexStatus and getScopedIndexStatus via buildinfo.AppVersion."},
                     "status": {"type": "string", "description": "Aggregate index health state token. Owner: query.StatusHandler.getIndexStatus over status.BuildReport."},
                     "scoped": {"type": "boolean", "description": "true only on the scoped shape; absent for shared-key callers."},
                     "completeness_state": {"type": "string", "enum": ["scoped_repository_count_only"], "description": "Present only on the scoped shape."},
