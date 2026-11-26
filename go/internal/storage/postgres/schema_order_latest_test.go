@@ -227,4 +227,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// enrichment first-carry stamp table backing per-source
 	// enrichment-arrival-to-rescore measurement.
 	"supply_chain_impact_winners_enrichment_first_carry",
+	// Migration 360 (#7584) adds the partial trigram GIN serving the
+	// targeted anchor-scoped relationship fact load's lower(payload::text)
+	// LIKE ANY predicate, built CONCURRENTLY.
+	"fact_records_anchor_payload_trgm_idx",
 }

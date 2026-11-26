@@ -407,9 +407,12 @@ import (
 // the durable set-once-per-value enrichment first-carry stamp table.
 // Count 385 is main's 384 plus 358; the digest is this test's own derivation
 // on the merged tree.
+// 360_fact_records_anchor_payload_trgm_idx.sql (#7584) adds the partial
+// trigram GIN serving the targeted anchor-scoped relationship fact load.
+// Count 386 is 385 plus 360.
 const (
-	goldenBootstrapDefinitionsDigest = "47840affd4fbdef13c0479afcd86d40add4c96cbac99fe72657a662455d01f41"
-	goldenBootstrapDefinitionsCount  = 385
+	goldenBootstrapDefinitionsDigest = "744b77238232be937ab2f3642ad6804a0fcb76a670153f4c5be2709312fa4a02"
+	goldenBootstrapDefinitionsCount  = 386
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

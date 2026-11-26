@@ -552,6 +552,9 @@ var migrationShippedChecksums = map[string]string{
 	// table backing per-source enrichment-arrival-to-rescore measurement
 	// (numbered 359: 358 is held by the open #11476 write-stop lane).
 	"359_supply_chain_impact_winners_enrichment_first_carry.sql": "06e993aa8a94dc6ba64e8969e5cde0b2951f0386b409fb451516d612a140c431",
+	// #7584: the partial trigram GIN serving the targeted anchor-scoped
+	// relationship fact load's lower(payload::text) LIKE ANY predicate.
+	"360_fact_records_anchor_payload_trgm_idx.sql": "23c8f761f2b77405e148fcfea43fa310cc041318c90fff8d4cc8e5e310d30eb9",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
