@@ -374,6 +374,7 @@ components:
         - retrying
         - succeeded
         - failed
+        - dead_letter
         - provenance_edge_identity_upgrade_applied
         - provenance_edge_identity_upgrade_required
         - oldest_outstanding_age
@@ -393,6 +394,8 @@ components:
         succeeded:
           type: integer
         failed:
+          type: integer
+        dead_letter:
           type: integer
         provenance_edge_identity_upgrade_applied:
           type: boolean
@@ -500,6 +503,7 @@ components:
         - retrying
         - succeeded
         - failed
+        - dead_letter
       properties:
         stage:
           type: string
@@ -515,14 +519,18 @@ components:
           type: integer
         failed:
           type: integer
+        dead_letter:
+          type: integer
     DomainBacklog:
       type: object
       additionalProperties: false
       required:
         - domain
         - outstanding
+        - in_flight
         - retrying
         - failed
+        - dead_letter
         - oldest_age
         - oldest_age_seconds
       properties:
@@ -530,9 +538,13 @@ components:
           type: string
         outstanding:
           type: integer
+        in_flight:
+          type: integer
         retrying:
           type: integer
         failed:
+          type: integer
+        dead_letter:
           type: integer
         oldest_age:
           type: string
@@ -752,28 +764,6 @@ components:
           type: string
         oldest_queued_age_seconds:
           type: number
-    TagTaxonomySummary:
-      type: object
-      additionalProperties: false
-      properties:
-        alias_packs:
-          type: array
-          items: { type: string }
-        coverage:
-          type: array
-          items: { type: object, additionalProperties: true }
-        unknown_tag_keys:
-          type: array
-          items: { type: object, additionalProperties: true }
-        applied_aliases:
-          type: array
-          items: { type: object, additionalProperties: true }
-        disabled_aliases:
-          type: array
-          items: { type: object, additionalProperties: true }
-        missing_expected_tags:
-          type: array
-          items: { type: object, additionalProperties: true }
     StatusReport:
       type: object
       additionalProperties: false
@@ -950,5 +940,3 @@ components:
             section must not include event IDs, resource IDs, ARNs, tags, or raw
             provider payloads.
           $ref: "#/components/schemas/AWSFreshnessSummary"
-        tag_taxonomy:
-          $ref: "#/components/schemas/TagTaxonomySummary"

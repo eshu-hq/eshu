@@ -31,7 +31,32 @@ const WorkflowRetireUnclaimed = `
           }
         },
         "responses": {
-          "200": {"description": "Retire request results"},
+          "200": {
+            "description": "Retire request results: the rows transitioned by this call, or an empty set when only residue or nothing remained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["count", "items"],
+                  "properties": {
+                    "count": {"type": "integer", "description": "Rows transitioned to failed_terminal by this call."},
+                    "items": {
+                      "type": "array",
+                      "description": "One entry per retired work item.",
+                      "items": {
+                        "type": "object",
+                        "required": ["work_item_id", "scope_id"],
+                        "properties": {
+                          "work_item_id": {"type": "string", "description": "Retired work item id."},
+                          "scope_id": {"type": "string", "description": "Scope the retired item belonged to."}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"$ref": "#/components/responses/Conflict"},

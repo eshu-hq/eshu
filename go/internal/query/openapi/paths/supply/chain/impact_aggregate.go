@@ -47,17 +47,17 @@ const ImpactAggregate = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "total_findings": {"type": "integer"},
-                    "affected_findings": {"type": "integer"},
-                    "affected_exact": {"type": "integer"},
-                    "affected_derived": {"type": "integer"},
-                    "possibly_affected": {"type": "integer"},
-                    "not_affected": {"type": "integer"},
-                    "by_priority_bucket": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "by_severity": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "total_findings": {"type": "integer", "description": "Reducer-owned impact findings matching the filters, across all impact states."},
+                    "affected_findings": {"type": "integer", "description": "Findings with a conclusive affected verdict (exact plus derived)."},
+                    "affected_exact": {"type": "integer", "description": "Findings with an exact affected verdict."},
+                    "affected_derived": {"type": "integer", "description": "Findings with a derived affected verdict."},
+                    "possibly_affected": {"type": "integer", "description": "Findings with an inconclusive possibly-affected verdict."},
+                    "not_affected": {"type": "integer", "description": "Findings with a conclusive not-affected verdict."},
+                    "by_priority_bucket": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Finding counts by reducer triage priority bucket (critical, high, medium, low, informational). Bucket names are dynamic; render as bars, never a fixed enum."},
+                    "by_severity": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Finding counts by CVSS severity bucket (critical, high, medium, low, none). Bucket names are dynamic; render as bars, never a fixed enum."},
                     "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Echo of the detection profile applied to the aggregate; precise is returned when no profile parameter was supplied."},
                     "freshness": {"type": "object", "description": "Evidence freshness behind the totals. The legacy live-facts read reports fresh with no watermark; a winners-served answer reports fresh with the maintainer watermark.", "properties": {"state": {"type": "string", "enum": ["fresh"]}, "latest_observed_at": {"type": "string"}}},
-                    "scope": {"type": "object"}
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the filters applied to this aggregate, as string pairs (profile is always present). Render as filter chips, never a fixed form."}
                   }
                 }
               }
@@ -112,9 +112,9 @@ const ImpactAggregate = `
                       "items": {
                         "type": "object",
                         "properties": {
-                          "dimension": {"type": "string"},
+                          "dimension": {"type": "string", "description": "Bucket dimension value; the label comes from the group_by request value."},
                           "value": {"type": "string", "description": "Group value. Empty for the unattributed bucket of a grouped dimension."},
-                          "count": {"type": "integer"},
+                          "count": {"type": "integer", "description": "Findings in this bucket."},
                           "unattributed": {"type": "boolean", "description": "Grouped dimensions only. True for the one bucket of findings with no resolved service, workload, or environment; its value is empty and its completeness is unattributed, never complete."},
                           "by_impact_status": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Grouped dimensions only. Findings in the bucket by reducer impact_status."},
                           "by_severity": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Grouped dimensions only. Findings in the bucket by CVSS severity bucket."},
@@ -124,16 +124,16 @@ const ImpactAggregate = `
                         }
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "group_by": {"type": "string"},
+                    "count": {"type": "integer", "description": "Buckets in this page."},
+                    "limit": {"type": "integer", "description": "Echo of the requested page bound."},
+                    "offset": {"type": "integer", "description": "Echo of the requested page offset."},
+                    "group_by": {"type": "string", "description": "Echo of the requested grouping dimension."},
                     "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Echo of the detection profile applied to the aggregate; precise is returned when no profile parameter was supplied."},
-                    "truncated": {"type": "boolean"},
+                    "truncated": {"type": "boolean", "description": "True when more buckets matched than this page carries; continue with next_offset."},
                     "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
                     "distinct_findings": {"type": "integer", "description": "Grouped dimensions only. Each finding counted once across the whole filtered set, independent of limit and offset (a truncated page does not change it). Equals total_findings of the count route for the same filters. An unscoped call reads it from the winners read model, so it reflects the last winners resweep while buckets read read_model_unavailable (stale winners); a scoped-token call reads the per-support table, which applies the grant to each copy before the canonical copy is picked, so a scope-id grant no longer differs. A rank filter (priority_bucket, severity, min_priority_score) tests the canonical copy, as the contract defines. An unscoped call with image_ref or profile=precise (the default profile) tests every copy of a finding: image_ref reads the per-support table, and profile=precise reads the winners read model plus a supplement of the best precise copy of each finding whose canonical copy is not precise. When the per-support table is not ready the call answers 503 with Retry-After. Bucket counts summed over every page are at least this value."},
                     "freshness": {"type": "object", "description": "Evidence freshness behind the page. Grouped dimensions report fresh, stale, or unknown; the five single-column dimensions report fresh with the maintainer watermark when served from the winners read model, and fresh with no watermark on the legacy read.", "properties": {"state": {"type": "string", "enum": ["fresh", "stale", "unknown"]}, "latest_observed_at": {"type": "string"}}},
-                    "scope": {"type": "object"}
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the filters applied to this aggregate, as string pairs (profile is always present). Render as filter chips, never a fixed form."}
                   }
                 }
               }

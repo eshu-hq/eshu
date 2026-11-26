@@ -50,11 +50,59 @@ const Operations = `
                     "scoped": {"type": "boolean"},
                     "completeness_state": {"type": "string", "enum": ["scoped_live_activity_only"], "description": "Present only for scoped callers whose response omits process-global aggregates"},
                     "withheld_sections": {"type": "array", "items": {"type": "string", "enum": ["health", "collectors", "stage_summaries", "domain_backlogs", "queue"]}, "description": "Process-global sections omitted from a scoped response"},
-                    "health": {"type": "object"},
-                    "collectors": {"type": "array", "items": {"type": "object"}},
-                    "stage_summaries": {"type": "array", "items": {"type": "object"}},
-                    "domain_backlogs": {"type": "array", "items": {"type": "object"}},
-                    "queue": {"type": "object"},
+                    "health": ` + healthSchema + `,
+                    "collectors": {
+                      "type": "array",
+                      "description": "Collector runtime statuses. Scoped callers omit this section; see withheld_sections.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "instance_id": {"type": "string"},
+                          "collector_kind": {"type": "string"},
+                          "mode": {"type": "string"},
+                          "runtime_mode": {"type": "string"},
+                          "status_category": {"type": "string", "enum": ["coordinator_managed", "direct_mode", "profile_gated", "disabled", "unregistered"]},
+                          "coordinator_registered": {"type": "boolean"},
+                          "enabled": {"type": "boolean"},
+                          "bootstrap": {"type": "boolean"},
+                          "claims_enabled": {"type": "boolean"},
+                          "display_name": {"type": "string"},
+                          "health": {"type": "string"},
+                          "evidence_sources": {"type": "array", "items": {"type": "string"}},
+                          "source_systems": {"type": "array", "items": {"type": "string"}},
+                          "observation_count": {"type": "integer"},
+                          "last_observed_at": {"type": "string", "format": "date-time"},
+                          "updated_at": {"type": "string", "format": "date-time"},
+                          "deactivated_at": {"type": ["string", "null"], "format": "date-time", "description": "Deactivation time, or null while the instance is active."},
+                          "detail": {"type": "string"},
+                          "last_failure_class": {"type": "string", "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal."},
+                          "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure; present only with last_failure_terminal."},
+                          "last_failure_terminal": {"type": "boolean", "description": "True while an unresolved terminal fetch failure marks this instance; absent otherwise."},
+                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; present only with last_failure_terminal."},
+                          "acknowledged_failure": {
+                            "type": "object",
+                            "description": "An operator-acknowledged terminal failure. Bounded tokens and times only; the operator's reason is never returned. Omitted when none.",
+                            "properties": {
+                              "failure_class": {"type": "string"},
+                              "failure_operation": {"type": "string"},
+                              "failed_at": {"type": "string", "format": "date-time"},
+                              "acknowledged_at": {"type": "string", "format": "date-time"}
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "stage_summaries": {
+                      "type": "array",
+                      "description": "Per-stage queue depth. Scoped callers omit this section; see withheld_sections.",
+                      "items": ` + stageSummaryItemSchema + `
+                    },
+                    "domain_backlogs": {
+                      "type": "array",
+                      "description": "Per-domain backlog depth with blocked shares. Scoped callers omit this section; see withheld_sections.",
+                      "items": ` + domainBacklogItemSchema + `
+                    },
+                    "queue": ` + queueSnapshotSchema + `,
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "live_activity": {
                       "type": "array",

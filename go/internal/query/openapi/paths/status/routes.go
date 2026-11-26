@@ -261,9 +261,14 @@ const Routes = `
                     "repository_count": {"type": "integer"},
                     "repository_count_by_state": {"type": "object", "description": "Deployment-wide repository count split by graph evidence source (#7766): indexed rows carry evidence_source projector/canonical, every other row reads stub. Withheld from scoped callers.", "properties": {"indexed": {"type": "integer"}, "stub": {"type": "integer"}}},
                     "repository_retirements": {"type": "object", "description": "Bounded retirement tombstone aggregate (#7766). Counts only, no ids. Withheld from scoped callers.", "properties": {"counts_by_state": {"type": "object", "additionalProperties": {"type": "integer"}}, "oldest_pending_age_seconds": {"type": "number", "description": "Now minus the oldest open pending row requested_at; absent with no pending row."}, "last_completed_at": {"type": "string", "format": "date-time", "description": "Newest complete row retired_at; absent with no completion."}}},
-                    "queue": {"type": "object"},
-                    "queue_blockages": {"type": "array", "items": {"type": "object"}},
-                    "scope_activity": {"type": "object"},
+                    "queue": ` + queueSnapshotSchema + `,
+                    "queue_blockages": {
+                      "type": "array",
+                      "description": "Queue blockages with raw conflict keys. Withheld from scoped callers; see withheld_sections.",
+                      "items": ` + queueBlockageItemSchema + `
+                    },
+                    "coordinator": ` + coordinatorSchema + `,
+                    "scope_activity": ` + scopeActivitySchema + `,
                     "aws_materialization": {
                       "type": "object",
                       "properties": {
@@ -388,9 +393,14 @@ const Routes = `
                     "repository_count": {"type": "integer"},
                     "repository_count_by_state": {"type": "object", "description": "Deployment-wide repository count split by graph evidence source (#7766): indexed rows carry evidence_source projector/canonical, every other row reads stub. Withheld from scoped callers.", "properties": {"indexed": {"type": "integer"}, "stub": {"type": "integer"}}},
                     "repository_retirements": {"type": "object", "description": "Bounded retirement tombstone aggregate (#7766). Counts only, no ids. Withheld from scoped callers.", "properties": {"counts_by_state": {"type": "object", "additionalProperties": {"type": "integer"}}, "oldest_pending_age_seconds": {"type": "number", "description": "Now minus the oldest open pending row requested_at; absent with no pending row."}, "last_completed_at": {"type": "string", "format": "date-time", "description": "Newest complete row retired_at; absent with no completion."}}},
-                    "queue": {"type": "object"},
-                    "queue_blockages": {"type": "array", "items": {"type": "object"}},
-                    "scope_activity": {"type": "object"},
+                    "queue": ` + queueSnapshotSchema + `,
+                    "queue_blockages": {
+                      "type": "array",
+                      "description": "Queue blockages with raw conflict keys. Withheld from scoped callers; see withheld_sections.",
+                      "items": ` + queueBlockageItemSchema + `
+                    },
+                    "coordinator": ` + coordinatorSchema + `,
+                    "scope_activity": ` + scopeActivitySchema + `,
                     "aws_materialization": {
                       "type": "object",
                       "properties": {
