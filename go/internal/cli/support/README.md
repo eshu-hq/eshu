@@ -9,7 +9,7 @@ validation, and answer-quality scoring.
 Each route wraps one local-only core function the CLI cannot carry after
 extraction. The handlers are pure functions of the request body: no graph,
 Postgres, collector, or queue reads. The package has zero construction
-dependencies and mounts additively from `go/cmd/api` wiring, beside
+dependencies and mounts additively from `go/cmd/eshu-local-api` wiring, beside
 `serviceintelhttp` — never from the `query` router, or the build cycles
 (`support` imports `query`, `serviceintel`, `reportbundle`, and
 `answerquality`).

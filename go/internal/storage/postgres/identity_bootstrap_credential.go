@@ -21,8 +21,9 @@ var ErrBootstrapCredentialNotFound = errors.New("identity bootstrap credential n
 // BootstrapAdminTenantID and BootstrapAdminWorkspaceID are the fixed
 // (tenant_id, workspace_id) slot the bootstrap admin always occupies. Eshu's
 // self-hosted deployment model is single-tenant, so there is no
-// per-deployment override; both go/cmd/api (seeding) and go/cmd/eshu (the
-// `eshu admin initial-credential`/`reset-initial-credential` CLI) import
+// per-deployment override; both go/cmd/eshu-local-api (seeding) and
+// go/cmd/eshu (the `eshu admin initial-credential`/`reset-initial-credential`
+// CLI) import
 // these from here rather than each hard-coding the literal, so the two
 // independent binaries can never drift out of agreement on which row they
 // read and write.

@@ -18,8 +18,8 @@ import (
 const localAPIServingPackage = "go/cmd/eshu-local-api"
 
 // retiredAPIServingPackage is the tree the serving sources moved out of.
-// #11456 deletes it; until then it must hold no Go sources, only the
-// removal-evidence Markdown the removal PR dispositions.
+// #11456 deleted it; the directory must be absent. If it ever reappears
+// (a revert or a partial resurrection) it must hold no Go sources.
 const retiredAPIServingPackage = "go/cmd/api"
 
 // localAPIServingSources are the package-main serving files that must exist
@@ -55,11 +55,11 @@ func localAPITestRepoRoot(t *testing.T) string {
 	}
 }
 
-// TestSessionLocalAPIServingTreeRelocated pins the #11514 session half:
-// the eshu-local-api serving subset lives at its own binary directory and
-// the retired tree holds no Go sources. It fails while the sources still
-// point at the old tree and passes after the move plus the consumer
-// repoint.
+// TestSessionLocalAPIServingTreeRelocated pins the #11514 session half
+// and the #11456 removal end state: the eshu-local-api serving subset
+// lives at its own binary directory and the retired tree is gone. It
+// fails while the sources still point at the old tree, while the retired
+// tree holds Go sources, and while the retired tree still exists at all.
 func TestSessionLocalAPIServingTreeRelocated(t *testing.T) {
 	t.Parallel()
 	root := localAPITestRepoRoot(t)
@@ -74,8 +74,12 @@ func TestSessionLocalAPIServingTreeRelocated(t *testing.T) {
 	retiredDir := filepath.Join(root, filepath.FromSlash(retiredAPIServingPackage))
 	entries, err := os.ReadDir(retiredDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
 		t.Fatalf("read retired tree: %v", err)
 	}
+	t.Errorf("retired tree %s still exists, want it deleted by #11456", retiredAPIServingPackage)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
