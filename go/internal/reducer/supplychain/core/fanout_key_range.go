@@ -19,7 +19,7 @@ import (
 // each row is still fetched once, by exactly one range.
 const fanOutHolderKeyRangeCount = 16
 
-// HolderKeyRangeMassGate is the true per-id row mass above which a hot
+// HolderKeyRangeMassGate is the routing-mass bound above which a hot
 // singleton holder id reads as fact_id key-range statements (#10972 H2 A2).
 // The H2 shim proved the shipped singleton at a warm ~1.3 s isolated on the
 // hottest 156,870-row advisory ids but p95 3.45 s at 4-parallel (over the
@@ -28,7 +28,7 @@ const fanOutHolderKeyRangeCount = 16
 // 362 ms) and concurrent (p95 323 ms). The gate is the largest A1-passing
 // singleton mass halved for margin (156870/2); member-heavy mixes land above
 // it and A1-passing direct-only ids stay below it. The mass probe saturates
-// at HolderMassProbeCap, so the comparison needs true counts from
+// at HolderMassProbeCap, so the comparison needs routing masses from
 // HolderRoutingMassEstimator, never the capped probe mass.
 const HolderKeyRangeMassGate = 78435
 
@@ -114,9 +114,11 @@ type HolderKeyRangeRead struct {
 // probe reports every hot id's mass capped at HolderMassProbeCap, which
 // cannot separate a 5k-row mid-band id from a 157k-row hot one; this seam
 // reports the routing mass per requested lookup id so the router can
-// compare it against HolderKeyRangeMassGate. The report is exact at or
-// under the gate for direct-only and member<=100 ids and reports at least
-// HolderKeyRangeMassGate+1 above it everywhere else (saturating high is
+// compare it against HolderKeyRangeMassGate. At or under the gate the
+// report is the unsaturated summed per-arm count for direct-only and
+// member<=100 ids (still overestimating distinct rows via per-arm
+// double-count and superseded generations); above it the report saturates
+// at HolderKeyRangeMassGate+1 everywhere else (saturating high is
 // the safe direction: a member mass over 100 rows ranges, so the member
 // blind band can only over-route, never under-route). It reports one entry
 // for every requested id (zero for no match), runs under the same 10 s
@@ -124,8 +126,9 @@ type HolderKeyRangeRead struct {
 // on unmeasured ids.
 type HolderRoutingMassEstimator interface {
 	// EstimateHolderRoutingMasses returns the routing mass per lookup id:
-	// exact at or under HolderKeyRangeMassGate for direct-only and
-	// member<=100 ids, saturating at HolderKeyRangeMassGate+1 above it.
+	// the unsaturated summed per-arm count at or under
+	// HolderKeyRangeMassGate for direct-only and member<=100 ids,
+	// saturating at HolderKeyRangeMassGate+1 above it.
 	EstimateHolderRoutingMasses(ctx context.Context, lookupIDs []string) (map[string]int64, error)
 }
 

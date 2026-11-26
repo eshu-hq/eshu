@@ -166,10 +166,12 @@ func (s SupplyChainImpactFanOutStore) EstimateHolderMasses(
 
 // EstimateHolderRoutingMasses implements
 // supplychaincore.HolderRoutingMassEstimator (#10972 H2 A2 as amended by
-// Lane-1b): the routing mass per requested lookup id — exact at or under
-// supplychaincore.HolderKeyRangeMassGate for direct-only and member<=100
-// ids, saturating at one row over the gate everywhere else (direct capped
-// sum over gate, or member rows over HolderMassProbeFillToCapRows). The
+// Lane-1b): the routing mass per requested lookup id — the unsaturated
+// summed per-arm count at or under supplychaincore.HolderKeyRangeMassGate
+// for direct-only and member<=100 ids (still overestimating distinct rows
+// via per-arm double-count and superseded generations), saturating at one
+// row over the gate everywhere else (direct capped sum over gate, or member
+// rows over HolderMassProbeFillToCapRows). The
 // router calls it only for probe-hot singletons — ids the probe saturated
 // at the cap — so a mid-band id and a truly hot one take different reads.
 // It runs through readIDMasses, so it shares the probe's bounded statement

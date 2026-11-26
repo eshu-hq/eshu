@@ -46,7 +46,7 @@ func TestHotSingletonAboveRoutingMassGateReadsAsKeyRanges(t *testing.T) {
 		stubFanOut: &stubFanOut{
 			holders:       []string{"holder-a"},
 			masses:        map[string]int64{"GHSA-7r86-cg39-jmmj": HolderMassProbeCap},
-			routingMasses: map[string]int64{"GHSA-7r86-cg39-jmmj": 156870},
+			routingMasses: map[string]int64{"GHSA-7r86-cg39-jmmj": HolderKeyRangeMassGate + 1},
 		},
 		rangeHolders: rangeHolders,
 	}
@@ -73,8 +73,8 @@ func TestHotSingletonAboveRoutingMassGateReadsAsKeyRanges(t *testing.T) {
 	if got := result.SubSignals["fanout_holder_statements"]; got != float64(len(ranges)) {
 		t.Fatalf("fanout_holder_statements = %v, want %d", got, len(ranges))
 	}
-	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != 156870 {
-		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved routing mass 156870", got)
+	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != float64(HolderKeyRangeMassGate+1) {
+		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved routing mass %d", got, HolderKeyRangeMassGate+1)
 	}
 	// Telemetry confirmation: one mass-planning sample per probe and exact
 	// count, one whole-read sample, and one per-statement sample under the
@@ -93,11 +93,13 @@ func TestHotSingletonAboveRoutingMassGateReadsAsKeyRanges(t *testing.T) {
 }
 
 // TestHotSingletonRoutingMassGateBoundary pins both sides of the A2 gate: a
-// probe-hot singleton (every mass here saturates the probe at the cap,
-// including the mid-band 5,000-row id the probe cannot distinguish from a
-// 157k-row one) reads the shipped single statement at or under the gate and
-// the key-range read above it. The gate is the largest A1-passing singleton
-// mass halved: 156870/2 = 78435.
+// probe-hot singleton reads the shipped single statement at or under the
+// gate and the key-range read above it. Every routing mass here is a value
+// production can return: unsaturated summed per-arm counts at or under
+// the gate, saturating at gate+1 above it (the member-heavy and
+// hottest-advisory classes saturate to the same report, so they share the
+// row). The gate is the largest A1-passing shim singleton mass halved:
+// 156870/2 = 78435.
 func TestHotSingletonRoutingMassGateBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -110,8 +112,8 @@ func TestHotSingletonRoutingMassGateBoundary(t *testing.T) {
 		{"A1-passing direct-only stays single", 42388, false},
 		{"at the gate stays single", HolderKeyRangeMassGate, false},
 		{"one row over the gate ranges", HolderKeyRangeMassGate + 1, true},
-		{"member-heavy mix ranges", 80144, true},
-		{"hottest advisory ranges", 156870, true},
+		{"member-heavy mix saturates to gate+1 and ranges", HolderKeyRangeMassGate + 1, true},
+		{"hottest advisory saturates to gate+1 and ranges", HolderKeyRangeMassGate + 1, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -156,6 +158,68 @@ func TestHotSingletonRoutingMassGateBoundary(t *testing.T) {
 				t.Fatalf("fanout_key_ranged_ids = %v, want 0", got)
 			}
 		})
+	}
+}
+
+// TestMultiHotChunkCountsRoutingMassOnce is the #10972 H2 Lane-1b one-batch
+// pin: a chunk holding two probe-hot singletons resolves both with a single
+// batched routing-mass count carrying exactly the hot set (per-id splitting
+// is a forbidden fallback). Both hot ids read as key ranges while the cold
+// ids share one shipped statement, so the statement totals are 32 key-range
+// plus 1 shipped. It fails if the router ever splits the count per id or
+// ranges an id the count did not resolve.
+func TestMultiHotChunkCountsRoutingMassOnce(t *testing.T) {
+	t.Parallel()
+
+	ranges := HolderKeyRanges()
+	rangeHolders := make(map[HolderKeyRange][]string, len(ranges))
+	for _, r := range ranges {
+		rangeHolders[r] = []string{"holder-a"}
+	}
+	hotA, hotB := "CVE-2026-hot-a", "CVE-2026-hot-b"
+	cold := []string{"CVE-2026-c1", "CVE-2026-c2"}
+	port := &rangeStubFanOut{
+		stubFanOut: &stubFanOut{
+			holders: []string{"holder-a"},
+			masses: map[string]int64{
+				hotA:    HolderMassProbeCap,
+				hotB:    HolderMassProbeCap,
+				cold[0]: 10,
+				cold[1]: 20,
+			},
+			routingMasses: map[string]int64{
+				hotA: HolderKeyRangeMassGate + 1,
+				hotB: HolderKeyRangeMassGate + 1,
+			},
+		},
+		rangeHolders: rangeHolders,
+	}
+	ids := append([]string{hotA, hotB}, cold...)
+	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: ids}}
+	result, err := fanOutHandler(port, writer, nil).Handle(context.Background(), fanOutIntent(1, nil))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if !reflect.DeepEqual(port.routingMassCalls, [][]string{{hotA, hotB}}) {
+		t.Fatalf("routing-mass calls = %v, want exactly one batched call with the hot set [%s %s]", port.routingMassCalls, hotA, hotB)
+	}
+	if len(port.rangeCalls) != 2*len(ranges) {
+		t.Fatalf("ranged statements = %d, want %d (both hot ids ranged)", len(port.rangeCalls), 2*len(ranges))
+	}
+	if !reflect.DeepEqual(port.findCalls, [][]string{cold}) {
+		t.Fatalf("shipped statements = %v, want the cold ids sharing one statement", port.findCalls)
+	}
+	if got := result.SubSignals["fanout_key_ranged_ids"]; got != 2 {
+		t.Fatalf("fanout_key_ranged_ids = %v, want 2", got)
+	}
+	if got := result.SubSignals["fanout_holder_key_range_statements"]; got != float64(2*len(ranges)) {
+		t.Fatalf("fanout_holder_key_range_statements = %v, want %d", got, 2*len(ranges))
+	}
+	if got := result.SubSignals["fanout_holder_statements"]; got != float64(2*len(ranges)+1) {
+		t.Fatalf("fanout_holder_statements = %v, want %d", got, 2*len(ranges)+1)
+	}
+	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != float64(HolderKeyRangeMassGate+1) {
+		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved routing mass %d", got, HolderKeyRangeMassGate+1)
 	}
 }
 
@@ -220,7 +284,7 @@ func TestSlowKeyRangeStatementReportsRangeEndToEnd(t *testing.T) {
 		stubFanOut: &stubFanOut{
 			holders:       []string{"holder-a"},
 			masses:        map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
-			routingMasses: map[string]int64{"CVE-2026-hot": 156870},
+			routingMasses: map[string]int64{"CVE-2026-hot": HolderKeyRangeMassGate + 1},
 		},
 		rangeHolders:  rangeHolders,
 		rangeDuration: rangeDuration,
@@ -256,7 +320,7 @@ func TestAboveGateLongIDFallbackCountsOneStatement(t *testing.T) {
 		stubFanOut: &stubFanOut{
 			holders:       []string{"holder-a"},
 			masses:        map[string]int64{longID: HolderMassProbeCap},
-			routingMasses: map[string]int64{longID: 156870},
+			routingMasses: map[string]int64{longID: HolderKeyRangeMassGate + 1},
 		},
 		rangeHolders: map[HolderKeyRange][]string{ranges[0]: {"holder-a"}},
 		fallback:     true,

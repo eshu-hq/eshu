@@ -1,9 +1,9 @@
 # #10972 H2 lane 1 (A2 re-route, Lane-1b routing-mass amendment): implementation proof
 
 Date: 2026-11-26. Lane: `drive/10972-h2-reroute` (executor leaf).
-Binding rulings: [arbiter-10972-h2shape.md](../../.claude/arbiter-10972-h2shape.md)
+Binding rulings: [arbiter-10972-h2shape.md](../../../.claude/arbiter-10972-h2shape.md)
 Decision 3 A2-branch, amended by
-[arbiter-10972-h2shape-delta.md](../../.claude/arbiter-10972-h2shape-delta.md)
+[arbiter-10972-h2shape-delta.md](../../../.claude/arbiter-10972-h2shape-delta.md)
 (Decisions 1–3). Theory shim:
 [10972-h2-holders-shim.md](10972-h2-holders-shim.md) (lane
 `drive/10972-h2-shim`, QA primary `eshu-postgresql-0`, PG 18.x, ~13M-row
@@ -26,8 +26,10 @@ by `TestHolderMassProbeQueryIsByteIdentical` against the committed
 golden). Gate (78,435), router, cold packing, parallelism (4), and the 10s
 guard are unchanged.
 
-The report is a routing mass, never a true mass: exact at or under the
-gate for direct-only and member<=100 ids, saturating at gate+1 above it.
+The report is a routing mass, never a true mass: at or under the gate it
+is the unsaturated summed per-arm count for direct-only and member<=100
+ids (still overestimating distinct rows via per-arm double-count and
+superseded generations), saturating at gate+1 above it.
 Routing truth table (also the shape-test and evidence contract): ranged
 iff direct capped sum > gate, OR member rows > 100, OR exact sum > gate
 with member <= 100. The bias is documented over-routing: a 101-member-row
@@ -62,8 +64,14 @@ Decision 1): the only member masses with A1 evidence are 0 (pass) and
 unmeasured band. Residual (delta P2-1): a direct-only or member<=100
 singleton just under the gate has no concurrent A1 measurement at any
 mass in the packet, so this note does not claim concurrent-at-gate
-proven. Lane 2 (live replay with timeout share to zero, now including the
-member sets and a routing-mass differential) owns that proof.
+proven. No census id exercises the member-decisive truth-table row (all
+six evidence rows are direct-driven or single-arm exact), and
+HolderRoutingMassQuery has no live plan-guard row (holderPlanStatements
+omits it; the query is exported only for the plan-shape proof). Both are
+Lane-2 obligations: a seeded member-only live differential and a
+generic-mode plan-guard row. Lane 2 (live replay with timeout share to
+zero, now including the member sets and a routing-mass differential) owns
+that proof.
 
 ## Performance Evidence: Lane-1b micro-shim (QA primary, 2026-11-26)
 
@@ -80,9 +88,10 @@ below. Substrate as the theory shim; the live primary drifted slightly
 since the shim census (e.g. advisory ids 156,870 -> 157,543 rows) with no
 verdict impact.
 
-Bar (delta Decision 2, extended to the routing count): every warm
-statement p95 <= 2s AND max <= 5s, zero timeouts, and reported masses
-matching the truth table against diagnostic true counts.
+Bar (parent Decision 2, extended to the routing count by delta Decision
+1/Required Proof): every warm statement p95 <= 2s AND max <= 5s, zero warm
+timeouts, and reported masses matching the truth table against diagnostic
+true counts.
 
 | set | warm exec ms (discard-cold first) | p95 | max | timeouts | verdict |
 |---|---|---|---|---|---|
@@ -134,8 +143,7 @@ reported, not gated; the pass/fail bars above are the production-shape
 
 ## No-Regression Evidence: focused proof at the lane tip
 
-Code measured at the pre-note tip (`git diff` below; the lane tip adds
-only this note):
+Code measured at the pre-note tip (the lane tip adds only this note):
 
 - `go/internal/reducer/supplychain/core`: ok (full package, incl. the
   routing-mass boundary table, the long-id fallback pin, and the
@@ -149,8 +157,12 @@ only this note):
 - `go build ./...`, `go vet` on the three touched packages, `gofmt`:
   clean. `git diff --check`: clean.
 - `TestHotSingletonRoutingMassGateBoundary` covers 5,000 / 42,388 /
-  78,435 (shipped) and 78,436 / 80,144 / 156,870 (ranged), plus the
-  unknown (zero) routing-mass below-gate pins.
+  78,435 (shipped) and 78,436 (ranged: one row over the gate, with the
+  member-heavy and hottest-advisory classes saturating to the same
+  producible report), plus the unknown (zero) routing-mass below-gate pins.
+- `TestMultiHotChunkCountsRoutingMassOnce` pins the one-batched-count-
+  per-chunk shape: a single routing-mass call with exactly the two-id hot
+  set, both ids ranged, 32 key-range + 1 shipped statements.
 
 ## Observability Evidence: existing signals, no new surface
 
