@@ -40,10 +40,10 @@ const HostedReadiness = `
                     "generated_at": {"type": "string", "format": "date-time"},
                     "failure_classes": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
-                    "queue": {"type": "object"},
+                    "queue": ` + queueSnapshotSchema + `,
                     "active_work_source": {"$ref": "#/components/schemas/ActiveWorkSource"},
                     "coordinator_source": {"$ref": "#/components/schemas/CoordinatorSource"},
-                    "coordinator": {"type": "object"},
+                    "coordinator": ` + coordinatorSchema + `,
                     "checks": {
                       "type": "array",
                       "items": {
@@ -57,7 +57,11 @@ const HostedReadiness = `
                         }
                       }
                     },
-                    "diagnostic_paths": {"type": "array", "items": {"type": "object"}}
+                    "diagnostic_paths": {
+                      "type": "array",
+                      "description": "Fixed follow-up reads for the operator: admin_status, index_status, collector_status, and repository_coverage.",
+                      "items": ` + diagnosticPathItemSchema + `
+                    }
                   }
                 }
               },

@@ -12,10 +12,12 @@ import (
 )
 
 // TestOpenAPITerminalFailureFieldsMatchStatusContract pins the published
-// last_failure_class enum on both collector status routes to the bounded
-// class set the status package reports, plus unknown, and pins
-// last_failure_at as omitted-when-absent (never null) on both (#8803). A
-// class added to the status set without the OpenAPI enum fails here.
+// last_failure_class enum on every route that carries collector
+// terminal-failure fields (collectors, collector readiness, operations
+// board) to the bounded class set the status package reports, plus
+// unknown, and pins last_failure_at as omitted-when-absent (never null)
+// on all three (#8803). A class added to the status set without the
+// OpenAPI enum fails here.
 func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 	t.Parallel()
 	var spec map[string]any
@@ -27,8 +29,8 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 
 	var classes, timestamps []map[string]any
 	collectTerminalFailureProperties(spec, &classes, &timestamps)
-	if len(classes) != 2 || len(timestamps) != 2 {
-		t.Fatalf("found %d last_failure_class and %d last_failure_at schemas, want 2 each (collectors and collector readiness)",
+	if len(classes) != 3 || len(timestamps) != 3 {
+		t.Fatalf("found %d last_failure_class and %d last_failure_at schemas, want 3 each (collectors, collector readiness, operations board)",
 			len(classes), len(timestamps))
 	}
 	for _, schema := range classes {
@@ -50,11 +52,13 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 	}
 
 	// The acknowledged_failure sub-record (#8830) carries the same bounded
-	// class on both routes, so its enum is pinned to the same set.
+	// class on all three routes, so its enum is pinned to the same set,
+	// and its timestamps are omitted-when-absent (never null) like
+	// last_failure_at.
 	var acknowledged []map[string]any
 	collectNamedProperties(spec, "acknowledged_failure", &acknowledged)
-	if len(acknowledged) != 2 {
-		t.Fatalf("found %d acknowledged_failure schemas, want 2 (collectors and collector readiness)", len(acknowledged))
+	if len(acknowledged) != 3 {
+		t.Fatalf("found %d acknowledged_failure schemas, want 3 (collectors, collector readiness, operations board)", len(acknowledged))
 	}
 	for _, schema := range acknowledged {
 		properties, _ := schema["properties"].(map[string]any)
@@ -68,6 +72,13 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 		slices.Sort(got)
 		if !slices.Equal(got, want) {
 			t.Fatalf("acknowledged_failure.failure_class enum = %v, want %v", got, want)
+		}
+		for _, key := range []string{"failed_at", "acknowledged_at"} {
+			if stamp, ok := properties[key].(map[string]any); ok {
+				if _, hasNullable := stamp["nullable"]; hasNullable {
+					t.Fatalf("acknowledged_failure.%s has a nullable marker, want omitted-when-absent", key)
+				}
+			}
 		}
 	}
 }
