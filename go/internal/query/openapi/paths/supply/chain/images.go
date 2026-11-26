@@ -31,33 +31,35 @@ const Images = `
                   "properties": {
                     "images": {
                       "type": "array",
+                      "description": "Container image rows observed by the OCI registry collector over the authoritative graph, emitted by listImages (ImageRow).",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {"type": "string"},
-                          "digest": {"type": "string"},
-                          "repository_id": {"type": "string"},
-                          "registry": {"type": "string"},
-                          "repository": {"type": "string"},
-                          "name": {"type": "string"},
-                          "tag": {"type": "string"},
-                          "media_type": {"type": "string"},
-                          "artifact_type": {"type": "string"},
-                          "config_digest": {"type": "string"},
-                          "size_bytes": {"type": "integer"},
-                          "source_system": {"type": "string"}
+                          "id": {"type": "string", "description": "Image node id emitted by listImages (ImageRow.ID)."},
+                          "digest": {"type": "string", "description": "Image digest emitted by listImages (ImageRow.Digest)."},
+                          "repository_id": {"type": "string", "description": "OCI repository id emitted by listImages (ImageRow.RepositoryID)."},
+                          "registry": {"type": "string", "description": "Registry host emitted by listImages (ImageRow.Registry)."},
+                          "repository": {"type": "string", "description": "Repository path emitted by listImages (ImageRow.Repository)."},
+                          "name": {"type": "string", "description": "Image name emitted by listImages (ImageRow.Name)."},
+                          "tag": {"type": "string", "description": "Source tag observed for the image, emitted by listImages (ImageRow.Tag)."},
+                          "media_type": {"type": "string", "description": "Media type emitted by listImages (ImageRow.MediaType)."},
+                          "artifact_type": {"type": "string", "description": "Artifact type emitted by listImages (ImageRow.ArtifactType)."},
+                          "config_digest": {"type": "string", "description": "Config digest emitted by listImages (ImageRow.ConfigDigest)."},
+                          "size_bytes": {"type": "integer", "description": "Image size in bytes emitted by listImages (ImageRow.SizeBytes)."},
+                          "source_system": {"type": "string", "description": "Source system emitted by listImages (ImageRow.SourceSystem)."}
                         },
                         "required": ["id"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "count": {"type": "integer", "description": "Rows on this page, emitted by listImages."},
+                    "limit": {"type": "integer", "description": "Requested page size echoed by listImages."},
+                    "offset": {"type": "integer", "description": "Requested row offset echoed by listImages."},
+                    "truncated": {"type": "boolean", "description": "Whether more rows exist past this page, emitted by listImages."},
                     "next_cursor": {
                       "type": "object",
+                      "description": "Offset continuation emitted by listImages only when truncated; absent otherwise.",
                       "properties": {
-                        "offset": {"type": "integer"}
+                        "offset": {"type": "integer", "description": "Next row offset, emitted by listImages as offset plus limit."}
                       },
                       "required": ["offset"]
                     }

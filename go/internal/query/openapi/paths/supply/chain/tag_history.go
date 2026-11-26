@@ -33,27 +33,28 @@ const TagHistory = `
                   "properties": {
                     "tag_history": {
                       "type": "array",
+                      "description": "Captured tag-observation history emitted by listTagHistory (taghistory.Row); set-once first observations, not a full event log.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "tag": {"type": "string"},
-                          "resolved_digest": {"type": "string"},
-                          "previous_digest": {"type": "string"},
-                          "mutated": {"type": "boolean"},
-                          "first_observed_at": {"type": "string"},
-                          "repository_id": {"type": "string"},
-                          "identity_strength": {"type": "string"}
+                          "tag": {"type": "string", "description": "Observed tag emitted by listTagHistory (taghistory.Row.Tag)."},
+                          "resolved_digest": {"type": "string", "description": "Digest the tag resolved to, emitted by listTagHistory (taghistory.Row.ResolvedDigest)."},
+                          "previous_digest": {"type": "string", "description": "Prior digest before the mutation, emitted by listTagHistory (taghistory.Row.PreviousDigest); omitted unless its image is also grant-bound."},
+                          "mutated": {"type": "boolean", "description": "Whether the tag moved digests, emitted by listTagHistory (taghistory.Row.Mutated)."},
+                          "first_observed_at": {"type": "string", "description": "Set-once first observation time emitted by listTagHistory (taghistory.Row.FirstObservedAt)."},
+                          "repository_id": {"type": "string", "description": "OCI repository id emitted by listTagHistory (taghistory.Row.RepositoryID)."},
+                          "identity_strength": {"type": "string", "description": "Identity strength emitted by listTagHistory (taghistory.Row.IdentityStrength)."}
                         },
                         "required": ["tag", "resolved_digest", "mutated", "repository_id"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
+                    "count": {"type": "integer", "description": "Rows on this page, emitted by listTagHistory."},
+                    "limit": {"type": "integer", "description": "Requested page size echoed by listTagHistory."},
                     "offset": {"type": "integer", "description": "Echoed request offset. Omitted for a grant-filtered page, which pages by cursor alone: the offset of such a page is the raw pre-filter frontier the refill advanced to."},
-                    "truncated": {"type": "boolean"},
-                    "image_ref": {"type": "string"},
-                    "repository_id": {"type": "string"},
-                    "tag": {"type": "string"},
+                    "truncated": {"type": "boolean", "description": "Whether more rows exist past this page, emitted by listTagHistory."},
+                    "image_ref": {"type": "string", "description": "Image reference the history was read for, emitted by listTagHistory."},
+                    "repository_id": {"type": "string", "description": "OCI repository id the history was read for, emitted by listTagHistory."},
+                    "tag": {"type": "string", "description": "Tag the history was read for, emitted by listTagHistory."},
                     "grant_filtered": {"type": "boolean", "description": "Present and true only for a scoped caller whose page was bound to its repository grant through ContainerImage-[:BUILT_FROM]->Repository. Such a page is refilled to limit visible rows, so count below limit means the history ended or the per-request read cap was reached, not that rows were withheld from this window. On a cap-reached page (truncated true with count below limit) the shortfall does describe the scanned span, which is a constant 800 raw rows: count 0 there means every one of them was withheld. That is a count, not an identity -- the span always starts at a row you were shown or at the sealed frontier of your previous capped page, and the withheld rows themselves are never named."},
                     "next_cursor": {"type": "string", "description": "Present when truncated is true and the server holds a cursor sealing key. An encrypted keyset continuation token; pass it back as cursor and do not parse or synthesize it. Its plaintext names one row's first_observed_at and uid: on a normal page the last row this page returned, and on a cap-reached page that returned no rows at all the last raw row the scan reached, which for a grant-filtered caller may be a row withheld from that caller -- which is why the token is sealed rather than readable. It is omitted on a truncated grant-filtered page when no sealing key is configured; truth.reason says so and names the variable."}
                   },

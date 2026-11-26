@@ -36,7 +36,7 @@ const ContainerImageIdentityAggregate = `
                     "by_outcome": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Identity counts by outcome (exact_digest, tag_resolved). Bucket names are outcome values; render as bars, never a fixed enum."},
                     "by_identity_strength": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Identity counts by identity strength. Bucket names are strength values; render as bars, never a fixed enum."},
                     "source_bridge": {"type": "object", "description": "Source-repository-scoped identity evidence; present only when the source_repository_id filter was given. Owner: supply/chain ContainerImageIdentitySourceBridge.", "properties": {
-                      "source_repository_id": {"type": "string"},
+                      "source_repository_id": {"type": "string", "description": "Source repository id emitted by the identity aggregate handlers (ContainerImageIdentitySourceBridge.SourceRepositoryID)."},
                       "image_repository_ids": {"type": "array", "items": {"type": "string"}, "description": "Absent when empty."},
                       "missing_evidence": {"type": "array", "items": {"type": "string"}, "description": "Absent when empty."},
                       "warnings": {"type": "array", "items": {"type": "string"}, "description": "Absent when empty."}
@@ -78,6 +78,7 @@ const ContainerImageIdentityAggregate = `
                   "properties": {
                     "buckets": {
                       "type": "array",
+                      "description": "Grouped count buckets ordered by count desc, emitted by the identity inventory aggregate handler (ContainerImageIdentityInventoryRow).",
                       "items": {
                         "type": "object",
                         "properties": {
