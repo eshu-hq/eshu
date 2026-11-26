@@ -57,6 +57,7 @@ var factIDProducerAllowlist = map[string]string{
 	"internal/storage/postgres/supply_chain_impact_winners_staged_compact.go::StagedCompactor.AddOverrideBatch":                           "forwards the fact id of winner rows already stored in fact_records into the compaction state, mints nothing",
 	"internal/storage/postgres/vulnerability_suppression_store.go::vulnerabilitySuppressionFactID":                                        "single constant scope (vulnerabilitySuppressionScopeID); the generation and the stable key are hashed, so the id is distinct per generation. Safe only while the scope stays one constant",
 	"internal/storage/postgres/vulnerability_suppression_store.go::writeVulnerabilitySuppressionFacts":                                    "MINTS its id (vulnerabilitySuppressionFactID): single constant scope (vulnerabilitySuppressionScopeID); generation hashed. Safe only while the scope stays one constant",
+	"cmd/read-api-latency-gate/seed_winners.go::winnersFindingVersionedRows":                                                              "seed shaper: forwards the caller-supplied fixture fact id into the row id fields, mints nothing",
 }
 
 // factIDSite is one Envelope literal that sets FactID.
