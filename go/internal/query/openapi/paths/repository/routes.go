@@ -242,7 +242,7 @@ const Routes = `
                       "items": {"$ref": "#/components/schemas/CatalogWorkload"}
                     },
                     "counts": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Row counts per catalog collection, emitted by the repository catalog handler from catalog counts. Keys are the collection names (repositories, workloads, services); values are the row counts in this page."},
-                    "count": {"type": "integer", "description": "Total rows returned across collections, emitted by the repository catalog handler."},
+                    "count": {"type": "integer", "description": "Rows from the repositories and workloads collections returned in this page, emitted by the repository catalog handler via catalogResponse.finish; the services rows on the same page are excluded from this count (see counts)."},
                     "limit": {"type": "integer", "description": "Echo of the caller's page bound, emitted by the repository catalog handler from the normalized limit."},
                     "truncated": {"type": "boolean", "description": "True when any catalog collection (repositories or workloads/services) is itself a bounded partial page, i.e. more rows exist beyond limit. A degraded is_dependency read (see limitations) never sets this: the repository/workload rows returned are complete even when the auxiliary dependency marker on them is not."},
                     "workloads_truncated": {"type": "boolean", "description": "True only when the workload and service collections are a bounded partial page; repository-only truncation does not set this field."},

@@ -20,6 +20,7 @@ const Render = `
             "application/json": {
               "schema": {
                 "type": "object",
+                "additionalProperties": false,
                 "required": ["packet"],
                 "properties": {
                   "packet": {"allOf": [{"$ref": "#/components/schemas/InvestigationEvidencePacket"}], "description": "Client-supplied investigation evidence packet decoded by the renderPacket handler into packet.InvestigationEvidencePacket; packet_id is required (an empty id answers 400 invalid_argument)."},

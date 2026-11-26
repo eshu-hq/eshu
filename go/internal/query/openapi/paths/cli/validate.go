@@ -20,9 +20,9 @@ const Validate = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["bundle"],
+                "additionalProperties": false,
                 "properties": {
-                  "bundle": {"type": "object", "description": "Supplied report bundle bytes validated by the validateBundle handler against the share-safe gate (reportbundle.Bundle, the same wire shape the capture route issues).", "properties": {
+                  "bundle": {"type": "object", "description": "Supplied report bundle bytes validated by the validateBundle handler against the share-safe gate (reportbundle.Bundle, the same wire shape the capture route issues). The key is optional: an absent bundle answers 200 valid:false with the reason, and only a malformed body or an unknown field answers 400.", "properties": {
                     "schema_version": {"type": "string", "description": "Bundle wire schema version the validateBundle handler checks against reportbundle.SchemaVersion."},
                     "bundle_id": {"type": "string", "description": "Bundle identity digest the validateBundle handler requires to be present."},
                     "created_at": {"type": "string", "format": "date-time", "description": "Capture instant carried by the supplied bundle."},

@@ -20,6 +20,7 @@ const Compose = `
             "application/json": {
               "schema": {
                 "type": "object",
+                "additionalProperties": false,
                 "required": ["dossier"],
                 "properties": {
                   "dossier": {"type": "object", "additionalProperties": true, "description": "Captured service-story dossier the composeReport handler feeds to serviceintel.FromServiceStory; keys are the dossier's own section keys. Owner: cli/support.ComposeRequest.Dossier."},

@@ -20,12 +20,13 @@ const Score = `
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["version", "prompts"],
+                "additionalProperties": false,
+                "required": ["version"],
                 "properties": {
-                  "version": {"type": "string", "description": "Scorecard suite version the evidence was collected against, decoded by the scoreEvidence handler into answerquality.Evidence."},
+                  "version": {"type": "string", "description": "Scorecard suite version the evidence was collected against, decoded by the scoreEvidence handler into answerquality.Evidence; a missing or mismatched version answers 400."},
                   "run_id": {"type": "string"},
                   "eshu_commit": {"type": "string"},
-                  "prompts": {"type": "array", "description": "Captured prompt evidence rows scored by answerquality.Score. Owner: answerquality.PromptResult via the scoreEvidence handler.",
+                  "prompts": {"type": "array", "description": "Captured prompt evidence rows scored by answerquality.Score. Owner: answerquality.PromptResult via the scoreEvidence handler. The key is optional: absent prompts score as an empty set with 200.",
                     "items": {"type": "object", "description": "One captured prompt result: identity plus per-surface answers, decoded by the scoreEvidence handler into answerquality.PromptResult.",
                       "properties": {
                         "id": {"type": "string", "description": "Prompt id scored by answerquality.Score. Owner: answerquality.PromptResult."},

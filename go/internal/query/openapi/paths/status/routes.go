@@ -29,10 +29,20 @@ const collectorsListSchema = `{
                           },
                           "coordinator_registered": {"type": "boolean", "description": "Whether the workflow coordinator registered this instance. Owner: query.status listCollectors."},
                           "enabled": {"type": "boolean", "description": "Whether the collector is enabled. Owner: query.status listCollectors."},
+                          "bootstrap": {"type": "boolean", "description": "Whether the collector runs in bootstrap mode. Present only on the unscoped shape. Owner: query.status listCollectors."},
                           "claims_enabled": {"type": "boolean", "description": "Whether the collector accepts claims. Owner: query.status listCollectors."},
+                          "display_name": {"type": "string", "description": "Collector display name. Present only on the unscoped shape. Owner: query.status listCollectors."},
                           "evidence_sources": {"type": "array", "items": {"type": "string"}, "description": "Evidence sources backing this collector. Owner: query.status listCollectors."},
                           "source_systems": {"type": "array", "items": {"type": "string"}, "description": "Source systems this collector reads. Owner: query.status listCollectors."},
                           "observation_count": {"type": "integer", "description": "Observations backing this row. Owner: query.status listCollectors."},
+                          "last_observed_at": {"type": "string", "format": "date-time", "nullable": true, "description": "When the collector was last observed. Present only on the unscoped shape. Owner: query.status listCollectors."},
+                          "updated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "When the collector row was last updated. Present only on the unscoped shape. Owner: query.status listCollectors."},
+                          "deactivated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "When the collector was deactivated; null while active. Present only on the unscoped shape. Owner: query.status listCollectors."},
+                          "collector_count": {"type": "integer", "description": "Instances folded into this per-kind row. Present only on the scoped per-kind aggregate shape. Owner: query.status listCollectors."},
+                          "coordinator_registered_count": {"type": "integer", "description": "Registered instances folded into this per-kind row. Present only on the scoped per-kind aggregate shape. Owner: query.status listCollectors."},
+                          "enabled_count": {"type": "integer", "description": "Enabled instances folded into this per-kind row. Present only on the scoped per-kind aggregate shape. Owner: query.status listCollectors."},
+                          "bootstrap_count": {"type": "integer", "description": "Bootstrap-mode instances folded into this per-kind row. Present only on the scoped per-kind aggregate shape. Owner: query.status listCollectors."},
+                          "claims_enabled_count": {"type": "integer", "description": "Claims-accepting instances folded into this per-kind row. Present only on the scoped per-kind aggregate shape. Owner: query.status listCollectors."},
                           "health": {"type": "string", "description": "Collector health. Owner: query.status listCollectors."},
                           "detail": {"type": "string", "description": "Human-readable collector detail. Owner: query.status listCollectors."},
                           "last_failure_class": {"type": "string", "enum": ["analyzer_failed", "archived", "attempt_budget_exhausted", "auth_denied", "collect_failure", "commit_failed", "commit_failure", "cpu_limit_exceeded", "deleted", "expired_lease_budget_exhausted", "extension_defined", "fact_limit_exceeded", "file_limit_exceeded", "ghsa_cache_replay", "ghsa_covered_through_out_of_range", "ghsa_window_held", "ghsa_window_no_progress", "ghsa_window_unarmed", "identity_mismatch", "input_limit_exceeded", "invalid_claim", "invalid_result", "launch_failure", "memory_limit_exceeded", "non_retryable", "not_found", "nvd_baseline_seed_rollback", "nvd_baseline_window_writer_armed", "operator_retired_unclaimed", "permission_denied", "permission_hidden", "rate_limited", "registry_auth_denied", "registry_canceled", "registry_metadata_too_large", "registry_not_found", "registry_rate_limited", "registry_retryable_failure", "registry_terminal_failure", "retryable", "run_age_bound_exceeded", "source_state_record", "source_unavailable", "stale_fence", "status_record", "target_unavailable", "terminal", "timeout", "unsupported_permission", "unsupported_target", "waiting_on_git_generation", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal. Owner: query.status listCollectors."},
@@ -108,8 +118,7 @@ const Routes = `
                 }
               }
             }
-          },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          }
         }
       }
     },
@@ -117,7 +126,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "List collectors",
-        "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence. An unresolved terminal fetch failure marks the instance health degraded and adds last_failure_class, last_failure_operation, last_failure_terminal, and last_failure_at. An operator can acknowledge a failure (POST /api/v0/admin/collector-failures/acknowledge): the instance then reads promotion_state partial with an acknowledged_failure object instead of degraded, and its health reads at least partial (never healthy): a stale vulnerability source or a degraded failure on the same instance keeps the higher health. Scoped callers receive only the per-kind health aggregate; last_failure_* fields are withheld from them. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_status.",
+        "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence. An unresolved terminal fetch failure marks the instance health degraded and adds last_failure_class, last_failure_operation, last_failure_terminal, and last_failure_at. An operator can acknowledge a failure (POST /api/v0/admin/collector-failures/acknowledge): the instance then reads promotion_state partial with an acknowledged_failure object instead of degraded, and its health reads at least partial (never healthy): a stale vulnerability source or a degraded failure on the same instance keeps the higher health. Scoped callers receive only the per-kind health aggregate; last_failure_* fields are withheld from them. Each scoped row carries collector_kind, runtime_mode, status_category, and health plus the per-kind counts (collector_count, coordinator_registered_count, enabled_count, bootstrap_count, claims_enabled_count), evidence_sources, observation_count, last_observed_at, and updated_at; bootstrap, display_name, and deactivated_at stay unscoped-only. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_status.",
         "operationId": "listCollectors",
         "x-scoped-token-support": true,
         "responses": {
@@ -203,8 +212,7 @@ const Routes = `
                 }
               }
             }
-          },
-          "500": {"$ref": "#/components/responses/InternalError"}
+          }
         }
       }
     },

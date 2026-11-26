@@ -38,7 +38,7 @@ const Routes = `
                 "required": ["service_name"],
                 "properties": {
                   "service_name": {"type": "string", "description": "Service or workload name to trace"},
-                  "direct_only": {"type": "boolean", "default": true},
+                  "direct_only": {"type": "boolean", "default": false, "description": "When true, return direct edges only. The handler decodes an absent field to false, so enrichment (consumers and, with include_related_module_usage, provisioning chains) runs by default. Owner: impact.traceDeploymentChainRequest via traceEnrichmentOptions."},
                   "max_depth": {"type": "integer", "minimum": 0, "maximum": 1000, "description": "Scales the indirect-evidence search limit (max_depth x 10, capped at 100); it is not a literal traversal-hop count, and every value at or above 10 resolves to the same capped limit. Accepted range 0-1000; out-of-range values are clamped rather than rejected. Omitting this field does not apply a default of 8 -- it resolves to the handler's own operator-safe default search limit of 25."},
                   "include_related_module_usage": {"type": "boolean", "default": false},` + traceDeploymentSelectionRequestProperties + `
                 }
@@ -327,7 +327,8 @@ const Routes = `
           "400": {"$ref": "#/components/responses/BadRequest"},
           "409": {"$ref": "#/components/responses/Conflict"},
           "404": ` + traceDeploymentNotFoundResponse + `,
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -382,7 +383,8 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "500": {"$ref": "#/components/responses/InternalError"}
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"}
         }
       }
     },
@@ -390,7 +392,7 @@ const Routes = `
       "post": {
         "tags": ["impact"],
         "summary": "Investigate change surface",
-        "description": "Resolves a service, workload, resource, module, code topic, or changed path set into one bounded change-surface response with ambiguity metadata, code handles, direct impact, transitive impact, limits, and truncation. Scoped tokens receive the same shape; a resolved target, an explicit repo_id, and every impacted row outside the caller's grant are withheld.",
+        "description": "Resolves a service, workload, resource, module, code topic, or changed path set into one bounded change-surface response with ambiguity metadata, code handles, direct impact, transitive impact, limits, and truncation. Scoped tokens receive the same shape; a resolved target, an explicit repo_id, and every impacted row outside the caller's grant are withheld. An explicit repo_id the caller holds no grant for answers 404.",
         "operationId": "investigateChangeSurface",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -460,6 +462,7 @@ const Routes = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "404": {"$ref": "#/components/responses/NotFound"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}

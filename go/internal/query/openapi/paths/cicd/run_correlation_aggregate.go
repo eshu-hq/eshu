@@ -16,7 +16,7 @@ const RunCorrelationAggregate = `
         "x-scoped-token-support": true,
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty aggregate.", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown selectors answer 404 and ambiguous selectors answer 409 instead of an empty aggregate.", "schema": {"type": "string"}},
           {"name": "commit_sha", "in": "query", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
           {"name": "artifact_digest", "in": "query", "schema": {"type": "string"}},
@@ -42,7 +42,12 @@ const RunCorrelationAggregate = `
               }
             }
           },
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
@@ -55,7 +60,7 @@ const RunCorrelationAggregate = `
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["outcome", "environment", "repository_id", "provider"], "default": "outcome"}},
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty inventory.", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown selectors answer 404 and ambiguous selectors answer 409 instead of an empty inventory.", "schema": {"type": "string"}},
           {"name": "commit_sha", "in": "query", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
           {"name": "artifact_digest", "in": "query", "schema": {"type": "string"}},
@@ -98,7 +103,12 @@ const RunCorrelationAggregate = `
               }
             }
           },
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
