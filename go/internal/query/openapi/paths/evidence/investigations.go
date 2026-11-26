@@ -157,18 +157,51 @@ const Investigations = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "service_name": {"type": "string"},
-                    "environment": {"type": "string"},
-                    "intent": {"type": "string"},
-                    "question": {"type": "string"},
-                    "repositories_considered": {"type": "array", "items": {"type": "object"}},
-                    "repositories_with_evidence": {"type": "array", "items": {"type": "object"}},
-                    "evidence_families_found": {"type": "array", "items": {"type": "string"}},
-                    "coverage_summary": {"type": "object", "description": "Coverage state and reason plus repository/evidence counts. repository_count is the true number of repositories considered, taken before the result_limit cap; it never counts the __truncated__ marker row that closes a cut repositories_considered list. repositories_truncated is true when that list was cut at result_limit, so a caller reads it instead of scanning rows for the marker; repository_count above result_limit always comes with repositories_truncated true, and repositories_with_evidence_count counts only the rows returned. The packet also carries result_limit (the 50-row repository rendering cap), downstream_read_limit (the tighter bound that actually fires on the cross-repository fan-out, 25 by default), evidence_file_read_limit (the separate 5,000-file bound on the service repository's own indexed-file read), and truncated. truncated is true when the repository list was capped OR when the bounded provisioning-candidate, hostname, or consumer-evidence reads behind dependents, consumer_repositories, and provisioning_source_chains hit their own bounds; when only the consumer_repositories read is why, evidence_file_read_limit rather than downstream_read_limit may be the bound that fired."},
-                    "investigation_findings": {"type": "array", "items": {"type": "object"}},
-                    "recommended_next_calls": {"type": "array", "items": {"type": "object"}},
-                    "service_story_path": {"type": "string"},
-                    "service_context_path": {"type": "string"}
+                    "service_name": {"type": "string", "description": "Canonical service name the packet was built for, from BuildServiceInvestigationPacket in service/investigation_packet.go."},
+                    "environment": {"type": "string", "description": "Optional environment selector echoed from InvestigationOptions in service/investigation_packet.go; present only when requested."},
+                    "intent": {"type": "string", "description": "Optional investigation intent (for example runbook or onboarding) from InvestigationOptions; present only when requested."},
+                    "question": {"type": "string", "description": "Optional user question preserved from InvestigationOptions; present only when requested."},
+                    "repositories_considered": {"type": "array", "items": {"type": "object", "properties": {
+                      "repo_id": {"type": "string", "description": "Repository id merged by serviceInvestigationRepositories in service/investigation_packet.go; __truncated__ on the marker row that closes a cut list."},
+                      "repo_name": {"type": "string", "description": "Repository display name; empty on the __truncated__ marker row."},
+                      "roles": {"type": "array", "items": {"type": "string"}, "description": "Roles the repository plays in the investigation (service_owner, deployment_source, deployment_target, graph_dependent, content_consumer, provisioning_source)."},
+                      "evidence_families": {"type": "array", "items": {"type": "string"}, "description": "Evidence families the repository contributes to, sorted."},
+                      "evidence_family_count": {"type": "integer", "description": "Number of evidence families on this row, from addInvestigationRepo."},
+                      "note": {"type": "string", "description": "Present only on the __truncated__ marker row that closes a list cut at the 50-row cap."}
+                    }}, "description": "Repositories merged from the workload context by serviceInvestigationRepositories in service/investigation_packet.go, sorted by repo_id and capped at 50 rows."},
+                    "repositories_with_evidence": {"type": "array", "items": {"type": "object", "properties": {
+                      "repo_id": {"type": "string", "description": "Repository id from repositoriesWithEvidence in service/investigation_packet.go (never the marker row)."},
+                      "repo_name": {"type": "string", "description": "Repository display name."},
+                      "roles": {"type": "array", "items": {"type": "string"}, "description": "Roles the repository plays in the investigation."},
+                      "evidence_families": {"type": "array", "items": {"type": "string"}, "description": "Non-empty evidence families the repository contributes to, sorted."},
+                      "evidence_family_count": {"type": "integer", "description": "Number of evidence families on this row."},
+                      "note": {"type": "string", "description": "Never set on this list; documented for shape parity with repositories_considered."}
+                    }}, "description": "Subset of repositories_considered with a non-empty evidence_families list, from repositoriesWithEvidence."},
+                    "evidence_families_found": {"type": "array", "items": {"type": "string"}, "description": "Sorted evidence families present in the workload context, from serviceInvestigationEvidenceFamiliesWithContext in service/investigation_packet.go (api_surface, deployment_lanes, documentation, upstream_dependencies, downstream_consumers, support)."},
+                    "coverage_summary": {"type": "object", "description": "Coverage state and reason plus repository/evidence counts. repository_count is the true number of repositories considered, taken before the result_limit cap; it never counts the __truncated__ marker row that closes a cut repositories_considered list. repositories_truncated is true when that list was cut at result_limit, so a caller reads it instead of scanning rows for the marker; repository_count above result_limit always comes with repositories_truncated true, and repositories_with_evidence_count counts only the rows returned. The packet also carries result_limit (the 50-row repository rendering cap), downstream_read_limit (the tighter bound that actually fires on the cross-repository fan-out, 25 by default), evidence_file_read_limit (the separate 5,000-file bound on the service repository's own indexed-file read), and truncated. truncated is true when the repository list was capped OR when the bounded provisioning-candidate, hostname, or consumer-evidence reads behind dependents, consumer_repositories, and provisioning_source_chains hit their own bounds; when only the consumer_repositories read is why, evidence_file_read_limit rather than downstream_read_limit may be the bound that fired.", "properties": {
+                      "state": {"type": "string", "description": "Coverage state from serviceInvestigationCoverage in service/investigation_packet.go (partial once any evidence family is found)."},
+                      "reason": {"type": "string", "description": "Why the state holds, naming each truncated family with the bound that fired (#10477)."},
+                      "repository_count": {"type": "integer", "description": "True number of repositories considered before the result_limit cap; never counts the marker row (#8802)."},
+                      "repositories_truncated": {"type": "boolean", "description": "True when repositories_considered was cut at result_limit."},
+                      "repositories_with_evidence_count": {"type": "integer", "description": "Rows in repositories_with_evidence."},
+                      "evidence_family_count": {"type": "integer", "description": "Evidence families found."},
+                      "result_limit": {"type": "integer", "description": "Repository rendering cap (50, serviceStoryItemLimit)."},
+                      "downstream_read_limit": {"type": "integer", "description": "Indirect-evidence row bound the enrichment ran under (25 by default)."},
+                      "evidence_file_read_limit": {"type": "integer", "description": "Indexed-file bound on the service repository's own file read (5000, serviceEvidenceFileLimit)."},
+                      "truncated": {"type": "boolean", "description": "True when the repository list was capped or a bounded dependent/consumer/chain read hit its bound."}
+                    }, "required": ["state", "reason", "repository_count", "repositories_truncated", "repositories_with_evidence_count", "evidence_family_count", "result_limit", "downstream_read_limit", "evidence_file_read_limit", "truncated"]},
+                    "investigation_findings": {"type": "array", "items": {"type": "object", "properties": {
+                      "family": {"type": "string", "description": "Evidence family from serviceInvestigationFindingsWithContext in service/investigation_packet.go."},
+                      "summary": {"type": "string", "description": "Human-readable family summary; carries a (bounded) suffix when the counts behind it hit a bound (#5720)."},
+                      "evidence_path": {"type": "string", "description": "Workload-context path backing the finding, from serviceInvestigationEvidencePath."}
+                    }, "required": ["family", "summary", "evidence_path"]}, "description": "One finding per evidence family, from serviceInvestigationFindingsWithContext."},
+                    "recommended_next_calls": {"type": "array", "items": {"type": "object", "properties": {
+                      "tool": {"type": "string", "description": "MCP tool to call next, from serviceInvestigationNextCalls in service/investigation_packet.go."},
+                      "reason": {"type": "string", "description": "Why the follow-up call is recommended."},
+                      "arguments": {"type": "object", "description": "Tool arguments from serviceInvestigationNextCalls: workload_id for dossier and context calls, service_name plus include_related_module_usage for chain walks, or resolved_id for relationship dereference.", "additionalProperties": {}}
+                    }, "required": ["tool", "reason", "arguments"]}, "description": "Dossier, context, chain-walk, and relationship-dereference follow-ups from serviceInvestigationNextCalls."},
+                    "service_story_path": {"type": "string", "description": "One-call dossier route for this service, built by BuildServiceInvestigationPacket (/api/v0/services/<service_name>/story)."},
+                    "service_context_path": {"type": "string", "description": "Raw service context route for this service (/api/v0/services/<service_name>/context)."}
                   }
                 }
               }
