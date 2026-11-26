@@ -36,7 +36,7 @@ const DocumentationFindingAggregate = `
                     "by_status": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_truth_level": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_freshness_state": {"type": "object", "additionalProperties": {"type": "integer"}},
-                    "scope": {"type": "object"}
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the request filters as string pairs; only non-empty filters (scope_id, finding_type, source_id, document_id, status, truth_level, freshness_state) appear. Owner: query.documentationFindingAggregateScope."}
                   }
                 }
               }
@@ -99,7 +99,7 @@ const DocumentationFindingAggregate = `
                     "group_by": {"type": "string"},
                     "truncated": {"type": "boolean"},
                     "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
-                    "scope": {"type": "object"}
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Echo of the request filters as string pairs; only non-empty filters (scope_id, finding_type, source_id, document_id, status, truth_level, freshness_state) appear. Owner: query.documentationFindingAggregateScope."}
                   }
                 }
               }

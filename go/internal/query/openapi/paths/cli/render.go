@@ -22,7 +22,7 @@ const Render = `
                 "type": "object",
                 "required": ["packet"],
                 "properties": {
-                  "packet": {"type": "object"},
+                  "packet": {"allOf": [{"$ref": "#/components/schemas/InvestigationEvidencePacket"}], "description": "Client-supplied investigation evidence packet decoded by the renderPacket handler into packet.InvestigationEvidencePacket; packet_id is required (an empty id answers 400 invalid_argument)."},
                   "format": {"type": "string", "default": "json"}
                 }
               }
