@@ -41,7 +41,7 @@ const TagHistory = `
                           "resolved_digest": {"type": "string", "description": "Digest the tag resolved to, emitted by listTagHistory (taghistory.Row.ResolvedDigest)."},
                           "previous_digest": {"type": "string", "description": "Prior digest before the mutation, emitted by listTagHistory (taghistory.Row.PreviousDigest); omitted unless its image is also grant-bound."},
                           "mutated": {"type": "boolean", "description": "Whether the tag moved digests, emitted by listTagHistory (taghistory.Row.Mutated)."},
-                          "first_observed_at": {"type": "string", "description": "Set-once first observation time emitted by listTagHistory (taghistory.Row.FirstObservedAt)."},
+                          "first_observed_at": {"type": "string", "description": "Set-once first observation time emitted by listTagHistory (taghistory.Row.FirstObservedAt); absent when the observation carries no timestamp."},
                           "repository_id": {"type": "string", "description": "OCI repository id emitted by listTagHistory (taghistory.Row.RepositoryID)."},
                           "identity_strength": {"type": "string", "description": "Identity strength emitted by listTagHistory (taghistory.Row.IdentityStrength)."}
                         },

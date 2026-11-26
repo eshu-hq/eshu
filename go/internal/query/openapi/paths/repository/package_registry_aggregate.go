@@ -26,6 +26,9 @@ const PackageRegistryAggregate = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "200": {
             "description": "Graph-backed (:Package) totals envelope with per-ecosystem rollup",
             "content": {
@@ -64,6 +67,9 @@ const PackageRegistryAggregate = `
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "500": {"$ref": "#/components/responses/InternalError"},
           "200": {
             "description": "Grouped count buckets ordered by count desc",
             "content": {

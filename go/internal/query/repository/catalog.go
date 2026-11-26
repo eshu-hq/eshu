@@ -280,7 +280,7 @@ func (h *Handler) listCatalogWorkloadIdentitiesFromContent(
 // enrichCatalogWorkloadsFromCorrelations joins service-catalog correlation facts
 // onto the assembled workload set. It collects the non-empty repo IDs from
 // workloads, issues a single bounded Postgres query filtered to those IDs via
-// AllowedRepositoryIDs, then stamps Tier/Category/Domain/Language on each
+// AllowedRepositoryIDs, then stamps Tier/Category/Domain on each
 // workload whose repo has a correlated manifest. The lookup is capped at
 // querycontract.ServiceCatalogCorrelationMaxLimit to stay within the
 // few-seconds SLA; extra workloads beyond that cap keep their zero values.

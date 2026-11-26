@@ -11,6 +11,7 @@ const ContainerImages = `
     "/api/v0/supply-chain/container-images/identities": {
       "get": {
         "summary": "List container image identities",
+        "description": "Lists reducer-owned container image identity rows. At least one anchor (digest, image_ref, source_repository_id, repository_id, or outcome) is required; a request with none returns 400. outcome must be exact_digest or tag_resolved when supplied.",
         "operationId": "listContainerImageIdentities",
         "x-scoped-token-support": true,
         "parameters": [
@@ -23,7 +24,10 @@ const ContainerImages = `
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {

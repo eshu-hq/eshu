@@ -9,7 +9,7 @@ const impactExplain = `
         "summary": "Explain one supply-chain impact finding",
         "operationId": "explainSupplyChainImpact",
         "x-scoped-token-support": true,
-        "description": "Scoped tokens receive an explanation intersected with granted repositories: the matched finding's repository_id/scope_id must fall within the token's grant, so an out-of-grant finding_id or a bare advisory/CVE plus package/image/workload/service anchor that would otherwise resolve to another tenant's finding returns a no_finding outcome instead of leaking it. A scoped token with no granted repositories always receives the bounded no-evidence explanation without a store read.",
+        "description": "Scoped tokens receive an explanation intersected with granted repositories: the matched finding's repository_id/scope_id must fall within the token's grant, so an out-of-grant finding_id or a bare advisory/CVE plus package/image/workload/service anchor that would otherwise resolve to another tenant's finding returns a no_finding outcome instead of leaking it. A scoped token with no granted repositories always receives the bounded no-evidence explanation without a store read. At least one anchor (finding_id, or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id) is required; a request with none returns 400.",
         "parameters": [
           {"name": "finding_id", "in": "query", "schema": {"type": "string"}},
           {"name": "advisory_id", "in": "query", "schema": {"type": "string"}},
@@ -23,6 +23,8 @@ const impactExplain = `
         ],
         "responses": {
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {
@@ -222,7 +224,7 @@ const impactExplain = `
               }
             }
           },
-          "400": {"description": "Unbounded input"}
+          "400": {"description": "Unbounded input: finding_id, or advisory_id/cve_id plus package_id, repository_id, subject_digest, image_ref, workload_id, or service_id is required"}
         }
       }
     },

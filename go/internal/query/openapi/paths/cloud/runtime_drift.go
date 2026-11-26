@@ -148,7 +148,7 @@ const RuntimeDrift = `
                             "required": ["outcome", "read_only", "review_required", "audit_expectation"]
                           }
                         },
-                        "required": ["fact_id", "provider", "scope_id", "finding_kind", "management_status", "confidence", "source_state", "safety_gate"]
+                        "required": ["fact_id", "provider", "scope_id", "generation_id", "cloud_resource_uid", "finding_kind", "management_status", "confidence", "source_state", "safety_gate"]
                       }
                     }
                   }

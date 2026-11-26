@@ -66,6 +66,7 @@ const StatsAndCoverage = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "504": {
             "description": "Repository stats read timed out before repository identity could be verified",
             "content": {
@@ -132,11 +133,11 @@ const StatsAndCoverage = `
                         "content_entity_count": {"type": "integer", "description": "Content-side entity count emitted by the repository coverage handler from the content coverage."},
                         "content_files_last_indexed_at": {"type": "string", "description": "Content files index timestamp emitted by the repository coverage handler."},
                         "content_entities_last_indexed_at": {"type": "string", "description": "Content entities index timestamp emitted by the repository coverage handler."},
-                        "graph_gap_count": {"type": "integer", "description": "Graph-side gap count repeated in the summary, emitted by the repository coverage handler."},
-                        "content_gap_count": {"type": "integer", "description": "Content-side gap count repeated in the summary, emitted by the repository coverage handler."},
-                        "completeness_state": {"type": "string", "description": "Coverage completeness verdict repeated in the summary, emitted by the repository coverage handler."}
+                        "graph_gap_count": {"type": "integer", "description": "Graph-side gap count repeated in the summary, emitted by the repository coverage handler (present when content coverage is available)."},
+                        "content_gap_count": {"type": "integer", "description": "Content-side gap count repeated in the summary, emitted by the repository coverage handler (present when content coverage is available)."},
+                        "completeness_state": {"type": "string", "description": "Coverage completeness verdict repeated in the summary, emitted by the repository coverage handler (present when content coverage is available)."}
                       },
-                      "required": ["graph_file_count", "graph_entity_count", "content_file_count", "content_entity_count", "graph_gap_count", "content_gap_count", "completeness_state"]
+                      "required": ["graph_file_count", "graph_entity_count", "content_file_count", "content_entity_count"]
                     }
                   }
                 }
@@ -145,6 +146,7 @@ const StatsAndCoverage = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }

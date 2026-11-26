@@ -200,7 +200,9 @@ const AdvisoryEvidence = `
           "400": {"description": "Missing limit or advisory scope"},
           "404": {"description": "Repository selector did not match an indexed repository"},
           "409": {"description": "Repository selector matched multiple repositories; the body carries error.code ambiguous with error.details.candidates, each an object carrying repo_id plus, when known, repo_name and match_basis (the selector field that matched)"},
-          "503": {"description": "Postgres source fact read model unavailable"}
+          "501": {"description": "Capability unsupported for the active profile"},
+          "503": {"description": "Postgres source fact read model unavailable"},
+          "500": {"description": "Advisory evidence read failed"}
         }
       }
     },
@@ -347,7 +349,8 @@ const AdvisoryEvidence = `
           "400": {"description": "Missing advisory_id"},
           "404": {"description": "No advisory matched the identifier"},
           "501": {"description": "Capability unsupported for the active profile"},
-          "503": {"description": "Postgres source fact read model unavailable"}
+          "503": {"description": "Postgres source fact read model unavailable"},
+          "500": {"description": "Vulnerability detail read failed"}
         }
       }
     },

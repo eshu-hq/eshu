@@ -12,7 +12,7 @@ const ObservabilityCoverage = `
       "get": {
         "tags": ["observability"],
         "summary": "List observability coverage correlations",
-        "description": "Lists reducer-owned observability coverage correlation rows: which monitored cloud resources, services, or observability metadata identities have alarm, dashboard, scrape, rule, log, or trace coverage versus which coverage gaps remain. Coverage is structural correlation over source facts and resource identity facts, not a health assertion derived from telemetry values. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes; a scoped caller with no grants receives an empty page without a query.",
+        "description": "Lists reducer-owned observability coverage correlation rows: which monitored cloud resources, services, or observability metadata identities have alarm, dashboard, scrape, rule, log, or trace coverage versus which coverage gaps remain. Coverage is structural correlation over source facts and resource identity facts, not a health assertion derived from telemetry values. At least one anchor (scope_id, provider, coverage_signal, observability_object_ref, target_uid, or target_service_ref) is required; a request with none returns 400. Scoped tokens receive rows intersected with the caller's granted repositories/ingestion scopes; a scoped caller with no grants receives an empty page without a query.",
         "operationId": "listObservabilityCoverageCorrelations",
         "x-scoped-token-support": true,
         "parameters": [
