@@ -162,7 +162,7 @@ const (
 var ErrLocalIdentityAPITokenNotFound = local.ErrIdentityAPITokenNotFound
 
 // IdentityHash is the exported hash-only identity-field convention
-// (go/cmd/api/seed_initial_admin.go, go/cmd/api/seed_initial_admin_helpers.go,
+// (go/cmd/eshu-local-api/seed_initial_admin.go, go/cmd/eshu-local-api/seed_initial_admin_helpers.go,
 // and go/internal/cli/admin/credential.go all call query.IdentityHash). Its
 // home is local/ (IdentityHash).
 func IdentityHash(value string) string {

@@ -49,7 +49,7 @@ const UnsealedCursorVersion = 2
 // Beware the nil-interface trap when wiring one: assigning a nil
 // *secretcrypto.Keyring to a Sealer field yields a NON-nil interface holding a
 // nil pointer, which would panic on the first Seal. Wire it behind an explicit
-// `if keyring != nil` guard (cmd/api/wiring.go does; the removed MCP
+// `if keyring != nil` guard (cmd/eshu-local-api/wiring.go does; the removed MCP
 // entrypoint did the same, eshu-hq/eshu#9670).
 type Sealer interface {
 	Seal(plaintext, aad []byte) (string, error)

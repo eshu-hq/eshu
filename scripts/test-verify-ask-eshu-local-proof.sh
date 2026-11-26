@@ -28,7 +28,7 @@ bash "${verifier}" --list >"${list_log}"
 # than a bare `go test -run` command — assert the new shape, not merely a
 # relaxed substring of the old one, so this self-test still proves the
 # printed command is the one actually executed below.
-rg --fixed-strings --quiet "go_test_run_guard 8 'TestAskLocalProof' -- ./cmd/api -count=1" "${list_log}"
+rg --fixed-strings --quiet "go_test_run_guard 8 'TestAskLocalProof' -- ./cmd/eshu-local-api -count=1" "${list_log}"
 rg --fixed-strings --quiet "go_test_run_guard 1 'TestScopedHTTPRoute_Ask' -- ./internal/query -count=1" "${list_log}"
 rg --fixed-strings --quiet "go run ./cmd/eshu answer-quality-scorecard --from" "${list_log}"
 rg --fixed-strings --quiet "TestAskEshuLocalProofScorecardFixturePasses" "${list_log}"

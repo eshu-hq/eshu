@@ -12,7 +12,7 @@ import (
 // TestScopedRoutePolicyAllowsOwnerConsoleOnlyOutsideHostedMultiTenant pins the
 // mode table cmd/api reads its all-scope opening from. The mapping itself
 // moved into internal/query when cmd/mcp-server needed the same answer
-// (#6450 residual item 1); this test stays in cmd/api because what it is
+// (#6450 residual item 1); this test stays in cmd/eshu-local-api because what it is
 // really asserting is which posture THIS command ships with, and wrapAPIAuth
 // is the caller that decides that.
 func TestScopedRoutePolicyAllowsOwnerConsoleOnlyOutsideHostedMultiTenant(t *testing.T) {

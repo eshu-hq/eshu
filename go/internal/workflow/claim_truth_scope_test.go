@@ -235,7 +235,7 @@ var truthScopeKnownReaders = map[string]string{
 	"go/internal/query/supply/chain/impact/readiness_postgres_query_targets.go": "readiness explanation",
 	// Parses DesiredCollectorInstance JSON for metrics-source selection;
 	// config shape only, no workflow state read.
-	"go/cmd/api/metrics_source.go": "config-shape parse",
+	"go/cmd/eshu-local-api/metrics_source.go": "config-shape parse",
 }
 
 // truthScopePinnedReaderHits pins the per-marker workflow-state reference
@@ -260,7 +260,7 @@ var truthScopePinnedReaderHits = map[string]map[string]int{
 	"go/internal/query/supply/chain/impact/readiness_postgres_query_targets.go": {
 		"workflow_runs": 1,
 	},
-	"go/cmd/api/metrics_source.go": {
+	"go/cmd/eshu-local-api/metrics_source.go": {
 		"go/internal/workflow\"": 1,
 	},
 }
@@ -279,7 +279,7 @@ func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 		"go/internal/graph",
 		"go/internal/mcp",
 		"go/internal/query",
-		"go/cmd/api",
+		"go/cmd/eshu-local-api",
 	}
 	markers := []string{
 		"go/internal/workflow\"",

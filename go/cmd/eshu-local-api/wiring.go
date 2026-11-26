@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 
-	statusdiag "github.com/eshu-hq/eshu/go/cmd/api/diagnostic"
+	statusdiag "github.com/eshu-hq/eshu/go/cmd/eshu-local-api/diagnostic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"go.opentelemetry.io/otel"
@@ -355,7 +355,7 @@ func wireAPI(
 	if samlHandler != nil {
 		// Per-tenant session timeout override (issue #4968, epic #4962):
 		// browserSessionAdapter already implements query.SignInPolicyReadStore
-		// (see cmd/api/browser_sessions.go's GetSignInPolicy), so SAML's
+		// (see cmd/eshu-local-api/browser_sessions.go's GetSignInPolicy), so SAML's
 		// session issuance resolves the same override BrowserSessionHandler
 		// and LocalIdentityHandler do.
 		samlHandler.SignInPolicy = browserSessionAdapter
@@ -377,7 +377,7 @@ func wireAPI(
 	if browserSessionAdapter != nil {
 		// browserSessionAdapter already implements query.SignInPolicyReadStore
 		// (see its use for samlHandler.SignInPolicy above and
-		// cmd/api/browser_sessions.go's GetSignInPolicy) — reusing it here
+		// cmd/eshu-local-api/browser_sessions.go's GetSignInPolicy) — reusing it here
 		// keeps the derived AuthPosture's local_login_offered field backed by
 		// the exact same sign-in-policy read path require_sso enforcement
 		// elsewhere in this file uses, rather than a second adapter instance.

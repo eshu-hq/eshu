@@ -46,7 +46,7 @@ func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditAndRoutePolicy(
 // ESHU_API_KEY, still denies headerless requests. The browser-session resolver
 // is deliberately not part of that predicate: the cookie path self-enforces
 // before the dev-open branch, so a cookieless headerless request in the open
-// posture stays open. See cmd/api/wiring.go and cmd/api/browser_sessions.go.
+// posture stays open. See cmd/eshu-local-api/wiring.go and cmd/eshu-local-api/browser_sessions.go.
 func AuthMiddlewareWithBrowserSessionsScopedTokensGovernanceAuditRoutePolicyAndEnforcement(
 	token string,
 	resolver ScopedTokenResolver,

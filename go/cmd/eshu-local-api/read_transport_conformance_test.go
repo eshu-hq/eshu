@@ -9,8 +9,8 @@ package main
 //
 // Run explicitly; the default suite never selects this tag:
 //
-//	CGO_CFLAGS="-std=gnu17" go test -tags conformance ./cmd/api/ -run 'TestReadTransport|TestNativeNow' -count=1 -v
-//	CGO_CFLAGS="-std=gnu17" go vet -tags conformance ./cmd/api/
+//	CGO_CFLAGS="-std=gnu17" go test -tags conformance ./cmd/eshu-local-api/ -run 'TestReadTransport|TestNativeNow' -count=1 -v
+//	CGO_CFLAGS="-std=gnu17" go vet -tags conformance ./cmd/eshu-local-api/
 //
 // (Run from the worktree's go/ directory; the tag is
 // intentionally not referenced by any CI workflow, Makefile target, or

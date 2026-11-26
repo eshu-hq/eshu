@@ -47,20 +47,27 @@ build_bin() {
 		return
 	fi
 	if [[ "${cmd}" == "local-api" ]]; then
-		# #11513 NornicDB interim shell (#11499): the ./cmd/api tree built
+		# #11514 session half: the relocated ./cmd/eshu-local-api tree built
 		# under the surviving interim name, so the gate's default-leg
-		# consumer references the name #11514 disposes — never the eshu-api
-		# identity #11456 deletes. Same cgo posture as the api build below.
+		# consumer references the name the session half keeps — never the
+		# eshu-api identity #11456 deletes. Same cgo posture as the api
+		# build below.
 		eshu_export_cgo_cflags
-		CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-local-api" "./cmd/api" \
+		CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-local-api" "./cmd/eshu-local-api" \
 			|| die "build local-api failed"
 		return
 	fi
-	# #11453 decision 4 (record-why, not a repoint): the api build stays the
-	# in-tree ./cmd/api. Its remaining consumer is the read-api-latency gate
-	# (out of #11513 scope): the golden-corpus gate selects its shell via
-	# build_query_shell and never calls this branch. Removing this build is
-	# still a #11456 blocker.
+	# #11514 session half: the serving sources moved to ./cmd/eshu-local-api.
+	# The read-api-latency gate still measures that in-tree serving path
+	# under the eshu-api install name (out of #11513 scope): the
+	# golden-corpus gate selects its shell via build_query_shell and never
+	# calls this branch. Removing this build is still a #11456 blocker.
+	if [[ "${cmd}" == "api" ]]; then
+		eshu_export_cgo_cflags
+		CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-api" "./cmd/eshu-local-api" \
+			|| die "build api failed"
+		return
+	fi
 	eshu_export_cgo_cflags
 	CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}" \
 		|| die "build ${cmd} failed"

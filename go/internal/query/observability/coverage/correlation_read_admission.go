@@ -82,7 +82,7 @@ var _ ObservabilityCoverageCorrelationReadAdmission = interface {
 
 // The satisfier assertion names the production adapter the wiring builds
 // today (coverage.NewPostgresCorrelationStoreWithReadStore in
-// go/cmd/api/wiring_handlers.go): the concrete Postgres store serves the
+// go/cmd/eshu-local-api/wiring_handlers.go): the concrete Postgres store serves the
 // pinned read, so the pin is satisfiable with the minimal shape, no wider
 // store surface.
 var _ ObservabilityCoverageCorrelationReadAdmission = PostgresCorrelationStore{}

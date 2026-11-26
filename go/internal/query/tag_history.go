@@ -73,7 +73,7 @@ type TagHistoryHandler struct {
 	Profile QueryProfile
 	// Cursors seals and opens the continuation token: the deployment DEK
 	// (*secretcrypto.Keyring, ESHU_AUTH_SECRET_ENC_KEY(_FILE)), wired in
-	// cmd/api/wiring.go behind an explicit non-nil guard (a nil *Keyring in
+	// cmd/eshu-local-api/wiring.go behind an explicit non-nil guard (a nil *Keyring in
 	// this interface is a NON-nil Sealer that panics on first use; the
 	// removed MCP entrypoint wired it the same way, eshu-hq/eshu#9670).
 	//

@@ -115,8 +115,8 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 // backend: eshu-core-api on Neo4j, eshu-local-api on NornicDB or an unset
 // backend (the lightweight owner carries none). Core takes the listen
 // address on -addr only (go/cmd/core-api) and reads no ESHU_API_ADDR from
-// the environment, so its env layering is empty; the in-tree local API
-// takes the listen address on ESHU_API_ADDR (go/cmd/api) and no flag, so
+// the environment, so its env layering is empty; the local API takes the
+// listen address on ESHU_API_ADDR (go/cmd/eshu-local-api) and no flag, so
 // its env layering carries the loopback address through the same
 // ChildOverrides. Either child is waited on its own readiness route (/health
 // for core, /healthz for the local API). The child name travels with the

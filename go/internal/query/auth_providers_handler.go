@@ -37,7 +37,7 @@ type AuthProviderItem struct {
 	ProviderKind string `json:"provider_kind"`
 	// IconHint is a generic icon selector for the login button, derived from
 	// ProviderKind the same way DisplayLabel is (see displayLabelForKind /
-	// iconHintForKind in cmd/api/auth_providers.go). It is intentionally
+	// iconHintForKind in cmd/eshu-local-api/auth_providers.go). It is intentionally
 	// coarse ("oidc" / "saml") rather than a brand identifier (e.g. "okta"):
 	// the backend never learns or echoes which specific IdP brand a DB- or
 	// env-registered provider is, only its protocol class. Kept as a field

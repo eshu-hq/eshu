@@ -86,7 +86,7 @@ func (f *fakeSessionResolver) ResolveBrowserSession(
 	}, true, nil
 }
 
-// buildAPIAuthHandler assembles the middleware the way cmd/api/wiring.go does,
+// buildAPIAuthHandler assembles the middleware the way cmd/eshu-local-api/wiring.go does,
 // through the real wrapAPIAuth glue.
 func buildAPIAuthHandler(
 	apiKey string,

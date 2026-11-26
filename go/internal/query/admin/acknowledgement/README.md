@@ -32,7 +32,7 @@ The acknowledgement table (migration 231), `TerminalFailureAckStore`, and the
 status read that consumes the rows live in `go/internal/storage/postgres`
 (`collector_terminal_failure_ack.go`, `workflow_terminal_failure_status.go`).
 This leaf never writes SQL. It is constructed from the API writer in
-`go/cmd/api/wiring_router.go` and mounted through the query `APIRouter`. It is a
+`go/cmd/eshu-local-api/wiring_router.go` and mounted through the query `APIRouter`. It is a
 leaf, not a route in package `admin`, because the admin tree's rule is one leaf per
 route family; it follows the replay/reopen contract by using the admin Store's
 ledger methods.

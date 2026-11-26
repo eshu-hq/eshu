@@ -102,3 +102,22 @@ go/internal/storage/postgres/identity_local_must_change_password_test.go:go/cmd/
 # same fallback arm. Kept stable to avoid re-aiming the tested arm; the
 # arm itself is unchanged by the removal.
 scripts/test-agent-hooks.sh:go/cmd/api/main.go
+
+# #11514 session-half move (go/cmd/api -> go/cmd/eshu-local-api): the
+# vacated paths below keep their historical or synthetic-fixture meaning,
+# so repointing them would falsify the record or change what the test
+# proves. Live pointers were repointed in the same change instead.
+# Dated per-file importer census (§6c, re-run 2026-11-01): a frozen count
+# of the tree as it stood, not a live pointer.
+go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/api/metrics_source.go
+# Dated issue note in public reference docs: the same recorded-emitter
+# sentence as the exempt oidc_login.go/wiring.go lines above names the
+# sibling refresh file.
+docs/public/reference/environment-runtime-storage.md:go/cmd/api/oidc_session_refresh.go
+# Synthetic dogfood fixture identity (deadCodeDogfoodRow corpus rows plus
+# the RelativePath/file_path literals): renaming fixture data would change
+# what the deadcode suppression test proves.
+go/internal/query/codequery/deadcode/dogfood_regression_test.go:go/cmd/api/wiring.go
+# Dated internal evidence note (#10820 census purge): the write-deadline
+# derivation (`main.go:188`) records the tree as it stood at write time.
+docs/internal/evidence/10820-census-2e-purge.md:go/cmd/api/main.go

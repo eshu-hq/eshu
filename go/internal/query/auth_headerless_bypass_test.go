@@ -19,7 +19,7 @@ import (
 // when the shared key is empty. The predicate itself is computed in wiring
 // (excluding the always-wired identity and browser-session resolvers) and is
 // exercised end-to-end against the real resolver composition in
-// cmd/api/auth_enforcement_wiring_test.go (the MCP twin was removed with
+// cmd/eshu-local-api/auth_enforcement_wiring_test.go (the MCP twin was removed with
 // the entrypoint under eshu-hq/eshu#9670).
 //
 // The earlier version of this file gated on resolver != nil and used

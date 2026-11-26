@@ -51,10 +51,11 @@ main() {
     go build "${ESHU_BUILD_TAG_ARGS[@]}" -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu" ./cmd/eshu
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-index" ./cmd/bootstrap-index
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-core-api" ./cmd/core-api
-    # #11453 decision 1: vulnscan-only one-shot API from the in-tree ./cmd/api
-    # (NornicDB-owner-bound, ESHU_API_ADDR plus /healthz); expires with the
-    # #11456 disposition. It never ships at the eshu-api path below.
-    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-local-api" ./cmd/api
+    # #11514 session half: eshu-local-api from the relocated ./cmd/eshu-local-api
+    # (NornicDB-owner-bound, ESHU_API_ADDR plus /healthz). The leftover
+    # go/cmd/api docs expire with the #11456 disposition. It never ships at
+    # the eshu-api path below.
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-local-api" ./cmd/eshu-local-api
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-ingester" ./cmd/ingester
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-reducer" ./cmd/reducer
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-workflow-coordinator" ./cmd/workflow-coordinator

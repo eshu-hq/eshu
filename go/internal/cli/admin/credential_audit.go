@@ -32,7 +32,7 @@ type GovernanceAuditAppender interface {
 // `reset-initial-credential` commands, whose logic this package holds, never
 // through the API process, so their
 // audit events live here rather than in
-// go/cmd/api/seed_initial_admin_audit.go, which covers the two events the
+// go/cmd/eshu-local-api/seed_initial_admin_audit.go, which covers the two events the
 // API process itself observes: mode choice and credential generation at
 // startup. That file is in `package main` and cannot be imported, so the
 // two sides stay separate implementations. Every event below carries only bounded metadata
@@ -52,7 +52,7 @@ const (
 // appender from the Postgres handle the caller supplies. appender is nil only when db
 // is nil (defensive; every real call site always has an open connection),
 // matching every other governance-audit call site in this codebase (see
-// go/cmd/api/seed_initial_admin_audit.go's auditBootstrapModeChoice), which
+// go/cmd/eshu-local-api/seed_initial_admin_audit.go's auditBootstrapModeChoice), which
 // never fails the primary operation because audit wiring is unavailable.
 // Returns GovernanceAuditAppender, the CLI-local audit interface declared
 // above: credential.go hashes with its own CLI-local identityHash, so no
@@ -67,7 +67,7 @@ func newAdminCredentialAuditAppender(database db.ExecQueryer) GovernanceAuditApp
 
 // auditBootstrapCredentialRetrieved records a retrieval attempt of the
 // one-time bootstrap admin credential via `eshu admin initial-credential`,
-// success or failure — mirroring go/cmd/api/seed_initial_admin_audit.go's
+// success or failure — mirroring go/cmd/eshu-local-api/seed_initial_admin_audit.go's
 // auditBootstrapCredentialGenerated, which audits both outcomes of its own
 // operation, not only success. Retrieval is repeatable until the
 // credential's first login consumes it, so that an attempt happened, when,

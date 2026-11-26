@@ -2456,6 +2456,11 @@
     },
     {
       "category": "command",
+      "name": "eshu-local-api",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "fact-envelope-adapter",
       "readiness": "implemented"
     },

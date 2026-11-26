@@ -354,10 +354,10 @@
   and/or `Content ContentStore` fields, add a `Mount(mux *http.ServeMux)` method
   with explicit `mux.HandleFunc` calls, add the struct field to `APIRouter`
   (`handler.go:110`), call `Mount` in `APIRouter.Mount` (`handler.go:140`), wire
-  the concrete adapter in `cmd/api/wiring.go`'s `newRouter`, add a fragment
+  the concrete adapter in `cmd/eshu-local-api/wiring.go`'s `newRouter`, add a fragment
   under `openapi/paths/<family>/`, reference it in `openapi.Spec()`, update
   `docs/public/reference/http-api.md`. Run
-  `go test ./cmd/api ./internal/query -count=1`. Why: missing any step leaves a
+  `go test ./cmd/eshu-local-api ./internal/query -count=1`. Why: missing any step leaves a
   route reachable but not documented, not gated, or not wired to the right
   adapter.
 

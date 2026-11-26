@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/metric"
 
-	statusdiag "github.com/eshu-hq/eshu/go/cmd/api/diagnostic"
+	statusdiag "github.com/eshu-hq/eshu/go/cmd/eshu-local-api/diagnostic"
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuild/reset"

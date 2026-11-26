@@ -321,10 +321,10 @@ linters:
       - path: 'internal/reducer/code/call/projection/selection\.go'
         linters:
           - funlen
-      - path: 'cmd/api/wiring\.go'
+      - path: 'cmd/eshu-local-api/wiring\.go'
         linters:
           - funlen
-      - path: 'cmd/api/wiring_router\.go'
+      - path: 'cmd/eshu-local-api/wiring_router\.go'
         linters:
           - funlen
       - path: 'cmd/bootstrap-index/bootstrap_collector\.go'

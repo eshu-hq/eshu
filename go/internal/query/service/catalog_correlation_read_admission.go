@@ -102,7 +102,7 @@ var _ ServiceCatalogCorrelationReadAdmission = interface {
 
 // The satisfier assertions name the production adapter the wiring builds
 // today (service.NewPostgresCorrelationStoreWithReadStore in
-// go/cmd/api/wiring_handlers.go and wiring_router.go): the concrete Postgres
+// go/cmd/eshu-local-api/wiring_handlers.go and wiring_router.go): the concrete Postgres
 // store serves the first two pinned reads, so the pin is satisfiable for
 // those legs with the minimal shape, no wider store surface. The third leg
 // rides *ContentReader in production, proven against querycontract.ContentStore

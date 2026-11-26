@@ -371,8 +371,8 @@ func (h *IdentityHandler) requirePermissionFeature(
 
 // IdentityHash is the single hash-only identity-field implementation for
 // this package and for the callers outside it that need the identical
-// "sha256:<hex>" convention: go/cmd/api/seed_initial_admin.go,
-// go/cmd/api/seed_initial_admin_helpers.go, and
+// "sha256:<hex>" convention: go/cmd/eshu-local-api/seed_initial_admin.go,
+// go/cmd/eshu-local-api/seed_initial_admin_helpers.go, and
 // go/internal/cli/admin/credential.go (all reached through root's
 // local_identity_alias.go forwarder). Every hash-only identity field this
 // codebase writes or compares (subject_id_hash, profile_handle_hash,

@@ -16,7 +16,7 @@ import (
 
 // factKindRegistrySpecPath resolves the committed
 // specs/fact-kind-registry.v1.yaml path from this test file's location
-// (cmd/api -> cmd -> go -> repo root -> specs), mirroring
+// (cmd/eshu-local-api -> cmd -> go -> repo root -> specs), mirroring
 // readSurfaceGateSpecsDir in go/internal/mcp/read_surface_consumer_existence_test.go.
 func factKindRegistrySpecPath(t *testing.T) string {
 	t.Helper()
@@ -97,11 +97,11 @@ func TestFactKindMountedRouteGateCatchesDocumentedButUnmountedRoute(t *testing.T
 // production-wired *http.ServeMux (newFullyWiredTestRouter + APIRouter.Mount)
 // -- not merely appear in the documented surface inventory, which
 // TestFactKindRegistryReadSurfacesResolveToLiveRoutes already checks in
-// go/internal/mcp. Riding the same credential-free `go test ./cmd/api` floor
+// go/internal/mcp. Riding the same credential-free `go test ./cmd/eshu-local-api` floor
 // as every other Go package test; no separate workflow.
 //
 // Scope note: this reuses newFullyWiredTestRouter's construction, which wires
-// everything newRouter wires but not the two routes wireAPI (cmd/api/wiring.go)
+// everything newRouter wires but not the two routes wireAPI (cmd/eshu-local-api/wiring.go)
 // mounts directly on the outer apiMux (POST /api/v0/ask,
 // serviceintelhttp.ReportHandler) -- see routerFieldsNotWiredByNewRouter's
 // "Ask" entry. No fact-kind read_surface names either route today (verified

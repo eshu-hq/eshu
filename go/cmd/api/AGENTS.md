@@ -2,13 +2,14 @@
 
 ## Read first
 
-1. `go/cmd/api/wiring.go` — the wiring sequence: how Postgres and the
-   graph driver are opened, how the query graph is opened, and how the
+1. `go/cmd/eshu-local-api/wiring.go` — the wiring sequence: how Postgres and
+   the graph driver are opened, how the query graph is opened, and how the
    admin surface is mounted via `mountRuntimeSurface` in `wireAPI`. The router
    assembly (`newRouter`, `newRouterWithSemanticEmbedding`) and the version/
-   deprecation middleware live in the sibling `go/cmd/api/wiring_router.go`.
-2. `go/cmd/api/main.go` — `main`, telemetry bootstrap, signal handling, and
-   `http.Server` configuration.
+   deprecation middleware live in the sibling
+   `go/cmd/eshu-local-api/wiring_router.go`.
+2. `go/cmd/eshu-local-api/main.go` — `main`, telemetry bootstrap, signal
+   handling, and `http.Server` configuration.
 3. `go/internal/query/handler.go` — `APIRouter` and `APIRouter.Mount`; understand
    this before adding handler families or changing route registration.
 4. `go/internal/runtime/` — `NewStatusAdminMux`, `OpenNeo4jDriver`,
@@ -64,7 +65,7 @@
   (`wiring_router.go`), add a path fragment under `internal/query/openapi/paths/<family>/`
   and reference it in the OpenAPI assembly function, update
   `docs/public/reference/http-api.md`, run
-  `go test ./cmd/api ./internal/query -count=1`. Why: all handler families
+  `go test ./cmd/eshu-local-api/... ./internal/query -count=1`. Why: all handler families
   follow the same struct-and-`Mount` pattern; missing a step leaves routes
   unreachable or undocumented.
 

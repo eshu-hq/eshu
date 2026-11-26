@@ -99,7 +99,7 @@ func TestIncidentContextReadAdmissionWireShapesAreSealed(t *testing.T) {
 // The satisfier assertions name the production adapters the wiring builds
 // today (store.NewStoreWithReadStore plus
 // store.NewPostgresIncidentRepositoryAuthorizerWithReadStore in
-// go/cmd/api/wiring_handlers.go). This test file may import the store — the
+// go/cmd/eshu-local-api/wiring_handlers.go). This test file may import the store — the
 // pin file itself must not, per this package's ownership rule — so the
 // witness pair lives here: the concrete Postgres context store and the
 // concrete Postgres repository authorizer jointly serve the pinned reads, so

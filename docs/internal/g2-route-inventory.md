@@ -22,7 +22,7 @@ it (`newRouter` vs `wireAPI`).
   the two `wireAPI`-direct mounts (`serviceintelhttp.ReportHandler`,
   `ask.Handler` via `mountAskAndNarration`); constant-built patterns
   resolved to their literals.
-- Lock: `go/cmd/api/cutover_ownership_test.go` fails on any live route
+- Lock: `go/cmd/eshu-local-api/cutover_ownership_test.go` fails on any live route
   without a row, any row without a live route, any missing contract
   fragment, and any `newRouter` row that does not resolve on a fully-wired
   test router (OPTIONS probe: mounted paths answer 405, unmounted 404).
