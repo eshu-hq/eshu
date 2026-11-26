@@ -3,3 +3,4 @@
 # cell_impact_family compare their digest with the first non-comment line below. Blank means not pinned yet: the
 # in-process family logs its digest (IMPACT_FAMILY_DIGEST) and the cell fails until a run pins it. Pin it from a
 # fault-free in-process run at the PR-C2 head; a change to the cassettes or the digest columns changes it on purpose.
+a6c0d04b516a2700ee05af4512fc46c9a7794c815cf72599cf7f525fc94bd61b
