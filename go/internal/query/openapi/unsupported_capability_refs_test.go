@@ -61,3 +61,43 @@ func TestOpenAPI501sResolveToNotImplemented(t *testing.T) {
 		t.Fatal("components.responses.NotImplemented missing from served Spec()")
 	}
 }
+
+// TestSemanticEvidenceRowTruthBasisEnum pins the widened truth_basis enum:
+// the two reachable kinds plus the semanticEvidenceTruthBasis default arm,
+// which is unreachable on current filters but producible by the owner. A
+// removed or reordered value fails closed here instead of silently narrowing
+// the contract.
+func TestSemanticEvidenceRowTruthBasisEnum(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(Spec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(Spec()) error = %v, want nil", err)
+	}
+	components, _ := spec["components"].(map[string]any)
+	schemas, _ := components["schemas"].(map[string]any)
+	row, _ := schemas["SemanticEvidenceRow"].(map[string]any)
+	props, _ := row["properties"].(map[string]any)
+	basis, _ := props["truth_basis"].(map[string]any)
+	raw, ok := basis["enum"].([]any)
+	if !ok {
+		t.Fatal("SemanticEvidenceRow.properties.truth_basis has no enum list")
+	}
+	var got []string
+	for _, v := range raw {
+		s, ok := v.(string)
+		if !ok {
+			t.Fatalf("truth_basis enum holds non-string %v", v)
+		}
+		got = append(got, s)
+	}
+	want := []string{"semantic_observation", "code_hint", "semantic_evidence"}
+	if len(got) != len(want) {
+		t.Fatalf("truth_basis enum = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("truth_basis enum = %v, want %v", got, want)
+		}
+	}
+}
