@@ -17,6 +17,14 @@
 -- schema since migration 004, and the concurrent-build convention follows
 -- migrations 134 and 177.
 --
+-- Not the removed deferred-path GIN: that index served per-scope-partitioned
+-- scans the planner never picked. This one serves the corpus-wide anchor
+-- load, which carries no scope bound by construction.
+--
+-- Steady-state write-amp (scratch, narrow 20k-row bulk INSERT): 1014ms with
+-- the index vs 112ms without (+45us/row on the shim table; prod rows are
+-- wider with ~15 sibling indexes, so the relative cost there is smaller).
+--
 -- This file must remain one concurrent statement: PostgreSQL rejects CREATE
 -- INDEX CONCURRENTLY in a transaction block, and the migration coordinator
 -- executes sole concurrent-index definitions in autocommit mode. The schema
