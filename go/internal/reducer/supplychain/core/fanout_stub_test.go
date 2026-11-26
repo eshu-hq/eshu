@@ -79,9 +79,15 @@ type stubFanOut struct {
 	reads []string
 	// candidates, candidateErr, candidateEcosystems, and candidateQueries
 	// serve and record the #9874/#10061 package-keyed holder read.
-	masses              map[string]int64
-	massErr             error
-	massCalls           [][]string
+	masses    map[string]int64
+	massErr   error
+	massCalls [][]string
+	// trueMasses, trueMassErr, and trueMassCalls serve the #10972 H2 A2
+	// exact-count path: a probe-hot singleton's true mass for the key-range
+	// gate. Like the probe it reports every requested id, zero-filled.
+	trueMasses          map[string]int64
+	trueMassErr         error
+	trueMassCalls       [][]string
 	candidates          []PackageHolderCandidate
 	candidateErr        error
 	candidateEcosystems [][]string
@@ -199,6 +205,24 @@ func (s *stubFanOut) EstimateHolderMasses(_ context.Context, lookupIDs []string)
 	out := make(map[string]int64, len(lookupIDs))
 	for _, id := range lookupIDs {
 		out[id] = s.masses[id]
+	}
+	return out, nil
+}
+
+// EstimateHolderTrueMasses serves the #10972 H2 A2 exact-count path. A nil
+// trueMasses map keeps every requested id at zero (under the gate, so the
+// singleton reads the shipped statement); an entry overrides that id's true
+// mass, and trueMassErr fails the count the way a timed-out read fails.
+func (s *stubFanOut) EstimateHolderTrueMasses(_ context.Context, lookupIDs []string) (map[string]int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.trueMassCalls = append(s.trueMassCalls, append([]string(nil), lookupIDs...))
+	if s.trueMassErr != nil {
+		return nil, s.trueMassErr
+	}
+	out := make(map[string]int64, len(lookupIDs))
+	for _, id := range lookupIDs {
+		out[id] = s.trueMasses[id]
 	}
 	return out, nil
 }

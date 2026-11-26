@@ -19,6 +19,19 @@ import (
 // each row is still fetched once, by exactly one range.
 const fanOutHolderKeyRangeCount = 16
 
+// HolderKeyRangeMassGate is the true per-id row mass above which a hot
+// singleton holder id reads as fact_id key-range statements (#10972 H2 A2).
+// The H2 shim proved the shipped singleton at a warm ~1.3 s isolated on the
+// hottest 156,870-row advisory ids but p95 3.45 s at 4-parallel (over the
+// 2 s per-statement bar) with member-carrying singletons timing out outright,
+// while the 16-statement key-range read passed every set isolated (warm max
+// 362 ms) and concurrent (p95 323 ms). The gate is the largest A1-passing
+// singleton mass halved for margin (156870/2); member-heavy mixes land above
+// it and A1-passing direct-only ids stay below it. The mass probe saturates
+// at HolderMassProbeCap, so the comparison needs true counts from
+// HolderTrueMassEstimator, never the capped probe mass.
+const HolderKeyRangeMassGate = 78435
+
 // holderKeyRangeHexDigits are the split points of the key ranges. A finding
 // fact_id is the fact kind, a colon, and a hex digest, so its first digest
 // digit is uniform and 16 ranges split a hot id's rows evenly. Coverage does
@@ -96,20 +109,38 @@ type HolderKeyRangeRead struct {
 	Fallback bool
 }
 
+// HolderTrueMassEstimator is the optional seam behind the #10972 H2 A2
+// key-range gate. The production probe reports every hot id's mass capped at
+// HolderMassProbeCap, which cannot separate a 5k-row mid-band id from a
+// 157k-row hot one; this seam reports the true live finding-row count per
+// requested lookup id so the router can compare it against
+// HolderKeyRangeMassGate. It is exact at or under the gate and reports at
+// least HolderKeyRangeMassGate+1 above it (saturating high is the safe
+// direction, the same decision-equivalence the probe cap keeps). It reports
+// one entry for every requested id (zero for no match), runs under the same
+// 10 s guard as the holder read, and fails the same way, so a pass never
+// routes on unmeasured ids.
+type HolderTrueMassEstimator interface {
+	// EstimateHolderTrueMasses returns the true live finding-row count per
+	// lookup id, exact at or under HolderKeyRangeMassGate.
+	EstimateHolderTrueMasses(ctx context.Context, lookupIDs []string) (map[string]int64, error)
+}
+
 // HolderKeyRangeReader is the optional seam behind bounded hot-id holder reads
-// (#10643). A hot singleton id, one whose measured mass is over
-// fanOutHolderHotMassRows, reads as one statement per HolderKeyRanges range.
-// Each statement carries the cve_id and advisory_id arms over its fact_id
-// range and the advisory-group member arm as a foreign-member token arm over
-// its share of the token buckets (#10643 PR 2), so no statement reads all of
-// the id's rows from any arm. All of them run in one read-only REPEATABLE READ
-// transaction, so they share one snapshot and their union equals
-// FindHolderScopes for that id on that snapshot, a generation flip mid-read
-// included. Each statement keeps the 10 s holder-read guard and the typed
-// timeout error. A lookup id over 1,024 bytes has no foreign-member token,
-// so such a read runs the shipped singleton statement on the same snapshot
-// and reports HolderKeyRangeRead.Fallback (#10643 PR 2, ruling 10643m). A
-// port without the seam keeps the shipped singleton statement.
+// (#10643, gated by HolderKeyRangeMassGate since #10972 H2 A2). A hot
+// singleton id whose true mass (HolderTrueMassEstimator) sits above the gate
+// reads as one statement per HolderKeyRanges range. Each statement carries
+// the cve_id and advisory_id arms over its fact_id range and the
+// advisory-group member arm as a foreign-member token arm over its share of
+// the token buckets (#10643 PR 2), so no statement reads all of the id's rows
+// from any arm. All of them run in one read-only REPEATABLE READ transaction,
+// so they share one snapshot and their union equals FindHolderScopes for that
+// id on that snapshot, a generation flip mid-read included. Each statement
+// keeps the 10 s holder-read guard and the typed timeout error. A lookup id
+// over 1,024 bytes has no foreign-member token, so such a read runs the
+// shipped singleton statement on the same snapshot and reports
+// HolderKeyRangeRead.Fallback (#10643 PR 2, ruling 10643m). A port without
+// the seam keeps the shipped singleton statement.
 type HolderKeyRangeReader interface {
 	// FindHolderScopesByKeyRange returns the scopes, other than ownScopeID,
 	// holding an active finding row for lookupIDs, read as one statement per

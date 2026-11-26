@@ -1,0 +1,240 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"log/slog"
+	"reflect"
+	"testing"
+	"time"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// TestHotSingletonAboveTrueMassGateReadsAsKeyRanges is the #10972 H2 A2
+// routing pin: a probe-hot singleton whose true mass sits above
+// HolderKeyRangeMassGate reads as one statement per fact_id key range
+// (FindHolderScopesByKeyRange under its pinned custom plan), not as the
+// shipped single holder statement. The mass probe saturates at
+// HolderMassProbeCap, so the gate needs the exact-count path: a 157k-row
+// advisory id (A1 warm ~1.3s isolated but p95 3.45s at 4-parallel, over the
+// 2s bar) must take the key-range read A2 proved at 323ms p95 concurrent.
+// It fails until the re-route lands.
+func TestHotSingletonAboveTrueMassGateReadsAsKeyRanges(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	ranges := HolderKeyRanges()
+	rangeHolders := make(map[HolderKeyRange][]string, len(ranges))
+	for _, r := range ranges {
+		rangeHolders[r] = []string{"holder-a"}
+	}
+	port := &rangeStubFanOut{
+		stubFanOut: &stubFanOut{
+			holders:    []string{"holder-a"},
+			masses:     map[string]int64{"GHSA-7r86-cg39-jmmj": HolderMassProbeCap},
+			trueMasses: map[string]int64{"GHSA-7r86-cg39-jmmj": 156870},
+		},
+		rangeHolders: rangeHolders,
+	}
+	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"GHSA-7r86-cg39-jmmj"}}}
+	result, err := fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if !reflect.DeepEqual(port.rangeCalls, ranges) {
+		t.Fatalf("ranged statements = %d, want all %d key ranges in order", len(port.rangeCalls), len(ranges))
+	}
+	if len(port.findCalls) != 0 {
+		t.Fatalf("shipped statements = %v, want none: the above-gate singleton reads as key ranges", port.findCalls)
+	}
+	if !reflect.DeepEqual(port.reopened, []string{"holder-a"}) {
+		t.Fatalf("reopened = %v, want the key-range union [holder-a]", port.reopened)
+	}
+	if got := result.SubSignals["fanout_key_ranged_ids"]; got != 1 {
+		t.Fatalf("fanout_key_ranged_ids = %v, want 1", got)
+	}
+	if got := result.SubSignals["fanout_holder_key_range_statements"]; got != float64(len(ranges)) {
+		t.Fatalf("fanout_holder_key_range_statements = %v, want %d", got, len(ranges))
+	}
+	if got := result.SubSignals["fanout_holder_statements"]; got != float64(len(ranges)) {
+		t.Fatalf("fanout_holder_statements = %v, want %d", got, len(ranges))
+	}
+	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != 156870 {
+		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved true mass 156870", got)
+	}
+	// Telemetry confirmation: one mass-planning sample per probe and exact
+	// count, one whole-read sample, and one per-statement sample under the
+	// holders_key_range kind.
+	got := fanOutReadDurationCounts(t, reader)
+	want := map[string]uint64{
+		telemetry.FanOutReadKindMassProbe + "/ok":           2,
+		telemetry.FanOutReadKindHoldersKeyRangeRead + "/ok": 1,
+		telemetry.FanOutReadKindHoldersKeyRange + "/ok":     uint64(len(ranges)),
+		telemetry.FanOutReadKindHolderPrefilter + "/ok":     1,
+		telemetry.FanOutReadKindInFlightEarly + "/ok":       1,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("read-duration samples = %v, want %v", got, want)
+	}
+}
+
+// TestHotSingletonTrueMassGateBoundary pins both sides of the A2 gate: a
+// probe-hot singleton (every mass here saturates the probe at the cap,
+// including the mid-band 5,000-row id the probe cannot distinguish from a
+// 157k-row one) reads the shipped single statement at or under the gate and
+// the key-range read above it. The gate is the largest A1-passing singleton
+// mass halved: 156870/2 = 78435.
+func TestHotSingletonTrueMassGateBoundary(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		trueMass   int64
+		wantRanged bool
+	}{
+		{"mid-band saturation stays single", 5000, false},
+		{"A1-passing direct-only stays single", 42388, false},
+		{"at the gate stays single", HolderKeyRangeMassGate, false},
+		{"one row over the gate ranges", HolderKeyRangeMassGate + 1, true},
+		{"member-heavy mix ranges", 80144, true},
+		{"hottest advisory ranges", 156870, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ranges := HolderKeyRanges()
+			rangeHolders := make(map[HolderKeyRange][]string, len(ranges))
+			for _, r := range ranges {
+				rangeHolders[r] = []string{"holder-a"}
+			}
+			port := &rangeStubFanOut{
+				stubFanOut: &stubFanOut{
+					holders:    []string{"holder-a"},
+					masses:     map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+					trueMasses: map[string]int64{"CVE-2026-hot": tc.trueMass},
+				},
+				rangeHolders: rangeHolders,
+			}
+			writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot"}}}
+			result, err := fanOutHandler(port, writer, nil).Handle(context.Background(), fanOutIntent(1, nil))
+			if err != nil {
+				t.Fatalf("Handle() error = %v", err)
+			}
+			if tc.wantRanged {
+				if len(port.rangeCalls) != len(ranges) {
+					t.Fatalf("ranged statements = %d, want %d: true mass %d is above the gate", len(port.rangeCalls), len(ranges), tc.trueMass)
+				}
+				if len(port.findCalls) != 0 {
+					t.Fatalf("shipped statements = %v, want none", port.findCalls)
+				}
+				if got := result.SubSignals["fanout_key_ranged_ids"]; got != 1 {
+					t.Fatalf("fanout_key_ranged_ids = %v, want 1", got)
+				}
+				return
+			}
+			if len(port.rangeCalls) != 0 {
+				t.Fatalf("ranged statements = %v, want none: true mass %d is at or under the gate", port.rangeCalls, tc.trueMass)
+			}
+			if !reflect.DeepEqual(port.findCalls, [][]string{{"CVE-2026-hot"}}) {
+				t.Fatalf("shipped statements = %v, want the singleton alone", port.findCalls)
+			}
+			if got := result.SubSignals["fanout_key_ranged_ids"]; got != 0 {
+				t.Fatalf("fanout_key_ranged_ids = %v, want 0", got)
+			}
+		})
+	}
+}
+
+// TestTrueMassCountFailureFailsClosed proves the exact-count path fails the
+// way the probe does: a timed-out true-mass count fails the pass with the
+// retryable fan-out class, counts one holders-site read timeout, and reopens
+// nothing.
+func TestTrueMassCountFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	port := &rangeStubFanOut{
+		stubFanOut: &stubFanOut{
+			holders:     []string{"holder-a"},
+			masses:      map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+			trueMassErr: ErrFanOutReadTimeout,
+		},
+	}
+	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot"}}}
+	_, err = fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil))
+	if err == nil {
+		t.Fatalf("Handle() error = nil, want the timed-out true-mass count to fail the pass")
+	}
+	if !errors.Is(err, ErrFanOutReadTimeout) {
+		t.Fatalf("Handle() error = %v, want ErrFanOutReadTimeout", err)
+	}
+	if len(port.reopened) != 0 {
+		t.Fatalf("reopened = %v after a failed true-mass count, want none", port.reopened)
+	}
+	if len(port.rangeCalls) != 0 || len(port.findCalls) != 0 {
+		t.Fatalf("statements ran after the failed count: ranges %v shipped %v, want none", port.rangeCalls, port.findCalls)
+	}
+	if got := fanOutCount(t, reader)["read_timeout"]; got != 1 {
+		t.Fatalf("read_timeout count = %d, want 1", got)
+	}
+}
+
+// TestSlowKeyRangeStatementReportsRangeEndToEnd proves the per-statement
+// confirmation hooks fire through the routed read: a ranged statement at or
+// over the 2s bar adds one holder_key_range_statement span event and one
+// warn log line naming its kind, range, and duration.
+func TestSlowKeyRangeStatementReportsRangeEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	var buf bytes.Buffer
+	ranges := HolderKeyRanges()
+	rangeHolders := make(map[HolderKeyRange][]string, len(ranges))
+	rangeDuration := make(map[HolderKeyRange]time.Duration, len(ranges))
+	for i, r := range ranges {
+		rangeHolders[r] = []string{"holder-a"}
+		if i == 4 {
+			rangeDuration[r] = 3 * time.Second
+		}
+	}
+	port := &rangeStubFanOut{
+		stubFanOut: &stubFanOut{
+			holders:    []string{"holder-a"},
+			masses:     map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+			trueMasses: map[string]int64{"CVE-2026-hot": 156870},
+		},
+		rangeHolders:  rangeHolders,
+		rangeDuration: rangeDuration,
+	}
+	handler := fanOutHandler(port, &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot"}}}, nil)
+	handler.Tracer = provider.Tracer("fanout")
+	handler.Logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	if _, err := handler.Handle(context.Background(), fanOutIntent(1, nil)); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	events := keyRangeSpanEvents(recorder)
+	if len(events) != 1 || events[0].Kind != telemetry.FanOutReadKindHoldersKeyRange || events[0].Range != 5 {
+		t.Fatalf("span events = %v, want one holders_key_range event at range 5", events)
+	}
+	if logs := keyRangeWarnLogs(t, &buf); len(logs) != 1 || logs[0].Range != 5 {
+		t.Fatalf("warn logs = %v, want one key-range line at range 5", logs)
+	}
+}

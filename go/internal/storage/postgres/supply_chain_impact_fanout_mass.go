@@ -32,10 +32,12 @@ import (
 // count in (K, threshold] saturates to the cap (arbiter Shape-B ruling on
 // the live estimate timeouts): those ids read hot and run singleton holder
 // reads instead of packing, which only splits more, never less. The LEAST,
-// saturation, and already-hot short-circuit verbs take
-// supplychaincore.HolderMassProbeCap and every fill-to-cap threshold and
-// LIMIT (threshold + 1) takes supplychaincore.HolderMassProbeFillToCapRows,
-// all through buildHolderMassProbeQuery, never a duplicated literal.
+// saturation, and already-hot short-circuit verbs take the saturation bound
+// and every fill threshold and LIMIT (threshold + 1) takes the fill bound,
+// all through buildHolderMassQuery, never a duplicated literal. The probe
+// passes supplychaincore.HolderMassProbeCap and
+// supplychaincore.HolderMassProbeFillToCapRows; the exact count passes one
+// row over supplychaincore.HolderKeyRangeMassGate for both.
 // The probe deliberately overestimates: it counts rows in superseded
 // generations (no active-generation join) and counts a row once per arm it
 // matches, and an id whose row matches through two ids in one chunk counts
@@ -80,27 +82,41 @@ LEFT JOIN LATERAL (
 ) AS m3 ON (COALESCE(cve.mass, 0) + COALESCE(adv.mass, 0)) < %d
 `
 
-// buildHolderMassProbeQuery renders the probe from its two single sources:
-// the LEAST total, every saturation value, and the already-hot
-// short-circuit take supplychaincore.HolderMassProbeCap, while every
-// fill-to-cap threshold and arm LIMIT (threshold + 1) takes
-// supplychaincore.HolderMassProbeFillToCapRows, so a threshold or sample
-// change moves every site together.
-func buildHolderMassProbeQuery() string {
-	probeCap := supplychaincore.HolderMassProbeCap
-	fillRows := supplychaincore.HolderMassProbeFillToCapRows
+// buildHolderMassQuery renders the holder-mass template from its two single
+// sources: the LEAST total, every saturation value, and the already-hot
+// short-circuit take saturation, while every fill threshold and arm LIMIT
+// (threshold + 1) takes fillRows, so a threshold or sample change moves
+// every site together.
+func buildHolderMassQuery(saturation, fillRows int) string {
 	return fmt.Sprintf(holderMassProbeQueryTemplate,
-		probeCap,
-		fillRows, probeCap, fillRows+1,
-		fillRows, probeCap, fillRows+1,
-		fillRows, probeCap, fillRows+1,
-		probeCap)
+		saturation,
+		fillRows, saturation, fillRows+1,
+		fillRows, saturation, fillRows+1,
+		fillRows, saturation, fillRows+1,
+		saturation)
+}
+
+// buildHolderMassProbeQuery renders the probe from its two single sources:
+// supplychaincore.HolderMassProbeCap and
+// supplychaincore.HolderMassProbeFillToCapRows.
+func buildHolderMassProbeQuery() string {
+	return buildHolderMassQuery(supplychaincore.HolderMassProbeCap, supplychaincore.HolderMassProbeFillToCapRows)
 }
 
 // HolderMassProbeQuery is the shipped probe text behind EstimateHolderMasses,
 // exported so live proofs EXPLAIN the exact statement production runs rather
 // than a hand-copied differential that could drift false-green.
 var HolderMassProbeQuery = buildHolderMassProbeQuery()
+
+// HolderTrueMassQuery is the exact-count text behind
+// EstimateHolderTrueMasses (#10972 H2 A2), exported for the same plan-shape
+// proof. It is the probe template with both bounds at one row over the
+// key-range gate, so the report is exact at or under the gate (no arm can
+// saturate below it) and saturates above it — saturating high keeps the
+// above-gate routing decision exact while bounding each arm's heap fetch.
+// Both bounds derive from supplychaincore.HolderKeyRangeMassGate, never a
+// duplicated literal.
+var HolderTrueMassQuery = buildHolderMassQuery(supplychaincore.HolderKeyRangeMassGate+1, supplychaincore.HolderKeyRangeMassGate+1)
 
 // EstimateHolderMasses implements supplychaincore.HolderMassEstimator: one row
 // per requested lookup id with its live finding-row count capped at
@@ -121,6 +137,43 @@ func (s SupplyChainImpactFanOutStore) EstimateHolderMasses(
 	masses := make(map[string]int64, len(lookupIDs))
 	if len(probed) > 0 {
 		read, err := s.readIDMasses(ctx, HolderMassProbeQuery, probed)
+		if err != nil {
+			return nil, err
+		}
+		masses = read
+		// A read that ran is counted served; an all-blank lookup ran none.
+		s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHolderMass, telemetry.SupplyChainImpactSupportsReadServed)
+	}
+	for _, id := range lookupIDs {
+		if _, ok := masses[id]; !ok {
+			masses[id] = 0
+		}
+	}
+	return masses, nil
+}
+
+// EstimateHolderTrueMasses implements supplychaincore.HolderTrueMassEstimator
+// (#10972 H2 A2): the true live finding-row count per requested lookup id,
+// exact at or under supplychaincore.HolderKeyRangeMassGate and saturating at
+// one row over it. The router calls it only for probe-hot singletons — ids
+// the probe saturated at the cap — so a mid-band id and a truly hot one take
+// different reads. It runs through readIDMasses, so it shares the probe's
+// bounded statement timeout, planner setting, readiness gate, and
+// fail-closed classification: a timed-out count fails the pass (and retries)
+// instead of routing on an unmeasured id.
+func (s SupplyChainImpactFanOutStore) EstimateHolderTrueMasses(
+	ctx context.Context,
+	lookupIDs []string,
+) (map[string]int64, error) {
+	// A blank id names no finding; it keeps mass 0 (readIDMasses fills every
+	// requested id), and sending it would defeat the partial indexes.
+	probed := nonBlankLookupIDs(lookupIDs)
+	if len(lookupIDs) == 0 {
+		return map[string]int64{}, nil
+	}
+	masses := make(map[string]int64, len(lookupIDs))
+	if len(probed) > 0 {
+		read, err := s.readIDMasses(ctx, HolderTrueMassQuery, probed)
 		if err != nil {
 			return nil, err
 		}
@@ -225,3 +278,9 @@ func (s SupplyChainImpactFanOutStore) readIDMasses(ctx context.Context, query st
 // decorator that stops forwarding EstimateHolderMasses restores the timed-out
 // shape silently, so this fails the wiring test instead (#10643 F-3).
 var _ supplychaincore.HolderMassEstimator = SupplyChainImpactFanOutStore{}
+
+// The production store always satisfies the exact-count seam behind the
+// key-range gate: a decorator that stops forwarding EstimateHolderTrueMasses
+// silently restores single-statement reads of truly hot ids (#10972 H2 A2),
+// so this fails the wiring test instead.
+var _ supplychaincore.HolderTrueMassEstimator = SupplyChainImpactFanOutStore{}

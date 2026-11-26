@@ -62,17 +62,17 @@ rules, the outcomes, and the open residual are in
   three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
   before while a hot id still reads hot; a mid-band cheap count saturates
   to the cap and runs singleton, which only splits more).
-- A hot singleton id reads all of its rows in one shipped holder statement
-  (#11430): on QA the hottest id holds 101,377 cve-arm rows and the single
-  statement runs at a warm median under 1.2 s under the 10 s guard (generic
-  and custom plans), so no key-range fan-out runs. The 16 fact_id key-range
-  statements (#10643) were retired as routing because the single statement
-  measured ~4x the whole 16-statement phase on QA-shaped data; the key-range
-  store read stays implemented with its fallback branch but routing sends it
-  no statements. Rows read are unchanged and no long snapshot is held.
-  Ordered keyset pages were rejected: each row is a random heap fetch, about
-  10x the shipped cost cold (`docs/internal/evidence/10643-holder-read-bound.md`).
-  Proof: `docs/internal/evidence/11430-single-statement-holder-reads.md`.
+- A hot singleton id reads by true mass (#10972 H2 A2): one batched exact
+  count resolves each probe-hot singleton (the probe saturates at the cap),
+  and the id reads as 16 fact_id key-range statements above the 78,435-row
+  gate or as the shipped single statement at or under it. The shim proved the
+  single statement warm ~1.3 s isolated on 156,870-row ids but p95 3.45 s at
+  4-parallel with member-carrying singletons timing out, while the key-range
+  read passed every set isolated and concurrent (p95 323 ms). Cold packing
+  and parallelism are untouched; a port without either seam keeps the shipped
+  statement. Ordered keyset pages stay rejected: each row is a random heap
+  fetch, about 10x the shipped cost cold.
+  Proof: `docs/internal/evidence/10972-h2-holders-shim.md`.
 - Member arm (#10643 PR 2), the third arm of the shipped statement: the
   frozen `eshu_sci_foreign_member_tokens_v4` tokens each foreign member of at
   most 1,024 bytes as `bucket:member` in a partial GIN index (migrations 336,

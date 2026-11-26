@@ -22,7 +22,9 @@ const (
 	// foreign-member token arm. There is no separate member-arm statement:
 	// the former "holders_members" kind is retired and emits nothing.
 	FanOutReadKindHoldersKeyRange = "holders_key_range"
-	// FanOutReadKindMassProbe is the per-chunk holder-mass probe.
+	// FanOutReadKindMassProbe is the per-chunk holder-mass probe, and one
+	// true-mass count per probe-hot singleton above the key-range gate
+	// (#10972 H2 A2): both are mass-planning reads feeding the split plan.
 	FanOutReadKindMassProbe = "mass_probe"
 	// FanOutReadKindHoldersKeyRangeRead is one whole key-range read of a hot
 	// singleton id: every key-range statement, which is also how long its
