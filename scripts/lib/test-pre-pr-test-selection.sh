@@ -69,9 +69,44 @@ assert_selection \
 	'./internal/parser/jsonnet'
 
 assert_selection \
+	"query_change_selects_store_audit" \
+	$'./internal/query\n' \
+	$'./internal/query\n./internal/query/store/audit'
+
+assert_selection \
+	"query_subpackage_selects_store_audit" \
+	$'./internal/query/admin\n' \
+	$'./internal/query/admin\n./internal/query/store/audit'
+
+assert_selection \
+	"query_store_audit_change_does_not_duplicate_itself" \
+	$'./internal/query/store/audit\n' \
+	'./internal/query/store/audit'
+
+assert_selection \
+	"query_openapi_root_selects_store_audit_and_query" \
+	$'./internal/query/openapi\n' \
+	$'./internal/query/openapi\n./internal/query/store/audit\n./internal/query'
+
+assert_selection \
+	"query_openapi_subpackage_selects_store_audit_and_query" \
+	$'./internal/query/openapi/paths/status\n' \
+	$'./internal/query/openapi/paths/status\n./internal/query/store/audit\n./internal/query'
+
+assert_selection \
+	"status_collector_change_selects_query_openapi_contract_tests" \
+	$'./internal/status/collector\n' \
+	$'./internal/status/collector\n./internal/query'
+
+assert_selection \
+	"query_name_prefix_does_not_select_store_audit" \
+	$'./internal/queryish\n' \
+	'./internal/queryish'
+
+assert_selection \
 	"unrelated_packages_are_preserved_and_deduplicated" \
-	$'./internal/query\n./internal/runtime\n./internal/query\n' \
-	$'./internal/query\n./internal/runtime'
+	$'./internal/ask\n./internal/runtime\n./internal/ask\n' \
+	$'./internal/ask\n./internal/runtime'
 
 assert_selection \
 	"parser_name_prefix_is_not_the_parser_tree" \

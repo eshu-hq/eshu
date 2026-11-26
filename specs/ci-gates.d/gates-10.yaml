@@ -217,6 +217,8 @@ gates:
       - "go/cmd/**"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
+    self_test_triggers:
+      - "go/internal/graph/**"
     local:
       command: "cd go && go test ./internal/graph -run '^TestProductionCypherLiteralsAreGuarded$' -count=1"
       test_command: "cd go && go test ./internal/graph -run '^(TestSweepFlagsSeededViolations|TestSweepReadsJoinedLabelTemplateWhole)$' -count=1"
@@ -243,9 +245,12 @@ gates:
     # only shipped SQL is in scope.
     triggers:
       - "go/**"
+      - "go/internal/storage/postgres/md5_sql_sweep_test.go"
       - "schema/data-plane/**"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
+    self_test_triggers:
+      - "go/internal/storage/postgres/md5_sql_sweep_test.go"
     local:
       command: "cd go && go test ./internal/storage/postgres -run '^TestProductionSQLHasNoMD5Calls$' -count=1"
       test_command: "cd go && go test ./internal/storage/postgres -run '^TestMD5SweepFlagsSeededViolation$' -count=1"
@@ -273,6 +278,8 @@ gates:
       - "go/internal/query/**"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
+    self_test_triggers:
+      - "go/internal/queryplan/**"
     local:
       command: "cd go && go test ./internal/queryplan -run '^TestHotCypherManifestCoversEveryProductionQueryCall$' -count=1"
       test_command: "cd go && go test ./internal/queryplan -run '^TestValidateSourceCoverage' -count=1"

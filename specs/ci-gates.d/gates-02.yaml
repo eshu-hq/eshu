@@ -155,6 +155,11 @@ gates:
       # -- it is introduced at commit time on the author machine -- so a
       # path-scoped trigger would miss exactly the case it exists for (#5612).
       - "**"
+      - "scripts/verify-no-diff-fragments.sh"
+      - "scripts/test-verify-no-diff-fragments.sh"
+    self_test_triggers:
+      - "scripts/verify-no-diff-fragments.sh"
+      - "scripts/test-verify-no-diff-fragments.sh"
     local:
       command: "bash scripts/verify-no-diff-fragments.sh"
       pre_push: floor
@@ -181,6 +186,11 @@ gates:
       # -- a respelled literal compiles and passes every suite -- so a
       # path-scoped trigger would miss exactly the case it exists for (#8023).
       - "**"
+      - "scripts/verify-scope-prefix-single-source.sh"
+      - "scripts/test-verify-scope-prefix-single-source.sh"
+    self_test_triggers:
+      - "scripts/verify-scope-prefix-single-source.sh"
+      - "scripts/test-verify-scope-prefix-single-source.sh"
     local:
       command: "bash scripts/verify-scope-prefix-single-source.sh"
       pre_push: floor
@@ -210,6 +220,11 @@ gates:
       # precedent). Legacy names are never scanned, only newly introduced
       # ones, so the wide trigger cannot block unrelated work.
       - "**"
+      - "scripts/verify-filename-stutter.sh"
+      - "scripts/test-verify-filename-stutter.sh"
+    self_test_triggers:
+      - "scripts/verify-filename-stutter.sh"
+      - "scripts/test-verify-filename-stutter.sh"
     local:
       # Default mode: merge-base range plus staged files. --staged alone
       # false-greens here because promotion runs on committed trees with a

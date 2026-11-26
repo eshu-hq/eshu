@@ -16,7 +16,8 @@ gates:
       - "scripts/lib/precommit-go-gosec.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh fmt-all"
-      pre_push: floor
+      pre_push: deferred
+      pre_push_reason: "Measured across 56 local pre-push runs (p50 14s, 693s total): pre-push.sh step (c) already runs changed-package gofumpt, and test.yml/go-core enforces whole-module formatting."
       test_command: ""
     ci:
       workflow: test.yml
@@ -48,7 +49,8 @@ gates:
       - "scripts/test-precommit-go-cgo-cflags.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh lint-all"
-      pre_push: floor
+      pre_push: deferred
+      pre_push_reason: "Measured across 56 local pre-push runs (p50 74s, 3,187s total): pre-push.sh step (c) already runs changed-package golangci-lint, and test.yml/go-core enforces whole-module lint."
       # Regression guard for #10282: the hook's scanner arms ran without the
       # #9066 CGO_CFLAGS export, so a cold build cache failed lint with cgo
       # typecheck errors while go test stayed green on a warm cache.
@@ -91,7 +93,8 @@ gates:
       - "go/**"
     local:
       command: "cd go && go vet ./..."
-      pre_push: floor
+      pre_push: deferred
+      pre_push_reason: "Measured across 56 local pre-push runs (p50 26s, 1,138s total): pre-push.sh steps (c) and (c2) already run changed-package go vet and whole-module merge-tree go vet, and test.yml/go-core enforces whole-module vet."
       test_command: ""
     ci:
       workflow: test.yml
@@ -134,7 +137,8 @@ gates:
       - "tools/golangci-lint-filelength/**"
     local:
       command: "bash scripts/dev/precommit-go.sh filecap-all"
-      pre_push: floor
+      pre_push: deferred
+      pre_push_reason: "Measured across 56 local pre-push runs (p50 112s, 5,863s total): pre-push.sh step (b) already enforces the 500-line cap on changed Go files, and test.yml/go-core enforces whole-module file cap."
       # Half of this test_command now runs in CI and half does not, and the
       # split is deliberate. The plugin-module half (skip_parity_test.go, the
       # regression guard for the #6104 plugin-vs-bash drift) runs in test.yml's

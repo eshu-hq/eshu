@@ -20,33 +20,30 @@
 #       (origin/main unless ESHU_PRE_PUSH_BASE is set), built with
 #       `git merge-tree` into a stable directory under this worktree's git
 #       dir (scripts/lib/pre-push-merge.sh). A conflict fails closed. It is
-#       skipped, with a message, when HEAD already contains the base or when
-#       the merge's Go inputs equal the base's. It catches a head that compiles
-#       alone but not on the main it will land on (#7053); it cannot catch a
-#       combination that still compiles but behaves differently;
+#       skipped, with a message, when the merge's Go inputs equal the base's;
+#       when HEAD already contains the base and Go inputs changed, it skips
+#       the duplicate checkout and runs `go vet ./...` directly in `go/`.
+#       It catches a head that compiles alone but not on the main it will land
+#       on (#7053), as well as cross-package breaks on freshly-rebased heads;
+#       it cannot catch a combination that still compiles but behaves differently;
 #   (d) the registry-selected blocking exactness/telemetry/hygiene/docs/security/frontend gates
 #       for changed paths, at tier pre-pr, WITHOUT the whole-module prelude
 #       (that prelude, and the whole-module go-build it adds, are `make pre-pr`'s
-#       job). Note this DOES include go-fmt/go-lint/go-vet whenever go/**
-#       changed: those three registry rows are whole-module by definition (no
-#       changed-package variant exists in the registry), so they still run
-#       whole-module here too, on top of (c)'s faster scoped pass — the
-#       cross-package coverage pre-pr.sh's own header describes is real value,
-#       not accidental duplication. Also passes `--pre-push` to
+#       job). Whole-module go-fmt/go-lint/go-vet/go-file-cap and
+#       telemetry-coverage are registered `local.pre_push: deferred` because
+#       steps (b), (c), and (c2) already cover changed Go files and merge-tree
+#       vet locally, while `test.yml/go-core` and `static-contract-gates.yml`
+#       enforce the whole-module checks in CI. Also passes `--pre-push` to
 #       run-selected-gates.sh, which makes the gate step an ALLOWLIST: only
 #       gates registered `local.pre_push: floor` in specs/ci-gates.v1.yaml run
-#       (fast gates chosen from 67 local pre-pr timing reports: lint, file
-#       and directory caps, package docs, perf-evidence, telemetry coverage,
-#       the contract registries, plus the repo-wide sweep tests #7111 F5
-#       added; and, since #8326, changed-package gosec, measurement
-#       citations and the docs build, which only the git pre-push hook ran
-#       before). The category list includes `security` and `frontend` so
-#       blocking rows there print DEFER-CI instead of silently never running.
-#       Every other triggered gate prints
+#       (fast gates chosen from local pre-pr/pre-push timing reports: directory
+#       caps, package docs, perf-evidence, the contract registries, plus the
+#       repo-wide sweep tests #7111 F5 added; and, since #8326, changed-package
+#       gosec, measurement citations and the docs build, which only the git
+#       pre-push hook ran before). The category list includes `security` and
+#       `frontend` so blocking rows there print DEFER-CI instead of silently
+#       never running. Every other triggered gate prints
 #       `DEFER-CI <gate>: <reason>` and still runs in `make pre-pr` and CI.
-#       A denylist of the slowest gates was tried first and still took more
-#       than 15 minutes on a one-line Go change; the allowlist took 400s
-#       before the merge-vet and race steps, which add about 45s;
 #   (e) the advisory docs-contradiction gate, unconditionally. It has no CI
 #       workflow at all (docs-contradiction is local-only by design), so
 #       dropping the push stamp would otherwise remove its only enforcement.

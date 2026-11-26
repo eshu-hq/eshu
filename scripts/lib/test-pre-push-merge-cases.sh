@@ -135,13 +135,37 @@ merged_go_calls "${fixture}" | rg -q -- '^go vet \./\.\.\. ' || { cat "${fixture
 rg -q -- "^go test -race -count=1 -timeout 900s \./internal/r cwd=${fixture}/go\$" "${fixture}.args" || { cat "${fixture}.args" >&2; fail "case G: the changed package was not race-tested"; }
 rg -q -- 'merge tree [0-9a-f]{40}' "${fixture}.log" || fail "case G: the log must name the merge tree id it tested"
 
-# ── Case H: HEAD already contains origin/main → the merge IS HEAD; the step
-# says so and skips the duplicate build instead of silently passing.
+# ── Case H: HEAD already contains origin/main → the merge IS HEAD; when Go
+# inputs changed it skips the duplicate merge-tree checkout and vets ${fixture}/go
+# whole-module directly (since whole-module go-vet is deferred out of step d).
 fixture="$(build_merge_fixture case-h contained)"
 status="$(run_merge_fixture "${fixture}")"
 [[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case H: expected exit 0, got ${status}"; }
-rg -q -- 'already contains' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H: the skip must be explicit"; }
-[[ -z "$(merged_go_calls "${fixture}")" ]] || fail "case H: no duplicate merged-tree build when merge == HEAD"
+rg -q -- 'already contains' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H: contained-head fast path must be explicit"; }
+[[ -z "$(merged_go_calls "${fixture}")" ]] || fail "case H: no duplicate merged-tree checkout when merge == HEAD"
+rg -q -- "^go vet \./\.\.\. cwd=${fixture}/go\$" "${fixture}.args" || { cat "${fixture}.args" >&2; fail "case H: contained HEAD with Go changes must still run whole-module go vet ./... in worktree go/"; }
+
+# ── Case H2: seeded RED on a contained HEAD — changing package p breaks an
+# untouched caller in package r. Step (c) checks only ./internal/p and passes,
+# while step (c2)'s whole-module vet in ${fixture}/go must catch the break.
+fixture="$(build_merge_fixture case-h2 contained)"
+printf 'package p\n\nfunc New() {}\n' > "${fixture}/go/internal/p/def.go"
+merge_fixture_commit "${fixture}" "break untouched caller"
+status="$(run_merge_fixture "${fixture}")"
+[[ "${status}" != "0" ]] || { cat "${fixture}.log" >&2; fail "case H2: contained HEAD breaking an untouched caller must fail closed, got exit 0"; }
+rg -q -- 'undefined: p.Old' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H2: whole-module vet error must be shown"; }
+rg -q -- "^go vet \./\.\.\. cwd=${fixture}/go\$" "${fixture}.args" || { cat "${fixture}.args" >&2; fail "case H2: whole-module go vet ./... never ran in worktree go/"; }
+
+# ── Case H3: HEAD already contains origin/main and edits only docs → Go inputs
+# are identical to origin/main, so whole-module vet skips cleanly.
+fixture="$(build_merge_fixture case-h3 contained)"
+git -C "${fixture}" update-ref refs/remotes/origin/main HEAD
+printf 'docs\n' > "${fixture}/NOTES.md"
+merge_fixture_commit "${fixture}" "docs only on contained head"
+status="$(run_merge_fixture "${fixture}")"
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case H3: docs-only contained HEAD must pass, got ${status}"; }
+rg -q -- 'Go inputs are identical' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H3: docs-only contained HEAD must skip with explicit message"; }
+! rg -q -- '^go vet \./\.\.\. ' "${fixture}.args" || { cat "${fixture}.args" >&2; fail "case H3: docs-only contained HEAD must not run whole-module go vet"; }
 
 # ── Case I: no origin/main at all → fail closed before any step (exit 2),
 # never a silent head-only pass.

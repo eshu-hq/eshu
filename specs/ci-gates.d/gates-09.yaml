@@ -232,6 +232,13 @@ gates:
       - "scripts/lib/go-test-run-guard.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/golden-corpus-gate.yml"
+    self_test_triggers:
+      - "go/cmd/replay-coverage-gate/**"
+      - "go/internal/replaycoverage/**"
+      - "scripts/lib/ci-gates-resolved-fixtures.sh"
+      - "scripts/test-verify-replay-coverage-gate.sh"
+      - "scripts/verify-replay-coverage-gate.sh"
+      - "scripts/lib/go-test-run-guard.sh"
     local:
       command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
       pre_push: floor

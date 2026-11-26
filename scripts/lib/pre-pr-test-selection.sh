@@ -24,14 +24,40 @@
 # and nothing else, so without this entry a `COMPILES_TO`/`USES_MACRO`
 # regression passes `make pre-pr` and fails only in CI's whole-module run.
 #
-# Entries are exact directory matches, and are not existence-checked, matching
-# fixture_consumer_dirs in scripts/lib/pre-pr-fixture-consumers.sh: an entry
-# whose target package is deleted fails loudly in `go test` rather than
-# silently selecting nothing. Extend this table when black-box coverage for one
-# package is the only coverage and lives in another.
+# `./internal/query` and `./internal/query/*`: `internal/query/store/audit`
+# audits every query package's SQL reads against declared capability stores and
+# enforces the census waiver list (`TestCensusUnownedPackagesAreWaived`,
+# `TestProbedCapabilitiesReadOnlyDeclaredStores`). A subpackage change passes
+# its own tests and otherwise fails only in CI's whole-module run.
+#
+# `./internal/query/openapi`, `./internal/query/openapi/*`, and
+# `./internal/status/collector`: `internal/query`'s
+# `TestOpenAPITerminalFailureFieldsMatchStatusContract` pins the published
+# OpenAPI terminal-failure enum to `status/collector.BoundedFailureClasses()`,
+# so changing either side without testing `./internal/query` escapes locally.
+#
+# Entries are not existence-checked, matching fixture_consumer_dirs in
+# scripts/lib/pre-pr-fixture-consumers.sh: an entry whose target package is
+# deleted fails loudly in `go test` rather than silently selecting nothing.
+# Extend this table when black-box or cross-package contract coverage lives in
+# another package.
 pre_pr_cross_package_test_dirs() {
 	case "$1" in
-	./internal/parser/json) printf './internal/parser/dbtsql\n' ;;
+	./internal/parser/json)
+		printf './internal/parser/dbtsql\n'
+		;;
+	./internal/query/store/audit)
+		;;
+	./internal/query/openapi|./internal/query/openapi/*)
+		printf './internal/query/store/audit\n'
+		printf './internal/query\n'
+		;;
+	./internal/query|./internal/query/*)
+		printf './internal/query/store/audit\n'
+		;;
+	./internal/status/collector)
+		printf './internal/query\n'
+		;;
 	esac
 }
 
