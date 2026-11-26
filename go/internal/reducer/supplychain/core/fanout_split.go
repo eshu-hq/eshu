@@ -21,10 +21,12 @@ const (
 	// per-statement bar. The same budget caps a multi-id statement's combined
 	// mass, so no statement of two or more ids can rebuild the timed-out
 	// shape out of sub-threshold ids. A singleton hot id may exceed the
-	// threshold alone; it still runs one shipped holder statement (#11430:
-	// the QA guard proved the single statement under the 10 s guard on the
-	// worst holder id, and the phase shim measured it ~4x the key-range
-	// fan-out it replaces).
+	// threshold alone; at or under the routing gate it still runs the shipped
+	// single holder statement, which passes isolated on direct-only ids.
+	// Above the gate it reads as key ranges (#10972 H2: member-carrying
+	// singletons time out as shipped singletons and concurrent direct-only
+	// singletons breach the 2 s p95 bar, while the key-range read passes
+	// every set).
 	fanOutHolderHotMassRows = 10000
 	// fanOutHolderReadParallelism bounds how many holder-read statements of
 	// one pass run concurrently (#10643). Holder reads are I/O-read dominated
@@ -44,8 +46,10 @@ const (
 // or under the threshold the probe is exact and cold ids pack the same way,
 // over the threshold the probe reports the cap and the id still runs alone.
 // The member arm is exact at or under HolderMassProbeFillToCapRows and
-// saturates above it (split-safe). Operators read it saturated:
-// max_id_mass_rows tops out at the cap, never at the true row count. The
+// saturates above it (split-safe). Operators read the probe mass saturated:
+// a probe-hot singleton's max_id_mass_rows tops out at the cap unless the
+// routing-mass count resolved its routing mass for the key-range gate
+// (#10972 H2 A2, Lane-1b), which then replaces the saturated value. The
 // production probe builds its SQL LEAST, CASE saturation value, and
 // already-hot short-circuit from this constant while the member-arm LIMIT
 // comes from HolderMassProbeFillToCapRows, and the probe-cap guard test
@@ -89,13 +93,11 @@ type fanOutSplitStats struct {
 	splitChunks int
 	hotIDs      int
 	maxMass     int64
-	// keyRangedIDs counts hot singleton ids read as key ranges (#10643) and
+	// keyRangedIDs counts hot singleton ids read as key ranges (#10643,
+	// gated by HolderKeyRangeMassGate since #10972 H2 A2) and
 	// keyRangeStatements the key-range statements they ran. Each key-range
 	// statement carries the member arm as its foreign-member token arm
 	// (#10643 PR 2), so there is no separate member statement to count.
-	// Routing sends no key-range statements since #11430 (a hot singleton
-	// runs the shipped single statement); the counters stay, always zero,
-	// so the sub-signal keys and their consumers are unchanged.
 	keyRangedIDs       int
 	keyRangeStatements int
 }
@@ -146,22 +148,28 @@ func planHolderReadStatements(chunk []string, masses map[string]int64) [][]strin
 	return out
 }
 
-// holderStatement is one planned holder-read statement: its lookup ids. Every
-// statement runs the already-shipped single holder statement
-// (FindSupplyChainImpactHoldersQuery) once (#11430).
+// holderStatement is one planned holder-read statement: its lookup ids and
+// whether it runs as a key-range read (#10972 H2 A2, Lane-1b: a probe-hot
+// singleton whose routing mass sits above HolderKeyRangeMassGate, on a port
+// with both the routing-mass and key-range seams). Every other statement runs the
+// already-shipped single holder statement (FindSupplyChainImpactHoldersQuery)
+// once.
 type holderStatement struct {
-	ids []string
+	ids    []string
+	ranged bool
 }
 
 // readHolderScopesSplit runs one chunk's holder read as the planned
-// statements: one direct call when the plan is a single statement (the common
-// case, byte-identical to the legacy call), otherwise the statements with
-// bounded parallelism under the same per-statement guard. A hot singleton id
-// runs the shipped single holder statement like every other statement
-// (#11430). It returns the union of the scopes every statement found. A
-// failed probe or statement fails closed with the existing read-error
-// classification and counter, so the pass retries instead of proceeding
-// without its holders.
+// statements: one direct call when the plan is a single unranged statement
+// (the common case, byte-identical to the legacy call), otherwise the
+// statements with bounded parallelism under the same per-statement guard. A
+// probe-hot singleton whose routing mass sits above HolderKeyRangeMassGate
+// runs as a key-range read when the port has both the routing-mass and
+// key-range seams (#10972 H2 A2, Lane-1b). It returns the union of the
+// scopes every statement found. A failed probe, routing-mass count, or
+// statement fails closed with the
+// existing read-error classification and counter, so the pass retries instead
+// of proceeding without its holders.
 func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	ctx context.Context,
 	cause string,
@@ -187,22 +195,60 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 			}
 		}
 	}
-	// #11430: every planned statement — a hot singleton included — runs the
-	// already-shipped single holder statement
-	// (FindSupplyChainImpactHoldersQuery) once. The QA guard proved the
-	// single statement at a warm median under 1.2 s under the 10 s guard on
-	// the worst holder id (101,377 cve-arm rows, generic and custom plans),
-	// and the holder-read-phase shim measured it ~4x the 16 key-range
-	// statements, so the key-range fan-out no longer runs. A lookup id over
-	// 1,024 bytes reads the same shipped statement (the foreign-member token
-	// function never stores one for it), so the long-id fallback is
-	// preserved by resting on the shipped shape. The key-range store read
-	// stays implemented with its fallback branch, but routing sends it no
-	// statements.
+	// #10972 H2 A2 (routing-mass semantics since Lane-1b): the probe
+	// saturates every hot id at HolderMassProbeCap, so a probe-hot
+	// singleton's routing needs its routing mass. One batched count
+	// resolves every probe-hot singleton of the chunk, but only when the
+	// port can range: without the key-range seam the count could not move
+	// the routing, so it never runs and maxMass stays at the probe cap.
+	// Each resolved id above HolderKeyRangeMassGate reads as key-range
+	// statements, and everything else reads the shipped single holder
+	// statement. Without the routing-mass seam the router cannot tell a
+	// mid-band id from a truly hot one, so it keeps the shipped statement:
+	// the safe direction is never to range blind. A lookup id over 1,024
+	// bytes routes by mass like any other id; the key-range store read runs
+	// such a read as its shipped-statement fallback on the same snapshot.
+	var hot []string
+	for _, ids := range planned {
+		if len(ids) == 1 {
+			if mass, ok := masses[ids[0]]; ok && mass > fanOutHolderHotMassRows {
+				hot = append(hot, ids[0])
+			}
+		}
+	}
+	rangeReader, canRange := h.FanOut.(HolderKeyRangeReader)
+	ranges := HolderKeyRanges()
+	routingMasses := map[string]int64{}
+	if canRange && len(hot) > 0 {
+		if routingEst, ok := h.FanOut.(HolderRoutingMassEstimator); ok {
+			start := time.Now()
+			resolved, err := routingEst.EstimateHolderRoutingMasses(ctx, hot)
+			h.observeFanOutRead(ctx, telemetry.FanOutReadKindMassProbe, time.Since(start), err)
+			if err != nil {
+				h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
+				return nil, stats, fanOutReadFailure(err, "estimate supply chain impact holder routing mass")
+			}
+			routingMasses = resolved
+			for _, id := range hot {
+				if mass, ok := resolved[id]; ok && mass > stats.maxMass {
+					stats.maxMass = mass
+				}
+			}
+		}
+	}
 	statements := make([]holderStatement, 0, len(planned))
 	for _, ids := range planned {
-		statements = append(statements, holderStatement{ids: ids})
-		stats.statements++
+		stmt := holderStatement{ids: ids}
+		if canRange && len(ids) == 1 {
+			if mass, ok := routingMasses[ids[0]]; ok && mass > HolderKeyRangeMassGate {
+				stmt.ranged = true
+				stats.keyRangedIDs++
+			}
+		}
+		if !stmt.ranged {
+			stats.statements++
+		}
+		statements = append(statements, stmt)
 	}
 	if len(planned) > 1 {
 		stats.splitChunks = 1
@@ -212,7 +258,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 			}
 		}
 	}
-	if len(statements) == 1 {
+	if len(statements) == 1 && !statements[0].ranged {
 		found, err := h.findHolderScopes(ctx, ownScopeID, statements[0].ids)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
@@ -235,7 +281,30 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		go func(stmt holderStatement) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			found, err := h.findHolderScopes(ctx, ownScopeID, stmt.ids)
+			var found []string
+			var err error
+			if stmt.ranged {
+				var read HolderKeyRangeRead
+				start := time.Now()
+				read, err = rangeReader.FindHolderScopesByKeyRange(ctx, ownScopeID, stmt.ids, ranges)
+				// The statement counts come from the read that ran: the
+				// long-id fallback runs one shipped statement, not one
+				// per range, and a failed read still lists the statements
+				// it ran.
+				mu.Lock()
+				stats.keyRangeStatements += len(read.Statements)
+				stats.statements += len(read.Statements)
+				mu.Unlock()
+				h.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
+				nonCVE := lookupHoldsNonCVEID(stmt.ids)
+				for _, done := range read.Statements {
+					h.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
+					h.noteKeyRangeStatement(ctx, done, len(ranges), nonCVE, read.Fallback)
+				}
+				found = read.Scopes
+			} else {
+				found, err = h.findHolderScopes(ctx, ownScopeID, stmt.ids)
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {

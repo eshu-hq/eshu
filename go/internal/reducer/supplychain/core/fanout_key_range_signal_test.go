@@ -43,10 +43,11 @@ type keyRangeSignalCall struct {
 }
 
 // noteRangeStatementSignals runs each call against one fan-out span and
-// returns the span's key-range events and the warn log lines. Routing sends
-// no key-range statements since #11430, so the arbiter 10643l decision 3
-// contract (a failed, slow, or fallback statement reports; a fast success
-// stays quiet) is pinned here directly against the helper.
+// returns the span's key-range events and the warn log lines. The arbiter
+// 10643l decision 3 contract (a failed, slow, or fallback statement reports;
+// a fast success stays quiet) is pinned here directly against the helper,
+// alongside the end-to-end routed pin in
+// fanout_hot_key_range_reroute_test.go.
 func noteRangeStatementSignals(t *testing.T, calls []keyRangeSignalCall) (events, logs []keyRangeSignalEvent) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
@@ -197,12 +198,13 @@ func TestKeyRangeStatementSignalsNameTheRangeAndLookupKind(t *testing.T) {
 	}
 }
 
-// TestHotSingletonEmitsNoKeyRangeSignal proves the #11430 routing: a hot
-// singleton pass emits no holder_key_range_statement span event and no
-// key-range warn log, because it runs the shipped single statement. The long
-// lookup id is included: the token function never stores one over 1,024
-// bytes, and the shipped statement answers it directly, so the fallback is
-// preserved by resting on the shipped shape.
+// TestHotSingletonEmitsNoKeyRangeSignal proves the below-gate routing: a hot
+// singleton pass whose routing mass is unknown (zero) emits no
+// holder_key_range_statement span event and no key-range warn log, because it
+// runs the shipped single statement. The long lookup id is included: the
+// token function never stores one over 1,024 bytes, and the shipped statement
+// answers it directly, so the fallback is preserved by resting on the shipped
+// shape.
 func TestHotSingletonEmitsNoKeyRangeSignal(t *testing.T) {
 	t.Parallel()
 
@@ -235,10 +237,10 @@ func TestHotSingletonEmitsNoKeyRangeSignal(t *testing.T) {
 }
 
 // TestHotSingletonCountsHolderStatements proves the pass's statement counts
-// follow the single-statement read (#11430): a hot singleton — short or long
-// lookup id — adds holder statements only, no key-range statement and no
-// key-ranged id, so the accounting keys keep their shape with zero
-// key-range counts.
+// follow the below-gate read: a hot singleton with unknown (zero) routing mass —
+// short or long lookup id — adds holder statements only, no key-range
+// statement and no key-ranged id, so the accounting keys keep their shape
+// with zero key-range counts.
 func TestHotSingletonCountsHolderStatements(t *testing.T) {
 	t.Parallel()
 

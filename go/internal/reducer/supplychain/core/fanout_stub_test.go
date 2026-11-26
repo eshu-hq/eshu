@@ -79,9 +79,16 @@ type stubFanOut struct {
 	reads []string
 	// candidates, candidateErr, candidateEcosystems, and candidateQueries
 	// serve and record the #9874/#10061 package-keyed holder read.
-	masses              map[string]int64
-	massErr             error
-	massCalls           [][]string
+	masses    map[string]int64
+	massErr   error
+	massCalls [][]string
+	// routingMasses, routingMassErr, and routingMassCalls serve the #10972
+	// H2 A2 routing-mass count: a probe-hot singleton's routing mass for
+	// the key-range gate. Like the probe it reports every requested id,
+	// zero-filled.
+	routingMasses       map[string]int64
+	routingMassErr      error
+	routingMassCalls    [][]string
 	candidates          []PackageHolderCandidate
 	candidateErr        error
 	candidateEcosystems [][]string
@@ -199,6 +206,25 @@ func (s *stubFanOut) EstimateHolderMasses(_ context.Context, lookupIDs []string)
 	out := make(map[string]int64, len(lookupIDs))
 	for _, id := range lookupIDs {
 		out[id] = s.masses[id]
+	}
+	return out, nil
+}
+
+// EstimateHolderRoutingMasses serves the #10972 H2 A2 routing-mass count.
+// A nil routingMasses map keeps every requested id at zero (under the gate,
+// so the singleton reads the shipped statement); an entry overrides that
+// id's routing mass, and routingMassErr fails the count the way a timed-out
+// read fails.
+func (s *stubFanOut) EstimateHolderRoutingMasses(_ context.Context, lookupIDs []string) (map[string]int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.routingMassCalls = append(s.routingMassCalls, append([]string(nil), lookupIDs...))
+	if s.routingMassErr != nil {
+		return nil, s.routingMassErr
+	}
+	out := make(map[string]int64, len(lookupIDs))
+	for _, id := range lookupIDs {
+		out[id] = s.routingMasses[id]
 	}
 	return out, nil
 }

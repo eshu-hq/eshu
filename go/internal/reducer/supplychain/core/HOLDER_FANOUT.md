@@ -60,19 +60,19 @@ rules, the outcomes, and the open residual are in
   note — bounded by the same guard, fail-closed; #10681 caps every
   per-id arm at one row over the hot threshold (fill-to-cap K=100 on all
   three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
-  before while a hot id still reads hot; a mid-band cheap count saturates
-  to the cap and runs singleton, which only splits more).
-- A hot singleton id reads all of its rows in one shipped holder statement
-  (#11430): on QA the hottest id holds 101,377 cve-arm rows and the single
-  statement runs at a warm median under 1.2 s under the 10 s guard (generic
-  and custom plans), so no key-range fan-out runs. The 16 fact_id key-range
-  statements (#10643) were retired as routing because the single statement
-  measured ~4x the whole 16-statement phase on QA-shaped data; the key-range
-  store read stays implemented with its fallback branch but routing sends it
-  no statements. Rows read are unchanged and no long snapshot is held.
-  Ordered keyset pages were rejected: each row is a random heap fetch, about
-  10x the shipped cost cold (`docs/internal/evidence/10643-holder-read-bound.md`).
-  Proof: `docs/internal/evidence/11430-single-statement-holder-reads.md`.
+  before while a hot id still reads hot; a mid-band routing-mass count
+  saturates to gate+1 and reads as key-range statements (#10972 H2 Lane-1b).
+- A hot singleton id reads by routing mass (#10972 H2 A2, Lane-1b): one batched routing-mass count
+  resolves each probe-hot singleton (the unsaturated summed per-arm count at or under the 78,435-row
+  gate for direct-only and member<=100 ids, gate+1 above it; per-arm double-count and superseded
+  generations still overestimate distinct rows, so the blind band only over-routes), reading as 16
+  key-range statements above the gate or the shipped statement below it. The shipped statement times
+  out on member-carrying ids and breaches p95 concurrent; the key-range read passed every set (A2
+  4-parallel p95 323 ms), and the micro-shim proves the routing-mass count under the bars with zero
+  warm timeouts (cold runs and the member cache-fill discard are in the evidence note); packing and
+  parallelism are untouched. Ordered keyset pages stay rejected: each row is a random heap
+  fetch, about 10x the shipped cost cold.
+  Proof: `docs/internal/evidence/10972-h2-holders-shim.md`.
 - Member arm (#10643 PR 2), the third arm of the shipped statement: the
   frozen `eshu_sci_foreign_member_tokens_v4` tokens each foreign member of at
   most 1,024 bytes as `bucket:member` in a partial GIN index (migrations 336,
@@ -478,8 +478,8 @@ required (NOT_CHECKED here).
 
 Observability Evidence (#10681 capped probe): probe errors still count at
 the existing FanOutReadSiteHolders site with no new counter, label, span,
-or log field. max_id_mass_rows now saturates at the 10001 cap by design
-(hot stays hot; exact max above threshold is sacrificed and documented).
+or log field. max_id_mass_rows saturates at the probe cap unless routing mass
+replaced it (saturation at gate+1, #10972 H2 Lane-1b); exact max above threshold is sacrificed.
 
 No-Regression Evidence (#10990 evidence-pointer hygiene): the 14
 hot-path-adjacent files this lane touches changed comment bytes only —

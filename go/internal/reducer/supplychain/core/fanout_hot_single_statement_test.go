@@ -10,12 +10,13 @@ import (
 	"testing"
 )
 
-// TestHotSingletonHolderReadRunsAsSingleStatement is the #11430 routing
-// contract: a hot singleton id (mass over the split threshold) runs the
-// already-shipped single holder statement (FindSupplyChainImpactHoldersQuery),
-// not one statement per fact_id key range. The union it reopens is the
-// shipped read's answer, cold ids keep their packed statement, and no
-// key-range statement runs.
+// TestHotSingletonHolderReadRunsAsSingleStatement is the below-gate routing
+// contract: a hot singleton id whose routing mass is unknown (zero, under the
+// gate) runs the already-shipped single holder statement
+// (FindSupplyChainImpactHoldersQuery), not one statement per fact_id key
+// range. The union it reopens is the shipped read's answer, cold ids keep
+// their packed statement, and no key-range statement runs. Above-gate ids
+// take the key-range read (fanout_hot_key_range_reroute_test.go).
 func TestHotSingletonHolderReadRunsAsSingleStatement(t *testing.T) {
 	t.Parallel()
 
