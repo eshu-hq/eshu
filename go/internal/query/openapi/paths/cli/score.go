@@ -22,10 +22,41 @@ const Score = `
                 "type": "object",
                 "required": ["version", "prompts"],
                 "properties": {
-                  "version": {"type": "string"},
+                  "version": {"type": "string", "description": "Scorecard suite version the evidence was collected against, decoded by the scoreEvidence handler into answerquality.Evidence."},
                   "run_id": {"type": "string"},
                   "eshu_commit": {"type": "string"},
-                  "prompts": {"type": "array", "items": {"type": "object"}}
+                  "prompts": {"type": "array", "description": "Captured prompt evidence rows scored by answerquality.Score. Owner: answerquality.PromptResult via the scoreEvidence handler.",
+                    "items": {"type": "object", "description": "One captured prompt result: identity plus per-surface answers, decoded by the scoreEvidence handler into answerquality.PromptResult.",
+                      "properties": {
+                        "id": {"type": "string", "description": "Prompt id scored by answerquality.Score. Owner: answerquality.PromptResult."},
+                        "family": {"type": "string", "description": "Prompt family scored by answerquality.Score. Owner: answerquality.PromptResult."},
+                        "prompt": {"type": "string", "description": "Prompt text scored by answerquality.Score. Owner: answerquality.PromptResult."},
+                        "expected_truth_class": {"type": "string", "description": "Expected prompt-facing truth class scored by answerquality.Score. Owner: answerquality.PromptResult."},
+                        "required_surfaces": {"type": "array", "description": "Surfaces the prompt requires answers from, per answerquality.PromptResult.", "items": {"type": "string"}},
+                        "required_next_calls": {"type": "array", "description": "Follow-up calls the prompt requires, per answerquality.PromptResult, when known.", "items": {"type": "string"}},
+                        "acceptable_limitations": {"type": "array", "description": "Limitations the prompt tolerates, per answerquality.PromptResult, when known.", "items": {"type": "string"}},
+                        "results": {"type": "array", "description": "One captured answer per surface, scored by answerquality.Score. Owner: answerquality.SurfaceResult.",
+                          "items": {"type": "object", "description": "One captured answer from a surface, scored by answerquality.Score. Owner: answerquality.SurfaceResult.",
+                            "properties": {
+                              "surface": {"type": "string", "description": "Surface the answer was captured from, scored by answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "useful": {"type": "boolean", "description": "Whether the captured answer was useful, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "supported": {"type": "boolean", "description": "Whether the captured answer was supported by evidence, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "answer_summary": {"type": "string", "description": "Captured answer summary scored by answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "truth_class": {"type": "string", "description": "Prompt-facing truth class of the captured answer, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "freshness": {"type": "string", "description": "Freshness label of the captured answer, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "partial": {"type": "boolean", "description": "True when the captured answer is usable but incomplete, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "truncated": {"type": "boolean", "description": "Result-set truncation mirrored from the underlying query, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "citation_handles": {"type": "array", "description": "Citation handles behind the captured answer, per answerquality.Score. Owner: answerquality.SurfaceResult.", "items": {"type": "string"}},
+                              "limitations": {"type": "array", "description": "Bounded human-readable caveats of the captured answer, per answerquality.Score. Owner: answerquality.SurfaceResult.", "items": {"type": "string"}},
+                              "next_calls": {"type": "array", "description": "Follow-up calls named by the captured answer, per answerquality.Score. Owner: answerquality.SurfaceResult.", "items": {"type": "string"}},
+                              "too_generic": {"type": "boolean", "description": "Whether the captured answer was too generic, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "stale_without_cause": {"type": "boolean", "description": "Whether the captured answer was stale with no cause, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "over_confident": {"type": "boolean", "description": "Whether the captured answer was over-confident, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "too_verbose": {"type": "boolean", "description": "Whether the captured answer was too verbose, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "missing_follow_up": {"type": "boolean", "description": "Whether the captured answer missed a follow-up, per answerquality.Score. Owner: answerquality.SurfaceResult."},
+                              "narration": {"type": "object", "additionalProperties": true, "description": "Optional narration comparison for the captured answer, keyed by narration field name; it drills into answernarration.Input whose packet subtree is the full answer-packet contract. Owner: answerquality.NarrationComparison via answerquality.SurfaceResult."}
+                            }}}
+                      }}}
                 }
               }
             }
