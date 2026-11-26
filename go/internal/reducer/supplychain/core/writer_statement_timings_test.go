@@ -355,7 +355,7 @@ func TestWriterEmitsStatementTimingsOnCommitAndRollback(t *testing.T) {
 		"go_evidence_close", "commit",
 	}
 	if len(committed) != len(wantCommitted) {
-		t.Fatalf("committed statements = %v, want %v (plain fake: no supports maintainer, no winners capturer, no go-evidence pairs)", committed, wantCommitted)
+		t.Fatalf("committed statements = %v, want %v (plain fake: no supports maintainer, no winners capturer)", committed, wantCommitted)
 	}
 	for _, statement := range wantCommitted {
 		byOutcome, ok := committed[statement]
