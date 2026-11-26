@@ -95,8 +95,10 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 
 	// Load-split attribution (#11082): the ownership load is a fleet-wide
 	// scan while the file load is scope-local, so a slow item must name its
-	// load. Both durations and the ownership row count ride the handler span
-	// and the completion log; no new metric family is added.
+	// load. Each step records its span attribute as soon as it finishes, so
+	// a hang between the two loads still leaves the completed step
+	// attributed on the span (#11096). Both durations and the ownership row
+	// count also ride the completion log; no new metric family is added.
 	fileLoadStart := time.Now()
 	fileEnvelopes, err := factload.LoadFactsForKinds(
 		ctx,
@@ -109,6 +111,11 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load file facts for code import repo edge: %w", err)
 	}
+	if span != nil {
+		span.SetAttributes(
+			attribute.Int64("eshu.reducer.code_import_repo_edge.file_load_ms", fileLoad.Milliseconds()),
+		)
+	}
 
 	ownershipLoadStart := time.Now()
 	ownershipEnvelopes, err := h.OwnershipLoader.ListActivePackageOwnershipFacts(ctx)
@@ -118,7 +125,6 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 	}
 	if span != nil {
 		span.SetAttributes(
-			attribute.Int64("eshu.reducer.code_import_repo_edge.file_load_ms", fileLoad.Milliseconds()),
 			attribute.Int64("eshu.reducer.code_import_repo_edge.ownership_load_ms", ownershipLoad.Milliseconds()),
 			attribute.Int("eshu.reducer.code_import_repo_edge.ownership_rows", len(ownershipEnvelopes)),
 		)
