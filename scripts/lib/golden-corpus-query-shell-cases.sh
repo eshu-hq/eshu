@@ -66,7 +66,9 @@ require_in "neo4j readyz names the shell" "${query_shell_lib}" 'eshu-core-api /r
 require_in "nornicdb readyz names the shell" "${query_shell_lib}" 'eshu-local-api /readyz never returned'
 # The interim NornicDB name is emitted by exactly one build line in the
 # shared host helpers (still shared with the read-api-latency gate, whose
-# build_bin api consumer is out of #11513 scope and stays untouched).
-require_in "local-api build emits the interim name" "${query_shell_host_helpers}" 'eshu-local-api'
+# build_bin api consumer is out of #11513 scope and stays untouched; that
+# second build line also names the relocated source tree, so the needle pins
+# the output binary name, which is unique to the local-api build).
+require_in "local-api build emits the interim name" "${query_shell_host_helpers}" 'build -o "${bin_dir}/eshu-local-api"'
 
 query_shell_cases_completed=1
