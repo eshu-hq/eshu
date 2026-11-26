@@ -32,7 +32,41 @@ const RepositoryRetirement = `
           }
         },
         "responses": {
-          "202": {"description": "Retirement outcomes per repository, blocked exits inline."},
+          "202": {
+            "description": "Retirement outcomes per repository, blocked exits inline.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Retirement trigger outcome. Owner: admin.retirement.triggerResponse.",
+                  "required": ["status", "retirements", "idempotency_key", "duplicate"],
+                  "properties": {
+                    "status": {"type": "string", "enum": ["accepted"], "description": "Request disposition. Owner: admin.retirement.triggerResponse."},
+                    "retirements": {
+                      "type": "array",
+                      "description": "One entry per requested repository in request order. Owner: admin.retirement.retirementEntries.",
+                      "items": {
+                        "type": "object",
+                        "description": "One repository retirement outcome. Owner: admin.retirement.retirementEntries.",
+                        "required": ["retirement_id", "repository_id", "scope_id", "outcome"],
+                        "properties": {
+                          "retirement_id": {"type": "string", "description": "Server-side tombstone key for this repository. Owner: admin.retirement.retirementEntries via repo.RetirementID."},
+                          "repository_id": {"type": "string", "description": "Retired repository id. Owner: admin.retirement.retirementEntries via repo.RepoID."},
+                          "scope_id": {"type": "string", "description": "Retired repository scope id. Owner: admin.retirement.retirementEntries via repo.ScopeID."},
+                          "outcome": {"type": "string", "enum": ["completed", "blocked"], "description": "Per-repository outcome on the 202 path (refused/failed/not_attempted appear only on error bodies). Owner: admin.retirement.retirementEntries via repo.Outcome."},
+                          "blocked_reason": {"type": "string", "description": "Bounded purge-block reason, present only when outcome is blocked. Owner: admin.retirement.retirementEntries via repo.BlockedReason."},
+                          "blocked_detail": {"type": "string", "description": "Bounded purge-block detail, present only when outcome is blocked. Owner: admin.retirement.retirementEntries via repo.BlockedDetail."},
+                          "blocking_statuses": {"type": "string", "description": "Purge-block live-generation statuses, present only when outcome is blocked. Owner: admin.retirement.retirementEntries via repo.BlockedStatuses."}
+                        }
+                      }
+                    },
+                    "idempotency_key": {"type": "string", "description": "Echo of the request idempotency key. Owner: admin.retirement.triggerResponse."},
+                    "duplicate": {"type": "boolean", "description": "True when a re-POST resumed an open retirement under the same key. Owner: admin.retirement.triggerResponse via result.Duplicate."}
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "409": {"$ref": "#/components/responses/Conflict"},
