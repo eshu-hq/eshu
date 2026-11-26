@@ -173,12 +173,13 @@ func commitSupplyChainImpactRows(
 	write SupplyChainImpactWrite,
 	rows []factwrite.VersionedRow,
 	meta []changedRow,
+	payloads []map[string]any,
 	protected ProtectedScanImpactPublicationSet,
 	hasProtected bool,
 	now time.Time,
 ) (supplyChainImpactTxOutcome, error) {
 	var timings supplyChainImpactTxStatementTimings
-	outcome, err := commitSupplyChainImpactRowsTimed(ctx, tx, write, rows, meta, protected, hasProtected, now, &timings)
+	outcome, err := commitSupplyChainImpactRowsTimed(ctx, tx, write, rows, meta, payloads, protected, hasProtected, now, &timings)
 	outcome.statements = timings
 	return outcome, err
 }

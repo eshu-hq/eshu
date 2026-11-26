@@ -78,6 +78,15 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	}
 	rows := make([]factwrite.VersionedRow, 0, len(write.Findings))
 	meta := make([]changedRow, 0, len(write.Findings))
+	// payloads rides alongside rows: the encoded payload maps. Each row's
+	// Payload is marshaled here (pre-stamp, byte-identical to the pre-#11031
+	// build) so the pre-transaction protected-scan publication set sees the
+	// same bytes it always did; after the in-transaction first-seen claim the
+	// payloads remarshal with their resolved stamps. Stamping passes pay a
+	// second marshal per row; unstamped passes keep the single marshal.
+	// Digests are computed from the typed struct before the stamp keys exist,
+	// so they never cover the stamp.
+	payloads := make([]map[string]any, 0, len(write.Findings))
 	for _, finding := range write.Findings {
 		typed := supplyChainImpactTypedPayload(write, finding)
 		digest, identity := contentDigestOf(typed), identityDigestOf(typed)
@@ -90,6 +99,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		if err != nil {
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("encode supply chain impact payload: %w", err)
 		}
+		payloads = append(payloads, payload)
 		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("marshal supply chain impact payload: %w", err)
@@ -118,7 +128,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 		return SupplyChainImpactWriteResult{}, fmt.Errorf("prepare protected scan impact publication: %w", err)
 	}
 	txStarted := time.Now()
-	outcome, err := runSupplyChainImpactTx(ctx, w.DB, write, rows, meta, protected, hasProtected, now)
+	outcome, err := runSupplyChainImpactTx(ctx, w.DB, write, rows, meta, payloads, protected, hasProtected, now)
 	// The per-statement timings accumulated inside the transaction record after
 	// it returns — beside, not inside, the tx — so the emission never runs
 	// while the transaction is open. A nil Instruments records nothing. A

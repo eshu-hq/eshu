@@ -398,9 +398,11 @@ import (
 // stored-side identifier index for the staged-audit single-scan range.
 // Count 382 is 381 plus 356; the digest is this test's own derivation on
 // the merged tree.
+// 357_supply_chain_impact_finding_first_seen.sql (#11031) adds the durable
+// set-once first-seen stamp table. Count 383 is 382 plus 357.
 const (
-	goldenBootstrapDefinitionsDigest = "bbfa8b3891e9d5294801aac2aa2928424e1ca2934a0582bf3d7cbb929d589224"
-	goldenBootstrapDefinitionsCount  = 382
+	goldenBootstrapDefinitionsDigest = "fae57d85e7cb03d8cd44bbb6cb1dbb805c9ccf1d27b8b476100a709b61edbd57"
+	goldenBootstrapDefinitionsCount  = 383
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

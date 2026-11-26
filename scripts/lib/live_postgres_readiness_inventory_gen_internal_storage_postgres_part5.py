@@ -42,6 +42,9 @@ TABLE = {
             "TestSupplyChainImpactUpstreamPlanHoldsAtEveryChunkSizeLive",
             "TestSupplyChainImpactUpstreamListReadsOnlySignalsLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_first_seen_11031_live_test.go": (
+            "TestSupplyChainImpactFirstSeenStamp11031Live",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_fleet_gate_9875_live_test.go": (
             "TestFleetAcceptanceGateKEVReachesServiceRollup9875Live",
             "TestFleetAcceptanceGateFailsWhenEvidenceIsWithheld9875Live",

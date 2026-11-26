@@ -38,10 +38,12 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 // chunk and cost one insert round-trip. #6831 wraps that insert in a
 // transaction with a conflict-domain lock before it and a superseded-finding
 // retraction after it (and #7142 adds a fencing-token admission step), so one pass costs
-// exactly six write statements: lock, admission, insert, supports upsert (#10880
+// exactly seven write statements: lock, admission, insert, supports upsert (#10880
 // PR-B1: one statement over the pass's fact ids, not per finding), winners
 // dirty-key capture (#9805: one set-based INSERT per pass that changed a
-// finding, not per finding), retraction. The scope pass-state upsert (#10389) is now the
+// finding, not per finding), first-seen claim (#11031: one set-based INSERT
+// per pass over the pass's stable fact keys, not per finding), retraction.
+// The scope pass-state upsert (#10389) is now the
 // fence-decision query (#10422), and #9695 adds one read inside that
 // transaction (the stored-row read behind the change set); both are read
 // observations, so they are outside this write budget.

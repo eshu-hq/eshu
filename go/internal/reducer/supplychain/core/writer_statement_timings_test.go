@@ -102,10 +102,13 @@ func (b *statementTimingBeginner) BeginSupplyChainImpactTx(ctx context.Context) 
 }
 
 // timedFixtureRows builds n distinct rows plus the changed-row meta the writer
-// would derive, so the pass captures winners keys for every row.
-func timedFixtureRows(n int) ([]factwrite.VersionedRow, []changedRow) {
+// would derive, so the pass captures winners keys for every row. It also
+// builds the pre-stamp payload maps runSupplyChainImpactTx remarshals
+// in-transaction (#11031); they carry no stamp keys.
+func timedFixtureRows(n int) ([]factwrite.VersionedRow, []changedRow, []map[string]any) {
 	rows := make([]factwrite.VersionedRow, 0, n)
 	meta := make([]changedRow, 0, n)
+	payloads := make([]map[string]any, 0, n)
 	for i := 0; i < n; i++ {
 		cve := fmt.Sprintf("CVE-2026-%d", i)
 		rows = append(rows, factwrite.VersionedRow{FactID: fmt.Sprintf("fact-%d", i)})
@@ -114,8 +117,9 @@ func timedFixtureRows(n int) ([]factwrite.VersionedRow, []changedRow) {
 			cveID:  cve,
 			ident:  WinnersDirtyIdentifier{PackageID: "pkg", C0: cve},
 		})
+		payloads = append(payloads, map[string]any{})
 	}
-	return rows, meta
+	return rows, meta, payloads
 }
 
 // TestCommittedPassAccumulatesOneSamplePerStatement proves the happy path:
@@ -135,8 +139,8 @@ func TestCommittedPassAccumulatesOneSamplePerStatement(t *testing.T) {
 	write.Recovery = true
 	write.GoEvidence = []GoEvidenceGeneration{{ScopeID: "go-scope", GenerationID: "go-gen"}}
 
-	rows, meta := timedFixtureRows(2500)
-	outcome, err := runSupplyChainImpactTx(ctx, beginner, write, rows, meta, ProtectedScanImpactPublicationSet{}, false, time.Now())
+	rows, meta, payloads := timedFixtureRows(2500)
+	outcome, err := runSupplyChainImpactTx(ctx, beginner, write, rows, meta, payloads, ProtectedScanImpactPublicationSet{}, false, time.Now())
 	if err != nil {
 		t.Fatalf("runSupplyChainImpactTx() error = %v", err)
 	}
@@ -236,8 +240,8 @@ func TestRolledBackPassKeepsPartialStatementTimings(t *testing.T) {
 	beginner.inner.state.failOn = retractSupersededSupplyChainImpactFindingsQuery
 	write := retractTestWrite()
 
-	rows, meta := timedFixtureRows(10)
-	outcome, err := runSupplyChainImpactTx(ctx, beginner, write, rows, meta, ProtectedScanImpactPublicationSet{}, false, time.Now())
+	rows, meta, payloads := timedFixtureRows(10)
+	outcome, err := runSupplyChainImpactTx(ctx, beginner, write, rows, meta, payloads, ProtectedScanImpactPublicationSet{}, false, time.Now())
 	if err == nil {
 		t.Fatal("runSupplyChainImpactTx() error = nil, want the injected retraction failure")
 	}

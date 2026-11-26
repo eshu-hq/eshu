@@ -217,4 +217,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 356 (#10972) adds the stored-side identifier index for the
 	// staged-audit single-scan range, built CONCURRENTLY.
 	"supply_chain_impact_winners_canonical_ident_idx",
+	// Migration 357 (#11031) adds the durable set-once first-seen stamp
+	// table backing per-source publish-to-finding lag measurement.
+	"supply_chain_impact_finding_first_seen",
 }

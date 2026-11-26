@@ -61,11 +61,18 @@ type SupplyChainImpactFinding struct {
 	// cvss.ScoreSourceDerivedFromVector when the reducer computed the score from
 	// SeverityVector, and empty when the source reported the score (or there is
 	// none). A derived score must never be shown as source-reported (#9693).
-	SeverityScoreSource   string
-	SeverityVector        string
-	SeverityLabel         string
-	AdvisoryPublishedAt   string
-	AdvisoryUpdatedAt     string
+	SeverityScoreSource string
+	SeverityVector      string
+	SeverityLabel       string
+	AdvisoryPublishedAt string
+	AdvisoryUpdatedAt   string
+	// AdvisoryPublishSource names the collector source whose observation
+	// supplied AdvisoryPublishedAt (osv, nvd, ghsa, cve_list, ...): the
+	// cohort a #11031 publish-to-finding lag sample belongs to. It is the
+	// source of the provenance-selected representative observation (policy
+	// decision 4), never the severity source, which a different observation
+	// may supply. Empty when no observation supplied a publish instant.
+	AdvisoryPublishSource string
 	AlternateSeverities   []AlternateSeverity
 	FixedVersionSource    string
 	FixedVersionBranches  []FixedVersionBranch
