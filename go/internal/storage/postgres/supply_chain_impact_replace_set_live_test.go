@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // Issue #6831: the supply-chain impact writer must treat each pass's finding
@@ -112,14 +113,21 @@ func TestSupplyChainImpactWriterRetractionHonorsBoundaryLive(t *testing.T) {
 	// A row carrying a higher fencing token than this writer's pass was
 	// written by a fresher writer and must never be retracted by this one. The
 	// pass takes its token from replaceSetNextToken, so plant one far above it.
-	replaceSetPlantRow(t, ctx, db, "fenced", replaceSetLiveScope, replaceSetLiveGeneration,
-		facts.ReducerSupplyChainImpactFindingFactKind, replaceSetNextToken()+1_000_000)
-	// Rows outside the (scope, generation, fact_kind) conflict domain are
-	// never this pass's to retract.
-	replaceSetPlantRow(t, ctx, db, "other-kind", replaceSetLiveScope, replaceSetLiveGeneration,
-		"reducer_other_finding", 0)
-	replaceSetPlantRow(t, ctx, db, "other-generation", replaceSetLiveScope, replaceSetLiveGeneration+":prior",
-		facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	// The frozen finding rows run in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and a raw finding-fact insert would raise 55000 outside it, while the
+	// writer pass under test runs armed. The other-kind row needs no window
+	// but rides along.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		replaceSetPlantRow(t, ctx, db, "fenced", replaceSetLiveScope, replaceSetLiveGeneration,
+			facts.ReducerSupplyChainImpactFindingFactKind, replaceSetNextToken()+1_000_000)
+		// Rows outside the (scope, generation, fact_kind) conflict domain are
+		// never this pass's to retract.
+		replaceSetPlantRow(t, ctx, db, "other-kind", replaceSetLiveScope, replaceSetLiveGeneration,
+			"reducer_other_finding", 0)
+		replaceSetPlantRow(t, ctx, db, "other-generation", replaceSetLiveScope, replaceSetLiveGeneration+":prior",
+			facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	})
 
 	if _, err := writer.WriteSupplyChainImpactFindings(ctx,
 		replaceSetWrite("intent:6831:boundary", replaceSetFinding(replaceSetLiveRepository))); err != nil {
