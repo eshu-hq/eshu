@@ -68,6 +68,31 @@ func TestContractShapesLaneANo200(t *testing.T) {
 		entry := lane4PropsOf(t, lane4ItemsOf(t, lane4Child(t, retirement, "retirements", "retirement"), "entries"), "entries[]")
 		lane4RequireKeys(t, entry, "retirement[]",
 			"retirement_id", "repository_id", "scope_id", "outcome")
+		// Owner: triggerResponse emits completed|blocked on the 202 path
+		// only; refused/failed/not_attempted arrive on error bodies and
+		// accepted is a top-level literal, never a per-entry outcome.
+		outcome := lane4Child(t, entry, "outcome", "retirement[]")
+		rawEnum, ok := outcome["enum"].([]any)
+		if !ok {
+			t.Fatalf("retirement[] outcome has no enum list")
+		}
+		var got []string
+		for _, v := range rawEnum {
+			s, ok := v.(string)
+			if !ok {
+				t.Fatalf("retirement[] outcome enum holds non-string %v", v)
+			}
+			got = append(got, s)
+		}
+		want := []string{"completed", "blocked"}
+		if len(got) != len(want) {
+			t.Fatalf("retirement[] outcome enum = %v, want %v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("retirement[] outcome enum = %v, want %v", got, want)
+			}
+		}
 		lane4RequireDescribed(t, entry, "retirement[]",
 			"retirement_id", "repository_id", "scope_id", "outcome",
 			"blocked_reason", "blocked_detail", "blocking_statuses")
