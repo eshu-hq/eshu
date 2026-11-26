@@ -13,6 +13,20 @@
 import { demoRepositoriesWire } from "./demoFixtures";
 import type { EshuEnvelope } from "./envelope";
 
+// HOME_ROUTE_PATHS mirrors demoHomeFixtures.demoHomeRoutes so the Home fixture
+// module is only imported for the reads Home issues (demoRouter.test pins the
+// two sets equal).
+export const HOME_ROUTE_PATHS: ReadonlySet<string> = new Set([
+  "/api/v0/ecosystem/overview",
+  "/api/v0/index-status",
+  "/api/v0/status/collector-readiness",
+  "/api/v0/supply-chain/impact/findings/count",
+  "/api/v0/documentation/findings/count",
+  "/api/v0/query-playbooks",
+  "/api/v0/investigation-workflows",
+  "/api/v0/catalog",
+]);
+
 export interface DemoResult {
   readonly capability: string;
   readonly data: unknown;
@@ -31,6 +45,10 @@ export async function demoResponse(
   params: URLSearchParams,
   body: unknown,
 ): Promise<DemoResult | null> {
+  if (method === "GET" && HOME_ROUTE_PATHS.has(path)) {
+    const { demoHomeResponse } = await import("./demoHomeFixtures");
+    return demoHomeResponse(method, path);
+  }
   if (method === "GET" && path === "/api/v0/repositories") {
     return {
       capability: "repositories.list",

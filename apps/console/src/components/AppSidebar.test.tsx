@@ -4,7 +4,7 @@
 // (buildAllowedNavSet / canAccessNav("/admin")) is already unit-tested in
 // ../auth/capabilityAccess.test.ts; this closes the component-level gap by
 // proving AppSidebar actually honors the allowedNav set it is given.
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
@@ -55,6 +55,8 @@ describe("AppSidebar nav gating (#4996)", () => {
       allowed_permission_features: ["ask_search"],
     });
     renderSidebar(auth);
+    const system = screen.queryByRole("button", { name: "System" });
+    if (system !== null) fireEvent.click(system);
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
 
@@ -65,6 +67,7 @@ describe("AppSidebar nav gating (#4996)", () => {
       allowed_permission_features: ["identity_admin"],
     });
     renderSidebar(auth);
+    fireEvent.click(screen.getByRole("button", { name: "System" }));
     expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/admin");
   });
 });

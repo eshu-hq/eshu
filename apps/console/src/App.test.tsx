@@ -5,6 +5,14 @@ import { vi } from "vitest";
 
 import { App } from "./App";
 
+// expandNav opens every collapsed sidebar group so link assertions see the
+// whole navigation (groups other than Start and the active page start closed).
+function expandNav(): void {
+  for (const toggle of document.querySelectorAll<HTMLButtonElement>('.nav-group-toggle[aria-expanded="false"]')) {
+    fireEvent.click(toggle);
+  }
+}
+
 describe("App shell", () => {
   afterEach(() => {
     window.localStorage.clear();
@@ -31,12 +39,14 @@ describe("App shell", () => {
     expect(
       screen.getByPlaceholderText("Search repos, services, CVEs, evidence…"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Overview")).toBeInTheDocument();
-    expect(screen.getByText("Inventory")).toBeInTheDocument();
-    expect(screen.getByText("Cloud & Telemetry")).toBeInTheDocument();
+    expect(screen.getByText("Start")).toBeInTheDocument();
+    expect(screen.getByText("Security")).toBeInTheDocument();
+    expect(screen.getByText("Infrastructure")).toBeInTheDocument();
 
     // findBy lets the boot connect attempt settle before assertions.
-    expect(await screen.findByRole("link", { name: "Dashboard" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+    expandNav();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/dashboard",
     );
@@ -94,7 +104,9 @@ describe("App shell", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("link", { name: "Replatforming" })).toHaveAttribute(
+    await screen.findByRole("link", { name: "Home" });
+    expandNav();
+    expect(screen.getByRole("link", { name: "Replatforming" })).toHaveAttribute(
       "href",
       "/replatforming",
     );
@@ -154,7 +166,9 @@ describe("App shell", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("link", { name: "Secrets/IAM" })).toHaveAttribute(
+    await screen.findByRole("link", { name: "Home" });
+    expandNav();
+    expect(screen.getByRole("link", { name: "Secrets/IAM" })).toHaveAttribute(
       "href",
       "/secrets-iam",
     );

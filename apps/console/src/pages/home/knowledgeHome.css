@@ -1,0 +1,140 @@
+/* ================================================================ HOME
+   The knowledge-base front door. Friendly, readable, generous spacing; every
+   color comes from theme tokens so light (default) and dark both work. */
+
+.kh-page { display: flex; flex-direction: column; gap: 22px; max-width: 1320px; font-size: 0.95rem; }
+.kh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* hero */
+.kh-hero {
+  background: var(--bg-panel); border: 1px solid var(--line); border-radius: 18px;
+  padding: 28px 30px 24px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px;
+}
+.kh-hero-top { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.kh-hero h2 { font-size: 1.7rem; letter-spacing: -0.025em; color: var(--bone); }
+.kh-summary { margin: 6px 0 0; color: var(--bone-dim); font-size: 1rem; max-width: 68ch; }
+
+.kh-health { margin: 0; display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 0.86rem; border-radius: 999px; padding: 7px 14px; }
+.kh-health svg { width: 16px; height: 16px; flex: none; }
+.kh-health.ok { color: var(--low); background: color-mix(in oklab, var(--low) 11%, transparent); }
+details.kh-health { display: block; border-radius: 14px; color: var(--med); background: color-mix(in oklab, var(--med) 11%, transparent); max-width: 420px; }
+details.kh-health summary { cursor: pointer; display: inline-flex; align-items: center; gap: 7px; list-style: none; }
+details.kh-health summary::-webkit-details-marker { display: none; }
+details.kh-health ul { margin: 8px 0 2px; padding-left: 20px; color: var(--bone-dim); font-weight: 500; }
+details.kh-health a { color: var(--teal); text-decoration: underline; }
+
+.kh-ask {
+  display: flex; align-items: center; gap: 10px; background: var(--bg-field);
+  border: 1.5px solid var(--line-2); border-radius: 14px; padding: 6px 6px 6px 16px;
+}
+.kh-ask:focus-within { border-color: var(--teal); box-shadow: 0 0 0 4px var(--accent-soft); }
+.kh-ask-icon { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.kh-ask input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--bone); font: inherit; font-size: 1.05rem; height: 46px; }
+.kh-ask input::placeholder { color: var(--subtle); }
+.kh-ask-submit {
+  display: inline-flex; align-items: center; gap: 6px; height: 46px; padding: 0 20px; border-radius: 10px;
+  background: var(--deep-teal); color: #fff; font-weight: 700;
+}
+.kh-ask-submit svg { width: 16px; height: 16px; }
+.kh-ask-submit:hover { filter: brightness(1.08); }
+.kh-ask-submit:focus-visible, .kh-question:focus-visible, .kh-tile:focus-visible, .kh-link:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.kh-hint { margin: -4px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+.kh-roles { border: 0; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kh-roles legend { float: left; margin-right: 6px; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.kh-role { position: relative; cursor: pointer; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--bone-dim); font-weight: 600; font-size: 0.86rem; }
+.kh-role input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.kh-role:hover { border-color: var(--teal); }
+.kh-role:focus-within { outline: 2px solid var(--teal); outline-offset: 2px; }
+.kh-role.on { background: var(--deep-teal); border-color: var(--deep-teal); color: #fff; }
+
+.kh-questions { display: flex; flex-direction: column; gap: 8px; }
+.kh-role-blurb { margin: 0; color: var(--bone-dim); }
+.kh-questions ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.kh-question {
+  width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 11px 14px;
+  border-radius: 12px; background: color-mix(in oklab, var(--teal) 6%, var(--bg-panel)); border: 1px solid var(--line);
+  color: var(--bone); font-weight: 500; line-height: 1.4;
+}
+.kh-question svg { width: 16px; height: 16px; flex: none; color: var(--ember); margin-top: 2px; }
+.kh-question:hover { border-color: var(--teal); }
+
+/* layout */
+.kh-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.kh-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+@media (max-width: 1100px) { .kh-grid { grid-template-columns: 1fr; } }
+
+.kh-panel { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow); }
+.kh-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.kh-panel-head h3 { font-size: 1.08rem; color: var(--bone); }
+.kh-panel-head p { margin: 3px 0 0; color: var(--muted); font-size: 0.86rem; }
+.kh-link { display: inline-flex; align-items: center; gap: 4px; color: var(--teal); font-weight: 650; font-size: 0.86rem; white-space: nowrap; }
+.kh-link svg { width: 14px; height: 14px; }
+.kh-link:hover { text-decoration: underline; }
+.kh-empty, .kh-unavailable { margin: 0; color: var(--muted); padding: 10px 0; }
+.kh-unavailable { padding: 12px 14px; border-radius: 10px; background: var(--bg-2); border: 1px dashed var(--line-2); }
+
+.kh-skeleton { display: flex; flex-direction: column; gap: 9px; }
+.kh-skeleton i { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--line), var(--line-2), var(--line)); background-size: 200% 100%; animation: kh-shimmer 1.3s infinite linear; }
+.kh-skeleton i:nth-child(3) { width: 70%; }
+@keyframes kh-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .kh-skeleton i { animation: none; } }
+
+/* attention */
+.kh-attention { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.kh-att { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 13px 15px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-raised); }
+.kh-att-body strong { display: block; color: var(--bone); }
+.kh-att-body p { margin: 3px 0 0; color: var(--muted); font-size: 0.86rem; }
+.kh-tone { font-size: 0.74rem; font-weight: 750; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.kh-att.critical .kh-tone { color: var(--crit); background: color-mix(in oklab, var(--crit) 12%, transparent); }
+.kh-att.warning .kh-tone { color: var(--med); background: color-mix(in oklab, var(--med) 13%, transparent); }
+.kh-att.info .kh-tone { color: var(--blue); background: color-mix(in oklab, var(--blue) 11%, transparent); }
+.kh-att.critical { border-left: 4px solid var(--crit); }
+.kh-att.warning { border-left: 4px solid var(--med); }
+@media (max-width: 640px) { .kh-att { grid-template-columns: 1fr; } }
+
+/* browse */
+.kh-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.kh-tile { display: flex; flex-direction: column; gap: 4px; height: 100%; padding: 14px 15px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-raised); }
+.kh-tile:hover { border-color: var(--teal); }
+.kh-tile svg { width: 22px; height: 22px; color: var(--teal); margin-bottom: 4px; }
+.kh-tile-title { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; color: var(--bone); }
+.kh-tile-title em { font-style: normal; font-weight: 650; color: var(--muted); font-size: 0.86rem; }
+.kh-tile-text { color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+
+/* teams */
+.kh-teams { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.kh-teams li { display: flex; gap: 11px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-raised); }
+.kh-teams svg { width: 18px; height: 18px; color: var(--ember); flex: none; margin-top: 2px; }
+.kh-teams strong { display: block; color: var(--bone); }
+.kh-teams span { color: var(--muted); font-size: 0.84rem; }
+.kh-teams p { margin: 4px 0 0; color: var(--bone-dim); font-size: 0.84rem; }
+
+/* coverage */
+.kh-coverage { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.kh-area details { border-radius: 10px; border: 1px solid var(--line); background: var(--bg-raised); }
+.kh-area summary { display: flex; align-items: center; gap: 10px; padding: 10px 13px; cursor: pointer; list-style: none; }
+.kh-area summary::-webkit-details-marker { display: none; }
+.kh-area-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.kh-area.connected .kh-area-dot { background: var(--low); }
+.kh-area.partial .kh-area-dot { background: var(--med); }
+.kh-area.missing .kh-area-dot { background: transparent; border: 2px dashed var(--subtle); }
+.kh-area-name { flex: 1; font-weight: 650; color: var(--bone); }
+.kh-area-state { font-size: 0.82rem; color: var(--muted); }
+.kh-area details > p, .kh-area details > ul { margin: 0 13px 10px; color: var(--bone-dim); font-size: 0.85rem; }
+.kh-area details > ul { padding-left: 18px; }
+.kh-area details li span { color: var(--muted); }
+
+/* guided + truth */
+.kh-guided { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.kh-guided strong { color: var(--bone); }
+.kh-guided p { margin: 2px 0 0; color: var(--muted); font-size: 0.86rem; }
+.kh-truth { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 20px; }
+.kh-truth summary { cursor: pointer; font-weight: 700; color: var(--bone); }
+.kh-truth dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; margin: 14px 0 2px; align-items: center; }
+.kh-truth dd { margin: 0; color: var(--bone-dim); font-size: 0.88rem; }
+.kh-chip { display: inline-block; font-size: 0.74rem; font-weight: 750; border-radius: 999px; padding: 3px 10px; }
+.kh-chip.exact { color: var(--low); background: color-mix(in oklab, var(--low) 12%, transparent); }
+.kh-chip.derived { color: var(--blue); background: color-mix(in oklab, var(--blue) 12%, transparent); }
+.kh-chip.partial { color: var(--med); background: color-mix(in oklab, var(--med) 14%, transparent); }
+.kh-note { margin: -4px 0 10px; color: var(--muted); font-size: 0.82rem; }

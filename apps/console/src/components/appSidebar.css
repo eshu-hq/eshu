@@ -1,0 +1,12 @@
+/* Collapsible, job-based navigation groups (AppSidebar). Group labels are
+   readable sentence-case buttons rather than tiny uppercase captions. */
+.nav-group-label.nav-group-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  text-transform: none; letter-spacing: 0; font-size: 0.8rem; font-weight: 700;
+  color: var(--bone-dim); border-radius: var(--radius-sm); padding: 10px 10px 6px; text-align: left;
+}
+.nav-group-toggle:hover { color: var(--bone); }
+.nav-group-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nav-group-chev { width: 14px; height: 14px; flex: none; color: var(--subtle); transition: transform 0.15s; }
+.nav-section.open .nav-group-chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .nav-group-chev { transition: none; } }

@@ -10,7 +10,7 @@
 .evd-section h4 {
   margin: 0;
   font-size: 13px;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -37,7 +37,7 @@
 }
 
 .evd-row dt {
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
 }
 
 .evd-row dd {
@@ -55,12 +55,12 @@
 
 .evd-reason {
   margin-left: 8px;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
 }
 
 .evd-muted {
   margin: 0;
-  color: var(--muted, #9aa4af);
+  color: var(--muted, var(--muted));
   font-size: 13px;
 }
 

@@ -49,6 +49,32 @@ Design rules:
 - keep non-graph summaries available when graph views are not the fastest way
   to understand the evidence
 
+## Home and its contracts
+
+`/` is the knowledge-base front door for every employee: one box to search or
+ask, a role lens (Everyone, Engineering, Security, On-call & SRE, Platform,
+Support, Leadership) that only changes emphasis, plain-language "needs
+attention" items, browse tiles, teams and ownership from the service catalog,
+data-source coverage, and guided investigations. The previous operator
+dashboard stays at `/dashboard`.
+
+Every Home read is typed from the served OpenAPI contract, and each panel
+degrades on its own (forbidden, slow, not ready) without blanking the page:
+
+1. `go/internal/query/openapi/console_home_contracts_test.go` pins
+   `src/api/contracts/homeContracts.json` (the Home routes' 200 schemas) to the
+   served spec. After a contract change, regenerate it:
+   `cd go && go test ./internal/query/openapi -run TestConsoleHomeContractsSnapshotIsCurrent -update`
+2. `node scripts/console-contract-types.mjs` regenerates the wire types in
+   `src/api/contracts/wire/` from that snapshot.
+3. `src/api/contracts/homeContracts.test.ts` fails if the wire types are stale
+   or if any demo Home fixture (`src/api/demoHomeFixtures.ts`) is not a valid
+   instance of its contract, so demo mode renders exactly what a live API
+   returns.
+
+The console defaults to a light theme; the top-bar toggle switches to dark and
+the choice is remembered per browser.
+
 ## Modes
 
 ### Demo mode

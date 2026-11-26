@@ -23,6 +23,7 @@ import { buildAllowedNavSet } from "./auth/capabilityAccess";
 import { AppSidebar } from "./components/AppSidebar";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import { ConnectionState, SourcePopover, type SourceState } from "./components/SourceControls";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { loadConsoleEnvironment, saveConsoleEnvironment } from "./config/environment";
 import { demoModel } from "./console/demoModel";
 import { emptyConsoleModel } from "./console/liveModel";
@@ -37,6 +38,7 @@ import {
   useRepositoryCatalogLifecycle,
 } from "./repositoryCatalogLifecycle";
 import "./styles.css";
+import "./theme/theme.css";
 import "./appShell.css";
 
 export const App = (): React.JSX.Element => (
@@ -306,6 +308,7 @@ function AppShell(): React.JSX.Element {
           >
             <ShieldCheck aria-hidden />
           </button>
+          <ThemeToggle />
           <span
             className="topbar-signal"
             title={intl.formatMessage(shellMessageDescriptors.noNotifications)}
@@ -386,6 +389,7 @@ function AppShell(): React.JSX.Element {
               repositories={repositoryCatalog.repositories}
               repositoryCatalog={repositoryCatalog}
               onOpenService={openService}
+              onFind={runSearch}
               auth={session?.auth}
             />
           </div>
