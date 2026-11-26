@@ -27,7 +27,8 @@ const winnersStoredIdentMatch = `(w.package_id, w.repository_id, w.subject_diges
 // still queued (#10706). The stamp is GREATEST(previous, candidate), so the
 // watermark never regresses. It returns inserted, updated, deleted,
 // unchanged, the keys recomputed (winners now produced plus winners deleted),
-// and the previous watermark.
+// and the post-stamp watermark (scanned for arity only; the replaced value
+// is pre-read by the caller, #11515).
 var applyWinnersKeyedSQL = applyWinnersKeyedBodySQL + `
 INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
 VALUES (1, $1)
@@ -74,7 +75,8 @@ deleted AS (
 // the horizon H = min(captured_at) minus 1us when rows landed after admission
 // (#10706). A watermark that only moves when something changed would make an
 // idle table read as stale. The stamp is GREATEST(previous, candidate), so the
-// watermark never regresses; it returns the one it replaced.
+// watermark never regresses; its RETURNING reads the post-upsert value, so the
+// caller pre-reads the replaced value (#11515).
 // #nosec G101 -- SQL statement text, not a credential.
 const stampWinnersWatermarkSQL = `
 INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)

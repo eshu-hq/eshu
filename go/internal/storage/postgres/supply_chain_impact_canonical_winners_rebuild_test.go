@@ -192,6 +192,13 @@ type winnersFakeTx struct {
 	// no row); contractStamps records each #11117 contract stamp's args.
 	storedContract []any
 	contractStamps [][]any
+	// pre scripts the pre-stamp watermark the rebuild replaces (hasPre), or
+	// an empty table on the first sweep (preEmpty). Without either, the
+	// pre-read falls back to the committed watermark behavior below.
+	pre      time.Time
+	hasPre   bool
+	preEmpty bool
+	wmReads  int
 
 	queries    []string
 	args       [][]any
@@ -221,6 +228,13 @@ func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...a
 		}
 		return &winnersCountRows{rows: [][]any{tx.storedContract}}, nil
 	case selectWinnersWatermarkSQL:
+		tx.wmReads++
+		if tx.wmReads == 1 && (tx.hasPre || tx.preEmpty) {
+			if tx.preEmpty {
+				return &winnersCountRows{}, nil
+			}
+			return winnersCounts(tx.pre), nil
+		}
 		if tx.watermark.IsZero() {
 			return winnersCounts(tx.clockOrDefault()), nil
 		}
@@ -313,9 +327,11 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	committed := clock.Add(-time.Second)
 	tx := &winnersFakeTx{
 		claim:        winnersClaimed(true),
-		counts:       winnersCounts(int64(1), int64(2), int64(3), int64(4), sql.NullTime{Time: previous, Valid: true}),
+		counts:       winnersCounts(int64(1), int64(2), int64(3), int64(4), sql.NullTime{Time: committed, Valid: true}),
 		clock:        clock,
 		watermark:    committed,
+		pre:          previous,
+		hasPre:       true,
 		logDrain:     [][]any{{"fact_upsert", int64(5)}, {"activation", int64(2)}},
 		stagingDrain: [][]any{{"scanner", int64(3)}, {"fact_upsert", int64(1)}},
 	}
@@ -335,19 +351,22 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	}
 	// #11117: the clock is read, the log and staging are drained, then the
 	// rebuild runs on a later snapshot; the residual counts and the committed
-	// watermark follow, and the #10876 wake closes the transaction.
+	// watermark follow, and the #10876 wake closes the transaction. The
+	// pre-stamp watermark is read immediately before the rebuild statement,
+	// since the rebuild's RETURNING column reports the post-upsert value.
 	want := []string{
 		tryClaimSupplyChainImpactWinnersResweepSQL,
 		selectWinnersKeyedTickClockSQL,
 		drainWinnersDirtyLogForFullSQL,
 		drainWinnersStagingForFullSQL,
+		selectWinnersWatermarkSQL,
 		rebuildSupplyChainImpactWinnersSQL,
 		countWinnersKeyedRemainingSQL,
 		selectWinnersStagingResidualSQL,
 		selectWinnersWatermarkSQL,
 	}
 	if len(tx.queries) != len(want)+1 || !slices.Equal(tx.queries[:len(want)], want) {
-		t.Fatalf("queries = %q, want claim, clock, log drain, staging drain, rebuild, residual, watermark, wake", tx.queries)
+		t.Fatalf("queries = %q, want claim, clock, log drain, staging drain, pre-stamp read, rebuild, residual, watermark, wake", tx.queries)
 	}
 	if wake := tx.queries[len(want)]; !strings.Contains(wake, "reducer_waiting_items") || !strings.Contains(wake, "reopened") {
 		t.Fatalf("last query = %q, want the winners-watermark wake", wake)
@@ -355,7 +374,7 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	if !tx.pinnedFirst {
 		t.Fatal("the full did not pin READ COMMITTED as its first statement")
 	}
-	if args := tx.args[4]; len(args) != 1 || args[0] != clock {
+	if args := tx.args[5]; len(args) != 1 || args[0] != clock {
 		t.Fatalf("rebuild args = %v, want the DB clock %v", args, clock)
 	}
 	if !tx.committed || tx.openAtEnd {
@@ -365,7 +384,7 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 		t.Fatalf("contract stamps = %v, want one stamp of version %d and the binary hash", tx.contractStamps, SupplyChainImpactWinnersContractVersion)
 	}
 
-	tx = &winnersFakeTx{claim: winnersClaimed(true), counts: winnersCounts(int64(0), int64(0), int64(0), int64(0), sql.NullTime{})}
+	tx = &winnersFakeTx{claim: winnersClaimed(true), counts: winnersCounts(int64(0), int64(0), int64(0), int64(0), sql.NullTime{}), preEmpty: true}
 	first, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
 	if err != nil || !first.PreviousWatermark.IsZero() {
 		t.Fatalf("first resweep = %+v, %v; want a zero previous watermark", first, err)

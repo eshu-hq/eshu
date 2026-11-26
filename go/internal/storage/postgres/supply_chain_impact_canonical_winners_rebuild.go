@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:filelength // 503 lines: the #11515 pre-stamp watermark read sits immediately before the rebuild statement it precedes; splitting the resweep flow would separate the stamp from its statement.
 
 import (
 	"context"
@@ -77,7 +77,8 @@ func supplyChainImpactWinnerConflictSet() string {
 // final watermark upsert is unconditional, so it stamps even a resweep that
 // produced zero winners, which lets the read tell "never populated" (no
 // watermark row) from "reswept to zero findings" (watermark present, table
-// empty). Its RETURNING reports the row counts and the watermark it replaced.
+// empty). Its RETURNING reports the row counts and the post-stamp watermark
+// (scanned for arity only; the replaced value is pre-read, #11515).
 // The data-modifying CTEs always run to completion, whether or not the final
 // statement reads them.
 //
@@ -417,6 +418,12 @@ func runSupplyChainImpactWinnersRebuild(
 	stamp time.Time,
 ) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
 	var result supplychaincore.SupplyChainImpactWinnersResweep
+	// The RETURNING watermark column reads the post-upsert value, so the
+	// replaced value is read before the rebuild runs.
+	previous, err := readWinnersPreStampWatermark(ctx, tx)
+	if err != nil {
+		return result, err
+	}
 	rows, err := tx.QueryContext(ctx, rebuildSupplyChainImpactWinnersSQL, stamp)
 	if err != nil {
 		return result, fmt.Errorf("rebuild supply chain impact canonical winners: %w", err)
@@ -428,8 +435,9 @@ func runSupplyChainImpactWinnersRebuild(
 		}
 		return result, fmt.Errorf("rebuild supply chain impact canonical winners: statement returned no counts")
 	}
-	var previous sql.NullTime
-	if err := rows.Scan(&result.Inserted, &result.Updated, &result.Deleted, &result.Unchanged, &previous); err != nil {
+	// stamped is the post-upsert watermark; it is scanned for arity only.
+	var stamped sql.NullTime
+	if err := rows.Scan(&result.Inserted, &result.Updated, &result.Deleted, &result.Unchanged, &stamped); err != nil {
 		return result, fmt.Errorf("scan supply chain impact canonical winners counts: %w", err)
 	}
 	if rows.Next() {
@@ -441,9 +449,7 @@ func runSupplyChainImpactWinnersRebuild(
 	if err := rows.Close(); err != nil {
 		return result, fmt.Errorf("close supply chain impact canonical winners counts: %w", err)
 	}
-	if previous.Valid {
-		result.PreviousWatermark = previous.Time.UTC()
-	}
+	result.PreviousWatermark = previous
 	// #11466: claim the enrichment first-carry stamps for the reconciled
 	// winners in this same transaction, stamped with the rebuild's own S
 	// so a newly carried value shares its row version's materialized_at.

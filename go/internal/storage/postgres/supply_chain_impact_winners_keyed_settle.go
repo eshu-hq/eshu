@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
@@ -235,27 +236,46 @@ func admitWinnersDirtyWindow(ctx context.Context, tx db.Transaction, limit int64
 	return scanWinnersInt64(ctx, tx, countWinnersKeyedConsumedSQL, "count admitted dirty rows")
 }
 
+// readWinnersPreStampWatermark reads the watermark the next stamp statement
+// will replace, in the same transaction. The stamp statements' RETURNING
+// subqueries read the post-upsert value (GREATEST resolved), so the replaced
+// value must be read before the stamp runs. It is zero when the table has
+// never been swept.
+func readWinnersPreStampWatermark(ctx context.Context, tx db.Transaction) (time.Time, error) {
+	at, err := scanWinnersTime(ctx, tx, selectWinnersWatermarkSQL, "read pre-stamp supply chain impact winners watermark")
+	if err != nil {
+		if strings.Contains(err.Error(), "statement returned no row") {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
+	}
+	return at, nil
+}
+
 // stampWinnersWatermark stamps the watermark candidate for a tick that
 // consumed nothing and returns the watermark it replaced.
 func stampWinnersWatermark(ctx context.Context, tx db.Transaction, candidate time.Time) (time.Time, error) {
+	previous, err := readWinnersPreStampWatermark(ctx, tx)
+	if err != nil {
+		return time.Time{}, err
+	}
 	rows, err := tx.QueryContext(ctx, stampWinnersWatermarkSQL, candidate)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("stamp supply chain impact winners watermark: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	var previous sql.NullTime
+	// The RETURNING subquery reads the post-upsert value; it is scanned for
+	// arity only. The replaced value above is what the caller reports.
+	var stamped sql.NullTime
 	if rows.Next() {
-		if err := rows.Scan(&previous); err != nil {
+		if err := rows.Scan(&stamped); err != nil {
 			return time.Time{}, fmt.Errorf("scan supply chain impact winners watermark: %w", err)
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return time.Time{}, fmt.Errorf("stamp supply chain impact winners watermark: %w", err)
 	}
-	if previous.Valid {
-		return previous.Time.UTC(), nil
-	}
-	return time.Time{}, nil
+	return previous, nil
 }
 
 // scanWinnersTime runs a one-row one-column timestamptz query, UTC-normalized,
