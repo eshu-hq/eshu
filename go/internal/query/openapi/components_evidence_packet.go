@@ -54,9 +54,9 @@ const componentsEvidencePacket = `
             "subject": {"type": "string", "description": "Canonical entity reference the fact is about."},
             "summary": {"type": "string", "description": "Bounded reducer-approved one-line description."},
             "citation": {"type": "object", "description": "Optional addressable handle into the underlying evidence.", "properties": {
-              "kind": {"type": "string"}, "repo_id": {"type": "string"}, "relative_path": {"type": "string"}, "entity_id": {"type": "string"},
-              "evidence_family": {"type": "string"}, "reason": {"type": "string"},
-              "start_line": {"type": "integer"}, "end_line": {"type": "integer"}, "confidence": {"type": "number"}
+              "kind": {"type": "string", "description": "Citation kind."}, "repo_id": {"type": "string", "description": "Repository the cited evidence belongs to."}, "relative_path": {"type": "string", "description": "Repository-relative file path of the cited evidence."}, "entity_id": {"type": "string", "description": "Cited entity id, when the citation names an entity."},
+              "evidence_family": {"type": "string", "description": "Evidence family of the cited row."}, "reason": {"type": "string", "description": "Why this handle was cited."},
+              "start_line": {"type": "integer", "description": "First cited line."}, "end_line": {"type": "integer", "description": "Last cited line."}, "confidence": {"type": "number", "description": "Provider-reported confidence; presentation only, never truth."}
             }}
           }}},
           "reducer_decisions": {"type": "array", "description": "Reducer-decision layer: reducer-owned admission, correlation, or drift decisions. Owner: querycontract/packet envelope.go PacketReducerDecision.", "items": {"type": "object", "required": ["state"], "properties": {
