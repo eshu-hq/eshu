@@ -60,3 +60,25 @@ Live proofs: `TestLiveNornicDBStrictSchemaApplyIsClean` and
 (`go/internal/graph/schema_nornicdb_11535_live_test.go`, gate
 `ESHU_SCHEMA_NORNICDB_11535_LIVE=1`), classified `scheduled` in
 `specs/live-tests.d/live-tests-02.yaml`.
+
+## Read-model skew audit: list-on-winners vs explain-on-legacy (#11535)
+
+Divergence class: **impact list/explain read-model skew**. The findings
+list followed the `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` flag onto the
+maintained winners table while the explanation store stayed hardcoded to
+the legacy fact read (`reader, false` in `go/cmd/api/wiring_handlers.go`
+and `go/internal/query/d6_read_admission_wire.go`). The C2 write stop
+(#10880, migration 358) left the legacy fact read structurally empty, so
+every explain answered `ErrExplanationNotFound` while the list served the
+same key: digest-keyed explain
+(`cve_id=CVE-2026-00010&subject_digest=sha256:abcdef...`), the MCP
+explain, and the packet `graph_answers` (0, want >= 14) failed on the
+NornicDB 1.5.x leg (published log: 758 pass + 3 required-fail at commit
+05c88a3209; lane rerun on the same commit: 760 pass + the same 3
+required-fail) with identical reducer probes and equivalent write counts
+on both legs. Live pin: the
+decide-first statement run verbatim against the gate Postgres returns the
+key (8 same-key supports, all authorized), while the serving API on the
+same database answered no-finding. Fix: carry the winners flag to the
+explanation store at both sites, matching `serve_adapters_data.go`; no
+backend gating (arbiter ruling on #11535).

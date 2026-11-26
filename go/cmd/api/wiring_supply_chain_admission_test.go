@@ -43,3 +43,32 @@ func TestNewSupplyChainHandlerTakesAdmissionContract(t *testing.T) {
 		t.Fatalf("handler.SuppressionMutations = %T(%v), want the exact injected admission contract %T(%v)", handler.SuppressionMutations, handler.SuppressionMutations, admission, admission)
 	}
 }
+
+// TestNewSupplyChainHandlerRoutesExplanationsThroughWinnersReadModel proves
+// the #11535 explain miss: the findings list served the maintained winners
+// table while the explanation store stayed on the legacy fact read, which
+// the C2 write stop left empty, so every digest-keyed explain answered
+// not-found. The handler must carry the winners read-model flag to the
+// explanation store exactly as it does to the findings store.
+func TestNewSupplyChainHandlerRoutesExplanationsThroughWinnersReadModel(t *testing.T) {
+	t.Parallel()
+
+	handler := newSupplyChainHandler(&fakeSuppressionAdmission{}, nil, nil, nil, query.QueryProfile(""), true, nil, nil)
+	if handler == nil {
+		t.Fatal("newSupplyChainHandler() = nil, want a handler bound to the winners read model")
+	}
+	findings, ok := handler.ImpactFindings.(impact.PostgresFindingStore)
+	if !ok {
+		t.Fatalf("handler.ImpactFindings = %T, want impact.PostgresFindingStore", handler.ImpactFindings)
+	}
+	if !findings.ReadFromWinners {
+		t.Fatal("handler.ImpactFindings.ReadFromWinners = false, want true for readImpactFromWinners=true")
+	}
+	explanations, ok := handler.ImpactExplanations.(impact.PostgresFindingStore)
+	if !ok {
+		t.Fatalf("handler.ImpactExplanations = %T, want impact.PostgresFindingStore", handler.ImpactExplanations)
+	}
+	if !explanations.ReadFromWinners {
+		t.Fatal("handler.ImpactExplanations.ReadFromWinners = false, want true for readImpactFromWinners=true: explanations must follow the same read model as findings")
+	}
+}

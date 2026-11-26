@@ -68,7 +68,7 @@ func NewSupplyChainReadAdmissionWithReadStore(reader db.ReadStore, readImpactFro
 		FindingStore:                              impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
 		AggregateStore:                            supplyChainAggregates,
 		GroupedInventoryStore:                     impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
-		ExplanationStore:                          impact.NewPostgresFindingStoreWithReadStore(reader, false),
+		ExplanationStore:                          impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
 		ReadinessStore:                            impact.NewPostgresReadinessStoreWithReadStore(reader),
 		EvidenceStore:                             advisory.NewPostgresEvidenceStoreWithReadStore(reader),
 		CatalogStore:                              advisory.NewPostgresCatalogStoreWithReadStore(reader),
