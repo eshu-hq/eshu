@@ -56,13 +56,14 @@ const (
 // store must apply that schema, or it measures the wrong plan.
 //
 // Measured 2026-11-26 on 1.5.x (nornicdb-local:main, post-#11535 schema):
-// the proof fails at the prefix-count gate — WHERE n.uid STARTS WITH
-// $prefix counted 10.014s against the 10s production reader deadline
-// (EXPLAIN: NodeByLabelScan+Filter; only equality seeks the backing
-// index). Seeding 150k nodes took 20m46s. The fenced first page itself
-// (uid-only projection) measured ~7.5s cold, ~0.5-1s for later distinct
-// pages, and 5ms on result-cache repeats; the production 37-property
-// projection on 1.5.x remains unmeasured.
+// the prefix-count gate still fails — WHERE n.uid STARTS WITH $prefix
+// counted 10.014s against the 10s production reader deadline (EXPLAIN:
+// NodeByLabelScan+Filter; only equality seeks the backing index). Seeding
+// 150k nodes took 20m46s. The fenced first page itself (uid-only
+// projection) measured ~7.5s cold, ~0.5-1s for later distinct pages, and
+// 5ms on result-cache repeats. The full production 35-property projection
+// measured 8.646s cold (inside the 10s deadline, untuned) and 61ms warm
+// with result cache defeated (see docs/internal/evidence/11535-nornicdb-strict-schema.md).
 //
 // It is written for a disposable NornicDB container: the seed is reused when
 // the graph already holds exactly the expected prefixed population, so the
