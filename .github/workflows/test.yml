@@ -79,7 +79,9 @@ jobs:
               - 'specs/query-budgets.v1.yaml'
               - 'scripts/ci/resolve-go-race-scope.sh'
               - 'scripts/ci/run-go-race-shard.sh'
+              - 'scripts/ci/select-go-race-shard.py'
               - 'scripts/ci/test-resolve-go-race-scope.sh'
+              - 'specs/go-race-shard-weights.tsv'
               - '.github/workflows/test.yml'
       - name: Verify Go race scope contract
         run: bash scripts/ci/test-resolve-go-race-scope.sh
@@ -312,7 +314,7 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.changes.outputs.go_race_shards || '[1,2,3,4,5,6,7,8]') }}
     runs-on: ubuntu-24.04
-    # Eight shards in full mode (~163 pkgs each) or 1 shard in changed-tests mode; -timeout 900s bounds hangs.
+    # Eight LPT-balanced shards in full mode or 1 shard in changed-tests mode; -timeout 900s bounds hangs.
     timeout-minutes: 60
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
