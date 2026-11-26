@@ -100,10 +100,13 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
-// rendered statements whose text defines what a resweep writes: the full
-// rebuild (which embeds the winner select), every keyed build and apply
-// statement, and the scope-remainder convert (#11145), which decides which
-// keys a later tick recomputes and the capture time the horizon reads.
+// rendered statements whose text defines what a resweep writes to the
+// winners tables: the full rebuild (which embeds the winner select), every
+// keyed build and apply statement, and the scope-remainder convert (#11145),
+// which decides which keys a later tick recomputes and the capture time the
+// horizon reads. The enrichment first-carry stamps (#11466) are intentionally
+// outside this pin: they land in a side table, not in winner content, and
+// the live carry tests cover them instead.
 func supplyChainImpactWinnersContractStatements() []string {
 	stmts := []string{rebuildSupplyChainImpactWinnersSQL}
 	stmts = append(stmts, winnersKeyedBuildIdentsStmts...)

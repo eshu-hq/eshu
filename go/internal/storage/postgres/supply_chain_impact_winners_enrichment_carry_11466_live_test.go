@@ -487,7 +487,13 @@ func TestSupplyChainImpactWinnersEnrichmentCarry11466Live(t *testing.T) {
 		enrichCarryLiveGen3,
 		mustEnrichCarryLiveFindings(t, enrichCarryLiveCVE, enrichCarryLivePackage, enrichCarryLiveRepo,
 			tag3, enrichCarryLiveScoreD2, "0.12", "0.32", true))
-	enrichCarryLiveResweepFull(t, ctx, db)
+	// The keyed path (not the full resweep) carries this rescore: the decoy
+	// set holds the winner count under the over-cap fallback, and the
+	// helper fails the test if the fallback engages instead. A same-value
+	// keyed tick cannot distinguish a correct no-op from a silent one, so
+	// this new-value rescore is the keyed path's positive write proof: the
+	// stamp must advance here, or the keyed carry is unwired.
+	enrichCarryLiveResweepKeyed(t, ctx, db)
 	id3, at3 := enrichCarryLiveStampRow(t, ctx, db, key, supplychaincore.EnrichmentSourceFirstEPSS)
 	if id3 != enrichCarryLiveScoreD2 || !at3.After(epssAt) {
 		t.Fatalf("EPSS stamp = (%q, %v), want moved to (%q, after %v)", id3, at3, enrichCarryLiveScoreD2, epssAt)
