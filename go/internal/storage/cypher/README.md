@@ -1364,9 +1364,9 @@ retry, failed, and dead-letter state without adding a new metric label.
 relationship-type-specific
 `(:CloudResource)-[:AWS_<raw relationship_type>]->(:CloudResource)` edges while
 keeping the original `relationship_type` property for readback. Both endpoints
-anchor on the `CloudResource.uid` uniqueness constraint and the
-`nornicdb_cloud_resource_uid_lookup` index PR 1 added, so the two `MATCH`es are
-schema-backed lookups, not label scans; the logical identity remains
+anchor on the `CloudResource.uid` uniqueness constraint (the separate lookup index
+PR 1 added retired in #11535; the constraint's 1.5.x backing index serves it), so
+the two `MATCH`es are schema-backed lookups, not label scans; the logical identity remains
 `(source, relationship_type, target)`, including case. Full design and decision
 record: `docs/internal/aws-relationship-edge-materialization-design.md`
 §5–§11.
@@ -1418,8 +1418,8 @@ and reducer retries converge on one node rather than fabricating or duplicating
 graph state. The node `uid` is the live object identity (`object_id`); the raw
 Kubernetes `metadata.uid` is carried as the `workload_uid` property only, never
 the node identity. The MERGE anchors on the `kubernetes_workload_uid_unique`
-constraint and the `nornicdb_kubernetes_workload_uid_lookup` index (both added
-to `go/internal/graph/schema.go`), so the upsert is a schema-backed uid lookup,
+constraint (the separate lookup index retired in #11535; the constraint's 1.5.x
+backing index serves the lookup), so the upsert is a schema-backed uid lookup,
 not a label scan. The #388 edge slice (PR3) resolves its workload endpoint
 against these nodes exactly as the AWS relationship edge resolves against
 `CloudResource` nodes. Design and decision record:

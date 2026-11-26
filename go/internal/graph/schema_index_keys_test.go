@@ -35,6 +35,11 @@ func TestSchemaIndexKeysCoverEveryIndexStatement(t *testing.T) {
 			if isFulltextSchemaStatement(stmt) {
 				continue
 			}
+			// DROP statements retire an older object (#7095, #11535); they
+			// create no key to bound, mirroring the SchemaIndexKeys skip.
+			if strings.HasPrefix(stmt, "DROP ") {
+				continue
+			}
 			name := strings.Fields(stmt)[2]
 			if _, ok := byName[name]; !ok {
 				t.Errorf("schema statement %q has no entry in SchemaIndexKeys", stmt)

@@ -149,7 +149,11 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint:                 {graphSchemaNornicDBPreAdvisoryGroupFingerprint},
+		// #11535: DDL-only retirement of the uid lookup indexes; the
+		// pre-#11535 tip is the current fingerprint's single compatible
+		// predecessor, and keeps its own historical entry below.
+		graphSchemaNornicDBFingerprint:                 {graphSchemaNornicDBPre11535Fingerprint},
+		graphSchemaNornicDBPre11535Fingerprint:         {graphSchemaNornicDBPreAdvisoryGroupFingerprint},
 		graphSchemaNornicDBPreAdvisoryGroupFingerprint: {graphSchemaNornicDBPreSSMHostFingerprint},
 		graphSchemaNornicDBPreModuleImportKeyFingerprint: {
 			graphSchemaNornicDBPreRetiredNarrowConstraintsFingerprint,

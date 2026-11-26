@@ -91,6 +91,17 @@ const (
 	// touches no existing label, so its immediate predecessor stays
 	// compatible (see graphSchemaNeo4jPreAdvisoryGroupFingerprint below).
 	//
+	// On NornicDB only, #11535 retires the nornicdb_<t>_uid_lookup indexes on
+	// top of the #10411 tip: one uid uniqueness constraint per (label, uid)
+	// plus DROP INDEX guards for the retired names. No writer MERGE or MATCH
+	// identity changes — writers never emit DDL and MERGE on uid, which the
+	// constraint still backs — so the pre-#11535 tip stays the single
+	// compatible predecessor (see graphSchemaNornicDBPre11535Fingerprint
+	// below). The DDL itself is 1.5.x-gated: on pre-1.5 NornicDB the
+	// constraint creates no backing index, so the new statement list must
+	// only ever execute against a 1.5.x backend (rollout keeps the backend
+	// pin and this dialect in lockstep).
+	//
 	// The previous values (graphSchemaNeo4jPreModuleImportKeyFingerprint in
 	// schema_predecessors.go) were the #6102 (name, lang) cutover plus the
 	// additive index bumps after it: #6541 directory_repo_id, #6793
@@ -98,7 +109,7 @@ const (
 	// the #7095/#7097 constraint retirements, #7675, and the Neo4j-only #7245
 	// infra_search_key_ft index.
 	graphSchemaNeo4jFingerprint    = "dbdb3f94defd391d7a4f313c3e43d30305a4a72de89c6e9434cc13391da14237"
-	graphSchemaNornicDBFingerprint = "162380e5bb9887b3b9c596ca0a677e18d8d98d48fde08f2c83b926f139cd4551"
+	graphSchemaNornicDBFingerprint = "7bcdb6018406641e7b423acf483d6750a8df00839ed56da5b9cf2d5758dc06bc"
 
 	// graphSchemaNeo4jPreAdvisoryGroupFingerprint and its NornicDB peer are
 	// the schema fingerprints immediately before the #10411 advisory_group_id
@@ -111,6 +122,14 @@ const (
 	// own key in schema_predecessors.go.
 	graphSchemaNeo4jPreAdvisoryGroupFingerprint    = "efee7a92098bc5435682a862b05f111ee71516be1ff8dcef5144640ef0113dde"
 	graphSchemaNornicDBPreAdvisoryGroupFingerprint = "62293e2a1184853135857279221186fee30e489005295e5aeacfb20e7cc7c7e9"
+
+	// graphSchemaNornicDBPre11535Fingerprint is the NornicDB schema
+	// fingerprint immediately before the #11535 uid lookup index retirement
+	// (the #10411 advisory_group_id tip above). The retirement changes DDL
+	// only: writers MERGE on uid and never emit indexes, so a writer on this
+	// predecessor release writes safely against the expanded schema, and it
+	// stays the current fingerprint's single compatible predecessor.
+	graphSchemaNornicDBPre11535Fingerprint = "162380e5bb9887b3b9c596ca0a677e18d8d98d48fde08f2c83b926f139cd4551"
 
 	// graphSchemaNeo4jPreSSMHostFingerprint and its NornicDB peer are the
 	// schema fingerprints immediately before the #9558 SSMHostApplication /

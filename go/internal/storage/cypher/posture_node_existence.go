@@ -43,9 +43,11 @@ type PostureExistenceReader interface {
 // Reads are not subject to the bare-MATCH SET no-op; this query is safe as
 // written and does not need a MERGE workaround.
 //
-// No RETURN DISTINCT: CloudResource.uid carries a uniqueness constraint plus
-// a lookup index (cloud_resource_uid_unique / nornicdb_cloud_resource_uid_lookup,
-// see internal/graph.SchemaStatementsForBackend), so a given candidate_uid
+// No RETURN DISTINCT: CloudResource.uid carries a uniqueness constraint
+// (cloud_resource_uid_unique, see internal/graph.SchemaStatementsForBackend;
+// the separate nornicdb_cloud_resource_uid_lookup index retired in #11535,
+// and the constraint's 1.5.x backing index serves the lookup), so a given
+// candidate_uid
 // matches at most one CloudResource node — DISTINCT would only guard against a
 // duplicate value inside $candidate_uids, which is a hash-aggregation cost
 // with no correctness payoff: filterRowsToExistingCloudResourceUIDs below

@@ -89,8 +89,8 @@ func TestSchemaStatementsForBackendCoversNornicDBCompositeIdentityWithUID(t *tes
 	assertNoStatementContains(t, stmts, "Class) REQUIRE (c.name, c.path, c.line_number) IS UNIQUE")
 	assertContainsStatement(t, stmts, "CREATE CONSTRAINT function_uid_unique IF NOT EXISTS FOR (n:Function) REQUIRE n.uid IS UNIQUE")
 	assertContainsStatement(t, stmts, "CREATE CONSTRAINT class_uid_unique IF NOT EXISTS FOR (n:Class) REQUIRE n.uid IS UNIQUE")
-	assertContainsStatement(t, stmts, "CREATE INDEX nornicdb_function_uid_lookup IF NOT EXISTS FOR (n:Function) ON (n.uid)")
-	assertContainsStatement(t, stmts, "CREATE INDEX nornicdb_class_uid_lookup IF NOT EXISTS FOR (n:Class) ON (n.uid)")
+	assertContainsStatement(t, stmts, "DROP INDEX nornicdb_function_uid_lookup IF EXISTS")
+	assertContainsStatement(t, stmts, "DROP INDEX nornicdb_class_uid_lookup IF EXISTS")
 }
 
 func TestSchemaStatementsForBackendAddsNornicDBMergeLookupIndexes(t *testing.T) {
@@ -147,7 +147,13 @@ func TestSchemaStatementsIncludeFunctionRetractLookupIndexes(t *testing.T) {
 	}
 }
 
-func TestSchemaStatementsForBackendAddsNornicDBUIDLookupIndexes(t *testing.T) {
+// TestSchemaStatementsForBackendDropsNornicDBUIDLookupIndexes pins the #11535
+// end state: one schema object per (label, uid). The NornicDB dialect emits
+// no CREATE of the retired nornicdb_<t>_uid_lookup indexes; it emits one
+// DROP INDEX guard per uid-bearing label, and every drop lands before its
+// label's uid uniqueness constraint (on 1.5.x the constraint throws
+// IndexAlreadyExists while the plain index still exists).
+func TestSchemaStatementsForBackendDropsNornicDBUIDLookupIndexes(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
@@ -155,14 +161,36 @@ func TestSchemaStatementsForBackendAddsNornicDBUIDLookupIndexes(t *testing.T) {
 		t.Fatalf("SchemaStatementsForBackend(%q) error = %v, want nil", SchemaBackendNornicDB, err)
 	}
 
-	expected := []string{
-		"CREATE INDEX nornicdb_file_uid_lookup IF NOT EXISTS FOR (n:File) ON (n.uid)",
-		"CREATE INDEX nornicdb_function_uid_lookup IF NOT EXISTS FOR (n:Function) ON (n.uid)",
-		"CREATE INDEX nornicdb_type_alias_uid_lookup IF NOT EXISTS FOR (n:TypeAlias) ON (n.uid)",
-		"CREATE INDEX nornicdb_variable_uid_lookup IF NOT EXISTS FOR (n:Variable) ON (n.uid)",
+	for _, stmt := range stmts {
+		if strings.Contains(stmt, "CREATE INDEX nornicdb_") && strings.Contains(stmt, "_uid_lookup") {
+			t.Fatalf("NornicDB schema creates retired lookup index %q", stmt)
+		}
 	}
-	for _, want := range expected {
-		assertContainsStatement(t, stmts, want)
+
+	drops := nornicDBUIDLookupIndexDrops()
+	if len(drops) != len(uidConstraintLabels) {
+		t.Fatalf("nornicDBUIDLookupIndexDrops() = %d statements, want %d (one per uid label)", len(drops), len(uidConstraintLabels))
+	}
+	positions := make(map[string]int, len(stmts))
+	for i, stmt := range stmts {
+		if _, seen := positions[stmt]; !seen {
+			positions[stmt] = i
+		}
+	}
+	for _, label := range uidConstraintLabels {
+		drop := "DROP INDEX nornicdb_" + labelToSnake(label) + "_uid_lookup IF EXISTS"
+		constraint := "CREATE CONSTRAINT " + labelToSnake(label) + "_uid_unique IF NOT EXISTS FOR (n:" + label + ") REQUIRE n.uid IS UNIQUE"
+		dropPos, ok := positions[drop]
+		if !ok {
+			t.Fatalf("NornicDB schema missing %q", drop)
+		}
+		constraintPos, ok := positions[constraint]
+		if !ok {
+			t.Fatalf("NornicDB schema missing %q", constraint)
+		}
+		if dropPos >= constraintPos {
+			t.Fatalf("drop %q (position %d) must precede constraint %q (position %d)", drop, dropPos, constraint, constraintPos)
+		}
 	}
 }
 
@@ -177,6 +205,9 @@ func TestSchemaStatementsForBackendKeepsUIDLookupIndexesNornicDBOnly(t *testing.
 	assertNoStatementContains(t, stmts, "nornicdb_function_uid_lookup")
 	assertNoStatementContains(t, stmts, "nornicdb_type_alias_uid_lookup")
 	assertNoStatementContains(t, stmts, "nornicdb_workload_id_lookup")
+	// The #11535 drops are NornicDB-only: the Neo4j statement list is
+	// byte-unchanged by that change.
+	assertNoStatementContains(t, stmts, "DROP INDEX nornicdb_")
 	// Neo4j keeps the composite UNIQUE constraints for SourceLocalRecord and
 	// Parameter, which already create backing indexes via the constraint
 	// machinery, so the NornicDB-only single-property lookup indexes must not
@@ -332,7 +363,7 @@ func TestEnsureSchemaExecutesAllStatements(t *testing.T) {
 func TestEnsureSchemaWithBackendExecutesNornicDBStatements(t *testing.T) {
 	t.Parallel()
 
-	executor := &schemaRecordingExecutor{}
+	executor := &schemaRecordingExecutor{version: "NornicDB v1.5.2-hotfix"}
 	err := EnsureSchemaWithBackend(context.Background(), executor, nil, SchemaBackendNornicDB)
 	if err != nil {
 		t.Fatalf("EnsureSchemaWithBackend() error = %v, want nil", err)
@@ -344,6 +375,10 @@ func TestEnsureSchemaWithBackendExecutesNornicDBStatements(t *testing.T) {
 	assertContainsExecutedStatement(t, executor.calls, "CREATE CONSTRAINT protocol_uid_unique IF NOT EXISTS FOR (n:Protocol) REQUIRE n.uid IS UNIQUE")
 	assertContainsExecutedStatement(t, executor.calls, "CREATE CONSTRAINT protocol_implementation_uid_unique IF NOT EXISTS FOR (n:ProtocolImplementation) REQUIRE n.uid IS UNIQUE")
 	assertContainsExecutedStatement(t, executor.calls, "CREATE CONSTRAINT k8s_resource_uid_unique IF NOT EXISTS FOR (n:K8sResource) REQUIRE n.uid IS UNIQUE")
+	// #11535: the executor drops the retired lookup indexes before creating
+	// the constraints, and never creates them.
+	assertContainsExecutedStatement(t, executor.calls, "DROP INDEX nornicdb_function_uid_lookup IF EXISTS")
+	assertNoExecutedStatementContains(t, executor.calls, "CREATE INDEX nornicdb_function_uid_lookup")
 	assertNoExecutedStatementContains(t, executor.calls, "Function) REQUIRE (f.name, f.path, f.line_number) IS UNIQUE")
 	assertNoExecutedStatementContains(t, executor.calls, "Function) REQUIRE (f.name, f.path, f.line_number) IS NODE KEY")
 }
@@ -369,6 +404,7 @@ func TestEnsureSchemaFulltextFallback(t *testing.T) {
 		failOn: func(cypher string) bool {
 			return strings.Contains(cypher, "db.index.fulltext.createNodeIndex")
 		},
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchema(context.Background(), executor, nil)
@@ -397,6 +433,7 @@ func TestEnsureSchemaWithBackendSkipsFulltextFallbackForNornicDB(t *testing.T) {
 		failOn: func(cypher string) bool {
 			return strings.Contains(cypher, "db.index.fulltext.createNodeIndex")
 		},
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchemaWithBackend(context.Background(), executor, nil, SchemaBackendNornicDB)
@@ -455,6 +492,11 @@ type schemaRecordingExecutor struct {
 	calls   []CypherStatement
 	failErr error
 	failOn  func(string) bool
+	// version is the self-reported backend version this fake answers with.
+	// NornicDB applies refuse without it (fail closed); Neo4j applies never
+	// consult it. Tests that drive the NornicDB statement list declare the
+	// backend they emulate here.
+	version string
 }
 
 func (r *schemaRecordingExecutor) ExecuteCypher(_ context.Context, stmt CypherStatement) error {
@@ -466,6 +508,16 @@ func (r *schemaRecordingExecutor) ExecuteCypher(_ context.Context, stmt CypherSt
 		return errors.New("simulated schema error")
 	}
 	return nil
+}
+
+// QueryBackendVersion implements BackendVersionQuerier so the recording fake
+// can drive the NornicDB version gate. An empty version fails the gate
+// closed, exactly like an executor that cannot report one.
+func (r *schemaRecordingExecutor) QueryBackendVersion(_ context.Context) (string, error) {
+	if r.version == "" {
+		return "", errors.New("schemaRecordingExecutor has no backend version configured")
+	}
+	return r.version, nil
 }
 
 func assertContainsStatement(t *testing.T, stmts []string, want string) {

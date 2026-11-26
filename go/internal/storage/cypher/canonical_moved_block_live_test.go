@@ -55,6 +55,20 @@ func (e boltSchemaExecutor) ExecuteCypher(ctx context.Context, stmt graph.Cypher
 	return e.runner.runCypherGroup(ctx, Statement{Cypher: stmt.Cypher, Parameters: stmt.Parameters})
 }
 
+// QueryBackendVersion implements graph.BackendVersionQuerier against the live
+// backend, so the NornicDB moved-block proof passes the #11535 version gate
+// before the production schema applies.
+func (e boltSchemaExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	rows, err := e.runner.runCypher(ctx, graph.NornicDBBackendVersionCypher, nil)
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return graph.NornicDBComponentVersionFromCell(rows[0]["versions"])
+}
+
 // movedBlockMaterialization is one generation of a repository holding one
 // block of c's label. Each generation carries its own uid and start line, as
 // content.CanonicalEntityID does when lines are inserted above the block.

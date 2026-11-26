@@ -172,6 +172,20 @@ func (g *liveSourceToolGraph) ExecuteCypher(ctx context.Context, stmt graph.Cyph
 	return g.withRetry(ctx, func() error { return g.runWrite(ctx, []string{stmt.Cypher}, []map[string]any{stmt.Parameters}) })
 }
 
+// QueryBackendVersion implements graph.BackendVersionQuerier against the live
+// backend, so this proof passes the #11535 version gate before the production
+// NornicDB schema applies (the Neo4j leg never consults it).
+func (g *liveSourceToolGraph) QueryBackendVersion(ctx context.Context) (string, error) {
+	rows, err := g.Run(ctx, graph.NornicDBBackendVersionCypher, nil)
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return graph.NornicDBComponentVersionFromCell(rows[0]["versions"])
+}
+
 // Execute satisfies sourcecypher.Executor with one auto-retried transaction.
 func (g *liveSourceToolGraph) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
 	return g.ExecuteGroup(ctx, []sourcecypher.Statement{stmt})

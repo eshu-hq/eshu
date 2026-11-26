@@ -33,12 +33,14 @@ import (
 // the declaration goes inert, and the pin behaves as before. Any other PR
 // leaves the zero value alone.
 var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
-	Issue:  9303,
-	Reason: "Adds the DockerfileInstall identity constraint and compatible predecessor fingerprints; both paired sides use the candidate schema because the base cannot create the new label's constraint.",
+	Issue:  11535,
+	Reason: "Retires the NornicDB uid lookup indexes for 1.5.x strict constraint semantics (drops before uid constraints); the base tree cannot apply that schema, so the paired Base/Candidate sides in this run both measure candidate schema.",
 	Paths: []string{
+		"go/internal/graph/schema.go",
 		"go/internal/graph/schema_application.go",
+		"go/internal/graph/schema_execution.go",
 		"go/internal/graph/schema_predecessors.go",
-		"go/internal/graph/schema_tables.go",
+		"go/internal/graph/schema_statements.go",
 	},
 }
 

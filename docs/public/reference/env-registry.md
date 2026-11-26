@@ -11,7 +11,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | Page | Covers | Variables |
 | --- | --- | --- |
 | [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 58 |
-| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 66 |
+| [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 67 |
 | [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 121 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 48 |
 | [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty). Security alert now collects from its extracted satellite (eshu-hq/eshu-collector-security-alerts). Grafana now collects from its extracted satellite (eshu-hq/eshu-collector-grafana). Prometheus/Mimir now collects from its extracted satellite (eshu-hq/eshu-collector-prometheus-mimir). | 28 |
@@ -22,7 +22,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | --- | --- | --- |
 | [`api`](env-registry/api-and-auth.md#api) | 45 | API, auth, and MCP |
 | [`auth`](env-registry/api-and-auth.md#auth) | 7 | API, auth, and MCP |
-| [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 13 | Runtime and storage |
+| [`backend-conformance`](env-registry/runtime-and-storage.md#backend-conformance) | 14 | Runtime and storage |
 | [`collector`](env-registry/collectors-platform.md#collector) | 29 | Ingester and collector framework |
 | [`collector-cicd-run`](env-registry/collectors-signals.md#collector-cicd-run) | 5 | Observability, delivery, and security collectors |
 | [`collector-component-extension`](env-registry/collectors-platform.md#collector-component-extension) | 12 | Ingester and collector framework |

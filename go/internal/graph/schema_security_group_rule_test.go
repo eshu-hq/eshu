@@ -25,15 +25,16 @@ func TestSchemaStatementsContainsSecurityGroupRuleSchema(t *testing.T) {
 	}
 }
 
-// TestSchemaStatementsForBackendAddsSecurityGroupRuleNornicDBUIDLookup asserts
-// the NornicDB schema-backed MERGE lookup index exists for the rule node, so the
-// idempotent uid MERGE does not fall back to a label scan on NornicDB.
-func TestSchemaStatementsForBackendAddsSecurityGroupRuleNornicDBUIDLookup(t *testing.T) {
+// TestSchemaStatementsForBackendDropsSecurityGroupRuleNornicDBUIDLookupIndex asserts
+// the NornicDB schema drops the retired uid lookup index for the rule node,
+// so the uid uniqueness constraint (whose 1.5.x backing index serves the
+// idempotent uid MERGE) can be created.
+func TestSchemaStatementsForBackendDropsSecurityGroupRuleNornicDBUIDLookupIndex(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
 	if err != nil {
 		t.Fatalf("SchemaStatementsForBackend returned error: %v", err)
 	}
-	assertContainsStatement(t, stmts, "CREATE INDEX nornicdb_security_group_rule_uid_lookup IF NOT EXISTS FOR (n:SecurityGroupRule) ON (n.uid)")
+	assertContainsStatement(t, stmts, "DROP INDEX nornicdb_security_group_rule_uid_lookup IF EXISTS")
 }

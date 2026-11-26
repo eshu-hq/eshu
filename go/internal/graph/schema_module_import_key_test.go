@@ -60,7 +60,7 @@ func TestModuleImportKeyIsAWriteIdentityCutover(t *testing.T) {
 		compatible  []string
 	}{
 		{SchemaBackendNeo4j, graphSchemaNeo4jPreModuleImportKeyFingerprint, graphSchemaNeo4jPreSSMHostFingerprint, []string{graphSchemaNeo4jPreAdvisoryGroupFingerprint}},
-		{SchemaBackendNornicDB, graphSchemaNornicDBPreModuleImportKeyFingerprint, graphSchemaNornicDBPreSSMHostFingerprint, []string{graphSchemaNornicDBPreAdvisoryGroupFingerprint}},
+		{SchemaBackendNornicDB, graphSchemaNornicDBPreModuleImportKeyFingerprint, graphSchemaNornicDBPreSSMHostFingerprint, []string{graphSchemaNornicDBPre11535Fingerprint}},
 	} {
 		backend := tc.backend
 		app, err := SchemaApplicationForBackend(backend)

@@ -20,7 +20,7 @@ func TestSchemaStatementsContainsKubernetesNamespaceSchema(t *testing.T) {
 	}
 }
 
-func TestSchemaStatementsForBackendAddsKubernetesNamespaceNornicDBUIDLookup(t *testing.T) {
+func TestSchemaStatementsForBackendDropsKubernetesNamespaceNornicDBUIDLookupIndex(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
@@ -30,6 +30,6 @@ func TestSchemaStatementsForBackendAddsKubernetesNamespaceNornicDBUIDLookup(t *t
 	assertContainsStatement(
 		t,
 		stmts,
-		"CREATE INDEX nornicdb_kubernetes_namespace_uid_lookup IF NOT EXISTS FOR (n:KubernetesNamespace) ON (n.uid)",
+		"DROP INDEX nornicdb_kubernetes_namespace_uid_lookup IF EXISTS",
 	)
 }

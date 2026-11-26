@@ -13,7 +13,7 @@
 //
 //	docker run -d --name eshu-6782-rt-nornic -p 127.0.0.1:28060:7687 \
 //	  -e NORNICDB_NO_AUTH=true -e NORNICDB_EMBEDDING_ENABLED=false \
-//	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1
+//	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5
 //	docker run -d --name eshu-6782-rt-neo4j -p 127.0.0.1:28061:7687 -e NEO4J_AUTH=none \
 //	  neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:28060 go test ./cmd/golden-corpus-gate \
@@ -25,6 +25,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -47,6 +48,22 @@ func (e liveSchemaExecutor) ExecuteCypher(ctx context.Context, stmt graph.Cypher
 	_, err := neo4j.ExecuteQuery(ctx, e.driver, stmt.Cypher, stmt.Parameters,
 		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(e.db))
 	return err
+}
+
+// QueryBackendVersion implements graph.BackendVersionQuerier against the live
+// backend, so this proof passes the #11535 version gate before the production
+// NornicDB schema applies (the Neo4j leg never consults it).
+func (e liveSchemaExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	result, err := neo4j.ExecuteQuery(ctx, e.driver,
+		graph.NornicDBBackendVersionCypher, nil,
+		neo4j.EagerResultTransformer, neo4j.ExecuteQueryWithDatabase(e.db))
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(result.Records) == 0 || len(result.Records[0].Values) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return graph.NornicDBComponentVersionFromCell(result.Records[0].Values[0])
 }
 
 func TestLiveUnresolvedRowTokenCheck(t *testing.T) {

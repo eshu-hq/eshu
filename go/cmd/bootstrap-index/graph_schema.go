@@ -213,6 +213,20 @@ func (e bootstrapNeo4jExecutor) ExecuteCypher(ctx context.Context, stmt graph.Cy
 	})
 }
 
+// QueryBackendVersion implements graph.BackendVersionQuerier against the live
+// backend: the #11535 schema gate admits the 1.5.x-gated statement list only
+// on NornicDB >= 1.5 and fails closed on any other answer.
+func (e bootstrapNeo4jExecutor) QueryBackendVersion(ctx context.Context) (string, error) {
+	rows, err := e.Run(ctx, graph.NornicDBBackendVersionCypher, nil)
+	if err != nil {
+		return "", fmt.Errorf("query nornicdb backend version: %w", err)
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("nornicdb backend version: dbms.components() returned no rows")
+	}
+	return graph.NornicDBComponentVersionFromCell(rows[0]["versions"])
+}
+
 // Run implements graphRowReader: one statement in an auto-commit transaction
 // bounded by the executor's transaction timeout, its rows as maps. It opens a
 // write-mode session, like the DDL, so a clustered deployment answers from the

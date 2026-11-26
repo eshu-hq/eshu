@@ -312,6 +312,10 @@ tests:
     class: ci
     reason: "#751 isolated Neo4j proof that every graph-backed legacy AppSync key read path suppresses key identity and stored markers while healthy paths remain visible; one fresh Neo4j 2026-community run completed in 6.562s"
     backends: neo4j
+  - file: go/internal/query/cloud_resource_owner_backfill_full_projection_11535_live_test.go
+    tag: ~
+    class: scheduled
+    reason: untagged live proof gated by env Skip; measured 8.646s cold / 61ms warm on 1.5.x (#11535) — promote to blocking with CI runner evidence
   - file: go/internal/query/cloud_resource_owner_backfill_nornicdb_live_test.go
     tag: ~
     class: scheduled

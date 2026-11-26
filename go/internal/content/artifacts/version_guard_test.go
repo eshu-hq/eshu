@@ -35,8 +35,8 @@ import (
 var extractorPins = []extractorPin{
 	{
 		Version:      1,
-		CorpusDigest: "c3d30d2fccffe38dd6bf5b41220a77fa9d86bbd52f7136a31c942a736045dfaf",
-		OutputDigest: "7dde1bb7ab14ac9e08ca681ca85bfb70b3ce2eb99017911cc84afed14294ef01",
+		CorpusDigest: "eaf25c3aafb3bdd9543b74e8ec7e75f5c55b54b491ee37e083ea6c75f7295a9e",
+		OutputDigest: "badfc9c31e94cb891ab26f26f7b722b2db917582c974a17466239d144b028577",
 		Window:       hydrationWindow{ListLimit: 5000, AllowanceWholeWindow: -1},
 	},
 }

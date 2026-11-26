@@ -93,7 +93,7 @@ func TestEnsureSchemaNeverAttemptsTheRemovedProcedureOnNeo4j(t *testing.T) {
 func TestEnsureSchemaKeepsProcedureOnlyFulltextOnNornicDB(t *testing.T) {
 	t.Parallel()
 
-	executor := &schemaRecordingExecutor{}
+	executor := &schemaRecordingExecutor{version: "NornicDB v1.5.2-hotfix"}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	if err := EnsureSchemaWithBackend(context.Background(), executor, logger, SchemaBackendNornicDB); err != nil {
 		t.Fatalf("EnsureSchemaWithBackend(nornicdb) error = %v", err)

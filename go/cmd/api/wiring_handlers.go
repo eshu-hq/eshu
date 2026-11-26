@@ -87,7 +87,7 @@ func newSupplyChainHandler(
 		ImpactFindings:               impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
 		ImpactAggregates:             impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
 		ImpactGroupedInventory:       impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
-		ImpactExplanations:           impact.NewPostgresFindingStoreWithReadStore(reader, false),
+		ImpactExplanations:           impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
 		ContainerImageIdentities:     query.NewPostgresContainerImageIdentityStoreWithReadStore(reader),
 		ContainerImageAggregates:     query.NewPostgresContainerImageIdentityAggregateStoreWithReadStore(reader),
 		SecurityAlerts:               alerts.NewPostgresStoreWithReadStore(reader),

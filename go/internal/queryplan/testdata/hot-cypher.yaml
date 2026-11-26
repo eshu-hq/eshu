@@ -53,8 +53,8 @@ entries:
         property: normalized_name
     required_schema:
       - package_normalized_name
-      - nornicdb_package_uid_lookup
-      - nornicdb_package_dependency_uid_lookup
+      - package_uid_unique
+      - package_dependency_uid_unique
     required_limits:
       - $limit
     requires_order: true
@@ -81,7 +81,7 @@ entries:
         property: version_id
     required_schema:
       - package_dependency_version_id
-      - nornicdb_package_dependency_uid_lookup
+      - package_dependency_uid_unique
     required_limits:
       - $limit
     requires_order: true
@@ -372,7 +372,6 @@ entries:
         property: uid
     required_schema:
       - function_uid_unique
-      - nornicdb_function_uid_lookup
     required_limits:
       - $limit
     requires_order: true
@@ -402,7 +401,6 @@ entries:
         property: uid
     required_schema:
       - class_uid_unique
-      - nornicdb_class_uid_lookup
     required_limits:
       - $limit
     requires_order: true
@@ -429,7 +427,6 @@ entries:
         property: uid
     required_schema:
       - function_uid_unique
-      - nornicdb_function_uid_lookup
     required_limits:
       - $limit
     requires_order: true
@@ -734,7 +731,6 @@ entries:
       line_hint: 178
     required_schema:
       - function_uid_unique
-      - nornicdb_function_uid_lookup
     required_limits:
       - $limit
     requires_order: true

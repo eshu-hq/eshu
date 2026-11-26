@@ -37,6 +37,17 @@ func ensureSchemaWithBackend(
 		return err
 	}
 
+	// The 1.5.x-gated statement list (uid constraints plus the retired
+	// lookup-index drops, #11535) must only ever execute against a 1.5.x
+	// backend. The probe runs before any DDL and fails closed; the flag
+	// that selects the gated list is the same flag that arms the probe, so
+	// the two cannot drift. Neo4j never sets the flag and skips the probe.
+	if dialect.dropUIDLookupIndexes {
+		if err := requireNornicDBBackendVersion(ctx, executor); err != nil {
+			return err
+		}
+	}
+
 	var failed int
 	state := schemaExecutionState{
 		logger:  logger,
@@ -96,7 +107,13 @@ func ensureSchemaWithBackend(
 		if err := apply("nornicdb_merge_lookup_indexes", nornicDBMergeLookupIndexes); err != nil {
 			return err
 		}
-		if err := apply("nornicdb_uid_lookup_indexes", nornicDBUIDLookupIndexes()); err != nil {
+	}
+	// The retired lookup-index drops run immediately before the uid
+	// constraints they unblock (#11535): on 1.5.x the constraint throws
+	// IndexAlreadyExists while the plain index on the same (label, uid)
+	// still exists.
+	if dialect.dropUIDLookupIndexes {
+		if err := apply("nornicdb_uid_lookup_index_drops", nornicDBUIDLookupIndexDrops()); err != nil {
 			return err
 		}
 	}
@@ -230,7 +247,9 @@ func schemaStatementTotal(dialect schemaDialect) int {
 	}
 	if dialect.includeMergeLookupIndexes {
 		total += len(nornicDBMergeLookupIndexes)
-		total += len(nornicDBUIDLookupIndexes())
+	}
+	if dialect.dropUIDLookupIndexes {
+		total += len(nornicDBUIDLookupIndexDrops())
 	}
 	total += len(uidConstraintLabels)
 	for _, ft := range schemaFulltextIndexes {

@@ -20,6 +20,7 @@ func TestEnsureSchemaReturnsContextDeadline(t *testing.T) {
 	executor := &schemaRecordingExecutor{
 		failErr: context.DeadlineExceeded,
 		failOn:  func(_ string) bool { return true },
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchema(context.Background(), executor, nil)
@@ -35,7 +36,8 @@ func TestEnsureSchemaWithBackendStrictReturnsStatementFailures(t *testing.T) {
 	t.Parallel()
 
 	executor := &schemaRecordingExecutor{
-		failOn: func(_ string) bool { return true },
+		failOn:  func(_ string) bool { return true },
+		version: "NornicDB v1.5.2-hotfix",
 	}
 
 	err := EnsureSchemaWithBackendStrict(context.Background(), executor, nil, SchemaBackendNornicDB)
@@ -50,12 +52,35 @@ func TestEnsureSchemaWithBackendStrictReturnsStatementFailures(t *testing.T) {
 	}
 }
 
+// TestSchemaStatementTotalMatchesEmittedStatements pins the three emission
+// sites together: the statement list, the executor loop, and the progress
+// total must agree, or statement_index would exceed statement_total in the
+// operator logs. It runs per backend because each dialect gates different
+// statement groups.
+func TestSchemaStatementTotalMatchesEmittedStatements(t *testing.T) {
+	t.Parallel()
+
+	for _, backend := range []SchemaBackend{SchemaBackendNeo4j, SchemaBackendNornicDB} {
+		dialect, err := schemaDialectForBackend(backend)
+		if err != nil {
+			t.Fatalf("schemaDialectForBackend(%q) error = %v", backend, err)
+		}
+		stmts, err := SchemaStatementsForBackend(backend)
+		if err != nil {
+			t.Fatalf("SchemaStatementsForBackend(%q) error = %v", backend, err)
+		}
+		if got, want := schemaStatementTotal(dialect), len(stmts); got != want {
+			t.Fatalf("%s schemaStatementTotal() = %d, want emitted %d", backend, got, want)
+		}
+	}
+}
+
 func TestEnsureSchemaLogsStatementProgress(t *testing.T) {
 	t.Parallel()
 
 	var output strings.Builder
 	logger := slog.New(slog.NewTextHandler(io.Writer(&output), nil))
-	executor := &schemaRecordingExecutor{}
+	executor := &schemaRecordingExecutor{version: "NornicDB v1.5.2-hotfix"}
 
 	err := EnsureSchemaWithBackend(context.Background(), executor, logger, SchemaBackendNornicDB)
 	if err != nil {

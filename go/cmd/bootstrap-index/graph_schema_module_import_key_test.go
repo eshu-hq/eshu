@@ -27,13 +27,28 @@ func (f *orderedSchemaDB) ExecContext(ctx context.Context, query string, args ..
 }
 
 // orderedSchemaExecutor records the DDL statements as one "ddl" event.
-type orderedSchemaExecutor struct{ events *[]string }
+type orderedSchemaExecutor struct {
+	events *[]string
+	// version is the self-reported backend version the fake answers with.
+	// NornicDB applies refuse without it (fail closed).
+	version string
+}
 
 func (e orderedSchemaExecutor) ExecuteCypher(context.Context, graph.CypherStatement) error {
 	if n := len(*e.events); n == 0 || (*e.events)[n-1] != "ddl" {
 		*e.events = append(*e.events, "ddl")
 	}
 	return nil
+}
+
+// QueryBackendVersion implements graph.BackendVersionQuerier for schema-gate
+// tests. An empty version fails the gate closed, like an executor that
+// cannot report one.
+func (e orderedSchemaExecutor) QueryBackendVersion(_ context.Context) (string, error) {
+	if e.version == "" {
+		return "", errors.New("orderedSchemaExecutor has no backend version configured")
+	}
+	return e.version, nil
 }
 
 // fakeModuleCheckReader answers the Module import_key pending check.
@@ -75,7 +90,7 @@ func ensureSchemaWithModuleCheck(t *testing.T, backend graph.SchemaBackend, read
 		func(context.Context, func(string) string) (bootstrapGraphSchema, error) {
 			return bootstrapGraphSchema{
 				backend:  backend,
-				executor: orderedSchemaExecutor{events: events},
+				executor: orderedSchemaExecutor{events: events, version: "NornicDB v1.5.2-hotfix"},
 				reader:   reader,
 				close:    func() error { return nil },
 			}, nil

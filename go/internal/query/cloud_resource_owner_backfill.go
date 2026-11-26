@@ -68,9 +68,11 @@ const cloudResourceOwnerBackfillProjection = `
 // `ORDER BY n.uid LIMIT $limit` with no uid range predicate scans the label
 // and runs a top-k whose cost grows with LIMIT (29.5s to 45.9s for 500 rows
 // over 150k nodes against the 10s graph-read deadline, #6842), while the
-// fenced page is served from Eshu's nornicdb_cloud_resource_uid_lookup index
-// (graph.nornicDBUIDLookupIndexes; the uid uniqueness constraint itself
-// creates no index on NornicDB) in well under a second. The fence excludes a
+// fenced page was served from Eshu's nornicdb_cloud_resource_uid_lookup index
+// in well under a second on the pre-1.5 backend (that separate index retired
+// in #11535; on 1.5.x the cloud_resource_uid_unique backing index serves
+// equality lookups while the fenced range page label-scans — measured
+// 2026-11-26 over 150k nodes, see the scale test). The fence excludes a
 // node whose uid is not a non-empty string (null, empty, or a non-string
 // value compares as null); the ledger cannot key such a node and it used to
 // abort startup as an unattributable row, and every production CloudResource
