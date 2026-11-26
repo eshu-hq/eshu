@@ -148,4 +148,22 @@ const (
     "name": {"type": "string", "description": "Stable diagnostic target name (admin_status, index_status, collector_status, repository_coverage)."},
     "path": {"type": "string", "description": "Route path of the follow-up read, with {repo_id} still templated for repository_coverage."}
   }}`
+
+	// awsMaterializationDomainItemSchema is one row of the
+	// aws_materialization domains array served on the index status summary
+	// and its legacy alias. Owner:
+	// go/internal/query/aws_materialization_status.go:144
+	// domainBacklogToMap (normal rows); blockage-only rows (:61-70) carry
+	// zero counters and omit oldest_age, so no member is required.
+	awsMaterializationDomainItemSchema = `{"type": "object", "description": "Per-domain AWS materialization work aggregates. Blockage-only rows carry zero counters and omit oldest_age.", "properties": {
+    "domain": {"type": "string", "description": "Materialization domain name; one row per domain in the AWS materialization set."},
+    "outstanding": {"type": "integer", "description": "Domain work items not in a terminal state."},
+    "pending": {"type": "integer", "description": "Outstanding items with no current claim or lease."},
+    "in_flight": {"type": "integer", "description": "Items under an active claim or lease."},
+    "blocked": {"type": "integer", "description": "Items held by a queue blockage on this domain."},
+    "retrying": {"type": "integer", "description": "Items scheduled for another attempt."},
+    "dead_letter": {"type": "integer", "description": "Terminal dead-letter items."},
+    "failed": {"type": "integer", "description": "Terminal failures outside dead_letter."},
+    "oldest_age": {"type": "number", "description": "Age in seconds of the oldest backlog item; absent on blockage-only rows."}
+  }}`
 )

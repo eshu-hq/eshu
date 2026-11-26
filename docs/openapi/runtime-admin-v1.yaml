@@ -768,6 +768,7 @@ components:
       type: object
       additionalProperties: false
       required:
+        - version
         - as_of
         - health
         - flow
@@ -781,7 +782,13 @@ components:
         - stages
         - domains
         - queue_blockages
+        - collector_generation_dead_letters
+        - semantic_extraction
+        - answer_narration
       properties:
+        version:
+          type: string
+          description: Eshu binary version that rendered the report.
         as_of:
           type: string
           format: date-time
@@ -908,6 +915,19 @@ components:
               updated_at:
                 type: string
                 format: date-time
+              last_failure_class:
+                type: string
+                description: Bounded token for the newest unresolved terminal fetch failure. Absent when no such failure exists.
+              last_failure_operation:
+                type: string
+                description: Bounded operation token accompanying last_failure_class. Absent when no such failure exists.
+              last_failure_at:
+                type: string
+                format: date-time
+                description: When the newest unresolved terminal fetch failure occurred. Absent when no such failure exists.
+              acknowledged_failure:
+                description: Operator-acknowledged terminal failure. Absent when there is none; never carries the operator's reason.
+                $ref: "#/components/schemas/AcknowledgedFailure"
         registry_collectors:
           type: array
           description: >
@@ -940,3 +960,935 @@ components:
             section must not include event IDs, resource IDs, ARNs, tags, or raw
             provider payloads.
           $ref: "#/components/schemas/AWSFreshnessSummary"
+        coordinator:
+          description: >
+            Coordinator registration, claim, and pressure snapshot. Absent when
+            the report carries no coordinator evidence.
+          $ref: "#/components/schemas/CoordinatorSnapshot"
+        collector_runtimes:
+          description: >
+            Derived, additive per-instance runtime view over coordinator
+            registration, direct collector status evidence, and persisted
+            source or reducer fact evidence. Absent when no runtime evidence
+            exists.
+          type: array
+          items:
+            $ref: "#/components/schemas/CollectorRuntimeStatus"
+        latest_failure:
+          description: >
+            Newest queue failure snapshot. Absent when no failure is recorded.
+          $ref: "#/components/schemas/QueueFailure"
+        active_work_source:
+          description: >
+            Which store answered the active-work read (model, live, or
+            live_fallback) and why. Absent when the reader reported no source.
+          $ref: "#/components/schemas/ActiveWorkSource"
+        infra_inventory:
+          description: >
+            Infra read-model state (#6793). Absent when no infra inventory was
+            reported.
+          $ref: "#/components/schemas/InfraInventory"
+        vulnerability_sources:
+          description: >
+            Durable OSV, NVD, KEV, EPSS, or derived source target state rows.
+            Absent when no vulnerability source evidence exists.
+          type: array
+          items:
+            $ref: "#/components/schemas/VulnerabilitySource"
+        semantic_extraction:
+          description: >
+            Optional LLM-assisted semantic extraction status. Informational
+            only; never marks health or readiness unhealthy.
+          $ref: "#/components/schemas/SemanticExtraction"
+        answer_narration:
+          description: >
+            Answer narration pipeline status: provider, policy, budget, and
+            retention posture plus the supported state/reason vocabularies.
+          $ref: "#/components/schemas/AnswerNarration"
+        repository_selection:
+          description: >
+            Aggregate repository selection state and classification counts.
+            Absent when no selection evidence was surfaced.
+          $ref: "#/components/schemas/RepositorySelection"
+        terraform_state:
+          description: >
+            Bounded Terraform-state status. Absent for runtimes that never
+            observe tfstate.
+          $ref: "#/components/schemas/TerraformStateReport"
+        terraform_state_source:
+          description: >
+            Which store answered the terraform-state read and why. Absent when
+            the reader reported no source.
+          $ref: "#/components/schemas/ActiveWorkSource"
+        coordinator_source:
+          description: >
+            Which store answered the coordinator read and why. Absent when the
+            reader reported no source.
+          $ref: "#/components/schemas/ActiveWorkSource"
+        supply_chain_stuck_partials:
+          description: >
+            Scopes whose last recorded supply-chain impact pass ended partial.
+            Absent when no scope is stuck.
+          type: array
+          items:
+            $ref: "#/components/schemas/SupplyChainStuckPartial"
+    NamedCount:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - count
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+    CoordinatorInstance:
+      type: object
+      additionalProperties: false
+      required:
+        - instance_id
+        - collector_kind
+        - mode
+        - enabled
+        - bootstrap
+        - claims_enabled
+        - last_observed_at
+        - updated_at
+      properties:
+        instance_id:
+          type: string
+        collector_kind:
+          type: string
+        mode:
+          type: string
+        enabled:
+          type: boolean
+        bootstrap:
+          type: boolean
+        claims_enabled:
+          type: boolean
+        display_name:
+          type: string
+        last_observed_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deactivated_at:
+          type: string
+          format: date-time
+    CollectorBackpressure:
+      type: object
+      additionalProperties: false
+      required:
+        - collector_kind
+        - collector_instance_id
+        - source_system
+        - pending
+        - claimed
+        - retrying
+        - dead_letter
+        - terminal_failed
+        - expired
+        - active_claims
+        - overdue_claims
+        - oldest_pending_age
+        - oldest_pending_age_seconds
+        - oldest_retry_age
+        - oldest_retry_age_seconds
+        - oldest_claim_age
+        - oldest_claim_age_seconds
+        - next_retry_delay
+        - next_retry_delay_seconds
+      properties:
+        collector_kind:
+          type: string
+        collector_instance_id:
+          type: string
+        source_system:
+          type: string
+        pending:
+          type: integer
+        claimed:
+          type: integer
+        retrying:
+          type: integer
+        dead_letter:
+          type: integer
+        terminal_failed:
+          type: integer
+        expired:
+          type: integer
+        active_claims:
+          type: integer
+        overdue_claims:
+          type: integer
+        oldest_pending_age:
+          type: string
+        oldest_pending_age_seconds:
+          type: number
+        oldest_retry_age:
+          type: string
+        oldest_retry_age_seconds:
+          type: number
+        oldest_claim_age:
+          type: string
+        oldest_claim_age_seconds:
+          type: number
+        next_retry_delay:
+          type: string
+        next_retry_delay_seconds:
+          type: number
+        failure_class_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+    CollectorSourcePacing:
+      type: object
+      additionalProperties: false
+      required:
+        - source_system
+        - slowed
+        - oldest_claimable_age
+        - oldest_claimable_age_seconds
+        - claimable_depth
+      properties:
+        source_system:
+          type: string
+        slowed:
+          type: boolean
+        reason:
+          type: string
+        oldest_claimable_age:
+          type: string
+        oldest_claimable_age_seconds:
+          type: number
+        claimable_depth:
+          type: integer
+        engaged_since:
+          type: string
+          format: date-time
+        engaged_duration:
+          type: string
+        engaged_duration_seconds:
+          type: number
+        stuck:
+          type: boolean
+    CoordinatorRecentFailures:
+      type: object
+      additionalProperties: false
+      required:
+        - window
+        - window_seconds
+        - failed_runs
+        - blocked_completeness
+        - terminal_work_items
+      properties:
+        window:
+          type: string
+        window_seconds:
+          type: number
+        failed_runs:
+          type: integer
+        blocked_completeness:
+          type: integer
+        terminal_work_items:
+          type: integer
+    CoordinatorSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - collector_instances
+        - run_status_counts
+        - work_item_status_counts
+        - completeness_counts
+        - active_claims
+        - overdue_claims
+        - oldest_pending_age
+        - oldest_pending_age_seconds
+      properties:
+        collector_instances:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinatorInstance"
+        run_status_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        work_item_status_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        completeness_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        collector_backpressure:
+          type: array
+          items:
+            $ref: "#/components/schemas/CollectorBackpressure"
+        source_pacing:
+          type: array
+          items:
+            $ref: "#/components/schemas/CollectorSourcePacing"
+        active_claims:
+          type: integer
+        overdue_claims:
+          type: integer
+        oldest_pending_age:
+          type: string
+        oldest_pending_age_seconds:
+          type: number
+        recent_failures:
+          $ref: "#/components/schemas/CoordinatorRecentFailures"
+    AcknowledgedFailure:
+      type: object
+      additionalProperties: false
+      required:
+        - failure_class
+        - failure_operation
+      properties:
+        failure_class:
+          type: string
+        failure_operation:
+          type: string
+        failed_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+    CollectorRuntimeStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - instance_id
+        - collector_kind
+        - runtime_mode
+        - status_category
+        - coordinator_registered
+        - enabled
+        - bootstrap
+        - claims_enabled
+        - evidence_sources
+      properties:
+        instance_id:
+          type: string
+        collector_kind:
+          type: string
+        mode:
+          type: string
+        runtime_mode:
+          type: string
+        status_category:
+          type: string
+        coordinator_registered:
+          type: boolean
+        enabled:
+          type: boolean
+        bootstrap:
+          type: boolean
+        claims_enabled:
+          type: boolean
+        display_name:
+          type: string
+        health:
+          type: string
+        evidence_sources:
+          type: array
+          items:
+            type: string
+        source_systems:
+          type: array
+          items:
+            type: string
+        observation_count:
+          type: integer
+        last_observed_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deactivated_at:
+          type: string
+          format: date-time
+        detail:
+          type: string
+        last_failure_class:
+          type: string
+        last_failure_operation:
+          type: string
+        last_failure_terminal:
+          type: boolean
+        last_failure_at:
+          type: string
+          format: date-time
+        acknowledged_failure:
+          $ref: "#/components/schemas/AcknowledgedFailure"
+    QueueFailure:
+      type: object
+      additionalProperties: false
+      required:
+        - stage
+        - domain
+        - status
+        - failure_class
+      properties:
+        stage:
+          type: string
+        domain:
+          type: string
+        status:
+          type: string
+        work_item_id:
+          type: string
+        scope_id:
+          type: string
+        generation_id:
+          type: string
+        failure_class:
+          type: string
+        failure_message:
+          type: string
+        failure_details:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    ActiveWorkSource:
+      type: object
+      additionalProperties: false
+      required:
+        - source
+        - reason
+        - as_of
+        - age_seconds
+        - stale
+      properties:
+        source:
+          type: string
+        reason:
+          type: string
+        as_of:
+          type: string
+          format: date-time
+        age_seconds:
+          type: number
+        stale:
+          type: boolean
+    InfraInventory:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - marker_present
+        - dirty_repos
+        - oldest_dirty_age
+        - oldest_dirty_age_seconds
+      properties:
+        state:
+          type: string
+        marker_present:
+          type: boolean
+        dirty_repos:
+          type: integer
+        oldest_dirty_age:
+          type: string
+        oldest_dirty_age_seconds:
+          type: number
+        reads_served_from_graph_because:
+          type: string
+    VulnerabilitySource:
+      type: object
+      additionalProperties: false
+      required:
+        - collector_instance_id
+        - scope_id
+        - source
+        - freshness_state
+        - terminal_status
+        - result_count
+        - warning_count
+      properties:
+        collector_instance_id:
+          type: string
+        scope_id:
+          type: string
+        source:
+          type: string
+        ecosystem:
+          type: string
+        window_start:
+          type: string
+          format: date-time
+        window_end:
+          type: string
+          format: date-time
+        last_attempt_at:
+          type: string
+          format: date-time
+        last_success_at:
+          type: string
+          format: date-time
+        next_retry_at:
+          type: string
+          format: date-time
+        last_error_class:
+          type: string
+        freshness_state:
+          type: string
+        terminal_status:
+          type: string
+        result_count:
+          type: integer
+        warning_count:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+    SemanticProviderProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - profile_id
+        - provider_kind
+        - credential_source_kind
+        - credential_configured
+        - source_classes
+        - source_policy_configured
+        - state
+      properties:
+        profile_id:
+          type: string
+        display_name:
+          type: string
+        provider_kind:
+          type: string
+        credential_source_kind:
+          type: string
+        credential_configured:
+          type: boolean
+        model_id:
+          type: string
+        embedding_dimensions:
+          type: integer
+        endpoint_profile_id:
+          type: string
+        source_classes:
+          type: array
+          items:
+            type: string
+        source_policy_configured:
+          type: boolean
+        state:
+          type: string
+        reason:
+          type: string
+        detail:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    SemanticExtractionProviderProfileCount:
+      type: object
+      additionalProperties: false
+      required:
+        - count
+      properties:
+        provider_kind:
+          type: string
+        provider_profile_id:
+          type: string
+        provider_profile_class:
+          type: string
+        count:
+          type: integer
+    SemanticExtractionDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - count
+      properties:
+        state:
+          type: string
+        reason:
+          type: string
+        count:
+          type: integer
+    SemanticExtractionQueue:
+      type: object
+      additionalProperties: false
+      required:
+        - total
+        - pending
+        - claimed
+        - retrying
+        - succeeded
+        - dead_letter
+        - skipped
+        - no_provider
+        - policy_denied
+        - budget_exhausted
+        - unsafe
+        - provider_unavailable
+        - unchanged
+        - stale
+      properties:
+        total:
+          type: integer
+        pending:
+          type: integer
+        claimed:
+          type: integer
+        retrying:
+          type: integer
+        succeeded:
+          type: integer
+        dead_letter:
+          type: integer
+        skipped:
+          type: integer
+        no_provider:
+          type: integer
+        policy_denied:
+          type: integer
+        budget_exhausted:
+          type: integer
+        unsafe:
+          type: integer
+        provider_unavailable:
+          type: integer
+        unchanged:
+          type: integer
+        stale:
+          type: integer
+        status_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        source_class_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        failure_class_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        provider_profile_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemanticExtractionProviderProfileCount"
+        policy_decision_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemanticExtractionDecision"
+        guard_decision_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemanticExtractionDecision"
+        updated_at:
+          type: string
+          format: date-time
+    SemanticExtractionBudgetDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - count
+      properties:
+        state:
+          type: string
+        reason:
+          type: string
+        budget_unit:
+          type: string
+        count:
+          type: integer
+    SemanticExtractionBudget:
+      type: object
+      additionalProperties: false
+      required:
+        - estimated_input_tokens
+        - estimated_output_tokens
+        - estimated_cost_micros
+        - actual_input_tokens
+        - actual_output_tokens
+        - actual_cost_micros
+        - remaining_tokens
+        - remaining_cost_micros
+        - exhausted
+      properties:
+        estimated_input_tokens:
+          type: integer
+        estimated_output_tokens:
+          type: integer
+        estimated_cost_micros:
+          type: integer
+        actual_input_tokens:
+          type: integer
+        actual_output_tokens:
+          type: integer
+        actual_cost_micros:
+          type: integer
+        remaining_tokens:
+          type: integer
+        remaining_cost_micros:
+          type: integer
+        exhausted:
+          type: integer
+        decision_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemanticExtractionBudgetDecision"
+    SemanticExtractionAudit:
+      type: object
+      additionalProperties: false
+      properties:
+        actor_class_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        acl_state_counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/NamedCount"
+        last_processed_at:
+          type: string
+          format: date-time
+    SemanticExtraction:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - reason
+        - provider_configured
+        - documentation_observations_enabled
+        - code_hints_enabled
+        - deterministic_paths_affected
+        - supported_states
+        - supported_provider_profile_states
+      properties:
+        state:
+          type: string
+        reason:
+          type: string
+        detail:
+          type: string
+        provider_configured:
+          type: boolean
+        documentation_observations_enabled:
+          type: boolean
+        code_hints_enabled:
+          type: boolean
+        deterministic_paths_affected:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+        provider_profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemanticProviderProfile"
+        queue:
+          $ref: "#/components/schemas/SemanticExtractionQueue"
+        budget:
+          $ref: "#/components/schemas/SemanticExtractionBudget"
+        audit:
+          $ref: "#/components/schemas/SemanticExtractionAudit"
+        supported_states:
+          type: array
+          items:
+            type: string
+        supported_provider_profile_states:
+          type: array
+          items:
+            type: string
+    AnswerNarration:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - reason
+        - provider_configured
+        - provider_traffic_enabled
+        - policy_allowed
+        - budget_available
+        - publish_safety_enabled
+        - deterministic_fallback_available
+        - canonical_truth_affected
+        - retention_posture
+        - supported_states
+        - supported_reasons
+        - validator_reason_codes
+      properties:
+        state:
+          type: string
+        reason:
+          type: string
+        detail:
+          type: string
+        provider_configured:
+          type: boolean
+        provider_traffic_enabled:
+          type: boolean
+        policy_allowed:
+          type: boolean
+        budget_available:
+          type: boolean
+        publish_safety_enabled:
+          type: boolean
+        deterministic_fallback_available:
+          type: boolean
+        canonical_truth_affected:
+          type: boolean
+        retention_posture:
+          type: string
+        policy_hash:
+          type: string
+        supported_states:
+          type: array
+          items:
+            type: string
+        supported_reasons:
+          type: array
+          items:
+            type: string
+        validator_reason_codes:
+          type: array
+          items:
+            type: string
+        updated_at:
+          type: string
+          format: date-time
+    RepositorySelection:
+      type: object
+      additionalProperties: false
+      required:
+        - states
+        - classifications
+      properties:
+        states:
+          type: object
+          additionalProperties:
+            type: integer
+        classifications:
+          type: object
+          additionalProperties:
+            type: integer
+    TerraformStateSerial:
+      type: object
+      additionalProperties: false
+      required:
+        - safe_locator_hash
+        - serial
+      properties:
+        safe_locator_hash:
+          type: string
+        backend_kind:
+          type: string
+        lineage:
+          type: string
+        serial:
+          type: integer
+        generation_id:
+          type: string
+        observed_at:
+          type: string
+          format: date-time
+    TerraformStateWarning:
+      type: object
+      additionalProperties: false
+      required:
+        - safe_locator_hash
+        - warning_kind
+      properties:
+        safe_locator_hash:
+          type: string
+        backend_kind:
+          type: string
+        warning_kind:
+          type: string
+        reason:
+          type: string
+        severity:
+          type: string
+        actionability:
+          type: string
+        source:
+          type: string
+        source_handle:
+          type: string
+        generation_id:
+          type: string
+        observed_at:
+          type: string
+          format: date-time
+    TerraformStateWarningSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - warning_kind
+        - reason
+        - scope_class
+        - count
+      properties:
+        warning_kind:
+          type: string
+        reason:
+          type: string
+        scope_class:
+          type: string
+        severity:
+          type: string
+        actionability:
+          type: string
+        count:
+          type: integer
+    TerraformStateReport:
+      type: object
+      additionalProperties: false
+      required:
+        - last_serials
+        - recent_warnings
+        - warnings_by_kind
+        - warning_summary
+      properties:
+        last_serials:
+          type: array
+          items:
+            $ref: "#/components/schemas/TerraformStateSerial"
+        recent_warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TerraformStateWarning"
+        warnings_by_kind:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                $ref: "#/components/schemas/TerraformStateWarning"
+        warning_summary:
+          type: array
+          items:
+            $ref: "#/components/schemas/TerraformStateWarningSummary"
+    SupplyChainStuckPartial:
+      type: object
+      additionalProperties: false
+      required:
+        - scope_id
+        - causes
+        - partial_since
+      properties:
+        scope_id:
+          type: string
+        causes:
+          type: array
+          items:
+            type: string
+        partial_since:
+          type: string
+          format: date-time

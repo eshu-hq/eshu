@@ -53,30 +53,7 @@ const components = `  "components": {
           }
         }
       },
-      "InvestigationEvidencePacket": {
-        "type": "object",
-        "description": "Portable investigation_evidence_packet.v2 artifact. The packet separates source facts, reducer decisions, graph/query answers, missing evidence, reproduce handles, bounds, redaction, and validation state.",
-        "properties": {
-          "schema": {"type": "string", "enum": ["investigation_evidence_packet.v2"]},
-          "packet_id": {"type": "string"},
-          "identity": {"type": "object"},
-          "truth": {"type": "object", "nullable": true, "description": "Truth envelope: level, capability, profile, basis, backend, freshness, reason, and omissions. omissions (absent when the response carries every section in full) lists {section, detail, total} for each section a route withheld (detail omitted) or reduced to identity handles (detail handles), such as trace-deployment-chain under evidence_detail handles or an explicit sections list."},
-          "freshness": {"type": "object"},
-          "answer": {"type": "object"},
-          "source_facts": {"type": "array", "items": {"type": "object"}},
-          "reducer_decisions": {"type": "array", "items": {"type": "object"}},
-          "graph_answers": {"type": "array", "items": {"type": "object"}},
-          "citations": {"type": "array", "items": {"type": "object"}},
-          "missing_evidence": {"type": "array", "items": {"type": "object"}},
-          "semantic_observations": {"type": "array", "items": {"type": "object"}},
-          "reproduce": {"type": "array", "items": {"type": "object"}},
-          "bounds": {"type": "object"},
-          "redaction": {"type": "object"},
-          "validation": {"type": "object"},
-          "refusal": {"type": "string"}
-        }
-      },
-` + componentsReplatforming + componentsProviderConfigs + componentsSignInPolicy + componentsActiveWorkSource + componentsTerraformStateSource + componentsCoordinatorSource + componentsSourcePacing + componentsEntitySearch + componentsRankWalk + `      "CollectorReadinessEnvelope": {
+` + componentsEvidencePacket + componentsReplatforming + componentsProviderConfigs + componentsSignInPolicy + componentsActiveWorkSource + componentsTerraformStateSource + componentsCoordinatorSource + componentsSourcePacing + componentsEntitySearch + componentsRankWalk + `      "CollectorReadinessEnvelope": {
         "type": "object",
         "description": "Per-collector readiness signal for a gated supply-chain list response. It distinguishes an empty page produced by an unconfigured feeding collector (not_configured) from a genuinely empty page produced by a configured-but-zero collector (ready_zero_results), so an empty page is never ambiguous. readiness_unavailable means the configured probe itself failed; the page is still returned but its emptiness cannot be classified.",
         "properties": {
@@ -254,7 +231,7 @@ const components = `  "components": {
         "description": "Canonical bounded code-flow response. One of paths, definitions, functions, or summaries is populated depending on the operation. Each row carries a fact_label such as exact_parser_fact, derived_reducer_evidence, or partial_derived_summary.",
         "properties": {
           "kind": {"type": "string", "enum": ["taint_path", "reaching_def", "cfg_summary", "pdg_summary"]},
-          "scope": {"type": "object", "additionalProperties": true},
+          "scope": {"type": "object", "additionalProperties": true, "description": "Free-form object with no fixed keys: the code-flow read echoes no stable scope envelope (owner codequery/flow.go buildCodeFlowPayload emits only coverage, ambiguity, bounds, and one result family). Render as raw JSON, never as a fixed form."},
           "paths": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "definitions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "functions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},

@@ -71,8 +71,8 @@ const Semantic = `
                       "type": "object",
                       "description": "Class-based semantic extraction audit aggregates without principals, source identifiers, prompts, or provider responses.",
                       "properties": {
-                        "actor_class_counts": {"type": "array", "items": {"type": "object"}},
-                        "acl_state_counts": {"type": "array", "items": {"type": "object"}},
+                        "actor_class_counts": {"type": "array", "items": ` + namedCountItemSchema + `},
+                        "acl_state_counts": {"type": "array", "items": ` + namedCountItemSchema + `},
                         "last_processed_at": {"type": "string", "format": "date-time"}
                       }
                     },
