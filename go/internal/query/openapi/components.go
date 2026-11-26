@@ -263,7 +263,12 @@ const components = `  "components": {
             "heuristic": {"type": "boolean", "description": "True when truth_state is heuristic. Owner: codemodel.RelationshipStoryProvenance."},
             "unsupported": {"type": "boolean", "description": "True when truth_state is unsupported. Owner: codemodel.RelationshipStoryProvenance."}
           }},
-          "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking. Owner: codeshaping centrality."}
+          "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking. Owner: codeshaping centrality."},
+          "direction": {"type": "string", "description": "Row direction (incoming or outgoing) projected per row. Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher (Neo4j), relationships.OneHopRelationshipsCypher and codequery.nornicDBRelationshipStoryGraphCypher (NornicDB); present on code-graph, story, infra, and entity-context overview rows."},
+          "call_kind": {"type": "string", "description": "Call kind from rel.call_kind. Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher (Neo4j), relationships.OneHopRelationshipsCypher and codequery.nornicDBRelationshipStoryGraphCypher (NornicDB); present on code-graph and story rows; absent on infra and entity-context overview rows, which do not project edge properties."},
+          "edge_origin": {"type": "string", "description": "Edge origin marker ('direct_code_edge' on direct story reads). Owner: codequery/relationships/story.GraphCypher (Neo4j) and codequery.nornicDBRelationshipStoryGraphCypher (NornicDB); present on story rows only; absent on code-graph, infra, and entity-context overview rows."},
+          "evidence_source": {"type": "string", "description": "Evidence source from rel.evidence_source. Owner: codequery/relationships/story.GraphCypher (Neo4j) and codequery.nornicDBRelationshipStoryGraphCypher (NornicDB); present on story rows only; absent on code-graph, infra, and entity-context overview rows."},
+          "why_trail_json": {"type": "string", "description": "Encoded value-flow trail from rel.why_trail_json, decoded into provenance.why_trail. Owner: codequery/relationships/story.GraphCypher (Neo4j) and codequery.nornicDBRelationshipStoryGraphCypher (NornicDB); present on story rows only; absent on code-graph, infra, and entity-context overview rows."}
         }
       },
       "FileContent": {

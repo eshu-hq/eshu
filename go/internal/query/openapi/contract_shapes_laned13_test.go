@@ -114,7 +114,9 @@ func TestContractShapesLaneD13(t *testing.T) {
 			"target_start_line", "target_end_line",
 			"confidence", "confidence_basis", "reason",
 			"resolution_source", "evidence_type", "evidence_kinds",
-			"resolution_method", "provenance", "centrality")
+			"resolution_method", "provenance", "centrality",
+			"direction", "call_kind", "edge_origin",
+			"evidence_source", "why_trail_json")
 		requireDescribedTypes(t, props, "Relationship", map[string]string{
 			"type": "string", "target_name": "string",
 			"target_id": "string", "source_name": "string",
@@ -130,7 +132,9 @@ func TestContractShapesLaneD13(t *testing.T) {
 			"reason": "string", "resolution_source": "string",
 			"evidence_type": "string", "evidence_kinds": "array",
 			"resolution_method": "string", "provenance": "object",
-			"centrality": "integer",
+			"centrality": "integer", "direction": "string",
+			"call_kind": "string", "edge_origin": "string",
+			"evidence_source": "string", "why_trail_json": "string",
 		})
 
 		prov, ok := props["provenance"].(map[string]any)
