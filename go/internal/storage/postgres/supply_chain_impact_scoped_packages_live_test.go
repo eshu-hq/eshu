@@ -12,22 +12,28 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // seedScopedFindingRow writes one active finding row with package identity
 // for the seed-read proof.
 func seedScopedFindingRow(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, factID, cve, advisory, pkg, purl, name, eco string, tombstone bool) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, `
+	// The plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the seed read under test runs armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), $5,
   jsonb_build_object('cve_id', $6::text, 'advisory_id', $7::text, 'package_id', $8::text, 'purl', $9::text,
     'package_name', $10::text, 'ecosystem', $11::text))`,
-		factID, scope, fanOutGen(scope, generation), facts.ReducerSupplyChainImpactFindingFactKind,
-		tombstone, cve, advisory, pkg, purl, name, eco); err != nil {
-		t.Fatalf("seed finding row %s: %v", factID, err)
-	}
+			factID, scope, fanOutGen(scope, generation), facts.ReducerSupplyChainImpactFindingFactKind,
+			tombstone, cve, advisory, pkg, purl, name, eco); err != nil {
+			t.Fatalf("seed finding row %s: %v", factID, err)
+		}
+	})
 	// The seed read answers from the supports table (#11197), which no
 	// maintainer filled for a directly written fact.
 	settleSupplyChainImpactSupports(t, ctx, db)

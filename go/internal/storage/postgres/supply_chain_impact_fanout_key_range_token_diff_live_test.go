@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -167,7 +168,12 @@ func tokenRead(t *testing.T, ctx context.Context, sqldb *sql.DB, build tokenStat
 // swapping in the array-only function.
 func TestHolderKeyRangeTokenReadMatchesShippedLive(t *testing.T) {
 	ctx, sqldb := fanOutLiveDB(t)
-	tokenSeed(t, ctx, sqldb)
+	// The seed plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, sqldb, func() {
+		tokenSeed(t, ctx, sqldb)
+	})
 	if _, err := sqldb.ExecContext(ctx, keyRangeArrayOnlyFunctionSQL); err != nil {
 		t.Fatalf("create array-only RED function: %v", err)
 	}

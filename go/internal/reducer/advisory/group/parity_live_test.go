@@ -24,6 +24,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestAdvisoryGroupParityLive is the seeded bidirectional parity proof for
@@ -236,11 +237,16 @@ func seedParityWinners(t *testing.T, ctx context.Context, db *sql.DB, groupA, gr
 		{`INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at) VALUES (1, NOW())
 		  ON CONFLICT (singleton) DO UPDATE SET materialized_at = NOW()`, nil},
 	}
-	for _, s := range stmts {
-		if _, err := db.ExecContext(ctx, s.sql, s.args...); err != nil {
-			t.Fatalf("seed parity base: %v", err)
+	// The base plants one frozen finding fact, so the statements run in a
+	// scoped postgresproof.SeedFindingFacts window: the proof database stays
+	// armed and the parity reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		for _, s := range stmts {
+			if _, err := db.ExecContext(ctx, s.sql, s.args...); err != nil {
+				t.Fatalf("seed parity base: %v", err)
+			}
 		}
-	}
+	})
 	type winner struct{ key, fact, status, repo, pkg, cve, advisory, suppression string }
 	seed := []winner{
 		{"a1", p + "fact-a", "affected_exact", repoA, "pkg:npm/parity-a", groupA, "GHSA-parity-a", "active"},

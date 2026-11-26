@@ -40,11 +40,9 @@ func fanOutLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	db := openAdvisorySuppressionIsolatedDB(t)
 	db.SetMaxOpenConns(24)
 	t.Cleanup(func() { _ = db.Close() })
-	// The fan-out proofs plant finding facts with raw SQL across their files while the code
-	// under test (the holder reads) reads the supports table: the trigger is disabled for the
-	// test and re-armed at cleanup (allowlisted; converting each plant to SeedFindingFacts is
-	// the follow-up). Registered after the close above so the re-arm runs first.
-	postgresproof.DisarmFindingWriteStopForTest(t, db)
+	// The fan-out family plants its frozen finding facts in scoped
+	// postgresproof.SeedFindingFacts windows at each seed site, so the proof
+	// databases stay armed and the holder reads under test run armed.
 	return ctx, db
 }
 
@@ -179,18 +177,23 @@ VALUES ($1, $2, $3, 'reducer', 'supply_chain_impact', 'scope', $2, 'pending', 0,
 	return id
 }
 
-// fanOutSeedFinding inserts one finding row for a CVE.
+// fanOutSeedFinding inserts one finding row for a CVE. The plant is frozen
+// finding history, so it runs in a scoped postgresproof.SeedFindingFacts
+// window: the proof database stays armed and the holder reads under test run
+// armed.
 func fanOutSeedFinding(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, cve string, tombstone bool) {
 	t.Helper()
 	generation = fanOutGen(scope, generation)
 	id := fmt.Sprintf("finding_%s_%s_%v", generation, cve, tombstone)
-	if _, err := db.ExecContext(ctx, `
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), $5, jsonb_build_object('cve_id', $6::text))`,
-		id, scope, generation, facts.ReducerSupplyChainImpactFindingFactKind, tombstone, cve); err != nil {
-		t.Fatalf("seed finding %s: %v", id, err)
-	}
+			id, scope, generation, facts.ReducerSupplyChainImpactFindingFactKind, tombstone, cve); err != nil {
+			t.Fatalf("seed finding %s: %v", id, err)
+		}
+	})
 }
 
 type fanOutItemState struct {

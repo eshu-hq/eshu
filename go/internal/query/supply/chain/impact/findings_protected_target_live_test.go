@@ -38,7 +38,12 @@ func TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive(t *testing.T) {
 	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: database}); err != nil {
 		t.Fatalf("ApplyBootstrap: %v", err)
 	}
-	if _, err := database.ExecContext(ctx, `
+	// The fixture plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the reads under test run armed. (Skip-gated on #9468, so this
+	// window is hermetic-only until the gate opens.)
+	postgresproof.SeedFindingFacts(t, database, func() {
+		if _, err := database.ExecContext(ctx, `
 CREATE TABLE provisional_finding_authority (
     finding_fact_id text PRIMARY KEY,
     scan_target_id text NOT NULL,
@@ -155,8 +160,9 @@ VALUES ('orphan-finding-fact', 'image://derived/orphan-finding', 'orphan-finding
         'orphan-finding-fact', now(), now(),
         '{"finding_id":"orphan-finding","cve_id":"CVE-2026-ORPHAN","subject_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","impact_status":"affected_exact"}'::jsonb);
 `); err != nil {
-		t.Fatalf("seed protected finding identity fixture: %v", err)
-	}
+			t.Fatalf("seed protected finding identity fixture: %v", err)
+		}
+	})
 	readIDs := func(query, digest string, allowedScopes []string) []string {
 		t.Helper()
 		rows, err := database.QueryContext(ctx, query, withGlobalFindingReadArgs(

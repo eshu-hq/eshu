@@ -15,6 +15,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // The finding-fact statements #11197 retired, kept as the oracle the supports
@@ -131,7 +132,11 @@ func holderFamilySeed(t *testing.T, ctx context.Context, db *sql.DB) {
 	}
 	fanOutSeedScope(t, ctx, db, "hf-own", "g2")
 	long := strings.Repeat("L", 1100)
-	if _, err := db.ExecContext(ctx, `
+	// The corpus plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
   source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 SELECT $1 || ':' || md5(i::text), 'hf-scope-' || lpad((i % 12)::text, 2, '0'),
@@ -151,9 +156,10 @@ SELECT $1 || ':' || md5(i::text), 'hf-scope-' || lpad((i % 12)::text, 2, '0'),
               ELSE jsonb_build_array('adv-foreign-hot')
             END))
 FROM generate_series(1, 2400) AS i`,
-		facts.ReducerSupplyChainImpactFindingFactKind, long); err != nil {
-		t.Fatalf("seed family corpus: %v", err)
-	}
+			facts.ReducerSupplyChainImpactFindingFactKind, long); err != nil {
+			t.Fatalf("seed family corpus: %v", err)
+		}
+	})
 	if _, err := db.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
 		t.Fatalf("analyze: %v", err)
 	}
@@ -167,7 +173,12 @@ FROM generate_series(1, 2400) AS i`,
 // the exact per-id mass, on a corpus with the #10643 token fixtures.
 func TestSupplyChainImpactSupportsHolderFamilyEqualsTheFactOracleLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
-	holderFamilySeed(t, ctx, db)
+	// The seed plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		holderFamilySeed(t, ctx, db)
+	})
 	settleSupplyChainImpactSupports(t, ctx, db)
 
 	chunks := [][]string{

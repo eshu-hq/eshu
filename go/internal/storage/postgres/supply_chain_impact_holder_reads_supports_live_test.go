@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // The finding-fact reads #11197 retired, kept verbatim as the oracle the
@@ -74,13 +75,18 @@ func holderReadsSeed(t *testing.T, ctx context.Context, db *sql.DB) {
 		{"f10", "scope-c", "gen-1", `{"cve_id":"","package_id":"p6","repository_id":"R2"}`, false},
 		{"f11", "scope-b", "gen-2", `{"cve_id":"CVE-X","package_id":"p7"}`, false},
 	} {
-		if _, err := db.ExecContext(ctx, `
+		// Each plant is frozen finding history, so it runs in a scoped
+		// postgresproof.SeedFindingFacts window: the proof database stays
+		// armed and the holder reads under test run armed.
+		postgresproof.SeedFindingFacts(t, db, func() {
+			if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), $5, $6::jsonb)`,
-			f.id, f.scope, fanOutGen(f.scope, f.gen), facts.ReducerSupplyChainImpactFindingFactKind, f.tombstone, f.payload); err != nil {
-			t.Fatalf("seed finding %s: %v", f.id, err)
-		}
+				f.id, f.scope, fanOutGen(f.scope, f.gen), facts.ReducerSupplyChainImpactFindingFactKind, f.tombstone, f.payload); err != nil {
+				t.Fatalf("seed finding %s: %v", f.id, err)
+			}
+		})
 	}
 }
 
@@ -127,7 +133,12 @@ func holderReadsOracleStrings(t *testing.T, ctx context.Context, db *sql.DB, que
 // write stop.
 func TestSupplyChainImpactSupportsHolderReadsEqualFactReadsLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
-	holderReadsSeed(t, ctx, db)
+	// The seed plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		holderReadsSeed(t, ctx, db)
+	})
 	store := postgres.SQLDB{DB: db}
 	supportsBackfillRunToCompletion(t, ctx, postgres.SupplyChainImpactSupportsBackfill{DB: store, ChunkSize: 3})
 	if ready, err := postgres.SupplyChainImpactSupportsReady(ctx, store); err != nil || !ready {
@@ -268,7 +279,12 @@ func sameScopedPackages(a, b []supplychaincore.ScopedFindingPackage) bool {
 // old-writer fence holding a dirty scope, each returns the shared typed refusal (SupplyChainImpactSupportsNotReadyError).
 func TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
-	holderReadsSeed(t, ctx, db)
+	// The seed plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		holderReadsSeed(t, ctx, db)
+	})
 	store := postgres.SQLDB{DB: db}
 	assertRefused := func(label string) {
 		t.Helper()
