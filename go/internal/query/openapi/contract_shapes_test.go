@@ -25,37 +25,32 @@ func TestContractShapesAreComplete(t *testing.T) {
 		t.Fatal("spec has no paths object")
 	}
 
+	// child navigates one map level, failing cleanly when the key is absent
+	// or not an object instead of panicking on a type assertion.
+	child := func(t *testing.T, node map[string]any, key, where string) map[string]any {
+		t.Helper()
+		next, ok := node[key].(map[string]any)
+		if !ok {
+			t.Fatalf("%s: missing or non-object property %q", where, key)
+		}
+		return next
+	}
+
 	schemaAt := func(t *testing.T, path, method string) map[string]any {
 		t.Helper()
 		route, ok := paths[path].(map[string]any)
 		if !ok {
 			t.Fatalf("spec paths missing %s", path)
 		}
-		op, ok := route[method].(map[string]any)
-		if !ok {
-			t.Fatalf("%s missing %s operation", path, method)
-		}
-		responses, ok := op["responses"].(map[string]any)
-		if !ok {
-			t.Fatalf("%s %s missing responses", path, method)
-		}
-		okResp, ok := responses["200"].(map[string]any)
-		if !ok {
-			t.Fatalf("%s %s missing 200 response", path, method)
-		}
+		op := child(t, route, method, path)
+		responses := child(t, op, "responses", path+" "+method)
+		okResp := child(t, responses, "200", path+" "+method)
 		content, ok := okResp["content"].(map[string]any)
 		if !ok {
 			t.Fatalf("%s %s 200 response has no content (only a description)", path, method)
 		}
-		body, ok := content["application/json"].(map[string]any)
-		if !ok {
-			t.Fatalf("%s %s 200 response has no application/json content", path, method)
-		}
-		schema, ok := body["schema"].(map[string]any)
-		if !ok {
-			t.Fatalf("%s %s 200 response has no schema", path, method)
-		}
-		return schema
+		body := child(t, content, "application/json", path+" "+method)
+		return child(t, body, "schema", path+" "+method)
 	}
 
 	propsOf := func(t *testing.T, node map[string]any, where string) map[string]any {
@@ -65,6 +60,15 @@ func TestContractShapesAreComplete(t *testing.T) {
 			t.Fatalf("%s: object schema has no properties", where)
 		}
 		return props
+	}
+
+	itemsOf := func(t *testing.T, node map[string]any, where string) map[string]any {
+		t.Helper()
+		items, ok := node["items"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s: array schema has no items", where)
+		}
+		return items
 	}
 
 	requireKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
@@ -83,47 +87,101 @@ func TestContractShapesAreComplete(t *testing.T) {
 		}
 	}
 
+	requireArrayOfStrings := func(t *testing.T, props map[string]any, where, key string) {
+		t.Helper()
+		node, ok := props[key].(map[string]any)
+		if !ok {
+			t.Errorf("%s: missing property %q", where, key)
+			return
+		}
+		if node["type"] != "array" {
+			t.Errorf("%s: property %q is not an array", where, key)
+			return
+		}
+		items, ok := node["items"].(map[string]any)
+		if !ok || items["type"] != "string" {
+			t.Errorf("%s: property %q is not an array of strings", where, key)
+		}
+	}
+
 	t.Run("operations queue and aggregates", func(t *testing.T) {
 		t.Parallel()
 		props := propsOf(t, schemaAt(t, "/api/v0/status/operations", "get"), "operations")
-		queue, ok := props["queue"].(map[string]any)
-		if !ok {
-			t.Fatal("operations: missing queue")
-		}
+		queue := child(t, props, "queue", "operations")
 		requireKeys(t, propsOf(t, queue, "operations.queue"), "operations.queue",
 			"total", "outstanding", "pending", "in_flight", "retrying",
 			"succeeded", "dead_letter", "failed",
 			"oldest_outstanding_age", "oldest_outstanding_age_ms", "overdue_claims")
-		requireKeys(t, propsOf(t, props["health"].(map[string]any), "operations.health"),
+		health := child(t, props, "health", "operations")
+		requireKeys(t, propsOf(t, health, "operations.health"),
 			"operations.health", "state", "reasons")
-		stages := props["stage_summaries"].(map[string]any)
-		requireKeys(t, propsOf(t, stages["items"].(map[string]any), "operations.stage_summaries[]"),
+		stages := child(t, props, "stage_summaries", "operations")
+		requireKeys(t, propsOf(t, itemsOf(t, stages, "operations.stage_summaries"), "operations.stage_summaries[]"),
 			"operations.stage_summaries[]", "stage", "pending", "dead_letter", "failed")
-		backlogs := props["domain_backlogs"].(map[string]any)
-		requireKeys(t, propsOf(t, backlogs["items"].(map[string]any), "operations.domain_backlogs[]"),
+		backlogs := child(t, props, "domain_backlogs", "operations")
+		requireKeys(t, propsOf(t, itemsOf(t, backlogs, "operations.domain_backlogs"), "operations.domain_backlogs[]"),
 			"operations.domain_backlogs[]", "domain", "outstanding", "in_flight", "dead_letter", "oldest_age")
 	})
 
 	t.Run("index status queue family", func(t *testing.T) {
 		t.Parallel()
 		props := propsOf(t, schemaAt(t, "/api/v0/status/index", "get"), "index")
-		requireKeys(t, propsOf(t, props["queue"].(map[string]any), "index.queue"),
+		queue := child(t, props, "queue", "index")
+		requireKeys(t, propsOf(t, queue, "index.queue"),
 			"index.queue", "total", "dead_letter", "overdue_claims")
-		requireKeys(t, propsOf(t, props["scope_activity"].(map[string]any), "index.scope_activity"),
+		scopeActivity := child(t, props, "scope_activity", "index")
+		requireKeys(t, propsOf(t, scopeActivity, "index.scope_activity"),
 			"index.scope_activity", "active", "changed", "unchanged")
-		blockages := props["queue_blockages"].(map[string]any)
-		requireKeys(t, propsOf(t, blockages["items"].(map[string]any), "index.queue_blockages[]"),
+		blockages := child(t, props, "queue_blockages", "index")
+		requireKeys(t, propsOf(t, itemsOf(t, blockages, "index.queue_blockages"), "index.queue_blockages[]"),
 			"index.queue_blockages[]", "stage", "domain", "conflict_key", "blocked", "oldest_age")
+	})
+
+	t.Run("operator control plane read model", func(t *testing.T) {
+		t.Parallel()
+		props := propsOf(t, schemaAt(t, "/api/v0/status/operator-control-plane", "get"), "control-plane")
+		queue := child(t, props, "queue", "control-plane")
+		queueProps := propsOf(t, queue, "control-plane.queue")
+		requireKeys(t, queueProps, "control-plane.queue",
+			"total", "outstanding", "pending", "in_flight", "retrying", "dead_letter")
+		latency := child(t, queueProps, "claim_latency", "control-plane.queue")
+		requireKeys(t, propsOf(t, latency, "control-plane.queue.claim_latency"), "control-plane.queue.claim_latency",
+			"overdue_claims", "oldest_outstanding_age", "oldest_outstanding_age_ms", "coordinator_oldest_pending")
+		stuck := child(t, queueProps, "stuck", "control-plane.queue")
+		requireKeys(t, propsOf(t, stuck, "control-plane.queue.stuck"), "control-plane.queue.stuck",
+			"oldest_outstanding_age", "blocked_conflicts")
+		families := child(t, props, "collector_families", "control-plane")
+		familyProps := propsOf(t, itemsOf(t, families, "control-plane.collector_families"), "control-plane.collector_families[]")
+		requireKeys(t, familyProps, "control-plane.collector_families[]",
+			"collector_kind", "promotion_state", "health", "telemetry", "display_name", "blockers")
+		requireArrayOfStrings(t, familyProps, "control-plane.collector_families[]", "telemetry")
+		dead := child(t, props, "dead_letters", "control-plane")
+		deadProps := propsOf(t, dead, "control-plane.dead_letters")
+		requireKeys(t, deadProps, "control-plane.dead_letters",
+			"queue_dead_letter", "by_domain", "collector_generation", "latest_failure")
+		byDomain := child(t, deadProps, "by_domain", "control-plane.dead_letters")
+		requireKeys(t, propsOf(t, itemsOf(t, byDomain, "control-plane.dead_letters.by_domain"), "control-plane.dead_letters.by_domain[]"),
+			"control-plane.dead_letters.by_domain[]", "domain", "dead_letter", "oldest_age")
+		generation := child(t, deadProps, "collector_generation", "control-plane.dead_letters")
+		requireKeys(t, propsOf(t, generation, "control-plane.dead_letters.collector_generation"), "control-plane.dead_letters.collector_generation",
+			"dead_letter", "replay_requested", "replay_attempts")
+		latest := child(t, deadProps, "latest_failure", "control-plane.dead_letters")
+		requireKeys(t, propsOf(t, latest, "control-plane.dead_letters.latest_failure"), "control-plane.dead_letters.latest_failure",
+			"failure_class", "domain")
+		policies := child(t, props, "retry_policies", "control-plane")
+		requireKeys(t, propsOf(t, itemsOf(t, policies, "control-plane.retry_policies"), "control-plane.retry_policies[]"),
+			"control-plane.retry_policies[]", "stage", "max_attempts", "retry_delay")
 	})
 
 	t.Run("hosted readiness coordinator and diagnostics", func(t *testing.T) {
 		t.Parallel()
 		props := propsOf(t, schemaAt(t, "/api/v0/status/hosted-readiness", "get"), "hosted-readiness")
-		requireKeys(t, propsOf(t, props["coordinator"].(map[string]any), "hosted-readiness.coordinator"),
+		coordinator := child(t, props, "coordinator", "hosted-readiness")
+		requireKeys(t, propsOf(t, coordinator, "hosted-readiness.coordinator"),
 			"hosted-readiness.coordinator", "collector_instances", "collector_backpressure",
 			"source_pacing", "active_claims", "overdue_claims")
-		paths := props["diagnostic_paths"].(map[string]any)
-		requireKeys(t, propsOf(t, paths["items"].(map[string]any), "hosted-readiness.diagnostic_paths[]"),
+		paths := child(t, props, "diagnostic_paths", "hosted-readiness")
+		requireKeys(t, propsOf(t, itemsOf(t, paths, "hosted-readiness.diagnostic_paths"), "hosted-readiness.diagnostic_paths[]"),
 			"hosted-readiness.diagnostic_paths[]", "name", "path")
 	})
 
@@ -131,16 +189,16 @@ func TestContractShapesAreComplete(t *testing.T) {
 		t.Parallel()
 		props := propsOf(t, schemaAt(t, "/api/v0/admin/workflow-retire-unclaimed", "post"), "retire-unclaimed")
 		requireKeys(t, props, "retire-unclaimed", "count", "items")
-		items := props["items"].(map[string]any)
-		requireKeys(t, propsOf(t, items["items"].(map[string]any), "retire-unclaimed.items[]"),
+		items := child(t, props, "items", "retire-unclaimed")
+		requireKeys(t, propsOf(t, itemsOf(t, items, "retire-unclaimed.items"), "retire-unclaimed.items[]"),
 			"retire-unclaimed.items[]", "work_item_id", "scope_id")
 	})
 
 	t.Run("work item evidence rows", func(t *testing.T) {
 		t.Parallel()
 		props := propsOf(t, schemaAt(t, "/api/v0/work-items/evidence", "get"), "work-item")
-		items := props["evidence"].(map[string]any)
-		requireKeys(t, propsOf(t, items["items"].(map[string]any), "work-item.evidence[]"),
+		evidence := child(t, props, "evidence", "work-item")
+		requireKeys(t, propsOf(t, itemsOf(t, evidence, "work-item.evidence"), "work-item.evidence[]"),
 			"work-item.evidence[]", "issue_type_id", "issue_type_name", "status_id",
 			"status_name", "created_at", "field", "relationship", "application_name")
 	})

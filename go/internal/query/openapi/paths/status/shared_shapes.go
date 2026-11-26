@@ -16,7 +16,7 @@ const (
 	// operations board, the index status summary (and its legacy alias),
 	// and hosted readiness. Provenance upgrade counters exist on the stored
 	// QueueSnapshot but this read model does not project them.
-	queueSnapshotSchema = `{"type": "object", "description": "Aggregate queue pressure and progress signals. Scoped callers omit this section; see withheld_sections.", "properties": {
+	queueSnapshotSchema = `{"type": "object", "description": "Aggregate queue pressure and progress signals. Operations and index status omit this section for scoped callers (see withheld_sections); hosted readiness always serves it.", "properties": {
     "total": {"type": "integer", "description": "Work items known to the queue across all states."},
     "outstanding": {"type": "integer", "description": "Work items not in a terminal state."},
     "pending": {"type": "integer", "description": "Outstanding items with no current claim or lease."},
@@ -32,7 +32,7 @@ const (
 
 	// healthSchema is the healthToMap read model: a bounded state token
 	// plus machine-readable reasons, never backend error text.
-	healthSchema = `{"type": "object", "description": "Process health summary. Scoped callers omit this section; see withheld_sections.", "properties": {
+	healthSchema = `{"type": "object", "description": "Process health summary: a bounded state token plus machine-readable reasons.", "properties": {
     "state": {"type": "string", "description": "Aggregate health state token."},
     "reasons": {"type": "array", "items": {"type": "string"}, "description": "Machine-readable reasons behind a non-healthy state; empty when healthy."}
   }}`
@@ -80,7 +80,7 @@ const (
   }}`
 
 	// scopeActivitySchema is the scopeActivityToMap read model.
-	scopeActivitySchema = `{"type": "object", "description": "Scope generation activity counters. Scoped callers omit this section; see withheld_sections.", "properties": {
+	scopeActivitySchema = `{"type": "object", "description": "Scope generation activity counters. Operations and index status omit this section for scoped callers (see withheld_sections).", "properties": {
     "active": {"type": "integer", "description": "Scopes on the current active generation."},
     "changed": {"type": "integer", "description": "Scopes whose generation changed since the last observation."},
     "unchanged": {"type": "integer", "description": "Scopes steady on the same generation."}
@@ -97,7 +97,8 @@ const (
 	// coordinatorSchema is the coordinatorToMap read model served on hosted
 	// readiness and the index status summary. Optional members are absent,
 	// never null, when the underlying snapshot has no value for them.
-	coordinatorSchema = `{"type": "object", "description": "Workflow coordinator snapshot: registered instances, claim backpressure, source pacing, status counts, and claim age. Scoped callers omit this section; see withheld_sections.", "properties": {
+	coordinatorSchema = `{"type": "object", "description": "Workflow coordinator snapshot: registered instances, claim backpressure, source pacing, status counts, and claim age. Scoped callers receive a reduced variant carrying collector_instance_count with the count blocks, claim totals, and recency instead of the per-instance, backpressure, and pacing detail.", "properties": {
+    "collector_instance_count": {"type": "integer", "description": "Number of registered collector instances; present only on the scoped variant, which omits collector_instances."},
     "collector_instances": {"type": "array", "items": {"type": "object", "properties": {
       "instance_id": {"type": "string"},
       "collector_kind": {"type": "string"},

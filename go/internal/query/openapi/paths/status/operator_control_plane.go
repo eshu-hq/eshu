@@ -86,7 +86,7 @@ const OperatorControlPlane = `
                           "claim_state": {"type": "string"},
                           "reducer_readback": {"type": "string"},
                           "last_observed_at": {"type": ["string", "null"], "format": "date-time"},
-                          "telemetry": {"type": "object", "description": "Telemetry handles for this family."},
+                          "telemetry": {"type": "array", "items": {"type": "string"}, "description": "Stable metric and span names for diagnosing this family."},
                           "display_name": {"type": "string", "description": "Withheld from scoped callers."},
                           "blockers": {"type": "array", "items": {"type": "string"}, "description": "Instance-level blockers, including terminal fetch failures; withheld from scoped callers."}
                         }

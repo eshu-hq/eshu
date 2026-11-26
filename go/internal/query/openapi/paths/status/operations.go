@@ -71,22 +71,22 @@ const Operations = `
                           "evidence_sources": {"type": "array", "items": {"type": "string"}},
                           "source_systems": {"type": "array", "items": {"type": "string"}},
                           "observation_count": {"type": "integer"},
-                          "last_observed_at": {"type": "string", "format": "date-time"},
-                          "updated_at": {"type": "string", "format": "date-time"},
+                          "last_observed_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Last observation time; null when the collector has no observation yet."},
+                          "updated_at": {"type": "string", "format": "date-time", "nullable": true, "description": "Last update time; null when the collector has no observation yet."},
                           "deactivated_at": {"type": ["string", "null"], "format": "date-time", "description": "Deactivation time, or null while the instance is active."},
                           "detail": {"type": "string"},
                           "last_failure_class": {"type": "string", "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal."},
                           "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure; present only with last_failure_terminal."},
                           "last_failure_terminal": {"type": "boolean", "description": "True while an unresolved terminal fetch failure marks this instance; absent otherwise."},
-                          "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; present only with last_failure_terminal."},
+                          "last_failure_at": {"type": "string", "format": "date-time", "nullable": true, "description": "When that failure became terminal; present only with last_failure_terminal."},
                           "acknowledged_failure": {
                             "type": "object",
                             "description": "An operator-acknowledged terminal failure. Bounded tokens and times only; the operator's reason is never returned. Omitted when none.",
                             "properties": {
                               "failure_class": {"type": "string"},
                               "failure_operation": {"type": "string"},
-                              "failed_at": {"type": "string", "format": "date-time"},
-                              "acknowledged_at": {"type": "string", "format": "date-time"}
+                              "failed_at": {"type": "string", "format": "date-time", "nullable": true},
+                              "acknowledged_at": {"type": "string", "format": "date-time", "nullable": true}
                             }
                           }
                         }
