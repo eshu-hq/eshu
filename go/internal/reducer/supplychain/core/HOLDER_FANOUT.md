@@ -478,8 +478,8 @@ required (NOT_CHECKED here).
 
 Observability Evidence (#10681 capped probe): probe errors still count at
 the existing FanOutReadSiteHolders site with no new counter, label, span,
-or log field. max_id_mass_rows now saturates at the 10001 cap by design
-(hot stays hot; exact max above threshold is sacrificed and documented).
+or log field. max_id_mass_rows saturates at the probe cap unless routing mass
+replaced it (saturation at gate+1, #10972 H2 Lane-1b); exact max above threshold is sacrificed.
 
 No-Regression Evidence (#10990 evidence-pointer hygiene): the 14
 hot-path-adjacent files this lane touches changed comment bytes only —
