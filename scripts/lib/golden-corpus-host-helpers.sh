@@ -46,6 +46,12 @@ build_bin() {
 		build_satellite_bin
 		return
 	fi
+	# #11453 decision 4 (record-why, not a repoint): the api build stays the
+	# in-tree ./cmd/api for the query-truth shell the gate starts above. The
+	# gate proves reducer/graph/handler truth and the in-tree shell mounts
+	# core's handlers — the only shell for the default NornicDB leg — while
+	# relay fidelity to the shipped satellite is proven by the parity and
+	# latency legs. Removing this build is a #11456 blocker.
 	eshu_export_cgo_cflags
 	CGO_ENABLED=1 go -C go build -o "${bin_dir}/eshu-${cmd}" "./cmd/${cmd}" \
 		|| die "build ${cmd} failed"

@@ -12,8 +12,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
-// HealthzPath is the deployed liveness probe path served by the runtime
-// admin mux.
+// HealthPath is the deployed liveness probe path served by the satellite and
+// the core alike.
+const HealthPath = "/health"
+
+// HealthzPath is the legacy in-tree API liveness probe path. It stays only
+// as the fallback the hosted health seam tries when GET /health answers 404
+// (an in-tree API surface behind the same endpoint); nothing probes it
+// first.
 const HealthzPath = "/healthz"
 
 // ReadyzPath is the deployed readiness probe path served by the runtime
@@ -57,7 +63,8 @@ type RepositoryList struct {
 // caller owns; no seam is optional except ListTools, which tolerates a nil
 // value and reports an empty tool surface.
 type Deps struct {
-	// Health probes the deployed HealthzPath liveness endpoint.
+	// Health probes the deployed HealthPath liveness endpoint, with a
+	// 404-only fallback to the legacy HealthzPath.
 	Health func() error
 	// Ready probes the deployed ReadyzPath readiness endpoint; a 401/403 here is
 	// classified as an authentication failure.

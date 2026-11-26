@@ -320,9 +320,10 @@ func RunOwnedHostWithLayout(ctx context.Context, out io.Writer, layout eshulocal
 		return WaitManagedChildren(ctx, children, "")
 	}
 
-	// The MCP session is a loopback eshu-core-api plus the satellite, owned by this
-	// process: the bridge below owns the process stdio and the session ends
-	// when the bridge sees EOF.
+	// The MCP session is a loopback session API (eshu-core-api on Neo4j,
+	// eshu-local-api otherwise) plus the satellite, owned by this process:
+	// the bridge below owns the process stdio and the session ends when the
+	// bridge sees EOF.
 	session, err := StartMCPSession(ctx, managedPostgres.DSN, runtimeConfig, managedGraph, layout)
 	if err != nil {
 		return err

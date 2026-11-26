@@ -273,11 +273,6 @@ for spec in "${collector_specs[@]}"; do build_bin "${spec%%:*}"; done
 start_golden_corpus_backends
 
 pipeline_start="$(date +%s)"
-# B-11 (#3804) macro per-phase wall-clock capture. Integer-second epochs are used
-# (portable across GNU and BSD date; %N is GNU-only) — the 10-15% regression band
-# absorbs the sub-second rounding. Phase boundaries mirror the orchestration
-# below; the deltas are emitted to phase-timings.json just before the final gate,
-# which compares them against testdata/golden/e2e-baseline.json.
 phase_bootstrap_start="${pipeline_start}"
 
 log "bootstrap-index over minimal corpus (schema + filesystem facts + projection)"
@@ -378,6 +373,11 @@ golden_aggregate_counts_oracle="${log_dir}/persisted-aggregate-counts.json"
 	die "persisted aggregate-count oracle failed"
 golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"
 
+# #11453 decision 4 (record-why, not a repoint): the in-tree ./cmd/api stays
+# the query-truth shell for the default NornicDB leg. The gate proves
+# reducer/graph/handler truth and the in-tree shell mounts core's handlers;
+# relay fidelity to the satellite is proven by the parity and latency legs.
+# Repointing this start is a #11456 removal blocker (see build_bin).
 log "start eshu-api for query truth"
 golden_metrics_source_start
 golden_ask_source_start

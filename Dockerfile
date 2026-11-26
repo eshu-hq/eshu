@@ -216,6 +216,14 @@ COPY --from=mcp-satellite /eshu-mcp /usr/local/bin/eshu-mcp-server
 # --core-base-url pointing at the core origin; without one it exits 1
 # fail-closed.
 COPY --from=api-satellite /eshu-api /usr/local/bin/eshu-api
+# Release-image entrypoint (issue #11453): maps ESHU_CORE_BASE_URL to
+# --core-base-url when the container starts `eshu-api` without the flag, so
+# `docker run -e ESHU_CORE_BASE_URL=... <image>` boots the satellite against
+# that core. An explicit --core-base-url, and any other command, execs
+# untouched; `eshu-api` with neither fails closed (exit 1) with a usage
+# naming both forms.
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Create the runtime user and writable working directories.
 RUN adduser -D -u 10001 eshu \
@@ -231,15 +239,18 @@ EXPOSE 8080 9464
 
 WORKDIR /data
 USER eshu
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Health check. The satellite serves GET /health (shallow liveness) plus the
 # core-gated GET /readyz; it has no /healthz, so the probe uses /health.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -fsS http://localhost:8080/health || exit 1
 
-# Default command - run the API dispatch satellite. The path is unchanged but
-# the binary behind it is the satellite release now: a bare `eshu-api` with
-# no --core-base-url exits 1 fail-closed, so every stack must keep passing
-# the core origin explicitly (in-repo stacks already do: the reachability
-# proof compose and the gate scripts pass --core-base-url).
+# Default command - the API dispatch satellite behind the unchanged `eshu-api`
+# path. The entrypoint maps ESHU_CORE_BASE_URL to --core-base-url; without
+# the env or an explicit flag the run exits 1 with a usage naming both
+# forms, so stacks that relied on the old bare default must now pass the core
+# origin one of those two ways (migration from the in-tree default that
+# served :8080 with no flag; in-repo stacks already pass --core-base-url:
+# the reachability proof compose and the gate scripts).
 CMD ["eshu-api"]

@@ -17,8 +17,11 @@ const (
 	// StageEndpoint resolves and reports the deployed endpoint and whether
 	// a bearer token was supplied (the value is never recorded).
 	StageEndpoint StageName = "endpoint and auth resolved"
-	// StageHealthz proves the deployed service answers /healthz.
-	StageHealthz StageName = "healthz reachable"
+	// StageHealthz proves the deployed service answers /health (with a
+	// 404-only fallback to the legacy /healthz, which the success detail
+	// does not distinguish: reaching either route proves the health
+	// surface is up).
+	StageHealthz StageName = "health reachable"
 	// StageReadyz proves the deployed service answers /readyz and that the
 	// caller is authenticated.
 	StageReadyz StageName = "readyz reachable"

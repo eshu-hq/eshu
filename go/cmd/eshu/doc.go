@@ -14,7 +14,7 @@
 // `first-run report` subcommand that derives indexing state from the readiness
 // verdict and redacts endpoints, paths, and tokens; `hosted-setup`, the
 // first-five-minutes flow for a deployed service that resolves the endpoint and
-// bearer token, runs ordered individually-reported checks (/healthz, /readyz,
+// bearer token, runs ordered individually-reported checks (/health, /readyz,
 // status/index readiness, MCP tool visibility, and one bounded query),
 // distinguishes auth-unavailable, empty-index, stale-readiness,
 // partial-readiness, missing-repo-scope, and mcp-unavailable failures, reports

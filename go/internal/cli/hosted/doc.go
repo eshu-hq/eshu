@@ -7,7 +7,7 @@
 // accidental org-wide ingestion, and the redacted onboarding artifact a team is
 // handed.
 //
-// ExecuteSetup runs six ordered stages — endpoint/auth resolution, /healthz,
+// ExecuteSetup runs six ordered stages — endpoint/auth resolution, /health,
 // /readyz, index readiness, MCP tool visibility, and one bounded query — and
 // records each with its own FailCategory so an operator sees which stage failed
 // and why. The contract that matters: Result.Connected reports true only when

@@ -124,51 +124,140 @@ func TestStartMCPSessionSpawnsCoreThenSatellite(t *testing.T) {
 	if got := session.SatelliteMessageURL(); got != "http://127.0.0.1:19192/mcp/message" {
 		t.Fatalf("SatelliteMessageURL() = %q, want http://127.0.0.1:19192/mcp/message", got)
 	}
+	children := session.Children()
+	if len(children) != 2 || children[0].name != "eshu-core-api" || children[1].name != "eshu-mcp-server" {
+		t.Fatalf("Children() names = %v, want [eshu-core-api eshu-mcp-server]", children)
+	}
 }
 
-// TestStartMCPSessionRefusesNonNeo4jBackend proves the supervisor refuses a
-// session before spawning anything when the backend is not the pinned Neo4j
-// one eshu-core-api requires. Core fails closed on any other backend, so a
-// nornicdb or lightweight session would only burn the /health wait on a child
-// that can never serve.
-func TestStartMCPSessionRefusesNonNeo4jBackend(t *testing.T) {
+// TestStartMCPSessionSelectsSessionAPIBackend proves the session API binary
+// follows the graph backend: eshu-core-api on Neo4j (address on -addr, waits
+// /health), eshu-local-api on NornicDB or an unset backend (address on
+// ESHU_API_ADDR, waits /healthz). The satellite still points at the session
+// base with -core-base-url regardless of which API serves it, and
+// Children() carries the spawned API name.
+func TestStartMCPSessionSelectsSessionAPIBackend(t *testing.T) {
 	tests := []struct {
 		name          string
 		runtimeConfig RuntimeConfig
+		wantName      string
+		wantAddrFlag  string
+		wantEnvAddr   string
+		wantWaitPath  string
 	}{
-		{"nornicdb", RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB}},
-		{"lightweight", RuntimeConfig{Profile: querycontract.ProfileLocalLightweight}},
+		{
+			name:          "neo4j",
+			runtimeConfig: RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNeo4j},
+			wantName:      "eshu-core-api",
+			wantAddrFlag:  "127.0.0.1:19191",
+			wantEnvAddr:   "",
+			wantWaitPath:  "/health",
+		},
+		{
+			name:          "nornicdb",
+			runtimeConfig: RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: querycontract.GraphBackendNornicDB},
+			wantName:      "eshu-local-api",
+			wantAddrFlag:  "",
+			wantEnvAddr:   "127.0.0.1:19191",
+			wantWaitPath:  "/healthz",
+		},
+		{
+			name:          "lightweight",
+			runtimeConfig: RuntimeConfig{Profile: querycontract.ProfileLocalLightweight},
+			wantName:      "eshu-local-api",
+			wantAddrFlag:  "",
+			wantEnvAddr:   "127.0.0.1:19191",
+			wantWaitPath:  "/healthz",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			originalStartChild := StartChildProcess
-			originalReserve := mcpSessionReservePort
-			originalWait := mcpSessionWaitHTTP
-			t.Cleanup(func() {
-				StartChildProcess = originalStartChild
-				mcpSessionReservePort = originalReserve
-				mcpSessionWaitHTTP = originalWait
-			})
-			StartChildProcess = func(string, []string, []string) (*exec.Cmd, error) {
-				t.Error("StartChildProcess called, want pre-spawn refusal")
-				return nil, nil
-			}
-			mcpSessionReservePort = func() (int, error) {
-				t.Error("mcpSessionReservePort called, want pre-spawn refusal")
-				return 0, errors.New("no ports on a refused session")
-			}
-			mcpSessionWaitHTTP = func(context.Context, string, time.Duration) error {
-				t.Error("mcpSessionWaitHTTP called, want pre-spawn refusal")
-				return nil
-			}
+			t.Setenv("ESHU_API_KEY", "")
+			starts, waits := stubMCPSessionChildren(t, 19191, 19192)
 
 			layout := eshulocal.Layout{LogsDir: t.TempDir()}
-			if _, err := StartMCPSession(context.Background(), "dsn", tt.runtimeConfig, nil, layout); err == nil {
-				t.Fatal("StartMCPSession() error = nil, want backend refusal")
-			} else if !strings.Contains(err.Error(), "ESHU_GRAPH_BACKEND=neo4j") {
-				t.Fatalf("StartMCPSession() error = %q, want it to name ESHU_GRAPH_BACKEND=neo4j", err)
+			session, err := StartMCPSession(context.Background(), "host=127.0.0.1 port=15439 user=eshu dbname=postgres", tt.runtimeConfig, nil, layout)
+			if err != nil {
+				t.Fatalf("StartMCPSession() error = %v, want nil", err)
+			}
+			if session == nil {
+				t.Fatal("StartMCPSession() = nil, want session")
+			}
+			if len(*starts) != 2 {
+				t.Fatalf("started %d children, want 2 (%s, eshu-mcp-server)", len(*starts), tt.wantName)
+			}
+
+			api := (*starts)[0]
+			if api.name != tt.wantName {
+				t.Fatalf("first child = %q, want %s", api.name, tt.wantName)
+			}
+			if tt.wantAddrFlag == "" {
+				if len(api.args) != 1 || api.args[0] != tt.wantName {
+					t.Fatalf("api argv = %#v, want [%q]", api.args, tt.wantName)
+				}
+			} else {
+				assertArgEquals(t, api.args, "-addr", tt.wantAddrFlag)
+			}
+			if got := localHostEnvValue(api.env, "ESHU_API_ADDR"); got != tt.wantEnvAddr {
+				t.Fatalf("ESHU_API_ADDR = %q, want %q", got, tt.wantEnvAddr)
+			}
+
+			satellite := (*starts)[1]
+			if satellite.name != "eshu-mcp-server" {
+				t.Fatalf("second child = %q, want eshu-mcp-server", satellite.name)
+			}
+			assertArgEquals(t, satellite.args, "-core-base-url", "http://127.0.0.1:19191")
+
+			wantWaits := []string{"http://127.0.0.1:19191" + tt.wantWaitPath, "http://127.0.0.1:19192/health"}
+			if strings.Join(*waits, ",") != strings.Join(wantWaits, ",") {
+				t.Fatalf("waited on %v, want %v", *waits, wantWaits)
+			}
+
+			children := session.Children()
+			if len(children) != 2 {
+				t.Fatalf("Children() has %d entries, want 2", len(children))
+			}
+			if children[0].name != tt.wantName {
+				t.Fatalf("Children()[0].name = %q, want %s", children[0].name, tt.wantName)
+			}
+			if children[1].name != "eshu-mcp-server" {
+				t.Fatalf("Children()[1].name = %q, want eshu-mcp-server", children[1].name)
 			}
 		})
+	}
+}
+
+// TestStartMCPSessionRefusesUnknownBackend proves any other backend value
+// keeps the pre-spawn refusal: zero ports, zero children, and an error naming
+// the backend.
+func TestStartMCPSessionRefusesUnknownBackend(t *testing.T) {
+	originalStartChild := StartChildProcess
+	originalReserve := mcpSessionReservePort
+	originalWait := mcpSessionWaitHTTP
+	t.Cleanup(func() {
+		StartChildProcess = originalStartChild
+		mcpSessionReservePort = originalReserve
+		mcpSessionWaitHTTP = originalWait
+	})
+	StartChildProcess = func(string, []string, []string) (*exec.Cmd, error) {
+		t.Error("StartChildProcess called, want pre-spawn refusal")
+		return nil, nil
+	}
+	mcpSessionReservePort = func() (int, error) {
+		t.Error("mcpSessionReservePort called, want pre-spawn refusal")
+		return 0, errors.New("no ports on a refused session")
+	}
+	mcpSessionWaitHTTP = func(context.Context, string, time.Duration) error {
+		t.Error("mcpSessionWaitHTTP called, want pre-spawn refusal")
+		return nil
+	}
+
+	layout := eshulocal.Layout{LogsDir: t.TempDir()}
+	runtimeConfig := RuntimeConfig{Profile: querycontract.ProfileLocalAuthoritative, GraphBackend: "titan"}
+	if _, err := StartMCPSession(context.Background(), "dsn", runtimeConfig, nil, layout); err == nil {
+		t.Fatal("StartMCPSession() error = nil, want backend refusal")
+	} else if !strings.Contains(err.Error(), `"titan"`) {
+		t.Fatalf("StartMCPSession() error = %q, want it to name the backend", err)
 	}
 }
 
@@ -487,5 +576,86 @@ func TestRunAttachedMCPHTTPStartsSessionChildrenAndWaits(t *testing.T) {
 	}
 	if got := localHostEnvValue(starts[1].env, "ESHU_POSTGRES_DSN"); !strings.Contains(got, "port=15439") {
 		t.Fatalf("satellite ESHU_POSTGRES_DSN = %q, want recorded port", got)
+	}
+}
+
+// TestRunAttachedMCPHTTPStartsLocalAPIFromNornicdbOwner proves the attached
+// HTTP path follows the recorded backend too: a NornicDB owner gets an
+// eshu-local-api session child (address on ESHU_API_ADDR, /healthz wait), and
+// the supervised names travel with the spawned binary.
+func TestRunAttachedMCPHTTPStartsLocalAPIFromNornicdbOwner(t *testing.T) {
+	originalReadOwnerRecord := ReadOwnerRecord
+	originalProcessAlive := ProcessAlive
+	originalSocketHealthy := SocketHealthy
+	originalGraphHealthy := GraphHealthy
+	originalStartChild := StartChildProcess
+	originalReserve := mcpSessionReservePort
+	originalWait := mcpSessionWaitHTTP
+	originalWaitManaged := WaitManagedChildren
+	t.Cleanup(func() {
+		ReadOwnerRecord = originalReadOwnerRecord
+		ProcessAlive = originalProcessAlive
+		SocketHealthy = originalSocketHealthy
+		GraphHealthy = originalGraphHealthy
+		StartChildProcess = originalStartChild
+		mcpSessionReservePort = originalReserve
+		mcpSessionWaitHTTP = originalWait
+		WaitManagedChildren = originalWaitManaged
+	})
+
+	record := eshulocal.OwnerRecord{
+		PID:                42,
+		WorkspaceID:        "workspace-id",
+		PostgresPort:       15439,
+		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
+		Profile:            string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:       string(querycontract.GraphBackendNornicDB),
+	}
+	ReadOwnerRecord = func(string) (eshulocal.OwnerRecord, error) { return record, nil }
+	ProcessAlive = func(int) bool { return true }
+	SocketHealthy = func(string) bool { return true }
+	GraphHealthy = func(eshulocal.OwnerRecord) bool { return true }
+
+	var starts []childStart
+	StartChildProcess = func(name string, args []string, env []string) (*exec.Cmd, error) {
+		starts = append(starts, childStart{name: name, args: append([]string(nil), args...), env: append([]string(nil), env...)})
+		return &exec.Cmd{}, nil
+	}
+	mcpSessionReservePort = func() (int, error) { return 19391, nil }
+	var waitedURLs []string
+	mcpSessionWaitHTTP = func(_ context.Context, url string, _ time.Duration) error {
+		waitedURLs = append(waitedURLs, url)
+		return nil
+	}
+	var waited []Child
+	WaitManagedChildren = func(_ context.Context, children []Child, allowCleanExit string) error {
+		waited = append([]Child(nil), children...)
+		if allowCleanExit != "eshu-mcp-server" {
+			t.Fatalf("allowCleanExit = %q, want eshu-mcp-server", allowCleanExit)
+		}
+		return nil
+	}
+
+	layout := eshulocal.Layout{WorkspaceID: "workspace-id", OwnerRecordPath: "/tmp/owner.json", LogsDir: t.TempDir()}
+	if err := RunAttachedMCPHTTP(context.Background(), layout, "127.0.0.1", 8081); err != nil {
+		t.Fatalf("RunAttachedMCPHTTP() error = %v, want nil", err)
+	}
+
+	if len(starts) != 2 || starts[0].name != "eshu-local-api" || starts[1].name != "eshu-mcp-server" {
+		t.Fatalf("started = %v, want [eshu-local-api eshu-mcp-server]", starts)
+	}
+	if len(starts[0].args) != 1 || starts[0].args[0] != "eshu-local-api" {
+		t.Fatalf("api argv = %#v, want [eshu-local-api]", starts[0].args)
+	}
+	if got := localHostEnvValue(starts[0].env, "ESHU_API_ADDR"); got != "127.0.0.1:19391" {
+		t.Fatalf("api ESHU_API_ADDR = %q, want 127.0.0.1:19391", got)
+	}
+	assertArgEquals(t, starts[1].args, "-addr", "127.0.0.1:8081")
+	assertArgEquals(t, starts[1].args, "-core-base-url", "http://127.0.0.1:19391")
+	if len(waitedURLs) != 1 || waitedURLs[0] != "http://127.0.0.1:19391/healthz" {
+		t.Fatalf("waited on %v, want [http://127.0.0.1:19391/healthz]", waitedURLs)
+	}
+	if len(waited) != 2 || waited[0].name != "eshu-local-api" || waited[1].name != "eshu-mcp-server" {
+		t.Fatalf("waited children = %v, want [eshu-local-api eshu-mcp-server]", waited)
 	}
 }
