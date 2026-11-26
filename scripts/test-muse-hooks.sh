@@ -28,6 +28,7 @@ export TMPDIR="${work}/tmp"
 # test-cursor-hooks.sh precedent. Per-case CLAUDE_GOAL_FILE pins below still
 # override this for their own invocation.
 export HOME="${work}/home"
+export ESHU_SKILLS_TELEMETRY_OFF=1
 unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGES
 # Pin the hermeticity header: if the fake HOME or an unset above is dropped,
 # fail here instead of letting ambient state silently skew the suite.

@@ -7,7 +7,7 @@ hook="${repo_root}/.codex/hooks/goal-continue.sh"
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 mkdir -p "${work}/home/.claude" "${work}/tmp" "${work}/project/.claude"
-export HOME="${work}/home" TMPDIR="${work}/tmp"
+export HOME="${work}/home" TMPDIR="${work}/tmp" ESHU_SKILLS_TELEMETRY_OFF=1
 unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGES
 
 goal="${work}/project/.claude/active-goal.codex-test"

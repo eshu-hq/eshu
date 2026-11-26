@@ -27,6 +27,8 @@
 # reported separately for that reason: a summary that folded them into the pass
 # count would read identically whether they ran or not.
 set -uo pipefail
+# Never write synthetic t<pid><seq> probe events into the developer's debrief log.
+export ESHU_SKILLS_TELEMETRY_OFF=1
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 hooks_dir="$repo_root/.claude/hooks"
@@ -645,6 +647,23 @@ else
     "$companion_count" >&2
   failed=$((failed + 1))
 fi
+
+# --- suite telemetry suppression (debrief hygiene) --------------------------
+# Running this behavioural mirror must never write synthetic t<pid><seq> rows
+# into $XDG_DATA_HOME/eshu-agent-kit/skills-usage.jsonl (or $HOME/.local/share).
+telem_xdg="$(mktemp -d)"
+sid=$((sid + 1))
+XDG_DATA_HOME="$telem_xdg" bash "$hooks_dir/skill-nudge.sh" \
+  <<<"$(payload "${run_tag}${sid}" "$repo_root/go/cmd/api/main.go")" >/dev/null 2>&1
+telem_rc=$?
+if [ "$telem_rc" -eq 2 ] && [ ! -e "$telem_xdg/eshu-agent-kit/skills-usage.jsonl" ]; then
+  printf 'ok - suite suppresses skills-usage telemetry writes\n'
+  passed=$((passed + 1))
+else
+  printf 'FAIL - suite telemetry suppression check failed (exit=%s)\n' "$telem_rc" >&2
+  failed=$((failed + 1))
+fi
+rm -rf "$telem_xdg"
 
 printf '\nagent-hooks test mirror: %s passed, %s failed, %s skipped\n' \
   "$passed" "$failed" "$skipped"

@@ -30,6 +30,7 @@ printf 'v0.1.0\n' >"${work}/.agent-kit-version"
 # only for the seeded-stale-counter case and the end-of-suite leak check.
 real_tmpdir="${TMPDIR:-/tmp}"
 export TMPDIR="${work}/tmp"
+export ESHU_SKILLS_TELEMETRY_OFF=1
 # Hermeticity (#8278): the hook under test resolves $HOME/.claude/active-goal
 # and honors $CLAUDE_GOAL_FILE/$CLAUDE_GOAL_OFF, so ambient session state
 # leaks into this suite's expectations (seeded: a fake $HOME quoted seeded
