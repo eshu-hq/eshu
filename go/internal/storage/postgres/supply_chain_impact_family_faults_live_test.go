@@ -6,11 +6,14 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	impactdigest "github.com/eshu-hq/eshu/go/internal/ifa/impact/digest"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
@@ -162,16 +165,17 @@ func TestSupplyChainImpactSupportsFamilyLeaseExpiresMidHandlerLive(t *testing.T)
 	}
 	f.mu.Lock()
 	staleRuns := f.executions[out.intentID]
-	extra := 0
+	breakdown := make([]string, 0, len(f.executions))
 	for id, n := range f.executions {
-		if id != out.intentID && n != 1 {
-			extra++
-		}
+		breakdown = append(breakdown, fmt.Sprintf("%s=%d(stamped=%v attempts=%v)", id, n, f.stamped[id], f.attempts[id]))
 	}
+	unexpected := f.unexpectedRepeatsLocked(out.intentID)
 	f.mu.Unlock()
-	if staleRuns != 2 || extra != 0 {
-		t.Fatalf("the faulted intent ran %d times (want 2: stale and fresh) and %d other intents did not run exactly once", staleRuns, extra)
+	sort.Strings(breakdown)
+	if staleRuns != 2 || len(unexpected) != 0 {
+		t.Fatalf("the faulted intent ran %d times (want 2: stale and fresh) and %d other intents reran unexpectedly (want only stamped fan-out reopen reruns at attempt 1): %v; per intent: %v", staleRuns, len(unexpected), unexpected, breakdown)
 	}
+	t.Logf("IMPACT_FAMILY_LEASE_FAULT stale=%s per intent: %v", out.intentID, breakdown)
 	requireArmedAndNoFindingFacts(t, f)
 }
 
@@ -215,25 +219,45 @@ func TestSupplyChainImpactSupportsFamilyDuplicateDeliveryWritesNoRowVersionLive(
 	requireArmedAndNoFindingFacts(t, f)
 }
 
-// TestSupplyChainImpactSupportsFamilySeededRedsLive proves the family can fail: a dropped support changes the digest, and a
-// planted write of a finding fact is refused by the armed trigger with the pinned error. Without these two the family's
-// equal digests and zero finding facts would be indistinguishable from a vacuous pass.
+// TestSupplyChainImpactSupportsFamilySeededRedsLive proves the family can fail: a mutated support changes the digest and
+// restoring it restores the digest, an emptied supports table refuses the digest instead of comparing empty tables,
+// and a planted write of a finding fact is refused by the armed trigger with the pinned error. Without these the
+// family's equal digests and zero finding facts would be indistinguishable from a vacuous pass.
+//
+// The composition derives exactly one support, so the sensitivity red mutates a digest-covered column instead of
+// dropping a row: a drop would empty the table and trip the vacuous-family refusal (asserted as its own red below)
+// rather than proving the digest bites.
 func TestSupplyChainImpactSupportsFamilySeededRedsLive(t *testing.T) {
 	f := newImpactFamily(t)
 	f.drain(1, time.Minute, nil)
 	f.resweep()
 	digest := f.digest()
 
-	var dropped string
-	if err := f.db.QueryRowContext(f.ctx, `SELECT fact_id FROM supply_chain_impact_finding_supports ORDER BY fact_id LIMIT 1`).Scan(&dropped); err != nil {
-		t.Fatalf("pick a support to drop: %v", err)
+	var factID, original string
+	if err := f.db.QueryRowContext(f.ctx, `SELECT fact_id, severity_bucket FROM supply_chain_impact_finding_supports ORDER BY fact_id LIMIT 1`).Scan(&factID, &original); err != nil {
+		t.Fatalf("read the support to mutate: %v", err)
 	}
-	if _, err := f.db.ExecContext(f.ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, dropped); err != nil {
-		t.Fatalf("drop a support: %v", err)
+	mutatedValue := original + ".seeded-red"
+	if _, err := f.db.ExecContext(f.ctx, `UPDATE supply_chain_impact_finding_supports SET severity_bucket = $1 WHERE fact_id = $2`, mutatedValue, factID); err != nil {
+		t.Fatalf("mutate a support: %v", err)
 	}
-	mutated := f.digest()
-	if mutated == digest {
-		t.Fatal("dropping a support did not change the digest: the digest cannot bite")
+	if changed := f.digest(); changed == digest {
+		t.Fatal("mutating a support did not change the digest: the digest cannot bite")
+	}
+	if _, err := f.db.ExecContext(f.ctx, `UPDATE supply_chain_impact_finding_supports SET severity_bucket = $1 WHERE fact_id = $2`, original, factID); err != nil {
+		t.Fatalf("restore the support: %v", err)
+	}
+	if restored := f.digest(); restored != digest {
+		t.Fatal("restoring the support did not restore the digest: the digest is not deterministic")
+	}
+
+	if _, err := f.db.ExecContext(f.ctx, `DELETE FROM supply_chain_impact_finding_supports`); err != nil {
+		t.Fatalf("drop the supports: %v", err)
+	}
+	if _, err := impactdigest.Read(f.ctx, f.db); err == nil {
+		t.Fatal("the digest read succeeded with no supports: it must refuse an empty family")
+	} else if !strings.Contains(err.Error(), "yields no findings") {
+		t.Fatalf("the empty-family digest refused with %v, want the yields-no-findings refusal", err)
 	}
 
 	_, err := f.db.ExecContext(f.ctx, writeStopInsert, "family-planted-finding", "scope:family", "generation:family", writeStopKind)
