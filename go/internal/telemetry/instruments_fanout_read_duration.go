@@ -73,7 +73,7 @@ func registerFanOutReadDurationInstruments(meter metric.Meter, inst *Instruments
 	var err error
 	if inst.SupplyChainImpactFanOutReadDuration, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_fanout_read_duration_seconds",
-		metric.WithDescription("Supply-chain impact holder fan-out read statement duration in seconds by kind (holders, holders_key_range, mass_probe, holders_key_range_read) and outcome (ok, read_timeout, read_error) (#10643)"),
+		metric.WithDescription("Supply-chain impact holder fan-out read statement duration in seconds by kind (holders, holders_hot, holders_cold, holders_key_range, mass_probe, holders_key_range_read) and outcome (ok, read_timeout, read_error) (#10643)"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 180),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactFanOutReadDuration histogram: %w", err)
