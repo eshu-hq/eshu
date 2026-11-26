@@ -167,55 +167,7 @@ const components = `  "components": {
           "repo_name": {"type": "string"}
         }
       },
-      "SemanticEvidenceRow": {
-        "type": "object",
-        "description": "Sanitized semantic evidence fact row. Prompt payloads, credentials, and private provider responses are not exposed.",
-        "properties": {
-          "fact_id": {"type": "string", "description": "Durable fact identifier emitted by query.semanticEvidencePublicRow from the fact record."},
-          "fact_kind": {"type": "string", "enum": ["semantic.documentation_observation", "semantic.code_hint"], "description": "Durable fact kind emitted by query.semanticEvidencePublicRow: a documentation observation or a code hint."},
-          "truth_basis": {"type": "string", "enum": ["semantic_observation", "code_hint"], "description": "Truth basis derived by query.semanticEvidenceTruthBasis from fact_kind."},
-          "provider_profile_id": {"type": "string", "description": "Provider profile that produced the fact, projected by query.semanticEvidencePublicRow from the payload provider block."},
-          "provider_kind": {"type": "string", "description": "Provider family that produced the fact, projected by query.semanticEvidencePublicRow from the payload provider block."},
-          "prompt_version": {"type": "string", "description": "Prompt version recorded in the payload chunk block, projected by query.semanticEvidencePublicRow."},
-          "redaction_version": {"type": "string", "description": "Redaction version recorded in the payload chunk block, projected by query.semanticEvidencePublicRow."},
-          "policy_state": {"type": "string", "description": "Bounded policy state carried on the payload, projected by query.semanticEvidencePublicRow."},
-          "freshness_state": {"type": "string", "description": "Bounded freshness state carried on the payload, projected by query.semanticEvidencePublicRow."},
-          "admission_state": {"type": "string", "description": "Bounded admission state carried on the payload, projected by query.semanticEvidencePublicRow."},
-          "corroboration_state": {"type": "string", "description": "Bounded corroboration state carried on the payload, projected by query.semanticEvidencePublicRow."},
-          "source_acl_state": {"type": "string", "enum": ["allowed", "denied", "partial", "missing", "stale"], "description": "Bounded source-ACL-state observation from the collector, surfaced as a distinct access-posture axis kept separate from freshness_state and policy_state (#2138). Omitted when the source asserted no bounded ACL claim."},
-          "access_disposition": {"type": "string", "enum": ["visible", "access_denied", "partial", "stale", "missing"], "description": "Bounded access disposition enforced from source_acl_state and the per-caller read decision (#2164). visible: content intact. access_denied: caller authenticated-but-not-authorized; content withheld and permission_denied set. partial: content withheld behind a partial marker. stale: permitted-but-stale; content intact. missing: source not found at origin. A distinct axis from freshness_state/policy_state; the row is disclosed (not silently dropped) so a reader can tell 'no evidence' from 'evidence exists but is denied/partial/stale'."},
-          "permission_denied": {"type": "boolean", "description": "Set true when the caller is authenticated-but-not-authorized for the source (access_denied disposition). The protected content is withheld; only bounded state is disclosed."},
-          "content_withheld": {"type": "boolean", "description": "Set true when protected content/excerpt was stripped from the row because the access posture (access_denied or partial) is not cleanly readable. Only bounded identity/state fields remain."},
-          "source": {"type": "object", "additionalProperties": true, "description": "Filtered source locator projected by query.semanticEvidencePublicRow. Keys are source_id, source_class, source_handle, repository_id, document_id, relative_path, external_anchor, section_id, and line/section/page bounds."},
-          "chunk": {"type": "object", "additionalProperties": true, "description": "Filtered chunk identity projected by query.semanticEvidencePublicRow. Keys are chunk_id, chunk_hash, source_hash, prompt_version, redaction_version, extractor_version, and extraction_mode."},
-          "provider": {"type": "object", "additionalProperties": true, "description": "Filtered provider identity projected by query.semanticEvidencePublicRow. Keys are provider_profile_id, provider_kind, model_id, and endpoint_profile_id."}
-        }
-      },
-      "SemanticObservationList": {
-        "type": "object",
-        "properties": {
-          "observations": {"type": "array", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
-          "count": {"type": "integer"},
-          "limit": {"type": "integer"},
-          "truncated": {"type": "boolean"},
-          "states": {"type": "array", "items": {"type": "string"}, "description": "An empty page reports no_semantic_evidence and, when proven, scope_not_found or no_active_generation."},
-          "generation_binding": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
-          "next_cursor": {"type": "string"}
-        }
-      },
-      "SemanticCodeHintList": {
-        "type": "object",
-        "properties": {
-          "code_hints": {"type": "array", "items": {"$ref": "#/components/schemas/SemanticEvidenceRow"}},
-          "count": {"type": "integer"},
-          "limit": {"type": "integer"},
-          "truncated": {"type": "boolean"},
-          "states": {"type": "array", "items": {"type": "string"}, "description": "An empty page reports no_semantic_evidence and, when proven, scope_not_found or no_active_generation."},
-          "generation_binding": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["active", "explicit"]}, "generation_id": {"type": "string"}, "is_active": {"type": "boolean"}}, "required": ["mode", "generation_id", "is_active"]},
-          "next_cursor": {"type": "string"}
-        }
-      },
-      "CodeFlowRequest": {
+` + componentsSemanticEvidence + `      "CodeFlowRequest": {
         "type": "object",
         "required": ["repo_id"],
         "properties": {
@@ -267,34 +219,47 @@ const components = `  "components": {
       },
       "Relationship": {
         "type": "object",
+        "description": "One directed relationship edge row shared by the code relationship, relationship-story, entity-context, and infrastructure relationship reads.",
         "properties": {
-          "type": {"type": "string"},
-          "target_name": {"type": "string"},
-          "target_id": {"type": "string"},
-          "source_name": {"type": "string"},
-          "source_id": {"type": "string"},
-          "source_repo_id": {"type": "string"},
-          "source_repo_name": {"type": "string"},
-          "source_file_path": {"type": "string"},
-          "source_language": {"type": "string"},
-          "source_type": {"type": "string"},
-          "source_start_line": {"type": "integer"},
-          "source_end_line": {"type": "integer"},
-          "target_repo_id": {"type": "string"},
-          "target_repo_name": {"type": "string"},
-          "target_file_path": {"type": "string"}, "target_language": {"type": "string"}, "target_type": {"type": "string"},
-          "target_start_line": {"type": "integer"}, "target_end_line": {"type": "integer"}, "confidence": {"type": "number"},
+          "type": {"type": "string", "description": "Edge type from type(rel): CALLS, REFERENCES, CONTAINS, INHERITS, TAINT_FLOWS_TO, or a correlation kind. Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "target_name": {"type": "string", "description": "Neighbor entity name (target.name). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "target_id": {"type": "string", "description": "Neighbor entity identity from coalesce(target.id, target.uid). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "source_name": {"type": "string", "description": "Anchor entity name (e.name). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "source_id": {"type": "string", "description": "Anchor entity identity from coalesce(e.id, e.uid). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "source_repo_id": {"type": "string", "description": "Anchor repository id (repo.id). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "source_repo_name": {"type": "string", "description": "Anchor repository name (repo.name). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "source_file_path": {"type": "string", "description": "Anchor file path (f.relative_path). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "source_language": {"type": "string", "description": "Anchor language from coalesce(e.language, f.language). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "source_type": {"type": "string", "description": "Anchor node labels from head(labels(e)). Owner: codemodel.RelationshipGraphRowCypherFromAnchor; absent on story rows, which do not project node labels."},
+          "source_start_line": {"type": "integer", "description": "Anchor definition start line (e.start_line). Owner: codemodel.RelationshipGraphRowCypherFromAnchor; absent on story rows, which do not project line numbers."},
+          "source_end_line": {"type": "integer", "description": "Anchor definition end line (e.end_line). Owner: codemodel.RelationshipGraphRowCypherFromAnchor; absent on story rows, which do not project line numbers."},
+          "target_repo_id": {"type": "string", "description": "Neighbor repository id (targetRepo.id). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "target_repo_name": {"type": "string", "description": "Neighbor repository name (targetRepo.name). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "target_file_path": {"type": "string", "description": "Neighbor file path (targetFile.relative_path). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "target_language": {"type": "string", "description": "Neighbor language from coalesce(target.language, targetFile.language). Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "target_type": {"type": "string", "description": "Neighbor node labels from head(labels(target)). Owner: codemodel.RelationshipGraphRowCypherFromAnchor; absent on story rows, which do not project node labels."},
+          "target_start_line": {"type": "integer", "description": "Neighbor definition start line (target.start_line). Owner: codemodel.RelationshipGraphRowCypherFromAnchor; absent on story rows, which do not project line numbers."},
+          "target_end_line": {"type": "integer", "description": "Neighbor definition end line (target.end_line). Owner: codemodel.RelationshipGraphRowCypherFromAnchor; absent on story rows, which do not project line numbers."},
+          "confidence": {"type": "number", "description": "Edge confidence from rel.confidence, or the correlation confidence on correlation rows. Owner: codemodel.RelationshipGraphRowCypherFromAnchor and query.evidence_read_model."},
           "confidence_basis": {"type": "string", "description": "Correlation edge confidence basis: evidence_constant, evidence_aggregate, or assertion_override. Code CALLS/REFERENCES edges use resolution_method instead."},
-          "reason": {"type": "string"}, "resolution_source": {"type": "string"}, "evidence_type": {"type": "string"},
-          "evidence_kinds": {"type": "array", "items": {"type": "string"}}, "resolution_method": {"type": "string"},
+          "reason": {"type": "string", "description": "Edge reason from rel.reason. Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher."},
+          "resolution_source": {"type": "string", "description": "Correlation resolution source naming what asserted the row (for example assertion). Owner: query.evidence_read_model; absent on plain code edges."},
+          "evidence_type": {"type": "string", "description": "Correlation evidence family derived by query.repositoryRelationshipEvidenceType. Owner: query.evidence_read_model; absent on plain code edges."},
+          "evidence_kinds": {"type": "array", "items": {"type": "string"}, "description": "Correlation evidence kind list derived by query.repositoryRelationshipEvidenceKinds. Owner: query.evidence_read_model; absent on plain code edges."},
+          "resolution_method": {"type": "string", "description": "Code-edge resolution method from rel.resolution_method. Owner: codemodel.RelationshipGraphRowCypherFromAnchor and codequery/relationships/story.GraphCypher; correlation edges use confidence_basis instead."},
           "provenance": {"type": "object", "description": "Uniform per-relationship provenance block for API and MCP relationship-story rows.", "properties": {
-            "confidence": {"type": "number"}, "confidence_state": {"type": "string", "enum": ["reported", "unsupported"]},
+            "confidence": {"type": "number", "description": "Numeric edge confidence, present only when the row records one. Owner: codemodel.RelationshipStoryProvenance."},
+            "confidence_state": {"type": "string", "enum": ["reported", "unsupported"], "description": "Whether the row records a confidence (reported) or carries none (unsupported). Owner: codemodel.relationshipStoryConfidenceState."},
             "confidence_tier": {"type": "string", "enum": ["high", "medium", "low", "unsupported"], "description": "Named tier derived from confidence (high >= 0.9, medium >= 0.7, else low; unsupported when the edge carries no confidence). Presentation derivation only; never upgrades truth_state."},
             "method": {"type": "string", "description": "Code resolution_method, value-flow evidence_source, correlation confidence_basis/resolution_source, or unsupported when unavailable."},
-            "source_family": {"type": "string", "enum": ["code_edge", "value_flow_edge", "correlation_edge", "unsupported"]}, "reason": {"type": "string"},
-            "truth_state": {"type": "string", "enum": ["derived", "heuristic", "unsupported"]},
-            "why_trail": {"type": "array", "description": "Bounded ordered value-flow trail for TAINT_FLOWS_TO evidence, when available.", "items": {"type": "object", "additionalProperties": true, "description": "One ordered value-flow trail step decoded by codemodel.RelationshipStoryProvenance from the edge's why_trail_json. Keys name the step role (source/sink), function_uid, slot_kind, and slot_index; the step set varies with the evidence, so no fixed properties are pinned."}}, "why_trail_truncated": {"type": "boolean"},
-            "derived": {"type": "boolean"}, "heuristic": {"type": "boolean"}, "unsupported": {"type": "boolean"}
+            "source_family": {"type": "string", "enum": ["code_edge", "value_flow_edge", "correlation_edge", "unsupported"], "description": "Edge family derived by codemodel.relationshipStoryProvenanceSourceFamily: value_flow_edge for TAINT_FLOWS_TO rows, code_edge when resolution_method is set, correlation_edge for confidence/evidence rows, unsupported otherwise."},
+            "reason": {"type": "string", "description": "Row reason, or not_reported when the row carries none. Owner: codemodel.relationshipStoryProvenanceReason."},
+            "truth_state": {"type": "string", "enum": ["derived", "heuristic", "unsupported"], "description": "Truth classification from codemodel.relationshipStoryProvenanceTruthState: derived for value-flow and resolved code edges, heuristic for correlation and semantic/heuristic methods, unsupported when the family is unsupported or no confidence is recorded."},
+            "why_trail": {"type": "array", "description": "Bounded ordered value-flow trail for TAINT_FLOWS_TO evidence, when available.", "items": {"type": "object", "additionalProperties": true, "description": "One ordered value-flow trail step decoded by codemodel.RelationshipStoryProvenance from the edge's why_trail_json. Keys name the step role (source/sink), function_uid, slot_kind, and slot_index; the step set varies with the evidence, so no fixed properties are pinned."}},
+            "why_trail_truncated": {"type": "boolean", "description": "Present and true only when the decoded why-trail exceeded its bound. Owner: codemodel.RelationshipStoryProvenance over the edge why_trail_truncated flag."},
+            "derived": {"type": "boolean", "description": "True when truth_state is derived. Owner: codemodel.RelationshipStoryProvenance."},
+            "heuristic": {"type": "boolean", "description": "True when truth_state is heuristic. Owner: codemodel.RelationshipStoryProvenance."},
+            "unsupported": {"type": "boolean", "description": "True when truth_state is unsupported. Owner: codemodel.RelationshipStoryProvenance."}
           }},
           "centrality": {"type": "integer", "description": "Bounded centrality: the neighbor's degree within the resolved result set. Relationship story rows are ordered by this value, descending, with deterministic tie-breaking."}
         }
@@ -421,7 +386,9 @@ const components = `  "components": {
           "classification": {"type": "string", "enum": ["definition"], "description": "Row classification emitted by codequery.symbolEntityResults and codequery.normalizeSymbolGraphResults: always definition for symbol definition rows."},
           "match_kind": {"type": "string", "enum": ["exact", "fuzzy"], "description": "Match mode that produced the row, emitted by codequery.symbolEntityResults and codequery.normalizeSymbolGraphResults."},
           "rank": {"type": "integer", "description": "1-based position of the row in the bounded probe order, emitted by codequery.symbolEntityResults and codequery.normalizeSymbolGraphResults."},
+          "source_backend": {"type": "string", "enum": ["postgres_content_store", "postgres_content_store_name_fallback", "graph"], "description": "Row-level backend that produced this row: postgres_content_store from the symbol-aware SearchSymbols query, postgres_content_store_name_fallback from the plain name-lookup fallback, or graph from the graph read. Owner: codequery.symbolEntityResults (content path) and codequery.normalizeSymbolGraphResults (graph path)."},
           "source_handle": {"type": "object", "additionalProperties": true, "description": "{repo_id, file_path, start_line, end_line} locator for the full body via get_entity_content or get_file_lines."},
+          "definition_kind": {"type": "string", "description": "Entity type as the definition kind, emitted by codequery.symbolEntityResults from the content entity (content path); absent on graph-path rows, which carry entity_type instead."},
           "source_cache": {"type": "string", "description": "Stored source body, clipped at read time to 4096 bytes (see source_cache_clipped)."},
           "source_cache_clipped": {"type": "boolean", "description": "Present and true only when this row's source_cache was clipped at read time to source_cache_clip_bytes. The stored body is unchanged; use source_handle with get_entity_content or get_file_lines for the full text. Distinct from the write-time metadata.source_cache_truncated marker."},
           "source_cache_clip_bytes": {"type": "integer", "description": "Present only on a clipped row: the read-time source_cache ceiling in bytes (4096)."},
