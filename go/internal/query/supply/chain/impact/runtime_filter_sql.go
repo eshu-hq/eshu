@@ -247,8 +247,8 @@ runtime_filter_repositories AS MATERIALIZED (
 //
 // A dimension whose parameter expression is the literal empty string has no
 // rows by definition (every leg guards on `<param> <> ”`), so the builder
-// replaces that whole dimension CTE with an empty stub selecting identical
-// columns. The only build-time-known empty dimension today is the explain
+// replaces that whole dimension CTE with a table-free empty stub selecting
+// identical-typed NULL columns. The only build-time-known empty dimension today is the explain
 // literal "”" environment (eshu-hq/eshu#11493, arbiter ruling 7178944958):
 // bind expressions such as "$10" stay exactly as shipped because their
 // emptiness is unknowable at SQL-build time. The stub keeps the dimension's
@@ -323,7 +323,7 @@ func pruneLiteralEmptyRuntimeFilterDimensions(full, serviceParam, workloadParam,
 }
 
 // stubRuntimeFilterDimensionCTE replaces one whole-dimension CTE block with
-// an empty stub selecting identical columns from fact_records, preserving
+// a table-free empty stub selecting identical-typed NULL columns, preserving
 // the trailing comma that opens the next CTE. The stub references no $N, so
 // the statement's placeholder set is unchanged.
 func stubRuntimeFilterDimensionCTE(full, name, next string) (string, bool) {
@@ -338,10 +338,20 @@ func stubRuntimeFilterDimensionCTE(full, name, next string) (string, bool) {
 		return "", false
 	}
 	end := start + len(startMarker) + rest
+	// The stub selects no table: a FROM fact_records form would need a
+	// fact_kind predicate of its own for the store audit, and any real kind
+	// literal would reintroduce the dimension marker the prune test forbids.
+	// The casts keep the fact_records column types (TEXT, TEXT, JSONB) so
+	// downstream joins, operators, and UNION arms resolve exactly as with
+	// the shipped dimension. The predicate is the literal-false comparison
+	// '' <> '', never the FALSE keyword: Postgres const-folds it to zero
+	// rows, while the store-audit classifier's dead-branch pass blanks a
+	// WHERE FALSE subquery, which would drop this CTE definition and
+	// misattribute the live references to it as a read of a real table of
+	// the same name.
 	stub := name + " AS MATERIALIZED (\n" +
-		"  SELECT scope_id, generation_id, payload\n" +
-		"  FROM fact_records\n" +
-		"  WHERE FALSE\n" +
+		"  SELECT CAST(NULL AS text) AS scope_id, CAST(NULL AS text) AS generation_id, CAST(NULL AS jsonb) AS payload\n" +
+		"  WHERE '' <> ''\n" +
 		"),\n"
 	return full[:start] + stub + full[end:], true
 }

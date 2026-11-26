@@ -46,8 +46,8 @@ func TestSupplyChainImpactRuntimeFilterPrunesLiteralEmptyEnvironmentDimension(t 
 
 	for _, want := range []string{
 		"runtime_environment_matches AS MATERIALIZED (",
-		"runtime_environment_matches AS MATERIALIZED (\n  SELECT scope_id, generation_id, payload",
-		"FROM fact_records\n  WHERE FALSE",
+		"runtime_environment_matches AS MATERIALIZED (\n  SELECT CAST(NULL AS text) AS scope_id, CAST(NULL AS text) AS generation_id, CAST(NULL AS jsonb) AS payload",
+		"WHERE '' <> ''",
 		// The stubbed dimension keeps its candidates leg: granularity is the
 		// whole dimension (arbiter decision 2), never an intra-CTE arm, and
 		// the leg is never omitted alone.
@@ -86,7 +86,7 @@ func TestSupplyChainImpactRuntimeFilterPrunesLiteralEmptyEnvironmentDimension(t 
 		"decide-first cve":      ExplainFindingUngrantedByKeyQuery[explainKeyCVE],
 		"decide-first advisory": ExplainFindingUngrantedByKeyQuery[explainKeyAdvisory],
 	} {
-		if !strings.Contains(query, "WHERE FALSE") {
+		if !strings.Contains(query, "WHERE '' <> ''") {
 			t.Fatalf("%s does not carry the pruned empty environment dimension", name)
 		}
 		if strings.Contains(query, "payload->>'environment'") {

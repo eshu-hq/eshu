@@ -216,7 +216,7 @@ func logPruneProbePlan(t *testing.T, ctx context.Context, tx *sql.Tx, variant, p
 	t.Logf("plan %s %s bytes=%d planning=%.3fms execution=%.3fms", variant, planMode, len(plan), planning, execution)
 	// Both variants keep the environment CTE wired into the candidates:
 	// the shipped one collapses its two guarded legs to one-time
-	// filters, the pruned one is the WHERE FALSE stub. The differential
+	// filters, the pruned one is the literal-false-comparison stub. The differential
 	// above proves the rows identical; the shapes below pin the
 	// before/after the ruling asks to record.
 	if !strings.Contains(plan, "runtime_environment_matches") {

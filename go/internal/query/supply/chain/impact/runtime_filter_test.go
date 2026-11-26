@@ -43,7 +43,7 @@ func TestSupplyChainImpactRuntimeFiltersResolveCurrentRepositoryContext(t *testi
 			name:             "explain",
 			query:            ExplainFindingQuery,
 			repositoryExpr:   "fact.payload->>'repository_id'",
-			environmentKinds: []string{"WHERE FALSE"},
+			environmentKinds: []string{"WHERE '' <> ''"},
 		},
 	} {
 		tc := tc
