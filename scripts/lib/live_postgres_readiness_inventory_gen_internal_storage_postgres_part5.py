@@ -102,6 +102,10 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_upstream_nvd_widen_live_test.go": (
             "TestSupplyChainImpactUpstreamWidenedProbeHoldsNVDScaleLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_enrichment_carry_11466_live_test.go": (
+            "TestSupplyChainImpactWinnersEnrichmentCarry11466Live",
+            "TestSupplyChainImpactWinnersEnrichmentCarryConcurrent11466Live",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_winners_hotkey_staging_shim_live_test.go": (
             "TestSupplyChainImpactWinnersHotkeyStagingShimLive",
         ),

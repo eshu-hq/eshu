@@ -257,6 +257,15 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		if err := applyWinnersKeyed(ctx, tx, candidate, result); err != nil {
 			return err
 		}
+		// #11466: claim the enrichment first-carry stamps for the
+		// recomputed identifier set in this same transaction, stamped
+		// with the tick candidate so a newly carried value shares its
+		// row version's materialized_at. Keys outside the set did not
+		// change on this tick; only a full resweep backfills their
+		// missing stamps. A claim failure fails the tick.
+		if err := claimSupplyChainImpactWinnersEnrichmentFirstCarry(ctx, tx, true, candidate); err != nil {
+			return err
+		}
 		watermark, err := scanWinnersTime(ctx, tx, selectWinnersWatermarkSQL, "read committed supply chain impact winners watermark")
 		if err != nil {
 			return err

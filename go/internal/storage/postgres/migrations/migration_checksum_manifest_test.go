@@ -545,6 +545,10 @@ var migrationShippedChecksums = map[string]string{
 	// single-scan range (renumbered 350 to 356; 350-355 taken on main).
 	"356_supply_chain_impact_winners_canonical_ident_idx.sql": "b9da75613d73e4b1b6a06e33024a78f0859b2e7f894cb6400a745f13c68b5195",
 	"357_supply_chain_impact_finding_first_seen.sql":          "0a2cec32763684bcda023bec7f303da445ac46c506b9bd6b7569946fc2575064",
+	// #11466: the durable set-once-per-value enrichment first-carry stamp
+	// table backing per-source enrichment-arrival-to-rescore measurement
+	// (numbered 359: 358 is held by the open #11476 write-stop lane).
+	"359_supply_chain_impact_winners_enrichment_first_carry.sql": "06e993aa8a94dc6ba64e8969e5cde0b2951f0386b409fb451516d612a140c431",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
