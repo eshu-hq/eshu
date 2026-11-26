@@ -66,7 +66,7 @@ func TestSupplyChainImpactSupportsRowsUpsertEqualsFactDerivedLive(t *testing.T) 
 		if err != nil {
 			t.Fatalf("begin: %v", err)
 		}
-		if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows); err != nil {
+		if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows, nil); err != nil {
 			_ = tx.Rollback()
 			t.Fatalf("write the supports from the rows: %v", err)
 		}
