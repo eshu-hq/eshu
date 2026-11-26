@@ -31,6 +31,7 @@ mkdir -p "${work}/tmp" "${work}/home/.claude" "${work}/bin" "${work}/fx"
 # would skew the cases. A per-run fake HOME and TMPDIR, and no ambient knobs.
 export TMPDIR="${work}/tmp"
 export HOME="${work}/home"
+export ESHU_SKILLS_TELEMETRY_OFF=1
 unset CLAUDE_GOAL_FILE CLAUDE_GOAL_OFF CLAUDE_GOAL_CONSENT CLAUDE_GOAL_MAX_NUDGES
 unset CLAUDE_GOAL_ISSUE_CALL_TIMEOUT CLAUDE_GOAL_ISSUE_TOTAL_TIMEOUT
 [[ "${HOME}" == "${work}/home" && -z "${CLAUDE_GOAL_FILE:-}" && -z "${CLAUDE_GOAL_OFF:-}" ]] ||
