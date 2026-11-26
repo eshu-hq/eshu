@@ -44,19 +44,20 @@ const CollectorTerminalFailureAcknowledgement = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {"type": "string", "enum": ["acknowledged", "duplicate"]},
-                    "idempotency_key": {"type": "string"},
+                    "status": {"type": "string", "enum": ["acknowledged", "duplicate"], "description": "acknowledged when this call recorded the acknowledgement, duplicate when the key replayed a stored outcome."},
+                    "idempotency_key": {"type": "string", "description": "Idempotency key echoed back from the acknowledgement ledger."},
                     "acknowledgement": {
                       "type": "object",
+                      "description": "The stored acknowledgement row for the terminal failure.",
                       "properties": {
-                        "collector_kind": {"type": "string"},
-                        "instance_id": {"type": "string"},
-                        "scope_id": {"type": "string"},
-                        "work_item_id": {"type": "string"},
-                        "failure_class": {"type": "string"},
-                        "failure_operation": {"type": "string"},
-                        "failed_at": {"type": "string", "format": "date-time"},
-                        "acknowledged_at": {"type": "string", "format": "date-time"}
+                        "collector_kind": {"type": "string", "description": "Collector kind of the acknowledged instance."},
+                        "instance_id": {"type": "string", "description": "Collector instance the failure belongs to."},
+                        "scope_id": {"type": "string", "description": "Failed scope covered by the acknowledgement and later failures of the same raw class on it."},
+                        "work_item_id": {"type": "string", "description": "Terminal work item that carried the acknowledged failure."},
+                        "failure_class": {"type": "string", "description": "Bounded class of the acknowledged failure."},
+                        "failure_operation": {"type": "string", "description": "Bounded operation token of the acknowledged failure."},
+                        "failed_at": {"type": "string", "format": "date-time", "description": "When the failure became terminal."},
+                        "acknowledged_at": {"type": "string", "format": "date-time", "description": "When the operator acknowledged the failure."}
                       }
                     }
                   }
@@ -121,22 +122,23 @@ const CollectorTerminalFailureAcknowledgement = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "count": {"type": "integer"},
+                    "count": {"type": "integer", "description": "Stored acknowledgements in this page, newest first."},
                     "acknowledgements": {
                       "type": "array",
+                      "description": "Stored acknowledgement rows, bounded by the limit.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "collector_kind": {"type": "string"},
-                          "instance_id": {"type": "string"},
-                          "scope_id": {"type": "string"},
-                          "failure_class": {"type": "string"},
-                          "failed_at": {"type": "string", "format": "date-time"},
-                          "work_item_id": {"type": "string"},
-                          "reason": {"type": "string"},
-                          "actor_class": {"type": "string"},
-                          "correlation_id": {"type": "string"},
-                          "acknowledged_at": {"type": "string", "format": "date-time"}
+                          "collector_kind": {"type": "string", "description": "Collector kind of the acknowledged instance."},
+                          "instance_id": {"type": "string", "description": "Collector instance the failure belongs to."},
+                          "scope_id": {"type": "string", "description": "Failed scope covered by the acknowledgement."},
+                          "failure_class": {"type": "string", "description": "Bounded class of the acknowledged failure."},
+                          "failed_at": {"type": "string", "format": "date-time", "description": "When the failure became terminal."},
+                          "work_item_id": {"type": "string", "description": "Terminal work item that carried the acknowledged failure."},
+                          "reason": {"type": "string", "description": "Operator's stored reason; the only read that returns it."},
+                          "actor_class": {"type": "string", "description": "Bounded actor class that recorded the acknowledgement."},
+                          "correlation_id": {"type": "string", "description": "Correlation id of the acknowledgement decision."},
+                          "acknowledged_at": {"type": "string", "format": "date-time", "description": "When the operator acknowledged the failure."}
                         }
                       }
                     }
@@ -182,20 +184,21 @@ const CollectorTerminalFailureAcknowledgement = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "count": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "count": {"type": "integer", "description": "Failed scopes in this page, unacknowledged before acknowledged."},
+                    "truncated": {"type": "boolean", "description": "True when more scopes matched than the limit."},
                     "next_cursor": {"type": "string", "description": "Present only when truncated."},
                     "items": {
                       "type": "array",
+                      "description": "One entry per failed scope of the instance, newest unacknowledged and acknowledged failures as applicable.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "scope_id": {"type": "string"},
-                          "failure_class": {"type": "string"},
-                          "failure_operation": {"type": "string"},
-                          "failed_at": {"type": "string", "format": "date-time"},
-                          "work_item_id": {"type": "string"},
-                          "acknowledged": {"type": "boolean"},
+                          "scope_id": {"type": "string", "description": "Failed scope the acknowledge route accepts."},
+                          "failure_class": {"type": "string", "description": "Bounded class of the scope's newest unresolved terminal failure."},
+                          "failure_operation": {"type": "string", "description": "Bounded operation token of that failure."},
+                          "failed_at": {"type": "string", "format": "date-time", "description": "When the failure became terminal."},
+                          "work_item_id": {"type": "string", "description": "Terminal work item that carried the failure."},
+                          "acknowledged": {"type": "boolean", "description": "Whether the listed failure is covered by an acknowledgement."},
                           "acknowledged_at": {"type": "string", "format": "date-time", "description": "Present only when acknowledged."}
                         }
                       }

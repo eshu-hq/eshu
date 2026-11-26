@@ -24,17 +24,18 @@ const Metrics = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "metric": {"type": "string"},
-                    "unit": {"type": "string"},
-                    "window": {"type": "string"},
-                    "step": {"type": "string"},
+                    "metric": {"type": "string", "description": "Requested metric name echoed back by the time-series handler."},
+                    "unit": {"type": "string", "description": "Unit of the series values, chosen by the handler per metric."},
+                    "window": {"type": "string", "description": "Lookback window the handler served, for example 24h."},
+                    "step": {"type": "string", "description": "Sample step the handler served, for example 30m."},
                     "points": {
                       "type": "array",
+                      "description": "Ordered sample points over the window; empty with unavailable or building freshness when the metrics source is unconfigured or the metric has no history yet.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "t": {"type": "string", "format": "date-time"},
-                          "v": {"type": "number"}
+                          "t": {"type": "string", "format": "date-time", "description": "Sample timestamp in UTC."},
+                          "v": {"type": "number", "description": "Sample value in unit."}
                         }
                       }
                     }

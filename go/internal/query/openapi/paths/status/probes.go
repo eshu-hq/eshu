@@ -21,9 +21,9 @@ const Probes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "service": {"type": "string"},
-                    "probe": {"type": "string", "example": "readyz"},
-                    "status": {"type": "string", "example": "ok"}
+                    "service": {"type": "string", "description": "Service name answering the probe, from the readinessCheckResult owner."},
+                    "probe": {"type": "string", "example": "readyz", "description": "Probe name; always readyz."},
+                    "status": {"type": "string", "example": "ok", "description": "ok when every backend is reachable."}
                   }
                 }
               }
@@ -36,10 +36,10 @@ const Probes = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "service": {"type": "string"},
-                    "probe": {"type": "string", "example": "readyz"},
-                    "status": {"type": "string", "example": "error"},
-                    "error": {"type": "string"}
+                    "service": {"type": "string", "description": "Service name answering the probe, from the readinessCheckResult owner."},
+                    "probe": {"type": "string", "example": "readyz", "description": "Probe name; always readyz."},
+                    "status": {"type": "string", "example": "error", "description": "error when a backend is unreachable or unconfigured."},
+                    "error": {"type": "string", "description": "Probe cause naming the failed backend."}
                   }
                 }
               }

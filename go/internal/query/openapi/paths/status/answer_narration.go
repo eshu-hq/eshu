@@ -24,22 +24,22 @@ const AnswerNarration = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "state": {"type": "string", "enum": ["unavailable", "disabled", "available", "provider_unavailable"]},
-                    "reason": {"type": "string"},
-                    "provider_configured": {"type": "boolean"},
-                    "provider_traffic_enabled": {"type": "boolean"},
-                    "policy_allowed": {"type": "boolean"},
-                    "budget_available": {"type": "boolean"},
-                    "publish_safety_enabled": {"type": "boolean"},
-                    "deterministic_fallback_available": {"type": "boolean"},
-                    "canonical_truth_affected": {"type": "boolean"},
-                    "retention_posture": {"type": "string", "enum": ["metadata_only"]},
-                    "policy_hash": {"type": "string"},
-                    "supported_states": {"type": "array", "items": {"type": "string"}},
-                    "supported_reasons": {"type": "array", "items": {"type": "string"}},
-                    "validator_reason_codes": {"type": "array", "items": {"type": "string"}},
-                    "detail": {"type": "string"},
-                    "updated_at": {"type": "string", "format": "date-time"}
+                    "state": {"type": "string", "enum": ["unavailable", "disabled", "available", "provider_unavailable"], "description": "Governed narration posture from answerNarrationStatusToMap; the default is unavailable."},
+                    "reason": {"type": "string", "description": "Machine-readable reason for the posture."},
+                    "provider_configured": {"type": "boolean", "description": "Whether a narration provider is configured."},
+                    "provider_traffic_enabled": {"type": "boolean", "description": "Whether provider traffic is enabled."},
+                    "policy_allowed": {"type": "boolean", "description": "Whether policy allows governed narration."},
+                    "budget_available": {"type": "boolean", "description": "Whether narration budget remains."},
+                    "publish_safety_enabled": {"type": "boolean", "description": "Whether publish safety gating is enabled."},
+                    "deterministic_fallback_available": {"type": "boolean", "description": "Whether deterministic answer packets are available as the canonical fallback."},
+                    "canonical_truth_affected": {"type": "boolean", "description": "Whether the posture affects canonical truth."},
+                    "retention_posture": {"type": "string", "enum": ["metadata_only"], "description": "Retention posture; metadata only, never prompts or provider responses."},
+                    "policy_hash": {"type": "string", "description": "Hash of the governing policy; present only when set."},
+                    "supported_states": {"type": "array", "items": {"type": "string"}, "description": "Posture states the read model can report."},
+                    "supported_reasons": {"type": "array", "items": {"type": "string"}, "description": "Reason codes the read model can report."},
+                    "validator_reason_codes": {"type": "array", "items": {"type": "string"}, "description": "Reason codes the narration validator can report."},
+                    "detail": {"type": "string", "description": "Human-readable detail; present only when non-empty."},
+                    "updated_at": {"type": "string", "format": "date-time", "description": "When the posture was last computed; present only when known."}
                   }
                 }
               }
