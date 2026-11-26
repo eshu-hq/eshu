@@ -40,32 +40,36 @@ const Branches = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "default_branch": {"type": "string"},
+                    "default_branch": {"type": "string", "description": "True default branch name emitted by readmodel.RefsDefaultBranch (empty when ingestion never captured ref metadata)."},
                     "branches": {
                       "type": "array",
+                      "description": "Paged branch entries ordered by (kind, name), emitted by readmodel.RefWindowEntries as branch rows.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "name": {"type": "string"},
-                          "kind": {"type": "string"},
-                          "head_sha": {"type": "string"},
-                          "is_default": {"type": "boolean"},
-                          "observed_at": {"type": "string", "format": "date-time"},
-                          "last_indexed_at": {"type": "string", "format": "date-time"}
-                        }
+                          "name": {"type": "string", "description": "Branch name emitted by readmodel.RefWindowEntries (empty only on the legacy single-commit fallback)."},
+                          "kind": {"type": "string", "description": "Ref kind emitted by readmodel.RefWindowEntries (branch)."},
+                          "head_sha": {"type": "string", "description": "Head commit SHA emitted by readmodel.RefWindowEntries (the indexed commit on the legacy fallback)."},
+                          "is_default": {"type": "boolean", "description": "Whether this branch is the default, emitted by readmodel.RefWindowEntries."},
+                          "observed_at": {"type": "string", "format": "date-time", "description": "Ingestion observation time emitted by readmodel.RefWindowEntries."},
+                          "last_indexed_at": {"type": "string", "format": "date-time", "description": "Last content index time emitted by readmodel.RefWindowEntries."}
+                        },
+                        "required": ["name", "kind", "head_sha", "is_default"]
                       }
                     },
                     "tags": {
                       "type": "array",
+                      "description": "Paged tag entries ordered by (kind, name), emitted by readmodel.RefWindowEntries as tag rows.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "name": {"type": "string"},
-                          "kind": {"type": "string"},
-                          "head_sha": {"type": "string"},
-                          "observed_at": {"type": "string", "format": "date-time"},
-                          "last_indexed_at": {"type": "string", "format": "date-time"}
-                        }
+                          "name": {"type": "string", "description": "Tag name emitted by readmodel.RefWindowEntries."},
+                          "kind": {"type": "string", "description": "Ref kind emitted by readmodel.RefWindowEntries (tag)."},
+                          "head_sha": {"type": "string", "description": "Tagged commit SHA emitted by readmodel.RefWindowEntries."},
+                          "observed_at": {"type": "string", "format": "date-time", "description": "Ingestion observation time emitted by readmodel.RefWindowEntries."},
+                          "last_indexed_at": {"type": "string", "format": "date-time", "description": "Last content index time emitted by readmodel.RefWindowEntries."}
+                        },
+                        "required": ["name", "kind", "head_sha"]
                       }
                     },
                     "truncated": {

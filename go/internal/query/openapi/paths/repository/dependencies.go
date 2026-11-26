@@ -33,35 +33,38 @@ const Dependencies = `
                   "properties": {
                     "dependencies": {
                       "type": "array",
+                      "description": "Bounded package-native dependency edges, emitted by the dependency handler as []dependency.Row.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "direction": {"type": "string", "enum": ["forward", "reverse"]},
-                          "anchor_package_id": {"type": "string"},
-                          "anchor_package": {"type": "string"},
-                          "anchor_ecosystem": {"type": "string"},
-                          "declaring_version": {"type": "string"},
-                          "related_package_id": {"type": "string"},
-                          "related_package": {"type": "string"},
-                          "related_ecosystem": {"type": "string"},
-                          "dependency_range": {"type": "string"},
-                          "dependency_type": {"type": "string"},
-                          "optional": {"type": "boolean"},
-                          "edge_id": {"type": "string"}
+                          "direction": {"type": "string", "enum": ["forward", "reverse"], "description": "View direction of this edge emitted by dependency.Row.Direction (forward: related package is the dependency target; reverse: related package is the dependent)."},
+                          "anchor_package_id": {"type": "string", "description": "Anchor package identity emitted by dependency.Row.AnchorPackageID (absent when the graph did not materialize a stable identity)."},
+                          "anchor_package": {"type": "string", "description": "Anchor package name emitted by dependency.Row.AnchorPackage (absent when the graph did not materialize a stable identity)."},
+                          "anchor_ecosystem": {"type": "string", "description": "Anchor package ecosystem emitted by dependency.Row.AnchorEcosystem (absent when the graph did not materialize a stable identity)."},
+                          "declaring_version": {"type": "string", "description": "Version that declared the edge emitted by dependency.Row.DeclaringVersion."},
+                          "related_package_id": {"type": "string", "description": "Related package identity emitted by dependency.Row.RelatedPackageID (absent when the graph did not materialize a stable identity)."},
+                          "related_package": {"type": "string", "description": "Related package name emitted by dependency.Row.RelatedPackage (absent when the graph did not materialize a stable identity)."},
+                          "related_ecosystem": {"type": "string", "description": "Related package ecosystem emitted by dependency.Row.RelatedEcosystem (absent when the graph did not materialize a stable identity)."},
+                          "dependency_range": {"type": "string", "description": "Declared dependency range emitted by dependency.Row.DependencyRange."},
+                          "dependency_type": {"type": "string", "description": "Dependency type emitted by dependency.Row.DependencyType."},
+                          "optional": {"type": "boolean", "description": "Whether the edge is optional, emitted by dependency.Row.Optional."},
+                          "edge_id": {"type": "string", "description": "Graph edge identity emitted by dependency.Row.EdgeID."}
                         },
                         "required": ["direction", "optional"]
                       }
                     },
-                    "direction": {"type": "string", "enum": ["forward", "reverse"]},
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "direction": {"type": "string", "enum": ["forward", "reverse"], "description": "Echo of the caller's view direction, emitted by the dependency handler from the normalized direction."},
+                    "count": {"type": "integer", "description": "Rows returned in this page, emitted by the dependency handler as len(results)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the dependency handler from the normalized limit."},
+                    "truncated": {"type": "boolean", "description": "True when more edges exist past this page, emitted by the dependency handler from the lookahead row."},
                     "next_cursor": {
                       "type": "object",
+                      "description": "Keyset cursor for the next page (present only when truncated), emitted by the dependency handler from the last row.",
                       "properties": {
-                        "after_name": {"type": "string"},
-                        "after_edge": {"type": "string"}
-                      }
+                        "after_name": {"type": "string", "description": "Cursor name of the last row, emitted by the dependency handler from the last row cursor name."},
+                        "after_edge": {"type": "string", "description": "Edge id of the last row, emitted by the dependency handler from the last Row.EdgeID."}
+                      },
+                      "required": ["after_name", "after_edge"]
                     }
                   },
                   "required": ["dependencies", "direction", "count", "limit", "truncated"]

@@ -47,48 +47,59 @@ const RuntimeDeclarations = `
                   "properties": {
                     "declarations": {
                       "type": "array",
+                      "description": "Bounded page of declared runtime versions, emitted by the declaration handler from the RuntimeDeclaration graph nodes as declaration rows.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "repo_id": {"type": "string"},
-                          "repo_name": {"type": "string", "description": "Omitted when the name read degraded; see partial_reasons."},
-                          "relative_path": {"type": "string"},
-                          "scope_dir": {"type": "string", "description": "Directory the declaration governs; . at the repository root."},
-                          "line_number": {"type": "integer"},
-                          "order_index": {"type": "integer"},
-                          "runtime": {"type": "string"},
-                          "source_kind": {"type": "string"},
-                          "tool_name": {"type": "string", "nullable": true},
-                          "raw_spec": {"type": "string"},
-                          "spec_kind": {"type": "string", "description": "exact, partial, range, alias or unresolved. Readers must tolerate a new value."},
-                          "version_major": {"type": "integer", "nullable": true, "description": "Set only for exact and partial specs."},
-                          "version_minor": {"type": "integer", "nullable": true},
-                          "version_patch": {"type": "integer", "nullable": true},
-                          "distribution": {"type": "string", "nullable": true},
-                          "range_lower": {"type": "string", "nullable": true},
-                          "range_upper": {"type": "string", "nullable": true},
-                          "range_lower_major": {"type": "integer", "nullable": true},
-                          "range_upper_major": {"type": "integer", "nullable": true},
-                          "range_lower_inclusive": {"type": "boolean", "nullable": true},
-                          "range_upper_inclusive": {"type": "boolean", "nullable": true}
+                          "repo_id": {"type": "string", "description": "Repository identity emitted by the declaration row."},
+                          "repo_name": {"type": "string", "description": "Repository name emitted by the declaration row. Omitted when the name read degraded; see partial_reasons."},
+                          "relative_path": {"type": "string", "description": "Declaring file path emitted by the declaration row."},
+                          "scope_dir": {"type": "string", "description": "Directory the declaration governs, emitted by the declaration row; . at the repository root."},
+                          "line_number": {"type": "integer", "description": "Declaring line number emitted by the declaration row."},
+                          "order_index": {"type": "integer", "description": "Declaration order within the file, emitted by the declaration row."},
+                          "runtime": {"type": "string", "description": "Runtime name emitted by the declaration row."},
+                          "source_kind": {"type": "string", "description": "Declaring source kind emitted by the declaration row."},
+                          "tool_name": {"type": "string", "nullable": true, "description": "Tool name emitted by the declaration row (present when the source names one)."},
+                          "raw_spec": {"type": "string", "description": "Declared version text as written, emitted by the declaration row."},
+                          "spec_kind": {"type": "string", "description": "Spec kind emitted by the declaration row: exact, partial, range, alias or unresolved. Readers must tolerate a new value."},
+                          "version_major": {"type": "integer", "nullable": true, "description": "Resolved major version emitted by the declaration row. Set only for exact and partial specs."},
+                          "version_minor": {"type": "integer", "nullable": true, "description": "Resolved minor version emitted by the declaration row (present for exact and partial specs)."},
+                          "version_patch": {"type": "integer", "nullable": true, "description": "Resolved patch version emitted by the declaration row (present for exact and partial specs)."},
+                          "distribution": {"type": "string", "nullable": true, "description": "Distribution label emitted by the declaration row (present when the source names one)."},
+                          "range_lower": {"type": "string", "nullable": true, "description": "Range lower bound text emitted by the declaration row (present for range specs)."},
+                          "range_upper": {"type": "string", "nullable": true, "description": "Range upper bound text emitted by the declaration row (present for range specs)."},
+                          "range_lower_major": {"type": "integer", "nullable": true, "description": "Range lower major emitted by the declaration row (present for range specs with a comparable bound)."},
+                          "range_upper_major": {"type": "integer", "nullable": true, "description": "Range upper major emitted by the declaration row (present for range specs with a comparable bound)."},
+                          "range_lower_inclusive": {"type": "boolean", "nullable": true, "description": "Whether the lower bound is inclusive, emitted by the declaration row (present for range specs)."},
+                          "range_upper_inclusive": {"type": "boolean", "nullable": true, "description": "Whether the upper bound is inclusive, emitted by the declaration row (present for range specs)."}
                         },
                         "required": ["repo_id", "relative_path", "scope_dir", "line_number", "order_index", "runtime", "source_kind", "raw_spec", "spec_kind", "version_major", "version_minor", "version_patch"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_cursor": {"type": "string", "description": "Present only when truncated is true."},
-                    "filters": {"type": "object", "description": "The filters as applied; version_below echoes the bound that was read."},
+                    "count": {"type": "integer", "description": "Declarations returned in this page, emitted by the declaration handler as len(rows)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page bound, emitted by the declaration handler from the normalized limit."},
+                    "truncated": {"type": "boolean", "description": "True when more declarations exist past this page, emitted by the declaration handler from the lookahead row."},
+                    "next_cursor": {"type": "string", "description": "Opaque cursor for the next page, emitted by the declaration handler from the last row. Present only when truncated is true."},
+                    "filters": {
+                      "type": "object",
+                      "description": "The filters as applied, emitted by the declaration handler from request.echo (only non-empty filters appear); version_below echoes the bound that was read.",
+                      "properties": {
+                        "runtime": {"type": "string", "description": "Runtime filter echoed by the declaration handler (present when the caller set runtime)."},
+                        "source_kind": {"type": "string", "description": "Source-kind filter echoed by the declaration handler (present when the caller set source_kind)."},
+                        "repo_ids": {"type": "array", "items": {"type": "string"}, "description": "Repository filter echoed by the declaration handler (present when the caller set repo_ids)."},
+                        "version_below": {"type": "string", "description": "Comparison bound echoed by the declaration handler (present when the caller set major_below or version_below)."}
+                      }
+                    },
                     "excluded_from_comparison": {
                       "type": "object",
+                      "description": "Comparison exclusion report emitted by the declaration handler from summarizeExcluded as excludedSummary.",
                       "properties": {
-                        "total": {"type": "integer"},
-                        "by_spec_kind": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Counts keyed range, alias, unresolved, partial or other."}
+                        "total": {"type": "integer", "description": "Declarations the comparison could not place, emitted by declaration.excludedSummary.Total."},
+                        "by_spec_kind": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Exclusions grouped by closed spec-kind class, emitted by declaration.excludedSummary.BySpecKind. Counts keyed range, alias, unresolved, partial or other."}
                       },
                       "required": ["total", "by_spec_kind"]
                     },
-                    "partial_reasons": {"type": "array", "items": {"type": "string"}, "description": "runtime_declaration_{range|alias|unresolved|partial|other}_specs_excluded when a comparison left declarations out, and runtime_declaration_repository_names_unavailable when repo_name could not be read."}
+                    "partial_reasons": {"type": "array", "items": {"type": "string"}, "description": "runtime_declaration_{range|alias|unresolved|partial|other}_specs_excluded when a comparison left declarations out, and runtime_declaration_repository_names_unavailable when repo_name could not be read. Emitted by the declaration handler from the exclusion summary."}
                   },
                   "required": ["declarations", "count", "limit", "truncated", "filters", "excluded_from_comparison", "partial_reasons"]
                 }

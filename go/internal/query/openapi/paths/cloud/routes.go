@@ -35,33 +35,36 @@ const Routes = `
                   "properties": {
                     "resources": {
                       "type": "array",
+                      "description": "Authorized page of cloud resource rows hydrated from the authoritative graph, emitted by query.writeCloudResourceListResponse.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {"type": "string"},
-                          "resource_type": {"type": "string"},
-                          "name": {"type": "string"},
-                          "provider": {"type": "string"},
-                          "region": {"type": "string"},
-                          "account_id": {"type": "string"},
-                          "arn": {"type": "string"},
-                          "service_name": {"type": "string"},
-                          "state": {"type": "string"}
-                        }
+                          "id": {"type": "string", "description": "Graph resource identity emitted by query.CloudResourceRow.ID."},
+                          "resource_type": {"type": "string", "description": "Graph resource type emitted by query.CloudResourceRow.ResourceType."},
+                          "name": {"type": "string", "description": "Resource display name emitted by query.CloudResourceRow.Name."},
+                          "provider": {"type": "string", "description": "Collector provider emitted by query.CloudResourceRow.Provider."},
+                          "region": {"type": "string", "description": "Cloud region emitted by query.CloudResourceRow.Region."},
+                          "account_id": {"type": "string", "description": "Cloud account id emitted by query.CloudResourceRow.AccountID."},
+                          "arn": {"type": "string", "description": "Provider ARN emitted by query.CloudResourceRow.ARN."},
+                          "service_name": {"type": "string", "description": "Owning service name emitted by query.CloudResourceRow.ServiceName."},
+                          "state": {"type": "string", "description": "Resource state emitted by query.CloudResourceRow.State."}
+                        },
+                        "required": ["id"]
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "count": {"type": "integer", "description": "Number of resources in this page, emitted by query.writeCloudResourceListResponse as len(results)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by query.writeCloudResourceListResponse from cloudResourceListFilter via limit."},
+                    "truncated": {"type": "boolean", "description": "True when more resources exist past this page, emitted by query.writeCloudResourceListResponse."},
                     "next_cursor": {
                       "type": "object",
                       "description": "Present only when truncated is true. Pass these values back as after_resource_type and after_id to fetch the next page.",
                       "properties": {
-                        "after_resource_type": {"type": "string"},
-                        "after_id": {"type": "string"}
-                      }
+                        "after_resource_type": {"type": "string", "description": "Keyset cursor resource_type of the last row, emitted by query.writeCloudResourceListResponse from the last page row."},
+                        "after_id": {"type": "string", "description": "Keyset cursor id of the last row, emitted by query.writeCloudResourceListResponse from the last page row."}
+                      },
+                      "required": ["after_resource_type", "after_id"]
                     },
-                    "scope": {"type": "object", "additionalProperties": {"type": "string"}}
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Bounded filter scope applied to the list, emitted by query.cloudResourceListScope. Keys vary per request (filter echo of the caller-supplied provider, resource_type, region, and account_id filters); values are the caller-supplied filter strings."}
                   }
                 }
               }

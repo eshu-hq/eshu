@@ -46,44 +46,57 @@ const TerraformConfigStateDrift = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "scope_id": {"type": "string"},
-                    "address": {"type": "string"},
-                    "outcome": {"type": "string"},
-                    "drift_kinds": {"type": "array", "items": {"type": "string"}},
-                    "story": {"type": "string"},
-                    "outcome_groups": {"type": "array", "items": {"type": "object"}},
-                    "findings_count": {"type": "integer"},
-                    "total_findings_count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_offset": {"type": ["integer", "null"]},
-                    "truth_basis": {"type": "string"},
-                    "analysis_status": {"type": "string"},
-                    "graph_projection_note": {"type": "string"},
-                    "limitations": {"type": "array", "items": {"type": "string"}},
-                    "drift_findings": {
+                    "scope_id": {"type": "string", "description": "Echo of the caller's exact state-snapshot scope filter, emitted by the drift handler from FindingFilter.ScopeID."},
+                    "address": {"type": "string", "description": "Echo of the caller's Terraform resource address filter, emitted by the drift handler from FindingFilter.Address."},
+                    "outcome": {"type": "string", "description": "Echo of the caller's outcome filter, emitted by the drift handler from FindingFilter.Outcome."},
+                    "drift_kinds": {"type": "array", "items": {"type": "string"}, "description": "Echo of the caller's drift-kind filter, emitted by the drift handler from FindingFilter.DriftKinds."},
+                    "story": {"type": "string", "description": "One-line page summary rendered by drift.terraformConfigStateDriftStory from the caller's filter and the page counts."},
+                    "outcome_groups": {
                       "type": "array",
+                      "description": "Finding counts grouped by outcome, emitted by drift.terraformConfigStateDriftOutcomeGroups.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "fact_id": {"type": "string"},
-                          "scope_id": {"type": "string"},
-                          "generation_id": {"type": "string"},
-                          "source_system": {"type": "string"},
-                          "canonical_id": {"type": "string"},
-                          "candidate_id": {"type": "string"},
-                          "candidate_kind": {"type": "string"},
-                          "outcome": {"type": "string", "enum": ["exact", "derived", "ambiguous", "unresolved"]},
-                          "address": {"type": "string"},
-                          "drift_kind": {"type": "string"},
-                          "backend_kind": {"type": "string"},
-                          "locator_hash": {"type": "string"},
-                          "confidence": {"type": "number"},
-                          "ambiguous_owner_candidates": {"type": "array", "items": {"type": "object"}, "description": "Every competing config repo's identity for an admin/unscoped caller. A scoped caller only sees candidates inside its own grant; out-of-grant candidates are removed, not returned redacted."},
-                          "ambiguous_owner_candidates_withheld_count": {"type": "integer", "description": "Count of ambiguous_owner_candidates entries removed because their repo_id was outside a scoped caller's grant. Omitted (zero) for an unscoped caller."},
-                          "evidence": {"type": "array", "items": {"type": "object"}, "description": "Reducer evidence atoms explaining the finding (address, drift_kind, config, state, and a prior atom whenever a prior-generation row exists for the address). Each atom's own scope_id names the repository/state-snapshot scope that atom's data came from, which can differ from the finding's own scope_id -- notably the config atom's scope_id is the config repo's scope, not the state-snapshot scope this endpoint is bound to. A scoped caller only sees an atom's scope_id when it is inside its own grant; an out-of-grant scope_id is removed from the atom (the atom itself, and its other fields, are still returned)."}
-                        }
+                          "outcome": {"type": "string", "description": "Outcome bucket emitted by drift.terraformConfigStateDriftOutcomeGroups (exact, derived, ambiguous, or unresolved)."},
+                          "count": {"type": "integer", "description": "Number of page findings in this outcome bucket, emitted by drift.terraformConfigStateDriftOutcomeGroups."}
+                        },
+                        "required": ["outcome", "count"]
+                      }
+                    },
+                    "findings_count": {"type": "integer", "description": "Number of findings in this page, emitted by the drift handler as len(findings)."},
+                    "total_findings_count": {"type": "integer", "description": "Total active findings matching the filter, emitted by the drift handler from the store count."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the drift handler from FindingFilter.Limit."},
+                    "offset": {"type": "integer", "description": "Echo of the caller's result offset, emitted by the drift handler from FindingFilter.Offset."},
+                    "truncated": {"type": "boolean", "description": "True when more findings exist past this page, emitted by iac.ManagementTruncated."},
+                    "next_offset": {"type": ["integer", "null"], "description": "Offset to fetch the next page (0 when not truncated), emitted by iac.ManagementNextOffset."},
+                    "truth_basis": {"type": "string", "description": "Truth-basis label for this readback, emitted by the drift handler (always materialized_reducer_rows)."},
+                    "analysis_status": {"type": "string", "description": "Read-model status label for this readback, emitted by the drift handler (always materialized_terraform_config_state_drift)."},
+                    "graph_projection_note": {"type": "string", "description": "Read-model projection note emitted by the drift handler: this surface reads the reducer read model and the graph projection stays deferred."},
+                    "limitations": {"type": "array", "items": {"type": "string"}, "description": "Fixed limitation strings for this readback, emitted by the drift handler."},
+                    "drift_findings": {
+                      "type": "array",
+                      "description": "Page of config-vs-state drift findings, emitted by the drift handler from the read store as []drift.FindingRow.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "fact_id": {"type": "string", "description": "Reducer fact identity emitted by drift.FindingRow.FactID."},
+                          "scope_id": {"type": "string", "description": "State-snapshot scope the finding was evaluated under, emitted by drift.FindingRow.ScopeID."},
+                          "generation_id": {"type": "string", "description": "Reducer generation that produced the finding, emitted by drift.FindingRow.GenerationID."},
+                          "source_system": {"type": "string", "description": "Source system that admitted the finding, emitted by drift.FindingRow.SourceSystem."},
+                          "canonical_id": {"type": "string", "description": "Canonical finding identity emitted by drift.FindingRow.CanonicalID."},
+                          "candidate_id": {"type": "string", "description": "Backend-owner candidate identity emitted by drift.FindingRow.CandidateID."},
+                          "candidate_kind": {"type": "string", "description": "Backend-owner candidate kind emitted by drift.FindingRow.CandidateKind."},
+                          "outcome": {"type": "string", "enum": ["exact", "derived", "ambiguous", "unresolved"], "description": "Backend-resolution outcome emitted by drift.FindingRow.Outcome."},
+                          "address": {"type": "string", "description": "Terraform resource address under review, emitted by drift.FindingRow.Address."},
+                          "drift_kind": {"type": "string", "description": "Classified per-address drift kind emitted by drift.FindingRow.DriftKind."},
+                          "backend_kind": {"type": "string", "description": "State backend kind emitted by drift.FindingRow.BackendKind."},
+                          "locator_hash": {"type": "string", "description": "Backend locator hash emitted by drift.FindingRow.LocatorHash."},
+                          "confidence": {"type": "number", "description": "Finding confidence emitted by drift.FindingRow.Confidence."},
+                          "ambiguous_owner_candidates": {"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "Every competing config repo's identity for an admin/unscoped caller, emitted by drift.FindingRow.AmbiguousOwnerCandidates as reducer-admitted open maps. Keys are the reducer-admitted candidate identity fields and always include repo_id, which names the competing config repo; a scoped caller only sees candidates inside its own grant (out-of-grant candidates are removed, not returned redacted, and counted in ambiguous_owner_candidates_withheld_count)."},
+                          "ambiguous_owner_candidates_withheld_count": {"type": "integer", "description": "Count of ambiguous_owner_candidates entries removed because their repo_id was outside a scoped caller's grant, emitted by drift.FindingRow.AmbiguousOwnerCandidatesWithheldCount. Omitted (zero) for an unscoped caller."},
+                          "evidence": {"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "Reducer evidence atoms explaining the finding (address, drift_kind, config, state, and a prior atom whenever a prior-generation row exists for the address), emitted by drift.FindingRow.Evidence as reducer-admitted open maps. Keys are the reducer-admitted atom fields and always include scope_id, which names the repository/state-snapshot scope that atom's data came from -- notably the config atom's scope_id is the config repo's scope, not the state-snapshot scope this endpoint is bound to. A scoped caller only sees an atom's scope_id when it is inside its own grant; an out-of-grant scope_id is removed from the atom (the atom itself, and its other fields, are still returned)."}
+                        },
+                        "required": ["fact_id", "scope_id", "generation_id", "source_system", "canonical_id", "candidate_id", "candidate_kind", "outcome", "backend_kind", "locator_hash", "confidence"]
                       }
                     }
                   }

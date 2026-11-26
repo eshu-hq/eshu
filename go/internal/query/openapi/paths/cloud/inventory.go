@@ -39,15 +39,16 @@ const Inventory = `
                   "properties": {
                     "resources": {
                       "type": "array",
+                      "description": "Page of canonical cloud resource identity views, emitted by query.cloudInventoryResourceView.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "cloud_resource_uid": {"type": "string"},
-                          "provider": {"type": "string"},
-                          "resource_type": {"type": "string"},
-                          "management_origin": {"type": "string", "enum": ["declared", "applied", "observed"]},
-                          "scope_id": {"type": "string"},
-                          "generation_id": {"type": "string"},
+                          "cloud_resource_uid": {"type": "string", "description": "Canonical cross-provider resource identity, emitted by query.cloudInventoryResourceView from the reducer payload."},
+                          "provider": {"type": "string", "description": "Cloud provider of the canonical identity, emitted by query.cloudInventoryResourceView from the reducer payload."},
+                          "resource_type": {"type": "string", "description": "Canonical resource type, emitted by query.cloudInventoryResourceView from the reducer payload."},
+                          "management_origin": {"type": "string", "enum": ["declared", "applied", "observed"], "description": "Strongest contributing evidence layer, emitted by query.cloudInventoryResourceView from the reducer payload."},
+                          "scope_id": {"type": "string", "description": "Canonical ingestion scope of the identity, emitted by query.cloudInventoryScopeID preferring the fact-record column."},
+                          "generation_id": {"type": "string", "description": "Reducer generation that admitted the identity, emitted by query.cloudInventoryResourceView from the envelope."},
                           "source_state": {"type": "string", "description": "Provider-neutral source-state taxonomy value derived from management_origin."},
                           "tag_value_fingerprints": {
                             "type": "object",
@@ -63,9 +64,9 @@ const Inventory = `
                             "type": "object",
                             "description": "Present only for a zip-packaged Lambda function (attributes.package_type=Zip) that carries a code_sha256. It states, programmatically, that the code hash is NOT correlated to any CI/package hash: a Lambda code_sha256 is base64(SHA256(the deployment .zip)) and no collected hash covers those bytes (the GitHub Actions artifact_digest hashes GitHub's own re-zip, package-registry hashes are of tarballs/wheels, OCI digests are image manifests), so the code_sha256 is display-only evidence and the limitation is surfaced rather than left silent (issue #5454). Absent for an image-packaged Lambda, whose deployment code is the container image correlated via image_uri/resolved_image_uri.",
                             "properties": {
-                              "status": {"type": "string", "enum": ["uncorrelated"]},
-                              "truth_basis": {"type": "string", "enum": ["display_only_evidence"]},
-                              "unsupported_reason": {"type": "string", "enum": ["zip_code_sha256_no_ci_counterpart"]}
+                              "status": {"type": "string", "enum": ["uncorrelated"], "description": "Correlation verdict emitted by query.cloudInventoryCodeCorrelationLabel (always uncorrelated for a zip Lambda code_sha256)."},
+                              "truth_basis": {"type": "string", "enum": ["display_only_evidence"], "description": "Evidence standing of the code hash, emitted by query.cloudInventoryCodeCorrelationLabel (display-only, never joinable)."},
+                              "unsupported_reason": {"type": "string", "enum": ["zip_code_sha256_no_ci_counterpart"], "description": "Machine-readable reason no counterpart exists, emitted by query.cloudInventoryCodeCorrelationLabel."}
                             }
                           },
                           "identity_policy_evidence": {
@@ -74,13 +75,13 @@ const Inventory = `
                             "items": {
                               "type": "object",
                               "properties": {
-                                "evidence_key": {"type": "string"},
-                                "identity_type": {"type": "string"},
-                                "role_class": {"type": "string"},
-                                "principal_fingerprint": {"type": "string"},
-                                "client_fingerprint": {"type": "string"},
-                                "object_fingerprint": {"type": "string"},
-                                "tenant_fingerprint": {"type": "string"}
+                                "evidence_key": {"type": "string", "description": "Evidence row key emitted by query.cloudInventoryIdentityPolicyEvidence (closed safe-field projection)."},
+                                "identity_type": {"type": "string", "description": "Bounded identity class emitted by query.cloudInventoryIdentityPolicyEvidence; raw identities never cross the wire."},
+                                "role_class": {"type": "string", "description": "Bounded role class emitted by query.cloudInventoryIdentityPolicyEvidence."},
+                                "principal_fingerprint": {"type": "string", "description": "Keyed principal fingerprint emitted by query.cloudInventoryIdentityPolicyEvidence; raw principal GUIDs are omitted."},
+                                "client_fingerprint": {"type": "string", "description": "Keyed client fingerprint emitted by query.cloudInventoryIdentityPolicyEvidence."},
+                                "object_fingerprint": {"type": "string", "description": "Keyed object fingerprint emitted by query.cloudInventoryIdentityPolicyEvidence."},
+                                "tenant_fingerprint": {"type": "string", "description": "Keyed tenant fingerprint emitted by query.cloudInventoryIdentityPolicyEvidence."}
                               }
                             }
                           },
@@ -91,37 +92,37 @@ const Inventory = `
                             "items": {
                               "type": "object",
                               "properties": {
-                                "evidence_key": {"type": "string"},
-                                "change_type": {"type": "string", "enum": ["created", "updated", "deleted"]},
-                                "change_time": {"type": "string", "format": "date-time"},
-                                "operation": {"type": "string"},
-                                "client_type": {"type": "string"},
-                                "actor_class": {"type": "string"},
-                                "actor_fingerprint": {"type": "string"},
-                                "changed_property_paths": {"type": "array", "items": {"type": "string"}},
-                                "changed_property_truncated": {"type": "boolean"},
-                                "tombstone_candidate": {"type": "boolean"}
+                                "evidence_key": {"type": "string", "description": "Change row key emitted by query.cloudInventoryResourceChangeFreshness (reducer allowlist)."},
+                                "change_type": {"type": "string", "enum": ["created", "updated", "deleted"], "description": "Azure Resource Graph change type emitted by query.cloudInventoryResourceChangeFreshness."},
+                                "change_time": {"type": "string", "format": "date-time", "description": "Provider change timestamp emitted by query.cloudInventoryResourceChangeFreshness."},
+                                "operation": {"type": "string", "description": "Provider operation name emitted by query.cloudInventoryResourceChangeFreshness."},
+                                "client_type": {"type": "string", "description": "Provider client class emitted by query.cloudInventoryResourceChangeFreshness."},
+                                "actor_class": {"type": "string", "description": "Bounded actor class emitted by query.cloudInventoryResourceChangeFreshness; raw actor ids are dropped."},
+                                "actor_fingerprint": {"type": "string", "description": "Keyed actor fingerprint emitted by query.cloudInventoryResourceChangeFreshness."},
+                                "changed_property_paths": {"type": "array", "items": {"type": "string"}, "description": "Changed property paths emitted by query.cloudInventoryResourceChangeFreshness; before/after values are dropped."},
+                                "changed_property_truncated": {"type": "boolean", "description": "True when changed_property_paths was capped, emitted by query.cloudInventoryResourceChangeFreshness."},
+                                "tombstone_candidate": {"type": "boolean", "description": "Whether this delete row is a tombstone candidate only, emitted by query.cloudInventoryResourceChangeFreshness."}
                               }
                             }
                           },
-                          "resource_change_freshness_truncated": {"type": "boolean"},
+                          "resource_change_freshness_truncated": {"type": "boolean", "description": "Present and true when freshness evidence was capped for this resource, emitted by query.cloudInventoryResourceView."},
                           "evidence": {
                             "type": "object",
                             "description": "Per-layer evidence flags that contributed to the canonical identity.",
                             "properties": {
-                              "declared": {"type": "boolean"},
-                              "applied": {"type": "boolean"},
-                              "observed": {"type": "boolean"}
+                              "declared": {"type": "boolean", "description": "Whether declared-layer evidence contributed, emitted by query.cloudInventoryResourceView from has_declared_evidence."},
+                              "applied": {"type": "boolean", "description": "Whether applied-layer evidence contributed, emitted by query.cloudInventoryResourceView from has_applied_evidence."},
+                              "observed": {"type": "boolean", "description": "Whether observed-layer evidence contributed, emitted by query.cloudInventoryResourceView from has_observed_evidence."}
                             }
                           }
                         }
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_cursor": {"type": "string", "description": "Present only when truncated is true. Pass back as cursor to fetch the next page."},
-                    "scope": {"type": "object", "additionalProperties": {"type": "string"}},
+                    "count": {"type": "integer", "description": "Number of identities in this page, emitted by query.cloudInventoryResponse as len(resources)."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by query.cloudInventoryResponse from cloudInventoryFilter.Limit."},
+                    "truncated": {"type": "boolean", "description": "True when more identities exist past this page, emitted by query.cloudInventoryResponse (nextCursor non-empty)."},
+                    "next_cursor": {"type": "string", "description": "Present only when truncated is true. Pass back as cursor to fetch the next page. Opaque offset cursor emitted by query.cloudInventoryResponse from the read model."},
+                    "scope": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Bounded non-sensitive filter scope applied to the readback, emitted by query.cloudInventoryScope: provider, scope_id (or the account alias key the caller used: account_id, project_id, subscription_id), and management_origin. Keys vary per request (filter echo); values are the caller-supplied filter strings."},
                     "warning_flags": {
                       "type": "array",
                       "items": {"type": "string", "enum": ["account_alias_rollout_gap", "account_alias_rollout_gap_check_failed"]},

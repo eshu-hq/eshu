@@ -35,66 +35,78 @@ const Freshness = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "repository": {"$ref": "#/components/schemas/RepositoryRef"},
-                    "scope_id": {"type": "string"},
+                    "repository": {"$ref": "#/components/schemas/RepositoryRef", "description": "Repository identity emitted by the repository freshness handler from the base row (component shape)."},
+                    "scope_id": {"type": "string", "description": "Canonical ingestion scope of the repository, emitted by the repository freshness handler from the receipt snapshot."},
                     "verdict": {"type": "string", "enum": ["current", "building", "behind", "unobserved", "not_selected", "unknown", "retiring", "retired"], "description": "retiring marks an open non-complete retirement tombstone and retired a complete one (#7766); both outrank every other verdict as rule 0."},
                     "observed_commit": {"type": "string", "description": "May be empty for non-git scopes, pre-delta-baseline generations, or snapshot-trigger git generations (trigger_kind=snapshot). An empty value with verdict=current means build completeness for this generation, not a commit receipt."},
-                    "observed_at": {"type": "string", "nullable": true},
+                    "observed_at": {"type": "string", "nullable": true, "description": "Latest observation time of the resolved generation, emitted by the repository freshness handler (null when never observed)."},
                     "generation": {
                       "type": "object",
                       "nullable": true,
+                      "description": "Resolved generation, emitted by the repository freshness handler from repositoryFreshnessGenerationToMap.",
                       "properties": {
-                        "id": {"type": "string"},
-                        "status": {"type": "string"},
-                        "trigger_kind": {"type": "string"},
-                        "is_delta": {"type": "boolean"},
-                        "activated_at": {"type": "string", "nullable": true}
-                      }
+                        "id": {"type": "string", "description": "Generation identity emitted by repository.repositoryFreshnessGenerationToMap."},
+                        "status": {"type": "string", "description": "Generation status emitted by repository.repositoryFreshnessGenerationToMap."},
+                        "trigger_kind": {"type": "string", "description": "Trigger kind emitted by repository.repositoryFreshnessGenerationToMap (push, delta, or snapshot)."},
+                        "is_delta": {"type": "boolean", "description": "Whether the generation is a delta, emitted by repository.repositoryFreshnessGenerationToMap."},
+                        "activated_at": {"type": "string", "nullable": true, "description": "Activation time emitted by repository.repositoryFreshnessGenerationToMap (null when never activated)."}
+                      },
+                      "required": ["id", "status", "trigger_kind", "is_delta"]
                     },
                     "stages": {
                       "type": "object",
+                      "description": "Per-stage build completion for the resolved generation, emitted by the repository freshness handler from repositoryFreshnessStagesToMap.",
                       "properties": {
-                        "collected": {"type": "boolean"},
-                        "reduced": {"type": "boolean"},
-                        "projected": {"type": "boolean"},
-                        "materialized": {"type": "boolean"}
-                      }
+                        "collected": {"type": "boolean", "description": "Collection completed, emitted by repository.repositoryFreshnessStagesToMap."},
+                        "reduced": {"type": "boolean", "description": "Reduction completed, emitted by repository.repositoryFreshnessStagesToMap."},
+                        "projected": {"type": "boolean", "description": "Projection completed, emitted by repository.repositoryFreshnessStagesToMap."},
+                        "materialized": {"type": "boolean", "description": "Materialization completed, emitted by repository.repositoryFreshnessStagesToMap."}
+                      },
+                      "required": ["collected", "reduced", "projected", "materialized"]
                     },
                     "outstanding_by_stage": {
                       "type": "array",
+                      "description": "Outstanding work grouped by stage, emitted by the repository freshness handler from repositoryFreshnessOutstandingToSlice.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "stage": {"type": "string"},
-                          "status": {"type": "string"},
-                          "count": {"type": "integer"}
-                        }
+                          "stage": {"type": "string", "description": "Pipeline stage emitted by repository.repositoryFreshnessOutstandingToSlice."},
+                          "status": {"type": "string", "description": "Work status emitted by repository.repositoryFreshnessOutstandingToSlice."},
+                          "count": {"type": "integer", "description": "Outstanding units emitted by repository.repositoryFreshnessOutstandingToSlice."}
+                        },
+                        "required": ["stage", "status", "count"]
                       }
                     },
                     "shared_enrichment": {
                       "type": "object",
+                      "description": "Cross-repo materialization backlog referencing this generation, emitted by the repository freshness handler from repositoryFreshnessSharedEnrichmentToMap.",
                       "properties": {
-                        "pending": {"type": "boolean"},
+                        "pending": {"type": "boolean", "description": "Whether shared enrichment is pending, emitted by repository.repositoryFreshnessSharedEnrichmentToMap."},
                         "pending_domains": {
                           "type": "array",
+                          "description": "Pending enrichment domains, emitted by repository.repositoryFreshnessSharedEnrichmentToMap.",
                           "items": {
                             "type": "object",
                             "properties": {
-                              "domain": {"type": "string"},
-                              "count": {"type": "integer"}
-                            }
+                              "domain": {"type": "string", "description": "Enrichment domain emitted by repository.repositoryFreshnessSharedEnrichmentToMap."},
+                              "count": {"type": "integer", "description": "Pending units in this domain emitted by repository.repositoryFreshnessSharedEnrichmentToMap."}
+                            },
+                            "required": ["domain", "count"]
                           }
                         }
-                      }
+                      },
+                      "required": ["pending", "pending_domains"]
                     },
                     "unobserved_push": {
                       "type": "object",
                       "nullable": true,
+                      "description": "Push received but not yet observed in a generation, emitted by the repository freshness handler from repositoryFreshnessUnobservedPushToMap (null when every push is observed).",
                       "properties": {
-                        "target_sha": {"type": "string"},
-                        "ref": {"type": "string"},
-                        "received_at": {"type": "string", "nullable": true}
-                      }
+                        "target_sha": {"type": "string", "description": "Pushed commit SHA emitted by repository.repositoryFreshnessUnobservedPushToMap."},
+                        "ref": {"type": "string", "description": "Pushed ref emitted by repository.repositoryFreshnessUnobservedPushToMap."},
+                        "received_at": {"type": "string", "nullable": true, "description": "Push receipt time emitted by repository.repositoryFreshnessUnobservedPushToMap (null when unknown)."}
+                      },
+                      "required": ["target_sha", "ref"]
                     },
                     "retirement": {
                       "type": "object",
@@ -120,8 +132,8 @@ const Freshness = `
                         "successor_selected": {"type": "boolean", "description": "Whether the successor slug resolves to a selected scope, decided at read time (#8454)."}
                       }
                     },
-                    "as_of": {"type": "string"},
-                    "scoped": {"type": "boolean"}
+                    "as_of": {"type": "string", "description": "Read time of this verdict, emitted by the repository freshness handler."},
+                    "scoped": {"type": "boolean", "description": "Whether the caller is scope-restricted, emitted by the repository freshness handler from the access filter."}
                   }
                 }
               }

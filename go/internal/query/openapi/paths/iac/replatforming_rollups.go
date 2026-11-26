@@ -49,32 +49,32 @@ const ReplatformingRollups = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "scope_id": {"type": "string"},
-                    "account_id": {"type": "string"},
-                    "region": {"type": "string"},
-                    "finding_kinds": {"type": "array", "items": {"type": "string"}},
-                    "story": {"type": "string"},
+                    "scope_id": {"type": "string", "description": "Echo of the caller's scope_id bound, emitted by the iac rollups handler from ManagementFilter.ScopeID."},
+                    "account_id": {"type": "string", "description": "Echo of the caller's account_id bound, emitted by the iac rollups handler from ManagementFilter.AccountID."},
+                    "region": {"type": "string", "description": "Echo of the caller's region bound, emitted by the iac rollups handler from ManagementFilter.Region."},
+                    "finding_kinds": {"type": "array", "items": {"type": "string"}, "description": "Echo of the caller's normalized finding-kind filter, emitted by the iac rollups handler from ManagementFilter.FindingKinds."},
+                    "story": {"type": "string", "description": "One-line rollup summary rendered by iac.replatformingRollupsStory from the caller's filter and the rollup counts."},
                     "dimensions": {
                       "type": "object",
                       "properties": {
-                        "account": {"type": "array", "items": {"$ref": "#/components/schemas/ReplatformingRollupBucket"}},
-                        "environment": {"type": "array", "items": {"$ref": "#/components/schemas/ReplatformingRollupBucket"}},
-                        "service": {"type": "array", "items": {"$ref": "#/components/schemas/ReplatformingRollupBucket"}}
+                        "account": {"type": "array", "items": {"$ref": "#/components/schemas/ReplatformingRollupBucket"}, "description": "Rollup buckets keyed by account ID, emitted by the iac rollups handler from the rollup dimensions (component shape)."},
+                        "environment": {"type": "array", "items": {"$ref": "#/components/schemas/ReplatformingRollupBucket"}, "description": "Rollup buckets keyed by environment name, emitted by the iac rollups handler from the rollup dimensions (component shape)."},
+                        "service": {"type": "array", "items": {"$ref": "#/components/schemas/ReplatformingRollupBucket"}, "description": "Rollup buckets keyed by service name, emitted by the iac rollups handler from the rollup dimensions (component shape)."}
                       },
                       "description": "Each value is a list of rollup buckets keyed by account ID, environment name, or service name. The explicit __ambiguous__ and __unattributed__ keys hold contested and missing attribution."
                     },
-                    "source_state_totals": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Account-wide count per source-state taxonomy value across the bounded page."},
-                    "readiness_totals": {"$ref": "#/components/schemas/ReplatformingReadinessCounts"},
-                    "rollup_findings_count": {"type": "integer"},
-                    "total_findings_count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
-                    "next_offset": {"type": ["integer", "null"]},
-                    "truth_basis": {"type": "string"},
-                    "analysis_status": {"type": "string"},
-                    "recommended_next_checks": {"type": "array", "items": {"type": "string"}},
-                    "limitations": {"type": "array", "items": {"type": "string"}}
+                    "source_state_totals": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Count per source-state taxonomy value across the bounded page, emitted by the iac rollups handler from rollups.TotalStates. Keys are the taxonomy values (exact, derived, partial, ambiguous, stale, unavailable, unsupported, unknown, rejected)."},
+                    "readiness_totals": {"$ref": "#/components/schemas/ReplatformingReadinessCounts", "description": "Bounded import-readiness view for the rollup, emitted by the iac rollups handler from rollups.Readiness (component shape)."},
+                    "rollup_findings_count": {"type": "integer", "description": "Findings aggregated into this rollup, emitted by the iac rollups handler as len(findings)."},
+                    "total_findings_count": {"type": "integer", "description": "Total active findings matching the filter, emitted by the iac rollups handler from the store count."},
+                    "limit": {"type": "integer", "description": "Echo of the caller's page size, emitted by the iac rollups handler from ManagementFilter.Limit."},
+                    "offset": {"type": "integer", "description": "Echo of the caller's result offset, emitted by the iac rollups handler from ManagementFilter.Offset."},
+                    "truncated": {"type": "boolean", "description": "True when more findings exist past this page, emitted by iac.ManagementTruncated."},
+                    "next_offset": {"type": ["integer", "null"], "description": "Offset to fetch the next page (0 when not truncated), emitted by iac.ManagementNextOffset."},
+                    "truth_basis": {"type": "string", "description": "Truth-basis label for this rollup, emitted by the iac rollups handler (always materialized_reducer_rows)."},
+                    "analysis_status": {"type": "string", "description": "Rollup status label emitted by the iac rollups handler (always replatforming_rollups)."},
+                    "recommended_next_checks": {"type": "array", "items": {"type": "string"}, "description": "Fixed follow-up checks for this rollup, emitted by the iac rollups handler."},
+                    "limitations": {"type": "array", "items": {"type": "string"}, "description": "Fixed limitation strings for this rollup, emitted by the iac rollups handler."}
                   }
                 }
               }
