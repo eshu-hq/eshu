@@ -1,7 +1,0 @@
-Time: 2.677 ms
-      lookup_id      | mass
- GHSA-v6h2-p8h4-qcjw | 78436
-(1 row)
-Time: 11163.661 ms (00:11.164)
-Time: 0.106 ms
-Time: 0.705 ms

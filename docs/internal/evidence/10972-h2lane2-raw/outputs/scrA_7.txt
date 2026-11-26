@@ -1,3 +1,0 @@
-Time: 1.998 ms
-ERROR:  canceling statement due to statement timeout
-Time: 10000.766 ms (00:10.001)

@@ -1,7 +1,0 @@
-Time: 2.512 ms
-      lookup_id      | mass
- GHSA-7r86-cg39-jmmj | 78436
-(1 row)
-Time: 20611.695 ms (00:20.612)
-Time: 0.081 ms
-Time: 0.517 ms

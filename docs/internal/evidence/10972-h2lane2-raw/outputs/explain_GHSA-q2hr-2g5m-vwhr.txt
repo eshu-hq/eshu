@@ -1,7 +1,0 @@
-Time: 3.793 ms
- Planning Time: 4.735 ms
- Execution Time: 24051.840 ms
-(56 rows)
-Time: 24057.363 ms (00:24.057)
-Time: 0.085 ms
-Time: 0.443 ms
