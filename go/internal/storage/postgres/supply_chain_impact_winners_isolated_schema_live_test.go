@@ -40,8 +40,6 @@ func TestSupplyChainImpactWinnersResweepCaptureTriggersBindTheirOwnSchemaLive(t 
 			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: database})
 		})
 	_, database := postgresproof.OpenIsolatedBootstrapTemplateClone(t, adminDSN, optIn, 5*time.Minute, template)
-	// Raw SQL plants finding facts for the capture proofs; whole-test disarm (allowlisted).
-	postgresproof.DisarmFindingWriteStopForTest(t, database)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancel)
 	exec := func(query string, args ...any) {
@@ -68,11 +66,17 @@ func TestSupplyChainImpactWinnersResweepCaptureTriggersBindTheirOwnSchemaLive(t 
 VALUES ('iso-scope', 'vulnerability_intelligence', 'synthetic', 'iso-scope', 'synthetic', 'iso-scope', now(), now(), 'active', '{}'::jsonb, NULL)`)
 	exec(`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
 VALUES ('iso-g1', 'iso-scope', 'synthetic', now(), now(), 'active', now(), '{}'::jsonb)`)
-	exec(`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
+	// The plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed and
+	// the raw finding-fact insert would raise 55000 outside it, while the
+	// supports sync, the pointer move, and the scope delete under test run armed.
+	postgresproof.SeedFindingFacts(t, database, func() {
+		exec(`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ('iso-f1', 'iso-scope', 'iso-g1', $1, 'iso-f1', '1.0.0', 'synthetic', 'iso-f1', now(), now(), false,
   '{"cve_id":"CVE-2026-9805","package_id":"pkg:npm/iso","repository_id":"repo-iso","subject_digest":"","advisory_id":""}'::jsonb)`,
-		facts.ReducerSupplyChainImpactFindingFactKind)
+			facts.ReducerSupplyChainImpactFindingFactKind)
+	})
 	// The impact writer writes a finding's support with its fact; the scope-delete
 	// capture reads the supports (migration 352), in this isolated schema.
 	if err := postgres.ProofSyncSupportsFromFacts(ctx, postgres.SQLDB{DB: database}); err != nil {
