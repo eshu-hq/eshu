@@ -15,7 +15,7 @@ root-command invariants and the pointer back to these pages stay in `README.md`.
   If a service URL is configured by flag, persisted config, or environment, the
   command uses that API. Without a configured service URL, it starts or attaches
   to the workspace-local authoritative owner, launches a short-lived loopback
-  `eshu-api` process with that owner's Postgres and graph env, and passes the
+  `eshu-local-api` process with that owner's Postgres and graph env, and passes the
   same owner env to `eshu-bootstrap-index` so writes and reads use the same
   local stores.
   `--repo-id` bypasses repository selector resolution when the caller already
