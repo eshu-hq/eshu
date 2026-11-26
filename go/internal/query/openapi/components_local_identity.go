@@ -90,23 +90,23 @@ const componentsLocalIdentity = `
         "type": "object",
         "required": ["status", "token_id", "api_token", "issued_at"],
         "properties": {
-          "status": {"type": "string", "enum": ["created", "rotated"]},
-          "token_id": {"type": "string"},
-          "token_class": {"type": "string", "enum": ["personal", "service_principal"]},
+          "status": {"type": "string", "enum": ["created", "rotated"], "description": "Issue outcome emitted by the local.IdentityHandler token routes: created for a new token, rotated for a replacement."},
+          "token_id": {"type": "string", "description": "Server-side token identifier emitted by the local.IdentityHandler token routes."},
+          "token_class": {"type": "string", "enum": ["personal", "service_principal"], "description": "Token class echoed from the create request by the local.IdentityHandler token routes."},
           "api_token": {"type": "string", "format": "password", "description": "One-time bearer value. The server persists only its hash."},
-          "issued_at": {"type": "string", "format": "date-time"},
-          "expires_at": {"type": "string", "format": "date-time"}
+          "issued_at": {"type": "string", "format": "date-time", "description": "Issuance timestamp emitted by the local.IdentityHandler token routes."},
+          "expires_at": {"type": "string", "format": "date-time", "description": "Expiry timestamp emitted by the local.IdentityHandler token routes; absent when the token does not expire."}
         }
       },
       "LocalIdentitySessionResponse": {
         "type": "object",
         "properties": {
-          "status": {"type": "string", "enum": ["authenticated", "mfa_required", "must_change_password", "locked", "disabled", "invalid", "break_glass_authenticated"]},
-          "auth": {"$ref": "#/components/schemas/BrowserSessionAuth"},
-          "csrf_token": {"type": "string"},
-          "idle_expires_at": {"type": "string", "format": "date-time"},
-          "absolute_expires_at": {"type": "string", "format": "date-time"},
-          "locked_until": {"type": "string", "format": "date-time"}
+          "status": {"type": "string", "enum": ["authenticated", "mfa_required", "must_change_password", "locked", "disabled", "invalid", "break_glass_authenticated"], "description": "Login outcome emitted by the local identity session writer (local.IdentitySessionResponse): the terminal state of the sign-in attempt."},
+          "auth": {"$ref": "#/components/schemas/BrowserSessionAuth", "description": "Authenticated session identity emitted by the local identity session writer; present only on an authenticated status."},
+          "csrf_token": {"type": "string", "description": "CSRF token issued with the session by the local identity session writer; present only when a session was issued."},
+          "idle_expires_at": {"type": "string", "format": "date-time", "description": "Idle expiry of the issued session, emitted by the local identity session writer; honors the tenant sign-in policy override."},
+          "absolute_expires_at": {"type": "string", "format": "date-time", "description": "Absolute expiry of the issued session, emitted by the local identity session writer; honors the tenant sign-in policy override."},
+          "locked_until": {"type": "string", "format": "date-time", "description": "Lockout expiry emitted by the local identity session writer; present only on a locked status."}
         }
       },
       "AdminAuditCountList": {
@@ -114,9 +114,10 @@ const componentsLocalIdentity = `
         "description": "Low-cardinality aggregate counts. Each entry is a name and an integer count; never an individual event identifier.",
         "items": {
           "type": "object",
+          "description": "One aggregate bucket emitted by query.normalizeGovernanceAuditCounts from a governanceaudit.Count row.",
           "properties": {
-            "name": {"type": "string"},
-            "count": {"type": "integer"}
+            "name": {"type": "string", "description": "Aggregate bucket name emitted by query.normalizeGovernanceAuditCounts: one low-cardinality event type, decision, reason, actor class, or scope class."},
+            "count": {"type": "integer", "description": "Aggregate count for the bucket, emitted by query.normalizeGovernanceAuditCounts; always positive."}
           }
         }
       },

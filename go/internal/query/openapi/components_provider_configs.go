@@ -13,18 +13,18 @@ const componentsProviderConfigs = `      "AdminProviderConfig": {
         "type": "object",
         "description": "Metadata-only admin view of one identity provider config. Never carries a secret — has_secret, secret_fingerprint (a non-reversible short hash of the sealed envelope's ciphertext), and key_id are the only secret-adjacent fields.",
         "properties": {
-          "provider_config_id": {"type": "string"},
-          "provider_kind": {"type": "string", "enum": ["external_oidc", "external_saml", "external_github"]},
-          "status": {"type": "string", "enum": ["draft", "active"]},
-          "active_revision_id": {"type": "string"},
-          "configuration": {"type": "object", "description": "Non-secret settings: issuer/client_id/scopes/group_claim (oidc); metadata_url/entity_id/group_attribute/service_provider_entity_id/service_provider_acs_url (saml); client_id/base_url/api_base_url/scopes/allowed_orgs (github, issue #5166)."},
-          "has_secret": {"type": "boolean"},
-          "secret_fingerprint": {"type": "string"},
-          "key_id": {"type": "string"},
+          "provider_config_id": {"type": "string", "description": "Config identifier emitted by config.providerConfigDetailJSON."},
+          "provider_kind": {"type": "string", "enum": ["external_oidc", "external_saml", "external_github"], "description": "Provider family emitted by config.providerConfigDetailJSON."},
+          "status": {"type": "string", "enum": ["draft", "active"], "description": "Config lifecycle status emitted by config.providerConfigDetailJSON."},
+          "active_revision_id": {"type": "string", "description": "Currently active revision identifier emitted by config.providerConfigDetailJSON."},
+          "configuration": {"type": "object", "additionalProperties": true, "description": "Non-secret settings emitted by config.providerConfigDetailJSON from Detail.Configuration. Keys are setting names (issuer/client_id/scopes/group_claim for oidc; metadata_url/entity_id/group_attribute/service_provider_entity_id/service_provider_acs_url for saml; client_id/base_url/api_base_url/scopes/allowed_orgs for github, issue #5166); values are strings or string arrays."},
+          "has_secret": {"type": "boolean", "description": "Whether a sealed secret is stored, emitted by config.providerConfigDetailJSON; never the secret itself."},
+          "secret_fingerprint": {"type": "string", "description": "Non-reversible short hash of the sealed secret envelope, emitted by config.providerConfigDetailJSON; present only when a secret is stored."},
+          "key_id": {"type": "string", "description": "Key identifier for the sealed secret, emitted by config.providerConfigDetailJSON; present only when a secret is stored."},
           "shadowed_by_environment": {"type": "boolean", "description": "True when an env/file-registered provider already occupies this provider_config_id; the env config is authoritative and this row's sealed secret is never consulted for login."},
           "managed_by": {"type": "string", "enum": ["database", "environment"], "description": "\"database\" for a normal DB-backed row; \"environment\" for a row shadowed by (or synthesized from) an env/file-registered provider."},
-          "created_at": {"type": "string", "format": "date-time"},
-          "updated_at": {"type": "string", "format": "date-time"}
+          "created_at": {"type": "string", "format": "date-time", "description": "Config creation timestamp emitted by config.providerConfigDetailJSON."},
+          "updated_at": {"type": "string", "format": "date-time", "description": "Last config update timestamp emitted by config.providerConfigDetailJSON."}
         }
       },
       "AdminProviderConfigWriteRequest": {
@@ -55,11 +55,12 @@ const componentsProviderConfigs = `      "AdminProviderConfig": {
       },
       "AdminProviderConfigWriteResult": {
         "type": "object",
+        "description": "Mutation outcome emitted by config.providerConfigWriteResponse for every provider-config create, update, revert, enable, and disable.",
         "properties": {
-          "provider_config_id": {"type": "string"},
-          "revision_id": {"type": "string"},
-          "status": {"type": "string"},
-          "changed": {"type": "boolean"}
+          "provider_config_id": {"type": "string", "description": "Config the mutation applied to, emitted by config.providerConfigWriteResponse."},
+          "revision_id": {"type": "string", "description": "Revision the mutation wrote or activated, emitted by config.providerConfigWriteResponse."},
+          "status": {"type": "string", "description": "Config status after the mutation, emitted by config.providerConfigWriteResponse."},
+          "changed": {"type": "boolean", "description": "Whether the mutation changed stored state, emitted by config.providerConfigWriteResponse."}
         }
       },
 `
