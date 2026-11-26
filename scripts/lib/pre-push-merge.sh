@@ -19,12 +19,14 @@
 # The merge queue's CI run remains the authority for those.
 #
 # Scope and cost:
-#   - HEAD already contains the base (the usual state after a rebase): the
-#     merge IS HEAD, which the changed-package build/vet and the whole-module
-#     go-vet registry gate already cover, so the step says so and skips.
 #   - The merged tree's Go inputs (go/ plus every local `replace` directory
 #     named in go/go.mod) are byte-identical to the base's: nothing in the
 #     merge that main's own CI has not already vetted, so the step skips.
+#   - HEAD already contains the base (the usual state after a rebase): the
+#     merge IS HEAD, so the step skips materializing a second checkout and runs
+#     whole-module `go vet ./...` directly in the worktree's warm `go/` dir
+#     (because the whole-module `go-vet` registry gate is `pre_push: deferred`,
+#     this guarantees whole-module `go vet ./...` runs once per Go push).
 #   - Otherwise it materializes the merged tree into a stable directory under
 #     this worktree's own git dir (removed with `git worktree remove`, never in
 #     the worktree's status) and updates it incrementally between runs. The
@@ -157,16 +159,17 @@ step_merge_vet() {
 	pre_push_merge_tree="${tree}"
 	# shellcheck disable=SC2034  # read by scripts/dev/pre-push.sh's summary.
 	pre_push_merge_summary="${tree} (HEAD ${head:0:12} + ${base} ${base_commit:0:12})"
-	head_tree="$(git -C "${repo_root}" rev-parse "${head}^{tree}")"
-	if [[ "${tree}" == "${head_tree}" ]]; then
-		printf 'HEAD already contains %s (%s): merge tree %s is HEAD'"'"'s own tree, covered by the build/vet above.\n' \
-			"${base}" "${base_commit:0:12}" "${tree}"
-		return 0
-	fi
 	if pre_push_merge_inputs_unchanged "${tree}" "${base_commit}"; then
 		printf 'merge tree %s: Go inputs are identical to %s (%s); nothing new to vet.\n' \
 			"${tree}" "${base}" "${base_commit:0:12}"
 		return 0
+	fi
+	head_tree="$(git -C "${repo_root}" rev-parse "${head}^{tree}")"
+	if [[ "${tree}" == "${head_tree}" ]]; then
+		printf 'HEAD already contains %s (%s): merge tree %s is HEAD'"'"'s own tree; vetting %s whole-module.\n' \
+			"${base}" "${base_commit:0:12}" "${tree}" "${repo_root}/go"
+		( cd "${repo_root}/go" && go vet ./... ) || status=1
+		return "${status}"
 	fi
 	if [[ -n "$(git -C "${repo_root}" status --porcelain --untracked-files=no)" ]]; then
 		printf 'note: uncommitted edits are not part of the merged tree; it merges the committed HEAD %s.\n' "${head:0:12}"

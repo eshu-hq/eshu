@@ -80,6 +80,12 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 		"perf-evidence": {
 			"scripts/verify-performance-evidence.sh",
 			"scripts/test-verify-performance-evidence.sh",
+			"scripts/lib/gate-diff-base.sh",
+		},
+		"payload-usage-manifest": {
+			"go/internal/reducer/payload_usage_manifest_test.go",
+			"scripts/verify-payload-usage-manifest.sh",
+			"scripts/test-verify-payload-usage-manifest.sh",
 		},
 	}
 	goalHookCases, err := filepath.Glob(filepath.Join(repoRoot, "scripts", "test-goal-*cases*.sh"))

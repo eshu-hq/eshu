@@ -84,6 +84,11 @@ assert_selection \
 	'./internal/query/store/audit'
 
 assert_selection \
+	"query_openapi_root_selects_store_audit_and_query" \
+	$'./internal/query/openapi\n' \
+	$'./internal/query/openapi\n./internal/query/store/audit\n./internal/query'
+
+assert_selection \
 	"query_openapi_subpackage_selects_store_audit_and_query" \
 	$'./internal/query/openapi/paths/status\n' \
 	$'./internal/query/openapi/paths/status\n./internal/query/store/audit\n./internal/query'

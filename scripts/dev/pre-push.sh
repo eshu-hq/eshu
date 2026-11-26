@@ -20,10 +20,12 @@
 #       (origin/main unless ESHU_PRE_PUSH_BASE is set), built with
 #       `git merge-tree` into a stable directory under this worktree's git
 #       dir (scripts/lib/pre-push-merge.sh). A conflict fails closed. It is
-#       skipped, with a message, when HEAD already contains the base or when
-#       the merge's Go inputs equal the base's. It catches a head that compiles
-#       alone but not on the main it will land on (#7053); it cannot catch a
-#       combination that still compiles but behaves differently;
+#       skipped, with a message, when the merge's Go inputs equal the base's;
+#       when HEAD already contains the base and Go inputs changed, it skips
+#       the duplicate checkout and runs `go vet ./...` directly in `go/`.
+#       It catches a head that compiles alone but not on the main it will land
+#       on (#7053), as well as cross-package breaks on freshly-rebased heads;
+#       it cannot catch a combination that still compiles but behaves differently;
 #   (d) the registry-selected blocking exactness/telemetry/hygiene/docs/security/frontend gates
 #       for changed paths, at tier pre-pr, WITHOUT the whole-module prelude
 #       (that prelude, and the whole-module go-build it adds, are `make pre-pr`'s

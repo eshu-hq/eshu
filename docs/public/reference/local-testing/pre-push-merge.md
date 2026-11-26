@@ -26,16 +26,19 @@ check locally before a push or CI cycle is spent.
 The run summary prints the merge tree id as
 `merge tree: <tree> (HEAD <sha> + <base> <sha>)`.
 
-## When it skips
+## When it skips or runs directly on HEAD
 
-The step prints why it skipped instead of passing silently:
+The step prints why it skipped or took the fast path instead of passing silently:
 
-- HEAD already contains the base (the usual state right after a rebase). The
-  merged tree is HEAD's own tree, which the changed-package build and vet and
-  the whole-module `go-vet` registry gate already cover.
 - The merged tree's Go inputs, meaning `go/` plus every local `replace`
   directory in `go/go.mod`, are identical to the base's. The merge adds nothing
-  main's own CI has not already vetted.
+  main's own CI has not already vetted, so the step skips.
+- HEAD already contains the base (the usual state right after a rebase) and Go
+  inputs changed. The merged tree is HEAD's own tree, so the step skips
+  materializing a duplicate checkout and runs whole-module `go vet ./...`
+  directly in the worktree's warm `go/` directory (ensuring cross-package
+  compile breakage is still caught locally while the `go-vet` registry gate is
+  `pre_push: deferred`).
 
 ## Why `go vet` and a stable directory
 
