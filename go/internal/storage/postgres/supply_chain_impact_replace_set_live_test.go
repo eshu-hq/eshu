@@ -162,7 +162,16 @@ func openReplaceSetLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	// Route the proof through the family switch explicitly; the disposable
 	// database itself resolves inside the opener.
 	_ = supplyChainImpactLiveDSN(t, "#6831 replace-set proof")
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// #11488: the B3a guard matrix runs seven sequential 10,000-row writer
+	// passes (plus snapshots and xmin counts) under this one context. Measured
+	// locally: ~17 s of passes without -race, 45.7 s for the test under -race;
+	// the CI contention job (slower shared runner, same -race binary) expired
+	// the old 60 s budget on the sixth pass. The supports statement itself is
+	// healthy (indexed 10k-row SELECT in ~0.44 s, identical-replay upsert in
+	// ~0.7 s, no lock waits), so the budget, not the plan, was wrong. Five
+	// minutes is ~6x the local -race measurement, matching the 5-minute
+	// precedent of the other long live proofs.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 	db := openAdvisorySuppressionIsolatedDB(t)
 	t.Cleanup(func() { _ = db.Close() })

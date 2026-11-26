@@ -161,7 +161,7 @@ func TestSupplyChainImpactSupportsStableKeyFillLabLive(t *testing.T) {
 	payload := labInt0(t, "ESHU_LAB_PAYLOAD_BYTES")
 	labDiskGuard(t, rows, payload)
 	_, db := openReplaceSetLiveDB(t)
-	// openReplaceSetLiveDB's context is a fixed 60 s; the seed and the fill scale with the rows.
+	// openReplaceSetLiveDB's context is a fixed 5 min (#11488); the seed and the fill scale with the rows.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute+time.Duration(rows)*time.Millisecond)
 	defer cancel()
 	labKeepDB(t, ctx, db)
