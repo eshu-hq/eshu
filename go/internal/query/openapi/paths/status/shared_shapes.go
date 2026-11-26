@@ -168,9 +168,9 @@ const (
     "provider_unavailable": {"type": "integer"},
     "unchanged": {"type": "integer"},
     "stale": {"type": "integer"},
-    "status_counts": {"type": "array", "description": "Queue rows by status; always present, empty when none.", "items": ` + namedCountItemSchema + `},
-    "source_class_counts": {"type": "array", "description": "Queue rows by source class; always present, empty when none.", "items": ` + namedCountItemSchema + `},
-    "failure_class_counts": {"type": "array", "description": "Queue rows by failure class; always present, empty when none.", "items": ` + namedCountItemSchema + `},
+    "status_counts": {"type": "array", "description": "Queue rows by status; absent when none.", "items": ` + namedCountItemSchema + `},
+    "source_class_counts": {"type": "array", "description": "Queue rows by source class; absent when none.", "items": ` + namedCountItemSchema + `},
+    "failure_class_counts": {"type": "array", "description": "Queue rows by failure class; absent when none.", "items": ` + namedCountItemSchema + `},
     "provider_profile_counts": {"type": "array", "description": "Queue rows by provider profile; absent when none.", "items": {"type": "object", "properties": {
       "provider_kind": {"type": "string"},
       "provider_profile_id": {"type": "string"},

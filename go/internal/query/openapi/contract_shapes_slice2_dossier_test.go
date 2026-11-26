@@ -251,6 +251,11 @@ func TestContractShapesSlice2Dossier(t *testing.T) {
 		query := child(t, props, "query", "CodeFlowResponse")
 		requireKeys(t, propsOf(t, query, "CodeFlowResponse.query"), "CodeFlowResponse.query",
 			"kind", "repo_id", "language", "symbol", "file_path", "line")
+		// Owner: writeCodeFlowResponse emits coverage.state="unsupported"
+		// with supported_languages on the unsupported-language path.
+		coverage := child(t, props, "coverage", "CodeFlowResponse")
+		requireKeys(t, propsOf(t, coverage, "CodeFlowResponse.coverage"), "CodeFlowResponse.coverage",
+			"state", "reason", "language", "supported_languages")
 	})
 
 	t.Run("investigation evidence packet layers", func(t *testing.T) {

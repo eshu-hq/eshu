@@ -239,9 +239,10 @@ const components = `  "components": {
             "line": {"type": "integer"}
           }},
           "coverage": {"type": "object", "description": "Readiness of the evidence behind the payload.", "properties": {
-            "state": {"type": "string", "enum": ["exact", "partial", "derived"]},
+            "state": {"type": "string", "enum": ["exact", "partial", "derived", "unsupported"]},
             "reason": {"type": "string"},
-            "language": {"type": "string"}
+            "language": {"type": "string"},
+            "supported_languages": {"type": "array", "items": {"type": "string"}, "description": "Claimed fixture-backed value-flow languages; present only when state is unsupported."}
           }},
           "paths": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
           "definitions": {"type": "array", "items": {"type": "object", "additionalProperties": true}},

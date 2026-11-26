@@ -250,11 +250,13 @@ func TestContractShapesSlice2Status(t *testing.T) {
 
 	t.Run("semantic queue and budget nested counts", func(t *testing.T) {
 		t.Parallel()
-		// Owner: extraction_observability_json.go extractionQueueJSON
-		// (status/source-class/failure-class counts always present via
-		// NamedCountsJSON; provider-profile/policy/guard counts and
-		// updated_at omitted when empty) and extractionBudgetJSON
-		// (decision_counts omitted when empty).
+		// Owner: extraction_observability_json.go extractionQueueJSON.
+		// The route owner only sets the count arrays when non-empty, so
+		// every nested count is asserted present-or-absent by shape, not
+		// as always-present: status/source-class/failure-class counts
+		// arrive via always-non-nil NamedCountsJSON but omitempty still
+		// drops them when empty; provider-profile/policy/guard counts and
+		// updated_at/decision_counts are omitted when empty.
 		doc := fragment(t, Semantic, "Semantic")
 		schema := schemaAt(t, doc, "/api/v0/status/semantic-extraction", "get")
 		props := propsOf(t, schema, "/api/v0/status/semantic-extraction")
