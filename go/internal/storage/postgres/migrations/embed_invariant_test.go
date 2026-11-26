@@ -404,12 +404,12 @@ import (
 // reject trigger on fact_records for the finding kind (renumbered from 349:
 // main took 357 for the first-seen stamp).
 // 359_supply_chain_impact_winners_enrichment_first_carry.sql (#11466) adds
-// the durable set-once-per-value enrichment first-carry stamp table on main's
-// tree (358 stays the #11476 write-stop lane). Count and digest are RE-DERIVEd
-// at the end of the rebase: the const below stays placeholder.
+// the durable set-once-per-value enrichment first-carry stamp table.
+// Count 385 is main's 384 plus 358; the digest is this test's own derivation
+// on the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "RE-DERIVE"
-	goldenBootstrapDefinitionsCount  = 383
+	goldenBootstrapDefinitionsDigest = "47840affd4fbdef13c0479afcd86d40add4c96cbac99fe72657a662455d01f41"
+	goldenBootstrapDefinitionsCount  = 385
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
