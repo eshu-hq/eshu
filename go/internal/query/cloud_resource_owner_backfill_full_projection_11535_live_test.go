@@ -48,6 +48,9 @@ func TestCloudResourceOwnerBackfillFullProjectionMeetsDeadline11535(t *testing.T
 	if err != nil {
 		t.Fatalf("COLD first page (full projection, 500 rows over %d nodes): ERROR after %s: %v", total, coldElapsed, err)
 	}
+	if len(rows) != 500 {
+		t.Fatalf("COLD first page returned %d rows, want 500", len(rows))
+	}
 	t.Logf("COLD first page: %d rows over %d nodes in %s (deadline %s)", len(rows), total, coldElapsed, defaultGraphReadTimeout)
 	if coldElapsed > defaultGraphReadTimeout {
 		t.Fatalf("COLD first page took %s, over the %s production reader deadline", coldElapsed, defaultGraphReadTimeout)
@@ -59,6 +62,9 @@ func TestCloudResourceOwnerBackfillFullProjectionMeetsDeadline11535(t *testing.T
 	warmElapsed := time.Since(started)
 	if err != nil {
 		t.Fatalf("WARM first page: ERROR after %s: %v", warmElapsed, err)
+	}
+	if len(rows) != 500 {
+		t.Fatalf("WARM first page returned %d rows, want 500", len(rows))
 	}
 	t.Logf("WARM first page: %d rows over %d nodes in %s", len(rows), total, warmElapsed)
 }
