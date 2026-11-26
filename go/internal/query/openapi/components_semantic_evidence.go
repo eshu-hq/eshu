@@ -13,7 +13,7 @@ const componentsSemanticEvidence = `      "SemanticEvidenceRow": {
         "properties": {
           "fact_id": {"type": "string", "description": "Durable fact identifier emitted by query.semanticEvidencePublicRow from the fact record."},
           "fact_kind": {"type": "string", "enum": ["semantic.documentation_observation", "semantic.code_hint"], "description": "Durable fact kind emitted by query.semanticEvidencePublicRow: a documentation observation or a code hint."},
-          "truth_basis": {"type": "string", "enum": ["semantic_observation", "code_hint"], "description": "Truth basis derived by query.semanticEvidenceTruthBasis from fact_kind."},
+          "truth_basis": {"type": "string", "enum": ["semantic_observation", "code_hint", "semantic_evidence"], "description": "Truth basis derived by query.semanticEvidenceTruthBasis from fact_kind. semantic_evidence is the default arm for unknown kinds: an unreachable fallback, never emitted on current filters (both list routes bind filter.FactKind to one of the two known kinds), kept so the schema admits every value the owner can produce."},
           "scope_id": {"type": "string", "description": "Ingestion scope the fact belongs to, copied by query.semanticEvidencePublicRow from the fact record; present when the record carries one."},
           "generation_id": {"type": "string", "description": "Generation the fact was observed at, copied by query.semanticEvidencePublicRow from the fact record; present when the record carries one."},
           "source_system": {"type": "string", "description": "Source system that produced the fact, copied by query.semanticEvidencePublicRow from the fact record; present when the record carries one."},

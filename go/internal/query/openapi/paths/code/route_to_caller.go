@@ -67,7 +67,7 @@ const RouteToCaller = `
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"description": "Ambiguous route selector; retry with a narrower repository, service, method, or path selector"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "501": {"$ref": "#/components/responses/UnsupportedCapability"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }

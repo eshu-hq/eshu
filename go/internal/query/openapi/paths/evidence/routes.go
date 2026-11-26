@@ -187,7 +187,7 @@ const Routes = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
-          "501": {"$ref": "#/components/responses/UnsupportedCapability"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
