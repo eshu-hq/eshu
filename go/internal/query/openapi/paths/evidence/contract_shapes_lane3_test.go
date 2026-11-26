@@ -182,13 +182,49 @@ func TestContractShapesLane3Evidence(t *testing.T) {
 		})
 
 		// Owner: InvestigationWorkflowSummary (investigation_workflow.go
-		// ToSummary) emits exactly id, name, version, domain, description.
+		// ToSummary) emits exactly id, name, version, domain, description
+		// on the compact branch; the full branch (view=full) carries those
+		// plus the complete InvestigationWorkflow shape. The items node is
+		// a view-keyed anyOf (Lane H gap-5 fix for the prose-only shape).
 		workflows := child(t, props, "workflows", "workflows catalog")
-		workflowItems := propsOf(t, itemsOf(t, workflows, "workflows"), "workflows items")
-		requireExactKeys(t, workflowItems, "workflows[] items",
+		items := itemsOf(t, workflows, "workflows")
+		anyOf, ok := items["anyOf"].([]any)
+		if !ok || len(anyOf) != 2 {
+			t.Fatalf("workflows[] items: want a two-branch anyOf keyed on the view param (compact vs full)")
+		}
+		byTitle := map[string]map[string]any{}
+		for _, branch := range anyOf {
+			bm, ok := branch.(map[string]any)
+			if !ok {
+				t.Fatalf("workflows[] items: anyOf branch is not an object")
+			}
+			title, _ := bm["title"].(string)
+			byTitle[title] = bm
+		}
+		compact, ok := byTitle["compact"]
+		if !ok {
+			t.Fatalf("workflows[] items: anyOf has no compact branch")
+		}
+		full, ok := byTitle["full"]
+		if !ok {
+			t.Fatalf("workflows[] items: anyOf has no full branch")
+		}
+		workflowItems := propsOf(t, compact, "workflows items compact")
+		requireExactKeys(t, workflowItems, "workflows[] compact items",
 			"id", "name", "version", "domain", "description")
-		requireDescribed(t, workflowItems, "workflows[] items",
+		requireDescribed(t, workflowItems, "workflows[] compact items",
 			"id", "name", "version", "domain", "description")
+		fullItems := propsOf(t, full, "workflows items full")
+		requireKeys(t, fullItems, "workflows[] full items",
+			"id", "name", "version", "domain", "description",
+			"required_inputs", "required_evidence", "optional_evidence",
+			"output_packet", "tool_groups", "starter_prompts",
+			"failure_modes", "missing_evidence_routes")
+		requireDescribed(t, fullItems, "workflows[] full items",
+			"id", "name", "version", "domain", "description",
+			"required_inputs", "required_evidence", "optional_evidence",
+			"output_packet", "tool_groups", "starter_prompts",
+			"failure_modes", "missing_evidence_routes")
 
 		// Owner: InvestigationWorkflowCatalogVersions emits exactly id,
 		// version per ref.
