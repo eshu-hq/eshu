@@ -152,8 +152,11 @@ func footprintPass() supplychaincore.SupplyChainImpactWrite {
 // pinnedChangedPassWrites is the tables one changed pass writes. It does not contain fact_records:
 // the write stop (#10880 PR-C2) moved the finding to the supports table. fact_work_items is the
 // pass's own owed-marker update, inside the same transaction.
+// supply_chain_impact_finding_first_seen is #11031's per-pass first-seen claim,
+// orthogonal to the write stop.
 var pinnedChangedPassWrites = []string{
 	"fact_work_items",
+	"supply_chain_impact_finding_first_seen",
 	"supply_chain_impact_finding_supports",
 	"supply_chain_impact_retracted_finding_keys",
 	"supply_chain_impact_scope_pass_state",
