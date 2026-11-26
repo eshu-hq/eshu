@@ -22,7 +22,7 @@ outside it. Service launch detail: `eshu mcp start` stdio and standalone HTTP
 exec into `local-host mcp-stdio` and `eshu-mcp-server`
 (`-addr`/`-core-base-url`); the `--workspace-root` HTTP path instead delegates
 in-process to `localsupervisor.RunAttachedMCPHTTP`, which supervises a session
-`eshu-api` plus the satellite. The satellite address travels on flags, never
+`eshu-core-api` plus the satellite. The satellite address travels on flags, never
 on `ESHU_MCP_ADDR` (retired).
 
 `eshu report` is one of those: `operator_digest_cmd.go` here reads
