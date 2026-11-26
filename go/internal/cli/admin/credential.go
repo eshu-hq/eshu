@@ -47,7 +47,7 @@ const (
 )
 
 // BootstrapCredentialPayload is the plaintext bundle sealed inside the
-// bootstrap credential envelope. It mirrors go/cmd/api/seed_initial_admin.go's
+// bootstrap credential envelope. It mirrors go/cmd/eshu-local-api/seed_initial_admin.go's
 // bootstrapCredentialPayload JSON shape; that file is in `package main` and
 // cannot be imported, so this struct's field tags must stay byte-for-byte
 // identical to the sealing side's.
@@ -277,7 +277,7 @@ func generateSecret(n int) (string, error) {
 // comparison: blank stays blank, otherwise "sha256:" plus lowercase hex of
 // the SHA-256 sum. This is byte-identical to the former
 // query.IdentityHash (and the API-side hash in
-// go/cmd/api/seed_initial_admin.go, which that file's `package main`
+// go/cmd/eshu-local-api/seed_initial_admin.go, which that file's `package main`
 // prevents importing); the recovery-code and password-parameter hashes
 // persisted here are compared against API-computed values, so the algorithm
 // is pinned by TestIdentityHashMatchesSHA256Vector, not just by review.
@@ -292,7 +292,7 @@ func identityHash(value string) string {
 
 // newLocalIdentityFactorID returns a fresh opaque MFA factor identifier for
 // the recovery-code factor a reset re-enrolls (issue #5602), matching the
-// "id_<32 hex chars>" shape go/cmd/api/seed_initial_admin_helpers.go's
+// "id_<32 hex chars>" shape go/cmd/eshu-local-api/seed_initial_admin_helpers.go's
 // newBootstrapID uses for every other bootstrap-identity primary key. That
 // file is in `package main` and cannot be imported (see
 // BootstrapCredentialPayload's doc comment above), so this is a small

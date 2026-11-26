@@ -40,7 +40,7 @@
 // applies to both bearer tokens and dashboard browser sessions. Unset reads as
 // local_no_policy; hosted_multi_tenant, and any value the binary does not
 // recognize, refuse an all-scope credential with 403 on grant-bound,
-// deployment-scoped, and transitive routes. See go/cmd/api/README.md for the
+// deployment-scoped, and transitive routes. See go/cmd/eshu-local-api/README.md for the
 // allowed values and the operator remedy.
 //
 // When ESHU_PPROF_ADDR is set, the binary also exposes an opt-in

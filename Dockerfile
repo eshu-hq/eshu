@@ -46,12 +46,13 @@ COPY sdk/go/factschema/ ./sdk/go/factschema/
 # repo owns the api build, so the in-tree `./cmd/api` build below is dropped
 # and the digest-pinned satellite release binary ships at the old installed
 # path instead (the #9679 mcp-server precedent: the api-satellite stage
-# below). Rollback is the v0.6.0 release image. Exception: the vulnscan-only
-# eshu-local-api build further below keeps the in-tree source for the one-shot
-# local API the vulnscan command spawns. It is NornicDB-owner-bound (it
-# inherits the owner's Postgres and graph environment, ESHU_API_ADDR plus
-# /healthz) and expires with the #11456 disposition; it never ships at the
-# eshu-api path.
+# below). Rollback is the v0.6.0 release image. Exception: the
+# eshu-local-api build further below keeps the relocated serving source
+# (./cmd/eshu-local-api, moved out of ./cmd/api under #11514) for the
+# session API the supervisor spawns on NornicDB or an unset backend. It is
+# NornicDB-owner-bound (it inherits the owner's Postgres and graph
+# environment, ESHU_API_ADDR plus /healthz); the leftover go/cmd/api docs
+# expire with the #11456 disposition. It never ships at the eshu-api path.
 RUN cd go \
     && export CGO_ENABLED=1 \
     && export GOFLAGS="-buildvcs=false" \
@@ -69,7 +70,7 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-core-api ./cmd/core-api \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-local-api ./cmd/api
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-local-api ./cmd/eshu-local-api
 
 # mcp-satellite: the extracted MCP server (#9670). The in-tree go/cmd/mcp-server
 # is gone, but the E2E fresh stack (compose/docker-compose.e2e.yaml under

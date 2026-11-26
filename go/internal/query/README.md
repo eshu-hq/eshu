@@ -896,7 +896,7 @@ scoped `AGENTS.md` entry instead of expanding this index.
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
 `ContentReader` are the only concrete types that touch drivers, and they are
-wired in `cmd/api/wiring.go`, not here.
+wired in `cmd/eshu-local-api/wiring.go`, not here.
 
 Semantic extraction status is a runtime projection.
 `GET /api/v0/status/semantic-extraction` reports no-provider mode as

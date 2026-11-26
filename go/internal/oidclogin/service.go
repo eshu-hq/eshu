@@ -215,7 +215,7 @@ func (s *Service) CompleteOIDCLogin(
 // dbProviders when the id is not found there. Env config always wins on a
 // ambiguous/colliding id — the DB fallback only runs when no env provider
 // matched — matching the same env-authoritative precedence enforced at the
-// pre-auth discovery list (see cmd/api/auth_providers.go's
+// pre-auth discovery list (see cmd/eshu-local-api/auth_providers.go's
 // ListLoginProviders doc comment) and the admin read surface's
 // shadowed_by_environment derivation. The DB fallback requires a non-empty
 // tenantID (DB rows are tenant-scoped) and is a no-op when dbProviders is nil

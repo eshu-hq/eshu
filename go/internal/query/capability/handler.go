@@ -90,7 +90,7 @@ func (h *Handler) load() (capabilitycatalog.Catalog, error) {
 // The route must stay admitted for every valid credential class and must not
 // require a permission feature: the eshu-mcp satellite probes it to admit
 // forwarded credentials (eshu-hq/eshu-mcp#50). See
-// go/cmd/api/capabilities_probe_contract_test.go.
+// go/cmd/eshu-local-api/capabilities_probe_contract_test.go.
 func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/capabilities", h.list)
 }

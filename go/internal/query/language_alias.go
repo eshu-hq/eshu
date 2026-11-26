@@ -68,7 +68,7 @@ func sourceBackendForTruthBasis(basis querycontract.TruthBasis) string {
 
 // This compile-time pin proves *ContentReader still satisfies the port
 // language.searchLanguageEntities type-asserts content stores against.
-// *ContentReader is the only production content store (cmd/api/wiring.go
+// *ContentReader is the only production content store (cmd/eshu-local-api/wiring.go
 // wires NewContentReader(db); the removed MCP entrypoint did the same,
 // eshu-hq/eshu#9670); this line fails
 // `go build`, not only `go test`, the moment it stops satisfying the port.

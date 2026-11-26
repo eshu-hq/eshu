@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # verify-route-coverage.sh — fail if a NEW HTTP route registered via HandleFunc
-# in go/internal/query/ or go/cmd/api/ lacks handler test coverage.
+# in go/internal/query/ or go/cmd/eshu-local-api/ lacks handler test coverage.
 #
 # In CI, compares against the PR base ref (GITHUB_BASE_REF). Locally, compares
 # against origin/main. Routes that pre-date the base ref are not flagged.
@@ -23,7 +23,7 @@ if [ -z "$repo_root" ]; then
 fi
 
 query_dir="${repo_root}/go/internal/query"
-api_dir="${repo_root}/go/cmd/api"
+api_dir="${repo_root}/go/cmd/eshu-local-api"
 
 # A moved-away or renamed surface must fail loudly, not vanish from route
 # coverage checking (#6055): both scan paths below (the git-diff path and the

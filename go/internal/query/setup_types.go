@@ -11,7 +11,7 @@ import (
 // SetupStore is the query-layer port for the first-run setup wizard
 // (epic #4962, issue #4965). It never touches secretcrypto or DEK material
 // directly — that stays in the cmd/api adapter, mirroring the split
-// go/cmd/api/seed_initial_admin.go already uses (handlers depend on ports,
+// go/cmd/eshu-local-api/seed_initial_admin.go already uses (handlers depend on ports,
 // not concrete backend drivers). Every method here receives or returns
 // already-hashed/already-verified values, the same "caller hashes/seals,
 // store only persists" split LocalIdentityStore uses.

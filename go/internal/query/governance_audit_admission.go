@@ -29,7 +29,7 @@ const GovernanceAuditAdmissionContractVersion = "v0"
 // GovernanceAuditDropObserver observes one swallowed audit-append failure:
 // an Append that returned err after the caller already decided the primary
 // operation survives it (the query request-path and bootstrap-seed call
-// sites best-effort with `_ =`, per go/cmd/api/seed_initial_admin_audit.go
+// sites best-effort with `_ =`, per go/cmd/eshu-local-api/seed_initial_admin_audit.go
 // and go/internal/query/auth_audit.go; coordinator egress paths propagate
 // the error instead). err is the sink error, unchanged;
 // eventCount is the number of events that did not persist. The observer must

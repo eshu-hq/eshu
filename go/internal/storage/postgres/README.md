@@ -2776,7 +2776,7 @@ add `GenerateBootstrapCredential`, `SelectBootstrapCredential`,
 sealed AES-256-GCM envelope (`go/internal/secretcrypto`) so an operator can
 retrieve it via `eshu admin initial-credential`; the store never seals, opens,
 hashes, or generates plaintext itself, only pre-sealed/pre-hashed values the
-caller (`go/cmd/api/seed_initial_admin.go`, `go/internal/cli/admin/credential.go`)
+caller (`go/cmd/eshu-local-api/seed_initial_admin.go`, `go/internal/cli/admin/credential.go`)
 supplies. `AuthenticateLocalIdentity` (`identity_local.go`) calls
 `ConsumeBootstrapCredential` unconditionally on every successful local login;
 it is a no-op UPDATE affecting zero rows for every subject except the
@@ -2843,7 +2843,7 @@ diverge under concurrent Consume/Reset pressure.
 Observability Evidence: the identity DB handle these methods run on is
 wrapped in `InstrumentedDB` by both callers (`StoreName:
 "identity_bootstrap_credential"`), so per-statement `eshu_dp_postgres_query_duration_seconds{operation,store}`
-is inherited without per-call wiring. `go/cmd/api/seed_initial_admin.go` adds
+is inherited without per-call wiring. `go/cmd/eshu-local-api/seed_initial_admin.go` adds
 an OTEL span (`auth.bootstrap_seed`) around the whole seeding stage plus three
 new counters: `eshu_dp_auth_bootstrap_seed_total{outcome}` (sealed_existing,
 seeded_env, generated, skipped, error), `eshu_dp_auth_bootstrap_credential_generated_total{result}`

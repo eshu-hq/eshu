@@ -190,7 +190,7 @@ run_deepseek_live_proof() {
 
 if [[ "${list_only}" == "true" ]]; then
 	print_step "ask runtime path proof: disabled, missing/bad provider, status, JSON+SSE cited success, leak suppression" \
-		"go_test_run_guard 8 '${proof_pattern}' -- ./cmd/api -count=1"
+		"go_test_run_guard 8 '${proof_pattern}' -- ./cmd/eshu-local-api -count=1"
 	print_step "scoped-token allowlist admits POST /api/v0/ask" \
 		"go_test_run_guard 1 'TestScopedHTTPRoute_Ask' -- ./internal/query -count=1"
 	print_step "answer-quality + publish-safety scorecard over the committed redacted fixture" \
@@ -231,7 +231,7 @@ run_step() {
 	# if a rename or move drops the match count below it instead of the bare
 	# `go test -run` exiting 0 on fewer tests, or on nothing.
 	run_step "ask runtime path proof (disabled/missing/bad provider, status, JSON+SSE cited success, leak suppression)" \
-		go_test_run_guard 8 "${proof_pattern}" -- ./cmd/api -count=1
+		go_test_run_guard 8 "${proof_pattern}" -- ./cmd/eshu-local-api -count=1
 	run_step "scoped-token allowlist admits POST /api/v0/ask" \
 		go_test_run_guard 1 'TestScopedHTTPRoute_Ask' -- ./internal/query -count=1
 	run_step "committed scorecard fixture CLI regression" \

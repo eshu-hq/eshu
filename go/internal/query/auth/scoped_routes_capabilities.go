@@ -16,7 +16,7 @@ import "net/http"
 // a valid token that carries no subject hash. Pulling this route off the
 // allowlist or out of the no-caller-grant class, or gating it on a permission
 // feature, breaks that check. TestCapabilitiesProbe* in
-// go/cmd/api/capabilities_probe_contract_test.go pins it; change them together
+// go/cmd/eshu-local-api/capabilities_probe_contract_test.go pins it; change them together
 // with the satellite.
 func scopedCapabilityCatalogRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/capabilities"

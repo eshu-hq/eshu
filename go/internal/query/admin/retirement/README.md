@@ -18,7 +18,7 @@ The tombstone store, the phase-1 fence, and the narrowed purge live in
 `go/internal/storage/postgres` (#7766 foundation). This leaf never writes
 SQL. The trigger is the single production caller of `RetirementFencer` and
 `RetirementPurger`; both are constructed from the API writer in
-`go/cmd/api/wiring_router.go` and mounted through the query `APIRouter`.
+`go/cmd/eshu-local-api/wiring_router.go` and mounted through the query `APIRouter`.
 
 ## Behavior
 

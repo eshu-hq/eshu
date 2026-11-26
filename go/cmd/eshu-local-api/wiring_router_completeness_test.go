@@ -182,7 +182,7 @@ var routerFieldsNotWiredByNewRouter = map[string]string{
 	// Nested interface fields: gated on runtime config that this
 	// constructor-level test does not (and should not) flip on, or wired
 	// by wireAPI after this constructor returns. Verified against
-	// go/cmd/api/semantic_search_vector_wiring.go and go/cmd/api/wiring.go.
+	// go/cmd/eshu-local-api/semantic_search_vector_wiring.go and go/cmd/eshu-local-api/wiring.go.
 	"Code.HybridRanker":          "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
 	"Content.HybridRanker":       "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
 	"Impact.CodeSurface":         "injection seam: nil is the documented default, falling back to impact.DefaultCodeSurface (see codeSurface in go/internal/query/impact/handler.go); production always uses the package default",

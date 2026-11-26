@@ -50,7 +50,7 @@ type LocalIdentityBootstrapRecord struct {
 	// MustChangePassword forces a rotation before this credential can ever
 	// obtain a full session (issue #4976). Set true only for the
 	// ESHU_ADMIN_USERNAME/PASSWORD[_FILE]-seeded bootstrap admin
-	// (go/cmd/api/seed_initial_admin.go seedBootstrapAdminFromEnv); the
+	// (go/cmd/eshu-local-api/seed_initial_admin.go seedBootstrapAdminFromEnv); the
 	// ESHU_AUTH_BOOTSTRAP_MODE=generated path sets it false because the
 	// first-run setup wizard (#4965) already achieves effective rotation.
 	MustChangePassword bool

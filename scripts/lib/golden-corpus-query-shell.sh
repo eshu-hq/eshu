@@ -6,17 +6,18 @@
 # stays under the 500-line cap.
 #
 # The gate used to build and start the in-tree ./cmd/api binary on every
-# backend. That binary is slated for deletion (#11456), so the shell is
+# backend. That tree is slated for deletion (#11456), so the shell is
 # split by backend here:
 #
 # - Neo4j leg: eshu-core-api (go/cmd/core-api), built from this checkout.
 #   It fails closed on any other backend, so it can only ever serve the
 #   supported Neo4j leg (#7331); it survives the go/cmd/api deletion.
-# - NornicDB leg: eshu-local-api, the ./cmd/api tree built under the
-#   interim name from #11499. Its disposal (repoint or retire) is tracked
-#   by #11514 and the #11456 honesty note — not here. If NornicDB loses
-#   serving entirely, this leg's fate follows that same product call
-#   (#11467); until then the leg keeps serving under the surviving name.
+# - NornicDB leg: eshu-local-api, the ./cmd/eshu-local-api tree (relocated
+#   out of ./cmd/api under #11514) built under the surviving name. The
+#   #11456 honesty note records the range-scan caveat — not here. If
+#   NornicDB loses serving entirely, this leg's fate follows that same
+#   product call (#11467); until then the leg keeps serving under the
+#   surviving name.
 #
 # Either shell serves GATE_API_PORT, so the satellite eshu-mcp-server keeps
 # its -core-base-url pointed at that port on both backends, and the cleanup
@@ -48,7 +49,7 @@ start_query_shell() {
 		start_bg api api_pid "${bin_dir}/eshu-core-api" --addr=":${GATE_API_PORT}"
 		wait_for_gate_http "eshu-core-api /readyz never returned on port ${GATE_API_PORT}" "http://localhost:${GATE_API_PORT}/readyz" "api"
 	else
-		log "start eshu-local-api for query truth (NornicDB interim shell, #11514)"
+		log "start eshu-local-api for query truth (NornicDB session shell, #11514)"
 		start_bg api api_pid "${bin_dir}/eshu-local-api"
 		wait_for_gate_http "eshu-local-api /readyz never returned on port ${GATE_API_PORT}" "http://localhost:${GATE_API_PORT}/readyz" "api"
 	fi

@@ -81,7 +81,7 @@ var _ WorkItemEvidenceReadAdmission = interface {
 
 // The satisfier assertion names the production adapter the wiring builds
 // today (workitem.NewPostgresEvidenceStoreWithReadStore in
-// go/cmd/api/wiring_handlers.go): the concrete Postgres store serves the
+// go/cmd/eshu-local-api/wiring_handlers.go): the concrete Postgres store serves the
 // pinned read, so the pin is satisfiable with the minimal shape, no wider
 // store surface.
 var _ WorkItemEvidenceReadAdmission = PostgresEvidenceStore{}

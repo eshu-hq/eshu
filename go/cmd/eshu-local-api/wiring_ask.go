@@ -14,7 +14,7 @@ import (
 // narration posture. The setter is a no-op when the engine was not built
 // (adapter or engine construction failed).
 //
-// It is a thin alias of [askwiring.HandlerResult] that keeps the cmd/api
+// It is a thin alias of [askwiring.HandlerResult] that keeps the cmd/eshu-local-api
 // call-site API unchanged while delegating construction to the shared package.
 type askHandlerResult = askwiring.HandlerResult
 
