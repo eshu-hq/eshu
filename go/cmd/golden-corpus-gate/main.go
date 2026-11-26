@@ -86,7 +86,7 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.snapshotPath, "snapshot", "testdata/golden/e2e-20repo-snapshot.json", "path to the B-12 golden snapshot")
 	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,delta-union,delta-readers,backend-diff,statement-coverage,writer-coverage,all (backend-diff, statement-coverage, and writer-coverage are opt-in and excluded from all: they need capture directories, #6782, #6783, #7212; delta-readers is opt-in because it needs the delta fixture repository, #10022)")
 	fs.StringVar(&o.demoManifestPath, "demo-manifest", "specs/demo-first-answers.v1.yaml", "path to the demo-first-answers manifest asserted live by the demo-answers phase (#4776)")
-	fs.StringVar(&o.apiBaseURL, "api-base-url", "http://localhost:8080", "base URL of a running eshu-api for query truth")
+	fs.StringVar(&o.apiBaseURL, "api-base-url", "http://localhost:8080", "base URL of a running eshu-api satellite or eshu-core-api for query truth (same read surface; flag overrides the default)")
 	fs.StringVar(&o.mcpBaseURL, "mcp-base-url", "", "base URL of a running eshu-mcp-server (http transport); when set, the query phase also asserts the snapshot's MCP tool query shapes live (#3866)")
 	fs.StringVar(&o.mcpResultShape, "mcp-result-shape", "", "MCP tools/call result shape to ask for with ?shape= on the JSON-RPC endpoint: dual or structured (#8800); empty leaves the server default, so the gate can prove the structured-first reader path against the same server")
 	fs.DurationVar(&o.drainTimeout, "drain-timeout", 10*time.Minute, "max time to wait for queues to drain")

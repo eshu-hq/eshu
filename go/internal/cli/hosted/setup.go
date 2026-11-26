@@ -53,15 +53,15 @@ func ExecuteSetup(deps Deps, opts SetupOptions) (Result, error) {
 	}
 	result = result.addStage(Stage{Name: StageEndpoint, Status: StageOK, Detail: authDetail})
 
-	// Stage 2: /healthz reachable.
+	// Stage 2: /health reachable (legacy /healthz on 404-only fallback).
 	if err := deps.Health(); err != nil {
 		result = result.addStage(Stage{
 			Name: StageHealthz, Status: StageFailed,
 			Detail: err.Error(), Category: classifyProbeError(err),
 		})
-		return finalize(result), fmt.Errorf("healthz: %w", err)
+		return finalize(result), fmt.Errorf("health: %w", err)
 	}
-	result = result.addStage(Stage{Name: StageHealthz, Status: StageOK, Detail: "service answered /healthz"})
+	result = result.addStage(Stage{Name: StageHealthz, Status: StageOK, Detail: "service answered /health"})
 
 	// Stage 3: /readyz reachable (also proves authentication).
 	if err := deps.Ready(); err != nil {

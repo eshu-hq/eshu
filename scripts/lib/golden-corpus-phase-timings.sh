@@ -14,6 +14,12 @@
 # phase_collect_start/end, phase_first_drain_start/end,
 # phase_maintenance_start/end, phase_graph_query_start.
 #
+# B-11 (#3804) macro per-phase wall-clock capture. Integer-second epochs are used
+# (portable across GNU and BSD date; %N is GNU-only) — the 10-15% regression band
+# absorbs the sub-second rounding. Phase boundaries mirror the orchestration;
+# the deltas are emitted to phase-timings.json just before the final gate,
+# which compares them against testdata/golden/e2e-baseline.json.
+#
 # Optionally phase_graph_query_excluded_starts/phase_graph_query_excluded_ends
 # (bash ARRAYS, see the accumulation note below); both default to empty so a
 # caller that brackets nothing still emits a sane phase. Each array must carry

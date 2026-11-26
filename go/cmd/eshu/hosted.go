@@ -5,8 +5,10 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/cli/apierr"
 	"github.com/eshu-hq/eshu/go/internal/cli/hosted"
 	"github.com/eshu-hq/eshu/go/internal/cli/mcpsetup"
 	"github.com/eshu-hq/eshu/go/internal/cli/reposelector"
@@ -21,7 +23,7 @@ func init() {
 		Short: "First-five-minutes connection flow for a deployed Eshu service",
 		Long: `hosted-setup verifies that an assistant can connect to a deployed Eshu
 service. It resolves the endpoint and bearer token from flags, environment, or
-safe config, then runs ordered, individually-reported checks: /healthz, /readyz
+safe config, then runs ordered, individually-reported checks: /health, /readyz
 (which also proves authentication), status/index readiness, MCP tool visibility,
 and one bounded query.
 
@@ -69,12 +71,33 @@ func runHostedSetup(cmd *cobra.Command, _ []string) error {
 // HTTP client of its own.
 func hostedSetupDeps(client *APIClient) hosted.Deps {
 	return hosted.Deps{
-		Health:    func() error { return hostedProbe(client, hosted.HealthzPath) },
+		Health:    func() error { return hostedHealthProbe(client) },
 		Ready:     func() error { return hostedProbe(client, hosted.ReadyzPath) },
 		Readiness: func() (scan.ReadinessVerdict, error) { return hostedReadinessVerdict(client) },
 		ListTools: mcp.ReadOnlyTools,
 		ListRepos: func() (hosted.RepositoryList, error) { return hostedRepositoryList(client) },
 	}
+}
+
+// hostedHealthProbe issues a GET against the deployed /health route and
+// returns nil when it answers without an error status. When /health answers
+// 404 it retries the legacy /healthz route once: a 404 proves the route is
+// missing (an in-tree API surface behind the same endpoint) rather than the
+// service being down or refusing us. Any other /health outcome — transport
+// error, 401, 5xx — returns the first error untouched, with no second
+// request. When both routes fail the error names both paths.
+func hostedHealthProbe(client *APIClient) error {
+	if err := client.Get(hosted.HealthPath, nil); err != nil {
+		if code, ok := apierr.StatusCode(err); !ok || code != http.StatusNotFound {
+			return fmt.Errorf("%s probe %s failed: %w", hosted.HealthPath, client.BaseURL, err)
+		}
+		if fallbackErr := client.Get(hosted.HealthzPath, nil); fallbackErr != nil {
+			return fmt.Errorf("health probe %s failed: %s missing and %s failed: %w",
+				client.BaseURL, hosted.HealthPath, hosted.HealthzPath, fallbackErr)
+		}
+		return nil
+	}
+	return nil
 }
 
 // hostedProbe issues a GET against path and returns nil when the deployed
@@ -143,7 +166,7 @@ MCP/API answer.
 It validates that the repository rules are narrow. A whole-org glob such as
 'org/*' is rejected as accidental org-wide ingestion unless you pass
 --confirm-broad. It then reuses the hosted-setup staged connection checks
-(/healthz, /readyz, index readiness, MCP tools, one bounded query) and emits a
+(/health, /readyz, index readiness, MCP tools, one bounded query) and emits a
 redacted onboarding artifact safe to hand to the project team.
 
 The artifact records the API URL, MCP URL, token source name, indexed

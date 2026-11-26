@@ -42,20 +42,21 @@ COPY sdk/go/factschema/ ./sdk/go/factschema/
 
 # Build all Go binaries. xx-go sets GOARCH, CGO_ENABLED, and CC automatically
 # for the target platform. CGO is required for tree-sitter parser bindings.
-# D13 (#9669 removal prep, checklist row 11): RETARGET at the removal PR —
-# owner eshu-api satellite. The eshu-api repo Dockerfile owns the api build;
-# core drops the `./cmd/api` build below and COPYs the digest-pinned
-# satellite release binary under its old /go-bin/eshu-api path (the #9679
-# mcp-server precedent: the mcp-satellite stage below), keeping the CMD and
-# :8080/healthz contract below until the stack flips. No deletion and no
-# binary swap until every consumer row drains (all TODO); this stage keeps
-# building in-tree.
+# D13 (#9669 removal prep, checklist row 11) RETARGET (#11453): the eshu-api
+# repo owns the api build, so the in-tree `./cmd/api` build below is dropped
+# and the digest-pinned satellite release binary ships at the old installed
+# path instead (the #9679 mcp-server precedent: the api-satellite stage
+# below). Rollback is the v0.6.0 release image. Exception: the vulnscan-only
+# eshu-local-api build further below keeps the in-tree source for the one-shot
+# local API the vulnscan command spawns. It is NornicDB-owner-bound (it
+# inherits the owner's Postgres and graph environment, ESHU_API_ADDR plus
+# /healthz) and expires with the #11456 disposition; it never ships at the
+# eshu-api path.
 RUN cd go \
     && export CGO_ENABLED=1 \
     && export GOFLAGS="-buildvcs=false" \
     && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu ./cmd/eshu \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-api ./cmd/api \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-ingester ./cmd/ingester \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-index ./cmd/bootstrap-index \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-reducer ./cmd/reducer \
@@ -67,7 +68,8 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-intake ./cmd/webhook-intake \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-core-api ./cmd/core-api
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-core-api ./cmd/core-api \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-local-api ./cmd/api
 
 # mcp-satellite: the extracted MCP server (#9670). The in-tree go/cmd/mcp-server
 # is gone, but the E2E fresh stack (compose/docker-compose.e2e.yaml under
@@ -81,6 +83,18 @@ RUN cd go \
 # list_service_downstream_consumers, #10535). Like the mocks below, this
 # stage MUST stay before "Production stage".
 FROM ghcr.io/eshu-hq/eshu-mcp:0.2.14@sha256:f48d3a5f2ab068cc36cee184211ea9cef9a7d801d1e973cf069299f310e0adc7 AS mcp-satellite
+
+# api-satellite: the extracted API dispatch surface (#11453). The in-tree
+# go/cmd/api is gone from the builder above; the E2E fresh stack and the
+# release image keep serving the dispatch contract from this digest-pinned
+# satellite release binary at the old installed path. Satellite build
+# 45658098 (post-v0.6.0, commit 4565809840f689d552d2674a771e28a35326359c);
+# rollback is the v0.6.0 release image. The satellite takes -addr (default
+# :8080) and requires --core-base-url (eshu-hq/eshu-api cmd/eshu-api/main.go):
+# a bare `eshu-api` with no --core-base-url exits 1 fail-closed, so stacks
+# must keep passing the core origin explicitly. It serves GET /health (plus
+# the core-gated GET /readyz); it has no /healthz.
+FROM ghcr.io/eshu-hq/eshu-api:sha-4565809840f689d552d2674a771e28a35326359c@sha256:2a2eaf511d3b0237603a6ff612d72cf1a4423cc1bd911472045dd649cbe7208a AS api-satellite
 
 # mock-oidc-idp: E2E-only synthetic OIDC IdP (issue #4971), built and shipped
 # as its own image, never as part of the product image below. A no-auth,
@@ -186,7 +200,7 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 # floor above. scripts/verify-runtime-image-tools.sh asserts its
 # REQUIRED_TOOLS list is present in the built image.
 RUN apk add --no-cache git openssh-client curl "c-ares>=1.34.9-r0" \
-    "libexpat>=2.10.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" \
+    "libexpat>=2.11.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2" \
     "musl>=1.2.5-r12" "musl-utils>=1.2.5-r12" "zlib>=1.4-r0"
 
 # Copy Go binaries
@@ -196,6 +210,20 @@ COPY --from=builder /go-bin/ /usr/local/bin/
 # ["/usr/local/bin/eshu-mcp-server"], so the satellite binary keeps its old
 # path. Same contract the gate serves (scripts/lib/golden-corpus-host-helpers.sh).
 COPY --from=mcp-satellite /eshu-mcp /usr/local/bin/eshu-mcp-server
+# Removed in-tree API server replaced by the pinned satellite release
+# (#11453): the satellite binary keeps the old installed path, so existing
+# `eshu-api` commands keep resolving. It must be started with an explicit
+# --core-base-url pointing at the core origin; without one it exits 1
+# fail-closed.
+COPY --from=api-satellite /eshu-api /usr/local/bin/eshu-api
+# Release-image entrypoint (issue #11453): maps ESHU_CORE_BASE_URL to
+# --core-base-url when the container starts `eshu-api` without the flag, so
+# `docker run -e ESHU_CORE_BASE_URL=... <image>` boots the satellite against
+# that core. An explicit --core-base-url, and any other command, execs
+# untouched; `eshu-api` with neither fails closed (exit 1) with a usage
+# naming both forms.
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Create the runtime user and writable working directories.
 RUN adduser -D -u 10001 eshu \
@@ -211,12 +239,18 @@ EXPOSE 8080 9464
 
 WORKDIR /data
 USER eshu
+ENTRYPOINT ["docker-entrypoint.sh"]
 
-# Health check
+# Health check. The satellite serves GET /health (shallow liveness) plus the
+# core-gated GET /readyz; it has no /healthz, so the probe uses /health.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -fsS http://localhost:8080/healthz || exit 1
+    CMD curl -fsS http://localhost:8080/health || exit 1
 
-# Default command - run the Go API server. D13: CMD stays on eshu-api through
-# the row-11 retarget above (same binary path, satellite-built); only the
-# stack flip re-points it, after cutover-good.
+# Default command - the API dispatch satellite behind the unchanged `eshu-api`
+# path. The entrypoint maps ESHU_CORE_BASE_URL to --core-base-url; without
+# the env or an explicit flag the run exits 1 with a usage naming both
+# forms, so stacks that relied on the old bare default must now pass the core
+# origin one of those two ways (migration from the in-tree default that
+# served :8080 with no flag; in-repo stacks already pass --core-base-url:
+# the reachability proof compose and the gate scripts).
 CMD ["eshu-api"]

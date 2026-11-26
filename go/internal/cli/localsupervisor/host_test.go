@@ -20,7 +20,7 @@ import (
 )
 
 // TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort proves attach-stdio
-// serves a session (loopback eshu-api plus satellite) on the recorded
+// serves a session (loopback eshu-core-api plus satellite) on the recorded
 // Postgres port, with the bridge owning the process stdio.
 func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	layout := eshulocal.Layout{
@@ -34,11 +34,14 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 		WorkspaceID:        layout.WorkspaceID,
 		PostgresPort:       15439,
 		PostgresSocketPath: "/tmp/.s.PGSQL.15439",
+		Profile:            string(querycontract.ProfileLocalAuthoritative),
+		GraphBackend:       string(querycontract.GraphBackendNeo4j),
 	}
 
 	originalReadOwnerRecord := ReadOwnerRecord
 	originalProcessAlive := ProcessAlive
 	originalSocketHealthy := SocketHealthy
+	originalGraphHealthy := GraphHealthy
 	originalStartChild := StartChildProcess
 	originalReserve := mcpSessionReservePort
 	originalWait := mcpSessionWaitHTTP
@@ -47,6 +50,7 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 		ReadOwnerRecord = originalReadOwnerRecord
 		ProcessAlive = originalProcessAlive
 		SocketHealthy = originalSocketHealthy
+		GraphHealthy = originalGraphHealthy
 		StartChildProcess = originalStartChild
 		mcpSessionReservePort = originalReserve
 		mcpSessionWaitHTTP = originalWait
@@ -62,6 +66,7 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	SocketHealthy = func(path string) bool {
 		return path == record.PostgresSocketPath
 	}
+	GraphHealthy = func(eshulocal.OwnerRecord) bool { return true }
 
 	var satelliteEnv []string
 	var waitedURLs []string
@@ -105,7 +110,7 @@ func TestRunAttachedLocalMCPStdioUsesRecordedPostgresPort(t *testing.T) {
 	if got := envValue(satelliteEnv, "ESHU_MCP_ADDR"); got != "" {
 		t.Fatalf("ESHU_MCP_ADDR = %q, want unset (listen address travels on -addr only)", got)
 	}
-	wantWaits := []string{"http://127.0.0.1:19391/healthz", "http://127.0.0.1:19392/health"}
+	wantWaits := []string{"http://127.0.0.1:19391/health", "http://127.0.0.1:19392/health"}
 	if strings.Join(waitedURLs, ",") != strings.Join(wantWaits, ",") {
 		t.Fatalf("waited on %v, want %v", waitedURLs, wantWaits)
 	}

@@ -141,11 +141,12 @@ func TestRunOwnedLocalHostWithLayoutAuthoritativeWatchStartsReducerAndIngester(t
 }
 
 // TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges proves the
-// owner-booted stdio path supervises a session (loopback eshu-api plus
+// owner-booted stdio path supervises a session (loopback eshu-core-api plus
 // satellite) next to the reducer and ingester, and hands the session to the
 // bridge that owns the process stdio.
 func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T) {
 	t.Setenv("ESHU_QUERY_PROFILE", string(querycontract.ProfileLocalAuthoritative))
+	t.Setenv("ESHU_GRAPH_BACKEND", string(querycontract.GraphBackendNeo4j))
 
 	originalPrepareWorkspace := localHostPrepareWorkspace
 	originalStartEmbeddedPostgres := localHostStartEmbeddedPostgres
@@ -276,7 +277,7 @@ func TestRunOwnedLocalHostWithLayoutMCPStdioStartsSessionAndBridges(t *testing.T
 		t.Fatalf("RunOwnedHostWithLayout() error = %v, want nil", err)
 	}
 
-	wantChildren := []string{"eshu-reducer", "eshu-ingester", "eshu-api", "eshu-mcp-server"}
+	wantChildren := []string{"eshu-reducer", "eshu-ingester", "eshu-core-api", "eshu-mcp-server"}
 	if !slices.Equal(started, wantChildren) {
 		t.Fatalf("started children = %#v, want %#v", started, wantChildren)
 	}

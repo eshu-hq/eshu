@@ -288,3 +288,40 @@ func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// TestStartLocalAPISpawnsLocalAPIBinary proves the one-shot vulnscan API is
+// the in-tree build installed as eshu-local-api, not the eshu-api satellite
+// (which exits fail-closed without --core-base-url). It calls the real
+// startLocalAPI with a fake eshu-local-api on PATH — no seam doubles — so a
+// spawn-name regression fails here instead of at scan time.
+func TestStartLocalAPISpawnsLocalAPIBinary(t *testing.T) {
+	binDir := t.TempDir()
+	fake := filepath.Join(binDir, "eshu-local-api")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatalf("write fake eshu-local-api: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	const wantAddr = "127.0.0.1:19199"
+	env := []string{
+		"ESHU_API_ADDR=" + wantAddr,
+		localsupervisor.LogDirEnv + "=" + t.TempDir(),
+	}
+	cmd, err := startLocalAPI(env)
+	if err != nil {
+		t.Fatalf("startLocalAPI() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = cmd.Wait()
+	})
+
+	if len(cmd.Args) != 1 || cmd.Args[0] != "eshu-local-api" {
+		t.Fatalf("cmd.Args = %v, want [eshu-local-api]", cmd.Args)
+	}
+	if got := envValue(cmd.Env, "ESHU_API_ADDR"); got != wantAddr {
+		t.Fatalf("ESHU_API_ADDR = %q, want %q", got, wantAddr)
+	}
+}

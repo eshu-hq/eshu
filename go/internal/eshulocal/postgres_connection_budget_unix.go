@@ -27,10 +27,11 @@ import (
 //
 // The first two are the local supervisor's own children
 // (internal/cli/localsupervisor/host.go: StartChildProcess for eshu-reducer
-// and eshu-ingester). The two eshu-api entries are distinct concurrent
-// processes: the MCP session child (localsupervisor.StartMCPSession, one per
-// stdio or owner-attached HTTP session) and the short-lived loopback API that
-// `eshu vuln-scan repo` launches against a running owner; the satellite
+// and eshu-ingester). The eshu-core-api and eshu-local-api entries are
+// distinct concurrent processes: the MCP session child
+// (localsupervisor.StartMCPSession, one per stdio or owner-attached HTTP
+// session) and the short-lived loopback API that `eshu vuln-scan repo`
+// launches against a running owner; the satellite
 // eshu-mcp-server holds no Postgres pool (it reads through the session API),
 // so it is not listed. The last entry is the vuln-scan bootstrap-index child
 // (cmd/eshu/gotchas-read-surface-commands.md). All five take the shared
@@ -45,14 +46,14 @@ import (
 // ceiling here is strictly sound until those are bounded; this raises the floor
 // from "guaranteed exhaustion" to "covers every capped holder", which is an
 // improvement rather than a proof. That is the #4456 gap still open in the
-// supervisor. Concurrent MCP sessions each add one more session eshu-api
+// supervisor. Concurrent MCP sessions each add one more session eshu-core-api
 // beyond the enumerated pair, the same unboundedness the old per-session
 // stdio server had; the budget covers the enumerated worst case.
 var localPostgresPoolHolders = [...]string{
 	"eshu-reducer",
 	"eshu-ingester",
-	"eshu-api", // MCP session child (localsupervisor.StartMCPSession).
-	"eshu-api", // vulnscan one-shot (vulnscan.prepareLocalRuntime).
+	"eshu-core-api",  // MCP session child (localsupervisor.StartMCPSession).
+	"eshu-local-api", // vulnscan one-shot (vulnscan.prepareLocalRuntime).
 	"eshu-bootstrap-index",
 }
 

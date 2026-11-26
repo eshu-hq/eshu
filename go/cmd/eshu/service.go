@@ -99,7 +99,7 @@ func init() {
 	rootCmd.AddCommand(startAlias)
 }
 
-// runAttachedMCPHTTP spawns a session eshu-api plus the satellite MCP server
+// runAttachedMCPHTTP spawns a session eshu-core-api plus the satellite MCP server
 // for --transport http with --workspace-root and waits on both. It is a
 // variable so tests can prove the delegation without binding ports or
 // spawning processes.

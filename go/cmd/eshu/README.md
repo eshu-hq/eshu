@@ -22,7 +22,8 @@ outside it. Service launch detail: `eshu mcp start` stdio and standalone HTTP
 exec into `local-host mcp-stdio` and `eshu-mcp-server`
 (`-addr`/`-core-base-url`); the `--workspace-root` HTTP path instead delegates
 in-process to `localsupervisor.RunAttachedMCPHTTP`, which supervises a session
-`eshu-api` plus the satellite. The satellite address travels on flags, never
+API (`eshu-core-api` on Neo4j, `eshu-local-api` otherwise) plus the satellite.
+The satellite address travels on flags, never
 on `ESHU_MCP_ADDR` (retired).
 
 `eshu report` is one of those: `operator_digest_cmd.go` here reads
@@ -53,7 +54,7 @@ artifact wrapper, and the share-safe scope rules live in
     `hosted-setup` runs the
     first-five-minutes flow against a deployed service, resolving the endpoint
     and bearer token and running ordered, individually-reported checks
-    (`/healthz`, `/readyz`, status/index readiness, MCP tool visibility, and one
+    (`/health`, `/readyz`, status/index readiness, MCP tool visibility, and one
     bounded query) that separate auth-unavailable, empty-index, stale-readiness,
     partial-readiness, missing-repo-scope, and mcp-unavailable failures, reports
     connected only when the bounded query returns, never prints the raw token,

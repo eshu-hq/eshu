@@ -23,12 +23,14 @@ import (
 )
 
 const (
-	// mcpSessionAPIBindAddress is the loopback address every session eshu-api
-	// binds. A session serves a single local MCP client, so it must never be
-	// reachable off the machine.
+	// mcpSessionAPIBindAddress is the loopback address every session child
+	// binds. A session serves a single local MCP client, so it must never
+	// be reachable off the machine.
 	mcpSessionAPIBindAddress = "127.0.0.1"
-	// mcpSessionStartupTimeout bounds the wait for a session eshu-api
-	// /healthz.
+	// mcpSessionStartupTimeout bounds the wait for session child readiness:
+	// /health for eshu-core-api, /healthz for eshu-local-api, /health for
+	// the satellite. Core mounts GET /health (shallow process check) plus
+	// the backend-gated GET /readyz; it has no /healthz.
 	mcpSessionStartupTimeout = 2 * time.Minute
 	// mcpSessionPollInterval is how often the session readiness wait re-checks.
 	mcpSessionPollInterval = 200 * time.Millisecond
@@ -45,33 +47,39 @@ const (
 	mcpBridgeRequestTimeout = 5 * time.Minute
 )
 
-// MCPSession is a running MCP session: a loopback eshu-api child that serves
-// the workspace stores plus the satellite eshu-mcp-server child that answers
-// MCP clients against it. Whoever serves an MCP session spawns one: the
-// owner-booted stdio path, the attach-stdio path, and the owner-attached HTTP
-// path each own their session and tear it down when the session ends. The
-// satellite holds no Postgres pool; the session eshu-api does.
+// MCPSession is a running MCP session: a loopback session API child that
+// serves the workspace stores plus the satellite eshu-mcp-server child that
+// answers MCP clients against it. The session API is eshu-core-api on Neo4j
+// and eshu-local-api on NornicDB or an unset backend; the satellite reads it
+// through -core-base-url either way. The session talks to the API directly;
+// the api-satellite is not a middle hop. Whoever serves an MCP session
+// spawns one: the owner-booted stdio path, the attach-stdio path, and the
+// owner-attached HTTP path each own their session and tear it down when the
+// session ends. The satellite holds no Postgres pool; the session API does.
 type MCPSession struct {
-	apiCmd              *exec.Cmd
+	coreCmd             *exec.Cmd
+	coreName            string
 	satelliteCmd        *exec.Cmd
 	apiBaseURL          string
 	satelliteMessageURL string
 	apiKey              string
 }
 
-// StartMCPSession spawns a session eshu-api on a kernel-reserved loopback
-// port, waits for its /healthz, then spawns the satellite eshu-mcp-server on
-// a second reserved loopback port against it. A failure after a child has
-// started stops what it started, so a failed session never leaves a child
-// behind.
+// StartMCPSession spawns a session API on a kernel-reserved loopback port,
+// waits for its readiness, then spawns the satellite eshu-mcp-server on a
+// second reserved loopback port against it. The session API is eshu-core-api
+// on Neo4j (waits /health) and eshu-local-api on NornicDB or an unset
+// backend (waits /healthz); the satellite gets -core-base-url pointing at
+// the session base either way. A failure after a child has started stops
+// what it started, so a failed session never leaves a child behind.
 func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, layout eshulocal.Layout) (*MCPSession, error) {
-	apiCmd, baseURL, err := startMCPSessionAPI(ctx, dsn, runtimeConfig, graph, layout)
+	coreCmd, coreName, baseURL, err := startMCPSessionCore(ctx, dsn, runtimeConfig, graph, layout)
 	if err != nil {
 		return nil, err
 	}
 	mcpPort, err := mcpSessionReservePort()
 	if err != nil {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 		return nil, err
 	}
 	satelliteAddr := net.JoinHostPort(mcpSessionAPIBindAddress, strconv.Itoa(mcpPort))
@@ -79,7 +87,7 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 	satelliteCmd, err := StartChildProcess("eshu-mcp-server",
 		[]string{"eshu-mcp-server", "-addr=" + satelliteAddr, "-core-base-url=" + baseURL}, satelliteEnv)
 	if err != nil {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 		return nil, err
 	}
 	// The bridge forwards the first stdin line as soon as the session
@@ -89,11 +97,12 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 	// first real request fails while the satellite is still booting.
 	if err := mcpSessionWaitHTTP(ctx, "http://"+satelliteAddr+"/health", mcpSessionStartupTimeout); err != nil {
 		_ = StopChildProcess(satelliteCmd, ShutdownTimeout)
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 		return nil, err
 	}
 	return &MCPSession{
-		apiCmd:              apiCmd,
+		coreCmd:             coreCmd,
+		coreName:            coreName,
 		satelliteCmd:        satelliteCmd,
 		apiBaseURL:          baseURL,
 		satelliteMessageURL: "http://" + satelliteAddr + "/mcp/message",
@@ -101,28 +110,33 @@ func StartMCPSession(ctx context.Context, dsn string, runtimeConfig RuntimeConfi
 	}, nil
 }
 
-// startMCPSessionAPI spawns one session eshu-api on a reserved loopback port
-// and waits for it to answer /healthz. It stops the child when the wait
-// fails, so callers only own a child on success.
-func startMCPSessionAPI(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, layout eshulocal.Layout) (*exec.Cmd, string, error) {
-	apiPort, err := mcpSessionReservePort()
-	if err != nil {
-		return nil, "", err
+// startMCPSessionCore spawns one session API on a reserved loopback port and
+// waits for it to answer readiness. The session API follows the graph
+// backend: eshu-core-api on Neo4j, eshu-local-api on NornicDB or an unset
+// backend (the lightweight owner carries none). Core takes the listen
+// address on -addr only (go/cmd/core-api) and reads no ESHU_API_ADDR from
+// the environment, so its env layering is empty; the in-tree local API
+// takes the listen address on ESHU_API_ADDR (go/cmd/api) and no flag, so
+// its env layering carries the loopback address through the same
+// ChildOverrides. Either child is waited on its own readiness route (/health
+// for core, /healthz for the local API). The child name travels with the
+// command so Children and supervision report the binary that was spawned.
+// It stops the child when the wait fails, so callers only own a child on
+// success.
+//
+// The guard below refuses before reserving a port or spawning anything: any
+// other backend value names no session API, so spawning would only burn the
+// readiness wait on a child that can never serve.
+func startMCPSessionCore(ctx context.Context, dsn string, runtimeConfig RuntimeConfig, graph *ManagedGraph, layout eshulocal.Layout) (*exec.Cmd, string, string, error) {
+	switch runtimeConfig.GraphBackend {
+	case querycontract.GraphBackendNeo4j:
+		return startMCPSessionCoreAPI(ctx, dsn, runtimeConfig, graph, layout)
+	case querycontract.GraphBackendNornicDB, "":
+		return startMCPSessionLocalAPI(ctx, dsn, runtimeConfig, graph, layout)
+	default:
+		return nil, "", "", fmt.Errorf("MCP sessions need ESHU_GRAPH_BACKEND=neo4j (eshu-core-api) or nornicdb/unset (eshu-local-api), got backend %q with profile %q",
+			runtimeConfig.GraphBackend, runtimeConfig.Profile)
 	}
-	apiAddr := net.JoinHostPort(mcpSessionAPIBindAddress, strconv.Itoa(apiPort))
-	apiEnv := ChildEnv(dsn, runtimeConfig, graph, ChildOverrides(layout, map[string]string{
-		"ESHU_API_ADDR": apiAddr,
-	}, os.Getenv))
-	apiCmd, err := StartChildProcess("eshu-api", []string{"eshu-api"}, apiEnv)
-	if err != nil {
-		return nil, "", err
-	}
-	baseURL := "http://" + apiAddr
-	if err := mcpSessionWaitHTTP(ctx, baseURL+"/healthz", mcpSessionStartupTimeout); err != nil {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
-		return nil, "", err
-	}
-	return apiCmd, baseURL, nil
 }
 
 // mcpSatelliteSessionEnv builds the satellite overrides for a session: HTTP
@@ -142,12 +156,13 @@ func mcpSatelliteSessionEnv(layout eshulocal.Layout, runtimeConfig RuntimeConfig
 }
 
 // Children returns the session children for supervision alongside the owner's
-// own children.
+// own children. The API name is the binary the session spawned, not a fixed
+// constant, so supervision reports eshu-local-api on NornicDB sessions.
 func (s *MCPSession) Children() []Child {
-	return []Child{{name: "eshu-api", cmd: s.apiCmd}, {name: "eshu-mcp-server", cmd: s.satelliteCmd}}
+	return []Child{{name: s.coreName, cmd: s.coreCmd}, {name: "eshu-mcp-server", cmd: s.satelliteCmd}}
 }
 
-// APIBaseURL returns the session eshu-api origin the satellite reads through.
+// APIBaseURL returns the session API origin the satellite reads through.
 func (s *MCPSession) APIBaseURL() string {
 	return s.apiBaseURL
 }
@@ -165,12 +180,12 @@ func (s *MCPSession) ServeStdio(ctx context.Context, stdin io.Reader, stdout io.
 	return RunMCPBridge(ctx, s.satelliteMessageURL, s.apiKey, stdin, stdout)
 }
 
-// Close stops the satellite, then the session API, joining the errors so one
+// Close stops the satellite, then the session core, joining the errors so one
 // failing stop does not hide the other.
 func (s *MCPSession) Close() error {
 	return errors.Join(
 		StopChildProcess(s.satelliteCmd, ShutdownTimeout),
-		StopChildProcess(s.apiCmd, ShutdownTimeout),
+		StopChildProcess(s.coreCmd, ShutdownTimeout),
 	)
 }
 
@@ -320,9 +335,11 @@ func writeBridgeError(stdout io.Writer, id json.RawMessage, message string) erro
 }
 
 // RunAttachedMCPHTTP attaches an HTTP MCP endpoint to the workspace's running
-// local owner: it spawns a session eshu-api plus the satellite at the user's
-// host:port and waits on both, so Ctrl-C stops both. It refuses when no
-// healthy owner holds the workspace rather than starting a second one.
+// local owner: it spawns a session API plus the satellite at the user's
+// host:port and waits on both, so Ctrl-C stops both. The session API follows
+// the recorded backend the same way StartMCPSession does, and the supervised
+// name travels with the spawned binary. It refuses when no healthy owner
+// holds the workspace rather than starting a second one.
 func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host string, port int) error {
 	record, err := ReadOwnerRecord(layout.OwnerRecordPath)
 	if err != nil {
@@ -353,12 +370,12 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 	}
 
 	dsn := eshulocal.PostgresDSN("127.0.0.1", record.PostgresPort)
-	apiCmd, baseURL, err := startMCPSessionAPI(ctx, dsn, runtimeConfig, ManagedGraphFromRecord(record), layout)
+	coreCmd, coreName, baseURL, err := startMCPSessionCore(ctx, dsn, runtimeConfig, ManagedGraphFromRecord(record), layout)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		_ = StopChildProcess(apiCmd, ShutdownTimeout)
+		_ = StopChildProcess(coreCmd, ShutdownTimeout)
 	}()
 
 	satelliteAddr := net.JoinHostPort(host, strconv.Itoa(port))
@@ -373,7 +390,7 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 	}()
 
 	return WaitManagedChildren(ctx, []Child{
-		{name: "eshu-api", cmd: apiCmd},
+		{name: coreName, cmd: coreCmd},
 		{name: "eshu-mcp-server", cmd: satelliteCmd},
 	}, "eshu-mcp-server")
 }
@@ -383,10 +400,11 @@ func RunAttachedMCPHTTP(ctx context.Context, layout eshulocal.Layout, host strin
 var mcpSessionReservePort = reserveMCPSessionLoopbackPort
 
 // mcpSessionWaitHTTP polls a session child health URL until it answers 200
-// or the timeout expires: the session eshu-api /healthz after its spawn, the
-// satellite /health after its spawn. Transport errors are retried rather than
-// returned, because the child is still starting when the first attempts fail.
-// It is a variable so session tests prove the wiring without serving HTTP.
+// or the timeout expires: the session eshu-core-api /health after its spawn,
+// the satellite /health after its spawn. Transport errors are retried rather
+// than returned, because the child is still starting when the first attempts
+// fail. It is a variable so session tests prove the wiring without serving
+// HTTP.
 var mcpSessionWaitHTTP = waitMCPSessionHTTPReady
 
 // reserveMCPSessionLoopbackPort asks the kernel for a free loopback port and

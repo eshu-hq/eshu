@@ -32,9 +32,11 @@ It does not install helper binaries such as `eshu-ingester` and
 Process health only proves a runtime can serve. It does not prove the latest
 repository generation drained through projection and reducer work.
 
-Check freshness in this order:
+Check freshness in this order (`/health` is the unauthenticated liveness
+probe on the satellite and the core alike; the rest prove freshness):
 
 ```bash
+curl -fsS http://localhost:8080/health
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
   http://localhost:8080/api/v0/index-status
 curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \

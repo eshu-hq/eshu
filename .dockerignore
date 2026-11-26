@@ -62,4 +62,7 @@ CLI_Commands.md
 CONTRIBUTING.md
 SECURITY.md
 organizer/
-scripts/
+# The release-image entrypoint is the only scripts/ file the image needs
+# (issue #11453): exclude the directory contents, then re-include it.
+scripts/*
+!scripts/docker-entrypoint.sh
