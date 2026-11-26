@@ -350,12 +350,15 @@ VALUES ('fact', 'fact_upsert', $1, 'repo:survive', 'digest:survive', $2, $2, 1)`
 	if _, err := buildWinnersKeyedChunk(ctx, tick, winnersDeadlockSettleBounds); err != nil {
 		t.Fatalf("build chunk in tick: %v", err)
 	}
-	tally, remaining, _, _, err := settleWinnersKeyedDirtyLog(ctx, tick, false, nil)
+	tally, remaining, _, _, skips, err := settleWinnersKeyedDirtyLog(ctx, tick, false, nil)
 	if err != nil {
 		t.Fatalf("settle in tick: %v", err)
 	}
 	if tally.total() != 0 {
 		t.Fatalf("settle drained version sums = %d, want 0: the re-marked key must stay queued", tally.total())
+	}
+	if skips.NotInChunk != 0 || skips.VersionMismatch != 1 {
+		t.Fatalf("settle skips = %+v, want {NotInChunk 0, VersionMismatch 1}: the re-marked key is chunked but version-moved", skips)
 	}
 	if remaining != 1 {
 		t.Fatalf("settle remaining = %d, want the one re-marked key still queued", remaining)

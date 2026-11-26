@@ -154,6 +154,31 @@ func convertWinnersKeyedScopeRemainder(ctx context.Context, tx db.Transaction) (
 	return n, nil
 }
 
+// winnersKeyedAppliedPredicate renders the applied-row predicate over an
+// admitted-window alias: a fact row whose identifier the chunk applies, or a
+// scope row whose expansion has no unapplied identifier left (fully applied,
+// or partially applied with its remainder converted, which queues every
+// unapplied identifier as a fact row). It is the single source the applied
+// drain and both settle skip counts read, so the per-tick admitted-vs-deleted
+// split (#9975 drain discriminator) cannot drift from what the drain deletes.
+func winnersKeyedAppliedPredicate(consumed string) string {
+	return `(
+          (` + consumed + `.kind = 'fact' AND ` + winnersKeyedChunkIdentMatch(consumed) + `)
+          OR (` + consumed + `.kind = 'scope' AND (
+              NOT EXISTS (
+                  SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS si
+                  WHERE si.scope_id = ` + consumed + `.scope_id AND si.generation_id = ` + consumed + `.generation_id
+                    AND NOT ` + winnersKeyedChunkIdentMatch("si") + `
+              )
+              OR EXISTS (
+                  SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS applied
+                  WHERE applied.scope_id = ` + consumed + `.scope_id AND applied.generation_id = ` + consumed + `.generation_id
+                    AND ` + winnersKeyedChunkIdentMatch("applied") + `
+              )
+          ))
+      )`
+}
+
 // deleteWinnersKeyedAppliedDirtySQL deletes exactly the admitted dirty rows
 // this chunk applied, in one lock-then-delete statement, and tallies them by
 // capture source: a fact row whose identifier was probed, and a scope row
@@ -179,21 +204,7 @@ WITH locked AS (
     FROM supply_chain_impact_winners_dirty_log AS d
     JOIN ` + winnersKeyedConsumedTable + ` AS c ON c.seq = d.seq
     WHERE d.dirty_version = c.dirty_version
-      AND (
-          (c.kind = 'fact' AND ` + winnersKeyedChunkIdentMatch("c") + `)
-          OR (c.kind = 'scope' AND (
-              NOT EXISTS (
-                  SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS si
-                  WHERE si.scope_id = c.scope_id AND si.generation_id = c.generation_id
-                    AND NOT ` + winnersKeyedChunkIdentMatch("si") + `
-              )
-              OR EXISTS (
-                  SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS applied
-                  WHERE applied.scope_id = c.scope_id AND applied.generation_id = c.generation_id
-                    AND ` + winnersKeyedChunkIdentMatch("applied") + `
-              )
-          ))
-      )
+      AND ` + winnersKeyedAppliedPredicate("c") + `
     ORDER BY ` + winnersDirtyKeyOrderClause("c") + `
     FOR UPDATE OF d
 ),
@@ -204,6 +215,31 @@ deleted AS (
     RETURNING d.source, d.dirty_version, d.kind, d.captured_at, d.advisory_id, d.scope_id
 )` + winnersDirtyTallyCTEs + `
 SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source
+`
+
+// countWinnersKeyedSettleSkippedNotInChunkSQL counts admitted rows the
+// applied drain left queued because the chunk did not apply them (#9975
+// drain discriminator): admitted survivors of the delete whose identifier
+// fails the shared applied predicate. It is a read-only SELECT over the
+// admitted window and the log's primary key; it takes no row locks. The
+// over-cap fallback never runs it: that path builds no chunk table.
+var countWinnersKeyedSettleSkippedNotInChunkSQL = `
+SELECT count(*) FROM ` + winnersKeyedConsumedTable + ` AS c
+JOIN supply_chain_impact_winners_dirty_log AS d ON d.seq = c.seq
+WHERE NOT ` + winnersKeyedAppliedPredicate("c") + `
+`
+
+// countWinnersKeyedSettleSkippedVersionMismatchSQL counts admitted rows the
+// applied drain left queued inside the chunk (#9975 drain discriminator):
+// admitted survivors of the delete whose identifier passes the shared
+// applied predicate, so only the version recheck can have kept them — a
+// mark committed for the key after admission (the tick's own scope-remainder
+// convert) bumped the log past the admitted snapshot. Same read-only shape
+// as the not-in-chunk count; never run on the over-cap fallback path.
+var countWinnersKeyedSettleSkippedVersionMismatchSQL = `
+SELECT count(*) FROM ` + winnersKeyedConsumedTable + ` AS c
+JOIN supply_chain_impact_winners_dirty_log AS d ON d.seq = c.seq
+WHERE ` + winnersKeyedAppliedPredicate("c") + `
 `
 
 // deleteWinnersKeyedAllDirtySQL is the over-cap fallback's delete (var, not

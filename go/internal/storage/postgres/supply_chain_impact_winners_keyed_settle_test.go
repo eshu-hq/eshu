@@ -334,6 +334,10 @@ type settleFakeTx struct {
 	// converted and convertErr script the convert's RowsAffected (#11145).
 	converted  int64
 	convertErr error
+	// skippedNotInChunk and skippedMismatch script the #9975 settle skip
+	// counts the applied drain reports after it deletes.
+	skippedNotInChunk int64
+	skippedMismatch   int64
 }
 
 func (tx *settleFakeTx) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
@@ -349,6 +353,10 @@ func (tx *settleFakeTx) QueryContext(_ context.Context, query string, _ ...any) 
 	switch query {
 	case deleteWinnersKeyedAppliedDirtySQL, deleteWinnersKeyedAllDirtySQL:
 		return &settleFakeRows{rows: tx.drained}, nil
+	case countWinnersKeyedSettleSkippedNotInChunkSQL:
+		return &settleFakeRows{rows: [][2]any{{tx.skippedNotInChunk, nil}}}, nil
+	case countWinnersKeyedSettleSkippedVersionMismatchSQL:
+		return &settleFakeRows{rows: [][2]any{{tx.skippedMismatch, nil}}}, nil
 	case countWinnersKeyedRemainingSQL:
 		return &settleFakeRows{rows: [][2]any{{int64(0), nil}}}, nil
 	case selectWinnersKeyedRemainingMinSQL:
@@ -441,7 +449,7 @@ func TestSettleWinnersKeyedDirtyLogConvertsBeforeItDeletes(t *testing.T) {
 	t.Parallel()
 
 	applied := &settleFakeTx{drained: [][2]any{{"fact_upsert", int64(3)}}}
-	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), applied, false, nil); err != nil {
+	if _, _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), applied, false, nil); err != nil {
 		t.Fatalf("settle applied: %v", err)
 	}
 	convertIdx, drainIdx := -1, -1
@@ -458,7 +466,7 @@ func TestSettleWinnersKeyedDirtyLogConvertsBeforeItDeletes(t *testing.T) {
 	}
 
 	overCap := &settleFakeTx{drained: [][2]any{{"fact_upsert", int64(3)}}}
-	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), overCap, true, nil); err != nil {
+	if _, _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), overCap, true, nil); err != nil {
 		t.Fatalf("settle over-cap: %v", err)
 	}
 	for _, q := range overCap.queries {

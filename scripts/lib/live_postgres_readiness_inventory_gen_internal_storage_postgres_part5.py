@@ -109,6 +109,10 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_winners_hotkey_staging_shim_live_test.go": (
             "TestSupplyChainImpactWinnersHotkeyStagingShimLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_keyed_settle_skip_live_test.go": (
+            "TestSupplyChainImpactWinnersKeyedSettleSkipSplitLive",
+            "TestSupplyChainImpactWinnersSettleSkipCountsAreReadOnlyLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_winners_landing_distinct_total_cost_live_test.go": (
             "TestSupplyChainImpactWinnersLandingDistinctTotalCostLive",
         ),

@@ -88,11 +88,15 @@ type phaseFakeTx struct {
 	identifier int64
 	stored     int64
 	scanned    int64
-	delay      map[string]time.Duration
-	failOn     string
-	commitErr  error
-	rollbacks  int
-	queries    []string
+	// skippedNotInChunk and skippedMismatch script the #9975 settle skip
+	// counts the applied drain reports after it deletes.
+	skippedNotInChunk int64
+	skippedMismatch   int64
+	delay             map[string]time.Duration
+	failOn            string
+	commitErr         error
+	rollbacks         int
+	queries           []string
 	// contract is the stored (version, hash) row the #11117 re-read sees;
 	// nil reports a matching contract.
 	contract []any
@@ -148,6 +152,10 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{tx.scanned}}, nil
 	case deleteWinnersKeyedAppliedDirtySQL, deleteWinnersKeyedAllDirtySQL:
 		return &phaseFakeRows{row: []any{telemetry.SupplyChainImpactWinnersSourceActivation, tx.consumed}}, nil
+	case countWinnersKeyedSettleSkippedNotInChunkSQL:
+		return &phaseFakeRows{row: []any{tx.skippedNotInChunk}}, nil
+	case countWinnersKeyedSettleSkippedVersionMismatchSQL:
+		return &phaseFakeRows{row: []any{tx.skippedMismatch}}, nil
 	case countWinnersKeyedRemainingSQL:
 		return &phaseFakeRows{row: []any{int64(0)}}, nil
 	case countWinnersKeyedIdentsSQL:
