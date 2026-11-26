@@ -32,6 +32,8 @@ const Investigations = `
           "504": {"$ref": "#/components/responses/GatewayTimeout"},
           "200": {"description": "Investigation evidence packet", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InvestigationEvidencePacket"}}}},
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
@@ -209,6 +211,8 @@ const Investigations = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

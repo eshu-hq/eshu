@@ -32,7 +32,7 @@ const Ask = `
                     "type": "string",
                     "enum": ["auto", "markdown", "mermaid", "json", "yaml", "csv"],
                     "default": "auto",
-                    "description": "Requested output format. 'auto' infers from the question."
+                    "description": "Requested output format. 'auto' infers from the question. An unknown value is not rejected: the format falls back to question inference, the same as 'auto' (render.DetectFormat never answers 400 for format)."
                   }
                 }
               }

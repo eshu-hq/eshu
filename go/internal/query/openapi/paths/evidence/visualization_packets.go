@@ -29,14 +29,14 @@ const VisualizationPackets = `
                   },
                   "source_response": {
                     "type": "object",
-                    "description": "Authorized source response payload from the matching answer route."
+                    "description": "Authorized source response payload from the matching answer route. Optional: when absent the route still answers 200 with the explicit unsupported packet carrying limitations and recommended next calls."
                   },
                   "source_truth": {
                     "type": "object",
                     "description": "Optional TruthEnvelope from the source response; copied into the derived visualization packet."
                   }
                 },
-                "required": ["view", "source_response"]
+                "required": ["view"]
               }
             }
           }

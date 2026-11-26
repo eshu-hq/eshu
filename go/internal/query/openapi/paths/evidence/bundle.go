@@ -46,7 +46,7 @@ const Bundle = `
                       "checks": {"type": "array", "description": "Validation gate names that passed. Owner: evidencebundle.BuildLiveBundle.", "items": {"type": "string"}}
                     }}
                   },
-                  "required": ["schema_version", "bundle_id", "identity", "redaction", "contents", "reproduce", "bounds", "validation"]
+                  "required": ["schema_version", "bundle_id", "identity", "source", "redaction", "contents", "missing_evidence", "reproduce", "bounds", "validation"]
                 }
               }
             }

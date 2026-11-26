@@ -214,7 +214,9 @@ const IntelligenceReport = `
           "404": {"$ref": "#/components/responses/NotFound"},
           "409": {"$ref": "#/components/responses/Conflict"},
           "500": {"$ref": "#/components/responses/InternalError"},
-          "501": {"$ref": "#/components/responses/NotImplemented"}
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"}
         }
       }
     },
