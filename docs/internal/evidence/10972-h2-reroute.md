@@ -27,7 +27,7 @@ isolated) halved for margin = 78,435. Every shim failing set lands above it
 it (42,388 direct-only; 5,000 mid-band), so the gate routes exactly the
 failing dimension.
 
-## Performance Evidence
+## Performance Evidence: shim baseline (QA primary, 2026-11-26)
 
 Baseline-bound from the theory shim (same substrate as above, QA primary,
 warm repeats under the production 10s guard; this lane re-runs no primary
@@ -39,7 +39,7 @@ re-route moves exactly the above-gate singletons onto the A2 shape the shim
 proved; at-or-under-gate singletons keep the statement the shim proved at
 ~1.3s isolated. No new statement shape, knob, or index is introduced.
 
-## No-Regression Evidence
+## No-Regression Evidence: focused proof at the lane tip
 
 Code measured at `bba42c3f` (`go test -count=1`; the lane tip adds only this
 note, and the suites below are re-run there):
@@ -55,7 +55,7 @@ note, and the suites below are re-run there):
 - `TestHotSingletonTrueMassGateBoundary` covers 5,000 / 42,388 / 78,435
   (shipped) and 78,436 / 80,144 / 156,870 (ranged).
 
-## Observability Evidence
+## Observability Evidence: existing signals, no new surface
 
 No-Observability-Change: no new metric, kind, span, or log key. The routed
 read is confirmed through existing signals:
