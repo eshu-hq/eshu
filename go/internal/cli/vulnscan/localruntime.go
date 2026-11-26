@@ -23,6 +23,13 @@ import (
 )
 
 const (
+	// localAPIBinaryName is the one-shot API binary this command spawns. It is
+	// the in-tree ./cmd/api build installed under a vulnscan-only name, so the
+	// bare `eshu-api` satellite — which exits fail-closed without
+	// --core-base-url — is never on this spawn path. NornicDB-owner-bound: the
+	// child inherits the owner's Postgres and graph environment and answers
+	// /healthz on ESHU_API_ADDR.
+	localAPIBinaryName = "eshu-local-api"
 	// LocalAPIBindAddress is the loopback address the one-shot API binds. The
 	// runtime this command starts is for a single local scan, so it must never
 	// be reachable off the machine.
@@ -66,7 +73,7 @@ var (
 	reserveLocalAPIPortFn = reserveLocalAPIPort
 	// startLocalOwnerFn launches `eshu local-host watch` for the workspace.
 	startLocalOwnerFn = startLocalOwner
-	// startLocalAPIFn launches the one-shot eshu-api child.
+	// startLocalAPIFn launches the one-shot eshu-local-api child.
 	startLocalAPIFn = startLocalAPI
 	// stopLocalProcessFn terminates a child started by this package.
 	stopLocalProcessFn = localsupervisor.StopChildProcess
@@ -311,11 +318,11 @@ func startLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exec.Cmd, e
 	return cmd, nil
 }
 
-// startLocalAPI launches the one-shot eshu-api child with the owner-derived
-// environment.
+// startLocalAPI launches the one-shot eshu-local-api child with the
+// owner-derived environment.
 func startLocalAPI(env []string) (*exec.Cmd, error) {
 	//nolint:wrapcheck // StartChildProcess already names the child it failed to start
-	return localsupervisor.StartChildProcess("eshu-api", []string{"eshu-api"}, env)
+	return localsupervisor.StartChildProcess(localAPIBinaryName, []string{localAPIBinaryName}, env)
 }
 
 // waitLocalAPI polls /healthz until the one-shot API answers 200 or the

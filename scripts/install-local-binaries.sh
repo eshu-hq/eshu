@@ -51,6 +51,10 @@ main() {
     go build "${ESHU_BUILD_TAG_ARGS[@]}" -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu" ./cmd/eshu
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-index" ./cmd/bootstrap-index
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-core-api" ./cmd/core-api
+    # #11453 decision 1: vulnscan-only one-shot API from the in-tree ./cmd/api
+    # (NornicDB-owner-bound, ESHU_API_ADDR plus /healthz); expires with the
+    # #11456 disposition. It never ships at the eshu-api path below.
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-local-api" ./cmd/api
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-ingester" ./cmd/ingester
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-reducer" ./cmd/reducer
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-workflow-coordinator" ./cmd/workflow-coordinator
@@ -75,9 +79,11 @@ main() {
     CGO_ENABLED=0 go -C "$MCP_SRC_DIR" build -trimpath -o "$INSTALL_DIR/eshu-mcp-server" ./cmd/eshu-mcp
     rm -rf "$MCP_SRC_DIR"
 
-    # #11453: the in-tree api server moved to the eshu-api satellite. Local
-    # launchers still resolve `eshu-api` from PATH, so the installer builds
-    # the pinned satellite release under that name. ESHU_API_REF pins the
+    # #11453: the in-tree api server moved to the eshu-api satellite. No bare
+    # launcher resolves `eshu-api` from PATH anymore (vulnscan spawns the
+    # in-tree `eshu-local-api` build above); the installer still builds the
+    # pinned satellite release under that name for the image and the stacks
+    # that pass an explicit --core-base-url. ESHU_API_REF pins the
     # promoted build commit (a sha tag has no git ref, so fetch it by SHA);
     # override only to measure another satellite build. The satellite release
     # builds with CGO_ENABLED=0.

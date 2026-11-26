@@ -67,7 +67,7 @@ type childStart struct {
 	env  []string
 }
 
-func TestStartMCPSessionSpawnsAPIThenSatellite(t *testing.T) {
+func TestStartMCPSessionSpawnsCoreThenSatellite(t *testing.T) {
 	t.Setenv("ESHU_API_KEY", "")
 	starts, waits := stubMCPSessionChildren(t, 19191, 19192)
 
@@ -370,7 +370,7 @@ func TestRunMCPBridgeSynthesizesErrorOnTransportFailure(t *testing.T) {
 	}
 }
 
-func TestStartMCPSessionStopsAPIWhenSatelliteFails(t *testing.T) {
+func TestStartMCPSessionStopsCoreWhenSatelliteFails(t *testing.T) {
 	starts, _ := stubMCPSessionChildren(t, 19191, 19192)
 
 	wantErr := errors.New("satellite start sentinel")
