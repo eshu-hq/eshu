@@ -59,11 +59,24 @@ signature of replica noise, not a lane effect.
    21 h2-slower / 19 h2-faster (coin flip), p10 −225 ms / p90 +129 ms.
    The unpaired-p95 gap (−228 ms) is a tail artifact of n≈130 pools
    under this replica variance, not a systematic delta.
+
+   Hot completion (not exec) shows the same sign-flip pattern and no
+   completion bar was pre-registered — a plan gap recorded here. Shape A:
+   h2 hot completion p95 4647.6 vs today 1887.6 (+146%), but the A h2
+   max exec is 4746.2 ms against an exec p95 of 1234.7 ms: one round
+   dominates the p95, and exec p95 still favors h2 (1234.7 vs 1837.8).
+   Shape C: h2 hot completion 1081.8 vs 755.1 (+43%) with h2 SLOWER on
+   C-hot exec p95 too (1081.8 vs 755.1) — the same flip seen on B, where
+   h2 is faster. Completion adds sem/queue wait to exec, but both arms
+   acquire the shared sem in plan order on all three shapes (hots
+   first), so no lane mechanism separates the arms; the gaps track exec
+   outliers, not scheduling.
 3. Recommendation to the coordinator: disposition FAIL-P5 as band
    miscalibration (unpaired p95, ±15% too tight for n≈130 at CV≈20%),
    and score any repeat run on a paired-median bar (|median paired diff| ≤
-   100 ms) with the same P2/P3/P4/P6 guards. No code change is indicated:
-   nothing in the lane split can move per-statement exec.
+   100 ms) with the same P2/P3/P4/P6 guards, plus a hot-completion guard
+   (p95 within ±20% or outlier-excluded parity). No code change is
+   indicated: nothing in the lane split can move per-statement exec.
 
 ## Findings (not bar verdicts)
 
@@ -71,8 +84,8 @@ signature of replica noise, not a lane effect.
   estimates ~188k cve-arm + 49k advisory + 49k member rows ≈ 286k) never
   completes on the replica serially: 3/3 > 15 s (psql + `PGOPTIONS`
   15 s). Excluded from the scored set per P7. Needs primary-side
-  verification (out of this lane's replica-only scope) — suggested
-  follow-up, not filed as a new issue here.
+  verification (out of this lane's replica-only scope) — filed as
+  #11567 after the run (Refs #11567).
 - F2 (cold cache): single hot `CVE-2025-27789` 7.9 s cold vs ~0.8 s warm
   (EXPLAIN ANALYZE BUFFERS: 74,678 blocks read, 7.0 s I/O); 4-wide
   concurrent cold reads fire the 10 s guard (attempt-10 shakedown:
@@ -93,7 +106,7 @@ signature of replica noise, not a lane effect.
 
 ## Commands and exits
 
-- `git merge-base --is-ancestor f67e24903fc7501860388de7a59826e838313 origin/main` → exit 0.
+- `git merge-base --is-ancestor f67e24903fc7501860388de7a59826e186e3e313 origin/main` → exit 0.
 - Worktree `git worktree add …/eshu-wt-11563-qacut origin/main` → HEAD `d5fdb877e9` (H2 ancestor ✓).
 - `go vet ./internal/storage/postgres/` (worktree) → exit 0, final harness.
 - Scored: the throwaway TestH211563QAContentionCut harness (verbose, single count, 20 min timeout) → FAIL (P5 only, 688 s wall, exit 1). Raw per-statement log held 322 scored rows (scratch paths removed after the run; aggregates kept in this note).
