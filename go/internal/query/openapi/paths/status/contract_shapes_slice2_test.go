@@ -96,6 +96,15 @@ func TestContractShapesSlice2Status(t *testing.T) {
 	// requireScalarTypes pins the JSON scalar type of hand-written schema
 	// properties. Presence-only checks pass a boolean where the server
 	// emits an integer, so every hand-typed scalar needs its type pinned.
+	requireKeys := func(t *testing.T, props map[string]any, where string, keys ...string) {
+		t.Helper()
+		for _, key := range keys {
+			if _, ok := props[key].(map[string]any); !ok {
+				t.Errorf("%s: missing property %q", where, key)
+			}
+		}
+	}
+
 	requireScalarTypes := func(t *testing.T, props map[string]any, where string, want map[string]string) {
 		t.Helper()
 		for key, typ := range want {
@@ -274,6 +283,28 @@ func TestContractShapesSlice2Status(t *testing.T) {
 		budgetProps := propsOf(t, budget, "semantic budget")
 		if _, ok := budgetProps["decision_counts"].(map[string]any); !ok {
 			t.Error("semantic budget: missing conditionally-served property \"decision_counts\"")
+		}
+		// Nested item shapes are closed structs: NamedCountJSON is exactly
+		// {name, count}; decision rows carry optional string classifiers
+		// with a required integer count.
+		for _, key := range []string{"status_counts", "source_class_counts", "failure_class_counts"} {
+			arr := child(t, queueProps, key, "semantic queue")
+			requireExactKeys(t, propsOf(t, itemsOf(t, arr, key), key+" items"), "semantic queue."+key+"[]",
+				"name", "count")
+		}
+		budgetDecisions := child(t, budgetProps, "decision_counts", "semantic budget")
+		budgetDecisionProps := propsOf(t, itemsOf(t, budgetDecisions, "decision_counts"), "budget decision_counts[]")
+		requireKeys(t, budgetDecisionProps, "semantic budget.decision_counts[]", "count")
+		requireScalarTypes(t, budgetDecisionProps, "semantic budget.decision_counts[]", map[string]string{
+			"count": "integer",
+		})
+		for _, key := range []string{"provider_profile_counts", "policy_decision_counts", "guard_decision_counts"} {
+			arr := child(t, queueProps, key, "semantic queue")
+			arrProps := propsOf(t, itemsOf(t, arr, key), key+" items")
+			requireKeys(t, arrProps, "semantic queue."+key+"[]", "count")
+			requireScalarTypes(t, arrProps, "semantic queue."+key+"[]", map[string]string{
+				"count": "integer",
+			})
 		}
 	})
 }
