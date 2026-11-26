@@ -102,13 +102,21 @@ func TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive(t *testing.T) {
 		t.Fatalf("field-equivalence differential found %d mismatching rows: the record diverges from ->>", mismatches)
 	}
 	// Row presence: the guarded lateral must not drop scalar or NULL rows.
-	// A count-only differential would pass on a shrunken table.
-	var total int
-	if err := conn.QueryRowContext(ctx, `SELECT count(*) FROM detoast_seed`).Scan(&total); err != nil {
+	// A count-only differential would pass on a shrunken table, and a bare
+	// seed count would not prove the lateral preserves rows, so count the
+	// lateral-joined output itself.
+	var seedTotal, throughTotal int
+	if err := conn.QueryRowContext(ctx, `SELECT count(*) FROM detoast_seed`).Scan(&seedTotal); err != nil {
 		t.Fatalf("seed row count: %v", err)
 	}
-	if total != 18 {
-		t.Fatalf("seed holds %d rows, want the 18 seeded fixtures: a dropped row would hide a lateral row loss", total)
+	if seedTotal != 18 {
+		t.Fatalf("seed holds %d rows, want the 18 seeded fixtures", seedTotal)
+	}
+	if err := conn.QueryRowContext(ctx, `SELECT count(*) FROM detoast_seed AS fact `+postgres.WinnersDetoastFactLateralForTest).Scan(&throughTotal); err != nil {
+		t.Fatalf("lateral row count: %v", err)
+	}
+	if throughTotal != seedTotal {
+		t.Fatalf("guarded lateral preserves %d of %d seed rows: scalar or NULL rows lost", throughTotal, seedTotal)
 	}
 
 	// The array exception: `->` keeps a JSON null as jsonb null, while a
