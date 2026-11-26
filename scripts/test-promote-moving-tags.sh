@@ -46,33 +46,24 @@ cp "${repo_root}/scripts/fixtures/promote-moving-tags-stub-curl.sh" "${work}/bin
 
 # Fake docker: applies `buildx imagetools create` to the tags state and logs
 # every call. With RACE_LOSE_ONCE=1 the first create writes RACE_DIGEST (a
-# concurrent winner's) instead of the requested digest.
+# concurrent winner's) instead of the requested digest. With
+# SINGLE_ARCH_MANIFEST=1 and no --prefer-index=false, wraps into a synthetic
+# index digest (modeling real buildx's --prefer-index=true default).
 cat >"${work}/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-echo "docker $*" >>"${STUB_DIR}/docker.log"
-digest=""
-prefer_index_false=0
-tags=()
-prev=""
+s="$STUB_DIR"
+echo "docker $*" >>"$s/docker.log"
+d="" p=0 q="" ts=()
 for a in "$@"; do
-	if [[ "${prev}" == "-t" ]]; then tags+=("${a}"); fi
-	[[ "${a}" == "--prefer-index=false" ]] && prefer_index_false=1
-	[[ "${a}" == *@sha256:* ]] && digest="${a##*@}"
-	prev="${a}"
+	[[ $q == -t ]] && ts+=("$a")
+	[[ $a == --prefer-index=false ]] && p=1
+	[[ $a == *@sha256:* ]] && d="${a##*@}"
+	q="$a"
 done
-if [[ "${SINGLE_ARCH_MANIFEST:-0}" == "1" && "${prefer_index_false}" != "1" ]]; then
-	# Real buildx imagetools create defaults to --prefer-index=true, which wraps
-	# a single-arch manifest in a new OCI index with a different digest.
-	digest="sha256:wrapped-${digest#sha256:}"
-fi
-if [[ "${RACE_LOSE_ONCE:-0}" == "1" && ! -f "${STUB_DIR}/raced" ]]; then
-	touch "${STUB_DIR}/raced"
-	digest="${RACE_DIGEST}"
-fi
-for t in "${tags[@]}"; do
-	printf '%s' "${digest}" >"${STUB_DIR}/tags/${t##*:}"
-done
+[[ ${SINGLE_ARCH_MANIFEST:-0} == 1 && $p != 1 ]] && d="sha256:wrapped-${d#sha256:}"
+[[ ${RACE_LOSE_ONCE:-0} == 1 && ! -f "$s/raced" ]] && { touch "$s/raced"; d="$RACE_DIGEST"; }
+for t in "${ts[@]}"; do printf '%s' "$d" >"$s/tags/${t##*:}"; done
 STUB
 
 # Fake git (fixtures/promote-moving-tags-stub-git.sh): merge-base
