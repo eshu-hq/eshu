@@ -397,7 +397,7 @@ func (s SupplyChainImpactWinnersStore) verifyWinnersAuditRangeCandidates(
 	for _, stmt := range []string{
 		analyzeWinnersKeyedIdentsSQL,
 		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsFromSupportsSQL, addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
+		buildWinnersKeyedActiveFactsNarrowFromSupportsSQL, addWinnersKeyedOperatorFactsNarrowFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditRangeStalePendingSQL,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {

@@ -206,7 +206,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedNarrowSQL); err != nil {
 			return fmt.Errorf("analyze supply chain impact winners keyed narrow probe: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, buildWinnersKeyedActiveFactsFromSupportsSQL); err != nil {
+		if _, err := tx.ExecContext(ctx, buildWinnersKeyedActiveFactsNarrowFromSupportsSQL); err != nil {
 			return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
 		}
 		if kept, err = countWinnersKeyedKeptFacts(ctx, tx); err != nil {
@@ -218,7 +218,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		if scanned, err = countWinnersKeyedScannedCopies(ctx, tx); err != nil {
 			return err
 		}
-		for _, stmt := range []string{addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL} {
+		for _, stmt := range []string{addWinnersKeyedOperatorFactsNarrowFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
 			}

@@ -189,9 +189,16 @@ func TestWinnersDetoastReversesToLegacy(t *testing.T) {
 		}
 	}
 	bodyStmts := map[string]string{
-		"winner body":  supplyChainImpactWinnerBodySQL,
-		"full select":  supplyChainImpactWinnerSelectSQL,
-		"keyed select": winnersKeyedSelectSQL,
+		"winner body": supplyChainImpactWinnerBodySQL,
+		"full select": supplyChainImpactWinnerSelectSQL,
+	}
+	// The keyed select streams the derived body over the narrow temp: its
+	// equivalence to the shipped body is the stream derivation's own
+	// round trip (TestWinnersKeyedStreamBodyReversesToShipped), chained
+	// here so this test still covers the keyed select end to end.
+	if got := reverseWinnersDetoast(reverseWinnersSupportsInput(
+		reverseWinnersKeyedStreamBody(winnersKeyedStreamBodySQL))); got != reverseWinnersDetoast(reverseWinnersSupportsInput(supplyChainImpactWinnerBodySQL)) {
+		t.Error("keyed select: stream reversal chained with the detoast reversal diverges from the shipped body chain")
 	}
 	for name, stmt := range bodyStmts {
 		restored := reverseWinnersDetoast(reverseWinnersSupportsInput(stmt))

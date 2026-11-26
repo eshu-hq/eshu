@@ -129,7 +129,139 @@ var (
 	// suppression support to the keyed active_facts.
 	addWinnersKeyedOperatorFactsFromSupportsSQL = applyWinnersSupportsInputSwaps(
 		"keyed operator facts", addWinnersKeyedOperatorFactsSQL, winnersKeyedOperatorSwaps)
+	// buildWinnersKeyedActiveFactsNarrowFromSupportsSQL is the stage-1 narrow
+	// temp build the keyed tick runs (#9805 C5 / #9975 C4): the copy identity
+	// plus the once-extracted detoast fields, without the payload. Narrowing
+	// the supports twin, never the legacy text, keeps the legacy statement
+	// the untouched derivation source the swaps and the hermetic pins read.
+	buildWinnersKeyedActiveFactsNarrowFromSupportsSQL = narrowWinnersKeyedTempBuild(
+		"keyed active facts", buildWinnersKeyedActiveFactsFromSupportsSQL, "")
+	// addWinnersKeyedOperatorFactsNarrowFromSupportsSQL is the narrow twin of
+	// the operator insert: same rows, same filters, identity plus extracted
+	// fields, no payload. The lateral splices before the outer WHERE (the
+	// build above appends it at the end, where its FROM/JOINs already end).
+	addWinnersKeyedOperatorFactsNarrowFromSupportsSQL = narrowWinnersKeyedTempBuild(
+		"keyed operator facts", addWinnersKeyedOperatorFactsFromSupportsSQL,
+		"\nWHERE fact.scope_id = '"+supplyChainImpactOperatorScopeID+"'")
+	// winnersKeyedStreamBodySQL is the CTE-streaming keyed winner body: the
+	// shipped body with extraction moved to the stage-1 temp and the payload
+	// fetched by fact_id in the final select, only for the emitted winner
+	// and override rows. It is derived from the shipped body, never copied,
+	// and reverseWinnersKeyedStreamBody (in the stream test) inverts the
+	// derivation byte-for-byte, so the two differ only by the declared
+	// transform.
+	winnersKeyedStreamBodySQL = streamWinnersKeyedBody(supplyChainImpactWinnerBodySQL)
 )
+
+// winnersKeyedSelectSQL is the shipped winner select over the keyed
+// active_facts temp table: the narrow stage-1 rows streamed through the
+// keyed body, which fetches the payload by fact_id for the emitted rows.
+// The full path keeps the shared body over its wide active_facts; the audit
+// recomputes through this same select, so the tick and its verifier cannot
+// split.
+var winnersKeyedSelectSQL = `WITH active_facts AS (SELECT * FROM ` + winnersKeyedActiveFactsTable + `)` +
+	winnersKeyedStreamBodySQL
+
+// winnersKeyedNarrowTempSelectList renders the stage-1 temp select list: the
+// copy identity plus source_confidence plus one record ref per detoasted
+// field, in winnersDetoastFields order. The temp column names are the field
+// names, so the streamed body reads fact.<field> where the shipped body read
+// the lateral record.
+func winnersKeyedNarrowTempSelectList() string {
+	cols := []string{"fact.fact_id", "fact.scope_id", "fact.generation_id", "fact.source_confidence"}
+	for _, f := range winnersDetoastFields {
+		cols = append(cols, "d."+f)
+	}
+	return "SELECT " + strings.Join(cols, ",\n    ")
+}
+
+// narrowWinnersKeyedTempBuild derives a stage-1 narrow temp build from a
+// wide supports build: the select list becomes the copy identity plus the
+// once-extracted record refs, and the guarded lateral moves into the FROM
+// clause so extraction runs once per kept row. spliceBefore splices the
+// lateral before the named outer clause; empty appends it at the end, where
+// the active-facts build's FROM/JOINs already end. Every anchor must match
+// exactly once, so a change to the wide statement fails loudly instead of
+// running half-narrowed.
+func narrowWinnersKeyedTempBuild(name, wideSupports, spliceBefore string) string {
+	const oldSelect = "SELECT fact.*"
+	if n := strings.Count(wideSupports, oldSelect); n != 1 {
+		panic("winners narrow temp " + name + ": select list occurs " + fmt.Sprintf("%d", n) + " times, want 1")
+	}
+	out := strings.Replace(wideSupports, oldSelect, winnersKeyedNarrowTempSelectList(), 1)
+	if spliceBefore == "" {
+		return out + winnersDetoastFactLateral
+	}
+	if n := strings.Count(out, spliceBefore); n != 1 {
+		panic("winners narrow temp " + name + ": splice anchor occurs " + fmt.Sprintf("%d", n) + " times, want 1")
+	}
+	return strings.Replace(out, spliceBefore, winnersDetoastFactLateral+spliceBefore, 1)
+}
+
+// streamWinnersKeyedBody derives the CTE-streaming keyed body from the
+// shipped winner body:
+//   - the two guarded laterals drop out (stage 1 already extracted);
+//   - every d.<field> becomes fact.<field> (the narrow temp columns);
+//   - the two fact.payload passthroughs drop out (the temp has no payload);
+//   - every source.payload becomes source_payload.payload and every
+//     override.payload becomes override_payload.payload, fetched by fact_id
+//     in the final select, only for the emitted rows.
+//
+// The deliberate detoast exceptions ride along unchanged, still on a payload
+// expression: cvss.BucketSQL keeps reading a payload (now the fetched row's,
+// the same row), and the three `->` array projections keep `->`, preserving
+// the jsonb-null semantics the live differential pins. live_gens, the
+// scanned-copies probe, the chunk bound, the statement guard, and the index
+// set are untouched: this moves when payload bytes are read, never which
+// rows flow. Every anchor must match its exact count, so a change to the
+// shipped body fails loudly instead of running half-streamed.
+func streamWinnersKeyedBody(body string) string {
+	if n := strings.Count(body, winnersDetoastFactLateral); n != 2 {
+		panic("winners stream body: lateral occurs " + fmt.Sprintf("%d", n) + " times, want 2")
+	}
+	out := strings.ReplaceAll(body, winnersDetoastFactLateral, "")
+	for _, f := range winnersDetoastFields {
+		if n := strings.Count(out, "d."+f); n < 1 {
+			panic("winners stream body: record ref d." + f + " is absent")
+		}
+		out = strings.ReplaceAll(out, "d."+f, "fact."+f)
+	}
+	if strings.Contains(out, "d.") {
+		panic("winners stream body: a d. ref survived the record-to-temp rewrite")
+	}
+	const payloadPassthrough = "        fact.payload,\n"
+	if n := strings.Count(out, payloadPassthrough); n != 2 {
+		panic("winners stream body: payload passthrough occurs " + fmt.Sprintf("%d", n) + " times, want 2")
+	}
+	out = strings.ReplaceAll(out, payloadPassthrough, "")
+	// Rendered refs: cvss.BucketSQL fans the alias out to 5 (four score
+	// thresholds plus the label arm), the three array projections add 3,
+	// and the final payload merge adds 2.
+	const sourcePayloadRefs = 10
+	if n := strings.Count(out, "source.payload"); n != sourcePayloadRefs {
+		panic("winners stream body: source.payload occurs " + fmt.Sprintf("%d", n) + " times, want " + fmt.Sprintf("%d", sourcePayloadRefs))
+	}
+	out = strings.ReplaceAll(out, "source.payload", "source_payload.payload")
+	// Rendered refs: three expiry arms plus the two suppression-fragment
+	// reads on the final payload line.
+	const overridePayloadRefs = 5
+	if n := strings.Count(out, "override.payload"); n != overridePayloadRefs {
+		panic("winners stream body: override.payload occurs " + fmt.Sprintf("%d", n) + " times, want " + fmt.Sprintf("%d", overridePayloadRefs))
+	}
+	out = strings.ReplaceAll(out, "override.payload", "override_payload.payload")
+	const streamFromAnchor = `FROM source_winners AS source
+LEFT JOIN operator_overrides AS override
+  ON override.canonical_key = source.canonical_key`
+	if n := strings.Count(out, streamFromAnchor); n != 1 {
+		panic("winners stream body: final FROM occurs " + fmt.Sprintf("%d", n) + " times, want 1")
+	}
+	return strings.Replace(out, streamFromAnchor,
+		`FROM source_winners AS source
+JOIN `+winnersSupportsTable+` AS source_payload ON source_payload.fact_id = source.fact_id
+LEFT JOIN operator_overrides AS override
+  ON override.canonical_key = source.canonical_key
+LEFT JOIN `+winnersSupportsTable+` AS override_payload ON override_payload.fact_id = override.fact_id`, 1)
+}
 
 // Single-detoast extraction (#11120 criterion 2). Every `payload->>'field'`
 // detoasts the whole JSONB value again, so the winner body's ~25 text reads

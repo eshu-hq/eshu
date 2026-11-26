@@ -96,7 +96,28 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// equivalent on PG18 over edge-case payloads; see
 	// docs/internal/evidence/11120-single-detoast.md. No full resweep is
 	// triggered by this re-pin.
-	2: "26f08bc84b8b3c39b63d069f3d98e01a2e3bb149a2bfe59a899d74aa69ad4d8b",
+	//
+	// Re-pinned under the same version for #9805 C5 / #9975 C4 CTE-streaming
+	// keyed body build: the stage-1 temp holds the copy identity plus the
+	// once-extracted detoast fields without the payload, and the keyed body
+	// streams through CTEs, fetching the full payload by fact_id only for
+	// the emitted winner and override rows. Winner output is byte-identical
+	// for the same facts: the hermetic reversal
+	// (TestWinnersKeyedStreamBodyReversesToShipped) proves the streamed body
+	// differs from the shipped body only by the declared transform, and the
+	// live differential
+	// (TestSupplyChainImpactWinnersKeyedStreamBodyMatchesLegacySelectLive,
+	// EXCEPT ALL both directions over winner choice, source_count, evidence
+	// ids, jsonb-null array semantics, every cvss bucket, operator facts, and
+	// the assoc/class joins, plus
+	// TestSupplyChainImpactWinnersKeyedStreamScalarRowParityLive for the
+	// non-object payload row) proves the stored winners match. The
+	// buffer-budget live test
+	// (TestSupplyChainImpactWinnersKeyedStreamStaysWithinBufferBudgetLive)
+	// pins the narrow temp at half the wide temp's bytes and the late fetch
+	// at a fact_id point lookup. No full resweep is triggered by this
+	// re-pin.
+	2: "405877edbe7ecbe38f11a6a2247e516e6929d05ebdde89cf5f48186e538a1610",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
@@ -115,8 +136,8 @@ func supplyChainImpactWinnersContractStatements() []string {
 		restrictWinnersKeyedIdentsToChunkSQL,
 		buildWinnersKeyedNarrowFromSupportsSQL,
 		analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsFromSupportsSQL,
-		addWinnersKeyedOperatorFactsFromSupportsSQL,
+		buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
+		addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
 		applyWinnersKeyedSQL,
 		convertWinnersKeyedScopeRemainderSQL,
 	)
