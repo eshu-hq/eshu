@@ -15,41 +15,53 @@ func TestSupplyChainImpactRuntimeFiltersResolveCurrentRepositoryContext(t *testi
 		name           string
 		query          string
 		repositoryExpr string
+		// environmentKinds holds the fact kinds the query's environment
+		// dimension scans. The explain reads bind no environment, so the
+		// literal-empty environment dimension is an empty stub
+		// (eshu-hq/eshu#11493) instead of a fact_records scan.
+		environmentKinds []string
 	}{
 		{
-			name:           "legacy_list",
-			query:          ListFindingsQuery,
-			repositoryExpr: "fact.payload->>'repository_id'",
+			name:             "legacy_list",
+			query:            ListFindingsQuery,
+			repositoryExpr:   "fact.payload->>'repository_id'",
+			environmentKinds: []string{"reducer_ci_cd_run_correlation"},
 		},
 		{
-			name:           "winners_list",
-			query:          ListFindingsFromWinnersQuery,
-			repositoryExpr: "w.repository_id",
+			name:             "winners_list",
+			query:            ListFindingsFromWinnersQuery,
+			repositoryExpr:   "w.repository_id",
+			environmentKinds: []string{"reducer_ci_cd_run_correlation"},
 		},
 		{
-			name:           "aggregate",
-			query:          AggregateCanonicalFactsCTE,
-			repositoryExpr: "fact.payload->>'repository_id'",
+			name:             "aggregate",
+			query:            AggregateCanonicalFactsCTE,
+			repositoryExpr:   "fact.payload->>'repository_id'",
+			environmentKinds: []string{"reducer_ci_cd_run_correlation"},
 		},
 		{
-			name:           "explain",
-			query:          ExplainFindingQuery,
-			repositoryExpr: "fact.payload->>'repository_id'",
+			name:             "explain",
+			query:            ExplainFindingQuery,
+			repositoryExpr:   "fact.payload->>'repository_id'",
+			environmentKinds: []string{"WHERE '' <> ''"},
 		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			for _, want := range []string{
+			want := []string{
 				"runtime_filter_repositories AS MATERIALIZED",
 				"reducer_workload_identity",
 				"reducer_service_catalog_correlation",
-				"reducer_ci_cd_run_correlation",
 				"runtime_filter.repository_id = " + tc.repositoryExpr,
-			} {
+			}
+			for _, want := range append(want, tc.environmentKinds...) {
 				if !strings.Contains(tc.query, want) {
 					t.Fatalf("query missing current runtime-filter marker %q:\n%s", want, tc.query)
 				}
+			}
+			if tc.name == "explain" && strings.Contains(tc.query, "reducer_ci_cd_run_correlation") {
+				t.Fatalf("explain query scans the pruned empty environment dimension:\n%s", tc.query)
 			}
 		})
 	}

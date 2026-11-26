@@ -103,6 +103,32 @@ func TestSupplyChainRuntimeFilterAggregateAndExplainArgsMatchQueryPlaceholders(t
 			supplyChainRuntimeFilterExplainArgs(packet.ExplanationFilter{}),
 		},
 	}
+	// Every explain entry point carries the pruned literal-empty environment
+	// dimension (eshu-hq/eshu#11493): the stub references no $N, so each
+	// variant must keep the same 19-argument contract as the legacy explain.
+	explainArgs := supplyChainRuntimeFilterExplainArgs(packet.ExplanationFilter{})
+	cases["explain public-id"] = struct {
+		query string
+		args  []any
+	}{impact.ExplainFindingByPublicIDQuery, explainArgs}
+	cases["explain supports"] = struct {
+		query string
+		args  []any
+	}{impact.ExplainFindingFromSupportsQuery, explainArgs}
+	cases["explain supports public-id"] = struct {
+		query string
+		args  []any
+	}{impact.ExplainFindingByPublicIDFromSupportsQuery, explainArgs}
+	cases["explain supports image"] = struct {
+		query string
+		args  []any
+	}{impact.ExplainFindingFromImageQuery, explainArgs}
+	for key, query := range impact.ExplainFindingUngrantedByKeyQuery {
+		cases["explain decide-first "+string(key)] = struct {
+			query string
+			args  []any
+		}{query, explainArgs}
+	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
 			if want := highestPlaceholder(t, test.query); len(test.args) != want {
