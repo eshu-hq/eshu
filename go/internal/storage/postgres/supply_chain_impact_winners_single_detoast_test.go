@@ -127,6 +127,22 @@ func TestWinnerFinalProjectionReadsCarriedColumns(t *testing.T) {
 	}
 }
 
+// TestWinnerFinalProjectionKeepsCarriedDefaults pins the carried-column
+// COALESCE defaults in the shipped final projection: stripping a default
+// would store NULL where the legacy stored ”, so every carried column must
+// render COALESCE(d.<field>, ”) AS <field>. A stripped mutant renders bare
+// d.<field> AS <field> and fails this test.
+func TestWinnerFinalProjectionKeepsCarriedDefaults(t *testing.T) {
+	t.Parallel()
+
+	for _, f := range winnersDetoastFinalFields {
+		want := "COALESCE(d." + f + ", '') AS " + f
+		if !strings.Contains(supplyChainImpactWinnerBodySQL, want) {
+			t.Errorf("final projection does not pin carried default %s", want)
+		}
+	}
+}
+
 // TestWinnersDetoastRecordCoversBodyFields proves the record definition
 // carries every text field the body reads, each exactly once, so no read can
 // fall back to a per-field detoast.

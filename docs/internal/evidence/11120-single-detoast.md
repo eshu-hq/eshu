@@ -41,7 +41,7 @@ Same heap buffers on both arms in every pair (313); the gap is CPU (detoast).
   chains the supports and detoast reversals back to the pre-supports pin
   `25e4d891…`, which passes only on a byte-exact round trip.
 - Live: `TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive` runs the shipped lateral
-  against legacy `->>` on PG18 over 20 edge payloads (missing keys, JSON
+  against legacy `->>` on PG18 over 18 edge payloads (missing keys, JSON
   nulls, empty strings, ints, 5.0, booleans, padded/unicode, a toasted wide
   row, scalar string/number/bool/array, JSON null, SQL NULL): all 19 fields
   plus the c0/priority/flag/suppression derivations match on every row, and
