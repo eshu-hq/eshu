@@ -27,7 +27,7 @@ import (
 const (
 	writeStopKind      = "reducer_supply_chain_impact_finding"
 	writeStopOtherKind = "reducer_container_image_identity"
-	writeStopMigration = "357_supply_chain_impact_finding_fact_write_stop.sql"
+	writeStopMigration = "358_supply_chain_impact_finding_fact_write_stop.sql"
 
 	writeStopInsert = `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
@@ -49,7 +49,7 @@ WHERE tgrelid = 'fact_records'::regclass AND tgname = $1 AND NOT tgisinternal`,
 	return state
 }
 
-// applyWriteStopMigration applies migration 357 through the production applier, as a
+// applyWriteStopMigration applies migration 358 through the production applier, as a
 // bootstrap would, so a multi-statement file runs the way it ships.
 func applyWriteStopMigration(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()

@@ -407,3 +407,64 @@ import (
 // the durable set-once-per-value enrichment first-carry stamp table on main's
 // tree (358 stays the #11476 write-stop lane). Count and digest are RE-DERIVEd
 // at the end of the rebase: the const below stays placeholder.
+const (
+	goldenBootstrapDefinitionsDigest = "RE-DERIVE"
+	goldenBootstrapDefinitionsCount  = 383
+)
+
+func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
+	defs := BootstrapDefinitions()
+	if len(defs) != goldenBootstrapDefinitionsCount {
+		t.Fatalf("BootstrapDefinitions() count = %d, want %d", len(defs), goldenBootstrapDefinitionsCount)
+	}
+	h := sha256.New()
+	for _, def := range defs {
+		sqlSum := sha256.Sum256([]byte(def.SQL))
+		fmt.Fprintf(h, "%s|%s|%s\n", def.Name, def.Path, hex.EncodeToString(sqlSum[:]))
+	}
+	got := hex.EncodeToString(h.Sum(nil))
+	if got != goldenBootstrapDefinitionsDigest {
+		t.Fatalf("BootstrapDefinitions() digest = %s, want %s (Name/Path/SQL/order must stay byte-identical)",
+			got, goldenBootstrapDefinitionsDigest)
+	}
+}
+
+// TestBootstrapDefinitionsHaveUniqueSequenceNumbers keeps recent migrations
+// from claiming the same ordering slot after concurrent PRs merge. Older
+// migrations intentionally reuse several slots, so the guard starts at 100.
+func TestBootstrapDefinitionsHaveUniqueSequenceNumbers(t *testing.T) {
+	seen := make(map[int]string)
+	for _, def := range BootstrapDefinitions() {
+		filename := path.Base(def.Path)
+		parts := strings.SplitN(filename, "_", 2)
+		if len(parts) != 2 {
+			t.Fatalf("migration %q has no sequence prefix", filename)
+		}
+		sequence, err := strconv.Atoi(parts[0])
+		if err != nil || sequence < 100 {
+			continue
+		}
+		if previous, exists := seen[sequence]; exists {
+			t.Fatalf("migration sequence %d is shared by %q and %q", sequence, previous, filename)
+		}
+		seen[sequence] = filename
+	}
+}
+
+// TestBootstrapDefinitionsExcludesNonSQLFiles guards the embed pattern: only
+// *.sql files may become definitions. embed.go itself, doc.go, README.md and
+// AGENTS.md must never appear.
+func TestBootstrapDefinitionsExcludesNonSQLFiles(t *testing.T) {
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "" {
+			t.Fatalf("definition with empty name for path %q", def.Path)
+		}
+	}
+	for _, name := range []string{"embed", "doc", "README", "AGENTS"} {
+		for _, def := range BootstrapDefinitions() {
+			if def.Name == name {
+				t.Fatalf("non-SQL file %q leaked into BootstrapDefinitions()", name)
+			}
+		}
+	}
+}

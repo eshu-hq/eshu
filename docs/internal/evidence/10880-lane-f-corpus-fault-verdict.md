@@ -33,7 +33,7 @@ statement (`ListFindingsQuery`) reads `FROM fact_records AS fact WHERE
 fact_kind = reducer_supply_chain_impact_finding`. The C2 writer no longer
 writes that kind — `WriteSupplyChainImpactFindingRows`
 (`go/internal/reducer/supplychain/core/writer_supports.go`) upserts supports
-only ("It no longer writes the finding fact rows"), and migration 357 refuses
+only ("It no longer writes the finding fact rows"), and migration 358 refuses
 any residual finding-fact write (`WHEN (NEW.fact_kind =
 'reducer_supply_chain_impact_finding')`). Zero finding facts means `count: 0`
 on every legacy read, deterministically, on all three jobs.

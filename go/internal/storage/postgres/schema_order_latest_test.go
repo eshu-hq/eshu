@@ -227,3 +227,4 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// enrichment first-carry stamp table backing per-source
 	// enrichment-arrival-to-rescore measurement.
 	"supply_chain_impact_winners_enrichment_first_carry",
+}

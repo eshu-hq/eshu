@@ -113,7 +113,7 @@ func TestWriterReportsChangesAgainstThePreviousGenerationLive(t *testing.T) {
 	// g2 is current, so write the g1 baseline again and then the changed g2.
 	// Retraction deletes supports, so the setup removes the g2 supports the
 	// same way (#10880 PR-C2): the writer no longer writes finding facts.
-	// (The tombstone UPDATE this replaces would fire migration 357's reject
+	// (The tombstone UPDATE this replaces would fire migration 358's reject
 	// trigger on an armed database.)
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE scope_id = 'source' AND generation_id = $1`, fanOutGen("source", "g2")); err != nil {
 		t.Fatal(err)
@@ -124,7 +124,7 @@ func TestWriterReportsChangesAgainstThePreviousGenerationLive(t *testing.T) {
 	// A revived row: delete CVE-A's support, then derive it again. Supports
 	// hold only live rows, so the revived row looks new and counts as
 	// changed, the way a tombstoned fact row did. (The tombstone UPDATE this
-	// replaces would fire migration 357's reject trigger on an armed
+	// replaces would fire migration 358's reject trigger on an armed
 	// database.)
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE scope_id = 'source' AND generation_id = $1 AND cve_id = 'CVE-A'`, fanOutGen("source", "g2")); err != nil {
 		t.Fatal(err)

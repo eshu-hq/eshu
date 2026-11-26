@@ -529,7 +529,7 @@ var migrationShippedChecksums = map[string]string{
 	"348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql": "b329d635afe998a087c2faef1295156935583d95b5002b6ca7b3328e0e2d8edf",
 	"349_fact_records_vuln_pkg_eco_stats.sql":                             "9b739659bcd23e5efb2cb390b4722ca16ced88c04878ef18e5bf9dbf54756d26",
 	// #10880 PR-C1 a: the nullable stable_fact_key the upsert fills outside its
-	// write-on-change guard.
+	// write-on-change guard (349 is #11376's eco stats on main).
 	"350_supply_chain_impact_finding_supports_stable_fact_key.sql": "ccc38b897b2e04bfed6fc0df1401d55e43a8e765da3cd1f4945a8030d83d62a1",
 	// #10880 PR-C1 c: the retracted-keys table the recovery reads take over from
 	// tombstoned fact rows.
@@ -552,3 +552,75 @@ var migrationShippedChecksums = map[string]string{
 	// table backing per-source enrichment-arrival-to-rescore measurement
 	// (numbered 359: 358 is held by the open #11476 write-stop lane).
 	"359_supply_chain_impact_winners_enrichment_first_carry.sql": "06e993aa8a94dc6ba64e8969e5cde0b2951f0386b409fb451516d612a140c431",
+}
+
+// validateMigrationManifest checks defs against manifest: every definition
+// must be pinned with a matching checksum, and every pinned entry must still
+// have a definition (a deletion is refused just like an edit).
+func validateMigrationManifest(defs []Definition, manifest map[string]string) error {
+	seen := make(map[string]bool, len(manifest))
+	for _, def := range defs {
+		name := path.Base(def.Path)
+		want, ok := manifest[name]
+		if !ok {
+			return fmt.Errorf("migration %q is not in the checksum manifest -- #7002: append its shipped checksum instead of leaving it unpinned", name)
+		}
+		seen[name] = true
+		if got := Checksum(def.SQL); got != want {
+			return fmt.Errorf("migration %q bytes changed: manifest %s, current %s -- #7002: a shipped migration must never be edited; widen it through a new guarded migration instead",
+				name, want, got)
+		}
+	}
+	for name := range manifest {
+		if !seen[name] {
+			return fmt.Errorf("migration %q is pinned in the checksum manifest but missing from BootstrapDefinitions() -- #7002: a shipped migration must never be deleted", name)
+		}
+	}
+	return nil
+}
+
+func TestMigrationChecksumManifestPinsEveryShippedMigration(t *testing.T) {
+	if err := validateMigrationManifest(BootstrapDefinitions(), migrationShippedChecksums); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMigrationChecksumManifestDetectsTamperedFile is the seeded-violation
+// RED half of the #7002 immutability guard: it plants a one-byte edit in
+// memory (no file on disk is touched) and requires the failure to name the
+// tampered file.
+func TestMigrationChecksumManifestDetectsTamperedFile(t *testing.T) {
+	defs := append([]Definition(nil), BootstrapDefinitions()...)
+	tampered := defs[0]
+	tampered.SQL += "-- #7002 seeded violation"
+	defs[0] = tampered
+
+	err := validateMigrationManifest(defs, migrationShippedChecksums)
+	if err == nil {
+		t.Fatal("validateMigrationManifest() = nil, want an error for a tampered migration")
+	}
+	if !strings.Contains(err.Error(), path.Base(tampered.Path)) {
+		t.Fatalf("error %v does not name the tampered file %q", err, tampered.Path)
+	}
+	if !strings.Contains(err.Error(), "7002") {
+		t.Fatalf("error %v does not point at #7002", err)
+	}
+}
+
+// TestMigrationChecksumManifestDetectsDeletedFile is the deletion half of the
+// guard: removing a shipped migration from the definitions list must fail
+// loud, naming the missing file, rather than silently shrinking the applied
+// set.
+func TestMigrationChecksumManifestDetectsDeletedFile(t *testing.T) {
+	defs := BootstrapDefinitions()
+	removed := defs[0]
+	without := append([]Definition(nil), defs[1:]...)
+
+	err := validateMigrationManifest(without, migrationShippedChecksums)
+	if err == nil {
+		t.Fatal("validateMigrationManifest() = nil, want an error for a deleted migration")
+	}
+	if !strings.Contains(err.Error(), path.Base(removed.Path)) {
+		t.Fatalf("error %v does not name the deleted file %q", err, removed.Path)
+	}
+}

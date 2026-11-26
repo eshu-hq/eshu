@@ -11,7 +11,7 @@ import (
 )
 
 // FindingWriteStopTrigger is the fact_records trigger that refuses every INSERT or UPDATE
-// of a reducer_supply_chain_impact_finding row (#10880 PR-C2 k, migration 357). Proof
+// of a reducer_supply_chain_impact_finding row (#10880 PR-C2 k, migration 358). Proof
 // databases carry it ARMED, as production does: a forgotten disarm fails loudly with
 // SQLSTATE 55000, a forgotten arm would pass silently, so the default is the loud one.
 //
