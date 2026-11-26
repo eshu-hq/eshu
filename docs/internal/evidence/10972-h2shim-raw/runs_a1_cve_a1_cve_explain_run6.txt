@@ -1,0 +1,51 @@
+                                                                                                           QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=188167.56..188167.60 rows=9 width=32) (actual time=1233.947..1234.027 rows=234.00 loops=1)
+   Buffers: shared hit=156809
+   CTE candidates
+     ->  HashAggregate  (cost=179196.99..180790.29 rows=159330 width=64) (actual time=1172.421..1172.887 rows=241.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 4377kB
+           Buffers: shared hit=139126
+           ->  Append  (cost=6463.74..178400.34 rows=159330 width=64) (actual time=64.469..385.888 rows=156870.00 loops=1)
+                 Buffers: shared hit=139126
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support  (cost=6463.74..168146.74 rows=151139 width=921) (actual time=64.467..374.909 rows=156870.00 loops=1)
+                       Recheck Cond: (cve_id = ANY ('{CVE-2026-26996}'::text[]))
+                       Heap Blocks: exact=134290
+                       Buffers: shared hit=139118
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_cve_idx  (cost=0.00..6425.96 rows=151236 width=0) (actual time=42.323..42.323 rows=157858.00 loops=1)
+                             Index Cond: (cve_id = ANY ('{CVE-2026-26996}'::text[]))
+                             Index Searches: 1
+                             Buffers: shared hit=4828
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..9347.27 rows=8100 width=921) (actual time=0.036..0.036 rows=0.00 loops=1)
+                       Index Cond: (advisory_id = ANY ('{CVE-2026-26996}'::text[]))
+                       Index Searches: 1
+                       Buffers: shared hit=5
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=8.27..109.69 rows=91 width=921) (actual time=0.018..0.018 rows=0.00 loops=1)
+                       Recheck Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2026-26996}'::text[])
+                       Buffers: shared hit=3
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_members_idx  (cost=0.00..8.24 rows=91 width=0) (actual time=0.009..0.009 rows=0.00 loops=1)
+                             Index Cond: ((payload #> '{provenance,advisory_group_members}'::text[]) ?| '{CVE-2026-26996}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=3
+   ->  Sort  (cost=7377.27..7377.29 rows=9 width=32) (actual time=1233.946..1233.956 rows=234.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=156809
+         ->  Hash Join  (cost=2959.90..7377.12 rows=9 width=32) (actual time=1223.112..1225.885 rows=234.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=156806
+               ->  CTE Scan on candidates  (cost=0.00..3584.92 rows=158533 width=64) (actual time=1172.424..1173.099 rows=241.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 264kB
+                     Buffers: shared hit=139126
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=50.530..50.531 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17041
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.011..8.017 rows=17409.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=607
+ Planning Time: 3.077 ms
+ Execution Time: 1237.432 ms
+(48 rows)

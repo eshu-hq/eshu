@@ -1,0 +1,767 @@
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=13349.63..13349.64 rows=1 width=32) (actual time=118.070..118.211 rows=297.00 loops=1)
+   Buffers: shared hit=23875
+   CTE candidates
+     ->  HashAggregate  (cost=10088.99..10168.71 rows=7972 width=64) (actual time=51.662..51.765 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 793kB
+           Buffers: shared hit=6090
+           ->  Append  (cost=0.69..10049.13 rows=7972 width=64) (actual time=0.078..17.832 rows=5472.00 loops=1)
+                 Buffers: shared hit=6090
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3610.60 rows=3117 width=921) (actual time=0.078..6.776 rows=2743.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= ''::text) AND (fact_id < 'reducer_supply_chain_impact_finding:1'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2899
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3616.14 rows=3117 width=921) (actual time=0.064..3.518 rows=2729.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= ''::text) AND (fact_id < 'reducer_supply_chain_impact_finding:1'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2888
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=418.46..2782.53 rows=1738 width=921) (actual time=7.176..7.176 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{0:CVE-2026-73569,1:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=303
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..418.02 rows=1738 width=0) (actual time=7.170..7.170 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{0:CVE-2026-73569,1:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=303
+   ->  Sort  (cost=3180.92..3180.93 rows=1 width=32) (actual time=118.069..118.081 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23875
+         ->  Hash Join  (cost=2959.90..3180.91 rows=1 width=32) (actual time=104.154..107.165 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23872
+               ->  CTE Scan on candidates  (cost=0.00..179.37 rows=7932 width=64) (actual time=51.666..52.036 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6090
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=52.350..52.351 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17041
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.015..8.519 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=670
+ Planning Time: 3.560 ms
+ Execution Time: 118.627 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11449.79..11449.80 rows=1 width=32) (actual time=108.348..108.487 rows=297.00 loops=1)
+   Buffers: shared hit=23703
+   CTE candidates
+     ->  HashAggregate  (cost=8242.83..8308.32 rows=6549 width=64) (actual time=48.170..48.255 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=5946
+           ->  Append  (cost=0.69..8210.08 rows=6549 width=64) (actual time=0.071..15.395 rows=5448.00 loops=1)
+                 Buffers: shared hit=5946
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3289.77 rows=2840 width=921) (actual time=0.071..7.286 rows=2730.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:1'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:2'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2825
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3295.31 rows=2840 width=921) (actual time=0.057..3.507 rows=2718.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:1'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:2'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2821
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.235..4.236 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{2:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.231..4.231 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{2:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.47..3141.48 rows=1 width=32) (actual time=108.347..108.359 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23703
+         ->  Hash Join  (cost=2959.90..3141.46 rows=1 width=32) (actual time=94.537..97.440 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23703
+               ->  CTE Scan on candidates  (cost=0.00..147.35 rows=6516 width=64) (actual time=48.173..48.519 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=5946
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=46.327..46.327 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.007..6.702 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.657 ms
+ Execution Time: 108.578 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11484.89..11484.90 rows=1 width=32) (actual time=109.641..109.774 rows=297.00 loops=1)
+   Buffers: shared hit=23833
+   CTE candidates
+     ->  HashAggregate  (cost=8276.80..8342.59 rows=6579 width=64) (actual time=50.282..50.368 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6076
+           ->  Append  (cost=0.69..8243.91 rows=6579 width=64) (actual time=0.054..16.668 rows=5493.00 loops=1)
+                 Buffers: shared hit=6076
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3306.61 rows=2855 width=921) (actual time=0.054..7.892 rows=2753.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:2'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:3'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2900
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3312.15 rows=2855 width=921) (actual time=0.054..3.920 rows=2740.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:2'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:3'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2876
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.473..4.473 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{3:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.467..4.467 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{3:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3142.30..3142.31 rows=1 width=32) (actual time=109.640..109.652 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23833
+         ->  Hash Join  (cost=2959.90..3142.29 rows=1 width=32) (actual time=95.716..98.678 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23833
+               ->  CTE Scan on candidates  (cost=0.00..148.03 rows=6546 width=64) (actual time=50.285..50.647 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6076
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=45.400..45.400 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..6.716 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.641 ms
+ Execution Time: 109.844 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=12240.55..12240.55 rows=1 width=32) (actual time=108.038..108.176 rows=297.00 loops=1)
+   Buffers: shared hit=23703
+   CTE candidates
+     ->  HashAggregate  (cost=9008.84..9080.89 rows=7205 width=64) (actual time=48.427..48.514 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=5946
+           ->  Append  (cost=0.69..8972.81 rows=7205 width=64) (actual time=0.070..15.586 rows=5425.00 loops=1)
+                 Buffers: shared hit=5946
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3668.94 rows=3168 width=921) (actual time=0.070..7.633 rows=2717.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:3'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:4'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2834
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3675.59 rows=3168 width=921) (actual time=0.049..3.486 rows=2708.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:3'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:4'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2812
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.089..4.090 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{4:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.084..4.084 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{4:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3159.66..3159.66 rows=1 width=32) (actual time=108.037..108.049 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23703
+         ->  Hash Join  (cost=2959.90..3159.65 rows=1 width=32) (actual time=94.295..97.181 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23703
+               ->  CTE Scan on candidates  (cost=0.00..162.11 rows=7169 width=64) (actual time=48.429..48.784 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=5946
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=45.833..45.833 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.005..6.577 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.652 ms
+ Execution Time: 108.248 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11454.47..11454.48 rows=1 width=32) (actual time=108.024..108.159 rows=297.00 loops=1)
+   Buffers: shared hit=23770
+   CTE candidates
+     ->  HashAggregate  (cost=8247.36..8312.89 rows=6553 width=64) (actual time=47.662..47.742 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6013
+           ->  Append  (cost=0.69..8214.59 rows=6553 width=64) (actual time=0.067..14.643 rows=5449.00 loops=1)
+                 Buffers: shared hit=6013
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3292.01 rows=2842 width=921) (actual time=0.067..6.513 rows=2730.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:4'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:5'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2883
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3297.55 rows=2842 width=921) (actual time=0.053..3.693 rows=2719.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:4'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:5'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2830
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.074..4.074 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{5:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.068..4.068 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{5:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.58..3141.59 rows=1 width=32) (actual time=108.023..108.034 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23770
+         ->  Hash Join  (cost=2959.90..3141.57 rows=1 width=32) (actual time=94.262..97.156 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23770
+               ->  CTE Scan on candidates  (cost=0.00..147.44 rows=6520 width=64) (actual time=47.664..48.001 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6013
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=46.565..46.565 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..6.873 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.650 ms
+ Execution Time: 108.228 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11794.42..11794.43 rows=1 width=32) (actual time=110.205..110.338 rows=297.00 loops=1)
+   Buffers: shared hit=23776
+   CTE candidates
+     ->  HashAggregate  (cost=8576.63..8644.99 rows=6836 width=64) (actual time=48.999..49.086 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6019
+           ->  Append  (cost=0.69..8542.45 rows=6836 width=64) (actual time=0.061..15.910 rows=5517.00 loops=1)
+                 Buffers: shared hit=6019
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3454.68 rows=2983 width=921) (actual time=0.061..7.876 rows=2765.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:5'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:6'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2874
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3461.33 rows=2984 width=921) (actual time=0.047..3.551 rows=2752.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:5'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:6'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2845
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.098..4.098 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{6:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.093..4.093 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{6:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3149.43..3149.44 rows=1 width=32) (actual time=110.204..110.215 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23776
+         ->  Hash Join  (cost=2959.90..3149.42 rows=1 width=32) (actual time=95.998..98.991 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23776
+               ->  CTE Scan on candidates  (cost=0.00..153.81 rows=6802 width=64) (actual time=49.001..49.353 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6019
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=46.964..46.965 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..7.037 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.633 ms
+ Execution Time: 110.414 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=12242.89..12242.89 rows=1 width=32) (actual time=110.913..111.047 rows=297.00 loops=1)
+   Buffers: shared hit=23642
+   CTE candidates
+     ->  HashAggregate  (cost=9011.10..9083.17 rows=7207 width=64) (actual time=49.151..49.276 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=5885
+           ->  Append  (cost=0.69..8975.07 rows=7207 width=64) (actual time=0.048..16.116 rows=5293.00 loops=1)
+                 Buffers: shared hit=5885
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3670.07 rows=3169 width=921) (actual time=0.048..7.897 rows=2653.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:6'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:7'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2797
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3676.71 rows=3169 width=921) (actual time=0.033..3.747 rows=2640.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:6'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:7'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2788
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.093..4.094 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{7:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.088..4.088 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{7:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3159.72..3159.72 rows=1 width=32) (actual time=110.912..110.923 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23642
+         ->  Hash Join  (cost=2959.90..3159.71 rows=1 width=32) (actual time=96.324..99.533 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23642
+               ->  CTE Scan on candidates  (cost=0.00..162.16 rows=7171 width=64) (actual time=49.153..49.716 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=5885
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=47.134..47.134 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..7.025 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.739 ms
+ Execution Time: 111.115 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11449.79..11449.80 rows=1 width=32) (actual time=134.842..134.984 rows=297.00 loops=1)
+   Buffers: shared hit=23884
+   CTE candidates
+     ->  HashAggregate  (cost=8242.83..8308.32 rows=6549 width=64) (actual time=71.699..71.801 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6127
+           ->  Append  (cost=0.69..8210.08 rows=6549 width=64) (actual time=0.100..20.355 rows=5540.00 loops=1)
+                 Buffers: shared hit=6127
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3289.77 rows=2840 width=921) (actual time=0.100..10.320 rows=2776.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:7'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:8'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2890
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3295.31 rows=2840 width=921) (actual time=0.094..5.449 rows=2764.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:7'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:8'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2937
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.054..4.054 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{8:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.046..4.047 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{8:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.47..3141.48 rows=1 width=32) (actual time=134.841..134.853 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23884
+         ->  Hash Join  (cost=2959.90..3141.46 rows=1 width=32) (actual time=120.303..123.491 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23884
+               ->  CTE Scan on candidates  (cost=0.00..147.35 rows=6516 width=64) (actual time=71.701..72.251 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6127
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=48.564..48.565 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..7.305 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.940 ms
+ Execution Time: 135.060 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11454.47..11454.48 rows=1 width=32) (actual time=111.389..111.534 rows=297.00 loops=1)
+   Buffers: shared hit=23759
+   CTE candidates
+     ->  HashAggregate  (cost=8247.36..8312.89 rows=6553 width=64) (actual time=50.816..50.921 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6002
+           ->  Append  (cost=0.69..8214.59 rows=6553 width=64) (actual time=0.064..17.692 rows=5437.00 loops=1)
+                 Buffers: shared hit=6002
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3292.01 rows=2842 width=921) (actual time=0.064..9.500 rows=2727.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:8'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:9'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2866
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3297.55 rows=2842 width=921) (actual time=0.042..3.789 rows=2710.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:8'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:9'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2836
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.021..4.021 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{9:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.015..4.015 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{9:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.58..3141.59 rows=1 width=32) (actual time=111.389..111.401 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23759
+         ->  Hash Join  (cost=2959.90..3141.57 rows=1 width=32) (actual time=97.343..100.544 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23759
+               ->  CTE Scan on candidates  (cost=0.00..147.44 rows=6520 width=64) (actual time=50.819..51.273 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6002
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=46.490..46.491 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..7.054 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.742 ms
+ Execution Time: 111.605 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11765.18..11765.19 rows=1 width=32) (actual time=111.033..111.169 rows=297.00 loops=1)
+   Buffers: shared hit=23762
+   CTE candidates
+     ->  HashAggregate  (cost=8548.34..8616.45 rows=6811 width=64) (actual time=49.509..49.597 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6005
+           ->  Append  (cost=0.69..8514.28 rows=6811 width=64) (actual time=0.073..16.678 rows=5395.00 loops=1)
+                 Buffers: shared hit=6005
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3441.21 rows=2971 width=921) (actual time=0.072..7.710 rows=2704.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:9'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:a'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2863
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3446.76 rows=2971 width=921) (actual time=0.041..3.900 rows=2691.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:9'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:a'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2842
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.696..4.696 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{10:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.690..4.690 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{10:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3148.74..3148.74 rows=1 width=32) (actual time=111.032..111.043 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23762
+         ->  Hash Join  (cost=2959.90..3148.73 rows=1 width=32) (actual time=96.756..99.900 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23762
+               ->  CTE Scan on candidates  (cost=0.00..153.25 rows=6777 width=64) (actual time=49.512..50.036 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6005
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=47.207..47.208 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.007..7.145 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.650 ms
+ Execution Time: 111.237 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=13034.65..13034.66 rows=1 width=32) (actual time=111.302..111.441 rows=297.00 loops=1)
+   Buffers: shared hit=23932
+   CTE candidates
+     ->  HashAggregate  (cost=9778.19..9856.80 rows=7861 width=64) (actual time=50.680..50.802 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 793kB
+           Buffers: shared hit=6175
+           ->  Append  (cost=0.69..9738.89 rows=7861 width=64) (actual time=0.065..16.622 rows=5543.00 loops=1)
+                 Buffers: shared hit=6175
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..4050.34 rows=3496 width=921) (actual time=0.065..7.865 rows=2781.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:a'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:b'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2971
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..4056.99 rows=3496 width=921) (actual time=0.046..3.839 rows=2762.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:a'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:b'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2904
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.541..4.541 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{11:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.534..4.534 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{11:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3177.85..3177.85 rows=1 width=32) (actual time=111.301..111.313 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23932
+         ->  Hash Join  (cost=2959.90..3177.84 rows=1 width=32) (actual time=97.404..100.418 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23932
+               ->  CTE Scan on candidates  (cost=0.00..176.87 rows=7822 width=64) (actual time=50.683..51.079 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6175
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=46.698..46.699 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.005..6.839 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.714 ms
+ Execution Time: 111.518 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11445.11..11445.11 rows=1 width=32) (actual time=118.357..118.494 rows=297.00 loops=1)
+   Buffers: shared hit=23939
+   CTE candidates
+     ->  HashAggregate  (cost=8238.30..8303.75 rows=6545 width=64) (actual time=51.672..51.781 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6182
+           ->  Append  (cost=0.69..8205.57 rows=6545 width=64) (actual time=0.069..17.169 rows=5575.00 loops=1)
+                 Buffers: shared hit=6182
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3287.52 rows=2838 width=921) (actual time=0.069..7.832 rows=2795.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:b'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:c'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2941
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3293.07 rows=2838 width=921) (actual time=0.053..3.963 rows=2780.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:b'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:c'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2941
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.988..4.988 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{12:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.981..4.981 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{12:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.36..3141.37 rows=1 width=32) (actual time=118.356..118.368 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23939
+         ->  Hash Join  (cost=2959.90..3141.35 rows=1 width=32) (actual time=102.728..105.834 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23939
+               ->  CTE Scan on candidates  (cost=0.00..147.26 rows=6512 width=64) (actual time=51.676..52.060 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6182
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=51.008..51.008 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.007..7.566 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.683 ms
+ Execution Time: 118.579 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11442.86..11442.87 rows=1 width=32) (actual time=126.759..126.902 rows=297.00 loops=1)
+   Buffers: shared hit=23795
+   CTE candidates
+     ->  HashAggregate  (cost=8236.05..8301.50 rows=6545 width=64) (actual time=52.116..52.268 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6038
+           ->  Append  (cost=0.69..8203.33 rows=6545 width=64) (actual time=0.068..17.712 rows=5378.00 loops=1)
+                 Buffers: shared hit=6038
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3286.40 rows=2838 width=921) (actual time=0.067..8.060 rows=2694.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:c'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:d'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2869
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3291.94 rows=2838 width=921) (actual time=0.053..4.293 rows=2684.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:c'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:d'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2869
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.968..4.969 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{13:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.961..4.961 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{13:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.36..3141.37 rows=1 width=32) (actual time=126.758..126.770 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23795
+         ->  Hash Join  (cost=2959.90..3141.35 rows=1 width=32) (actual time=106.965..111.461 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23795
+               ->  CTE Scan on candidates  (cost=0.00..147.26 rows=6512 width=64) (actual time=52.118..52.677 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6038
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=54.801..54.801 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.007..7.781 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.750 ms
+ Execution Time: 127.014 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11461.49..11461.50 rows=1 width=32) (actual time=112.713..112.847 rows=297.00 loops=1)
+   Buffers: shared hit=23679
+   CTE candidates
+     ->  HashAggregate  (cost=8254.15..8319.74 rows=6559 width=64) (actual time=49.759..49.866 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=5922
+           ->  Append  (cost=0.69..8221.36 rows=6559 width=64) (actual time=0.062..17.121 rows=5396.00 loops=1)
+                 Buffers: shared hit=5922
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3295.38 rows=2845 width=921) (actual time=0.062..8.607 rows=2706.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:d'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:e'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2816
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3300.92 rows=2845 width=921) (actual time=0.063..3.414 rows=2690.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:d'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:e'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2806
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.728..4.728 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{14:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.722..4.722 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{14:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.75..3141.75 rows=1 width=32) (actual time=112.712..112.724 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23679
+         ->  Hash Join  (cost=2959.90..3141.74 rows=1 width=32) (actual time=97.476..100.781 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23679
+               ->  CTE Scan on candidates  (cost=0.00..147.58 rows=6526 width=64) (actual time=49.761..50.232 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=5922
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=47.678..47.678 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.007..7.336 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.690 ms
+ Execution Time: 112.914 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11480.21..11480.22 rows=1 width=32) (actual time=116.127..116.295 rows=297.00 loops=1)
+   Buffers: shared hit=23898
+   CTE candidates
+     ->  HashAggregate  (cost=8272.27..8338.02 rows=6575 width=64) (actual time=51.570..51.654 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6141
+           ->  Append  (cost=0.69..8239.40 rows=6575 width=64) (actual time=0.052..16.060 rows=5586.00 loops=1)
+                 Buffers: shared hit=6141
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3304.36 rows=2853 width=921) (actual time=0.052..6.995 rows=2800.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:e'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:f'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2940
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3309.90 rows=2853 width=921) (actual time=0.038..3.855 rows=2786.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:e'::text) AND (fact_id < 'reducer_supply_chain_impact_finding:f'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2901
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=4.823..4.824 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{15:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=4.819..4.819 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{15:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3142.19..3142.20 rows=1 width=32) (actual time=116.126..116.140 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23898
+         ->  Hash Join  (cost=2959.90..3142.18 rows=1 width=32) (actual time=101.173..104.292 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23898
+               ->  CTE Scan on candidates  (cost=0.00..147.94 rows=6542 width=64) (actual time=51.572..52.008 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6141
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=49.568..49.569 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..7.608 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.689 ms
+ Execution Time: 116.363 ms
+(44 rows)
+
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Unique  (cost=11435.58..11435.59 rows=1 width=32) (actual time=119.176..119.308 rows=297.00 loops=1)
+   Buffers: shared hit=23907
+   CTE candidates
+     ->  HashAggregate  (cost=8228.62..8294.11 rows=6549 width=64) (actual time=55.223..55.311 rows=307.00 loops=1)
+           Group Key: support.scope_id, support.generation_id
+           Batches: 1  Memory Usage: 665kB
+           Buffers: shared hit=6150
+           ->  Append  (cost=0.69..8195.87 rows=6549 width=64) (actual time=0.050..19.665 rows=5506.00 loops=1)
+                 Buffers: shared hit=6150
+                 ->  Index Scan using supply_chain_impact_finding_supports_cve_idx on supply_chain_impact_finding_supports support  (cost=0.69..3282.66 rows=2840 width=921) (actual time=0.050..9.505 rows=2764.00 loops=1)
+                       Index Cond: ((cve_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:f'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2919
+                 ->  Index Scan using supply_chain_impact_finding_supports_advisory_idx on supply_chain_impact_finding_supports support_1  (cost=0.69..3288.21 rows=2840 width=921) (actual time=0.049..4.449 rows=2742.00 loops=1)
+                       Index Cond: ((advisory_id = ANY ('{CVE-2026-73569}'::text[])) AND (fact_id >= 'reducer_supply_chain_impact_finding:f'::text))
+                       Index Searches: 1
+                       Buffers: shared hit=2931
+                 ->  Bitmap Heap Scan on supply_chain_impact_finding_supports support_2  (cost=409.64..1592.26 rows=869 width=921) (actual time=5.289..5.289 rows=0.00 loops=1)
+                       Recheck Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{16:CVE-2026-73569}'::text[])
+                       Buffers: shared hit=300
+                       ->  Bitmap Index Scan on supply_chain_impact_finding_supports_tokens_idx  (cost=0.00..409.42 rows=869 width=0) (actual time=5.283..5.283 rows=0.00 loops=1)
+                             Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{16:CVE-2026-73569}'::text[])
+                             Index Searches: 1
+                             Buffers: shared hit=300
+   ->  Sort  (cost=3141.47..3141.48 rows=1 width=32) (actual time=119.175..119.187 rows=297.00 loops=1)
+         Sort Key: candidates.scope_id
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=23907
+         ->  Hash Join  (cost=2959.90..3141.46 rows=1 width=32) (actual time=104.082..107.373 rows=297.00 loops=1)
+               Hash Cond: ((candidates.scope_id = scope.scope_id) AND (candidates.generation_id = scope.active_generation_id))
+               Buffers: shared hit=23907
+               ->  CTE Scan on candidates  (cost=0.00..147.35 rows=6516 width=64) (actual time=55.226..55.757 rows=307.00 loops=1)
+                     Filter: (scope_id <> 'h2-shim-own-scope'::text)
+                     Storage: Memory  Maximum Storage: 321kB
+                     Buffers: shared hit=6150
+               ->  Hash  (cost=2699.56..2699.56 rows=17356 width=313) (actual time=48.821..48.821 rows=16745.00 loops=1)
+                     Buckets: 32768  Batches: 1  Memory Usage: 5888kB
+                     Buffers: shared hit=17016
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..2699.56 rows=17356 width=313) (actual time=0.006..7.537 rows=17412.00 loops=1)
+                           Buffers: shared hit=2526
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.645 ms
+ Execution Time: 119.372 ms
+(44 rows)
