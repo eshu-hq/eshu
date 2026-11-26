@@ -63,10 +63,10 @@ func ExplainWinnersKeyedForTest(ctx context.Context, database *sql.DB, materiali
 		}
 		return strings.Join(lines, "\n"), rows.Err()
 	}
-	if activeFactsPlan, err = explain(buildWinnersKeyedActiveFactsSQL); err != nil {
+	if activeFactsPlan, err = explain(buildWinnersKeyedActiveFactsNarrowFromSupportsSQL); err != nil {
 		return "", "", fmt.Errorf("explain keyed active_facts build: %w", err)
 	}
-	for _, stmt := range []string{addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
+	for _, stmt := range []string{addWinnersKeyedOperatorFactsNarrowFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return "", "", fmt.Errorf("finish keyed active_facts for explain: %w", err)
 		}

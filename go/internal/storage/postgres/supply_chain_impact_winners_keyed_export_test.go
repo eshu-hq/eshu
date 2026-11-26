@@ -67,6 +67,24 @@ var WinnersDetoastFieldsForTest = winnersDetoastFields
 // supports twin of the active-facts fetch.
 var WinnersKeyedActiveFactsBuildFromSupportsSQLForTest = buildWinnersKeyedActiveFactsFromSupportsSQL
 
+// WinnersKeyedActiveFactsNarrowBuildFromSupportsSQLForTest exposes the
+// stage-1 narrow temp build the keyed tick runs: copy identity plus the
+// once-extracted detoast fields, without the payload.
+var WinnersKeyedActiveFactsNarrowBuildFromSupportsSQLForTest = buildWinnersKeyedActiveFactsNarrowFromSupportsSQL
+
+// WinnersKeyedOperatorFactsNarrowBuildFromSupportsSQLForTest exposes the
+// narrow operator insert the keyed tick runs.
+var WinnersKeyedOperatorFactsNarrowBuildFromSupportsSQLForTest = addWinnersKeyedOperatorFactsNarrowFromSupportsSQL
+
+// WinnersKeyedOperatorFactsSQLForTest exposes the legacy wide operator
+// insert, so the streaming differential can build the legacy arm with the
+// shipped statement.
+const WinnersKeyedOperatorFactsSQLForTest = addWinnersKeyedOperatorFactsSQL
+
+// WinnersKeyedStreamBodySQLForTest exposes the CTE-streaming keyed winner
+// body, so the streaming differential composes it over a narrow temp table.
+var WinnersKeyedStreamBodySQLForTest = winnersKeyedStreamBodySQL
+
 // ActivationPointerMoveSQLForTest exposes the projector Ack statement that
 // moves a scope's active pointer and appends the old and new generation to the
 // winners dirty log, so a live proof runs the production capture site.

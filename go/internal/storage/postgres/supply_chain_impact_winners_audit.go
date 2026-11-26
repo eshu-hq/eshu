@@ -239,7 +239,7 @@ func (s SupplyChainImpactWinnersStore) AuditWinners(
 	for _, stmt := range []string{
 		seedWinnersAuditIdentsSQL, analyzeWinnersKeyedIdentsSQL,
 		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsFromSupportsSQL, addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
+		buildWinnersKeyedActiveFactsNarrowFromSupportsSQL, addWinnersKeyedOperatorFactsNarrowFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditPendingSQL,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {

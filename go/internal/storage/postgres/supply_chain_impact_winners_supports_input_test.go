@@ -40,8 +40,8 @@ func TestWinnersMaintainerStatementsReadNoFactRecords(t *testing.T) {
 	for name, stmt := range map[string]string{
 		"rebuild":        rebuildSupplyChainImpactWinnersSQL,
 		"scope idents":   buildWinnersKeyedScopeIdentsFromSupportsSQL,
-		"keyed active":   buildWinnersKeyedActiveFactsFromSupportsSQL,
-		"keyed operator": addWinnersKeyedOperatorFactsFromSupportsSQL,
+		"keyed active":   buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
+		"keyed operator": addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
 		"keyed narrow":   buildWinnersKeyedNarrowFromSupportsSQL,
 	} {
 		if !strings.Contains(stmt, "supply_chain_impact_finding_supports AS ") {
@@ -63,8 +63,8 @@ func TestWinnersAuditReadsSupports(t *testing.T) {
 		"audit pending":              createWinnersAuditPendingSQL,
 		"audit range pending":        createWinnersAuditRangePendingSQL,
 		"audit range stale pending":  createWinnersAuditRangeStalePendingSQL,
-		"keyed active":               buildWinnersKeyedActiveFactsFromSupportsSQL,
-		"keyed operator":             addWinnersKeyedOperatorFactsFromSupportsSQL,
+		"keyed active":               buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
+		"keyed operator":             addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
 		"scope expansion":            winnersScopeExpansionSelectFromSupports(winnersStagingTable),
 		"audit first range":          selectWinnersAuditFirstRangeFromSupportsSQL,
 		"audit next range":           selectWinnersAuditNextRangeFromSupportsSQL,
@@ -166,14 +166,17 @@ func TestWinnersSupportsInputReadsOnlyColumnsTheSupportsTableHas(t *testing.T) {
 // restores the legacy `->>` reads, so the doubly reversed statements hash to
 // the same pre-supports pin. The field pairs the reversal inverts are covered
 // live per field (TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive), which is the
-// byte-identity proof the re-pin rests on.
+// byte-identity proof the re-pin rests on. The CTE-streaming body (#9805 C5 /
+// #9975 C4) chains a third, innermost reversal first:
+// reverseWinnersKeyedStreamLayer restores the wide supports builds and the
+// shipped body, so the triply reversed statements hash to the same pin.
 func TestWinnersContractRepinnedForSupportsInputs(t *testing.T) {
 	t.Parallel()
 
 	shipped := supplyChainImpactWinnersContractStatements()
 	reversed := make([]string, len(shipped))
 	for i, stmt := range shipped {
-		reversed[i] = reverseWinnersDetoast(reverseWinnersSupportsInput(stmt))
+		reversed[i] = reverseWinnersDetoast(reverseWinnersSupportsInput(reverseWinnersKeyedStreamLayer(stmt)))
 	}
 	if got := supplyChainImpactWinnersContractHashOf(reversed); got != winnersLegacyContractPin {
 		t.Fatalf("the contract statements with the supports swaps reversed hash to %s, want the previous version-2 pin %s", got, winnersLegacyContractPin)

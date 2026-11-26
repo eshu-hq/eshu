@@ -175,7 +175,7 @@ func (s SupplyChainImpactWinnersStore) VerifyStagedCandidates(
 	}
 	for _, stmt := range []string{
 		buildWinnersKeyedNarrowSQL, analyzeWinnersKeyedNarrowSQL,
-		buildWinnersKeyedActiveFactsFromSupportsSQL, addWinnersKeyedOperatorFactsFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
+		buildWinnersKeyedActiveFactsNarrowFromSupportsSQL, addWinnersKeyedOperatorFactsNarrowFromSupportsSQL, analyzeWinnersKeyedActiveFactsSQL,
 		createWinnersAuditStaleSQL, createWinnersAuditPendingSQL,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {

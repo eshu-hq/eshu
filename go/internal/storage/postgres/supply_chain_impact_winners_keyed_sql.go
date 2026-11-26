@@ -448,10 +448,8 @@ const countWinnersKeyedScannedCopiesSQL = `
 SELECT count(*) FROM ` + winnersKeyedNarrowTable + `
 `
 
-// winnersKeyedSelectSQL is the shipped winner select body over the keyed
-// active_facts temp table. The body is byte-identical to the full path's.
-var winnersKeyedSelectSQL = `WITH active_facts AS (SELECT * FROM ` + winnersKeyedActiveFactsTable + `)` +
-	supplyChainImpactWinnerBodySQL
+// winnersKeyedSelectSQL lives in supply_chain_impact_winners_supports_input.go:
+// the narrow stage-1 rows streamed through the derived keyed body.
 
 // winnersKeyedStoredEstimateSQL estimates the stored winner count from the
 // planner statistics (reltuples is -1 until the table is first analyzed) and

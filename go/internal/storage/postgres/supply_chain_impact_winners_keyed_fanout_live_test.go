@@ -258,7 +258,7 @@ SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id FROM 
 		}
 	}
 	var planJSON []byte
-	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsBuildFromSupportsSQLForTest).Scan(&planJSON); err != nil {
+	if err := tx.QueryRowContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) `+postgres.WinnersKeyedActiveFactsNarrowBuildFromSupportsSQLForTest).Scan(&planJSON); err != nil {
 		_ = tx.Rollback()
 		t.Fatalf("explain probe: %v", err)
 	}

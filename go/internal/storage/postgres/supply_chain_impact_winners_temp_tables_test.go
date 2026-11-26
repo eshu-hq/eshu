@@ -78,6 +78,7 @@ func TestWinnersTempTableDDLNamesMatchTheTableConstants(t *testing.T) {
 		{buildWinnersKeyedIdentsSQL, winnersKeyedIdentsTable},
 		{buildWinnersKeyedNarrowSQL, winnersKeyedNarrowTable},
 		{buildWinnersKeyedActiveFactsSQL, winnersKeyedActiveFactsTable},
+		{buildWinnersKeyedActiveFactsNarrowFromSupportsSQL, winnersKeyedActiveFactsTable},
 		{createWinnersAuditCandidatesSQL, winnersAuditCandidatesTable},
 		{seedWinnersAuditIdentsSQL, winnersKeyedIdentsTable},
 		{createWinnersAuditStaleSQL, winnersAuditStaleTable},

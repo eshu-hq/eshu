@@ -908,6 +908,11 @@ tests:
     class: dedicated_ci
     reason: "#11120: reducer-contention enrolled 1 named Go test(s) via the WinnersDetoast alternation in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against PostgreSQL 18 passed"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_stream_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#9805/#9975: reducer-contention enrolled 3 named Go test(s) via the WinnersKeyedStream alternation in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_write_on_change_live_test.go
     tag: ~
     class: dedicated_ci
