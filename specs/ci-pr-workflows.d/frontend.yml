@@ -47,6 +47,8 @@ workflows:
   - scripts/console-bundle-budget.d.mts
   - scripts/console-bundle-report.mjs
   - scripts/console-bundle-report.d.mts
+  - scripts/console-contract-types.mjs
+  - scripts/console-contract-types.d.mts
   - .pre-commit-config.yaml
   - .github/workflows/frontend.yml
   - scripts/lib/auth_e2e_cli.sh
