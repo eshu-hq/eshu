@@ -327,14 +327,15 @@ not select lanes for those commits.
 
 ## Moved-File Reference Guard
 
-Any `go/**` change selects `scripts/verify-moved-file-refs.sh`. It fails a
+Any `go/**`, `docs/**/*.md`, or `*.md` change selects `scripts/verify-moved-file-refs.sh`. It fails a
 branch that moves or deletes a Go file and leaves a reference **written as the
 full `go/...` path** pointing at the path it vacated:
 
 ```bash
 bash scripts/verify-moved-file-refs.sh              # attribute against origin/main
 bash scripts/verify-moved-file-refs.sh --base <ref> # attribute against <ref>
-bash scripts/test-verify-moved-file-refs.sh         # its mirror test
+bash scripts/test-verify-moved-file-refs.sh         # Go-path mirror cases
+bash scripts/test-verify-moved-file-refs-md.sh      # Markdown-path mirror cases
 ```
 
 This is the residue the #6061 reducer subpackage split kept shipping, and
@@ -343,12 +344,22 @@ carrying a `:NNN` line suffix, so a **bare path reference is never tracked at
 all**. On `main` before #6525, 53 of 517 distinct `go/internal/reducer/*.go`
 paths named in `docs/`, `scripts/`, `specs/` and `go/` resolved to nothing.
 
+Since #11532 the same gate also tracks Markdown files the branch moves or
+deletes. A link to a vacated `.md` file is usually a same-directory basename
+(`[text](sibling.md)`), which a full-path search never matches, so the gate
+sweeps the vacated full path across the tree plus the basename across `.md`
+referrers, and reports a basename hit only from a `.md` file in the same
+directory. A same-basename link from another directory resolves to its own
+sibling and is not reported, and cross-directory relative links
+(`../dir/file.md`) are out of scope.
+
 The path form is load-bearing and is the gate's main blind spot: it searches for
-the vacated path as a fixed string, and every vacated path is `go/`-prefixed, so
-a reference written module-root-relative (`internal/reducer/widget.go`) or as a
-package-relative shorthand (`reducer/widget.go`) is invisible to it. Both forms
-occur in the tree today. Widening the match is tracked separately, because it
-widens a blocking gate and needs a repo-scale false-positive measurement first.
+the vacated Go path as a fixed string, and every vacated Go path is
+`go/`-prefixed, so a reference written module-root-relative
+(`internal/reducer/widget.go`) or as a package-relative shorthand
+(`reducer/widget.go`) is invisible to it. Both forms occur in the tree today.
+Widening the match is tracked separately, because it widens a blocking gate
+and needs a repo-scale false-positive measurement first.
 
 The check is scoped to the branch, not the tree: a path is reported only when
 it existed at the diff base and does not exist at HEAD. That is what keeps it

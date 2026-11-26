@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# test-verify-moved-file-refs.sh - mirror test for verify-moved-file-refs.sh.
+# test-verify-moved-file-refs.sh - Go-path mirror cases for
+# verify-moved-file-refs.sh.
 #
 # Builds throwaway git repos that reproduce the #6061 shape the gate exists to
 # catch (a branch moves a Go file and leaves a pointer to the path it vacated)
@@ -8,65 +9,15 @@
 # already dead at the base, which is how every deliberate negative fixture in
 # this repo (`does_not_exist.go`, `no_such_handler_file.go`, the
 # telemetry-coverage ghost rows, the cigates selector's synthetic `r.go`) stays
-# green. A gate that failed on those would be unfixable.
+# green. A gate that failed on those would be unfixable. Markdown-path cases
+# live in test-verify-moved-file-refs-md.sh; shared builders live in
+# lib/test-verify-moved-file-refs-harness.sh.
 #
 # Runs without Postgres, NornicDB, or a Go build.
 set -euo pipefail
 
-# These fixture repositories are deleted immediately after each case. Do not
-# hand them to ambient asynchronous Trace2 consumers that can still write while
-# cleanup removes the repository.
-export GIT_TRACE2_EVENT=0
-
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-gate="${script_dir}/verify-moved-file-refs.sh"
-helper="${script_dir}/lib/gate-diff-base.sh"
-failures=0
-
-check() {
-  # $1 = case name, $2 = expected exit, $3 = actual exit
-  if [ "$2" != "$3" ]; then
-    printf 'FAIL %s: exit=%s want=%s\n' "$1" "$3" "$2" >&2
-    failures=$((failures + 1))
-  else
-    printf 'ok   %s\n' "$1"
-  fi
-}
-
-check_output() {
-  # $1 = case name, $2 = expected substring, $3 = actual output
-  case "$3" in
-    *"$2"*) printf 'ok   %s\n' "$1" ;;
-    *)
-      printf 'FAIL %s: output did not contain %s\n' "$1" "$2" >&2
-      printf '     got: %s\n' "$3" >&2
-      failures=$((failures + 1))
-      ;;
-  esac
-}
-
-# new_repo builds a repo whose FIRST commit is the base: a Go file under go/
-# plus a doc referencing it. The caller then makes the branch commit.
-new_repo() {
-  local dir
-  dir="$(mktemp -d)"
-  git -C "$dir" init -q
-  git -C "$dir" config user.email test@example.test
-  git -C "$dir" config user.name "Test"
-  mkdir -p "$dir/scripts/lib" "$dir/go/internal/reducer" "$dir/docs"
-  cp "$gate" "$dir/scripts/verify-moved-file-refs.sh"
-  cp "$helper" "$dir/scripts/lib/gate-diff-base.sh"
-  printf 'package reducer\n' >"$dir/go/internal/reducer/widget.go"
-  printf 'See go/internal/reducer/widget.go for the widget family.\n' >"$dir/docs/design.md"
-  git -C "$dir" add -A
-  git -C "$dir" commit -qm base
-  printf '%s\n' "$dir"
-}
-
-run_gate() {
-  # Echoes output; returns the gate's exit code in $rc (set by the caller).
-  (cd "$1" && ./scripts/verify-moved-file-refs.sh 2>&1)
-}
+# shellcheck source=scripts/lib/test-verify-moved-file-refs-harness.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib/test-verify-moved-file-refs-harness.sh"
 
 # 1. THE CORE CASE: branch moves the file, doc still points at the old path.
 repo="$(new_repo)"
@@ -121,10 +72,10 @@ rm -rf "$repo"
 #    the header's "inherited debt did not change, so it cannot either", and
 #    what keeps the disclosed residual debt from failing unrelated PRs.
 #    The branch must ALSO vacate something real, or the case exits through the
-#    same "vacates no go path" early return as case 4 and proves nothing about
+#    same "vacates no tracked" early return as case 4 and proves nothing about
 #    attribution. That is precisely how the first version of this case was
 #    vacuous: its fixture only appended doc lines, so vacated_n was 0 and the
-#    gate never reached the scan. The "1 vacated go path" assertion below is
+#    gate never reached the scan. The "1 vacated path" assertion below is
 #    what makes the silence meaningful, and 3b is what proves it is
 #    attribution rather than an inability to see the reference at all.
 repo="$(new_repo)"
@@ -150,7 +101,7 @@ out="$(run_gate "$repo")"
 rc=$?
 set -e
 check "ignores a reference that was already dead at the base" 0 "$rc"
-check_output "reached the scan instead of the early exit" "1 vacated go path" "$out"
+check_output "reached the scan instead of the early exit" "1 vacated path" "$out"
 
 # 3b. CONTROL for case 3. Same tree, base widened past the deletion: the
 #     inherited reference IS reported. Without this, case 3 passing could mean
@@ -172,8 +123,8 @@ set +e
 out="$(run_gate "$repo")"
 rc=$?
 set -e
-check "passes when the branch vacates no go path" 0 "$rc"
-check_output "says it had nothing to check" "vacates no go" "$out"
+check "passes when the branch vacates no tracked path" 0 "$rc"
+check_output "says it had nothing to check" "vacates no tracked" "$out"
 rm -rf "$repo"
 
 # 5. Outright DELETION (no rename target) still fails, with deletion wording.
@@ -309,55 +260,13 @@ rm -rf "$repo"
 #     reads each one as this branch's own change. The gate must diff against
 #     the first parent, and only for a pull_request event on a two-parent HEAD.
 
-run_gate_env() {
-  # $1 = repo; the rest are NAME=value assignments for the gate's environment.
-  # The ambient CI variables are cleared so no case inherits them.
-  local dir="$1"
-  shift
-  (cd "$dir" && env -u ESHU_MOVED_FILE_REFS_BASE -u GITHUB_EVENT_NAME \
-    -u GITHUB_BASE_REF "$@" ./scripts/verify-moved-file-refs.sh 2>&1)
-}
-
-# new_merge_ref_repo builds a repo whose HEAD is a pull-request merge commit.
-# Parent 1 is main as it stood when the ref was built; it already cites
-# go/internal/reducer/future.go, a path that does not exist yet (the planned
-# reference the header calls inherited debt). Parent 2 is the PR head: a move of
-# widget.go when $1 is "move", an unrelated doc otherwise. Main then moves on
-# and ADDS future.go, so origin/main holds a Go file the merge ref lacks, which
-# a tip-versus-HEAD diff reads as a deletion of a referenced file.
-new_merge_ref_repo() {
-  local kind="$1" dir base
-  dir="$(new_repo)"
-  git -C "$dir" branch -M main
-  printf 'Planned: go/internal/reducer/future.go lands later.\n' >>"$dir/docs/design.md"
-  git -C "$dir" commit -qam "main when the merge ref was built"
-  base="$(git -C "$dir" rev-parse HEAD)"
-  git -C "$dir" checkout -q -b pr
-  if [ "$kind" = "move" ]; then
-    mkdir -p "$dir/go/internal/reducer/widgetfam"
-    git -C "$dir" mv go/internal/reducer/widget.go go/internal/reducer/widgetfam/widget.go
-  else
-    printf 'unrelated\n' >"$dir/docs/notes.md"
-  fi
-  git -C "$dir" add -A
-  git -C "$dir" commit -qm "pr head"
-  git -C "$dir" checkout -q main
-  printf 'package reducer\n' >"$dir/go/internal/reducer/future.go"
-  git -C "$dir" add -A
-  git -C "$dir" commit -qm "main moves and adds future.go"
-  git -C "$dir" update-ref refs/remotes/origin/main HEAD
-  git -C "$dir" checkout -q -b mergeref "$base"
-  git -C "$dir" merge -q --no-ff -m "merge ref" pr
-  printf '%s\n' "$dir"
-}
-
 repo="$(new_merge_ref_repo other)"
 set +e
 out="$(run_gate_env "$repo" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=main)"
 rc=$?
 set -e
 check "merge ref: a base that moved after the ref was built adds no change" 0 "$rc"
-check_output "merge ref: the moved base tip is not read as the PR's deletion" "vacates no go" "$out"
+check_output "merge ref: the moved base tip is not read as the PR's deletion" "vacates no tracked" "$out"
 
 # 10b. CONTROL. An explicit override still wins over the merge ref parent, and
 #      pointing it at the moved tip brings the false failure back. Without this,
@@ -394,25 +303,6 @@ rm -rf "$repo"
 #      two-parent HEAD. A developer who merged main into a feature branch has a
 #      two-parent HEAD whose first parent is their own tip, already carrying the
 #      move; trusting it would hide the move. Each case below must still fail.
-new_local_merge_repo() {
-  local dir
-  dir="$(new_repo)"
-  git -C "$dir" branch -M main
-  git -C "$dir" update-ref refs/remotes/origin/main HEAD
-  git -C "$dir" checkout -q -b feature
-  mkdir -p "$dir/go/internal/reducer/widgetfam"
-  git -C "$dir" mv go/internal/reducer/widget.go go/internal/reducer/widgetfam/widget.go
-  git -C "$dir" commit -qm "feature moves widget"
-  git -C "$dir" checkout -q main
-  printf 'unrelated\n' >"$dir/docs/notes.md"
-  git -C "$dir" add -A
-  git -C "$dir" commit -qm "main moves"
-  git -C "$dir" update-ref refs/remotes/origin/main HEAD
-  git -C "$dir" checkout -q feature
-  git -C "$dir" merge -q --no-ff -m "merge main into feature" main
-  printf '%s\n' "$dir"
-}
-
 repo="$(new_local_merge_repo)"
 set +e
 out="$(run_gate_env "$repo")"
@@ -448,8 +338,6 @@ check "guard: a single-parent HEAD on a pull request still sees the move" 1 "$rc
 check_output "guard: single-parent HEAD names the moved path" "go/internal/reducer/widget.go" "$out"
 rm -rf "$repo"
 
-if [ "$failures" -gt 0 ]; then
-  printf '\ntest-verify-moved-file-refs: %s failure(s)\n' "$failures" >&2
-  exit 1
-fi
-printf '\ntest-verify-moved-file-refs: all cases passed\n'
+# Markdown-path cases (11-11d) live in test-verify-moved-file-refs-md.sh.
+
+mirror_finish "test-verify-moved-file-refs"
