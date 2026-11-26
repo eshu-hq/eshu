@@ -21,7 +21,7 @@ func TestSchemaStatementsContainsCloudResourceSchema(t *testing.T) {
 	}
 }
 
-func TestSchemaStatementsForBackendAddsCloudResourceNornicDBUIDLookup(t *testing.T) {
+func TestSchemaStatementsForBackendDropsCloudResourceNornicDBUIDLookupIndex(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
@@ -31,6 +31,6 @@ func TestSchemaStatementsForBackendAddsCloudResourceNornicDBUIDLookup(t *testing
 	assertContainsStatement(
 		t,
 		stmts,
-		"CREATE INDEX nornicdb_cloud_resource_uid_lookup IF NOT EXISTS FOR (n:CloudResource) ON (n.uid)",
+		"DROP INDEX nornicdb_cloud_resource_uid_lookup IF EXISTS",
 	)
 }

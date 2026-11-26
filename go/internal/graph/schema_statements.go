@@ -31,7 +31,7 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 
 	stmts := make([]string, 0,
 		len(schemaConstraints)+
-			len(uidConstraintLabels)+
+			2*len(uidConstraintLabels)+
 			len(schemaPerformanceIndexes)+
 			len(neo4jRetirementLookupIndexes)+
 			len(schemaFulltextIndexes))
@@ -54,7 +54,13 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 	stmts = append(stmts, dialect.retiredConstraintPathIndexes...)
 	if dialect.includeMergeLookupIndexes {
 		stmts = append(stmts, nornicDBMergeLookupIndexes...)
-		stmts = append(stmts, nornicDBUIDLookupIndexes()...)
+	}
+	// The retired lookup-index drops run immediately before the uid
+	// constraints they unblock (#11535): on 1.5.x the constraint throws
+	// IndexAlreadyExists while the plain index on the same (label, uid)
+	// still exists.
+	if dialect.dropUIDLookupIndexes {
+		stmts = append(stmts, nornicDBUIDLookupIndexDrops()...)
 	}
 	for _, label := range uidConstraintLabels {
 		stmts = append(stmts, fmt.Sprintf(

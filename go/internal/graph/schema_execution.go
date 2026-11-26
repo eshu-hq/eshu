@@ -96,7 +96,13 @@ func ensureSchemaWithBackend(
 		if err := apply("nornicdb_merge_lookup_indexes", nornicDBMergeLookupIndexes); err != nil {
 			return err
 		}
-		if err := apply("nornicdb_uid_lookup_indexes", nornicDBUIDLookupIndexes()); err != nil {
+	}
+	// The retired lookup-index drops run immediately before the uid
+	// constraints they unblock (#11535): on 1.5.x the constraint throws
+	// IndexAlreadyExists while the plain index on the same (label, uid)
+	// still exists.
+	if dialect.dropUIDLookupIndexes {
+		if err := apply("nornicdb_uid_lookup_index_drops", nornicDBUIDLookupIndexDrops()); err != nil {
 			return err
 		}
 	}
@@ -230,7 +236,9 @@ func schemaStatementTotal(dialect schemaDialect) int {
 	}
 	if dialect.includeMergeLookupIndexes {
 		total += len(nornicDBMergeLookupIndexes)
-		total += len(nornicDBUIDLookupIndexes())
+	}
+	if dialect.dropUIDLookupIndexes {
+		total += len(nornicDBUIDLookupIndexDrops())
 	}
 	total += len(uidConstraintLabels)
 	for _, ft := range schemaFulltextIndexes {

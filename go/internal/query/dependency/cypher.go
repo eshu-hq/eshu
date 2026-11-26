@@ -6,7 +6,7 @@ package dependency
 // dependenciesCypher builds the bounded Cypher for GET /api/v0/dependencies.
 //
 // The graph anchors on the indexed Package label (package_normalized_name index
-// on Package.normalized_name, nornicdb_package_uid_lookup on Package.uid) and
+// on Package.normalized_name, package_uid_unique constraint on Package.uid) and
 // walks the package-native dependency chain:
 //
 //	Package -[:HAS_VERSION]-> PackageVersion -[:DECLARES_DEPENDENCY]->

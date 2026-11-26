@@ -12,12 +12,12 @@ func TestSchemaStatementsContainIncidentRoutingEvidenceSchema(t *testing.T) {
 	assertContainsStatement(t, stmts, "CREATE CONSTRAINT incident_routing_evidence_uid_unique IF NOT EXISTS FOR (n:IncidentRoutingEvidence) REQUIRE n.uid IS UNIQUE")
 }
 
-func TestSchemaStatementsForBackendAddsIncidentRoutingEvidenceNornicDBUIDLookup(t *testing.T) {
+func TestSchemaStatementsForBackendDropsIncidentRoutingEvidenceNornicDBUIDLookupIndex(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
 	if err != nil {
 		t.Fatalf("SchemaStatementsForBackend returned error: %v", err)
 	}
-	assertContainsStatement(t, stmts, "CREATE INDEX nornicdb_incident_routing_evidence_uid_lookup IF NOT EXISTS FOR (n:IncidentRoutingEvidence) ON (n.uid)")
+	assertContainsStatement(t, stmts, "DROP INDEX nornicdb_incident_routing_evidence_uid_lookup IF EXISTS")
 }

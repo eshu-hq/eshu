@@ -20,7 +20,7 @@ func TestSchemaStatementsContainsKubernetesWorkloadSchema(t *testing.T) {
 	}
 }
 
-func TestSchemaStatementsForBackendAddsKubernetesWorkloadNornicDBUIDLookup(t *testing.T) {
+func TestSchemaStatementsForBackendDropsKubernetesWorkloadNornicDBUIDLookupIndex(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
@@ -30,6 +30,6 @@ func TestSchemaStatementsForBackendAddsKubernetesWorkloadNornicDBUIDLookup(t *te
 	assertContainsStatement(
 		t,
 		stmts,
-		"CREATE INDEX nornicdb_kubernetes_workload_uid_lookup IF NOT EXISTS FOR (n:KubernetesWorkload) ON (n.uid)",
+		"DROP INDEX nornicdb_kubernetes_workload_uid_lookup IF EXISTS",
 	)
 }

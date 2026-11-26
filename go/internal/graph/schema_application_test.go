@@ -61,9 +61,10 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// No predecessor, for the same #8168 import_key cutover (the
 			// #5385 T4 endpoint_repo_id index rides on top without changing
 			// write identity, and the cutover's refusal dominates here too).
-			// The #10411 advisory_group_id constraint is additive here
-			// too: the pre-AdvisoryGroup tip stays compatible.
-			compatible: []string{graphSchemaNornicDBPreAdvisoryGroupFingerprint},
+			// The #11535 uid lookup index retirement is DDL-only here too:
+			// writers MERGE on uid and never emit indexes, so the
+			// pre-#11535 tip stays the single compatible predecessor.
+			compatible: []string{graphSchemaNornicDBPre11535Fingerprint},
 		},
 	}
 

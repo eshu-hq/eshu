@@ -41,11 +41,11 @@ func TestSchemaStatementsContainsPrefixListSchema(t *testing.T) {
 	}
 }
 
-// TestSchemaStatementsForBackendAddsSecurityGroupEndpointNornicDBUIDLookup
-// asserts the NornicDB schema-backed MERGE lookup index exists for both new
-// canonical labels, so the idempotent uid MERGE does not fall back to a label
-// scan on NornicDB.
-func TestSchemaStatementsForBackendAddsSecurityGroupEndpointNornicDBUIDLookup(t *testing.T) {
+// TestSchemaStatementsForBackendDropsSecurityGroupEndpointNornicDBUIDLookupIndex
+// asserts the NornicDB schema drops the retired uid lookup indexes for both new
+// canonical labels, so the uid uniqueness constraints (whose 1.5.x backing
+// indexes serve the idempotent uid MERGEs) can be created.
+func TestSchemaStatementsForBackendDropsSecurityGroupEndpointNornicDBUIDLookupIndex(t *testing.T) {
 	t.Parallel()
 
 	stmts, err := SchemaStatementsForBackend(SchemaBackendNornicDB)
@@ -53,8 +53,8 @@ func TestSchemaStatementsForBackendAddsSecurityGroupEndpointNornicDBUIDLookup(t 
 		t.Fatalf("SchemaStatementsForBackend returned error: %v", err)
 	}
 	for _, want := range []string{
-		"CREATE INDEX nornicdb_cidr_block_uid_lookup IF NOT EXISTS FOR (n:CidrBlock) ON (n.uid)",
-		"CREATE INDEX nornicdb_prefix_list_uid_lookup IF NOT EXISTS FOR (n:PrefixList) ON (n.uid)",
+		"DROP INDEX nornicdb_cidr_block_uid_lookup IF EXISTS",
+		"DROP INDEX nornicdb_prefix_list_uid_lookup IF EXISTS",
 	} {
 		assertContainsStatement(t, stmts, want)
 	}

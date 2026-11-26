@@ -28,15 +28,28 @@ const (
 	SchemaBackendNornicDB SchemaBackend = "nornicdb"
 )
 
-func nornicDBUIDLookupIndexes() []string {
-	indexes := make([]string, 0, len(uidConstraintLabels))
+// nornicDBUIDLookupIndexDrops guards the 1.5.x upgrade (#11535): stores
+// bootstrapped by the pre-#11535 dialect still carry a plain
+// nornicdb_<t>_uid_lookup index on every uid-bearing label, and NornicDB
+// 1.5.x rejects the uniqueness constraint on the same (label, uid) with
+// IndexAlreadyExists while that index exists. The drops run before the uid
+// constraints (IF EXISTS keeps them idempotent on a fresh store), and the
+// constraint's own 1.5.x backing index — named <t>_uid_unique, the same as
+// the constraint — is the only uid index afterwards.
+//
+// This statement list must only ever execute against a 1.5.x backend: on
+// pre-1.5 NornicDB the constraint creates no backing index, so dropping the
+// lookup indexes there would leave uid reads unindexed. The rollout keeps
+// the backend pin and this dialect in lockstep.
+func nornicDBUIDLookupIndexDrops() []string {
+	drops := make([]string, 0, len(uidConstraintLabels))
 	for _, label := range uidConstraintLabels {
-		indexes = append(indexes, fmt.Sprintf(
-			"CREATE INDEX nornicdb_%s_uid_lookup IF NOT EXISTS FOR (n:%s) ON (n.uid)",
-			labelToSnake(label), label,
+		drops = append(drops, fmt.Sprintf(
+			"DROP INDEX nornicdb_%s_uid_lookup IF EXISTS",
+			labelToSnake(label),
 		))
 	}
-	return indexes
+	return drops
 }
 
 // EnsureSchema creates all constraints and indexes required by the platform
@@ -80,6 +93,11 @@ type schemaDialect struct {
 	// canonical uid identity that this dialect drops (DROP CONSTRAINT ... IF
 	// EXISTS) before any other statement (#7095, #7097).
 	retiredConstraints []string
+	// dropUIDLookupIndexes emits the DROP INDEX guards for the retired
+	// nornicdb_<t>_uid_lookup indexes (#11535) immediately before the uid
+	// constraints. One flag gates the statement list, the executor, and the
+	// statement count together so the three cannot drift.
+	dropUIDLookupIndexes bool
 	// retiredConstraintPathIndexes are the non-unique path indexes that keep the
 	// reads the retired constraints served. Empty when no read needs one.
 	retiredConstraintPathIndexes []string
@@ -107,6 +125,7 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 			constraint:                nornicDBSchemaConstraint,
 			includeMergeLookupIndexes: true,
 			retiredConstraints:        nornicDBRetiredUniqueConstraints,
+			dropUIDLookupIndexes:      true,
 		}, nil
 	}
 	return schemaDialect{}, fmt.Errorf("unsupported schema backend %q", backend)

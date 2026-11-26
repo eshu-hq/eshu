@@ -34,9 +34,10 @@ const (
 	// UNIQUE constraint makes per-row write cost grow with batch size.
 	cloudResourceOwnerBackfillScaleSeedBatch   = 250
 	cloudResourceOwnerBackfillScaleDeleteBatch = 1_000
-	// cloudResourceOwnerBackfillScaleUIDLookupIndex is the NornicDB uid lookup
-	// index graph.nornicDBUIDLookupIndexes creates for CloudResource.
-	cloudResourceOwnerBackfillScaleUIDLookupIndex = "nornicdb_cloud_resource_uid_lookup"
+	// cloudResourceOwnerBackfillScaleUIDLookupIndex is the NornicDB uid backing
+	// index for CloudResource: the cloud_resource_uid_unique constraint's own
+	// 1.5.x backing index, which carries the constraint's name (#11535).
+	cloudResourceOwnerBackfillScaleUIDLookupIndex = "cloud_resource_uid_unique"
 )
 
 // TestCloudResourceOwnerBackfillerFirstPageMeetsDeadlineAtScale is the #6842
@@ -48,21 +49,21 @@ const (
 // exactly what cmd/api and cmd/mcp-server run at boot.
 //
 // It applies Eshu's full NornicDB schema once, before seeding an empty
-// store, as production bootstrap does. That matters: on NornicDB the uid
-// uniqueness constraint creates no index (SHOW INDEXES stays empty), and it
-// is the separate nornicdb_cloud_resource_uid_lookup index from that schema
-// that the range predicate seeks; with only the constraint present every uid
-// read, keyset page or point lookup alike, is a label scan.
+// store, as production bootstrap does. That matters: on NornicDB 1.5.x the
+// uid uniqueness constraint carries its own backing index (SHOW INDEXES
+// lists cloud_resource_uid_unique), which serves equality lookups; the
+// fenced range page plan is what this test measures. A hand-seeded proof
+// store must apply that schema, or it measures the wrong plan.
 //
 // It is written for a disposable NornicDB container: the seed is reused when
 // the graph already holds exactly the expected prefixed population, so the
 // same seeded store can serve a before/after comparison, and it refuses a
 // graph holding any other CloudResource node because the production backfill
-// query is unscoped. On reuse the schema is NOT re-applied: on the pinned
-// build `CREATE INDEX ... IF NOT EXISTS` for an existing index re-runs the
-// index backfill and appends every node id a second time, after which every
-// index-driven read returns each row twice. The reuse path instead checks
-// that the uid lookup index is present. Cleanup runs only when
+// query is unscoped. On reuse the schema is NOT re-applied: on the pre-1.5
+// pinned build `CREATE INDEX ... IF NOT EXISTS` for an existing index re-ran
+// the index backfill and appended every node id a second time, after which
+// every index-driven read returned each row twice. The reuse path instead
+// checks that the uid backing index is present. Cleanup runs only when
 // ESHU_CLOUD_RESOURCE_BACKFILL_NORNICDB_SCALE_CLEANUP=1.
 //
 //	ESHU_CLOUD_RESOURCE_BACKFILL_NORNICDB_SCALE_LIVE=1 \
@@ -188,7 +189,7 @@ func (s cloudResourceBackfillScaleSeed) count(cypher string, params map[string]a
 	return IntVal(row, "count")
 }
 
-// requireUIDLookupIndex fails unless the production uid lookup index exists,
+// requireUIDLookupIndex fails unless the production uid backing index exists,
 // so a reused seed is measured on a deployment-shaped store without
 // re-applying the schema (see the test comment for why re-applying is unsafe).
 func (s cloudResourceBackfillScaleSeed) requireUIDLookupIndex() {
@@ -206,8 +207,8 @@ func (s cloudResourceBackfillScaleSeed) requireUIDLookupIndex() {
 }
 
 // ensureSchema applies the production NornicDB schema (uid constraints plus
-// the NornicDB uid lookup indexes) to an empty store so it is shaped like a
-// deployment. It must run once, before seeding.
+// the retired uid lookup index drops) to an empty store so it is shaped like
+// a deployment. It must run once, before seeding.
 func (s cloudResourceBackfillScaleSeed) ensureSchema() {
 	s.t.Helper()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
