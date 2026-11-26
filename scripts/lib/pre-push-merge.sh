@@ -22,11 +22,14 @@
 #   - The merged tree's Go inputs (go/ plus every local `replace` directory
 #     named in go/go.mod) are byte-identical to the base's: nothing in the
 #     merge that main's own CI has not already vetted, so the step skips.
-#   - HEAD already contains the base (the usual state after a rebase): the
-#     merge IS HEAD, so the step skips materializing a second checkout and runs
-#     whole-module `go vet ./...` directly in the worktree's warm `go/` dir
-#     (because the whole-module `go-vet` registry gate is `pre_push: deferred`,
-#     this guarantees whole-module `go vet ./...` runs once per Go push).
+#   - HEAD already contains the base (the usual state after a rebase), Go
+#     inputs changed, and the worktree is clean: the merge IS HEAD, so the step
+#     skips materializing a second checkout and runs whole-module `go vet ./...`
+#     directly in the worktree's warm `go/` dir (because the whole-module
+#     `go-vet` registry gate is `pre_push: deferred`, this guarantees
+#     whole-module `go vet ./...` runs once per Go push). When the worktree has
+#     uncommitted or untracked edits, it reports them and materializes
+#     committed HEAD instead.
 #   - Otherwise it materializes the merged tree into a stable directory under
 #     this worktree's own git dir (removed with `git worktree remove`, never in
 #     the worktree's status) and updates it incrementally between runs. The
@@ -134,7 +137,7 @@ pre_push_merge_lock() {
 # step_merge_vet: fail closed unless HEAD merges cleanly with ${base} and the
 # merged tree passes `go vet ./...`.
 step_merge_vet() {
-	local head base_commit out rc tree head_tree git_dir root work idx status=0
+	local head base_commit out rc tree head_tree dirty git_dir root work idx status=0
 	head="$(git -C "${repo_root}" rev-parse --verify 'HEAD^{commit}')" || return 1
 	base_commit="$(git -C "${repo_root}" rev-parse --verify "${base}^{commit}")" || return 1
 	out="$(git -C "${repo_root}" merge-tree --write-tree --name-only --no-messages "${base_commit}" "${head}" 2>&1)"
@@ -164,14 +167,18 @@ step_merge_vet() {
 			"${tree}" "${base}" "${base_commit:0:12}"
 		return 0
 	fi
-	head_tree="$(git -C "${repo_root}" rev-parse "${head}^{tree}")"
-	if [[ "${tree}" == "${head_tree}" ]]; then
+	head_tree="$(git -C "${repo_root}" rev-parse "${head}^{tree}")" || return 1
+	dirty="$(git -C "${repo_root}" status --porcelain --untracked-files=normal)" || {
+		printf 'pre-push: cannot inspect worktree status for %s; failing closed.\n' "${repo_root}" >&2
+		return 1
+	}
+	if [[ "${tree}" == "${head_tree}" && -z "${dirty}" ]]; then
 		printf 'HEAD already contains %s (%s): merge tree %s is HEAD'"'"'s own tree; vetting %s whole-module.\n' \
 			"${base}" "${base_commit:0:12}" "${tree}" "${repo_root}/go"
 		( cd "${repo_root}/go" && go vet ./... ) || status=1
 		return "${status}"
 	fi
-	if [[ -n "$(git -C "${repo_root}" status --porcelain --untracked-files=no)" ]]; then
+	if [[ -n "${dirty}" ]]; then
 		printf 'note: uncommitted edits are not part of the merged tree; it merges the committed HEAD %s.\n' "${head:0:12}"
 	fi
 	git_dir="$(git -C "${repo_root}" rev-parse --absolute-git-dir)" || return 1

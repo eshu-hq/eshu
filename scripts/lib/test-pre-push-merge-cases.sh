@@ -167,6 +167,33 @@ status="$(run_merge_fixture "${fixture}")"
 rg -q -- 'Go inputs are identical' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H3: docs-only contained HEAD must skip with explicit message"; }
 ! rg -q -- '^go vet \./\.\.\. ' "${fixture}.args" || { cat "${fixture}.args" >&2; fail "case H3: docs-only contained HEAD must not run whole-module go vet"; }
 
+# ── Case H4: dirty worktree on a contained HEAD → must report uncommitted edits
+# and materialize committed HEAD instead of vetting the dirty worktree (so an
+# uncommitted fix cannot hide a broken committed HEAD).
+fixture="$(build_merge_fixture case-h4 contained)"
+printf 'package p\n\nfunc New() {}\n' > "${fixture}/go/internal/p/def.go"
+merge_fixture_commit "${fixture}" "break committed head"
+printf 'package p\n\nfunc Old() {}\n' > "${fixture}/go/internal/p/def.go"
+status="$(run_merge_fixture "${fixture}")"
+[[ "${status}" != "0" ]] || { cat "${fixture}.log" >&2; fail "case H4: uncommitted fix must not mask a broken committed HEAD, got exit 0"; }
+rg -q -- 'uncommitted edits are not part of the merged tree' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H4: dirty contained HEAD must report uncommitted edits"; }
+merged_go_calls "${fixture}" | rg -q -- '^go vet \./\.\.\. ' || { cat "${fixture}.args" >&2; fail "case H4: dirty contained HEAD must vet the materialized committed merge tree"; }
+rg -q -- 'undefined: p.Old' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H4: broken committed HEAD error must be reported"; }
+
+# ── Case H5: untracked .go file on a contained HEAD (even when git config sets
+# status.showUntrackedFiles=no) → must still report uncommitted edits and
+# materialize committed HEAD instead of letting the untracked file mask it.
+fixture="$(build_merge_fixture case-h5 contained)"
+printf 'package p\n\nfunc New() {}\n' > "${fixture}/go/internal/p/def.go"
+merge_fixture_commit "${fixture}" "break committed head"
+git -C "${fixture}" config status.showUntrackedFiles no
+printf 'package p\n\nfunc Old() {}\n' > "${fixture}/go/internal/p/fix.go"
+status="$(run_merge_fixture "${fixture}")"
+[[ "${status}" != "0" ]] || { cat "${fixture}.log" >&2; fail "case H5: untracked .go fix must not mask a broken committed HEAD, got exit 0"; }
+rg -q -- 'uncommitted edits are not part of the merged tree' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H5: untracked file on contained HEAD must report uncommitted edits"; }
+merged_go_calls "${fixture}" | rg -q -- '^go vet \./\.\.\. ' || { cat "${fixture}.args" >&2; fail "case H5: untracked file on contained HEAD must vet the materialized committed merge tree"; }
+rg -q -- 'undefined: p.Old' "${fixture}.log" || { cat "${fixture}.log" >&2; fail "case H5: broken committed HEAD error must be reported"; }
+
 # ── Case I: no origin/main at all → fail closed before any step (exit 2),
 # never a silent head-only pass.
 fixture="$(build_merge_fixture case-i clean)"
