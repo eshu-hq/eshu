@@ -107,7 +107,9 @@ const ImpactPage = lazy(() =>
 // KnowledgeHomePage is the "/" front door. Lazy so its panels and styles stay
 // out of the eagerly loaded shell bundle.
 const KnowledgeHomePage = lazy(() =>
-  import("./pages/home/KnowledgeHomePage").then((module) => ({ default: module.KnowledgeHomePage })),
+  import("./pages/home/KnowledgeHomePage").then((module) => ({
+    default: module.KnowledgeHomePage,
+  })),
 );
 
 export interface AppRoutesProps {

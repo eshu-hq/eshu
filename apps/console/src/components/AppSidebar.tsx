@@ -43,7 +43,9 @@ export function AppSidebar({
   );
   useEffect(() => {
     if (activeGroup === null) return;
-    setOpenGroups((current) => (current.has(activeGroup) ? current : new Set([...current, activeGroup])));
+    setOpenGroups((current) =>
+      current.has(activeGroup) ? current : new Set([...current, activeGroup]),
+    );
   }, [activeGroup]);
   function toggleGroup(id: string): void {
     setOpenGroups((current) => {
@@ -142,7 +144,10 @@ function groupForPath(pathname: string): string | null {
   let best: { readonly group: string; readonly length: number } | null = null;
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      const matches = item.to === "/" ? pathname === "/" : pathname === item.to || pathname.startsWith(`${item.to}/`);
+      const matches =
+        item.to === "/"
+          ? pathname === "/"
+          : pathname === item.to || pathname.startsWith(`${item.to}/`);
       if (matches && (best === null || item.to.length > best.length)) {
         best = { group: group.messageId, length: item.to.length };
       }

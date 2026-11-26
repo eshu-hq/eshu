@@ -24,7 +24,9 @@ export function looksLikeQuestion(text: string): boolean {
   const trimmed = text.trim().toLowerCase();
   return (
     trimmed.endsWith("?") ||
-    /^(who|what|where|when|why|how|which|is|are|does|do|can|should|show|list|explain|tell)\b/.test(trimmed)
+    /^(who|what|where|when|why|how|which|is|are|does|do|can|should|show|list|explain|tell)\b/.test(
+      trimmed,
+    )
   );
 }
 
@@ -46,7 +48,10 @@ export function HomeHero(props: HomeHeroProps): React.JSX.Element {
       <div className="kh-hero-top">
         <div>
           <h2 id="kh-hero-title">What do you want to know?</h2>
-          <p className="kh-summary">{props.summary ?? "Eshu is your organization's knowledge base for code, services, infrastructure and the people who own them."}</p>
+          <p className="kh-summary">
+            {props.summary ??
+              "Eshu is your organization's knowledge base for code, services, infrastructure and the people who own them."}
+          </p>
         </div>
         <HealthPill health={props.health} />
       </div>

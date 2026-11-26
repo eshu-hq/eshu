@@ -74,7 +74,10 @@ function check(value: unknown, raw: unknown, path: string, issues: ShapeIssue[])
 
   const types = typesOf(schema);
   if (types.length > 0 && !types.some((type) => matchesType(value, type))) {
-    issues.push({ path, problem: `expected ${types.join("|")}, got ${value === null ? "null" : typeof value}` });
+    issues.push({
+      path,
+      problem: `expected ${types.join("|")}, got ${value === null ? "null" : typeof value}`,
+    });
     return;
   }
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
@@ -88,7 +91,8 @@ function check(value: unknown, raw: unknown, path: string, issues: ShapeIssue[])
 
   const properties = (schema.properties as Schema | undefined) ?? {};
   for (const key of (schema.required as string[] | undefined) ?? []) {
-    if (!(key in value)) issues.push({ path: `${path}.${key}`, problem: "required by the contract but missing" });
+    if (!(key in value))
+      issues.push({ path: `${path}.${key}`, problem: "required by the contract but missing" });
   }
   const additional = schema.additionalProperties;
   for (const [key, child] of Object.entries(value)) {

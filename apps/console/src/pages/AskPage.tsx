@@ -17,7 +17,7 @@ import {
   type AskError,
   type AskFormat,
   type AskNarrationProbe,
-  type AskTraceStep
+  type AskTraceStep,
 } from "../api/askEshu";
 import { AnswerView } from "../components/ask/AnswerView";
 import { AskInput } from "../components/ask/AskInput";
@@ -36,7 +36,7 @@ const SUGGESTIONS: readonly string[] = [
   "Which services import the shared client library, and what version ranges are pinned?",
   "What's the most severe vulnerability reaching production right now?",
   "Show dead code I can safely delete",
-  "Draw the dependency path for the checkout service"
+  "Draw the dependency path for the checkout service",
 ];
 
 /** The Ask Eshu page. Rendered only when the source is connected. */
@@ -67,7 +67,7 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
   const [probe, setProbe] = useState<AskNarrationProbe>({
     state: "available",
     reason: "",
-    providerConfigured: true
+    providerConfigured: true,
   });
   const abortRef = useRef<AbortController | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -111,7 +111,7 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
     () => () => {
       abortRef.current?.abort();
     },
-    []
+    [],
   );
 
   // Move focus to the answer heading when a run completes.
@@ -174,7 +174,7 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
         if (current()) {
           setPhase("idle");
         }
-      }
+      },
     });
   }
 
@@ -208,8 +208,8 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
       {probe.state === "unavailable" ? (
         <div className="prov-banner ask-evidence-banner">
           <Sparkles aria-hidden size={14} /> Narration is off on this deployment — answers are{" "}
-          <strong>evidence-only</strong> right now. You&apos;ll get the reasoning trace, artifacts and evidence, but no
-          written prose.
+          <strong>evidence-only</strong> right now. You&apos;ll get the reasoning trace, artifacts
+          and evidence, but no written prose.
         </div>
       ) : null}
 
@@ -228,7 +228,12 @@ function AskLive({ source }: { readonly source: SourceState }): React.JSX.Elemen
         <div className="ask-suggest">
           <span className="ask-suggest-label">Try</span>
           {SUGGESTIONS.map((suggestion) => (
-            <button className="suggest-chip" key={suggestion} onClick={() => submit(suggestion)} type="button">
+            <button
+              className="suggest-chip"
+              key={suggestion}
+              onClick={() => submit(suggestion)}
+              type="button"
+            >
               <Sparkles aria-hidden size={13} /> {suggestion}
             </button>
           ))}
@@ -261,9 +266,10 @@ function AskIntro(): React.JSX.Element {
     <div className="page-intro">
       <h2>Ask Eshu</h2>
       <p>
-        Ask a question about your stack in plain language. Eshu runs an agentic loop over the code-to-cloud graph and
-        returns an <strong>evidence-backed</strong> answer — prose, a diagram, or an exported artifact. Every answer
-        leads with a confidence label and the steps it took.
+        Ask a question about your stack in plain language. Eshu runs an agentic loop over the
+        code-to-cloud graph and returns an <strong>evidence-backed</strong> answer — prose, a
+        diagram, or an exported artifact. Every answer leads with a confidence label and the steps
+        it took.
       </p>
     </div>
   );

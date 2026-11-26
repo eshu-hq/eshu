@@ -28,3 +28,7 @@ apps/console/package-lock.json
 .eslintcache
 tests/fixtures/**
 apps/console/prototype/**
+# Generated console contract wire types: byte-pinned to the served OpenAPI
+# snapshot by homeContracts.test.ts ("keeps the generated wire types in step"),
+# so Prettier must not reformat them.
+apps/console/src/api/contracts/wire/**
