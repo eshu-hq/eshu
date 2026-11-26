@@ -30,7 +30,7 @@
 - HTTP routes, cookies, and session creation belong in `go/internal/query`.
 - Durable provider, replay, and membership/role/grant mapping belongs behind
   storage interfaces in `go/internal/storage/postgres`.
-- API startup wiring belongs in `go/cmd/api`, preferably split out of
+- API startup wiring belongs in `go/cmd/eshu-local-api`, preferably split out of
   near-limit files.
 
 ## Verification
