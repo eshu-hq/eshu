@@ -42,6 +42,7 @@ const blockLogMarker = "deferred_backfill_block_completed "
 // a new query shows up as a named failure instead of an arity mismatch. It is
 // its own transaction beginner: batches and the fan-in share the same answers.
 type blockPassDB struct {
+	mu           sync.Mutex
 	catalogRows  [][]any
 	catalogErr   error
 	partitions   [][]any
@@ -52,9 +53,33 @@ type blockPassDB struct {
 	argoCDProbeDelay time.Duration
 	// memoErr fails the partition memo lookup, the gate's one non-fatal error.
 	memoErr error
+	// configErr fails the phase-two ArgoCD config page queries (first and
+	// cursor) so degrade tests can inject a page timeout. Nil answers empty.
+	configErr error
+	// recorded collects the first line of every query and exec the pass
+	// issues, so degrade tests can prove a withheld fan-in issued no
+	// memo or phase writes. Guarded: the partition fan-out queries
+	// concurrently.
+	recorded []string
+}
+
+// recordStatement notes one issued statement's first line for later no-write
+// assertions. The fan-out runs queries concurrently, so this takes the lock.
+func (d *blockPassDB) recordStatement(query string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.recorded = append(d.recorded, firstLine(query))
+}
+
+// recordedStatements returns every recorded query and exec first line.
+func (d *blockPassDB) recordedStatements() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]string(nil), d.recorded...)
 }
 
 func (d *blockPassDB) answer(query string, args []any) (db.Rows, error) {
+	d.recordStatement(query)
 	switch {
 	case query == listRepositoryCatalogQuery:
 		if d.catalogErr != nil {
@@ -63,6 +88,16 @@ func (d *blockPassDB) answer(query string, args []any) (db.Rows, error) {
 		return &queueFakeRows{rows: d.catalogRows}, nil
 	case query == ActiveScopeGenerationPartitionsQuery:
 		return &queueFakeRows{rows: d.partitions}, nil
+	case query == ListArgoCDGeneratorConfigFactRecordsFirstPageQuery:
+		if d.configErr != nil {
+			return nil, d.configErr
+		}
+		return &queueFakeRows{}, nil
+	case query == ListArgoCDGeneratorConfigFactRecordsCursorPageQuery:
+		if d.configErr != nil {
+			return nil, d.configErr
+		}
+		return &queueFakeRows{}, nil
 	case query == ListDeferredScopedRelationshipFactRecordsQuery:
 		scopeID, _ := args[2].(string)
 		return &queueFakeRows{rows: d.factsByScope[scopeID]}, nil
@@ -93,7 +128,8 @@ func (d *blockPassDB) QueryContext(_ context.Context, query string, args ...any)
 	return d.answer(query, args)
 }
 
-func (d *blockPassDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (d *blockPassDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+	d.recordStatement(query)
 	return fakeResult{}, nil
 }
 
@@ -107,7 +143,8 @@ func (tx *blockPassTx) QueryContext(_ context.Context, query string, args ...any
 	return tx.database.answer(query, args)
 }
 
-func (tx *blockPassTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (tx *blockPassTx) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+	tx.database.recordStatement(query)
 	return fakeResult{}, nil
 }
 

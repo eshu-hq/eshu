@@ -208,7 +208,7 @@ func runFanInProofEvidencePhaseOnly(
 	if err != nil {
 		t.Fatalf("backfill.LoadRepositoryCatalog() error = %v, want nil", err)
 	}
-	activeFacts, snapshotGenerations, _, err := store.backfillStore().LoadDeferredAnchorScopedRelationshipFacts(ctx, adapter, catalog, nil)
+	activeFacts, snapshotGenerations, _, _, err := store.backfillStore().LoadDeferredAnchorScopedRelationshipFacts(ctx, adapter, catalog, nil)
 	if err != nil {
 		t.Fatalf("loadDeferredAnchorScopedRelationshipFacts() error = %v, want nil", err)
 	}

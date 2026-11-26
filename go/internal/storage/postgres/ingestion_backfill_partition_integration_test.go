@@ -61,7 +61,7 @@ func TestDeferredBackfillPartitionSourceCoversAllScopes(t *testing.T) {
 	store := NewIngestionStore(adapter)
 	store.maintenanceWorkers = 4
 
-	loaded, _, _, err := store.backfillStore().LoadDeferredAnchorScopedRelationshipFacts(
+	loaded, _, _, _, err := store.backfillStore().LoadDeferredAnchorScopedRelationshipFacts(
 		ctx, adapter, catalog, nil,
 	)
 	if err != nil {

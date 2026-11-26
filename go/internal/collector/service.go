@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -204,6 +205,10 @@ func (s Service) Run(ctx context.Context) error {
 	}
 
 	committedSinceDrain := false
+	// drainSkips counts successive drains skipped on the fact-load budget
+	// sentinel. It resets on the next clean drain; it is not advanced by
+	// idle polls that never ran the hook.
+	drainSkips := 0
 	// startupMaintenanceEscapeUsed latches true on the first AfterBatchDrained
 	// call in this process's lifetime, whatever leg drove it. That one call
 	// reports hasCommitted=true so a shard that owns no repositories can still
@@ -257,9 +262,27 @@ func (s Service) Run(ctx context.Context) error {
 					startupMaintenanceEscapeUsed = true
 				}
 				if err := s.AfterBatchDrained(ctx, hasCommitted); err != nil {
+					// A budget-sentinel drain failure means a deferred-maintenance
+					// fact load timed out; the inner degrade already parked it for
+					// the next pass. Skip this pass without killing the pod: the
+					// committed evidence is content-addressed and the next drain
+					// reconverges. Consecutive skips never re-escalate to fatal;
+					// the count resets on the next clean drain so a persistently
+					// timing-out block is operator-visible instead of silently
+					// tolerated. Any other drain error stays fatal.
+					if errors.Is(err, backfill.ErrRelationshipFactLoadBudgetExceeded) {
+						drainSkips++
+						s.logDegradedDrain(ctx, err, drainSkips)
+						committedSinceDrain = false
+						if waitErr := s.wait(ctx, s.PollInterval); waitErr != nil {
+							return nil
+						}
+						continue
+					}
 					return fmt.Errorf("after collector batch drained: %w", err)
 				}
 				committedSinceDrain = false
+				drainSkips = 0
 			}
 			if err := s.wait(ctx, s.PollInterval); err != nil {
 				return nil
@@ -340,6 +363,22 @@ func (s Service) recordGenerationDeadLetterOnly(
 		return fmt.Errorf("record generation dead-letter: %w", err)
 	}
 	return nil
+}
+
+// logDegradedDrain emits an operator-facing record that a drain hook failed on
+// the fact-load budget sentinel, so this pass was skipped without tearing
+// down the collector. consecutiveSkips counts successive skipped drains and
+// resets on the next clean drain, so a persistently timing-out block shows up
+// as a growing count rather than a silent stall.
+func (s Service) logDegradedDrain(ctx context.Context, cause error, consecutiveSkips int) {
+	if s.Logger == nil {
+		return
+	}
+	s.Logger.WarnContext(ctx, "collector drain degraded; skipping this pass, continuing",
+		telemetry.FailureClassAttr("collector_drain_degraded"),
+		slog.Int("consecutive_skips", consecutiveSkips),
+		log.Err(cause),
+	)
 }
 
 // logRetryableCommit emits an operator-facing record that a transient commit
