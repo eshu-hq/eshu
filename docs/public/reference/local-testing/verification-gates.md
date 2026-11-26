@@ -327,14 +327,15 @@ not select lanes for those commits.
 
 ## Moved-File Reference Guard
 
-Any `go/**` change selects `scripts/verify-moved-file-refs.sh`. It fails a
+Any `go/**`, `docs/**/*.md`, or `*.md` change selects `scripts/verify-moved-file-refs.sh`. It fails a
 branch that moves or deletes a Go file and leaves a reference **written as the
 full `go/...` path** pointing at the path it vacated:
 
 ```bash
 bash scripts/verify-moved-file-refs.sh              # attribute against origin/main
 bash scripts/verify-moved-file-refs.sh --base <ref> # attribute against <ref>
-bash scripts/test-verify-moved-file-refs.sh         # its mirror test
+bash scripts/test-verify-moved-file-refs.sh         # Go-path mirror cases
+bash scripts/test-verify-moved-file-refs-md.sh      # Markdown-path mirror cases
 ```
 
 This is the residue the #6061 reducer subpackage split kept shipping, and

@@ -25,7 +25,10 @@
 # from a .md file in the same directory (where the relative link resolves to
 # the vacated file) or a line naming the full path. A same-basename link from
 # another directory resolves to its own sibling and is not reported, and
-# cross-directory relative links (../dir/file.md) are out of scope.
+# cross-directory relative links (../dir/file.md) are out of scope. When the
+# vacated path is a rename (not a deletion), a hit line whose link target
+# resolves to the rename target is skipped, so a correct relative repoint is
+# not reported as dangling.
 #
 # What it checks, and why it is scoped to the branch:
 #
@@ -169,9 +172,62 @@ fi
 exclusions=(
   ':(exclude)scripts/verify-moved-file-refs.sh'
   ':(exclude)scripts/test-verify-moved-file-refs.sh'
+  ':(exclude)scripts/test-verify-moved-file-refs-md.sh'
+  ':(exclude)scripts/lib/test-verify-moved-file-refs-harness.sh'
   ':(exclude)scripts/moved-file-refs-allowlist.txt'
   ':(exclude)scripts/moved-file-refs-allowlist.d'
 )
+
+# md_resolve_path joins a link target to its referring directory and
+# normalizes ./ and dir/../ segments lexically (no filesystem access, so it
+# works when either side is vacated). A root-absolute target is treated as
+# repo-root-relative. Leading ../ that escapes the root cannot resolve and
+# never matches, which fails closed.
+md_resolve_path() {
+  local dir="$1" link="$2" p prev
+  case "${link}" in
+    /*) p="${link#/}" ;;
+    *) p="${dir}/${link}" ;;
+  esac
+  case "${p}" in
+    ./*) p="${p#./}" ;;
+  esac
+  prev=""
+  while [ "${p}" != "${prev}" ]; do
+    prev="${p}"
+    p="$(printf '%s' "${p}" | sed -e 's|/\./|/|g' -e ':norm' -e 's|/[^/][^/]*/\.\./|/|' -e 'tnorm')"
+  done
+  printf '%s' "${p}"
+}
+
+# md_link_repoints reports whether a grep hit line already points at the
+# rename target: it extracts every (...) link target naming the vacated
+# basename, resolves it against the referring directory, and compares it with
+# the rename target. Fragment suffixes are ignored; remote URLs are skipped.
+# Returns 0 (skip the hit) when one target resolves to the rename target.
+md_link_repoints() {
+  local line="$1" dir="$2" target="$3" base="$4"
+  local groups_file="${tmp_dir}/linkgroups.txt"
+  local group cand norm
+  printf '%s\n' "${line}" | grep -oE '\([^()]*\)' >"${groups_file}" 2>/dev/null || return 1
+  while IFS= read -r group; do
+    cand="${group#(}"
+    cand="${cand%)}"
+    cand="${cand%%#*}"
+    case "${cand}" in
+      http://*|https://*|mailto:*|"") continue ;;
+    esac
+    case "${cand}" in
+      *"${base}") ;;
+      *) continue ;;
+    esac
+    norm="$(md_resolve_path "${dir}" "${cand}")"
+    if [ "${norm}" = "${target}" ]; then
+      return 0
+    fi
+  done <"${groups_file}"
+  return 1
+}
 
 # allowed reports whether "<referencing-file>:<vacated-path>" is exempted.
 # It checks the main allowlist file plus every allowlist.d fragment, so one
@@ -255,6 +311,14 @@ while IFS="${tab}" read -r kind old new; do
         *) base_hit_dir="." ;;
       esac
       if [ "${base_hit_dir}" = "${md_dir}" ]; then
+        # A rename that keeps the basename plus a correct repoint names the
+        # vacated basename but resolves to the live target: skip lines whose
+        # link target already resolves to the rename target, so a fixed
+        # relative link (../b/foo.md) is not reported as dangling (#11532 P2).
+        # Pure deletions carry no rename target and are unaffected.
+        if [ -n "${new}" ] && md_link_repoints "${base_hit}" "${base_hit_dir}" "${new}" "${md_base}"; then
+          continue
+        fi
         printf '%s\n' "${base_hit}" >>"${tmp_dir}/hits.txt"
       fi
     done <"${tmp_dir}/hits-base.txt"
