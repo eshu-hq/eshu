@@ -411,7 +411,7 @@ import (
 // trigram GIN serving the targeted anchor-scoped relationship fact load.
 // Count 386 is 385 plus 360.
 const (
-	goldenBootstrapDefinitionsDigest = "744b77238232be937ab2f3642ad6804a0fcb76a670153f4c5be2709312fa4a02"
+	goldenBootstrapDefinitionsDigest = "aa944e18ba64a9d4ee39e9bb8ee1272c5ea6bfff6ea9951042122c56d5c68c7c"
 	goldenBootstrapDefinitionsCount  = 386
 )
 
