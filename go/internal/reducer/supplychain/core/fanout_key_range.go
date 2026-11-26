@@ -20,17 +20,24 @@ import (
 const fanOutHolderKeyRangeCount = 16
 
 // HolderKeyRangeMassGate is the routing-mass bound above which a hot
-// singleton holder id reads as fact_id key-range statements (#10972 H2 A2).
-// The H2 shim proved the shipped singleton at a warm ~1.3 s isolated on the
-// hottest 156,870-row advisory ids but p95 3.45 s at 4-parallel (over the
-// 2 s per-statement bar) with member-carrying singletons timing out outright,
-// while the 16-statement key-range read passed every set isolated (warm max
-// 362 ms) and concurrent (p95 323 ms). The gate is the largest A1-passing
-// singleton mass halved for margin (156870/2); member-heavy mixes land above
-// it and A1-passing direct-only ids stay below it. The mass probe saturates
+// singleton holder id reads as fact_id key-range statements (#10972 H2 A2,
+// retuned by the fanout-holder-read-cost lane). The H2 shim proved the
+// shipped singleton at a warm ~1.3 s isolated on the hottest 156,870-row
+// advisory ids but p95 3.45 s at 4-parallel (over the 2 s per-statement
+// bar), while the 16-statement key-range read passed every set isolated
+// (warm max 362 ms) and concurrent (p95 323 ms). The executing QA-replica
+// shim then convicted the below-gate middle band the old gate admitted: a
+// direct-only 29,417-row singleton runs the shipped statement in 2.36 s
+// partly-cold (over the bar), a 9,032-row one in 1.67 s mixed-cache (no
+// margin), while a 6,006-row one passes at 0.13 s warm — and the same
+// 29,417-row id reads as key ranges in 0.56 s total at 0.105 s max per
+// statement with a byte-identical holder set. The gate is the largest
+// comfortably-passing singleton mass halved for margin (6006/2, rounded to
+// 3000); member-heavy mixes land above it and small-hot direct-only ids
+// stay below it on the cheap shipped statement. The mass probe saturates
 // at HolderMassProbeCap, so the comparison needs routing masses from
 // HolderRoutingMassEstimator, never the capped probe mass.
-const HolderKeyRangeMassGate = 78435
+const HolderKeyRangeMassGate = 3000
 
 // holderKeyRangeHexDigits are the split points of the key ranges. A finding
 // fact_id is the fact kind, a colon, and a hex digest, so its first digest

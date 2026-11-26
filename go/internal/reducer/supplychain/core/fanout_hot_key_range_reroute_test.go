@@ -73,8 +73,8 @@ func TestHotSingletonAboveRoutingMassGateReadsAsKeyRanges(t *testing.T) {
 	if got := result.SubSignals["fanout_holder_statements"]; got != float64(len(ranges)) {
 		t.Fatalf("fanout_holder_statements = %v, want %d", got, len(ranges))
 	}
-	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != float64(HolderKeyRangeMassGate+1) {
-		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved routing mass %d", got, HolderKeyRangeMassGate+1)
+	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != float64(HolderMassProbeCap) {
+		t.Fatalf("fanout_max_id_mass_rows = %v, want the probe cap %d (the retuned gate sits under the cap, so the probe report stays the max)", got, HolderMassProbeCap)
 	}
 	// Telemetry confirmation: one mass-planning sample per probe and exact
 	// count, one whole-read sample, and one per-statement sample under the
@@ -98,8 +98,10 @@ func TestHotSingletonAboveRoutingMassGateReadsAsKeyRanges(t *testing.T) {
 // production can return: unsaturated summed per-arm counts at or under
 // the gate, saturating at gate+1 above it (the member-heavy and
 // hottest-advisory classes saturate to the same report, so they share the
-// row). The gate is the largest A1-passing shim singleton mass halved:
-// 156870/2 = 78435.
+// row). The gate is the largest comfortably-passing shim singleton mass
+// halved: 6006/2, rounded to 3000 (fanout-holder-read-cost lane retune;
+// the old 78435 admitted a mid-band whose shipped statement breaches the
+// 2 s bar).
 func TestHotSingletonRoutingMassGateBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -108,8 +110,9 @@ func TestHotSingletonRoutingMassGateBoundary(t *testing.T) {
 		routingMass int64
 		wantRanged  bool
 	}{
-		{"mid-band saturation stays single", 5000, false},
-		{"A1-passing direct-only stays single", 42388, false},
+		{"small-hot direct-only stays single", 2500, false},
+		{"near-bar mid-band mass ranges", 9000, true},
+		{"old-gate mid-band now ranges", 42388, true},
 		{"at the gate stays single", HolderKeyRangeMassGate, false},
 		{"one row over the gate ranges", HolderKeyRangeMassGate + 1, true},
 		{"member-heavy mix saturates to gate+1 and ranges", HolderKeyRangeMassGate + 1, true},
@@ -218,8 +221,8 @@ func TestMultiHotChunkCountsRoutingMassOnce(t *testing.T) {
 	if got := result.SubSignals["fanout_holder_statements"]; got != float64(2*len(ranges)+1) {
 		t.Fatalf("fanout_holder_statements = %v, want %d", got, 2*len(ranges)+1)
 	}
-	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != float64(HolderKeyRangeMassGate+1) {
-		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved routing mass %d", got, HolderKeyRangeMassGate+1)
+	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != float64(HolderMassProbeCap) {
+		t.Fatalf("fanout_max_id_mass_rows = %v, want the probe cap %d (the retuned gate sits under the cap, so the probe report stays the max)", got, HolderMassProbeCap)
 	}
 }
 
