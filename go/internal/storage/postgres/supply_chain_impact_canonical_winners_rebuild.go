@@ -77,7 +77,8 @@ func supplyChainImpactWinnerConflictSet() string {
 // final watermark upsert is unconditional, so it stamps even a resweep that
 // produced zero winners, which lets the read tell "never populated" (no
 // watermark row) from "reswept to zero findings" (watermark present, table
-// empty). Its RETURNING reports the row counts and the watermark it replaced.
+// empty). Its RETURNING reports the row counts and the post-stamp watermark
+// (scanned for arity only; the replaced value is pre-read, #11515).
 // The data-modifying CTEs always run to completion, whether or not the final
 // statement reads them.
 //
