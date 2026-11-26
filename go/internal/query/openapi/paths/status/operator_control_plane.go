@@ -113,7 +113,7 @@ const OperatorControlPlane = `
                           "description": "Dead-letter state of the collector-generation commit path.",
                           "properties": {
                             "dead_letter": {"type": "integer"},
-                            "replay_requested": {"type": "boolean"},
+                            "replay_requested": {"type": "integer", "description": "Collector-generation items awaiting replay after a dead-lettered commit."},
                             "replay_attempts": {"type": "integer"},
                             "oldest_dead_letter_age": {"type": "number", "description": "Age in seconds of the oldest dead-letter item."},
                             "oldest_dead_letter_age_ms": {"type": "integer", "description": "Age in whole milliseconds of the oldest dead-letter item."}

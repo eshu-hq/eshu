@@ -87,6 +87,23 @@ func TestContractShapesAreComplete(t *testing.T) {
 		}
 	}
 
+	// requireScalarTypes pins the JSON scalar type of hand-written schema
+	// properties. Presence-only checks pass a boolean where the server
+	// emits an integer, so every hand-typed scalar needs its type pinned.
+	requireScalarTypes := func(t *testing.T, props map[string]any, where string, want map[string]string) {
+		t.Helper()
+		for key, typ := range want {
+			node, ok := props[key].(map[string]any)
+			if !ok {
+				t.Errorf("%s: missing property %q", where, key)
+				continue
+			}
+			if got, _ := node["type"].(string); got != typ {
+				t.Errorf("%s: property %q has type %q, want %q", where, key, got, typ)
+			}
+		}
+	}
+
 	requireArrayOfStrings := func(t *testing.T, props map[string]any, where, key string) {
 		t.Helper()
 		node, ok := props[key].(map[string]any)
@@ -163,8 +180,13 @@ func TestContractShapesAreComplete(t *testing.T) {
 		requireKeys(t, propsOf(t, itemsOf(t, byDomain, "control-plane.dead_letters.by_domain"), "control-plane.dead_letters.by_domain[]"),
 			"control-plane.dead_letters.by_domain[]", "domain", "dead_letter", "oldest_age")
 		generation := child(t, deadProps, "collector_generation", "control-plane.dead_letters")
-		requireKeys(t, propsOf(t, generation, "control-plane.dead_letters.collector_generation"), "control-plane.dead_letters.collector_generation",
+		generationProps := propsOf(t, generation, "control-plane.dead_letters.collector_generation")
+		requireKeys(t, generationProps, "control-plane.dead_letters.collector_generation",
 			"dead_letter", "replay_requested", "replay_attempts")
+		requireScalarTypes(t, generationProps, "control-plane.dead_letters.collector_generation", map[string]string{
+			"dead_letter": "integer", "replay_requested": "integer", "replay_attempts": "integer",
+			"oldest_dead_letter_age": "number", "oldest_dead_letter_age_ms": "integer",
+		})
 		latest := child(t, deadProps, "latest_failure", "control-plane.dead_letters")
 		requireKeys(t, propsOf(t, latest, "control-plane.dead_letters.latest_failure"), "control-plane.dead_letters.latest_failure",
 			"failure_class", "domain")
