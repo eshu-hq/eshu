@@ -344,7 +344,24 @@ const Routes = `
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityBootstrapRequest"}}}
         },
         "responses": {
-          "201": {"description": "First owner/admin created."},
+          "201": {
+            "description": "First owner/admin created. The response echoes the created identity's ids.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Bootstrap outcome. Owner: local.handleBootstrap.",
+                  "required": ["status", "user_id", "tenant_id", "workspace_id"],
+                  "properties": {
+                    "status": {"type": "string", "enum": ["bootstrapped"], "description": "Request disposition. Owner: local.handleBootstrap."},
+                    "user_id": {"type": "string", "description": "Created owner user id. Owner: local.handleBootstrap via record.UserID."},
+                    "tenant_id": {"type": "string", "description": "Owner tenant id. Owner: local.handleBootstrap via record.TenantID."},
+                    "workspace_id": {"type": "string", "description": "Owner workspace id. Owner: local.handleBootstrap via record.WorkspaceID."}
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -382,7 +399,23 @@ const Routes = `
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityInvitationRequest"}}}
         },
         "responses": {
-          "201": {"description": "Invitation created. The invite_code is returned once and only the hash is persisted."},
+          "201": {
+            "description": "Invitation created. The invite_code is returned once and only the hash is persisted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Created invitation. Owner: local.handleCreateInvitation.",
+                  "required": ["invite_id", "invite_code", "expires_at"],
+                  "properties": {
+                    "invite_id": {"type": "string", "description": "Invitation id. Owner: local.handleCreateInvitation via record.InviteID."},
+                    "invite_code": {"type": "string", "description": "Plaintext invite code, returned once only. Owner: local.handleCreateInvitation."},
+                    "expires_at": {"type": "string", "format": "date-time", "description": "When the invitation expires. Owner: local.handleCreateInvitation via record.ExpiresAt."}
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -448,7 +481,22 @@ const Routes = `
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityInvitationAcceptanceRequest"}}}
         },
         "responses": {
-          "201": {"description": "Invitation accepted and local identity created."},
+          "201": {
+            "description": "Invitation accepted and local identity created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Invitation acceptance outcome. Owner: local.handleAcceptInvitation.",
+                  "required": ["status", "user_id"],
+                  "properties": {
+                    "status": {"type": "string", "enum": ["accepted"], "description": "Request disposition. Owner: local.handleAcceptInvitation."},
+                    "user_id": {"type": "string", "description": "Created local identity user id. Owner: local.handleAcceptInvitation via acceptance.UserID."}
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
@@ -544,7 +592,24 @@ const Routes = `
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LocalIdentityBreakGlassRequest"}}}
         },
         "responses": {
-          "201": {"description": "Break-glass window enabled. The break_glass_code is returned once and only the hash is persisted."},
+          "201": {
+            "description": "Break-glass window enabled. The break_glass_code is returned once and only the hash is persisted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Enabled break-glass window. Owner: local.handleEnableBreakGlass.",
+                  "required": ["recovery_id", "break_glass_code", "expires_at", "policy_revision_hash"],
+                  "properties": {
+                    "recovery_id": {"type": "string", "description": "Break-glass window id. Owner: local.handleEnableBreakGlass via window.RecoveryID."},
+                    "break_glass_code": {"type": "string", "description": "Plaintext break-glass code, returned once only. Owner: local.handleEnableBreakGlass."},
+                    "expires_at": {"type": "string", "format": "date-time", "description": "When the break-glass window expires. Owner: local.handleEnableBreakGlass via window.ExpiresAt."},
+                    "policy_revision_hash": {"type": "string", "description": "Policy revision hash the window was enabled under. Owner: local.handleEnableBreakGlass via window.PolicyRevisionHash."}
+                  }
+                }
+              }
+            }
+          },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
