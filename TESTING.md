@@ -34,7 +34,7 @@ Go package or command slice:
 
 ```bash
 cd go
-go test ./cmd/eshu ./cmd/api ./internal/query -count=1
+go test ./cmd/eshu ./cmd/eshu-local-api ./internal/query -count=1
 ```
 
 Deploy-contract packages (`internal/deploy`, `internal/runtime`,
@@ -50,7 +50,7 @@ go test ./internal/deploy/ ./internal/runtime/ ./internal/cli/demo/ -count=1
 Deployment shape:
 
 ```bash
-(cd go && go test ./cmd/api ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1)
+(cd go && go test ./cmd/eshu-local-api ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1)
 helm template eshu "$ESHU_DEPLOY_CHECKOUT/helm/eshu"
 kubectl kustomize "$ESHU_DEPLOY_CHECKOUT/gitops/manifests/minimal"
 ```

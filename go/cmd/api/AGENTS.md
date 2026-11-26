@@ -65,7 +65,7 @@
   (`wiring_router.go`), add a path fragment under `internal/query/openapi/paths/<family>/`
   and reference it in the OpenAPI assembly function, update
   `docs/public/reference/http-api.md`, run
-  `go test ./cmd/api ./internal/query -count=1`. Why: all handler families
+  `go test ./cmd/eshu-local-api/... ./internal/query -count=1`. Why: all handler families
   follow the same struct-and-`Mount` pattern; missing a step leaves routes
   unreachable or undocumented.
 
