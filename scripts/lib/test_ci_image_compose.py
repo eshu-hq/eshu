@@ -13,8 +13,8 @@ SCRIPT = pathlib.Path(__file__).with_name("ci_image_compose.py")
 SUPPORTED_DOCKERFILE = SCRIPT.parents[2] / "Dockerfile"
 DIGEST = "a" * 64
 NORNICDB_IMAGE = (
-    "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:"
-    "74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+    "ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:"
+    "ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5"
 )
 
 
@@ -107,9 +107,9 @@ class CiImageComposeTest(unittest.TestCase):
         self.assertEqual(self.render(config=config).returncode, 0)
         self.assertNotEqual(self.render(config=config, runtime_allowlist=[]).returncode, 0)
         for image in (
-            NORNICDB_IMAGE.replace("74a8ed7b", "00000000"),
+            NORNICDB_IMAGE.replace("ece888de", "00000000"),
             NORNICDB_IMAGE.replace("nornicdb-amd64-cpu", "nornicdb-other"),
-            NORNICDB_IMAGE.replace("fix-500-e022384c", "unreviewed"),
+            NORNICDB_IMAGE.replace("v1.5.2-hotfix", "unreviewed"),
         ):
             with self.subTest(image=image):
                 config["services"]["nornicdb"]["image"] = image
@@ -148,7 +148,7 @@ class RealComposeParityTest(unittest.TestCase):
     def test_real_nornicdb_override_fails_preflight(self) -> None:
         """Compose interpolation must not turn an override into approval."""
         root = SCRIPT.parents[2]
-        wrong_image = NORNICDB_IMAGE.replace("74a8ed7b", "00000000")
+        wrong_image = NORNICDB_IMAGE.replace("ece888de", "00000000")
         environment = {**os.environ, "NORNICDB_IMAGE": wrong_image}
         rendered = subprocess.run(
             ["docker", "compose", "-f", "docker-compose.yaml", "--profile", "*",
