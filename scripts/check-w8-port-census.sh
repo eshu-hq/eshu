@@ -19,7 +19,7 @@
 #   bash scripts/check-w8-port-census.sh
 set -euo pipefail
 
-CUTOVER="go/cmd/api/CUTOVER_OWNERSHIP.md"
+CUTOVER="go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md"
 CENSUS="docs/internal/w8-port-census.md"
 
 EXPECT_ROWS="${W8_EXPECT_ROWS:-281}"

@@ -14,7 +14,7 @@ import (
 
 // TestQueryRootDrained fails while any non-test file in this package still
 // imports the handler-heavy query root (row 9 of
-// REMOVAL_CONSUMER_DRAIN_CHECKLIST.md). The verifier names query packages in
+// the retired removal drain checklist). The verifier names query packages in
 // `go test` proof-ref strings in tests only; runtime code must not import the
 // root, so the re-prove grep must stay silent on non-test files here.
 func TestQueryRootDrained(t *testing.T) {

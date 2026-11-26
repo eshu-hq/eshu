@@ -34,10 +34,9 @@ var (
 )
 
 // censusDocRoot resolves the repository root so the census test reads the
-// ownership and census maps at their interim home: the serving code moved to
-// this directory under #11514 while the two Markdown maps stay under
-// go/cmd/api until the #11456 removal dispositions both the docs and this
-// lookup. It mirrors cutoverRepoRoot in cutover_ownership_test.go.
+// ownership and census maps at their home in this directory: the maps moved
+// here from go/cmd/api with the serving code (#11514 moved the code, #11456
+// moved the maps). It mirrors cutoverRepoRoot in cutover_ownership_test.go.
 func censusDocRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
@@ -49,7 +48,7 @@ func censusDocRoot(t *testing.T) string {
 
 func cutoverFamilies(t *testing.T) map[string]int {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(censusDocRoot(t), "go/cmd/api/CUTOVER_OWNERSHIP.md"))
+	raw, err := os.ReadFile(filepath.Join(censusDocRoot(t), "go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md"))
 	if err != nil {
 		t.Fatalf("read CUTOVER_OWNERSHIP.md: %v", err)
 	}
@@ -69,7 +68,7 @@ func cutoverFamilies(t *testing.T) map[string]int {
 
 func censusDispositions(t *testing.T) map[string]string {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(censusDocRoot(t), "go/cmd/api/READ_TRANSPORT_CENSUS.md"))
+	raw, err := os.ReadFile(filepath.Join(censusDocRoot(t), "go/cmd/eshu-local-api/READ_TRANSPORT_CENSUS.md"))
 	if err != nil {
 		t.Fatalf("read READ_TRANSPORT_CENSUS.md: %v", err)
 	}

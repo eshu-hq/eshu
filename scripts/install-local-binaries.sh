@@ -51,9 +51,9 @@ main() {
     go build "${ESHU_BUILD_TAG_ARGS[@]}" -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu" ./cmd/eshu
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-bootstrap-index" ./cmd/bootstrap-index
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-core-api" ./cmd/core-api
-    # #11514 session half: eshu-local-api from the relocated ./cmd/eshu-local-api
-    # (NornicDB-owner-bound, ESHU_API_ADDR plus /healthz). The leftover
-    # go/cmd/api docs expire with the #11456 disposition. It never ships at
+    # #11514 session half: eshu-local-api from ./cmd/eshu-local-api
+    # (NornicDB-owner-bound, ESHU_API_ADDR plus /healthz; the go/cmd/api
+    # tree it relocated from was deleted by #11456). It never ships at
     # the eshu-api path below.
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-local-api" ./cmd/eshu-local-api
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-ingester" ./cmd/ingester

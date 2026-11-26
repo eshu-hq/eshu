@@ -16,7 +16,7 @@ import (
 
 // TestQueryRootDrained fails while any non-test file in this package still
 // imports the handler-heavy query root (row 8 of
-// REMOVAL_CONSUMER_DRAIN_CHECKLIST.md). Answer packets come from the Ask
+// the retired removal drain checklist). Answer packets come from the Ask
 // family and every other shape is a versioned read contract, so this package
 // must spell them through query/ask and querycontract.
 func TestQueryRootDrained(t *testing.T) {

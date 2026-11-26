@@ -9,9 +9,10 @@
    fails on any live route without a row.
 3. `main.go` — `main`, telemetry bootstrap, signal handling, and shutdown. The
    binary takes its listen address on `ESHU_API_ADDR` and has no `-addr` flag.
-4. `CUTOVER_OWNERSHIP.md` still lives under `go/cmd/api/` until the
-   `eshu-hq/eshu#11456` removal deletes that tree: the ownership map and the
-   `cutover_ownership_test.go` pin in this directory read it from there.
+4. `CUTOVER_OWNERSHIP.md` lives in this directory (moved here from
+   `go/cmd/api/` by the `eshu-hq/eshu#11456` removal with the serving code
+   it describes): the ownership map and the `cutover_ownership_test.go`
+   pin in this directory read it from here.
 5. `README.md` — lifecycle summary and build/test commands.
 6. `diagnostic/` — the opt-in status-route timing collector; see its own
    `AGENTS.md` before changes there.

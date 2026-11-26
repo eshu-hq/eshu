@@ -367,12 +367,12 @@ eshu#10553).
 ## Method (exact commands, run in the worktree root)
 
 ```bash
-rg -c '^\\| `' go/cmd/api/CUTOVER_OWNERSHIP.md            # {n} live rows
+rg -c '^\\| `' go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md            # {n} live rows
 python3 scripts/gen-w8-port-census.py [--tracker FILE]    # regenerate this file
 bash scripts/check-w8-port-census.sh                      # drift gate (row parity)
 ```
 
-Route set is read from [CUTOVER_OWNERSHIP.md](../../go/cmd/api/CUTOVER_OWNERSHIP.md);
+Route set is read from [CUTOVER_OWNERSHIP.md](../../go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md);
 box states default to the live #10491 body (`gh issue view 10491`); pass --tracker
 with a saved snapshot file for a reproducible/offline run. Mount attribution resolves
 each route literal (`"METHOD path"`) against non-test Go sources and cites the defining

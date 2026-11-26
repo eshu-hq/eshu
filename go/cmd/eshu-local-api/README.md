@@ -46,6 +46,30 @@ under its surviving binary name so the later `eshu-hq/eshu#11456` removal can
 delete the leftover tree. Behavior is unchanged by the move; only the source
 directory and the consumer build references changed.
 
+## Removal honesty note (#11456)
+
+`go/cmd/api` is deleted; this binary is the retained serving path for
+NornicDB and unset-backend sessions (owner decision (b)-narrowed on
+`eshu-hq/eshu#11467`). What that retention does and does not cover:
+
+- NornicDB/lightweight sessions keep serving through this binary on the
+  NornicDB `v1.5.2-hotfix` pin
+  (`ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5`,
+  per `docs/internal/evidence/11535-nornicdb-strict-schema.md`). Neo4j
+  sessions use `eshu-core-api`, which refuses any other backend; the
+  dispatch surface itself ships from the eshu-api satellite.
+- Range-scan caveat on 1.5.x (backend behavior, not a defect of this
+  binary): range and prefix predicates over uid label-scan — only
+  equality seeks the backing index. The production first-page query
+  measured 8.646s cold against the 10s reader deadline (1.35s headroom)
+  and 61ms warm on the hotfix pin; see the #11535 evidence note.
+- The NornicDB leg of the golden-corpus gate is stood down (owner order
+  on `eshu-hq/eshu#11513`): no leg-green proof is owed for it, and its
+  required-fails need no root cause. The interim backend-split corpus
+  shell (`scripts/lib/golden-corpus-query-shell.sh`) keeps serving the
+  NornicDB leg under this binary's surviving name; the gate's supported
+  proof is the Neo4j leg.
+
 ## Build and test
 
 ```bash

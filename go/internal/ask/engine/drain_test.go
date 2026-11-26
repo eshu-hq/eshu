@@ -18,7 +18,7 @@ import (
 
 // TestQueryRootDrained fails while any non-test file in this package still
 // imports the handler-heavy query root (row 8 of
-// REMOVAL_CONSUMER_DRAIN_CHECKLIST.md). The engine is the Ask family's
+// the retired removal drain checklist). The engine is the Ask family's
 // runtime, so packets and truth come from query/ask, envelopes from
 // querycontract, and caller auth from the auth family.
 func TestQueryRootDrained(t *testing.T) {

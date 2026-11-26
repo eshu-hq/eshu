@@ -14,7 +14,7 @@ import (
 
 // TestQueryRootDrained fails while any file in this package still imports the
 // handler-heavy query root (row-8 remainder of
-// REMOVAL_CONSUMER_DRAIN_CHECKLIST.md, per the arbiter ruling). Answer
+// the retired removal drain checklist, per the arbiter ruling). Answer
 // packets come from querycontract/answer and truth classes from
 // querycontract. Unlike the ask/engine and serviceintel precedents this
 // census also covers _test.go files: the ruling repoints this package's tests

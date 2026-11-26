@@ -51,8 +51,8 @@ COPY sdk/go/factschema/ ./sdk/go/factschema/
 # (./cmd/eshu-local-api, moved out of ./cmd/api under #11514) for the
 # session API the supervisor spawns on NornicDB or an unset backend. It is
 # NornicDB-owner-bound (it inherits the owner's Postgres and graph
-# environment, ESHU_API_ADDR plus /healthz); the leftover go/cmd/api docs
-# expire with the #11456 disposition. It never ships at the eshu-api path.
+# environment, ESHU_API_ADDR plus /healthz). It never ships at the
+# eshu-api path.
 RUN cd go \
     && export CGO_ENABLED=1 \
     && export GOFLAGS="-buildvcs=false" \
@@ -86,7 +86,8 @@ RUN cd go \
 FROM ghcr.io/eshu-hq/eshu-mcp:0.2.14@sha256:f48d3a5f2ab068cc36cee184211ea9cef9a7d801d1e973cf069299f310e0adc7 AS mcp-satellite
 
 # api-satellite: the extracted API dispatch surface (#11453). The in-tree
-# go/cmd/api is gone from the builder above; the E2E fresh stack and the
+# api tree is gone from the builder above (#11456 removed go/cmd/api);
+# the E2E fresh stack and the
 # release image keep serving the dispatch contract from this digest-pinned
 # satellite release binary at the old installed path. Satellite build
 # 45658098 (post-v0.6.0, commit 4565809840f689d552d2674a771e28a35326359c);
