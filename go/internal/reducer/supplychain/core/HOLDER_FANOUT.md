@@ -62,15 +62,15 @@ rules, the outcomes, and the open residual are in
   three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
   before while a hot id still reads hot; a mid-band cheap count saturates
   to the cap and runs singleton, which only splits more).
-- A hot singleton id reads by true mass (#10972 H2 A2): one batched exact
-  count resolves each probe-hot singleton (the probe saturates at the cap),
-  and the id reads as 16 fact_id key-range statements above the 78,435-row
-  gate or as the shipped single statement at or under it. The shim proved the
-  single statement warm ~1.3 s isolated on 156,870-row ids but p95 3.45 s at
-  4-parallel with member-carrying singletons timing out, while the key-range
-  read passed every set isolated and concurrent (p95 323 ms). Cold packing
-  and parallelism are untouched; a port without either seam keeps the shipped
-  statement. Ordered keyset pages stay rejected: each row is a random heap
+- A hot singleton id reads by routing mass (#10972 H2 A2, Lane-1b): one
+  batched routing-mass count resolves each probe-hot singleton (exact at
+  or under the 78,435-row gate for direct-only and member<=100 ids, gate+1
+  above it so the blind band only over-routes), reading as 16 key-range
+  statements above the gate or the shipped statement below it. The shipped
+  statement times out on member-carrying ids and breaches p95 concurrent;
+  the key-range read passed every set (p95 323 ms), and the micro-shim
+  proves the routing-mass count under the bars with zero timeouts; packing
+  and parallelism are untouched. Ordered keyset pages stay rejected: each row is a random heap
   fetch, about 10x the shipped cost cold.
   Proof: `docs/internal/evidence/10972-h2-holders-shim.md`.
 - Member arm (#10643 PR 2), the third arm of the shipped statement: the

@@ -21,7 +21,7 @@ import (
 // supplyChainImpactFanOutReadTimeout bounds one holder-read statement. The
 // 5 ms (one CVE) and 130 ms (200-CVE chunk) calibration predates hot ids: on
 // QA a hot id's shipped read ran 11.42 s cold (#10643), which is why a hot
-// singleton whose true mass sits above the key-range gate reads as key-range
+// singleton whose routing mass sits above the key-range gate reads as key-range
 // statements (#10972 H2 A2) while at-or-under-gate singletons keep the
 // shipped single statement. Ten seconds stops a regressed plan from pinning a
 // connection and a snapshot, and the pass fails (and is retried) rather than

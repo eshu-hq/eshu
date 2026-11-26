@@ -82,12 +82,13 @@ type stubFanOut struct {
 	masses    map[string]int64
 	massErr   error
 	massCalls [][]string
-	// trueMasses, trueMassErr, and trueMassCalls serve the #10972 H2 A2
-	// exact-count path: a probe-hot singleton's true mass for the key-range
-	// gate. Like the probe it reports every requested id, zero-filled.
-	trueMasses          map[string]int64
-	trueMassErr         error
-	trueMassCalls       [][]string
+	// routingMasses, routingMassErr, and routingMassCalls serve the #10972
+	// H2 A2 routing-mass count: a probe-hot singleton's routing mass for
+	// the key-range gate. Like the probe it reports every requested id,
+	// zero-filled.
+	routingMasses       map[string]int64
+	routingMassErr      error
+	routingMassCalls    [][]string
 	candidates          []PackageHolderCandidate
 	candidateErr        error
 	candidateEcosystems [][]string
@@ -209,20 +210,21 @@ func (s *stubFanOut) EstimateHolderMasses(_ context.Context, lookupIDs []string)
 	return out, nil
 }
 
-// EstimateHolderTrueMasses serves the #10972 H2 A2 exact-count path. A nil
-// trueMasses map keeps every requested id at zero (under the gate, so the
-// singleton reads the shipped statement); an entry overrides that id's true
-// mass, and trueMassErr fails the count the way a timed-out read fails.
-func (s *stubFanOut) EstimateHolderTrueMasses(_ context.Context, lookupIDs []string) (map[string]int64, error) {
+// EstimateHolderRoutingMasses serves the #10972 H2 A2 routing-mass count.
+// A nil routingMasses map keeps every requested id at zero (under the gate,
+// so the singleton reads the shipped statement); an entry overrides that
+// id's routing mass, and routingMassErr fails the count the way a timed-out
+// read fails.
+func (s *stubFanOut) EstimateHolderRoutingMasses(_ context.Context, lookupIDs []string) (map[string]int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.trueMassCalls = append(s.trueMassCalls, append([]string(nil), lookupIDs...))
-	if s.trueMassErr != nil {
-		return nil, s.trueMassErr
+	s.routingMassCalls = append(s.routingMassCalls, append([]string(nil), lookupIDs...))
+	if s.routingMassErr != nil {
+		return nil, s.routingMassErr
 	}
 	out := make(map[string]int64, len(lookupIDs))
 	for _, id := range lookupIDs {
-		out[id] = s.trueMasses[id]
+		out[id] = s.routingMasses[id]
 	}
 	return out, nil
 }

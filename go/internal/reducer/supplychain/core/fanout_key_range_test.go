@@ -183,9 +183,10 @@ func TestHotSingletonSingleStatementFailureFailsClosed(t *testing.T) {
 // (the hot singleton reads as one holders statement, not key-range
 // statements), by kind and outcome, so an operator reads per-statement p95
 // and the timeout share per read kind. The DeepEqual also pins that no
-// holders_key_range sample is recorded. The mass_probe count is 2: the
-// per-chunk probe plus the one batched exact count the gate needs for the
-// probe-hot singleton (its true mass resolves to zero here, under the gate).
+// holders_key_range sample is recorded. The mass_probe count is 1: the
+// per-chunk probe only. The port has no key-range seam, so the router runs
+// no routing-mass count (count only when ranging is possible) and the max
+// stays at the probe cap.
 func TestSingleStatementReadRecordsDurationByKind(t *testing.T) {
 	t.Parallel()
 
@@ -199,12 +200,16 @@ func TestSingleStatementReadRecordsDurationByKind(t *testing.T) {
 		masses:  map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
 	}
 	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot", "CVE-2026-c1"}}}
-	if _, err := fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil)); err != nil {
+	result, err := fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil))
+	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
+	}
+	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != float64(HolderMassProbeCap) {
+		t.Fatalf("fanout_max_id_mass_rows = %v, want the probe cap %d: no routing-mass count ran, so the max stays capped", got, HolderMassProbeCap)
 	}
 	got := fanOutReadDurationCounts(t, reader)
 	want := map[string]uint64{
-		telemetry.FanOutReadKindMassProbe + "/ok": 2,
+		telemetry.FanOutReadKindMassProbe + "/ok": 1,
 		telemetry.FanOutReadKindHolders + "/ok":   2,
 		// The #10972 queued-holder prefilter runs once per claim with holders.
 		telemetry.FanOutReadKindHolderPrefilter + "/ok": 1,

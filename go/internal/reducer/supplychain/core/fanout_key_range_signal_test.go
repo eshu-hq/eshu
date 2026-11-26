@@ -199,7 +199,7 @@ func TestKeyRangeStatementSignalsNameTheRangeAndLookupKind(t *testing.T) {
 }
 
 // TestHotSingletonEmitsNoKeyRangeSignal proves the below-gate routing: a hot
-// singleton pass whose true mass is unknown (zero) emits no
+// singleton pass whose routing mass is unknown (zero) emits no
 // holder_key_range_statement span event and no key-range warn log, because it
 // runs the shipped single statement. The long lookup id is included: the
 // token function never stores one over 1,024 bytes, and the shipped statement
@@ -237,7 +237,7 @@ func TestHotSingletonEmitsNoKeyRangeSignal(t *testing.T) {
 }
 
 // TestHotSingletonCountsHolderStatements proves the pass's statement counts
-// follow the below-gate read: a hot singleton with unknown (zero) true mass —
+// follow the below-gate read: a hot singleton with unknown (zero) routing mass —
 // short or long lookup id — adds holder statements only, no key-range
 // statement and no key-ranged id, so the accounting keys keep their shape
 // with zero key-range counts.

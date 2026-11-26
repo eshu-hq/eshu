@@ -29,7 +29,7 @@ const fanOutHolderKeyRangeCount = 16
 // singleton mass halved for margin (156870/2); member-heavy mixes land above
 // it and A1-passing direct-only ids stay below it. The mass probe saturates
 // at HolderMassProbeCap, so the comparison needs true counts from
-// HolderTrueMassEstimator, never the capped probe mass.
+// HolderRoutingMassEstimator, never the capped probe mass.
 const HolderKeyRangeMassGate = 78435
 
 // holderKeyRangeHexDigits are the split points of the key ranges. A finding
@@ -109,27 +109,30 @@ type HolderKeyRangeRead struct {
 	Fallback bool
 }
 
-// HolderTrueMassEstimator is the optional seam behind the #10972 H2 A2
-// key-range gate. The production probe reports every hot id's mass capped at
-// HolderMassProbeCap, which cannot separate a 5k-row mid-band id from a
-// 157k-row hot one; this seam reports the true live finding-row count per
-// requested lookup id so the router can compare it against
-// HolderKeyRangeMassGate. It is exact at or under the gate and reports at
-// least HolderKeyRangeMassGate+1 above it (saturating high is the safe
-// direction, the same decision-equivalence the probe cap keeps). It reports
-// one entry for every requested id (zero for no match), runs under the same
-// 10 s guard as the holder read, and fails the same way, so a pass never
-// routes on unmeasured ids.
-type HolderTrueMassEstimator interface {
-	// EstimateHolderTrueMasses returns the true live finding-row count per
-	// lookup id, exact at or under HolderKeyRangeMassGate.
-	EstimateHolderTrueMasses(ctx context.Context, lookupIDs []string) (map[string]int64, error)
+// HolderRoutingMassEstimator is the optional seam behind the #10972 H2 A2
+// key-range gate (routing-mass semantics since Lane-1b). The production
+// probe reports every hot id's mass capped at HolderMassProbeCap, which
+// cannot separate a 5k-row mid-band id from a 157k-row hot one; this seam
+// reports the routing mass per requested lookup id so the router can
+// compare it against HolderKeyRangeMassGate. The report is exact at or
+// under the gate for direct-only and member<=100 ids and reports at least
+// HolderKeyRangeMassGate+1 above it everywhere else (saturating high is
+// the safe direction: a member mass over 100 rows ranges, so the member
+// blind band can only over-route, never under-route). It reports one entry
+// for every requested id (zero for no match), runs under the same 10 s
+// guard as the holder read, and fails the same way, so a pass never routes
+// on unmeasured ids.
+type HolderRoutingMassEstimator interface {
+	// EstimateHolderRoutingMasses returns the routing mass per lookup id:
+	// exact at or under HolderKeyRangeMassGate for direct-only and
+	// member<=100 ids, saturating at HolderKeyRangeMassGate+1 above it.
+	EstimateHolderRoutingMasses(ctx context.Context, lookupIDs []string) (map[string]int64, error)
 }
 
 // HolderKeyRangeReader is the optional seam behind bounded hot-id holder reads
 // (#10643, gated by HolderKeyRangeMassGate since #10972 H2 A2). A hot
-// singleton id whose true mass (HolderTrueMassEstimator) sits above the gate
-// reads as one statement per HolderKeyRanges range. Each statement carries
+// singleton id whose routing mass (HolderRoutingMassEstimator) sits above
+// the gate reads as one statement per HolderKeyRanges range. Each statement carries
 // the cve_id and advisory_id arms over its fact_id range and the
 // advisory-group member arm as a foreign-member token arm over its share of
 // the token buckets (#10643 PR 2), so no statement reads all of the id's rows

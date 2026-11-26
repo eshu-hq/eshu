@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,16 +20,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// TestHotSingletonAboveTrueMassGateReadsAsKeyRanges is the #10972 H2 A2
-// routing pin: a probe-hot singleton whose true mass sits above
+// TestHotSingletonAboveRoutingMassGateReadsAsKeyRanges is the #10972 H2 A2
+// routing pin: a probe-hot singleton whose routing mass sits above
 // HolderKeyRangeMassGate reads as one statement per fact_id key range
 // (FindHolderScopesByKeyRange under its pinned custom plan), not as the
 // shipped single holder statement. The mass probe saturates at
-// HolderMassProbeCap, so the gate needs the exact-count path: a 157k-row
+// HolderMassProbeCap, so the gate needs the routing-mass count: a 157k-row
 // advisory id (A1 warm ~1.3s isolated but p95 3.45s at 4-parallel, over the
 // 2s bar) must take the key-range read A2 proved at 323ms p95 concurrent.
 // It fails until the re-route lands.
-func TestHotSingletonAboveTrueMassGateReadsAsKeyRanges(t *testing.T) {
+func TestHotSingletonAboveRoutingMassGateReadsAsKeyRanges(t *testing.T) {
 	t.Parallel()
 
 	reader := sdkmetric.NewManualReader()
@@ -43,9 +44,9 @@ func TestHotSingletonAboveTrueMassGateReadsAsKeyRanges(t *testing.T) {
 	}
 	port := &rangeStubFanOut{
 		stubFanOut: &stubFanOut{
-			holders:    []string{"holder-a"},
-			masses:     map[string]int64{"GHSA-7r86-cg39-jmmj": HolderMassProbeCap},
-			trueMasses: map[string]int64{"GHSA-7r86-cg39-jmmj": 156870},
+			holders:       []string{"holder-a"},
+			masses:        map[string]int64{"GHSA-7r86-cg39-jmmj": HolderMassProbeCap},
+			routingMasses: map[string]int64{"GHSA-7r86-cg39-jmmj": 156870},
 		},
 		rangeHolders: rangeHolders,
 	}
@@ -73,7 +74,7 @@ func TestHotSingletonAboveTrueMassGateReadsAsKeyRanges(t *testing.T) {
 		t.Fatalf("fanout_holder_statements = %v, want %d", got, len(ranges))
 	}
 	if got := result.SubSignals["fanout_max_id_mass_rows"]; got != 156870 {
-		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved true mass 156870", got)
+		t.Fatalf("fanout_max_id_mass_rows = %v, want the resolved routing mass 156870", got)
 	}
 	// Telemetry confirmation: one mass-planning sample per probe and exact
 	// count, one whole-read sample, and one per-statement sample under the
@@ -91,19 +92,19 @@ func TestHotSingletonAboveTrueMassGateReadsAsKeyRanges(t *testing.T) {
 	}
 }
 
-// TestHotSingletonTrueMassGateBoundary pins both sides of the A2 gate: a
+// TestHotSingletonRoutingMassGateBoundary pins both sides of the A2 gate: a
 // probe-hot singleton (every mass here saturates the probe at the cap,
 // including the mid-band 5,000-row id the probe cannot distinguish from a
 // 157k-row one) reads the shipped single statement at or under the gate and
 // the key-range read above it. The gate is the largest A1-passing singleton
 // mass halved: 156870/2 = 78435.
-func TestHotSingletonTrueMassGateBoundary(t *testing.T) {
+func TestHotSingletonRoutingMassGateBoundary(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name       string
-		trueMass   int64
-		wantRanged bool
+		name        string
+		routingMass int64
+		wantRanged  bool
 	}{
 		{"mid-band saturation stays single", 5000, false},
 		{"A1-passing direct-only stays single", 42388, false},
@@ -122,9 +123,9 @@ func TestHotSingletonTrueMassGateBoundary(t *testing.T) {
 			}
 			port := &rangeStubFanOut{
 				stubFanOut: &stubFanOut{
-					holders:    []string{"holder-a"},
-					masses:     map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
-					trueMasses: map[string]int64{"CVE-2026-hot": tc.trueMass},
+					holders:       []string{"holder-a"},
+					masses:        map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+					routingMasses: map[string]int64{"CVE-2026-hot": tc.routingMass},
 				},
 				rangeHolders: rangeHolders,
 			}
@@ -135,7 +136,7 @@ func TestHotSingletonTrueMassGateBoundary(t *testing.T) {
 			}
 			if tc.wantRanged {
 				if len(port.rangeCalls) != len(ranges) {
-					t.Fatalf("ranged statements = %d, want %d: true mass %d is above the gate", len(port.rangeCalls), len(ranges), tc.trueMass)
+					t.Fatalf("ranged statements = %d, want %d: routing mass %d is above the gate", len(port.rangeCalls), len(ranges), tc.routingMass)
 				}
 				if len(port.findCalls) != 0 {
 					t.Fatalf("shipped statements = %v, want none", port.findCalls)
@@ -146,7 +147,7 @@ func TestHotSingletonTrueMassGateBoundary(t *testing.T) {
 				return
 			}
 			if len(port.rangeCalls) != 0 {
-				t.Fatalf("ranged statements = %v, want none: true mass %d is at or under the gate", port.rangeCalls, tc.trueMass)
+				t.Fatalf("ranged statements = %v, want none: routing mass %d is at or under the gate", port.rangeCalls, tc.routingMass)
 			}
 			if !reflect.DeepEqual(port.findCalls, [][]string{{"CVE-2026-hot"}}) {
 				t.Fatalf("shipped statements = %v, want the singleton alone", port.findCalls)
@@ -158,11 +159,11 @@ func TestHotSingletonTrueMassGateBoundary(t *testing.T) {
 	}
 }
 
-// TestTrueMassCountFailureFailsClosed proves the exact-count path fails the
-// way the probe does: a timed-out true-mass count fails the pass with the
+// TestRoutingMassCountFailureFailsClosed proves the routing-mass count fails
+// the way the probe does: a timed-out routing-mass count fails the pass with the
 // retryable fan-out class, counts one holders-site read timeout, and reopens
 // nothing.
-func TestTrueMassCountFailureFailsClosed(t *testing.T) {
+func TestRoutingMassCountFailureFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	reader := sdkmetric.NewManualReader()
@@ -172,21 +173,21 @@ func TestTrueMassCountFailureFailsClosed(t *testing.T) {
 	}
 	port := &rangeStubFanOut{
 		stubFanOut: &stubFanOut{
-			holders:     []string{"holder-a"},
-			masses:      map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
-			trueMassErr: ErrFanOutReadTimeout,
+			holders:        []string{"holder-a"},
+			masses:         map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+			routingMassErr: ErrFanOutReadTimeout,
 		},
 	}
 	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot"}}}
 	_, err = fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil))
 	if err == nil {
-		t.Fatalf("Handle() error = nil, want the timed-out true-mass count to fail the pass")
+		t.Fatalf("Handle() error = nil, want the timed-out routing-mass count to fail the pass")
 	}
 	if !errors.Is(err, ErrFanOutReadTimeout) {
 		t.Fatalf("Handle() error = %v, want ErrFanOutReadTimeout", err)
 	}
 	if len(port.reopened) != 0 {
-		t.Fatalf("reopened = %v after a failed true-mass count, want none", port.reopened)
+		t.Fatalf("reopened = %v after a failed routing-mass count, want none", port.reopened)
 	}
 	if len(port.rangeCalls) != 0 || len(port.findCalls) != 0 {
 		t.Fatalf("statements ran after the failed count: ranges %v shipped %v, want none", port.rangeCalls, port.findCalls)
@@ -217,9 +218,9 @@ func TestSlowKeyRangeStatementReportsRangeEndToEnd(t *testing.T) {
 	}
 	port := &rangeStubFanOut{
 		stubFanOut: &stubFanOut{
-			holders:    []string{"holder-a"},
-			masses:     map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
-			trueMasses: map[string]int64{"CVE-2026-hot": 156870},
+			holders:       []string{"holder-a"},
+			masses:        map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+			routingMasses: map[string]int64{"CVE-2026-hot": 156870},
 		},
 		rangeHolders:  rangeHolders,
 		rangeDuration: rangeDuration,
@@ -236,5 +237,48 @@ func TestSlowKeyRangeStatementReportsRangeEndToEnd(t *testing.T) {
 	}
 	if logs := keyRangeWarnLogs(t, &buf); len(logs) != 1 || logs[0].Range != 5 {
 		t.Fatalf("warn logs = %v, want one key-range line at range 5", logs)
+	}
+}
+
+// TestAboveGateLongIDFallbackCountsOneStatement pins the long-id fallback
+// accounting: a probe-hot lookup id over 1,024 bytes whose routing mass
+// sits above the gate ranges, and the key-range read falls back to the
+// single shipped holder statement (no member token covers it), so the pass
+// counts exactly one holder statement and one key-range statement. Both
+// counts come from the read's Statements at the execution site, never
+// pre-added per range.
+func TestAboveGateLongIDFallbackCountsOneStatement(t *testing.T) {
+	t.Parallel()
+
+	longID := strings.Repeat("G", 2000)
+	ranges := HolderKeyRanges()
+	port := &rangeStubFanOut{
+		stubFanOut: &stubFanOut{
+			holders:       []string{"holder-a"},
+			masses:        map[string]int64{longID: HolderMassProbeCap},
+			routingMasses: map[string]int64{longID: 156870},
+		},
+		rangeHolders: map[HolderKeyRange][]string{ranges[0]: {"holder-a"}},
+		fallback:     true,
+	}
+	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{longID}}}
+	result, err := fanOutHandler(port, writer, nil).Handle(context.Background(), fanOutIntent(1, nil))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if len(port.findCalls) != 0 {
+		t.Fatalf("shipped statements = %v, want none: the fallback runs inside the key-range read", port.findCalls)
+	}
+	if !reflect.DeepEqual(port.reopened, []string{"holder-a"}) {
+		t.Fatalf("reopened = %v, want the fallback read's union [holder-a]", port.reopened)
+	}
+	if got := result.SubSignals["fanout_key_ranged_ids"]; got != 1 {
+		t.Fatalf("fanout_key_ranged_ids = %v, want 1", got)
+	}
+	if got := result.SubSignals["fanout_holder_key_range_statements"]; got != 1 {
+		t.Fatalf("fanout_holder_key_range_statements = %v, want 1 (the fallback statement), not 16 pre-added ranges", got)
+	}
+	if got := result.SubSignals["fanout_holder_statements"]; got != 1 {
+		t.Fatalf("fanout_holder_statements = %v, want 1 (the fallback statement)", got)
 	}
 }

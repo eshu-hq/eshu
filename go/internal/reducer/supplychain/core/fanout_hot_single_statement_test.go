@@ -11,7 +11,7 @@ import (
 )
 
 // TestHotSingletonHolderReadRunsAsSingleStatement is the below-gate routing
-// contract: a hot singleton id whose true mass is unknown (zero, under the
+// contract: a hot singleton id whose routing mass is unknown (zero, under the
 // gate) runs the already-shipped single holder statement
 // (FindSupplyChainImpactHoldersQuery), not one statement per fact_id key
 // range. The union it reopens is the shipped read's answer, cold ids keep
