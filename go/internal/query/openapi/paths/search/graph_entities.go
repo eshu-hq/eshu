@@ -32,33 +32,35 @@ const GraphEntities = `
                   "properties": {
                     "kinds": {
                       "type": "array",
+                      "description": "Per-kind facet counts in graphEntityKinds display order. Owner: query/graph_entity_inventory_counts.go decodeGraphEntityKindCounts.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "kind": {"type": "string"},
-                          "label": {"type": "string"},
-                          "count": {"type": "integer"}
+                          "kind": {"type": "string", "description": "Stable console-facing facet id from graphEntityKinds (services, repositories, libraries, container_images, environments, cloud_resources, identity_iam, networking). Owner: query/graph_entity_inventory.go graphEntityKind.key."},
+                          "label": {"type": "string", "description": "Single graph label the facet counts (for example Workload for services). Owner: query/graph_entity_inventory.go graphEntityKind.label."},
+                          "count": {"type": "integer", "description": "Fixed label total for the facet, including historical records excluded from entity lists. Owner: query/graph_entity_inventory_counts.go decodeGraphEntityKindCounts."}
                         }
                       }
                     },
-                    "total": {"type": "integer"},
-                    "kind": {"type": "string", "description": "Present only when a kind filter was applied."},
+                    "total": {"type": "integer", "description": "Sum of the per-kind facet counts. Owner: query/graph_entity_inventory.go listEntities."},
+                    "kind": {"type": "string", "description": "Present only when a kind filter was applied; echoes the requested facet key. Owner: query/graph_entity_inventory.go listEntities."},
                     "entities": {
                       "type": "array",
+                      "description": "Bounded name-searchable entity page for the requested kind, ordered by name; empty when no kind filter is applied. Owner: query/graph_entity_inventory.go listEntities via graphEntityKindListCypher.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "id": {"type": "string"},
-                          "name": {"type": "string"},
-                          "kind": {"type": "string"},
-                          "account": {"type": "string"}
+                          "id": {"type": "string", "description": "Graph node id (coalesced to empty when absent). Owner: query/graph_entity_inventory.go listEntities."},
+                          "name": {"type": "string", "description": "Human-readable name from the facet nameProp (principal_value for identity_iam). Owner: query/graph_entity_inventory.go listEntities."},
+                          "kind": {"type": "string", "description": "Facet key the row was listed under. Owner: query/graph_entity_inventory.go listEntities."},
+                          "account": {"type": "string", "description": "Account or scope column (repo_id for services, account_id for cloud_resources, principal_account_id for identity_iam); empty when the facet label carries no account-like field. Owner: query/graph_entity_inventory.go listEntities."}
                         }
                       }
                     },
-                    "count": {"type": "integer"},
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "count": {"type": "integer", "description": "Rows in the entities page. Owner: query/graph_entity_inventory.go listEntities."},
+                    "limit": {"type": "integer", "description": "Echo of the effective page bound (default 50, max 200). Owner: query/graph_entity_inventory.go graphEntityInventoryLimit."},
+                    "offset": {"type": "integer", "description": "Echo of the requested page offset. Owner: query/graph_entity_inventory.go graphEntityInventoryOffset."},
+                    "truncated": {"type": "boolean", "description": "True when more entity rows remain past this page. Owner: query/graph_entity_inventory.go listEntities."}
                   }
                 }
               }
