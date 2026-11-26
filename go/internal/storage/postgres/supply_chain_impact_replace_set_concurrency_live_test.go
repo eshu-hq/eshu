@@ -13,8 +13,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
+
+// errGatedTxInnerWithoutSupportsMaintainer reports a gated test transaction
+// whose inner transaction lost the C2 supports-maintainer surface the writer
+// requires. Returning it from Begin (after rolling back) keeps a refused pass
+// from parking the test at commitReached with the error swallowed in firstDone.
+var errGatedTxInnerWithoutSupportsMaintainer = errors.New("gated supply chain impact transaction: inner transaction cannot maintain the supports table")
 
 // TestSupplyChainImpactWriterSerializesOverlappingPassesLive proves the
 // conflict-domain lock. Two passes for the same (scope, generation) overlap
@@ -203,6 +210,16 @@ func (b gatedCommitBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supp
 	if err != nil {
 		return nil, err
 	}
+	// The wrapper below embeds SupplyChainImpactTx, which hides the inner
+	// transaction's C2 supports-maintainer surface from the writer's type
+	// assertion
+	// (reducer/supplychain/core/writer_supports.go: WriteSupplyChainImpactFindingRows
+	// refuses a transaction without it). Fail fast here so a pass that lost
+	// its maintainer never parks the test at commitReached.
+	if _, ok := tx.(supplychaincore.SupplyChainImpactSupportsMaintainer); !ok {
+		_ = tx.Rollback()
+		return nil, errGatedTxInnerWithoutSupportsMaintainer
+	}
 	return gatedCommitTx{SupplyChainImpactTx: tx, reached: b.reached, gate: b.gate}, nil
 }
 
@@ -216,4 +233,26 @@ func (t gatedCommitTx) Commit() error {
 	close(t.reached)
 	<-t.gate
 	return t.SupplyChainImpactTx.Commit()
+}
+
+// UpsertImpactSupportRows forwards the C2 supports-maintainer surface the
+// writer requires. A WriteSupplyChainImpactFindingRows call type-asserts its
+// transaction to SupplyChainImpactSupportsMaintainer; without these explicit
+// forwards the embedded SupplyChainImpactTx interface hides the inner
+// transaction's implementation and the pass is refused.
+func (t gatedCommitTx) UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (supplychaincore.SupplyChainImpactSupportsWrite, error) {
+	maintainer, ok := t.SupplyChainImpactTx.(supplychaincore.SupplyChainImpactSupportsMaintainer)
+	if !ok {
+		return supplychaincore.SupplyChainImpactSupportsWrite{}, errGatedTxInnerWithoutSupportsMaintainer
+	}
+	return maintainer.UpsertImpactSupportRows(ctx, rows)
+}
+
+// RecordRetractedImpactSupports forwards the retraction count to the inner
+// transaction. BeginSupplyChainImpactTx already refused an inner transaction
+// without the maintainer, so the fallback here is unreachable in practice.
+func (t gatedCommitTx) RecordRetractedImpactSupports(ctx context.Context, rows int64) {
+	if maintainer, ok := t.SupplyChainImpactTx.(supplychaincore.SupplyChainImpactSupportsMaintainer); ok {
+		maintainer.RecordRetractedImpactSupports(ctx, rows)
+	}
 }

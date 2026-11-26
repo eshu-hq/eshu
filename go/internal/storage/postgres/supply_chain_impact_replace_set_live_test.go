@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -51,13 +52,22 @@ func TestSupplyChainImpactWriterRetractsSupersededFindingsLive(t *testing.T) {
 	}
 	active := replaceSetActiveRepositories(t, ctx, db)
 	if len(active) != 1 || active[0] != replaceSetLiveRepository {
-		t.Fatalf("active finding repositories = %q, want only %q", active, replaceSetLiveRepository)
+		t.Fatalf("active support repositories = %q, want only %q", active, replaceSetLiveRepository)
 	}
-	if got := replaceSetTombstoneCount(t, ctx, db); got != 2 {
-		t.Fatalf("tombstoned finding rows = %d, want 2 (rows are retracted, never deleted)", got)
+	// The retraction deletes superseded supports instead of tombstoning
+	// finding rows, so only the anchored finding's support survives the
+	// second pass; FactsRetracted below proves the two deletions.
+	if got := replaceSetSupportsCount(t, ctx, db); got != 1 {
+		t.Fatalf("support rows = %d, want 1 (only the anchored finding's support survives)", got)
 	}
 
-	store := query.NewPostgresSupplyChainImpactFindingStore(db)
+	// The legacy finding list reads fact_records, which the C2 writer no
+	// longer writes, so query truth goes through the winners read model: the
+	// production resweep rebuilds it from the supports the passes wrote.
+	if err := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db}).RebuildAllWinners(ctx); err != nil {
+		t.Fatalf("rebuild winners: %v", err)
+	}
+	store := query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(db, true)
 	findings, err := store.ListSupplyChainImpactFindings(ctx, query.SupplyChainImpactFindingFilter{
 		CVEID:             replaceSetLiveCVE,
 		IncludeSuppressed: true,
