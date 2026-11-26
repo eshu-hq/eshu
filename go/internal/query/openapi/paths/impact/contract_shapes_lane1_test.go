@@ -5,9 +5,12 @@ package impact
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+var pathKeyRe = regexp.MustCompile(`(?m:^    "(/api/v0/[^"]+)": \{)`)
 
 // TestContractShapesLane1Impact pins the lane-1 shape-completeness fixes for
 // the impact path family: every 200-response object the console renders must
@@ -330,5 +333,24 @@ func TestContractShapesLane1Impact(t *testing.T) {
 		missingProps := propsOf(t, itemsOf(t, missing, "pre-change missing"), "pre-change missing_evidence[]")
 		requireExactKeys(t, missingProps, "pre-change missing_evidence[]",
 			"kind", "repo_id", "relative_path", "status", "reason")
+	})
+
+	t.Run("no duplicate path splices", func(t *testing.T) {
+		t.Parallel()
+		// Spliced fragment consts concatenate into Routes, and a repeated
+		// splice ships the path key twice while every JSON-level check stays
+		// green (last-wins). Count the raw path keys instead.
+		seen := map[string]int{}
+		for _, m := range pathKeyRe.FindAllStringSubmatch(Routes, -1) {
+			seen[m[1]]++
+		}
+		if len(seen) == 0 {
+			t.Fatal("no route path keys found in assembled Routes")
+		}
+		for path, n := range seen {
+			if n != 1 {
+				t.Errorf("assembled Routes ships %q %d times, want exactly once", path, n)
+			}
+		}
 	})
 }

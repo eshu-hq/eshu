@@ -337,7 +337,6 @@ const Routes = `
       }
     },
 ` + deploymentConfigInfluence + `
-` + deploymentConfigInfluence + `
 ` + blastRadius + `
     "/api/v0/impact/change-surface": {
       "post": {

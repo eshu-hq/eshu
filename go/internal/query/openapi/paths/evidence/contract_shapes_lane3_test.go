@@ -397,5 +397,22 @@ func TestContractShapesLane3Evidence(t *testing.T) {
 			"query_shape", "evidence_path_slots", "missing_evidence",
 			"ambiguous_evidence", "related_change_count", "truncated")
 		requireAllDescribed(t, coverageProps, "answer_metadata.coverage")
+		// Owner: query/querycontract/answer metadata.go — Limitations and
+		// RecommendedNextCalls are []map[string]any, genuine open maps, so
+		// the items carry additionalProperties with the key semantics
+		// described rather than a bare object.
+		for _, key := range []string{"limitations", "recommended_next_calls"} {
+			arr := child(t, metaProps, key, "answer_metadata")
+			items, ok := arr["items"].(map[string]any)
+			if !ok {
+				t.Fatalf("answer_metadata.%s: array schema has no items", key)
+			}
+			if _, ok := items["additionalProperties"]; !ok {
+				t.Errorf("answer_metadata.%s[]: open attribute map needs additionalProperties", key)
+			}
+			if desc, _ := items["description"].(string); desc == "" {
+				t.Errorf("answer_metadata.%s[]: open attribute map needs its key semantics described", key)
+			}
+		}
 	})
 }

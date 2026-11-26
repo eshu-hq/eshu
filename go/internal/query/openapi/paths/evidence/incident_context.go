@@ -231,7 +231,7 @@ const IncidentContext = `
                           "slot": {"type": "string", "description": "Evidence-path slot with no usable evidence. Owner: query/incident/model incidentContextAnswerMetadata."},
                           "reason": {"type": "string", "description": "The edge explanation for the unusable slot. Owner: query/incident/model incidentContextAnswerMetadata."}
                         }}, "description": "Slot/reason rows mirroring the top-level missing_evidence. Owner: query/incident/model incidentContextAnswerMetadata."},
-                        "limitations": {"type": "array", "items": {"type": "object"}, "description": "Bounded limitation rows, empty on this route unless the companion derives one. Owner: query/querycontract/answer BuildAnswerMetadata."},
+                        "limitations": {"type": "array", "items": {"type": "object", "additionalProperties": true, "description": "Open limitation attribute map (rows carry kind and reason; see answerMetadataLimitations). Owner: query/querycontract/answer BuildAnswerMetadata over []map[string]any."}, "description": "Bounded limitation rows, empty on this route unless the companion derives one. Owner: query/querycontract/answer BuildAnswerMetadata."},
                         "truncated": {"type": "boolean", "description": "Route-level truncation companion. Owner: query/querycontract/answer BuildAnswerMetadata."},
                         "coverage": {
                           "type": "object",
@@ -246,7 +246,7 @@ const IncidentContext = `
                           }
                         },
                         "partial_reasons": {"type": "array", "items": {"type": "string"}, "description": "Partial-answer reasons, empty when the packet is complete. Owner: query/querycontract/answer BuildAnswerMetadata."},
-                        "recommended_next_calls": {"type": "array", "items": {"type": "object"}, "description": "Recommended follow-up calls, empty on this route. Owner: query/querycontract/answer BuildAnswerMetadata."}
+                        "recommended_next_calls": {"type": "array", "items": {"type": "object", "additionalProperties": true, "description": "Open next-call attribute map (rows carry tool, route, and reason; see answerMetadataNextCalls). Owner: query/querycontract/answer BuildAnswerMetadata over []map[string]any."}, "description": "Recommended follow-up calls, empty on this route. Owner: query/querycontract/answer BuildAnswerMetadata."}
                       }
                     }
                   },
