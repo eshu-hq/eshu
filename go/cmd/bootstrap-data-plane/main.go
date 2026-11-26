@@ -69,7 +69,7 @@ func main() {
 		}
 		return
 	}
-	if handled, err := printPostgresMigrationInventoryFlag(os.Args[1:], os.Stdout); handled {
+	if handled, err := printInventoryFlag(os.Args[1:], os.Stdout); handled {
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)

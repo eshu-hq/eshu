@@ -165,6 +165,9 @@ when the latest applied fingerprint exactly matches their compiled schema
 fingerprint or explicitly lists it as compatible. Missing markers and
 incompatible latest markers fail startup with guidance to run
 `eshu-bootstrap-data-plane` before graph writes begin.
+`eshu-bootstrap-data-plane --graph-schema-inventory` prints each backend's
+expected fingerprint offline; it reports only and does not gate a pin or read
+the marker (a pin check is separate).
 
 Rolling upgrades are conservative: exact-match is the default. Additive schema
 changes may declare older writer fingerprints compatible in the marker row.

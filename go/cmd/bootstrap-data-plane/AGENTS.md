@@ -28,6 +28,13 @@
 - **Backend gate** — `schemaBackendFromEnv` calls `LoadGraphBackend` and maps
   the result to `graph.SchemaBackend`; unknown values return an error before
   any DDL runs. Enforced at `main.go:156`.
+- **Offline inventory** — `--postgres-migration-inventory` and
+  `--graph-schema-inventory` each print one JSON object and exit before
+  telemetry, configuration validation, or store access. Either flag must be the
+  sole argument; anything else exits non-zero via `printInventoryFlag`. The
+  graph rows come only from `graph.SchemaApplicationForBackend` and always
+  cover both backends, so the mode never reads `ESHU_GRAPH_BACKEND`. Keep both
+  modes offline: no env reads, no dials, no writes.
 - **Infra search key gate (Neo4j)** — the oversized-key probe runs before any
   graph DDL and the backfill plus the `ONLINE` index check run after it, both
   before `markGraphSchemaApplied`. Do not move the probe after the DDL:
