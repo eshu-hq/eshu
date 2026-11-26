@@ -439,7 +439,7 @@ const Entities = `
                     "consumers": {
                       "type": "array",
                       "description": "Downstream consumer repository rows in (repository, repo_id) order. Owner: entity.Handler.GetServiceDownstreamConsumers over service.ListServiceDownstreamConsumers.",
-                      "items": {"type": "object", "additionalProperties": true}
+                      "items": {"type": "object", "additionalProperties": true, "description": "One downstream consumer repository row keyed by enrichment field name: repository, repo_id, and consumer_kinds always ride; graph_relationship_types, graph_relationship_reasons, evidence_kinds, matched_values, and sample_paths ride only when that enrichment source fired. Owner: service.ConsumerListPage.Consumers via entity.Handler.GetServiceDownstreamConsumers."}
                     },
                     "truncated": {"type": "boolean", "description": "True when more rows exist past this page or a read bound fired."},
                     "next_cursor": {

@@ -22,10 +22,72 @@ const Compose = `
                 "type": "object",
                 "required": ["dossier"],
                 "properties": {
-                  "dossier": {"type": "object"},
-                  "truth": {"type": "object"},
-                  "supply_chain": {"type": "object"},
-                  "supply_chain_truth": {"type": "object"}
+                  "dossier": {"type": "object", "additionalProperties": true, "description": "Captured service-story dossier the composeReport handler feeds to serviceintel.FromServiceStory; keys are the dossier's own section keys. Owner: cli/support.ComposeRequest.Dossier."},
+                  "truth": {"type": "object", "description": "Identity section TruthEnvelope supplied with the dossier and carried by the composeReport handler, never reclassified; null when the anchor is unsupported. Owner: querycontract.TruthEnvelope via cli/support.ComposeRequest.Truth.",
+                    "properties": {
+                      "level": {"type": "string", "description": "Truth level supplied by the caller. Owner: querycontract.TruthEnvelope."},
+                      "capability": {"type": "string", "description": "Capability the truth was resolved under, per the caller. Owner: querycontract.TruthEnvelope."},
+                      "profile": {"type": "string", "description": "Query profile the truth was resolved under, per the caller. Owner: querycontract.TruthEnvelope."},
+                      "basis": {"type": "string", "description": "Truth basis supplied by the caller. Owner: querycontract.TruthEnvelope."},
+                      "backend": {"type": "string", "description": "Graph backend the truth was resolved under, when set by the caller. Owner: querycontract.TruthEnvelope."},
+                      "freshness": {"type": "object", "description": "Freshness state supplied by the caller. Owner: querycontract.TruthFreshness.",
+                        "properties": {
+                          "state": {"type": "string", "description": "Freshness state supplied by the caller. Owner: querycontract.TruthFreshness."},
+                          "observed_at": {"type": "string", "description": "Freshness observation instant supplied by the caller, when known. Owner: querycontract.TruthFreshness."},
+                          "detail": {"type": "string", "description": "Freshness detail supplied by the caller, when known. Owner: querycontract.TruthFreshness."},
+                          "cause": {"type": "string", "description": "Closed freshness cause supplied by the caller, when known. Owner: querycontract.TruthFreshness."},
+                          "next_check": {"type": "object", "description": "Bounded follow-up call that drills into the cause, supplied by the caller. Owner: querycontract.FreshnessNextCheck.",
+                            "properties": {
+                              "tool": {"type": "string", "description": "MCP tool to call for the next check, per the caller. Owner: querycontract.FreshnessNextCheck."},
+                              "route": {"type": "string", "description": "HTTP route to call for the next check, per the caller. Owner: querycontract.FreshnessNextCheck."},
+                              "reason": {"type": "string", "description": "Why the next check resolves the cause, per the caller. Owner: querycontract.FreshnessNextCheck."},
+                              "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Bounded query parameters for the next check; keys are the callee's argument names. Owner: querycontract.FreshnessNextCheck.Params."}
+                            }}
+                        }},
+                      "reason": {"type": "string", "description": "Human-readable truth reason supplied by the caller, when set. Owner: querycontract.TruthEnvelope."},
+                      "truncated": {"type": "boolean", "description": "Envelope-level truncation marker supplied by the caller, when set. Owner: querycontract.TruthEnvelope."},
+                      "omissions": {"type": "array", "description": "Sections withheld or reduced under the caller's selection, per the caller. Owner: querycontract.TruthOmission.",
+                        "items": {"type": "object", "description": "One withheld or reduced section, per the caller. Owner: querycontract.TruthOmission.",
+                          "properties": {
+                            "section": {"type": "string", "description": "Section withheld or reduced, per the caller. Owner: querycontract.TruthOmission."},
+                            "detail": {"type": "string", "description": "How the section was reduced, per the caller. Owner: querycontract.TruthOmission."},
+                            "total": {"type": "integer", "description": "Row count the route held for the section, per the caller. Owner: querycontract.TruthOmission."}
+                          }}}
+                    },
+                    "required": ["level", "freshness"]},
+                  "supply_chain": {"type": "object", "additionalProperties": true, "description": "Optional captured supply-chain inventory the composeReport handler feeds to serviceintel.FromSupplyChainInventory; keys are the inventory's own section keys. Owner: cli/support.ComposeRequest.SupplyChain."},
+                  "supply_chain_truth": {"type": "object", "description": "Supply-chain TruthEnvelope supplied with the inventory and carried by the composeReport handler, never reclassified. Owner: querycontract.TruthEnvelope via cli/support.ComposeRequest.SupplyChainTruth.",
+                    "properties": {
+                      "level": {"type": "string", "description": "Truth level supplied by the caller. Owner: querycontract.TruthEnvelope."},
+                      "capability": {"type": "string", "description": "Capability the truth was resolved under, per the caller. Owner: querycontract.TruthEnvelope."},
+                      "profile": {"type": "string", "description": "Query profile the truth was resolved under, per the caller. Owner: querycontract.TruthEnvelope."},
+                      "basis": {"type": "string", "description": "Truth basis supplied by the caller. Owner: querycontract.TruthEnvelope."},
+                      "backend": {"type": "string", "description": "Graph backend the truth was resolved under, when set by the caller. Owner: querycontract.TruthEnvelope."},
+                      "freshness": {"type": "object", "description": "Freshness state supplied by the caller. Owner: querycontract.TruthFreshness.",
+                        "properties": {
+                          "state": {"type": "string", "description": "Freshness state supplied by the caller. Owner: querycontract.TruthFreshness."},
+                          "observed_at": {"type": "string", "description": "Freshness observation instant supplied by the caller, when known. Owner: querycontract.TruthFreshness."},
+                          "detail": {"type": "string", "description": "Freshness detail supplied by the caller, when known. Owner: querycontract.TruthFreshness."},
+                          "cause": {"type": "string", "description": "Closed freshness cause supplied by the caller, when known. Owner: querycontract.TruthFreshness."},
+                          "next_check": {"type": "object", "description": "Bounded follow-up call that drills into the cause, supplied by the caller. Owner: querycontract.FreshnessNextCheck.",
+                            "properties": {
+                              "tool": {"type": "string", "description": "MCP tool to call for the next check, per the caller. Owner: querycontract.FreshnessNextCheck."},
+                              "route": {"type": "string", "description": "HTTP route to call for the next check, per the caller. Owner: querycontract.FreshnessNextCheck."},
+                              "reason": {"type": "string", "description": "Why the next check resolves the cause, per the caller. Owner: querycontract.FreshnessNextCheck."},
+                              "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Bounded query parameters for the next check; keys are the callee's argument names. Owner: querycontract.FreshnessNextCheck.Params."}
+                            }}
+                        }},
+                      "reason": {"type": "string", "description": "Human-readable truth reason supplied by the caller, when set. Owner: querycontract.TruthEnvelope."},
+                      "truncated": {"type": "boolean", "description": "Envelope-level truncation marker supplied by the caller, when set. Owner: querycontract.TruthEnvelope."},
+                      "omissions": {"type": "array", "description": "Sections withheld or reduced under the caller's selection, per the caller. Owner: querycontract.TruthOmission.",
+                        "items": {"type": "object", "description": "One withheld or reduced section, per the caller. Owner: querycontract.TruthOmission.",
+                          "properties": {
+                            "section": {"type": "string", "description": "Section withheld or reduced, per the caller. Owner: querycontract.TruthOmission."},
+                            "detail": {"type": "string", "description": "How the section was reduced, per the caller. Owner: querycontract.TruthOmission."},
+                            "total": {"type": "integer", "description": "Row count the route held for the section, per the caller. Owner: querycontract.TruthOmission."}
+                          }}}
+                    },
+                    "required": ["level", "freshness"]}
                 }
               }
             }
