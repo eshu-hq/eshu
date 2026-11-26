@@ -1,5 +1,12 @@
 # #11535: NornicDB strict-schema evidence (uid lookup index retirement)
 
+## Summary
+
+NornicDB 1.5.x throws `IndexAlreadyExists` where the old backend skipped, so the
+dialect now emits one object per uid (constraint only, drops first) and the pin
+moves to v1.5.2-hotfix. Strict schema apply is zero-fail on fresh and upgraded
+stores; both gate legs green; range/prefix plans label-scan (recorded caveat).
+
 ## No-Regression Evidence:
 
 Strict `EnsureSchemaWithBackendStrict` against live NornicDB 1.5.2-hotfix
