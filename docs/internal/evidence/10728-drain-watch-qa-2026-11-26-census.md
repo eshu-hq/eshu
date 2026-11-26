@@ -36,6 +36,35 @@ cleared the reducer.
 Oldest open fact item: pending created 2026-10-22 (~35d);
 retrying oldest 2026-10-23 (~34d); claimed oldest 2026-11-10 (~16d).
 
+Scope note: the "all ..." rows above cover all stages (reducer +
+projector) and all domains; the "supply_chain_impact only" rows are the
+reducer worst-case partition (#10972).
+
+## 4. Dead-letter classification (amendment 2026-11-26 ~02:40Z, same read-only posture)
+
+| failure_class | all domains | of which supply_chain_impact |
+|---|---|---|
+| admission_timeout | 2,187 | 0 |
+| advisory_group_winners_watermark_stale | 1,094 | 0 |
+| projection_bug | 193 | 0 |
+| retry_exhausted | 54 | 0 |
+| supply_chain_impact_fanout_failed | 40 | 40 |
+| reducer_handler_abandoned_at_shutdown | 13 | 1 |
+| reducer_handler_timeout | 11 | 1 |
+| workload_materialization_producer_dead_lettered | 6 | 0 |
+| deployable_unit_correlation_producer_dead_lettered | 3 | 0 |
+| identity_epoch_unstable | 2 | 0 |
+
+By domain: source_local 2,415; advisory_group_projection 1,094;
+supply_chain_impact 42; deployment_mapping 25; others <= 8.
+
+Gate assessment against the QA roll ruling Pin-1 (`dead_letter` delta
+0): NOT MET on volume (+2,639 in ~28h). The surge sits outside the
+baseline lane — projector admission timeouts and advisory-group
+watermark staleness, not NVD baseline reducer rows (sci dead_letter is
+42, all fanout/handler classes). Close-readiness verdict unchanged:
+NOT READY (no year meets `year_complete`; Pin-1 also unmet).
+
 ## 2. Year-complete watch
 
 Checkpoints (`vulnerability_nvd_baseline_checkpoints`), run
