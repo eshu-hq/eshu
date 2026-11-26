@@ -126,6 +126,9 @@ TABLE = {
             "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",
             "TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive",
         ),
+        "go/internal/query/supply/chain/impact/runtime_filter_prune_live_test.go": (
+            "TestSupplyChainImpactRuntimeFilterPruningIsBehaviorIdenticalLive",
+        ),
         "go/internal/query/supply/chain/impact/supports_equality_live_test.go": (
             "TestSupportsCandidateListEqualsLegacyLive",
             "TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive",
