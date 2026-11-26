@@ -102,10 +102,12 @@ func TestQueueDepthExpressionUsesMaxAggregation(t *testing.T) {
 	t.Parallel()
 
 	// eshu_dp_queue_depth is emitted identically by every reporter (ingester
-	// plus each reducer lane), so summing it multiplies the true depth by the
-	// reporter count (#11560). The trend API must collapse the reporter
-	// dimension with max(), matching the operator-dashboard panels.
-	const want = `max(eshu_dp_queue_depth{status=~"pending|in_flight|retrying"})`
+	// plus each reducer lane) for each queue/status partition, so a bare sum()
+	// multiplies the true depth by the reporter count, while a bare max()
+	// drops every partition but the largest (#11560). The trend API must
+	// collapse reporters per partition with max by (queue, status), then total
+	// the partitions with sum(), matching the operator-dashboard panels.
+	const want = `sum(max by (queue, status) (eshu_dp_queue_depth{status=~"pending|in_flight|retrying"}))`
 	if got := prometheusMetricExpressions["queue_depth"]; got != want {
 		t.Fatalf("queue_depth expression = %q, want %q", got, want)
 	}

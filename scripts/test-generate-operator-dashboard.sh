@@ -166,6 +166,32 @@ else
   record_fail "dashboard is missing the dead-letter operator surface panel"
 fi
 
+# Case 10: queue-depth panels deduplicate reporters per queue/status
+# partition before totaling (#11560). eshu_dp_queue_depth is emitted
+# identically by every reporter for each partition, so a bare sum() over the
+# gauge multiplies the true depth by the reporter count, while a bare max()
+# drops every partition but the largest. The committed artifact must carry
+# the dedup-then-total forms and neither bare form.
+panel_exprs="$(jq -r '[.panels[].targets[]?.expr // ""] | join("\n")' "${expected_path}" 2>/dev/null)"
+case10_fail=""
+if printf '%s' "${panel_exprs}" | grep -qF 'sum(eshu_dp_queue_depth'; then
+  case10_fail="${case10_fail} bare sum() over the multi-reported gauge;"
+fi
+if printf '%s' "${panel_exprs}" | grep -qF 'max(eshu_dp_queue_depth'; then
+  case10_fail="${case10_fail} bare max() collapses queue/status partitions;"
+fi
+if ! printf '%s' "${panel_exprs}" | grep -qF 'sum(max by (queue, status) (eshu_dp_queue_depth))'; then
+  case10_fail="${case10_fail} stat-panel dedup-then-total form missing;"
+fi
+if ! printf '%s' "${panel_exprs}" | grep -qF 'sum by (status) (max by (queue, status) (eshu_dp_queue_depth'; then
+  case10_fail="${case10_fail} by-status dedup-then-total form missing;"
+fi
+if [ -z "${case10_fail}" ]; then
+  record_pass "queue-depth panels deduplicate reporters per partition, then total"
+else
+  record_fail "queue-depth aggregation contract violated:${case10_fail}"
+fi
+
 if [ "${FAIL}" -ne 0 ]; then
   printf 'generate-operator-dashboard tests FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
   exit 1
