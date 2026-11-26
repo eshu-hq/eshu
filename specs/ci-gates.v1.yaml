@@ -126,8 +126,6 @@ non_gate_workflows:
     reason: "4-hourly/manual deep PostgreSQL readiness EXPLAIN & correctness proofs; moved off per-PR and per-push main runs to eliminate CI burn and broken-window advisory noise"
   - file: reducer-contention-gate.yml
     reason: "4-hourly/manual deep PostgreSQL reducer contention & supply-chain proofs; moved off per-PR and per-push main runs"
-  - file: golden-corpus-gate.yml
-    reason: "nightly/manual B-7 golden corpus and differential capture suite; moved off per-PR and per-push main runs"
   - file: code-coverage-report.yml
     reason: "nightly/manual advisory Go coverage report and module floor ranking; moved off per-PR and per-push main runs"
   - file: tagged-builds.yml

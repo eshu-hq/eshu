@@ -169,3 +169,101 @@ func TestDriftCheckAcceptsDisabledMarkerOnADisabledJob(t *testing.T) {
 		}
 	}
 }
+
+func scheduledGate(workflow, job string) cigates.Gate {
+	gate := gateWith("golden-corpus-gate-neo4j", "golden-corpus-gate-neo4j", workflow)
+	gate.Tier = cigates.TierCIHeavy
+	gate.Layer = cigates.LayerTruth
+	gate.Blocking = false
+	gate.CI.Job = job
+	return gate
+}
+
+func TestWorkflowJobScheduled(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		workflow string
+		job      string
+		want     bool
+	}{
+		"valid cron matched by key": {
+			workflow: "name: golden\non:\n  schedule:\n    - cron: '20 6 * * *'\n  workflow_dispatch:\njobs:\n  corpus-gate:\n    name: corpus-gate (${{ matrix.backend }})\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate",
+			want:     true,
+		},
+		"valid cron matched by templated name": {
+			workflow: "name: golden\non:\n  schedule:\n    - cron: '20 6 * * *'\njobs:\n  corpus-gate:\n    name: corpus-gate (${{ matrix.backend }})\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate (neo4j)",
+			want:     true,
+		},
+		"valid cron matched by literal name": {
+			workflow: "name: golden\non:\n  schedule:\n    - cron: '0 7 * * *'\njobs:\n  run:\n    name: Golden Corpus\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "Golden Corpus",
+			want:     true,
+		},
+		"dispatch-only workflow": {
+			workflow: "name: golden\non:\n  workflow_dispatch:\njobs:\n  corpus-gate:\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate",
+			want:     false,
+		},
+		"push-only sequence trigger": {
+			workflow: "name: golden\non: [push]\njobs:\n  corpus-gate:\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate",
+			want:     false,
+		},
+		"empty schedule list": {
+			workflow: "name: golden\non:\n  schedule: []\njobs:\n  corpus-gate:\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate",
+			want:     false,
+		},
+		"blank cron": {
+			workflow: "name: golden\non:\n  schedule:\n    - cron: '   '\njobs:\n  corpus-gate:\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate",
+			want:     false,
+		},
+		"scheduled workflow with bare if false": {
+			workflow: "name: golden\non:\n  schedule:\n    - cron: '20 6 * * *'\njobs:\n  corpus-gate:\n    if: false\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate",
+			want:     false,
+		},
+		"scheduled workflow with expression if false": {
+			workflow: "name: golden\non:\n  schedule:\n    - cron: '20 6 * * *'\njobs:\n  corpus-gate:\n    if: ${{ false }}\n    runs-on: ubuntu-24.04\n    steps: []\n",
+			job:      "corpus-gate",
+			want:     false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := buildDriftRepo(t, minimalPreCommit("golden-corpus-gate-neo4j"), nil)
+			writeWorkflow(t, root, "golden.yml", tc.workflow)
+			got, err := cigates.WorkflowJobScheduled(root, scheduledGate("golden.yml", tc.job))
+			if err != nil || got != tc.want {
+				t.Fatalf("WorkflowJobScheduled = %v, %v; want %v, nil", got, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestWorkflowJobScheduledErrors(t *testing.T) {
+	t.Parallel()
+	root := buildDriftRepo(t, minimalPreCommit("golden-corpus-gate-neo4j"), nil)
+	writeWorkflow(t, root, "golden.yml", "name: golden\non:\n  schedule:\n    - cron: '20 6 * * *'\njobs:\n  corpus-gate:\n    runs-on: ubuntu-24.04\n    steps: []\n")
+	writeWorkflow(t, root, "broken.yml", "name: [\nbroken")
+
+	cases := map[string]cigates.Gate{
+		"missing workflow":  scheduledGate("missing.yml", "corpus-gate"),
+		"malformed yaml":    scheduledGate("broken.yml", "corpus-gate"),
+		"unmatched job":     scheduledGate("golden.yml", "no-such-job"),
+		"blank ci.workflow": scheduledGate("", "corpus-gate"),
+		"blank ci.job":      scheduledGate("golden.yml", ""),
+	}
+	for name, gate := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got, err := cigates.WorkflowJobScheduled(root, gate); err == nil || got {
+				t.Fatalf("WorkflowJobScheduled = %v, %v; want false and non-nil error", got, err)
+			}
+		})
+	}
+}
