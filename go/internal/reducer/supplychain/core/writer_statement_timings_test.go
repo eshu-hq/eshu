@@ -70,6 +70,18 @@ func (t *statementTimingTx) UpsertImpactSupports(_ context.Context, factIDs []st
 	return SupplyChainImpactSupportsWrite{Inserted: int64(len(factIDs))}, nil
 }
 
+// UpsertImpactSupportRows counts the writer's row-based supports upsert (the
+// PR-C2 path) and delegates to the embedded fake: the legacy fact-ID form
+// above no longer runs in a pass.
+func (t *statementTimingTx) UpsertImpactSupportRows(ctx context.Context, rows []factwrite.VersionedRow) (SupplyChainImpactSupportsWrite, error) {
+	t.upserts++
+	return t.SupplyChainImpactTx.(SupplyChainImpactSupportsMaintainer).UpsertImpactSupportRows(ctx, rows)
+}
+
+// RecordRetractedImpactSupports satisfies the maintainer surface without
+// counting: the fake has no instruments (mirrors fakeImpactTx).
+func (statementTimingTx) RecordRetractedImpactSupports(context.Context, int64) {}
+
 func (t *statementTimingTx) DeleteRetractedImpactSupports(_ context.Context, _, _ string) (int64, error) {
 	t.deletes++
 	return 1, nil
@@ -124,10 +136,11 @@ func timedFixtureRows(n int) ([]factwrite.VersionedRow, []changedRow, []map[stri
 
 // TestCommittedPassAccumulatesOneSamplePerStatement proves the happy path:
 // every entered statement region contributes exactly one accumulated sample,
-// the 2500-row chunked fact insert contributes one fact_insert sample covering
-// 3 chunks (never one series per chunk), and the statement stream on the
-// transaction is byte-identical to the untimed order (lock, admit, stored
-// read, chunks, retract, recovery reads, pass state, go-evidence close).
+// and the statement stream on the transaction is byte-identical to the untimed
+// order (lock, admit, stored read, retract, recovery reads, pass state,
+// go-evidence close). PR-C2 removed the chunked fact insert, so no
+// fact_insert series fires; the fake still batches the supports rows
+// internally (3 Execs on the inserts fake), which is untimed.
 func TestCommittedPassAccumulatesOneSamplePerStatement(t *testing.T) {
 	t.Parallel()
 
@@ -147,8 +160,8 @@ func TestCommittedPassAccumulatesOneSamplePerStatement(t *testing.T) {
 	if got, want := len(inserts.Execs), 3; got != want {
 		t.Fatalf("batched insert Exec calls = %d, want %d (2500 rows in 1000-row chunks)", got, want)
 	}
-	if beginner.last.upserts != 1 || beginner.last.deletes != 1 {
-		t.Fatalf("supports upserts=%d deletes=%d, want 1/1", beginner.last.upserts, beginner.last.deletes)
+	if beginner.last.upserts != 1 || beginner.last.deletes != 0 {
+		t.Fatalf("supports upserts=%d deletes=%d, want 1/0 (the PR-C2 retraction deletes supports itself; DeleteRetractedImpactSupports no longer runs in a pass)", beginner.last.upserts, beginner.last.deletes)
 	}
 	if beginner.last.captured == 0 {
 		t.Fatal("winners capture ran zero rows, want the pass's dirty keys")
@@ -167,8 +180,8 @@ func TestCommittedPassAccumulatesOneSamplePerStatement(t *testing.T) {
 	}
 	wantPresent := []string{
 		"conflict_lock", "suppression_diff", "admission", "stored_read",
-		"fact_insert", "supports_upsert", "winners_capture", "retract",
-		"supports_delete", "recovery_read", "pass_state", "go_evidence_close",
+		"supports_upsert", "winners_capture", "retract",
+		"recovery_read", "pass_state", "go_evidence_close",
 		"commit",
 	}
 	for _, statement := range wantPresent {
@@ -176,18 +189,14 @@ func TestCommittedPassAccumulatesOneSamplePerStatement(t *testing.T) {
 			t.Fatalf("no sample for entered statement %q (got %v)", statement, emitted)
 		}
 	}
-	seconds, calls, sampleRows, ok := outcome.statements.sample(supplyChainImpactTxStmtFactInsert)
-	if !ok {
-		t.Fatal("no fact_insert accumulation")
-	}
-	if calls != 3 {
-		t.Fatalf("fact_insert calls = %d, want 3 (one per chunk, aggregated to one series)", calls)
-	}
-	if sampleRows != 2500 {
-		t.Fatalf("fact_insert rows = %d, want 2500", sampleRows)
-	}
-	if seconds < 0 {
-		t.Fatalf("fact_insert seconds = %v, want >= 0", seconds)
+	// PR-C2 removed the fact bulk insert and folded the supports delete into
+	// the retraction CTE: neither series may fire. Their absence is the
+	// write-stop assertion at the timings level, read through the same
+	// accessor the accumulation used.
+	for _, gone := range []supplyChainImpactTxStatement{supplyChainImpactTxStmtFactInsert, supplyChainImpactTxStmtSupportsDelete} {
+		if _, _, _, ok := outcome.statements.sample(gone); ok {
+			t.Fatalf("sample for removed statement %v, want none after the PR-C2 write stop", gone)
+		}
 	}
 
 	all := beginner.inner.state.all
@@ -195,9 +204,8 @@ func TestCommittedPassAccumulatesOneSamplePerStatement(t *testing.T) {
 		lockSupplyChainImpactConflictDomainQuery,
 		supplyChainImpactAdmissionQuery,
 		listStoredSupplyChainImpactFindingsQuery,
-		factwrite.BatchInsertVersionedQuery,
-		factwrite.BatchInsertVersionedQuery,
-		factwrite.BatchInsertVersionedQuery,
+		"", // index 3: the supports upsert (Query-side unnest; SQL text lives
+		// unexported in postgres, asserted by content below, not by constant)
 		retractSupersededSupplyChainImpactFindingsQuery,
 		listSupplyChainImpactCVEIDsQuery,
 		listSupplyChainImpactGroupIDsQuery,
@@ -208,7 +216,13 @@ func TestCommittedPassAccumulatesOneSamplePerStatement(t *testing.T) {
 	if len(all) != len(wantQueries) {
 		t.Fatalf("statements = %d, want %d (%v)", len(all), len(wantQueries), all)
 	}
+	if q := all[3].Query; q != fakeSupportsUpsertQuery {
+		t.Fatalf("statement 3 = %q, want the fake supports-upsert marker: timing must not move, add, or drop a statement", q)
+	}
 	for i, want := range wantQueries {
+		if want == "" {
+			continue
+		}
 		if all[i].Query != want {
 			t.Fatalf("statement %d = %q, want %q: timing must not move, add, or drop a statement", i, all[i].Query, want)
 		}
@@ -251,13 +265,14 @@ func TestRolledBackPassKeepsPartialStatementTimings(t *testing.T) {
 		present[sample.Statement] = true
 	}
 	// The retraction ran and failed, so its sample stays: the failed
-	// statement's duration is what explains the rollback.
-	for _, statement := range []string{"conflict_lock", "suppression_diff", "admission", "stored_read", "fact_insert", "supports_upsert", "winners_capture", "retract"} {
+	// statement's duration is what explains the rollback. PR-C2 removed the
+	// fact bulk insert, so fact_insert joins the never-reached set.
+	for _, statement := range []string{"conflict_lock", "suppression_diff", "admission", "stored_read", "supports_upsert", "winners_capture", "retract"} {
 		if !present[statement] {
 			t.Fatalf("rolled-back pass dropped the sample for %q, want the statements that ran", statement)
 		}
 	}
-	for _, statement := range []string{"supports_delete", "recovery_read", "pass_state", "go_evidence_close", "commit"} {
+	for _, statement := range []string{"fact_insert", "supports_delete", "recovery_read", "pass_state", "go_evidence_close", "commit"} {
 		if present[statement] {
 			t.Fatalf("rolled-back pass records %q, want nothing for statements never reached", statement)
 		}
@@ -336,7 +351,7 @@ func TestWriterEmitsStatementTimingsOnCommitAndRollback(t *testing.T) {
 	committed := statementPoints(t, committedReader)
 	wantCommitted := []string{
 		"conflict_lock", "suppression_diff", "admission", "stored_read",
-		"fact_insert", "retract", "recovery_read", "pass_state",
+		"supports_upsert", "retract", "recovery_read", "pass_state",
 		"go_evidence_close", "commit",
 	}
 	if len(committed) != len(wantCommitted) {
@@ -368,12 +383,12 @@ func TestWriterEmitsStatementTimingsOnCommitAndRollback(t *testing.T) {
 			t.Fatalf("statement %q outcomes = %v, want exactly one rolled_back observation", statement, byOutcome)
 		}
 	}
-	for _, statement := range []string{"conflict_lock", "suppression_diff", "admission", "stored_read", "fact_insert", "retract", "recovery_read", "pass_state"} {
+	for _, statement := range []string{"conflict_lock", "suppression_diff", "admission", "stored_read", "supports_upsert", "retract", "recovery_read", "pass_state"} {
 		if _, ok := rolled[statement]; !ok {
 			t.Fatalf("no rolled_back sample for entered statement %q", statement)
 		}
 	}
-	for _, statement := range []string{"supports_upsert", "winners_capture", "supports_delete", "go_evidence_close", "commit"} {
+	for _, statement := range []string{"fact_insert", "winners_capture", "supports_delete", "go_evidence_close", "commit"} {
 		if _, ok := rolled[statement]; ok {
 			t.Fatalf("rolled_back sample for %q, which the pass never reached", statement)
 		}

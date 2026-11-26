@@ -177,10 +177,10 @@ func TestWriteSupplyChainImpactFindingRowsRefusesATransactionWithoutASupportsMai
 
 	tx := &struct{ SupplyChainImpactTx }{SupplyChainImpactTx: fakeImpactTx(newFakeImpactBeginner(nil))}
 	rows := []factwrite.VersionedRow{{FactID: "fact-1", ScopeID: "s", GenerationID: "g", FactKind: supplyChainImpactFactKind}}
-	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, rows); !errors.Is(err, errSupplyChainImpactNoSupportsMaintainer) {
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, rows, nil); !errors.Is(err, errSupplyChainImpactNoSupportsMaintainer) {
 		t.Fatalf("WriteSupplyChainImpactFindingRows() error = %v, want errSupplyChainImpactNoSupportsMaintainer", err)
 	}
-	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, nil); err != nil {
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, nil, nil); err != nil {
 		t.Fatalf("WriteSupplyChainImpactFindingRows(nil) error = %v, want nil for no rows", err)
 	}
 }

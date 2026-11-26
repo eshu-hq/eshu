@@ -187,7 +187,7 @@ func SeedWinnersSupports(ctx context.Context, db *sql.DB, facts []winnersFinding
 	if err != nil {
 		return fmt.Errorf("begin winners supports seed: %w", err)
 	}
-	if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows); err != nil {
+	if err := supplychaincore.WriteSupplyChainImpactFindingRows(ctx, tx, rows, nil); err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("seed winners supports: %w", err)
 	}
