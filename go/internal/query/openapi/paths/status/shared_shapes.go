@@ -148,4 +148,66 @@ const (
     "name": {"type": "string", "description": "Stable diagnostic target name (admin_status, index_status, collector_status, repository_coverage)."},
     "path": {"type": "string", "description": "Route path of the follow-up read, with {repo_id} still templated for repository_coverage."}
   }}`
+
+	// semanticQueueSchema is the audit-safe semantic extraction queue, as
+	// served by the standalone semantic route and, when populated, by the
+	// index summary. Counts only: no source identifiers, prompts, provider
+	// responses, or credentials.
+	semanticQueueSchema = `{"type": "object", "description": "Audit-safe semantic extraction queue aggregates without source identifiers, prompts, provider responses, or credentials. Present only when the queue section is populated.", "properties": {
+    "total": {"type": "integer"},
+    "pending": {"type": "integer"},
+    "claimed": {"type": "integer"},
+    "retrying": {"type": "integer"},
+    "succeeded": {"type": "integer"},
+    "dead_letter": {"type": "integer"},
+    "skipped": {"type": "integer"},
+    "no_provider": {"type": "integer"},
+    "policy_denied": {"type": "integer"},
+    "budget_exhausted": {"type": "integer"},
+    "unsafe": {"type": "integer"},
+    "provider_unavailable": {"type": "integer"},
+    "unchanged": {"type": "integer"},
+    "stale": {"type": "integer"},
+    "updated_at": {"type": "string", "format": "date-time"}
+  }}`
+
+	// semanticBudgetSchema is the redacted semantic extraction token, cost,
+	// and budget decision aggregate. Present only when populated.
+	semanticBudgetSchema = `{"type": "object", "description": "Redacted semantic extraction token, cost, and budget decision aggregates. Present only when populated.", "properties": {
+    "estimated_input_tokens": {"type": "integer"},
+    "estimated_output_tokens": {"type": "integer"},
+    "estimated_cost_micros": {"type": "integer"},
+    "actual_input_tokens": {"type": "integer"},
+    "actual_output_tokens": {"type": "integer"},
+    "actual_cost_micros": {"type": "integer"},
+    "remaining_tokens": {"type": "integer"},
+    "remaining_cost_micros": {"type": "integer"},
+    "exhausted": {"type": "integer"}
+  }}`
+
+	// semanticAuditSchema is the class-based semantic extraction audit
+	// aggregate. Present only when populated.
+	semanticAuditSchema = `{"type": "object", "description": "Class-based semantic extraction audit aggregates without principals, source identifiers, prompts, or provider responses. Present only when populated.", "properties": {
+    "actor_class_counts": {"type": "array", "items": ` + namedCountItemSchema + `},
+    "acl_state_counts": {"type": "array", "items": ` + namedCountItemSchema + `},
+    "last_processed_at": {"type": "string", "format": "date-time"}
+  }}`
+
+	// awsMaterializationDomainItemSchema is one row of the
+	// aws_materialization domains array served on the index status summary
+	// and its legacy alias. Owner:
+	// go/internal/query/aws_materialization_status.go:144
+	// domainBacklogToMap (normal rows); blockage-only rows (:61-70) carry
+	// zero counters and omit oldest_age, so no member is required.
+	awsMaterializationDomainItemSchema = `{"type": "object", "description": "Per-domain AWS materialization work aggregates. Blockage-only rows carry zero counters and omit oldest_age.", "properties": {
+    "domain": {"type": "string", "description": "Materialization domain name; one row per domain in the AWS materialization set."},
+    "outstanding": {"type": "integer", "description": "Domain work items not in a terminal state."},
+    "pending": {"type": "integer", "description": "Outstanding items with no current claim or lease."},
+    "in_flight": {"type": "integer", "description": "Items under an active claim or lease."},
+    "blocked": {"type": "integer", "description": "Items held by a queue blockage on this domain."},
+    "retrying": {"type": "integer", "description": "Items scheduled for another attempt."},
+    "dead_letter": {"type": "integer", "description": "Terminal dead-letter items."},
+    "failed": {"type": "integer", "description": "Terminal failures outside dead_letter."},
+    "oldest_age": {"type": "number", "description": "Age in seconds of the oldest backlog item; absent on blockage-only rows."}
+  }}`
 )

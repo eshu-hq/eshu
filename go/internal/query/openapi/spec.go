@@ -186,6 +186,7 @@ func Spec() string {
 			auth.SignInPolicy+
 			search.Ask+
 			status.Routes+
+			status.IndexLegacy+
 			status.Compare+
 			components,
 		"__ESHU_VERSION__",
