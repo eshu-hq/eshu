@@ -47,9 +47,11 @@ const (
 // over the threshold the probe reports the cap and the id still runs alone.
 // The member arm is exact at or under HolderMassProbeFillToCapRows and
 // saturates above it (split-safe). Operators read the probe mass saturated:
-// a probe-hot singleton's max_id_mass_rows tops out at the cap unless the
-// routing-mass count resolved its routing mass for the key-range gate
-// (#10972 H2 A2, Lane-1b), which then replaces the saturated value. The
+// a probe-hot singleton's max_id_mass_rows tops out at the cap. Routing
+// masses top out at gate+1, under the cap since the gate retune
+// (fanout-holder-read-cost lane), so the routing update below never exceeds
+// the saturated probe report: max stays capped, and key_ranged_ids plus
+// holder_statements carry the routing signal. The
 // production probe builds its SQL LEAST, CASE saturation value, and
 // already-hot short-circuit from this constant while the member-arm LIMIT
 // comes from HolderMassProbeFillToCapRows, and the probe-cap guard test
@@ -255,6 +257,11 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 				return nil, stats, fanOutReadFailure(err, "estimate supply chain impact holder routing mass")
 			}
 			routingMasses = resolved
+			// Intentionally retained though currently dead: routing tops
+			// out at gate+1 under the probe cap, so this never fires while
+			// the gate sits below the cap — and it keeps maxMass correct
+			// without a code change if a future retune raises the gate
+			// above the cap again.
 			for _, id := range hot {
 				if mass, ok := resolved[id]; ok && mass > stats.maxMass {
 					stats.maxMass = mass

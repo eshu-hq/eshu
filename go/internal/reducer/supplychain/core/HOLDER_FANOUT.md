@@ -62,17 +62,17 @@ rules, the outcomes, and the open residual are in
   three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
   before while a hot id still reads hot; a mid-band routing-mass count
   saturates to gate+1 and reads as key-range statements (#10972 H2 Lane-1b).
-- A hot singleton id reads by routing mass (#10972 H2 A2, Lane-1b): one batched routing-mass count
-  resolves each probe-hot singleton (the unsaturated summed per-arm count at or under the 78,435-row
-  gate for direct-only and member<=100 ids, gate+1 above it; per-arm double-count and superseded
-  generations still overestimate distinct rows, so the blind band only over-routes), reading as 16
-  key-range statements above the gate or the shipped statement below it. The shipped statement times
-  out on member-carrying ids and breaches p95 concurrent; the key-range read passed every set (A2
-  4-parallel p95 323 ms), and the micro-shim proves the routing-mass count under the bars with zero
-  warm timeouts (cold runs and the member cache-fill discard are in the evidence note); packing and
-  parallelism are untouched. Ordered keyset pages stay rejected: each row is a random heap
-  fetch, about 10x the shipped cost cold.
-  Proof: `docs/internal/evidence/10972-h2-holders-shim.md`.
+- A hot singleton id reads by routing mass (#10972 H2 A2, retuned by the
+  fanout-holder-read-cost lane): one batched count resolves each probe-hot
+  singleton (masses at or under the 3000-row gate read shipped; above reads 16
+  key ranges; over-route is safe), so the mid-band singletons that breached
+  the 2s bar now range. Above-gate reports saturate at gate+1 = 3001 under the
+  10001 probe cap, so `fanout_max_id_mass_rows` stays capped — read routing from
+  `fanout_holder_statements`/`fanout_key_ranged_ids`.
+  Performance Evidence: 29,417-row id 2.36s shipped vs 0.56s key-range, identical holders.
+  Observability Evidence: `fanout_holder_statements`, `fanout_max_id_mass_rows`, holder_reads duration; no new signals.
+  Proof: `docs/internal/evidence/fanout-holder-read-cost-gate-retune.md`;
+  `docs/internal/evidence/10972-h2-holders-shim.md`.
 - Member arm (#10643 PR 2), the third arm of the shipped statement: the
   frozen `eshu_sci_foreign_member_tokens_v4` tokens each foreign member of at
   most 1,024 bytes as `bucket:member` in a partial GIN index (migrations 336,
