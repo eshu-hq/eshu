@@ -13,11 +13,14 @@ import (
 
 // TestOpenAPITerminalFailureFieldsMatchStatusContract pins the published
 // last_failure_class enum on every route that carries collector
-// terminal-failure fields (collectors, collector readiness, operations
-// board) to the bounded class set the status package reports, plus
-// unknown, and pins last_failure_at as omitted-when-absent (never null)
-// on all three (#8803). A class added to the status set without the
-// OpenAPI enum fails here.
+// terminal-failure fields (collectors, collector readiness and its legacy
+// alias, operations board) to the bounded class set the status package
+// reports, plus unknown, and pins last_failure_at as omitted-when-absent
+// (never null) on all four (#8803). A class added to the status set
+// without the OpenAPI enum fails here. The alias counts because it is
+// served by the same getCollectorReadiness handler (status.go), so it
+// always carried the identical wire payload; the contract used to
+// under-describe it as a bare object.
 func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 	t.Parallel()
 	var spec map[string]any
@@ -29,8 +32,8 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 
 	var classes, timestamps []map[string]any
 	collectTerminalFailureProperties(spec, &classes, &timestamps)
-	if len(classes) != 3 || len(timestamps) != 3 {
-		t.Fatalf("found %d last_failure_class and %d last_failure_at schemas, want 3 each (collectors, collector readiness, operations board)",
+	if len(classes) != 4 || len(timestamps) != 4 {
+		t.Fatalf("found %d last_failure_class and %d last_failure_at schemas, want 4 each (collectors, collector readiness and its legacy alias, operations board)",
 			len(classes), len(timestamps))
 	}
 	for _, schema := range classes {
@@ -57,8 +60,8 @@ func TestOpenAPITerminalFailureFieldsMatchStatusContract(t *testing.T) {
 	// last_failure_at.
 	var acknowledged []map[string]any
 	collectNamedProperties(spec, "acknowledged_failure", &acknowledged)
-	if len(acknowledged) != 3 {
-		t.Fatalf("found %d acknowledged_failure schemas, want 3 (collectors, collector readiness, operations board)", len(acknowledged))
+	if len(acknowledged) != 4 {
+		t.Fatalf("found %d acknowledged_failure schemas, want 4 (collectors, collector readiness and its legacy alias, operations board)", len(acknowledged))
 	}
 	for _, schema := range acknowledged {
 		properties, _ := schema["properties"].(map[string]any)
