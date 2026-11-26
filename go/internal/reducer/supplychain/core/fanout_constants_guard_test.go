@@ -46,10 +46,10 @@ func TestFanOutChunkAndHolderCapsArePinned(t *testing.T) {
 	if HolderMassProbeFillToCapRows >= fanOutHolderHotMassRows {
 		t.Fatalf("HolderMassProbeFillToCapRows = %d, want far under fanOutHolderHotMassRows = %d: the fill must only saturate cold-banded member counts, never exact hot ones", HolderMassProbeFillToCapRows, fanOutHolderHotMassRows)
 	}
-	if HolderKeyRangeMassGate != 78435 {
-		t.Fatalf("HolderKeyRangeMassGate = %d, want 78435: the largest A1-passing shim singleton mass (156870 rows) halved for margin; a member-heavy shim mix reads 80144 rows and must stay above it", HolderKeyRangeMassGate)
+	if HolderKeyRangeMassGate != 3000 {
+		t.Fatalf("HolderKeyRangeMassGate = %d, want 3000: the largest comfortably-passing shim singleton mass (6006 rows at 0.13 s warm) halved for margin; the old 78435 admitted a mid-band whose shipped statement breaches the 2 s bar", HolderKeyRangeMassGate)
 	}
-	if HolderKeyRangeMassGate <= HolderMassProbeCap {
-		t.Fatalf("HolderKeyRangeMassGate = %d, want over HolderMassProbeCap = %d: the gate decides on routing masses the probe saturates, so it must sit past the saturation point", HolderKeyRangeMassGate, HolderMassProbeCap)
+	if HolderKeyRangeMassGate <= HolderMassProbeFillToCapRows {
+		t.Fatalf("HolderKeyRangeMassGate = %d, want over HolderMassProbeFillToCapRows = %d: the gate decides on routing masses the probe re-resolves exactly, so it must clear the probe's exact-reporting band or even tiny ids range", HolderKeyRangeMassGate, HolderMassProbeFillToCapRows)
 	}
 }
