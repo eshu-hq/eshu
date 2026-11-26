@@ -23,19 +23,18 @@ import (
 )
 
 const (
-	// localAPIBinaryName is the one-shot API binary this command spawns. It is
-	// the in-tree ./cmd/api build installed under a vulnscan-only name, so the
-	// bare `eshu-api` satellite — which exits fail-closed without
-	// --core-base-url — is never on this spawn path. NornicDB-owner-bound: the
-	// child inherits the owner's Postgres and graph environment and answers
-	// /healthz on ESHU_API_ADDR.
-	localAPIBinaryName = "eshu-local-api"
+	// localCoreBinaryName is the one-shot API binary this command spawns. It
+	// is eshu-core-api (go/cmd/core-api), which serves the Neo4j backend and
+	// answers /health on its -addr flag. The retired ./cmd/api one-shot
+	// build is never on this spawn path after #11514; neither is the bare
+	// `eshu-api` satellite, which exits fail-closed without --core-base-url.
+	localCoreBinaryName = "eshu-core-api"
 	// LocalAPIBindAddress is the loopback address the one-shot API binds. The
 	// runtime this command starts is for a single local scan, so it must never
 	// be reachable off the machine.
 	LocalAPIBindAddress = "127.0.0.1"
 	// LocalStartupTimeout bounds both the wait for the local service owner and
-	// the wait for the one-shot API to answer /healthz.
+	// the wait for the one-shot core to answer /health.
 	LocalStartupTimeout = 2 * time.Minute
 	// LocalPollInterval is how often those two waits re-check.
 	LocalPollInterval = 200 * time.Millisecond
@@ -73,12 +72,12 @@ var (
 	reserveLocalAPIPortFn = reserveLocalAPIPort
 	// startLocalOwnerFn launches `eshu local-host watch` for the workspace.
 	startLocalOwnerFn = startLocalOwner
-	// startLocalAPIFn launches the one-shot eshu-local-api child.
-	startLocalAPIFn = startLocalAPI
+	// startLocalCoreFn launches the one-shot eshu-core-api child.
+	startLocalCoreFn = startLocalCoreAPI
 	// stopLocalProcessFn terminates a child started by this package.
 	stopLocalProcessFn = localsupervisor.StopChildProcess
-	// waitLocalAPIFn blocks until the one-shot API answers /healthz.
-	waitLocalAPIFn = waitLocalAPI
+	// waitLocalCoreFn blocks until the one-shot core answers /health.
+	waitLocalCoreFn = waitLocalCore
 )
 
 // prepareLocalRuntime brings up everything a repository scan needs when no
@@ -117,6 +116,17 @@ func prepareLocalRuntime(ctx context.Context, workspaceRoot string, stderr io.Wr
 		}
 	}
 
+	// The one-shot serve binary follows the owner graph backend:
+	// eshu-core-api on Neo4j. Any other backend names no surviving binary,
+	// so this refuses before reserving a port or spawning anything — a
+	// just-started owner is stopped first — instead of burning the
+	// health-wait timeout on a child that can never serve.
+	if runtimeConfig.GraphBackend != querycontract.GraphBackendNeo4j {
+		_ = stopLocalRuntime(nil, ownerCmd)
+		return LocalRuntime{}, fmt.Errorf("vuln-scan local runtime needs ESHU_GRAPH_BACKEND=neo4j (eshu-core-api), got backend %q with profile %q",
+			runtimeConfig.GraphBackend, runtimeConfig.Profile)
+	}
+
 	bootstrapEnv, err := envFromOwner(layout, record, runtimeConfig, nil)
 	if err != nil {
 		_ = stopLocalRuntime(nil, ownerCmd)
@@ -129,22 +139,23 @@ func prepareLocalRuntime(ctx context.Context, workspaceRoot string, stderr io.Wr
 		return LocalRuntime{}, err
 	}
 	apiAddr := net.JoinHostPort(LocalAPIBindAddress, strconv.Itoa(apiPort))
-	apiEnv, err := envFromOwner(layout, record, runtimeConfig, map[string]string{
-		"ESHU_API_ADDR": apiAddr,
-	})
+	// Core takes the listen address on -addr only (go/cmd/core-api) and
+	// reads no ESHU_API_ADDR from the environment, so its env layering is
+	// empty and the address travels on argv.
+	coreEnv, err := envFromOwner(layout, record, runtimeConfig, nil)
 	if err != nil {
 		_ = stopLocalRuntime(nil, ownerCmd)
 		return LocalRuntime{}, err
 	}
-	apiCmd, err := startLocalAPIFn(apiEnv)
+	coreCmd, err := startLocalCoreFn(apiAddr, coreEnv)
 	if err != nil {
 		_ = stopLocalRuntime(nil, ownerCmd)
 		return LocalRuntime{}, err
 	}
 
 	baseURL := "http://" + apiAddr
-	if err := waitLocalAPIFn(ctx, baseURL, LocalStartupTimeout); err != nil {
-		_ = stopLocalRuntime(apiCmd, ownerCmd)
+	if err := waitLocalCoreFn(ctx, baseURL, LocalStartupTimeout); err != nil {
+		_ = stopLocalRuntime(coreCmd, ownerCmd)
 		return LocalRuntime{}, err
 	}
 
@@ -152,7 +163,7 @@ func prepareLocalRuntime(ctx context.Context, workspaceRoot string, stderr io.Wr
 		BaseURL:      baseURL,
 		BootstrapEnv: bootstrapEnv,
 		Close: func() error {
-			return stopLocalRuntime(apiCmd, ownerCmd)
+			return stopLocalRuntime(coreCmd, ownerCmd)
 		},
 	}, nil
 }
@@ -318,17 +329,20 @@ func startLocalOwner(ctx context.Context, layout eshulocal.Layout) (*exec.Cmd, e
 	return cmd, nil
 }
 
-// startLocalAPI launches the one-shot eshu-local-api child with the
-// owner-derived environment.
-func startLocalAPI(env []string) (*exec.Cmd, error) {
+// startLocalCoreAPI launches the one-shot eshu-core-api child with the
+// owner-derived environment. Core takes the listen address on -addr
+// (go/cmd/core-api), so the address travels on argv — mirroring the MCP
+// session core spawn — and no ESHU_API_ADDR layering is composed here.
+func startLocalCoreAPI(apiAddr string, env []string) (*exec.Cmd, error) {
 	//nolint:wrapcheck // StartChildProcess already names the child it failed to start
-	return localsupervisor.StartChildProcess(localAPIBinaryName, []string{localAPIBinaryName}, env)
+	return localsupervisor.StartChildProcess(localCoreBinaryName, []string{localCoreBinaryName, "-addr=" + apiAddr}, env)
 }
 
-// waitLocalAPI polls /healthz until the one-shot API answers 200 or the
-// timeout expires. Transport errors are retried rather than returned, because
-// the API is still starting when the first few attempts fail.
-func waitLocalAPI(ctx context.Context, baseURL string, timeout time.Duration) error {
+// waitLocalCore polls /health until the one-shot core answers 200 or the
+// timeout expires. Core mounts GET /health (shallow process check) and has
+// no /healthz. Transport errors are retried rather than returned, because
+// the core is still starting when the first few attempts fail.
+func waitLocalCore(ctx context.Context, baseURL string, timeout time.Duration) error {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -337,7 +351,7 @@ func waitLocalAPI(ctx context.Context, baseURL string, timeout time.Duration) er
 	defer ticker.Stop()
 
 	for {
-		req, err := http.NewRequestWithContext(waitCtx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/healthz", nil)
+		req, err := http.NewRequestWithContext(waitCtx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/health", nil)
 		if err != nil {
 			//nolint:wrapcheck // net/http's error names the malformed URL, which is the whole failure
 			return err
@@ -353,7 +367,7 @@ func waitLocalAPI(ctx context.Context, baseURL string, timeout time.Duration) er
 
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf("wait for local vulnerability scan API timed out after %s: %w", timeout, waitCtx.Err())
+			return fmt.Errorf("wait for local vulnerability scan core timed out after %s: %w", timeout, waitCtx.Err())
 		case <-ticker.C:
 		}
 	}

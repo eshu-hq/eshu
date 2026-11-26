@@ -27,11 +27,11 @@ import (
 //
 // The first two are the local supervisor's own children
 // (internal/cli/localsupervisor/host.go: StartChildProcess for eshu-reducer
-// and eshu-ingester). The eshu-core-api and eshu-local-api entries are
-// distinct concurrent processes: the MCP session child
+// and eshu-ingester). The two eshu-core-api entries are distinct concurrent
+// processes under one binary name: the MCP session child
 // (localsupervisor.StartMCPSession, one per stdio or owner-attached HTTP
-// session) and the short-lived loopback API that `eshu vuln-scan repo`
-// launches against a running owner; the satellite
+// session) and the short-lived loopback core that `eshu vuln-scan repo`
+// launches against a running Neo4j owner (vulnscan.prepareLocalRuntime); the satellite
 // eshu-mcp-server holds no Postgres pool (it reads through the session API),
 // so it is not listed. The last entry is the vuln-scan bootstrap-index child
 // (cmd/eshu/gotchas-read-surface-commands.md). All five take the shared
@@ -52,8 +52,8 @@ import (
 var localPostgresPoolHolders = [...]string{
 	"eshu-reducer",
 	"eshu-ingester",
-	"eshu-core-api",  // MCP session child (localsupervisor.StartMCPSession).
-	"eshu-local-api", // vulnscan one-shot (vulnscan.prepareLocalRuntime).
+	"eshu-core-api", // MCP session child (localsupervisor.StartMCPSession).
+	"eshu-core-api", // vulnscan one-shot (vulnscan.prepareLocalRuntime; concurrent with the session child).
 	"eshu-bootstrap-index",
 }
 
