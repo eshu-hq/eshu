@@ -801,8 +801,7 @@ components:
         queue:
           $ref: "#/components/schemas/QueueSummary"
         retry_policies:
-          type: array
-          nullable: true
+          type: ["array", "null"]
           description: Retry policies by stage. Null when the report carries none (nil slice, no omitempty).
           items:
             $ref: "#/components/schemas/RetryPolicySummary"
@@ -811,8 +810,7 @@ components:
         generation_history:
           $ref: "#/components/schemas/GenerationHistorySummary"
         generation_transitions:
-          type: array
-          nullable: true
+          type: ["array", "null"]
           description: Generation transitions observed by the reducer. Null when the report carries none (nil slice, no omitempty).
           items:
             $ref: "#/components/schemas/GenerationTransitionSummary"

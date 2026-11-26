@@ -67,6 +67,9 @@ const IndexLegacy = `
                         "code_hints_enabled": {"type": "boolean"},
                         "deterministic_paths_affected": {"type": "boolean"},
                         "deterministic_documentation_unblocked": {"type": "boolean"},
+                        "queue": ` + semanticQueueSchema + `,
+                        "budget": ` + semanticBudgetSchema + `,
+                        "audit": ` + semanticAuditSchema + `,
                         "provider_profiles": {
                           "type": "array",
                           "description": "Hosted provider profiles; present only when at least one profile is configured.",

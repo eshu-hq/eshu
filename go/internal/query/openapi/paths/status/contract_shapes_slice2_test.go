@@ -213,6 +213,17 @@ func TestContractShapesSlice2Status(t *testing.T) {
 		if !equalSets(mainKeys, legacyKeys) {
 			t.Errorf("semantic_extraction key sets differ: index=%v legacy=%v", mainKeys, legacyKeys)
 		}
+		// Owner semanticExtractionStatusToMap emits queue, budget, and
+		// audit whenever populated: both blocks must contract them, since
+		// parity alone passes mutual omission.
+		for _, key := range []string{"queue", "budget", "audit"} {
+			if _, ok := mainKeys[key]; !ok {
+				t.Errorf("index semantic_extraction: missing conditionally-served property %q", key)
+			}
+			if _, ok := legacyKeys[key]; !ok {
+				t.Errorf("legacy semantic_extraction: missing conditionally-served property %q", key)
+			}
+		}
 	})
 
 	t.Run("semantic audit counts name owner keys", func(t *testing.T) {
