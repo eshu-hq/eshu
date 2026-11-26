@@ -125,7 +125,6 @@ func isDocsConfinedTree(root string) bool {
 // adding a code-gated lane there without listing it here strands the
 // aggregate on docs-only PRs (selected but never produced).
 var codeGatedCIJobs = map[string]struct{}{
-	"merge-group-slim": {},
 	"verify-contracts": {},
 	"go-core":          {},
 	"go-race":          {},

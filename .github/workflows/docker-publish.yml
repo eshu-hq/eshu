@@ -12,23 +12,8 @@ on:
         required: true
         type: string
   push:
-    branches:
-      - main
     tags:
       - 'v*'
-    paths: [
-      'Dockerfile', '.dockerignore', 'go/**',
-      '.github/workflows/docker-publish.yml', 'scripts/ci/select-docker-publish-lanes.sh', 'scripts/verify-apk-floors.sh',
-      'scripts/test-verify-apk-floors.sh',
-      'scripts/fixtures/apk-floors/**',
-      'docker/satellites/**', 'specs/satellite-pins/**',
-      'scripts/ci/test-docker-publish-extracted-steps.sh',
-      'scripts/verify-runtime-image-tools.sh', 'scripts/test-verify-runtime-image-tools.sh',
-      'scripts/lib/rootfs-resolve.sh',
-      'scripts/verify-scanner-digest-pins.sh', 'scripts/test-verify-scanner-digest-pins.sh',
-      'scripts/check-scanner-freshness.sh', 'scripts/test-check-scanner-freshness.sh',
-      'scripts/ci/go-install-retry.sh',
-    ]
   workflow_dispatch:
     inputs:
       mode:
@@ -40,6 +25,14 @@ on:
           - release
           - ci-mirrors-publish
           - ci-mirrors-verify-public
+      platforms:
+        description: Target image platforms for manual release dispatch
+        required: false
+        default: linux/amd64
+        type: choice
+        options:
+          - linux/amd64
+          - linux/amd64,linux/arm64
       expected_sha:
         description: Exact independently reviewed branch SHA required for mirror publication
         required: false
@@ -61,7 +54,7 @@ env:
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  IMAGE_PLATFORMS: ${{ (github.event_name == 'pull_request') && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+  IMAGE_PLATFORMS: ${{ github.event_name == 'pull_request' && 'linux/amd64' || (github.event_name == 'workflow_dispatch' && (inputs.platforms || 'linux/amd64') || 'linux/amd64,linux/arm64') }}
 jobs:
   changes:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes')) && (github.event_name != 'workflow_dispatch' || inputs.mode == 'release') }}

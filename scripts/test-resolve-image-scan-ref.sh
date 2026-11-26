@@ -183,5 +183,19 @@ check "resolver output hides the bearer token" "$(output_leaks "${BEARER_VALUE}"
 check "output file hides the github token" "$(output_file_leaks "${FAKE_GITHUB_TOKEN}" && echo 1 || echo 0)"
 check "output file hides the bearer token" "$(output_file_leaks "${BEARER_VALUE}" && echo 1 || echo 0)"
 
+# 12. Single-arch image manifests (OCI and Docker v2, pushed by default
+# workflow_dispatch platforms: linux/amd64 with provenance: false) must be
+# accepted by the resolver's Accept header instead of 404-skipping Trivy.
+for media in \
+	'application/vnd.oci.image.manifest.v1+json' \
+	'application/vnd.docker.distribution.manifest.v2+json'; do
+	fresh_case
+	printf '%s' "${media}" >"${STUB_DIR}/tags/sha-${SHA}"
+	run_resolver "main" "${SHA}"
+	check "single-arch ${media} exits 0 (rc=${RESOLVE_RC})" "$([ "${RESOLVE_RC}" == "0" ] && echo 0 || echo 1)"
+	check "single-arch ${media} scans (skip=false)" "$(out_has 'skip=false' && echo 0 || echo 1)"
+	check "single-arch ${media} reached 200 with bearer" "$(req_has "manifest tag=sha-${SHA} bearer=yes -> 200" && echo 0 || echo 1)"
+done
+
 printf 'test-resolve-image-scan-ref: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" == "0" ]

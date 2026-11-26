@@ -65,10 +65,20 @@ on:
   push:
     branches:
       - main
+    paths:
+      - sdk/go/factschema/schema/**
+      - sdk/go/factschema/aws/v1/**
+      - sdk/go/factschema/internal/schemagen/**
+      - go/cmd/factschema-diff/**
+      - scripts/*verify-factschema-diff*.sh
+      - scripts/ci/install-apt-packages.sh
+      - scripts/ci/go-mod-download-retry.sh
+      - .github/workflows/factschema-diff.yml
+      - specs/ci-pr-workflows.d/factschema-diff.yml
 
 concurrency:
-  group: ci-leaf-factschema-diff-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-factschema-diff-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 permissions:
   contents: read

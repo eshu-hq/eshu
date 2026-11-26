@@ -37,10 +37,22 @@ on:
   push:
     branches:
       - main
+    paths:
+      - go/**
+      - scripts/run-go-benchmarks.sh
+      - scripts/verify-bench-regression.sh
+      - scripts/refresh-bench-baseline.sh
+      - scripts/ci/install-apt-packages.sh
+      - scripts/ci/go-mod-download-retry.sh
+      - scripts/ci/go-install-retry.sh
+      - testdata/benchmarks/**
+      - .github/workflows/bench.yml
+      - specs/ci-pr-workflows.d/bench.yml
+      - '!**/*.md'
 
 concurrency:
-  group: ci-leaf-bench-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-bench-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 permissions:
   contents: read

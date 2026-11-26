@@ -47,19 +47,22 @@ For non-tag images published from `main`, use
 
 ## Image Tags
 
-Every `main` commit that changes the image gets its own run of
-`.github/workflows/docker-publish.yml`, and every run pushes an immutable
-per-commit tag:
+`.github/workflows/docker-publish.yml` publishes images on tagged releases
+(`v*`, always dual-arch `linux/amd64,linux/arm64`) and on manual
+`workflow_dispatch` (defaulting to `linux/amd64`, with an optional
+`linux/amd64,linux/arm64` choice). Routine merges to `main` do not trigger
+automatic image builds. Every publish run writes an immutable per-commit tag:
 
-- `sha-<full commit sha>` — the only tag a `main` push writes. It exists if
-  and only if that commit's run pushed an image, so it is the handle the
+- `sha-<full commit sha>` — written by every publish run. It exists if and
+  only if that commit's run pushed an image, so it is the handle the
   post-publish Trivy scan and the promotion guard both address.
-- `main` and `latest` — moving tags, promoted AFTER the push by the
-  `promote-moving-tags` job behind a commit-ancestry guard: an older,
-  still-running publish never moves them backward past a newer commit.
+- `main` and `latest` — moving tags, promoted AFTER a `main` dispatch by the
+  `promote-moving-tags` job behind a commit-ancestry guard (preserving the
+  exact signed digest with `--prefer-index=false`): an older, still-running
+  publish never moves them backward past a newer commit.
 - `pr-<number>` — pull-request builds only; never pushed to the registry.
 - `<version>`, `<major>.<minor>`, `<major>` — tag releases (`v*`) only.
 
 A manual `workflow_dispatch` on another branch pushes that branch's tag
-instead; dispatches on `main` promote the moving tags like a push. Tag pushes
-promote nothing: their semver tags are immutable.
+instead; dispatches on `main` promote the moving tags. Tag pushes promote
+nothing: their semver tags are immutable.

@@ -17,8 +17,17 @@ require_workflow_pattern() {
 }
 
 require_workflow_pattern \
-	"IMAGE_PLATFORMS: \${{ (github.event_name == 'pull_request') && 'linux/amd64' || 'linux/amd64,linux/arm64' }}" \
-	'docker publish workflow must limit pull_request image builds to linux/amd64'
+	"IMAGE_PLATFORMS: \${{ github.event_name == 'pull_request' && 'linux/amd64' || (github.event_name == 'workflow_dispatch' && (inputs.platforms || 'linux/amd64') || 'linux/amd64,linux/arm64') }}" \
+	'docker publish workflow must limit pull_request builds to linux/amd64, default workflow_dispatch to linux/amd64, and keep tag releases dual-arch'
+
+require_workflow_pattern \
+	"      - 'v*'" \
+	'docker publish workflow must preserve v* tag release builds'
+
+if awk '/^  push:/{in_push=1; next} in_push && /^  [a-z_]+:/{exit} in_push{print}' "$workflow" | rg -q 'branches:'; then
+	printf '%s\n' 'docker publish workflow must not build images on every push to main' >&2
+	exit 1
+fi
 
 # No merge_group trigger remains (merge queue off, #8288): publication guards
 # exclude pull_request only, and no guard may name the removed event.

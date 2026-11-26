@@ -46,26 +46,24 @@ cp "${repo_root}/scripts/fixtures/promote-moving-tags-stub-curl.sh" "${work}/bin
 
 # Fake docker: applies `buildx imagetools create` to the tags state and logs
 # every call. With RACE_LOSE_ONCE=1 the first create writes RACE_DIGEST (a
-# concurrent winner's) instead of the requested digest.
+# concurrent winner's) instead of the requested digest. With
+# SINGLE_ARCH_MANIFEST=1 and no --prefer-index=false, wraps into a synthetic
+# index digest (modeling real buildx's --prefer-index=true default).
 cat >"${work}/bin/docker" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-echo "docker $*" >>"${STUB_DIR}/docker.log"
-digest=""
-tags=()
-prev=""
+s="$STUB_DIR"
+echo "docker $*" >>"$s/docker.log"
+d="" p=0 q="" ts=()
 for a in "$@"; do
-	if [[ "${prev}" == "-t" ]]; then tags+=("${a}"); fi
-	[[ "${a}" == *@sha256:* ]] && digest="${a##*@}"
-	prev="${a}"
+	[[ $q == -t ]] && ts+=("$a")
+	[[ $a == --prefer-index=false ]] && p=1
+	[[ $a == *@sha256:* ]] && d="${a##*@}"
+	q="$a"
 done
-if [[ "${RACE_LOSE_ONCE:-0}" == "1" && ! -f "${STUB_DIR}/raced" ]]; then
-	touch "${STUB_DIR}/raced"
-	digest="${RACE_DIGEST}"
-fi
-for t in "${tags[@]}"; do
-	printf '%s' "${digest}" >"${STUB_DIR}/tags/${t##*:}"
-done
+[[ ${SINGLE_ARCH_MANIFEST:-0} == 1 && $p != 1 ]] && d="sha256:wrapped-${d#sha256:}"
+[[ ${RACE_LOSE_ONCE:-0} == 1 && ! -f "$s/raced" ]] && { touch "$s/raced"; d="$RACE_DIGEST"; }
+for t in "${ts[@]}"; do printf '%s' "$d" >"$s/tags/${t##*:}"; done
 STUB
 
 # Fake git (fixtures/promote-moving-tags-stub-git.sh): merge-base
@@ -290,6 +288,22 @@ for head_failure in 401 404 500 transport; do
  run_promote "refs/heads/main" 1
  check "main digest ${head_failure} cannot write tags" "$([ "${PROMOTE_RC}" != 0 ] && [ "$(creates)" == 0 ] && echo 0 || echo 1)"
 done
+
+# 13. Single-arch manifest (default workflow_dispatch platforms: linux/amd64,
+# provenance: false): imagetools create must pass --prefer-index=false so it
+# preserves the signed/attested manifest digest instead of wrapping in a new
+# unsigned OCI index whose digest fails promote_and_verify.
+fresh_case single-arch-main
+SINGLE_ARCH_MANIFEST=1 run_promote "refs/heads/main" 2
+check "single-arch main dispatch exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
+check "single-arch main dispatch passes --prefer-index=false" "$(rg -q -- '--prefer-index=false' "${STUB_DIR}/docker.log" && echo 0 || echo 1)"
+check "single-arch main dispatch preserves exact digest" "$(tag_is main "${D_MINE}" && tag_is latest "${D_MINE}" && echo 0 || echo 1)"
+
+fresh_case single-arch-branch
+SINGLE_ARCH_MANIFEST=1 run_promote "refs/heads/feature/x" 2
+check "single-arch branch dispatch exits 0 (rc=${PROMOTE_RC})" "$([ "${PROMOTE_RC}" == "0" ] && echo 0 || echo 1)"
+check "single-arch branch dispatch passes --prefer-index=false" "$(rg -q -- '--prefer-index=false' "${STUB_DIR}/docker.log" && echo 0 || echo 1)"
+check "single-arch branch dispatch preserves exact digest" "$(tag_is feature-x "${D_MINE}" && echo 0 || echo 1)"
 
 printf 'test-promote-moving-tags: %d passed, %d failed\n' "${pass}" "${fail}"
 [ "${fail}" == "0" ]

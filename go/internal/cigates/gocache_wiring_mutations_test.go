@@ -326,7 +326,7 @@ func TestSetupGoCacheDisabledMutations(t *testing.T) {
 		job  string
 		edit func(with map[string]string)
 	}{
-		{name: "cache key removed", job: "merge-group-slim", edit: func(with map[string]string) { delete(with, "cache") }},
+		{name: "cache key removed", job: "dirgate", edit: func(with map[string]string) { delete(with, "cache") }},
 		{name: "cache true", job: "verify-contracts", edit: func(with map[string]string) { with["cache"] = "true" }},
 		{name: "cache true on pr-plan", job: "pr-plan", edit: func(with map[string]string) { with["cache"] = "true" }},
 	}
