@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sort"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -101,12 +100,41 @@ func (s Store) RunAllRelationshipEvidence(
 	// With no usable anchors no fact can resolve a catalog target, so the fact
 	// load short-circuits and the pass still publishes readiness for the active
 	// generations below.
-	activeFacts, snapshotGenerations, skippedPartitions, err := s.LoadDeferredAnchorScopedRelationshipFacts(ctx, s.DB, catalog, instruments)
+	activeFacts, snapshotGenerations, skippedPartitions, degraded, err := s.LoadDeferredAnchorScopedRelationshipFacts(ctx, s.DB, catalog, instruments)
 	if err != nil {
 		return nil, fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}
 
 	evidenceBySourceRepo, totalEvidence := discoverEvidenceBlock(ctx, activeFacts, catalog)
+
+	if degraded != nil {
+		// Phase two parked on the budget sentinel: the phase-one evidence
+		// still commits through the batch path, but the whole fan-in is
+		// withheld — no readiness, no memo row, and no reopen-redundant
+		// claim for any partition. The committed evidence is
+		// content-addressed, so the next clean pass re-derives and
+		// republishes what this one parked.
+		commit, batchBlock, err := s.commitDeferredBackfillBatches(ctx, evidenceBySourceRepo, snapshotGenerations, instruments)
+		if err != nil {
+			return nil, err
+		}
+		if commit.empty {
+			batchBlock.End(nil, IntAttr("batches", 0), IntAttr("readiness_rows", 0), IntAttr("inserted_rows", 0))
+		} else {
+			batchBlock.EndAt(commit.batchesEnd, nil,
+				IntAttr("batches", commit.batchCount),
+				IntAttr("readiness_rows", 0),
+				IntAttr("inserted_rows", int(sumInsertedRows(commit.insertedRows))),
+			)
+		}
+		dur := time.Since(start).Seconds()
+		if instruments != nil {
+			instruments.DeferredBackfillDuration.Record(ctx, dur)
+			instruments.DeferredBackfillEvidence.Add(ctx, totalEvidence)
+		}
+		logDegradedPassCompleted(dur, totalEvidence, sumInsertedRows(commit.insertedRows), degraded)
+		return nil, nil
+	}
 
 	// The catalog fingerprint (issue #3624 Track 1 / B') is derived from the
 	// SAME $1/$2 query parameters BuildDeferredScopedFactQueryParams already
@@ -167,88 +195,33 @@ func (s Store) writeDeferredBackfillInBatches(
 	// write_batches covers the active-generation read, the batch writes, and its
 	// own shape; its attributes also carry the fan-in's readiness count, so it
 	// is ended with the batches' own end time once the fan-in has returned.
-	batchBlock := startBlockFromContext(ctx, BlockWriteBatches)
-	repoGenerations, err := LoadActiveRepositoryGenerations(ctx, s.DB)
-	if err != nil {
-		batchBlock.End(err)
-		return 0, nil, fmt.Errorf("load active repository generations for deferred relationship backfill: %w", err)
-	}
-	if len(repoGenerations) == 0 {
-		batchBlock.End(nil, IntAttr("batches", 0), IntAttr("readiness_rows", 0), IntAttr("inserted_rows", 0))
-		return 0, ExcludePartitionsWithNewEvidence(memoHits, nil), nil
-	}
-
-	repoIDs := make([]string, 0, len(repoGenerations))
-	for repoID := range repoGenerations {
-		repoIDs = append(repoIDs, repoID)
-	}
-	sort.Strings(repoIDs)
-
-	batchSize := s.BatchSize
-	if batchSize <= 0 {
-		batchSize = DeferredMaintenanceRepoBatchSize
-	}
-
-	// Partition the sorted repository list into disjoint per-batch slices. Because
-	// the list is sorted and the slices are contiguous and non-overlapping, no two
-	// batches request the same repository advisory lock, so concurrent batches
-	// cannot deadlock on lock ordering (each batch also sorts its own keys). Each
-	// batch transaction holds exactly one pooled connection for its lifetime and
-	// never acquires a second, so running W batches concurrently can at most block
-	// on Begin when the pool is smaller than W; it cannot deadlock. At
-	// ESHU_POSTGRES_MAX_OPEN_CONNS=1 the pool self-serializes the batches.
-	bounds := make([][2]int, 0, (len(repoIDs)+batchSize-1)/batchSize)
-	for start := 0; start < len(repoIDs); start += batchSize {
-		end := start + batchSize
-		if end > len(repoIDs) {
-			end = len(repoIDs)
-		}
-		bounds = append(bounds, [2]int{start, end})
-	}
-
-	workers := s.Workers
-	if workers < 1 {
-		workers = 1
-	}
-	if workers > len(bounds) {
-		workers = len(bounds)
-	}
-
-	contributions, insertedRows, err := s.runDeferredBackfillBatches(
-		ctx, repoIDs, bounds, workers, evidenceBySourceRepo, snapshotGenerations, instruments,
+	// The batch half is shared with the degraded pass (phase two parked),
+	// which commits evidence through it while withholding the whole fan-in.
+	commit, batchBlock, err := s.commitDeferredBackfillBatches(
+		ctx, evidenceBySourceRepo, snapshotGenerations, instruments,
 	)
-	batchesEnd := time.Now()
 	if err != nil {
-		batchBlock.EndAt(batchesEnd, err, IntAttr("batches", len(bounds)))
-		// A failed or canceled batch means at least one partition's evidence is
-		// only partly committed. Publishing readiness or a memo row for ANY
-		// partition now would claim completion the pass did not achieve, and the
-		// memo in particular is durable: ApplyDeferredPartitionMemoGate would skip
-		// that partition's fact load on every later pass until the catalog
-		// fingerprint changes. Withhold the whole fan-in instead; the committed
-		// evidence is content-addressed and the next pass re-derives and
-		// republishes it.
 		return 0, nil, err
 	}
-	if err := ctx.Err(); err != nil {
-		batchBlock.EndAt(batchesEnd, err, IntAttr("batches", len(bounds)))
-		return 0, nil, fmt.Errorf("deferred backfill canceled before readiness publication: %w", err)
+	if commit.empty {
+		batchBlock.End(nil, IntAttr("batches", 0), IntAttr("readiness_rows", 0), IntAttr("inserted_rows", 0))
+		return 0, ExcludePartitionsWithNewEvidence(memoHits, nil), nil
 	}
 
 	// The revised set is computed before the fan-in, which consumes it, but
 	// logged only after the fan-in succeeds, so a pass whose fan-in fails
 	// does not report a revision nobody acted on.
-	unchanged, unskipped := excludePartitionsWithNewEvidence(memoHits, insertedRows)
+	unchanged, unskipped := excludePartitionsWithNewEvidence(memoHits, commit.insertedRows)
 	fanInBlock := startBlockFromContext(ctx, BlockFanIn)
 	probeTimer := &argoCDProbeTimer{}
 	fanIn, err := s.publishChangedDeferredBackfillPartitions(
-		withArgoCDProbeTimer(ctx, probeTimer), contributions, unchanged, snapshotGenerations, catalogFingerprint, workers, instruments,
+		withArgoCDProbeTimer(ctx, probeTimer), commit.contributions, unchanged, snapshotGenerations, catalogFingerprint, commit.workers, instruments,
 	)
-	endFanInBlock(fanInBlock, err, len(contributions), fanIn, probeTimer.seconds())
-	batchBlock.EndAt(batchesEnd, nil,
-		IntAttr("batches", len(bounds)),
+	endFanInBlock(fanInBlock, err, len(commit.contributions), fanIn, probeTimer.seconds())
+	batchBlock.EndAt(commit.batchesEnd, nil,
+		IntAttr("batches", commit.batchCount),
 		IntAttr("readiness_rows", fanIn.published),
-		IntAttr("inserted_rows", int(sumInsertedRows(insertedRows))),
+		IntAttr("inserted_rows", int(sumInsertedRows(commit.insertedRows))),
 	)
 	if err != nil {
 		return 0, nil, err

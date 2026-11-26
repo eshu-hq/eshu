@@ -73,15 +73,22 @@ import (
 // empty, non-nil map) whenever the gate never ran (no queryer, no buildable
 // params, or a gate lookup error), so callers must treat nil as "no partition is
 // provably redundant" rather than "every partition is redundant".
+//
+// The fifth return value is non-nil when the phase-two ArgoCD config reload
+// timed out on the budget sentinel while phase one succeeded. The returned
+// facts are then the unmerged phase-one set, the skip-set is nil (nothing is
+// provably redundant once phase two is parked — the reopen step replays
+// everything), and the caller commits what it can while withholding the whole
+// fan-in: no readiness or memo row for any partition this pass.
 func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 	ctx context.Context,
 	queryer db.Queryer,
 	catalog []relationships.CatalogEntry,
 	instruments *telemetry.Instruments,
-) ([]facts.Envelope, map[string]string, map[ScopeGenerationPartition]struct{}, error) {
+) ([]facts.Envelope, map[string]string, map[ScopeGenerationPartition]struct{}, *PhaseTwoDegraded, error) {
 	ctx = ensureBackfillApplicationName(ctx, BackfillApplicationNameDeferred)
 	if queryer == nil {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	paramsBlock := startBlockFromContext(ctx, BlockParamsBuild)
@@ -92,17 +99,17 @@ func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 		// catalog target, so skip the fact load entirely. A nil snapshot disables
 		// the write-phase generation guard so readiness still publishes for every
 		// active repository (the legacy no-anchor contract).
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	listBlock := startBlockFromContext(ctx, BlockPartitionList)
 	partitions, err := LoadActiveScopeGenerationPartitions(ctx, queryer)
 	listBlock.End(err, IntAttr("partitions", len(partitions)))
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("load scope-generation partitions for deferred fact load: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("load scope-generation partitions for deferred fact load: %w", err)
 	}
 	if len(partitions) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	// snapshotGenerations records the (scope_id -> generation_id) pairs this load
@@ -127,20 +134,29 @@ func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 	)
 	if err != nil {
 		factBlock.End(err, IntAttr("partitions", len(loadPartitions)), IntAttr("workers", workers))
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if len(loaded) == 0 {
 		factBlock.End(nil, IntAttr("partitions", len(loadPartitions)), IntAttr("facts", 0), IntAttr("workers", workers))
-		return nil, snapshotGenerations, skippedPartitions, nil
+		return nil, snapshotGenerations, skippedPartitions, nil, nil
 	}
 
 	merged, err := s.AppendArgoCDGeneratorConfigFacts(ctx, queryer, catalog, loaded)
 	if err != nil {
+		// A budget-sentinel phase-two timeout degrades the pass instead of
+		// failing it: the phase-one facts still commit downstream while the
+		// parked config repos reconverge next pass. Any other phase-two error
+		// keeps the fail-loud path.
+		if degraded, ok := degradePhaseTwoOnBudgetTimeout(
+			factBlock, err, loaded, catalog, len(loadPartitions), workers,
+		); ok {
+			return loaded, snapshotGenerations, nil, degraded, nil
+		}
 		factBlock.End(err, IntAttr("partitions", len(loadPartitions)), IntAttr("workers", workers))
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	factBlock.End(nil, IntAttr("partitions", len(loadPartitions)), IntAttr("facts", len(merged)), IntAttr("workers", workers))
-	return merged, snapshotGenerations, skippedPartitions, nil
+	return merged, snapshotGenerations, skippedPartitions, nil, nil
 }
 
 // LoadDeferredScopedFactsAcrossPartitions fans the per-scope fact load out across

@@ -97,7 +97,7 @@ WHERE generation.scope_id = scope.scope_id`); err != nil {
 	if err != nil {
 		t.Fatalf("load actual repository catalog: %v", err)
 	}
-	fullFacts, _, _, err := engine.LoadDeferredAnchorScopedRelationshipFacts(
+	fullFacts, _, _, _, err := engine.LoadDeferredAnchorScopedRelationshipFacts(
 		ctx, adapter, catalog, nil)
 	if err != nil {
 		t.Fatalf("load actual full maintenance facts: %v", err)
@@ -342,7 +342,7 @@ func TestDeferredLoadKeepsEvidenceOnPostgres(t *testing.T) {
 	}
 	adapter := postgres.SQLDB{DB: database}
 	engine := backfill.NewStore(adapter)
-	loaded, _, _, err := engine.LoadDeferredAnchorScopedRelationshipFacts(ctx, adapter, catalog, nil)
+	loaded, _, _, _, err := engine.LoadDeferredAnchorScopedRelationshipFacts(ctx, adapter, catalog, nil)
 	if err != nil {
 		t.Fatalf("LoadDeferredAnchorScopedRelationshipFacts: %v", err)
 	}
