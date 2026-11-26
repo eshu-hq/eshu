@@ -230,7 +230,7 @@ export ESHU_SSM_HOST_MAX_CROSS_TYPE_SKEW="30m"
 export ESHU_SSM_HOST_MAX_PLATFORM_OBSERVATION_AGE="1h"
 # ESHU_AUTH_BOOTSTRAP_MODE defaults to "generated" (#4963), which requires a
 # configured data-encryption key to seal the one-time admin credential;
-# without it eshu-api fails closed at startup and /readyz never returns.
+# without it the query-truth shell fails closed at startup and its readyz never returns.
 # Fixed, publicly-known, all-zero dev-only placeholder — never a real secret.
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 # Every Lifecycle binary (each collector in collector_specs, projector, reducer) starts an
