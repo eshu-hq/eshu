@@ -29,12 +29,12 @@ hours="${PRUNE_MIN_AGE_HOURS:-24}"
 now="${PRUNE_NOW:-$(date -u +%s)}"
 dry_run="${PRUNE_DRY_RUN:-0}"
 
-[[ "${hours}" =~ ^[0-9]+$ && "${hours}" -ge 1 ]] || {
-	echo "prune-gha-codeql-caches: PRUNE_MIN_AGE_HOURS must be a whole number >= 1, got '${hours}'" >&2
+[[ "${hours}" =~ ^[1-9][0-9]*$ ]] || {
+	echo "prune-gha-codeql-caches: PRUNE_MIN_AGE_HOURS must be a decimal integer >= 1 (no leading zeros), got '${hours}'" >&2
 	exit 2
 }
-[[ "${now}" =~ ^[0-9]+$ ]] || {
-	echo "prune-gha-codeql-caches: PRUNE_NOW must be epoch seconds, got '${now}'" >&2
+[[ "${now}" =~ ^(0|[1-9][0-9]*)$ ]] || {
+	echo "prune-gha-codeql-caches: PRUNE_NOW must be decimal epoch seconds (no leading zeros), got '${now}'" >&2
 	exit 2
 }
 [[ "${dry_run}" == "0" || "${dry_run}" == "1" ]] || {
@@ -60,7 +60,7 @@ fi
 # family newest-first by last_accessed_at, keep the newest keep_newest entries,
 # and emit older entries past cutoff as: id<TAB>size_bytes<TAB>key.
 jq -r -s --argjson cutoff "${cutoff}" --argjson keep "${keep_newest}" '
-	[.[].actions_caches[]?]
+	[.[].actions_caches[]]
 	| map(select((.key | startswith("codeql-overlay-")) or (.key | startswith("codeql-trap-"))))
 	| map(
 		.ts = ((.last_accessed_at // .created_at) | sub("\\.[0-9]+"; "") | fromdateiso8601)
@@ -78,8 +78,8 @@ jq -r -s --argjson cutoff "${cutoff}" --argjson keep "${keep_newest}" '
 	| "\(.id)\t\(.size_in_bytes // 0)\t\(.key)"
 ' "${work}/caches.json" > "${work}/targets.tsv"
 
-total="$(jq -s '[.[].actions_caches[]?] | length' "${work}/caches.json")"
-codeql_total="$(jq -s '[.[].actions_caches[]? | select((.key | startswith("codeql-overlay-")) or (.key | startswith("codeql-trap-")))] | length' "${work}/caches.json")"
+total="$(jq -s '[.[].actions_caches[]] | length' "${work}/caches.json")"
+codeql_total="$(jq -s '[.[].actions_caches[] | select((.key | startswith("codeql-overlay-")) or (.key | startswith("codeql-trap-")))] | length' "${work}/caches.json")"
 
 deleted=0
 reclaimed_bytes=0

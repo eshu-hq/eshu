@@ -50,7 +50,10 @@ chmod +x "${work}/bin/gh"
 now_epoch=1795737600
 
 # Two-page paginated fixture:
-# - 6 javascript overlay caches (4 newer + 2 stale >24h old -> expect 2 deleted: ids 105, 106)
+# - 7 javascript overlay caches:
+#     5 inside the 24h retention window (101..105 on 2026-11-26; 105 is rank 5 and
+#       uses created_at fallback with last_accessed_at: null -> MUST survive cutoff guard)
+#     2 stale >24h old (106, 107 on 2026-11-25 -> expect deleted)
 # - 5 trap caches (all >24h old -> newest 4 kept, oldest 1 deleted: id 205)
 # - 3 python overlay caches (all >24h old -> <=4 so 0 deleted)
 # - 3 non-CodeQL caches (30 days old -> MUST NEVER be deleted: ids 301, 302, 303)
@@ -59,9 +62,10 @@ cat > "${work}/fixture.json" <<'EOF'
   {"id":101,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a1","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T23:00:00.000Z"},
   {"id":102,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a2","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T20:00:00.000Z"},
   {"id":103,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a3","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T18:00:00.000Z"},
-  {"id":104,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a4","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T10:00:00.000Z"},
-  {"id":105,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a5","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T09:00:00.000Z"},
-  {"id":106,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a6","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T08:00:00.000Z"},
+  {"id":104,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a4","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T12:00:00.000Z"},
+  {"id":105,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a5","size_in_bytes":140000000,"last_accessed_at":null,"created_at":"2026-11-26T06:00:00.000Z"},
+  {"id":106,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a6","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T09:00:00.000Z"},
+  {"id":107,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a7","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T08:00:00.000Z"},
   {"id":301,"key":"Linux-X64-gobuild-deadbeef","size_in_bytes":1600000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},
   {"id":302,"key":"Linux-X64-gobuildrace-deadbeef","size_in_bytes":530000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},
   {"id":303,"key":"playwright-chromium-Linux-deadbeef","size_in_bytes":270000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"}
@@ -85,8 +89,8 @@ rc=$?
 set -e
 if [[ "${rc}" -eq 2 ]]; then ok "rejects positional arguments with exit 2"; else bad "expected exit 2 on arg, got ${rc}"; fi
 
-# 2. Rejects invalid PRUNE_MIN_AGE_HOURS
-for bad_h in 0 -5 abc; do
+# 2. Rejects invalid PRUNE_MIN_AGE_HOURS (including leading-zero octal traps)
+for bad_h in 0 -5 abc 08 010; do
 	set +e
 	PATH="${work}/bin:${PATH}" PRUNE_MIN_AGE_HOURS="${bad_h}" bash "${script}" >/dev/null 2>&1
 	rc=$?
@@ -103,26 +107,27 @@ else
 	bad "dry-run failed: out=${out}"
 fi
 
-# 4. Live run deletes exact 3 stale CodeQL caches (105, 106, 205) and never touches Go/Playwright/newest-4
+# 4. Live run deletes exact 3 stale CodeQL caches (106, 107, 205), preserves rank-5 <24h entry (105), newest 4/family, and Go/Playwright
 : > "${work}/deletes-live.log"
 out="$(PATH="${work}/bin:${PATH}" FAKE_GH_FIXTURE="${work}/fixture.json" FAKE_GH_DELETES="${work}/deletes-live.log" PRUNE_NOW="${now_epoch}" PRUNE_DRY_RUN=0 bash "${script}")"
 actual="$(sort "${work}/deletes-live.log")"
 expected="$(printf '%s\n' \
-	'repos/eshu-hq/eshu/actions/caches/105' \
 	'repos/eshu-hq/eshu/actions/caches/106' \
+	'repos/eshu-hq/eshu/actions/caches/107' \
 	'repos/eshu-hq/eshu/actions/caches/205')"
 if [[ "${actual}" == "${expected}" ]] && [[ "${out}" == *"deleted 3 stale cache(s)"* ]]; then
-	ok "live run deletes exact stale CodeQL IDs (105, 106, 205) and preserves newest 4/family + Go/Playwright"
+	ok "live run deletes exact stale CodeQL IDs (106, 107, 205) and preserves rank-5 <24h entry + newest 4/family + Go/Playwright"
 else
 	bad "unexpected deletes: got=[${actual}] want=[${expected}] out=${out}"
 fi
 
-# 5. Fails closed when listing fails
+# 5. Fails closed when listing fails and executes zero DELETEs
+: > "${work}/deletes-list-err.log"
 set +e
-PATH="${work}/bin:${PATH}" FAKE_GH_FIXTURE="${work}/fixture.json" FAKE_GH_DELETES="${work}/deletes-err.log" FAKE_GH_FAIL_MODE=list PRUNE_NOW="${now_epoch}" bash "${script}" >/dev/null 2>&1
+PATH="${work}/bin:${PATH}" FAKE_GH_FIXTURE="${work}/fixture.json" FAKE_GH_DELETES="${work}/deletes-list-err.log" FAKE_GH_FAIL_MODE=list PRUNE_NOW="${now_epoch}" bash "${script}" >/dev/null 2>&1
 rc=$?
 set -e
-if [[ "${rc}" -eq 1 ]]; then ok "fails closed when gh api list fails"; else bad "expected exit 1 on list failure, got ${rc}"; fi
+if [[ "${rc}" -eq 1 ]] && [[ ! -s "${work}/deletes-list-err.log" ]]; then ok "fails closed when gh api list fails with zero DELETEs"; else bad "expected exit 1 and 0 deletes on list failure, got rc=${rc}"; fi
 
 # 6. Fails closed when delete fails
 set +e
