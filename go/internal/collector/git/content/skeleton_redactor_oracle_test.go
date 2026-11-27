@@ -5,10 +5,14 @@ package gitcontent
 
 import (
 	"flag"
+	"fmt"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
@@ -173,15 +177,13 @@ func scanInside(body string) []bool {
 // oracleCounts tallies a differential run for the evidence note.
 type oracleCounts struct{ bodies, clean, compared, lines, leaks, over int }
 
-// checkSkeletonOracle compares the redactor with the oracle on one body and
-// reports a failure through t. It returns whether the body was compared in
-// both directions.
-func checkSkeletonOracle(t *testing.T, body string, counts *oracleCounts) {
-	t.Helper()
+// checkSkeletonOracleErr compares the redactor with the oracle on one body and
+// returns the redacted body alongside any leak or over-redaction error.
+func checkSkeletonOracleErr(body string, counts *oracleCounts) (string, error) {
 	or := lexOracle(body)
 	out, _, err := redactSkeleton(body)
 	if err != nil {
-		t.Fatalf("redactSkeleton: %v", err)
+		return "", fmt.Errorf("redactSkeleton: %w", err)
 	}
 	outLines := strings.Split(out, "\n")
 	inside := scanInside(body)
@@ -191,7 +193,7 @@ func checkSkeletonOracle(t *testing.T, body string, counts *oracleCounts) {
 	for i := range or.nonCode {
 		if or.nonCode[i] && !or.exempt[i] && (or.quotedEnd < 0 || i <= or.quotedEnd) && !isWholeLine(outLines[i]) {
 			counts.leaks++
-			t.Fatalf("line %d is NON-CODE for hclsyntax but stored %q\n body %q\n out  %q", i+1, outLines[i], body, out)
+			return "", fmt.Errorf("line %d is NON-CODE for hclsyntax but stored %q\n body %q\n out  %q", i+1, outLines[i], body, out)
 		}
 	}
 	// (iv) A quoted newline, or an invalid token (a bare \r) in a heredoc or
@@ -199,17 +201,17 @@ func checkSkeletonOracle(t *testing.T, body string, counts *oracleCounts) {
 	if or.quotedEnd >= 0 {
 		for i := or.quotedEnd + 1; i < len(outLines); i++ {
 			if !isWholeLine(outLines[i]) {
-				t.Fatalf("line %d follows a lexical failure but stored %q\n body %q\n out  %q", i+1, outLines[i], body, out)
+				return "", fmt.Errorf("line %d follows a lexical failure but stored %q\n body %q\n out  %q", i+1, outLines[i], body, out)
 			}
 		}
-		return
+		return out, nil
 	}
 	if !or.clean {
-		return
+		return out, nil
 	}
 	counts.clean++
 	if or.dangling || or.maxDepth > maxScanDepth {
-		return // by design the redactor redacts more than HCL reads as text
+		return out, nil // by design the redactor redacts more than HCL reads as text
 	}
 	// (ii) No over-redaction: the scanner and the oracle agree on every line.
 	counts.compared++
@@ -223,7 +225,17 @@ func checkSkeletonOracle(t *testing.T, body string, counts *oracleCounts) {
 		} else {
 			counts.over++
 		}
-		t.Fatalf("line %d: scanner inside=%v, hclsyntax NON-CODE=%v\n body %q", i+1, inside[i], or.nonCode[i], body)
+		return "", fmt.Errorf("line %d: scanner inside=%v, hclsyntax NON-CODE=%v\n body %q", i+1, inside[i], or.nonCode[i], body)
+	}
+	return out, nil
+}
+
+// checkSkeletonOracle compares the redactor with the oracle on one body and
+// reports a failure through t.
+func checkSkeletonOracle(t *testing.T, body string, counts *oracleCounts) {
+	t.Helper()
+	if _, err := checkSkeletonOracleErr(body, counts); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -253,24 +265,90 @@ func TestRedactSkeletonOracle(t *testing.T) {
 		{"valid HCL", 2, validBody},
 		{"valid JSON", 3, jsonBody},
 	} {
-		var counts oracleCounts
-		rng := rand.New(rand.NewPCG(8833, gen.seed))
-		n := oracleBodyCount()
-		for i := 0; i < n; i++ {
-			body := gen.body(rng)
-			checkSkeletonOracle(t, body, &counts)
-			checkSkeletonProperties(t, body)
-		}
-		t.Logf("%s: %d bodies, %d lex clean, %d compared both ways over %d lines, %d leaks, %d over-redacted",
-			gen.name, counts.bodies, counts.clean, counts.compared, counts.lines, counts.leaks, counts.over)
-		// A generator that never reaches the two-direction comparison proves
-		// nothing about over-redaction.
-		if gen.name != "token soup" && counts.compared*2 < counts.bodies {
-			t.Errorf("%s: only %d of %d bodies were compared both ways", gen.name, counts.compared, counts.bodies)
-		}
-		if gen.name == "token soup" && counts.compared < counts.bodies/50 {
-			t.Errorf("%s: only %d of %d bodies were compared both ways", gen.name, counts.compared, counts.bodies)
-		}
+		t.Run(gen.name, func(t *testing.T) {
+			t.Parallel()
+			workers := max(runtime.GOMAXPROCS(0), 1)
+			const batchSize = 64
+			jobs := make(chan []string, workers*2)
+			locals := make([]oracleCounts, workers)
+			var (
+				firstErr atomic.Pointer[string]
+				wg       sync.WaitGroup
+			)
+			recordErr := func(err error) {
+				msg := err.Error()
+				firstErr.CompareAndSwap(nil, &msg)
+			}
+			wg.Add(workers)
+			for w := range workers {
+				go func() {
+					defer wg.Done()
+					local := &locals[w]
+					for batch := range jobs {
+						if firstErr.Load() != nil {
+							continue
+						}
+						for _, body := range batch {
+							if firstErr.Load() != nil {
+								break
+							}
+							out, err := checkSkeletonOracleErr(body, local)
+							if err != nil {
+								recordErr(err)
+								break
+							}
+							if err := checkSkeletonPropertiesWithOutErr(body, out); err != nil {
+								recordErr(err)
+								break
+							}
+						}
+					}
+				}()
+			}
+
+			rng := rand.New(rand.NewPCG(8833, gen.seed))
+			n := oracleBodyCount()
+			batch := make([]string, 0, batchSize)
+			for range n {
+				body := gen.body(rng)
+				if firstErr.Load() != nil {
+					break
+				}
+				batch = append(batch, body)
+				if len(batch) == batchSize {
+					jobs <- batch
+					batch = make([]string, 0, batchSize)
+				}
+			}
+			if len(batch) > 0 && firstErr.Load() == nil {
+				jobs <- batch
+			}
+			close(jobs)
+			wg.Wait()
+
+			if msg := firstErr.Load(); msg != nil {
+				t.Fatal(*msg)
+			}
+			var counts oracleCounts
+			for _, l := range locals {
+				counts.bodies += l.bodies
+				counts.clean += l.clean
+				counts.compared += l.compared
+				counts.lines += l.lines
+				counts.leaks += l.leaks
+				counts.over += l.over
+			}
+			t.Logf("%s: %d bodies, %d lex clean, %d compared both ways over %d lines, %d leaks, %d over-redacted",
+				gen.name, counts.bodies, counts.clean, counts.compared, counts.lines, counts.leaks, counts.over)
+			// A generator that never reaches the two-direction comparison proves
+			// nothing about over-redaction.
+			if gen.name != "token soup" && counts.compared*2 < counts.bodies {
+				t.Errorf("%s: only %d of %d bodies were compared both ways", gen.name, counts.compared, counts.bodies)
+			}
+			if gen.name == "token soup" && counts.compared < counts.bodies/50 {
+				t.Errorf("%s: only %d of %d bodies were compared both ways", gen.name, counts.compared, counts.bodies)
+			}
+		})
 	}
 }
 

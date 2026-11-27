@@ -17,6 +17,7 @@ import (
 // TestNameFreeRowsEqualBuildWithName is the proof. Pass: 0 differing rows, 0
 // order-only differences, and an order that is total on the corpus.
 func TestNameFreeRowsEqualBuildWithName(t *testing.T) {
+	t.Parallel()
 	cfg := nameFreeApply{scoped: nameFreeScopedKinds(t)}
 	agg := nameFreeRunCorpus(t, cfg, 400)
 
@@ -82,18 +83,22 @@ func TestNameFreeRowsEqualBuildWithName(t *testing.T) {
 // TestNameFreeHarnessCatchesWrongApplyName is the seeded RED leg: three
 // plausible read-time shortcuts must each be caught by the same corpus.
 func TestNameFreeHarnessCatchesWrongApplyName(t *testing.T) {
+	t.Parallel()
 	scoped := nameFreeScopedKinds(t)
 	for label, cfg := range map[string]nameFreeApply{
 		"strip every kind (uniform)": {scoped: scoped, uniform: true},
 		"no dedup on the named key":  {scoped: scoped, noDedup: true},
 		"keep the raw order":         {scoped: scoped, noResort: true},
 	} {
-		agg := nameFreeRunCorpus(t, cfg, 100)
-		t.Logf("mutant %q: differingRows=%d (scoped=%d unscoped=%d) orderOnlyDiffs=%d",
-			label, agg.diffRows, agg.scopedDiff, agg.unscopedDiff, agg.orderOnly)
-		if agg.diffRows == 0 && agg.orderOnly == 0 {
-			t.Errorf("mutant %q survived: the corpus does not exercise that part of the name contract", label)
-		}
+		t.Run(label, func(t *testing.T) {
+			t.Parallel()
+			agg := nameFreeRunCorpus(t, cfg, 100)
+			t.Logf("mutant %q: differingRows=%d (scoped=%d unscoped=%d) orderOnlyDiffs=%d",
+				label, agg.diffRows, agg.scopedDiff, agg.unscopedDiff, agg.orderOnly)
+			if agg.diffRows == 0 && agg.orderOnly == 0 {
+				t.Errorf("mutant %q survived: the corpus does not exercise that part of the name contract", label)
+			}
+		})
 	}
 }
 
@@ -141,6 +146,7 @@ func legacyNormalizeRepoScopedPath(pathValue, repoName string) string {
 // path a second time would differ, which is why a stored path goes through the
 // strip step only.
 func TestStripStepEqualsTheLegacyNormalize(t *testing.T) {
+	t.Parallel()
 	rng := rand.New(rand.NewSource(7126))
 	parts := []string{"svc", "svcs", "a", "..", ".", "", "env", "sv", "x y", "ü", "svc ", " svc"}
 	names := []string{"", "svc", " svc ", "..", ".", "env", "a", "x y"}

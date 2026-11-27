@@ -2,26 +2,28 @@
 # scripts/ci/select-go-race-shard.py for deterministic LPT bin-packing
 # (combined with the default 1.5s per-package compile/link overhead).
 #
-# Harvested as the 5-run median across completed full 8-shard Build Test runs
+# Base 5-run medians harvested from completed full 8-shard Build Test runs
 # 46033743575, 46030685421, 46020292983, 46011880595, and 45997766402
 # (all packages with median >= 2.0s; unlisted packages default to 1.0s).
-# Post-optimization conservative weights applied for internal/graph/anchor
-# (25.00s, down from 148.88s) and internal/parser/shared/toml/nesting
-# (45.00s, down from 311.95s) after parallelizing both suites.
-# Refresh periodically when adding new heavy test packages.
+# Updated internal/parser/shared/toml/nesting (96.27s) and internal/graph/anchor
+# (34.52s) from live 12-shard runs 46051949171 and 46049552789, and applied
+# conservative post-optimization weights for internal/cigates (160.00s),
+# internal/collector/git/content (115.00s), and internal/content/artifacts
+# (95.00s). Refresh periodically when adding new heavy test packages.
 #
 # Format: <go_import_path><TAB><weight_seconds>
-github.com/eshu-hq/eshu/go/internal/cigates	497.45
-github.com/eshu-hq/eshu/go/internal/content/artifacts	443.07
-github.com/eshu-hq/eshu/go/internal/collector/git/content	400.27
 github.com/eshu-hq/eshu/go/internal/storage/postgres	236.94
+github.com/eshu-hq/eshu/go/internal/cigates	160.00
 github.com/eshu-hq/eshu/go/internal/ifa	140.48
 github.com/eshu-hq/eshu/go/internal/mcp	134.39
 github.com/eshu-hq/eshu/go/internal/ifa/materializededges	120.87
 github.com/eshu-hq/eshu/go/internal/collector/terraformstate	118.06
+github.com/eshu-hq/eshu/go/internal/collector/git/content	115.00
 github.com/eshu-hq/eshu/go/internal/reducer/retirement	108.47
 github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate	100.86
+github.com/eshu-hq/eshu/go/internal/parser/shared/toml/nesting	96.27
 github.com/eshu-hq/eshu/go/internal/collector/repo/git	95.13
+github.com/eshu-hq/eshu/go/internal/content/artifacts	95.00
 github.com/eshu-hq/eshu/go/internal/query/store/audit	89.79
 github.com/eshu-hq/eshu/go/internal/query	83.94
 github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog	74.14
@@ -30,13 +32,12 @@ github.com/eshu-hq/eshu/go/internal/storage/cypher	68.77
 github.com/eshu-hq/eshu/go/internal/workflow/parity/contention	47.98
 github.com/eshu-hq/eshu/go/internal/testutil/postgresproof	46.48
 github.com/eshu-hq/eshu/go/internal/graph	46.23
-github.com/eshu-hq/eshu/go/internal/parser/shared/toml/nesting	45.00
 github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core	43.49
 github.com/eshu-hq/eshu/go/internal/collector/extensionhost	38.68
+github.com/eshu-hq/eshu/go/internal/graph/anchor	34.52
 github.com/eshu-hq/eshu/go/internal/collector/document/ocr/tesseract	32.04
 github.com/eshu-hq/eshu/go/internal/reducer	30.61
 github.com/eshu-hq/eshu/go/internal/payloadusage	27.19
-github.com/eshu-hq/eshu/go/internal/graph/anchor	25.00
 github.com/eshu-hq/eshu/go/internal/graph/edgetype	23.33
 github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/impact	22.41
 github.com/eshu-hq/eshu/go/cmd/reducer	21.40

@@ -289,6 +289,7 @@ func TestNameScopeGuardCatchesAWrongTable(t *testing.T) {
 // so a kind reachable only through content (not through the source scan) is
 // still covered.
 func TestEveryEmittedEvidenceKindIsInTheNameScopeTable(t *testing.T) {
+	t.Parallel()
 	agg := nameFreeRunCorpus(t, nameFreeApply{scoped: nameFreeScopedKinds(t)}, 60)
 	for kind, rows := range agg.kindRows {
 		if _, known := NameScoped(kind); !known {

@@ -198,9 +198,21 @@ type nameFreeAgg struct {
 
 const nameFreeSentinel = "\x00name-free-unbound\x00"
 
-func (a *nameFreeAgg) check(label, name string, files []File, cfg nameFreeApply) {
+func nameFreeSentinelMismatch(raw []nameFreeRow, files []File) bool {
+	sentinel := nameFreeFlatten(BuildConfigPaths(nameFreeSentinel, files))
+	for i := range sentinel {
+		sentinel[i].Source = ""
+	}
+	rawNoSource := append([]nameFreeRow(nil), raw...)
+	for i := range rawNoSource {
+		rawNoSource[i].Source = ""
+	}
+	d, same := nameFreeDiff(rawNoSource, sentinel)
+	return d != 0 || !same
+}
+
+func (a *nameFreeAgg) checkWithPrepared(label, name string, files []File, raw []nameFreeRow, sentinelBroken bool, cfg nameFreeApply) {
 	want := nameFreeFlatten(BuildConfigPaths(name, files))
-	raw := nameFreeFlatten(BuildConfigPaths("", files))
 	got, stripped, collapsed := nameFreeApplyName(name, raw, cfg)
 	diff, sameOrder := nameFreeDiff(want, got)
 
@@ -310,15 +322,7 @@ func (a *nameFreeAgg) check(label, name string, files []File, cfg nameFreeApply)
 		a.reorderedRows += moved
 	}
 	// The sentinel build must equal the empty-name build apart from source_repo.
-	sentinel := nameFreeFlatten(BuildConfigPaths(nameFreeSentinel, files))
-	for i := range sentinel {
-		sentinel[i].Source = ""
-	}
-	rawNoSource := append([]nameFreeRow(nil), raw...)
-	for i := range rawNoSource {
-		rawNoSource[i].Source = ""
-	}
-	if d, same := nameFreeDiff(rawNoSource, sentinel); d != 0 || !same {
+	if sentinelBroken {
 		a.sentinelBroken++
 	}
 	if diff != 0 {
@@ -327,5 +331,51 @@ func (a *nameFreeAgg) check(label, name string, files []File, cfg nameFreeApply)
 	} else if !sameOrder {
 		a.orderOnly++
 		a.failures = append(a.failures, fmt.Sprintf("%s name=%q: same rows, different order", label, name))
+	}
+}
+
+func (a *nameFreeAgg) merge(other *nameFreeAgg) {
+	a.pairs += other.pairs
+	a.nonEmptyPairs += other.nonEmptyPairs
+	a.rows += other.rows
+	a.diffRows += other.diffRows
+	a.orderOnly += other.orderOnly
+	a.stripped += other.stripped
+	a.collapsed += other.collapsed
+	a.sentinelBroken += other.sentinelBroken
+	a.threeKeyTies += other.threeKeyTies
+	a.fourKeyTies += other.fourKeyTies
+	a.reorderedPairs += other.reorderedPairs
+	a.reorderedRows += other.reorderedRows
+	a.failures = append(a.failures, other.failures...)
+	a.scopedRows += other.scopedRows
+	a.unscopedRows += other.unscopedRows
+	a.scopedDiff += other.scopedDiff
+	a.unscopedDiff += other.unscopedDiff
+	a.unscopedPathChangedByName += other.unscopedPathChangedByName
+	a.scopedStripped += other.scopedStripped
+	a.scopedCollapsed += other.scopedCollapsed
+	if len(other.byGroup) > 0 && a.byGroup == nil {
+		a.byGroup = map[string]*[4]int{}
+	}
+	for g, counts := range other.byGroup {
+		if a.byGroup[g] == nil {
+			a.byGroup[g] = &[4]int{}
+		}
+		for i := range 4 {
+			a.byGroup[g][i] += counts[i]
+		}
+	}
+	if len(other.kindRows) > 0 && a.kindRows == nil {
+		a.kindRows = map[string]int{}
+	}
+	for k, v := range other.kindRows {
+		a.kindRows[k] += v
+	}
+	if len(other.kindPathChanged) > 0 && a.kindPathChanged == nil {
+		a.kindPathChanged = map[string]int{}
+	}
+	for k, v := range other.kindPathChanged {
+		a.kindPathChanged[k] += v
 	}
 }

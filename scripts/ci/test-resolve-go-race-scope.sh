@@ -292,15 +292,19 @@ else
 	bad "select-go-race-shard.py partition mismatch across 12 shards"
 fi
 
-# Verify heaviest package (internal/cigates) is separated from second-heaviest (internal/content/artifacts).
+# Verify heaviest weighted package in specs/go-race-shard-weights.tsv is separated from second-heaviest.
 # Uses awk (not rg) so this test stays hermetic on ubuntu-24.04 runners where ripgrep is not installed.
+top_heavy="$(LC_ALL=C awk -F '\t' '!/^[[:space:]]*#/ && NF==2 { printf "%012.4f\t%s\n", $2, $1 }' "${real_weights}" | LC_ALL=C sort -t $'\t' -k1,1r -k2,2)"
+heaviest_pkg="$(printf '%s\n' "${top_heavy}" | sed -n '1p' | cut -f2)"
+second_heavy_pkg="$(printf '%s\n' "${top_heavy}" | sed -n '2p' | cut -f2)"
 shard1_real="${tmp}/shard1-real.txt"
 python3 "${selector}" --weights "${real_weights}" --shard-index 1 --shard-total 12 <"${all_pkgs}" >"${shard1_real}"
-if awk -v want='github.com/eshu-hq/eshu/go/internal/cigates' '$0 == want { found = 1 } END { exit !found }' "${shard1_real}" &&
-	! awk -v want='github.com/eshu-hq/eshu/go/internal/content/artifacts' '$0 == want { found = 1 } END { exit !found }' "${shard1_real}"; then
-	ok "select-go-race-shard.py isolates internal/cigates from internal/content/artifacts"
+if [[ -n "${heaviest_pkg}" && -n "${second_heavy_pkg}" ]] &&
+	awk -v want="${heaviest_pkg}" '$0 == want { found = 1 } END { exit !found }' "${shard1_real}" &&
+	! awk -v want="${second_heavy_pkg}" '$0 == want { found = 1 } END { exit !found }' "${shard1_real}"; then
+	ok "select-go-race-shard.py isolates heaviest (${heaviest_pkg}) from second-heaviest (${second_heavy_pkg})"
 else
-	bad "select-go-race-shard.py failed to separate top heavy packages"
+	bad "select-go-race-shard.py failed to separate top heavy packages (${heaviest_pkg} vs ${second_heavy_pkg})"
 fi
 
 # 15b. Compile overhead spreads small packages onto heavy-package shards once small-package cost passes the heavy weight.

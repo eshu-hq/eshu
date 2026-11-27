@@ -46,12 +46,110 @@ func dsCode(line string) string {
 	return line
 }
 
+func isASCIIWordByte(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_'
+}
+
 // dsHasWord reports whether word appears as a whole word in line.
+// For ASCII word tokens (\w+), this matches RE2's `\b<word>\b` identically
+// without compiling a regexp per line.
 func dsHasWord(line, word string) bool {
-	if !strings.Contains(line, word) {
+	if word == "" || !strings.Contains(line, word) {
 		return false
 	}
-	return regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`).MatchString(line)
+	if !isASCIIWordByte(word[0]) || !isASCIIWordByte(word[len(word)-1]) {
+		return regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`).MatchString(line)
+	}
+	for off := 0; off < len(line); {
+		idx := strings.Index(line[off:], word)
+		if idx < 0 {
+			return false
+		}
+		start := off + idx
+		end := start + len(word)
+		leftOK := start == 0 || !isASCIIWordByte(line[start-1])
+		rightOK := end == len(line) || !isASCIIWordByte(line[end])
+		if leftOK && rightOK {
+			return true
+		}
+		off = start + 1
+	}
+	return false
+}
+
+// dsRecordWordTokens records every maximal ASCII word token (\w+) appearing on
+// lineIdx into idents: the first line index it appeared on, or -1 if it
+// appeared on two or more lines in the file.
+func dsRecordWordTokens(line string, lineIdx int, idents map[string]int) {
+	for i := 0; i < len(line); {
+		if !isASCIIWordByte(line[i]) {
+			i++
+			continue
+		}
+		start := i
+		for i < len(line) && isASCIIWordByte(line[i]) {
+			i++
+		}
+		tok := line[start:i]
+		prev, ok := idents[tok]
+		if !ok {
+			idents[tok] = lineIdx
+		} else if prev != lineIdx {
+			idents[tok] = -1
+		}
+	}
+}
+
+// dsFileTempDirVars computes the temp-dir tainted local variables for a single
+// test file using the same 5-pass fixed-point propagation over Join assignments.
+func dsFileTempDirVars(lines, stripped []string) map[string]bool {
+	type dsEdge struct{ name, first string }
+	var vars map[string]bool
+	var edges []dsEdge
+	for idx, code := range stripped {
+		if strings.Contains(code, "TempDir") {
+			if m := dsTempDef.FindStringSubmatch(code); m != nil {
+				if vars == nil {
+					vars = map[string]bool{}
+				}
+				vars[m[1]] = true
+			}
+		}
+		// Taint tracks real assignments only: a struct field that
+		// shares a name is not an alias for the local.
+		if strings.Contains(code, "Join") && !strings.Contains(code, "strings.Join") {
+			if m := dsAssignJoin.FindStringSubmatch(code); m != nil {
+				callText := dsNoBackquote.ReplaceAllString(dsCallText(lines, idx), "")
+				first := ""
+				if jf := strings.Index(callText, "Join("); jf >= 0 {
+					first = callText[jf+len("Join("):]
+					if ci := strings.Index(first, ","); ci >= 0 {
+						first = strings.TrimSpace(first[:ci])
+					}
+					if strings.Contains(first, "\"") {
+						first = ""
+					}
+				}
+				edges = append(edges, dsEdge{name: m[1], first: first})
+			}
+		}
+	}
+	if len(vars) == 0 || len(edges) == 0 {
+		return vars
+	}
+	for range 5 {
+		changed := false
+		for _, e := range edges {
+			if vars[e.first] && !vars[e.name] {
+				vars[e.name] = true
+				changed = true
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	return vars
 }
 
 // dsIsJoin reports whether a code line calls a path join. strings.Join only

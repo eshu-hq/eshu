@@ -6,8 +6,34 @@ package cigates
 import (
 	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
 )
+
+var (
+	dsRepoScanOnce       sync.Once
+	dsRepoScanRoot       string
+	dsRepoScanRead       map[string]bool
+	dsRepoScanProbe      map[string]bool
+	dsRepoScanUnresolved []string
+	dsRepoScanErr        error
+)
+
+// dsRepoScan runs dsScanErr once per test binary over the read-only repository
+// go/ tree so TestDocsTestInputsStayCode and TestLockstepEntriesStayRead share
+// one scan. Scratch-root tests call dsScan directly without caching.
+func dsRepoScan(t *testing.T) (string, map[string]bool, map[string]bool, []string) {
+	t.Helper()
+	dsRepoScanOnce.Do(func() {
+		root := filepath.Join("..", "..", "..")
+		dsRepoScanRoot = root
+		dsRepoScanRead, dsRepoScanProbe, dsRepoScanUnresolved, dsRepoScanErr = dsScanErr(root, filepath.Join(root, "go"))
+	})
+	if dsRepoScanErr != nil {
+		t.Fatal(dsRepoScanErr)
+	}
+	return dsRepoScanRoot, dsRepoScanRead, dsRepoScanProbe, dsRepoScanUnresolved
+}
 
 // TestDocsTestInputsStayCode is the durable guard behind the P2 on #9215: a
 // Go test that reads a docs-set file makes that file code, because editing it
@@ -19,8 +45,7 @@ import (
 // cannot resolve fails closed as an R7 demand for human classification.
 func TestDocsTestInputsStayCode(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join("..", "..", "..")
-	read, probe, unresolved := dsScan(t, root, filepath.Join(root, "go"))
+	_, read, probe, unresolved := dsRepoScan(t)
 	var demands []string
 	for rel := range read {
 		if !IsDocsSetPath(rel) {
@@ -54,9 +79,8 @@ func TestDocsTestInputsStayCode(t *testing.T) {
 // flow, variable repo roots) no static rule can see.
 func TestLockstepEntriesStayRead(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join("..", "..", "..")
+	root, read, probe, _ := dsRepoScan(t)
 	manifest := dsManifest(t, root)
-	read, probe, _ := dsScan(t, root, filepath.Join(root, "go"))
 	observed := map[string]bool{}
 	for rel := range read {
 		observed[rel] = true

@@ -5,12 +5,16 @@ package gitcontent
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -199,33 +203,84 @@ func TestRedactMarkerNeverStoresADecodedCredential(t *testing.T) {
 	// directive-line fragments (seven before, six NEL-split/break/neighbor
 	// ones) set N at 230000 for ~750 decoding bodies against the 600 floor.
 	iterations, seed := envInt("ESHU_8833_YAML_ORACLE_N", 230000), envInt("ESHU_8833_YAML_ORACLE_SEED", 8833)
+	workers := max(runtime.GOMAXPROCS(0), 1)
+	const batchSize = 256
+	jobs := make(chan []string, workers*2)
+	var (
+		decodedBodies atomic.Int64
+		failedClosed  atomic.Int64
+		firstErr      atomic.Pointer[string]
+		wg            sync.WaitGroup
+	)
+	recordErr := func(msg string) {
+		firstErr.CompareAndSwap(nil, &msg)
+	}
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			var localDecoded, localFailed int64
+			for batch := range jobs {
+				if firstErr.Load() != nil {
+					continue
+				}
+				for _, body := range batch {
+					if firstErr.Load() != nil {
+						break
+					}
+					tokens, _ := yamlTokensUnderListedKey(body, listed)
+					if len(tokens) == 0 {
+						continue
+					}
+					localDecoded++
+					out, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, oracleURLKeys)
+					if err != nil {
+						if !errors.Is(err, errYAMLIndirection) {
+							recordErr(fmt.Sprintf("unexpected err %v for %q", err, body))
+							break
+						}
+						localFailed++
+						continue
+					}
+					for token := range tokens {
+						// A token is a prefix of a longer numbered one at most for the
+						// two-digit case, which the generator never reaches (seven parts).
+						if strings.Contains(out, token) {
+							recordErr(fmt.Sprintf("a decoded credential %s was stored:\n in  %q\n out %q", token, body, out))
+							break
+						}
+					}
+				}
+			}
+			decodedBodies.Add(localDecoded)
+			failedClosed.Add(localFailed)
+		}()
+	}
+
 	rng := rand.New(rand.NewSource(int64(seed)))
-	decodedBodies, failedClosed := 0, 0
-	for i := 0; i < iterations; i++ {
+	batch := make([]string, 0, batchSize)
+	for range iterations {
 		body := randomOracleBody(rng)
-		tokens, _ := yamlTokensUnderListedKey(body, listed)
-		if len(tokens) == 0 {
-			continue
+		if firstErr.Load() != nil {
+			break
 		}
-		decodedBodies++
-		out, _, err := redactMarkerWithURLKeys(body, yarnrcCredentialKeys, oracleURLKeys)
-		if err != nil {
-			if !errors.Is(err, errYAMLIndirection) {
-				t.Fatalf("unexpected err %v for %q", err, body)
-			}
-			failedClosed++
-			continue
-		}
-		for token := range tokens {
-			// A token is a prefix of a longer numbered one at most for the
-			// two-digit case, which the generator never reaches (seven parts).
-			if strings.Contains(out, token) {
-				t.Fatalf("a decoded credential %s was stored:\n in  %q\n out %q", token, body, out)
-			}
+		batch = append(batch, body)
+		if len(batch) == batchSize {
+			jobs <- batch
+			batch = make([]string, 0, batchSize)
 		}
 	}
-	if decodedBodies < 600 {
-		t.Fatalf("the generator reached only %d decoding bodies; widen it", decodedBodies)
+	if len(batch) > 0 && firstErr.Load() == nil {
+		jobs <- batch
 	}
-	t.Logf("decoding bodies %d, failed closed %d", decodedBodies, failedClosed)
+	close(jobs)
+	wg.Wait()
+	if msg := firstErr.Load(); msg != nil {
+		t.Fatal(*msg)
+	}
+	gotDecoded, gotFailed := decodedBodies.Load(), failedClosed.Load()
+	if gotDecoded < 600 {
+		t.Fatalf("the generator reached only %d decoding bodies; widen it", gotDecoded)
+	}
+	t.Logf("decoding bodies %d, failed closed %d", gotDecoded, gotFailed)
 }
