@@ -458,6 +458,8 @@ gates:
       - ".github/leaf-code-filter.yml"
       - ".github/leaf-lockstep-filter.yml"
       - ".github/leaf-go-race-filter.yml"
+      - ".github/leaf-query-plan-filter.yml"
+      - "scripts/ci/test-query-plan-filter-superset.py"
       - "scripts/test-verify-ci-gates-registry.sh"
       - "scripts/verify-live-required-status-checks.sh"
       - "scripts/test-verify-live-required-status-checks.sh"

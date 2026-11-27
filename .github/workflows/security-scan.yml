@@ -92,6 +92,8 @@ jobs:
               - 'scripts/lib/precommit-go-filecap.sh'
               - 'scripts/lib/cgo-cflags.sh'
               - 'scripts/lib/precommit-go-gosec.sh'
+              - 'scripts/lib/gosec-json-to-sarif.py'
+              - 'scripts/test-gosec-json-to-sarif.py'
               - 'scripts/lib/ci-gates-resolved-fixtures.sh'
               - 'scripts/test-precommit-go-gosec.sh'
               - 'scripts/test-precommit-go-toolchain-isolation.sh'
@@ -296,22 +298,17 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
-      - name: Run gosec on every Go package (SARIF)
-        working-directory: go
-        run: |
-          set -euo pipefail
-          gosec -severity=low -confidence=low -no-fail -fmt=sarif -out gosec.sarif ./...
-          findings="$(jq '[.runs[].results[]] | length' gosec.sarif)"
-          printf 'gosec: %s finding(s) in SARIF\n' "${findings}"
-          if [ "${findings}" -ne 0 ]; then
-            printf 'gosec: security findings present — see the SARIF / Security tab\n' >&2
-            exit 1
-          fi
+      # Single fail-closed gosec pass over explicit `go list` package dirs:
+      # asserts Stats.files == expected, Golang errors == 0, and Issues == 0,
+      # and converts the authoritative JSON report to SARIF 2.1.0 for GitHub
+      # Code Scanning before exiting non-zero on findings.
+      - name: Run fail-closed gosec gate (explicit package dirs + SARIF)
+        env:
+          GOSEC_SARIF_OUT: go/gosec.sarif
+        run: bash scripts/dev/precommit-go.sh gosec-all
       - name: Upload gosec SARIF to GitHub Security tab
-        if: ${{ always() }}
+        if: ${{ always() && hashFiles('go/gosec.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: go/gosec.sarif
           category: gosec
-      - name: Fail-closed gosec gate (explicit package dirs)
-        run: bash scripts/dev/precommit-go.sh gosec-all

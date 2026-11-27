@@ -336,6 +336,9 @@ gates:
       - "specs/live-tests.d/**"
       - "scripts/lib/live_tests_registry.py"
       - ".github/workflows/test.yml"
+      - ".github/actions/ci-verify-contracts/action.yml"
+      - ".github/leaf-query-plan-filter.yml"
+      - "scripts/ci/test-query-plan-filter-superset.py"
       - ".pre-commit-config.yaml"
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/lib/verify-query-methodology-live-contract.py"
@@ -353,6 +356,9 @@ gates:
     self_test_triggers:
       - "scripts/lib/live_tests_registry.py"
       - ".github/workflows/test.yml"
+      - ".github/actions/ci-verify-contracts/action.yml"
+      - ".github/leaf-query-plan-filter.yml"
+      - "scripts/ci/test-query-plan-filter-superset.py"
       - ".pre-commit-config.yaml"
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/lib/verify-query-methodology-live-contract.py"
@@ -366,7 +372,7 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
     local:
       command: "bash scripts/verify-query-methodology.sh --static"
-      test_command: "python3 scripts/test-query-methodology-comparison-identity.py && python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh"
+      test_command: "python3 scripts/test-query-methodology-comparison-identity.py && python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh && python3 scripts/ci/test-query-plan-filter-superset.py"
       pre_push: floor
     ci:
       workflow: test.yml
@@ -390,6 +396,9 @@ gates:
       - "specs/live-tests.d/**"
       - "scripts/lib/live_tests_registry.py"
       - ".github/workflows/test.yml"
+      - ".github/actions/ci-verify-contracts/action.yml"
+      - ".github/leaf-query-plan-filter.yml"
+      - "scripts/ci/test-query-plan-filter-superset.py"
       - ".pre-commit-config.yaml"
       - "scripts/lib/verify-live-tests-ledger.py"
       - "scripts/lib/verify-query-methodology-live-contract.py"

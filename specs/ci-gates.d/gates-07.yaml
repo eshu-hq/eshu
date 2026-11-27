@@ -182,12 +182,16 @@ gates:
       # precommit-go.sh reads the pinned gosec version from this workflow.
       - ".github/workflows/security-scan.yml"
       - "scripts/lib/precommit-go-gosec.sh"
+      - "scripts/lib/gosec-json-to-sarif.py"
+      - "scripts/test-gosec-json-to-sarif.py"
       - "scripts/test-precommit-go-gosec.sh"
     self_test_triggers:
       - "scripts/dev/precommit-go.sh"
       - "scripts/lib/go-toolchain.sh"
       - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/precommit-go-gosec.sh"
+      - "scripts/lib/gosec-json-to-sarif.py"
+      - "scripts/test-gosec-json-to-sarif.py"
       - "scripts/test-precommit-go-gosec.sh"
       - ".github/workflows/security-scan.yml"
     # The gosec-changed mode derives its own package list from the merge-base

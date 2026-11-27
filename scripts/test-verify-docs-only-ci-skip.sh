@@ -261,7 +261,7 @@ path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
 pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pattern.findall(content)) == 4, "two every plus two some lines expected in test.yml"
+assert len(pattern.findall(content)) >= 5, "two every plus at least three some lines expected in test.yml"
 open(path, "w").write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: 'all'\n", content, count=1))
 PY
 if out="$(run_scratch 2>&1)"; then
@@ -292,7 +292,7 @@ path, style = sys.argv[1], sys.argv[2]
 with open(path) as f:
 	content = f.read()
 pattern = re.compile(r"^([ \t]*)predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pattern.findall(content)) == 4, "two every plus two some lines expected in test.yml"
+assert len(pattern.findall(content)) >= 5, "two every plus at least three some lines expected in test.yml"
 with open(path, "w") as f:
 	f.write(pattern.sub(lambda m: m.group(1) + "predicate-quantifier: " + style + "\n", content, count=1))
 PYQ
@@ -313,7 +313,7 @@ import re, sys
 path = sys.argv[1]
 c = open(path).read()
 pat = re.compile(r"^[ \t]*predicate-quantifier:.*\n", re.MULTILINE)
-assert len(pat.findall(c)) == 4, "two every plus two some lines expected in test.yml"
+assert len(pat.findall(c)) >= 5, "two every plus at least three some lines expected in test.yml"
 open(path, "w").write(pat.sub("", c, count=1))
 PYS
 # Split across two heredocs: one 590-byte body exceeds the 512-byte

@@ -50,3 +50,4 @@ esac
 
 (cd "${repo_root}/go" && go run ./cmd/ci-gates validate \
 	--registry "${registry}" --repo-root "${repo_root}" --drift)
+python3 "${repo_root}/scripts/ci/test-query-plan-filter-superset.py"

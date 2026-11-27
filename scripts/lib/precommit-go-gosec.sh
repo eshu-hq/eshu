@@ -99,7 +99,12 @@ run_gosec() {
 	bin="$(ensure_gosec)"
 	out="${worktree_cache_dir}/gosec-${label}.json"
 	gosec_log="${worktree_cache_dir}/gosec-${label}.log"
-	rm -f "${out}" "${gosec_log}"
+	local sarif_out=""
+	if [[ -n "${GOSEC_SARIF_OUT:-}" ]]; then
+		sarif_out="${GOSEC_SARIF_OUT}"
+		case "${sarif_out}" in /*) ;; *) sarif_out="${repo_root}/${sarif_out}" ;; esac
+	fi
+	rm -f "${out}" "${gosec_log}" ${sarif_out:+"${sarif_out}"}
 	# -fmt=json carries `Golang errors` and `Stats`; SARIF carries neither.
 	( cd "${go_dir}" || exit 97
 	  [[ -f go.mod && "$(pwd -P)" == "$(cd "${go_dir}" && pwd -P)" ]] || exit 97
@@ -122,6 +127,11 @@ run_gosec() {
 	if [[ "${n_err}" -ne 0 ]]; then
 		jq -r '."Golang errors" | to_entries[] | .key as $f | .value[] | "  \($f):\(.line):\(.column) \(.error)"' "${out}" >&2
 		gosec_fail 1 "gosec reported Go errors, so the packages were not fully analyzed"
+	fi
+	if [[ -n "${sarif_out}" ]]; then
+		python3 "${script_root:-${repo_root}}/scripts/lib/gosec-json-to-sarif.py" \
+			--input "${out}" --output "${sarif_out}" --base-dir "${repo_root}" \
+			|| gosec_fail 1 "gosec: failed to write SARIF report to ${sarif_out}"
 	fi
 	n_find="$(jq -r '.Issues | length' "${out}")"
 	if [[ "${n_find}" -ne 0 ]]; then
@@ -185,8 +195,8 @@ gosec_arm_changed() {
 		[[ -n "${p}" ]] || continue
 		case "${p}" in
 			go/go.mod | go/go.sum | scripts/dev/precommit-go.sh | scripts/lib/precommit-go-gosec.sh \
-				| scripts/ci/go-install-retry.sh | scripts/ci/go-mod-download-retry.sh \
-				| .github/workflows/security-scan.yml)
+				| scripts/lib/gosec-json-to-sarif.py | scripts/ci/go-install-retry.sh \
+				| scripts/ci/go-mod-download-retry.sh | .github/workflows/security-scan.yml)
 				printf 'gosec-changed: whole-module scan, %s changed\n' "${p}"
 				run_gosec gosec-changed ./...
 				return 0

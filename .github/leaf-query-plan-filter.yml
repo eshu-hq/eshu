@@ -1,0 +1,36 @@
+# Paths that trigger the live Neo4j + Postgres query-plan-regression and
+# query-methodology checks inside test.yml's verify-contracts job on PRs.
+# Must remain a strict superset of the `query-plan-regression` and
+# `query-methodology-static` registry triggers in specs/ci-gates.d/;
+# guarded by scripts/ci/test-query-plan-filter-superset.py.
+query_plan:
+  - 'specs/ci-images.v1.json'
+  - 'go/internal/query/**'
+  - 'go/internal/mcp/methodology_live_test.go'
+  - 'specs/live-tests.v1.yaml'
+  - 'specs/live-tests.d/**'
+  - 'scripts/lib/live_tests_registry.py'
+  - '.github/workflows/test.yml'
+  - '.github/actions/ci-verify-contracts/action.yml'
+  - '.github/leaf-query-plan-filter.yml'
+  - '.pre-commit-config.yaml'
+  - 'scripts/lib/verify-live-tests-ledger.py'
+  - 'scripts/lib/verify-query-methodology-live-contract.py'
+  - 'scripts/test-verify-query-methodology-live-contract.py'
+  - 'scripts/lib/query-methodology-comparison-identity.py'
+  - 'scripts/test-query-methodology-comparison-identity.py'
+  - 'go/internal/queryplan/**'
+  - 'go/internal/graph/schema*.go'
+  - 'go/internal/storage/postgres/migrations/**'
+  - 'scripts/verify-query-methodology.sh'
+  - 'scripts/test-verify-query-methodology.sh'
+  - 'scripts/lib/test-verify-query-methodology-*.sh'
+  - 'go/internal/storage/cypher/**'
+  - 'scripts/test-verify-query-plan-regression.sh'
+  - 'scripts/lib/test-queryplan-profile-image-contract.py'
+  - 'scripts/verify-query-plan-regression.sh'
+  - 'scripts/verify-query-plan-profile.sh'
+  - 'scripts/lib/go-test-run-guard.sh'
+  - 'scripts/lib/live-gate-lock.sh'
+  - 'scripts/lib/ci-gates-resolved-fixtures.sh'
+  - 'scripts/ci/test-query-plan-filter-superset.py'
