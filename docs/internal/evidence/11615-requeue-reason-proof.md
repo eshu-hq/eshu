@@ -59,7 +59,13 @@ path) and are NOT_CHECKED here.
 
 Observability Evidence: `eshu_dp_reducer_requeue_total{reason}` counts transitioned rows only
 (rows-matched never counts; trigger conversions never double-count;
-rolled-back transactions never count), `eshu_dp_reducer_requeue_depth` and
+rolled-back transactions never count, with the single documented exception of
+in-tx waiting wakes: in-tx waiting wakes via `wakeWaitingByKey`
+(`go/internal/storage/postgres/reducer_waiting_store.go:351`) share the
+pre-existing sibling-counter pattern, so a rollback after the wake overcounts
+both equally while autocommit paths stay exact; #11624 removes this exception
+by hoisting the emission out of caller-owned transactions),
+`eshu_dp_reducer_requeue_depth` and
 `eshu_dp_reducer_requeue_oldest_age_seconds` ride the existing observer
 poll, and the stuck-queue runbook gains the per-reason breakdown. The
 `legacy_unclassified` depth series is the rollout ramp and must trend to
