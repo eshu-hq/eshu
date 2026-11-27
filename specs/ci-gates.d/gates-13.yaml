@@ -461,6 +461,7 @@ gates:
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/test-ifa-graph-backend-neo4j.sh"
+      - "scripts/ci/test-ifa-push-paths-superset.py"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-lock-cases.sh"
       - "scripts/lib/test-ifa-fault-injection-deployable-unit-kill-isolation-cases.sh"
       - "scripts/lib/ifa_determinism_common.sh"

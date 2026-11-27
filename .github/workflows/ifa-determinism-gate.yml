@@ -17,7 +17,6 @@ on:
     paths:
       - '.github/workflows/ifa-determinism-gate.yml'
       - '.github/workflows/ifa-determinism-gate.comments.md'
-      - 'docker-compose.yaml'
       - 'go/cmd/**'
       - 'go/go.mod'
       - 'go/go.sum'
