@@ -1,6 +1,12 @@
+%% HISTORICAL (verified Nov 2026, refs #10880): this diagram describes the
+%% removed Python asyncio indexer (asyncio queue, NDJSON snapshots,
+%% _commit_snapshots, finalize_index_batch). It does NOT describe the live
+%% Go pipeline. Current flow: intake facts -> Postgres queues -> resolution
+%% engine -> graph backend; see docs/public/architecture.md and
+%% go/internal/reducer/queue-and-runners.md. Kept for history; do not follow.
 %%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '14px' } } }%%
 flowchart TB
-    subgraph DISCOVERY["1. Discovery"]
+    subgraph DISCOVERY["1. Discovery (REMOVED Python indexer)"]
         D1[Walk filesystem] --> D2[Honor .gitignore / .eshuignore]
         D2 --> D3[Exclude dependency dirs<br/>vendor, node_modules, etc.]
         D3 --> D4[Group files by git repo]

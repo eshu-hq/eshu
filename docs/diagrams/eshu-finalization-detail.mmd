@@ -1,6 +1,12 @@
+%% HISTORICAL (verified Nov 2026, refs #10880): this diagram describes the
+%% removed Python finalization (_prepare_call_rows, 2000-row buffers, Neo4j
+%% 3-tier UNWIND chain, CrossRepoLinker). It does NOT describe the live Go
+%% call path (extractCodeCallRowsWithIndex + EntityIndex, shared-intent
+%% domain materializers). See go/internal/reducer/code/call/ and
+%% go/internal/reducer/queue-and-runners.md. Kept for history; do not follow.
 %%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '13px' } } }%%
 flowchart TB
-    subgraph INPUTS["Inputs to Finalization"]
+    subgraph INPUTS["Inputs to Finalization (REMOVED Python indexer)"]
         I1["committed_repo_paths: list[Path]"]
         I2["merged_imports_map: dict[str, list[str]]<br/>(built during commit phase)"]
         I3["NDJSON snapshots on disk<br/>(streamed back per-repo)"]

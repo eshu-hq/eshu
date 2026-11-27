@@ -1,6 +1,11 @@
+%% HISTORICAL (verified Nov 2026, refs #10880): the SymbolIndex proposal was
+%% never implemented and the "CURRENT" side describes the removed Python call
+%% path. The live Go resolver uses EntityIndex
+%% (go/internal/reducer/code/call/shared/) — a different design. Kept for
+%% history; do not follow.
 %%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '13px' } } }%%
 flowchart TB
-    subgraph CURRENT["CURRENT: Eshu Pipeline (function_calls stage)"]
+    subgraph CURRENT["PROPOSAL ONLY (never built) vs removed Python path"]
         direction TB
         C1["Parse all repos<br/>(tree-sitter + YAML/HCL)"] --> C2["NDJSON snapshot to disk"]
         C2 --> C3["Commit entities to Neo4j<br/>(UNWIND batch writes)"]
