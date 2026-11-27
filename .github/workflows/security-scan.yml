@@ -24,8 +24,8 @@ on:
     workflows: ["Publish Image"]
     types: [completed]
 concurrency:
-  group: ci-leaf-security-scan-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha) || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-security-scan-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 permissions:
   contents: read
 

@@ -52,9 +52,10 @@ on:
         type: string
   push:
     branches: [ main ]
+    paths:
 concurrency:
-  group: ci-leaf-verify-replay-tier-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-leaf-verify-replay-tier-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 permissions:
   contents: read
 env:
@@ -139,13 +140,15 @@ def _control_lines_without_sequence(lines: list[tuple[int, str]],
             if not start <= index < end]
 
 
-def verify_workflow_liveness(workflow: str) -> None:
+def verify_workflow_liveness(workflow: str) -> set[str]:
     """Require the callable replay job to execute every reviewed proof step."""
     lines = _active_lines(workflow, "workflow")
     _reject_quoted_workflow_keys(lines)
-    controls = [" " * depth + content for depth, content in lines]
+    controls = _control_lines_without_sequence(lines, "paths", 4, "workflow")
     if controls != WORKFLOW_CONTROL_LINES:
         raise ValueError("workflow has unsupported active YAML controls")
+    push = _only_block(_only_block(lines, "on", 0, "workflow"), "push", 2, "workflow")
+    return _paths(_only_block(push, "paths", 4, "workflow"), 6, "'", "workflow push paths")
 
 
 def _active_lines(source: str, label: str) -> list[tuple[int, str]]:
@@ -454,7 +457,7 @@ def verify_routes(root: Path) -> None:
     """Require metadata-only PRs to select the existing blocking replay job."""
     verify_independent_static_mirror(root)
     workflow = (root / ".github/workflows/verify-replay-tier.yml").read_text()
-    verify_workflow_liveness(workflow)
+    push_triggers = verify_workflow_liveness(workflow)
     registry = (root / "specs/ci-gates.d/gates-15.yaml").read_text()
     prepr = (root / "scripts/dev/pre-pr.sh").read_text()
     fragment = (root / "specs/ci-pr-workflows.d/verify-replay-tier.yml").read_text()
@@ -462,7 +465,7 @@ def verify_routes(root: Path) -> None:
     _require_caller(root, "verify-replay-tier.yml")
     registry_triggers = replay_gate_triggers(registry)
     selector = _prepr_selector(prepr)
-    if workflow_triggers != registry_triggers:
+    if workflow_triggers != registry_triggers or push_triggers != workflow_triggers:
         raise ValueError("replay registry and workflow trigger sets differ")
     for path in ROUTED_PATHS:
         if not any(fnmatchcase(path, trigger) for trigger in workflow_triggers):
