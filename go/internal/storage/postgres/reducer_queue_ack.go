@@ -376,7 +376,7 @@ WHERE work_item_id = $2
 `
 
 // ReplayWorkloadMaterializationForFence schedules workload materialization
-// carrying the deterministic RUNS_ON input fence that its successful handler
+// carrying the deterministic repo-dependency input-set fence that its successful handler
 // pass must publish. A concurrent first insert is followed by one update retry
 // so the winning row cannot retain an older token. It reports only whether
 // the replay was scheduled; use

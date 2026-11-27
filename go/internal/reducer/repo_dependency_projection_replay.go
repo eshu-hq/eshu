@@ -24,7 +24,7 @@ type workloadMaterializationReplayRequest struct {
 	entityKey    string
 }
 
-// RepoDependencyReadinessFencePayloadKey stores the RUNS_ON input-set fence
+// RepoDependencyReadinessFencePayloadKey stores the repo-dependency input-set fence
 // carried by a workload-materialization replay intent.
 const RepoDependencyReadinessFencePayloadKey = "repo_dependency_readiness_fence"
 
@@ -42,7 +42,7 @@ type workloadMaterializationFenceRequest struct {
 }
 
 // WorkloadMaterializationFenceReplayer schedules a workload replay carrying a
-// deterministic RUNS_ON input fence.
+// deterministic repo-dependency input-set fence.
 type WorkloadMaterializationFenceReplayer interface {
 	ReplayWorkloadMaterializationForFence(
 		ctx context.Context,

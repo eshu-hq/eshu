@@ -42,7 +42,7 @@ import (
 //   - fenced workload replay: a succeeded row reopens only when the new
 //     fence differs from the stored one; the repo-dependency acceptance
 //     cycle moves to fenced requests. Identical fence means identical
-//     RUNS_ON inputs, so the succeeded verdict already covers it.
+//     repo-dependency input-set fences, so the succeeded verdict already covers it.
 //     Deployment-evidence triggers keep the unfenced path.
 //
 // Both writers evaluate one CASE on the locked row version, so the fix
@@ -72,7 +72,7 @@ func Test10972RetouchKeepsQueuePositionForOutstandingRows(t *testing.T) {
 
 // Test10972FencedReplayReopensSucceededOnlyOnFenceChange is RED while the
 // fenced workload replay flips every succeeded row to pending even when
-// the new fence equals the stored one (identical RUNS_ON inputs, verdict
+// the new fence equals the stored one (identical repo-dependency input-set fences, verdict
 // already published).
 func Test10972FencedReplayReopensSucceededOnlyOnFenceChange(t *testing.T) {
 	t.Parallel()

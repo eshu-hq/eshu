@@ -54,7 +54,7 @@ operational lessons that future storage changes still need to respect.
 - The #10972 unstamped re-drive fix narrows two single-row reducer-queue
   UPDATEs without touching their access paths: the retouch advances
   `updated_at` only on terminal rows, and the fenced workload replay reopens
-  a succeeded row only on a RUNS_ON fence change. Both keep the same `WHERE`
+  a succeeded row only on a repo-dependency input-set fence change. Both keep the same `WHERE`
   (`work_item_id` PK equality plus stage/status), so `EXPLAIN` on PostgreSQL
   18.6 returns the identical plan before and after. Per acceptance unit the
   post-write replay issues the same number of UPDATEs (the fence grouping
