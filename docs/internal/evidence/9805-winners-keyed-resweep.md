@@ -100,7 +100,7 @@ mutates every typed payload field and requires the digest to move for all but
 the four excluded ones, and `TestWinnerSelectReadsNoDigestExcludedPayloadField`
 reads the select SQL and fails if it reads one of the four. A same-fact-id
 rewrite keeps scope, generation and tombstone state, so the winner inputs are
-unchanged. A new generation mints new fact ids and is always captured.
+unchanged. A new generation mints new fact ids and is compared against the prior generation by stable key, so only findings whose inputs changed are captured.
 
 ## Concurrency
 
