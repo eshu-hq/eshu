@@ -5,6 +5,130 @@ claim/execute/ack loop, concurrency and phase-coordination detail,
 and bootstrap ordering live here; keep the package overview in
 `README.md`.
 
+## End-to-end workflow diagram
+
+One picture of how work enters the queue, how the reducer drains it,
+and how the periodic maintenance pass reopens finished work for replay.
+Every box names the code that runs it, so agents and humans can jump
+from the picture to the source. (Refs #10880; storm breaker #11595.)
+
+```text
+INGESTER SIDE (periodic maintenance pass, one goroutine per shard drain)
+========================================================================
+
+  RunDeferredRelationshipMaintenanceAfterShardDrain
+  (deferred_maintenance_barrier.go:121: runs on every shard drain)
+        |
+        v
+  1. BACKFILL: commit deferred evidence first
+     BackfillAllRelationshipEvidence
+        |
+        |  same-pass skip-set: partitions this pass skipped
+        |  (issue #4770: in-memory set, never re-derived)
+        v
+  2. REOPEN: one transaction replays what the new evidence unlocks
+     reopenMaintenanceWorkItemsInTransaction
+     (ingestion_reopen_deployment_mapping.go:97 — all-or-nothing:
+      a mid-pass failure leaves the queue exactly as before)
+        |
+        +---> deployment_mapping reopen ............. goto 3
+        +---> code_import_repo_edge reopen .......... goto 3
+        +---> correlation chain reopen
+              (container_image_identity, ci_cd_run_correlation,
+               supply_chain_impact — NO skip-set: they wait on
+               generation activation, not backfill evidence)
+
+  3. PER-DOMAIN GATE (same shape in both relationship reopens)
+     applyReopenPartitionMemoGate
+     (ingestion_reopen_partition_memo_gate.go)
+        |
+        +---> partition in same-pass skip-set --> stays 'succeeded'
+        |
+        +---> partition NOT skipped --> candidate for reopen
+                    |
+                    v
+              +------------------------------------------+
+              | CIRCUIT BREAKER (#11595)                 |
+              | evaluateReopenCircuitBreaker             |
+              | (ingestion_reopen_circuit_breaker.go)    |
+              |                                          |
+              | pool < 20 candidates: reopen all (tiny   |
+              |   pools and one-shots never stall)       |
+              |                                          |
+              | reopen share > 50% of pool: PARK — rows  |
+              |   stay 'succeeded', next pass re-lists   |
+              |   them; logs                            |
+              |   maintenance_reopen_circuit_breaker_open|
+              |   + counter                             |
+              |   eshu_dp_maintenance_reopen_parked_     |
+              |   by_breaker_total                       |
+              |                                          |
+              | otherwise: reopen (succeeded -> pending) |
+              | via ReducerQueue.ReopenSucceeded         |
+              +------------------------------------------+
+
+REDUCER SIDE (drain loop, ESHU_REDUCER_WORKERS goroutines)
+=========================================================
+
+  fact_work_items rows in 'pending' / 'retrying'
+        |
+        v
+  CLAIM: oldest-first, SKIP LOCKED so workers never wait on
+         each other (reducer_queue_claim_query.go,
+         reducer_queue_batch_query.go for the batch path)
+        |
+        v
+  HEARTBEAT: lease renewed until Ack/Fail (service_heartbeat.go:65)
+        |
+        v
+  EXECUTE: GenerationCheck -> Registry.Definition -> Handler.Handle
+        |
+        +---> writes go to Postgres facts + graph backend
+        |     via storage/cypher EdgeWriter
+        |
+        +---> OK --> ACK --> 'succeeded'
+        |
+        +---> SUPERSEDED (newer generation active) --> skip, no write
+        |
+        +---> FAIL --> attempt budget left? --> 'retrying' (backoff)
+                     --> budget spent? -------> 'dead_letter'
+```
+
+### The storm loop this picture used to hide (fixed by #11595)
+
+```text
+  fingerprint flip + withheld memo publication
+        |  (redundancy signal collapses fleet-wide)
+        v
+  every maintenance pass "misses" nearly the whole pool
+        |  (QA Nov 27: 64 -> 3 -> 50 -> 442 -> 670 reopen waves,
+        |   0 memo writes in 36h so misses never healed)
+        v
+  whole floor pool reopened: succeeded -> pending
+        |
+        v
+  reducer cannot drain it before the next pass fires
+        |
+        +---> back to top: next pass reopens everything again
+              (queue grows on its own; workers starve on replays)
+
+  THE BREAKER CUTS THIS LOOP AT STEP 3 ABOVE: a pass that would
+  reopen more than half of a 20+ pool parks instead of reopening.
+  Parked rows lose one pass of delay, nothing is dropped, and the
+  alertable log line says which domain tripped.
+```
+
+### How to read a stuck queue with this picture
+
+- `pending` climbing while `succeeded` stalls: drain side is behind —
+  look at worker count, claim latency, handler timeouts.
+- `pending` climbing in waves on pass cadence with a
+  `maintenance_reopen_circuit_breaker_open` log line: the breaker is
+  parking a collapsed signal — find the fingerprint flip or withheld
+  publication, do not add workers.
+- Reopens with no breaker line and no memo writes: the memo gate's
+  signal path is broken upstream of this picture.
+
 ## Intent lifecycle
 
 `Intent` (declared in `intent.go:138`) carries the durable queue contract.
