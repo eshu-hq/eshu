@@ -45,7 +45,7 @@ now_epoch=1795737600
 #     2 stale >24h old (106, 107 on 2026-11-25 -> expect deleted)
 # - 5 trap caches (all >24h old -> newest 4 kept, oldest 1 deleted: id 205)
 # - 3 python overlay caches (all >24h old -> <=4 so 0 deleted)
-# - 3 non-CodeQL caches (30 days old -> MUST NEVER be deleted: ids 301, 302, 303)
+# - 5 non-CodeQL caches (30 days old, > keep_newest=4 -> MUST NEVER be deleted: ids 301..305)
 printf '%s\n' \
 	'{"actions_caches":[' \
 	'  {"id":101,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a1","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T23:00:00.000Z"},' \
@@ -57,7 +57,9 @@ printf '%s\n' \
 	'  {"id":107,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a7","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T08:00:00.000Z"},' \
 	'  {"id":301,"key":"Linux-X64-gobuild-deadbeef","size_in_bytes":1600000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},' \
 	'  {"id":302,"key":"Linux-X64-gobuildrace-deadbeef","size_in_bytes":530000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},' \
-	'  {"id":303,"key":"playwright-chromium-Linux-deadbeef","size_in_bytes":270000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"}' \
+	'  {"id":303,"key":"playwright-chromium-Linux-deadbeef","size_in_bytes":270000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},' \
+	'  {"id":304,"key":"cache-trivy-deadbeef","size_in_bytes":100000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},' \
+	'  {"id":305,"key":"node-cache-deadbeef","size_in_bytes":96000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"}' \
 	']}' \
 	'{"actions_caches":[' \
 	'  {"id":201,"key":"codeql-trap-1-a","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T12:00:00.000Z"},' \
