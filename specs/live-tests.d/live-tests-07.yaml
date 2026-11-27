@@ -109,6 +109,11 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 16.33s)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/reducer_queue_digest_replay_11619_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11619 digest-fenced deployment-evidence replay proof: an unchanged resolved-set rerun leaves a finished workload item alone (status and timestamps untouched) while a changed digest reopens it, plus an 8-way concurrent unchanged rerun staying quiet; untagged, bootstraps an isolated schema per test, skips without ESHU_POSTGRES_DSN"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/resolved_corpus_fence_snapshot_live_test.go
     tag: ~
     class: scheduled

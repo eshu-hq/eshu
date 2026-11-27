@@ -115,9 +115,9 @@ func (h *CrossRepoRelationshipHandler) resolve(
 	scopeID string,
 	generationID string,
 	claim *resolutionClaim,
-) (int, error) {
+) (writes int, digest string, err error) {
 	if h.EvidenceLoader == nil || h.IntentWriter == nil {
-		return 0, nil
+		return 0, "", nil
 	}
 
 	start := time.Now()
@@ -150,7 +150,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 			gpphase.PhaseBackwardEvidenceCommitted,
 		)
 		if err != nil {
-			return 0, fmt.Errorf("prefetch graph projection readiness: %w", err)
+			return 0, "", fmt.Errorf("prefetch graph projection readiness: %w", err)
 		}
 		readinessLookup = resolvedLookup
 	}
@@ -173,7 +173,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 				slog.String("reason", "backward_evidence_not_committed"),
 			)
 			h.recordDuration(ctx, start, scopeID)
-			return 0, BackwardEvidenceNotReadyError{
+			return 0, "", BackwardEvidenceNotReadyError{
 				ScopeID:      scopeID,
 				GenerationID: generationID,
 			}
@@ -183,7 +183,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 	// Step 1: Load persisted evidence facts.
 	evidenceFacts, err := h.EvidenceLoader.ListEvidenceFacts(ctx, generationID)
 	if err != nil {
-		return 0, fmt.Errorf("load evidence facts for resolution: %w", err)
+		return 0, "", fmt.Errorf("load evidence facts for resolution: %w", err)
 	}
 	if len(evidenceFacts) == 0 {
 		// Empty-evidence tombstone path. The retract intents that denormalize the
@@ -201,12 +201,12 @@ func (h *CrossRepoRelationshipHandler) resolve(
 		if len(retractRows) > 0 {
 			if err := h.IntentWriter.UpsertIntents(ctx, retractRows); err != nil {
 				h.recordActivationFenced(ctx, scopeID, generationID, len(retractRows), err)
-				return 0, fmt.Errorf("upsert cross-repo dependency retract intents: %w", err)
+				return 0, "", fmt.Errorf("upsert cross-repo dependency retract intents: %w", err)
 			}
 		}
 		if h.Persister != nil {
 			if err := h.activateResolutionGeneration(ctx, generationID, scopeID, claim); err != nil {
-				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
+				return 0, "", fmt.Errorf("activate empty resolution generation: %w", err)
 			}
 		}
 		if len(retractRows) == 0 {
@@ -216,7 +216,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 				log.GenerationID(generationID),
 			)
 			h.recordDuration(ctx, start, scopeID)
-			return 0, nil
+			return 0, "", nil
 		}
 		slog.InfoContext(
 			ctx, "cross-repo resolution emitted retract intents: no evidence",
@@ -225,7 +225,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 			slog.Int("intent_count", len(retractRows)),
 		)
 		h.recordDuration(ctx, start, scopeID)
-		return len(retractRows), nil
+		return len(retractRows), resolvedSetDigest(generationID, nil), nil
 	}
 
 	evidenceFacts = relationships.DedupeEvidenceFacts(evidenceFacts)
@@ -241,7 +241,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 	if h.Assertions != nil {
 		assertions, err = h.Assertions.ListAssertions(ctx, nil)
 		if err != nil {
-			return 0, fmt.Errorf("load assertions for resolution: %w", err)
+			return 0, "", fmt.Errorf("load assertions for resolution: %w", err)
 		}
 	}
 
@@ -259,7 +259,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 	// retraction inputs the same way. See partitionResolvedOwnership.
 	ownRepos, enforceOwnership, err := h.resolveOwnership(ctx, scopeID, generationID)
 	if err != nil {
-		return 0, fmt.Errorf("list scope repositories for resolution ownership: %w", err)
+		return 0, "", fmt.Errorf("list scope repositories for resolution ownership: %w", err)
 	}
 	ownedResolved, droppedResolved := partitionResolvedOwnership(resolved, ownRepos, enforceOwnership)
 	ownEvidenceFacts := filterEvidenceFactsBySourceRepos(evidenceFacts, ownRepos, enforceOwnership)
@@ -291,11 +291,11 @@ func (h *CrossRepoRelationshipHandler) resolve(
 	// safe ahead of the fence.
 	if h.Persister != nil {
 		if err := h.Persister.UpsertCandidates(ctx, generationID, candidates); err != nil {
-			return 0, fmt.Errorf("persist candidates: %w", err)
+			return 0, "", fmt.Errorf("persist candidates: %w", err)
 		}
 		upsertResult, err := h.Persister.UpsertResolved(ctx, generationID, ownedResolved)
 		if err != nil {
-			return 0, fmt.Errorf("persist resolved: %w", err)
+			return 0, "", fmt.Errorf("persist resolved: %w", err)
 		}
 		// Completion-driven wake (#8294): the append lands under an
 		// already-active generation, so a deployable_unit_correlation item
@@ -308,7 +308,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 		// or a failed first attempt still converges instead of waiting for
 		// a maintenance pass a one-shot run may never get.
 		if err := h.wakeDeployableUnitCorrelations(ctx, scopeID, generationID, upsertResult); err != nil {
-			return 0, err
+			return 0, "", err
 		}
 	}
 
@@ -339,7 +339,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 	if len(intentRows) > 0 {
 		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
 			h.recordActivationFenced(ctx, scopeID, generationID, len(intentRows), err)
-			return 0, fmt.Errorf("upsert cross-repo dependency intents: %w", err)
+			return 0, "", fmt.Errorf("upsert cross-repo dependency intents: %w", err)
 		}
 	}
 
@@ -347,13 +347,13 @@ func (h *CrossRepoRelationshipHandler) resolve(
 	// intents are durably committed. This ordering is the publish fence.
 	if h.Persister != nil {
 		if err := h.activateResolutionGeneration(ctx, generationID, scopeID, claim); err != nil {
-			return 0, fmt.Errorf("activate resolution generation: %w", err)
+			return 0, "", fmt.Errorf("activate resolution generation: %w", err)
 		}
 	}
 
 	if len(intentRows) == 0 {
 		h.recordDuration(ctx, start, scopeID)
-		return 0, nil
+		return 0, "", nil
 	}
 
 	if h.Instruments != nil {
@@ -378,7 +378,7 @@ func (h *CrossRepoRelationshipHandler) resolve(
 
 	h.recordDuration(ctx, start, scopeID)
 
-	return len(intentRows), nil
+	return len(intentRows), resolvedSetDigest(generationID, ownedResolved), nil
 }
 
 func normalizeRelationshipCandidates(candidates []relationships.Candidate) []relationships.Candidate {
