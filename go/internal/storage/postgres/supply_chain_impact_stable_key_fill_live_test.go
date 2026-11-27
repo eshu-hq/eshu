@@ -12,6 +12,7 @@ import (
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // Live proofs of the stable_fact_key fill (#10880 PR-C1k, arbiter ruling 1.4 to 1.7):
@@ -32,7 +33,12 @@ func fillSeedRows(t *testing.T, ctx context.Context, db *sql.DB, scope, generati
 // derived from the facts carry the same payload.
 func fillSeedRowsPadded(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, prefix string, n, padBytes int) {
 	t.Helper()
-	supportsExec(t, ctx, db, `
+	// The seed plants frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and a raw finding-fact insert would raise 55000 outside it, while the
+	// supports sync and the fill under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		supportsExec(t, ctx, db, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
   fencing_token, source_confidence, source_system, source_fact_key, observed_at, ingested_at, payload)
 SELECT $3::text || lpad(i::text, 8, '0'), $1, $2, 'reducer_supply_chain_impact_finding',
@@ -46,6 +52,7 @@ SELECT $3::text || lpad(i::text, 8, '0'), $1, $2, 'reducer_supply_chain_impact_f
                THEN jsonb_build_object('padding', substr(repeat(md5(i::text) || md5(i::text || 'a') || md5(i::text || 'b') || md5(i::text || 'c'), ($5::int / 128) + 1), 1, $5::int))
                ELSE '{}'::jsonb END
 FROM generate_series(1, $4::int) AS i`, scope, generation, prefix, n, padBytes)
+	})
 }
 
 // fillSeedSupports gives every finding fact its support the way the impact writer does, with
@@ -102,7 +109,12 @@ func fillShapeSeed(t *testing.T, ctx context.Context, db *sql.DB, scope, generat
 	t.Helper()
 	fillSeedRows(t, ctx, db, scope, generation, prefix, n)
 	fillSeedSupports(t, ctx, db, prefix)
-	supportsExec(t, ctx, db, `UPDATE fact_records SET stable_fact_key = '' WHERE scope_id = $1 AND fact_id LIKE $2::text || '%' AND right(fact_id, 1) = '3'`, scope, prefix)
+	// The empty twin key is frozen finding history too: clearing it is an
+	// UPDATE of a finding fact row, so it runs in a scoped window while the
+	// supports mutation beside it and the fill under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		supportsExec(t, ctx, db, `UPDATE fact_records SET stable_fact_key = '' WHERE scope_id = $1 AND fact_id LIKE $2::text || '%' AND right(fact_id, 1) = '3'`, scope, prefix)
+	})
 	supportsExec(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = 'kept-' || fact_id WHERE scope_id = $1 AND fact_id LIKE $2::text || '%' AND right(fact_id, 1) = '7'`, scope, prefix)
 	return fillCount(t, ctx, db, `
 SELECT count(*) FROM supply_chain_impact_finding_supports
