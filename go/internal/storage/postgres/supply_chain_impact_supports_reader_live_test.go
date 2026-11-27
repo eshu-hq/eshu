@@ -154,6 +154,14 @@ func b2cSeed(t *testing.T, ctx context.Context, db *sql.DB) {
 		b2cFinding("repo:r5", "pkg:npm/p7", "CVE-2026-0007", "", "7.0.0")))
 	write(b2cWrite(b2cScopeC, b2cGenC, "intent:c-2", b2cFinding("repo:r5", "pkg:npm/p7", "CVE-2026-0007", "", "7.0.0")))
 
+	// The C2 writer plants no finding facts, so the frozen oracles would read
+	// back empty: mirror every surviving support into a fact twin, once, here.
+	// The placement is load-bearing for scope C: the retraction above already
+	// removed the retracted finding's support, so it gets no twin and the
+	// oracle cannot name a finding the supports read retracted. Mirroring
+	// before the retraction would plant a twin the retraction never removes.
+	mirrorB2CSupportsToFactTwins(t, ctx, db, now)
+
 	// Alert and consumption facts get ids that interleave with the impact
 	// support ids, so the merged statement's order is tested, not a
 	// concatenation. The seed reads the supports table, not fact_records: the
