@@ -76,10 +76,12 @@ import (
 //
 // The fifth return value is non-nil when the phase-two ArgoCD config reload
 // timed out on the budget sentinel while phase one succeeded. The returned
-// facts are then the unmerged phase-one set, the skip-set is nil (nothing is
-// provably redundant once phase two is parked — the reopen step replays
-// everything), and the caller commits what it can while withholding the whole
-// fan-in: no readiness or memo row for any partition this pass.
+// facts are then the unmerged phase-one set, the skip-set is empty but
+// non-nil (nothing is provably redundant once phase two is parked — the
+// reopen step treats every candidate as a miss, with the maintenance reopen
+// circuit breaker applied to the outcome), and the caller commits what it
+// can while withholding the whole fan-in: no readiness or memo row for any
+// partition this pass.
 func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 	ctx context.Context,
 	queryer db.Queryer,
@@ -150,7 +152,15 @@ func (s Store) LoadDeferredAnchorScopedRelationshipFacts(
 		if degraded, ok := degradePhaseTwoOnBudgetTimeout(
 			factBlock, err, loaded, catalog, len(loadPartitions), workers,
 		); ok {
-			return loaded, snapshotGenerations, nil, degraded, nil
+			// The skip-set is empty but NON-NIL: the Track-1 gate already ran
+			// above, so "no partition is proven redundant once phase two is
+			// parked" is authoritative same-pass data — the reopen must treat
+			// every candidate as a miss, AND the maintenance reopen circuit
+			// breaker applies to the outcome (a nil skip-set would exempt the
+			// pass from the breaker and reopen the floor unconditionally,
+			// which is exactly the storm shape a run of degraded passes
+			// produces when memo publication stays withheld).
+			return loaded, snapshotGenerations, map[ScopeGenerationPartition]struct{}{}, degraded, nil
 		}
 		factBlock.End(err, IntAttr("partitions", len(loadPartitions)), IntAttr("workers", workers))
 		return nil, nil, nil, nil, err

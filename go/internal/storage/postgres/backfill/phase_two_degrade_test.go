@@ -189,6 +189,35 @@ func TestRunAllRelationshipEvidenceDegradesOnPhaseTwoTimeout(t *testing.T) {
 	}
 }
 
+// TestDegradedPassSkipSetStaysAuthoritativeEmpty pins the reopen-storm
+// bound's degraded-pass leg: a degraded pass returns an empty but NON-NIL
+// skip-set. The Track-1 gate already ran, so "no partition is proven
+// redundant once phase two is parked" is authoritative same-pass data — the
+// reopen treats every candidate as a miss WITH the maintenance reopen
+// circuit breaker applied. A nil skip-set would exempt the pass from the
+// breaker and reopen the floor unconditionally, which is exactly the storm
+// shape a run of degraded passes produces while memo publication stays
+// withheld.
+func TestDegradedPassSkipSetStaysAuthoritativeEmpty(t *testing.T) {
+	timeout := &pgconn.PgError{Code: "57014", Message: "canceling statement due to statement timeout"}
+	store, _, _, _ := newPhaseTwoDegradeStore(t, timeout, "")
+
+	var unchanged map[ScopeGenerationPartition]struct{}
+	capturePassLog(t, func() {
+		var runErr error
+		unchanged, runErr = store.RunAllRelationshipEvidence(context.Background(), nil, nil)
+		if runErr != nil {
+			t.Fatalf("RunAllRelationshipEvidence() error = %v, want nil (degraded pass continues)", runErr)
+		}
+	})
+	if unchanged == nil {
+		t.Fatal("degraded pass skip-set = nil, want authoritative empty (nil would exempt the reopen circuit breaker)")
+	}
+	if len(unchanged) != 0 {
+		t.Fatalf("degraded pass skip-set has %d members, want 0 (nothing is proven redundant once phase two is parked)", len(unchanged))
+	}
+}
+
 // TestPhaseTwoNonSentinelErrorStillFailsPass is seeded-violation A
 // (classification fence): a generic phase-two error must keep today's
 // fail-loud path — pass error plus block_failed, never a degrade.

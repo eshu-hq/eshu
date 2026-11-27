@@ -9,6 +9,7 @@ import (
 	"log"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -110,9 +111,10 @@ func (s Store) RunAllRelationshipEvidence(
 	if degraded != nil {
 		// Phase two parked on the budget sentinel: the phase-one evidence
 		// still commits through the batch path, but the whole fan-in is
-		// withheld — no readiness, no memo row, and no reopen-redundant
-		// claim for any partition. The committed evidence is
-		// content-addressed, so the next clean pass re-derives and
+		// withheld — no readiness, no memo row, and an empty (non-nil)
+		// skip-set, so the reopen treats every candidate as a miss with the
+		// maintenance reopen circuit breaker applied. The committed evidence
+		// is content-addressed, so the next clean pass re-derives and
 		// republishes what this one parked.
 		commit, batchBlock, err := s.commitDeferredBackfillBatches(ctx, evidenceBySourceRepo, snapshotGenerations, instruments)
 		if err != nil {
@@ -133,7 +135,11 @@ func (s Store) RunAllRelationshipEvidence(
 			instruments.DeferredBackfillEvidence.Add(ctx, totalEvidence)
 		}
 		logDegradedPassCompleted(dur, totalEvidence, sumInsertedRows(commit.insertedRows), degraded)
-		return nil, nil
+		// Pass the Track-1 skip-set through (empty but non-nil on this path:
+		// nothing is proven redundant once phase two is parked). The reopen
+		// treats every candidate as a miss with the circuit breaker applied;
+		// returning nil here would exempt the pass from the breaker.
+		return skippedPartitions, nil
 	}
 
 	// The catalog fingerprint (issue #3624 Track 1 / B') is derived from the
@@ -146,6 +152,25 @@ func (s Store) RunAllRelationshipEvidence(
 	// never produces an empty or colliding fingerprint.
 	fingerprintParams, _ := BuildDeferredScopedFactQueryParams(catalog)
 	catalogFingerprint := DeferredCatalogFingerprint(fingerprintParams)
+
+	// Emit the computed fingerprint and its input sizes on the pass span and
+	// as one log line per pass (reopen storm attribution): a fingerprint
+	// change names the pass where the memo signal collapsed, and the sizes
+	// say which input arm moved (anchor terms, repo ids, remote urls).
+	// Alert when this fingerprint differs from the previous pass's line.
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("catalog_fingerprint", catalogFingerprint),
+		attribute.Int("catalog_anchor_terms", len(fingerprintParams.NonRepoIDLike)+len(fingerprintParams.RepoIDValues)),
+		attribute.Int("catalog_repo_ids", len(fingerprintParams.RepoIDValues)),
+		attribute.Int("catalog_remote_urls", len(fingerprintParams.remoteURLs)),
+	)
+	log.Printf(
+		"deferred_backfill_catalog_fingerprint fingerprint=%s anchor_terms=%d repo_ids=%d remote_urls=%d",
+		catalogFingerprint,
+		len(fingerprintParams.NonRepoIDLike)+len(fingerprintParams.RepoIDValues),
+		len(fingerprintParams.RepoIDValues),
+		len(fingerprintParams.remoteURLs),
+	)
 
 	readinessRows, unchangedPartitions, err := s.writeDeferredBackfillInBatches(
 		ctx, evidenceBySourceRepo, snapshotGenerations, catalogFingerprint, skippedPartitions, instruments,

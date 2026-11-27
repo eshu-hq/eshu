@@ -63,10 +63,14 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 		defer span.End()
 	}
 
-	var reopened, skippedByMemo int
+	var reopened, skippedByMemo, parkedByBreaker int
 	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
 	defer func() {
-		reopenBlock.End(err, backfill.ReopenBlockAttrs("code_import_repo_edge", reopened, skippedByMemo)...)
+		attrs := backfill.ReopenBlockAttrs("code_import_repo_edge", reopened, skippedByMemo)
+		if parkedByBreaker > 0 {
+			attrs = append(attrs, backfill.IntAttr("parked_by_breaker", parkedByBreaker))
+		}
+		reopenBlock.End(err, attrs...)
 	}()
 
 	items, err := listSucceededCodeImportRepoEdgeWorkItems(ctx, s.database)
@@ -76,8 +80,21 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 	gateResult := applyReopenPartitionMemoGate(ctx, "code_import_repo_edge", items, skippedPartitions, instruments)
 	skippedByMemo = len(gateResult.Skipped)
 
+	// Circuit breaker (reopen storm bound): a same-pass outcome that would
+	// reopen most of a non-trivial pool parks instead of reopening it. See
+	// ingestion_reopen_circuit_breaker.go. A nil skip-set is a standalone
+	// one-shot, never a periodic pass, so the breaker does not apply.
+	toReopen := gateResult.ToReopen
+	if skippedPartitions != nil {
+		if park, missFraction := evaluateReopenCircuitBreaker(len(items), len(toReopen)); park {
+			parkedByBreaker = len(toReopen)
+			toReopen = nil
+			reportReopenCircuitBreakerOpen(ctx, "code_import_repo_edge", len(items), parkedByBreaker, missFraction, instruments)
+		}
+	}
+
 	queue := ReducerQueue{database: s.database, Now: s.Now}
-	for _, item := range gateResult.ToReopen {
+	for _, item := range toReopen {
 		if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
 			return fmt.Errorf("reopen code_import_repo_edge work items: %w", err)
 		}
@@ -85,11 +102,11 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 	}
 
 	if instruments != nil {
-		instruments.CodeImportRepoEdgeReopened.Add(ctx, int64(len(gateResult.ToReopen)))
+		instruments.CodeImportRepoEdgeReopened.Add(ctx, int64(len(toReopen)))
 	}
 	log.Printf(
-		"code_import_repo_edge_reopened count=%d skipped_by_memo=%d",
-		len(gateResult.ToReopen), len(gateResult.Skipped),
+		"code_import_repo_edge_reopened count=%d skipped_by_memo=%d parked_by_breaker=%d",
+		len(toReopen), len(gateResult.Skipped), parkedByBreaker,
 	)
 
 	return nil

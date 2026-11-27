@@ -3507,6 +3507,16 @@ type Instruments struct {
 	// DeferredBackfillPartitionsSkipped for the fact-load side of the same memo.
 	ReopenSkippedByPartitionMemo metric.Int64Counter
 
+	// MaintenanceReopenParkedByBreaker counts succeeded deployment_mapping and
+	// code_import_repo_edge reducer work items the periodic maintenance pass
+	// parked instead of reopening because the pass's miss fraction tripped
+	// the reopen circuit breaker (reopen storm bound). Labeled by domain
+	// (deployment_mapping, code_import_repo_edge). A nonzero count means the
+	// redundancy signal collapsed that pass (fingerprint flip or withheld
+	// memo publication): alert on it, and read it beside
+	// ReopenSkippedByPartitionMemo — parked items retry on the next pass.
+	MaintenanceReopenParkedByBreaker metric.Int64Counter
+
 	// Cross-repo resolution metrics
 	CrossRepoResolutionDuration metric.Float64Histogram
 	CrossRepoEvidenceLoaded     metric.Int64Counter
@@ -8495,6 +8505,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReopenSkippedByPartitionMemo counter: %w", err)
+	}
+
+	inst.MaintenanceReopenParkedByBreaker, err = meter.Int64Counter(
+		"eshu_dp_maintenance_reopen_parked_by_breaker_total",
+		metric.WithDescription("Total succeeded deployment_mapping/code_import_repo_edge reducer work items the periodic maintenance pass parked instead of reopening because the pass's miss fraction tripped the reopen circuit breaker, labeled by domain."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register MaintenanceReopenParkedByBreaker counter: %w", err)
 	}
 
 	inst.CorrelationReopened, err = meter.Int64Counter(
