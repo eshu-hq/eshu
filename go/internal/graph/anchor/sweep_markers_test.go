@@ -4,12 +4,15 @@
 package anchor
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -41,41 +44,102 @@ type marker struct {
 	Test string
 }
 
+// scanMarkersErr returns the markers in the non-test Go files under root.
+func scanMarkersErr(root string) ([]marker, error) {
+	files, err := collectGoFiles(root, false)
+	if err != nil {
+		return nil, err
+	}
+	perFile := make([][]marker, len(files))
+	errs := make([]error, len(files))
+	runFileWorkers(len(files), func(idx int) {
+		entry := files[idx]
+		raw, readErr := os.ReadFile(entry.path)
+		if readErr != nil {
+			errs[idx] = fmt.Errorf("read %s: %w", entry.path, readErr)
+			return
+		}
+		if !bytes.Contains(raw, []byte("anchor-census")) {
+			return
+		}
+		var found []marker
+		for i, line := range strings.Split(string(raw), "\n") {
+			if m := markerLine.FindStringSubmatch(line); m != nil {
+				found = append(found, marker{File: entry.rel, Line: i + 1, Test: m[1]})
+			}
+		}
+		perFile[idx] = found
+	})
+	var out []marker
+	for i := range files {
+		if errs[i] != nil {
+			return nil, errs[i]
+		}
+		out = append(out, perFile[i]...)
+	}
+	return out, nil
+}
+
 // scanMarkers returns the markers in the non-test Go files under root.
 func scanMarkers(t *testing.T, root string) []marker {
 	t.Helper()
-	var out []marker
-	walkGoFiles(t, root, false, func(rel, path string) {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		for i, line := range strings.Split(string(raw), "\n") {
-			if m := markerLine.FindStringSubmatch(line); m != nil {
-				out = append(out, marker{File: rel, Line: i + 1, Test: m[1]})
-			}
-		}
-	})
+	out, err := scanMarkersErr(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return out
+}
+
+// definedTestsErr returns, for each Test function in the _test.go files under
+// root, the set of directories (relative to root) that define it.
+func definedTestsErr(root string) (map[string]map[string]bool, error) {
+	files, err := collectGoFiles(root, true)
+	if err != nil {
+		return nil, err
+	}
+	type fileTests struct {
+		dir   string
+		names []string
+		err   error
+	}
+	perFile := make([]fileTests, len(files))
+	runFileWorkers(len(files), func(idx int) {
+		entry := files[idx]
+		raw, readErr := os.ReadFile(entry.path)
+		if readErr != nil {
+			perFile[idx] = fileTests{err: fmt.Errorf("read %s: %w", entry.path, readErr)}
+			return
+		}
+		matches := testFuncLine.FindAllStringSubmatch(string(raw), -1)
+		names := make([]string, 0, len(matches))
+		for _, m := range matches {
+			names = append(names, m[1])
+		}
+		perFile[idx] = fileTests{dir: filepath.Dir(entry.rel), names: names}
+	})
+	out := make(map[string]map[string]bool)
+	for i := range perFile {
+		if perFile[i].err != nil {
+			return nil, perFile[i].err
+		}
+		for _, name := range perFile[i].names {
+			if out[name] == nil {
+				out[name] = make(map[string]bool)
+			}
+			out[name][perFile[i].dir] = true
+		}
+	}
+	return out, nil
 }
 
 // definedTests returns, for each Test function in the _test.go files under
 // root, the set of directories (relative to root) that define it.
 func definedTests(t *testing.T, root string) map[string]map[string]bool {
 	t.Helper()
-	out := make(map[string]map[string]bool)
-	walkGoFiles(t, root, true, func(rel, path string) {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		for _, m := range testFuncLine.FindAllStringSubmatch(string(raw), -1) {
-			if out[m[1]] == nil {
-				out[m[1]] = make(map[string]bool)
-			}
-			out[m[1]][filepath.Dir(rel)] = true
-		}
-	})
+	out, err := definedTestsErr(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return out
 }
 
@@ -133,15 +197,35 @@ func markerProblems(sites []cypherSite, markers []marker, tests map[string]map[s
 }
 
 func TestEveryDynamicLabelWriterIsMarkedWithAProof(t *testing.T) {
-	root, err := filepath.Abs("../../..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	result := sweepSource(t, root, Labels())
+	t.Parallel()
+	root, result := repoSweep(t)
 	if len(result.Dynamic) < 10 {
 		t.Fatalf("static sweep found %d dynamic-label writers; the sweep is not reading go/", len(result.Dynamic))
 	}
-	problems := markerProblems(result.Dynamic, scanMarkers(t, root), definedTests(t, root))
+	var (
+		markers    []marker
+		markersErr error
+		tests      map[string]map[string]bool
+		testsErr   error
+		wg         sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		markers, markersErr = scanMarkersErr(root)
+	}()
+	go func() {
+		defer wg.Done()
+		tests, testsErr = definedTestsErr(root)
+	}()
+	wg.Wait()
+	if markersErr != nil {
+		t.Fatal(markersErr)
+	}
+	if testsErr != nil {
+		t.Fatal(testsErr)
+	}
+	problems := markerProblems(result.Dynamic, markers, tests)
 	if len(problems) > 0 {
 		t.Fatalf("%d dynamic-label writer problem(s):\n%s", len(problems), strings.Join(problems, "\n"))
 	}

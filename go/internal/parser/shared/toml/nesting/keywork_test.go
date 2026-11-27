@@ -82,32 +82,31 @@ func hostileTableDocs(n int) map[string]string {
 // the third layout carries keys: rebuilding each element's children is what
 // makes the repeats rescan.
 func repeatedHeaderDocs(distinct, repeats, elemKeys int) map[string]string {
-	var rootSiblings, childSiblings strings.Builder
+	var rootSiblings strings.Builder
 	rootSiblings.WriteString("[[package]]\nname = \"a\"\n")
 	for i := range distinct {
 		fmt.Fprintf(&rootSiblings, "[c%d]\n", i)
 	}
 	rootSiblings.WriteString(strings.Repeat("[[package]]\nname = \"a\"\n", repeats))
-	for range repeats {
-		childSiblings.WriteString("[[package]]\nname = \"a\"\n")
-		for i := range distinct {
-			fmt.Fprintf(&childSiblings, "[package.c%d]\n", i)
-		}
+	var childBlock strings.Builder
+	childBlock.WriteString("[[package]]\nname = \"a\"\n")
+	for i := range distinct {
+		fmt.Fprintf(&childBlock, "[package.c%d]\n", i)
 	}
 	var keysThenChildren strings.Builder
 	keysThenChildren.WriteString("[x]\n")
 	for i := range distinct {
 		fmt.Fprintf(&keysThenChildren, "k%d = 1\n", i)
 	}
-	for range repeats {
-		keysThenChildren.WriteString("[[x.y]]\n")
-		for i := range elemKeys {
-			fmt.Fprintf(&keysThenChildren, "k%d = 1\n", i)
-		}
+	var elemBlock strings.Builder
+	elemBlock.WriteString("[[x.y]]\n")
+	for i := range elemKeys {
+		fmt.Fprintf(&elemBlock, "k%d = 1\n", i)
 	}
+	keysThenChildren.WriteString(strings.Repeat(elemBlock.String(), repeats))
 	return map[string]string{
 		"array header after root siblings": rootSiblings.String(),
-		"array element rebuilds children":  childSiblings.String(),
+		"array element rebuilds children":  strings.Repeat(childBlock.String(), repeats),
 		"array child after table keys":     keysThenChildren.String(),
 	}
 }
@@ -164,8 +163,10 @@ func TestCheckBoundsRejectsRepeatedHeaders(t *testing.T) {
 // decode. An invalid document is rejected by the decoder without any key
 // lookup, which makes its rejection prove nothing.
 func TestHostileTableDocsAreValidTOML(t *testing.T) {
+	t.Parallel()
 	for name, doc := range hostileTableDocs(10) {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			var p unstable.Parser
 			p.Reset([]byte(doc))
 			for p.NextExpression() {
@@ -181,6 +182,7 @@ func TestHostileTableDocsAreValidTOML(t *testing.T) {
 // scanning the whole hostile file: the work counter at rejection is within
 // one entry of the limit.
 func TestCheckBoundsStopsEarly(t *testing.T) {
+	t.Parallel()
 	doc := []byte(hostileTableDocs(hostileTableEntries())["table keys"])
 	got, err := scanBounds(doc, testBounds)
 	if !errors.Is(err, ErrTooManyKeys) {
@@ -195,6 +197,7 @@ func TestCheckBoundsStopsEarly(t *testing.T) {
 // Cargo files: a 50,000-package lockfile (12.6 MB of [[package]] sections),
 // a manifest with a 2,000-entry dependency table, and many target tables.
 func TestCheckBoundsAcceptsLegalDocuments(t *testing.T) {
+	t.Parallel()
 	var manifest strings.Builder
 	manifest.WriteString("[package]\nname = \"x\"\nversion = \"0.1.0\"\n\n[dependencies]\n")
 	for i := range 2000 {
@@ -212,6 +215,7 @@ func TestCheckBoundsAcceptsLegalDocuments(t *testing.T) {
 		"dotted dependency": {[]byte("[dependencies]\nserde.version = \"1\"\nserde.features = [\"derive\"]\n"), testBounds},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			got, err := scanBounds(tc.doc, tc.bounds)
 			if err != nil {
 				t.Fatalf("scanBounds() = %v, want nil (work %d)", err, got.work)
@@ -227,6 +231,7 @@ func TestCheckBoundsAcceptsLegalDocuments(t *testing.T) {
 // decode in about a millisecond), so a struct caller is not charged for
 // them, and a map caller (every entry looked up) is.
 func TestStructBoundsSkipPlainEntriesUnderUnknownTables(t *testing.T) {
+	t.Parallel()
 	doc := legalLockfileV1(50_000)
 	if _, err := scanBounds(doc, lockStructBounds); err != nil {
 		t.Fatalf("struct bounds: scanBounds() = %v, want nil", err)
@@ -254,6 +259,7 @@ func unknownKeysInPackage(n int) []byte {
 // steps (1.47 s measured for a 319 KB document). The lock bounds must charge
 // them in full and reject the document.
 func TestStructBoundsRejectUnknownKeysInKnownTable(t *testing.T) {
+	t.Parallel()
 	doc := unknownKeysInPackage(30_000)
 	if _, err := scanBounds(doc, lockStructBounds); !errors.Is(err, ErrTooManyKeys) {
 		t.Fatalf("scanBounds() = %v, want ErrTooManyKeys", err)
@@ -263,6 +269,7 @@ func TestStructBoundsRejectUnknownKeysInKnownTable(t *testing.T) {
 // TestStructBoundsStillChargeInlineTablesAndHeaders keeps the struct reading
 // from becoming a hole: inline tables and headers are looked up in full.
 func TestStructBoundsStillChargeInlineTablesAndHeaders(t *testing.T) {
+	t.Parallel()
 	docs := hostileTableDocs(hostileTableEntries())
 	for _, name := range []string{"inline table keys", "subtable headers", "root headers", "array headers"} {
 		if _, err := scanBounds([]byte(docs[name]), lockStructBounds); !errors.Is(err, ErrTooManyKeys) {

@@ -363,9 +363,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(needs.changes.outputs.go_race_shards || '[1,2,3,4,5,6,7,8]') }}
+        shard: ${{ fromJSON(needs.changes.outputs.go_race_shards || '[1,2,3,4,5,6,7,8,9,10,11,12]') }}
     runs-on: ubuntu-24.04
-    # Eight LPT-balanced shards in full mode or 1 shard in changed-tests mode; -timeout 900s bounds hangs.
+    # Twelve LPT-balanced shards in full mode or 1 shard in changed-tests mode; -timeout 900s bounds hangs.
     timeout-minutes: 60
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
@@ -418,7 +418,7 @@ jobs:
           GO_RACE_PACKAGES: ${{ needs.changes.outputs.go_race_packages }}
           ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
         run: bash ../scripts/ci/run-go-race-shard.sh
-      # The eight shards share one key; the first to finish saves it and the
+      # The twelve shards share one key; the first to finish saves it and the
       # others log a reserve warning, as before the restore/save split.
       - name: Save Go build cache
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuildrace-cache.outputs.cache-hit != 'true' }}

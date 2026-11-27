@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/pelletier/go-toml/v2"
@@ -119,29 +122,76 @@ func (g *tableDocGenerator) document() []byte {
 // the copy takes. A lookup the guard stops charging makes the steps outgrow
 // the work, and this test fails.
 func TestKeyWorkNeverUndercountsTheDecoder(t *testing.T) {
-	g := &tableDocGenerator{r: rand.New(rand.NewPCG(8991, 20261025))}
-	var mostSteps int
-	for i := range generatorCases(t) {
-		doc := g.document()
-		var decoded map[string]any
-		if err := toml.Unmarshal(doc, &decoded); err != nil {
-			t.Fatalf("case %d: go-toml rejected the generated document: %v\n%s", i, err, doc)
-		}
-		steps, err := trackerSteps(doc, nil)
-		if err != nil {
-			t.Fatalf("case %d: step tracker rejected a document go-toml accepts: %v\n%s", i, err, doc)
-		}
-		got, err := scanBounds(doc, Bounds{Depth: math.MaxInt, KeyWork: math.MaxInt})
-		if err != nil {
-			t.Fatalf("case %d: scanBounds() = %v", i, err)
-		}
-		mostSteps = max(mostSteps, steps)
-		if got.work < steps {
-			t.Fatalf("case %d: work %d is under the %d lookup steps go-toml takes\n%s", i, got.work, steps, doc)
-		}
+	t.Parallel()
+	type oracleCase struct {
+		idx int
+		doc []byte
 	}
-	if mostSteps < 5000 {
-		t.Fatalf("generator took at most %d steps, want some documents of at least 5000", mostSteps)
+	workers := runtime.GOMAXPROCS(0)
+	if workers < 1 {
+		workers = 1
+	}
+	cases := make(chan oracleCase, workers*2)
+	var (
+		mostSteps atomic.Int64
+		firstErr  atomic.Pointer[string]
+		wg        sync.WaitGroup
+	)
+	recordErr := func(msg string) {
+		firstErr.CompareAndSwap(nil, &msg)
+	}
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for tc := range cases {
+				if firstErr.Load() != nil {
+					continue
+				}
+				var decoded map[string]any
+				if err := toml.Unmarshal(tc.doc, &decoded); err != nil {
+					recordErr(fmt.Sprintf("case %d: go-toml rejected the generated document: %v\n%s", tc.idx, err, tc.doc))
+					continue
+				}
+				steps, err := trackerSteps(tc.doc, nil)
+				if err != nil {
+					recordErr(fmt.Sprintf("case %d: step tracker rejected a document go-toml accepts: %v\n%s", tc.idx, err, tc.doc))
+					continue
+				}
+				got, err := scanBounds(tc.doc, Bounds{Depth: math.MaxInt, KeyWork: math.MaxInt})
+				if err != nil {
+					recordErr(fmt.Sprintf("case %d: scanBounds() = %v", tc.idx, err))
+					continue
+				}
+				for cur := mostSteps.Load(); int64(steps) > cur; cur = mostSteps.Load() {
+					if mostSteps.CompareAndSwap(cur, int64(steps)) {
+						break
+					}
+				}
+				if got.work < steps {
+					recordErr(fmt.Sprintf("case %d: work %d is under the %d lookup steps go-toml takes\n%s", tc.idx, got.work, steps, tc.doc))
+				}
+			}
+		}()
+	}
+
+	g := &tableDocGenerator{r: rand.New(rand.NewPCG(8991, 20261025))}
+	total := generatorCases(t)
+	for i := range total {
+		doc := g.document()
+		if firstErr.Load() != nil {
+			break
+		}
+		cases <- oracleCase{idx: i, doc: doc}
+	}
+	close(cases)
+	wg.Wait()
+
+	if msg := firstErr.Load(); msg != nil {
+		t.Fatal(*msg)
+	}
+	if mostSteps.Load() < 5000 {
+		t.Fatalf("generator took at most %d steps, want some documents of at least 5000", mostSteps.Load())
 	}
 }
 
@@ -149,27 +199,36 @@ func TestKeyWorkNeverUndercountsTheDecoder(t *testing.T) {
 // review through the step-counting tracker at a size small enough to test, and
 // requires the work to cover the steps and to grow with the repeat count.
 func TestKeyWorkUpperBoundsTheReviewShapes(t *testing.T) {
-	var lastWork int
-	for _, repeats := range []int{200, 400, 800} {
-		for name, doc := range repeatedHeaderDocs(300, repeats, 300) {
-			steps, err := trackerSteps([]byte(doc), nil)
-			if err != nil {
-				t.Fatalf("%s: step tracker: %v", name, err)
+	t.Parallel()
+	var measured atomic.Int64
+	t.Run("shapes", func(t *testing.T) {
+		for _, repeats := range []int{200, 400, 800} {
+			for name, doc := range repeatedHeaderDocs(300, repeats, 300) {
+				t.Run(fmt.Sprintf("%s_x%d", name, repeats), func(t *testing.T) {
+					t.Parallel()
+					raw := []byte(doc)
+					steps, err := trackerSteps(raw, nil)
+					if err != nil {
+						t.Fatalf("%s: step tracker: %v", name, err)
+					}
+					got, err := scanBounds(raw, Bounds{Depth: math.MaxInt, KeyWork: math.MaxInt})
+					if err != nil {
+						t.Fatalf("%s: scanBounds() = %v", name, err)
+					}
+					if got.work < steps {
+						t.Errorf("%s x%d: work %d is under the %d steps go-toml takes", name, repeats, got.work, steps)
+					}
+					if steps < 300*repeats/2 {
+						t.Errorf("%s x%d: only %d steps, the shape no longer repeats the sibling scan", name, repeats, steps)
+					}
+					if got.work > 0 {
+						measured.Add(1)
+					}
+				})
 			}
-			got, err := scanBounds([]byte(doc), Bounds{Depth: math.MaxInt, KeyWork: math.MaxInt})
-			if err != nil {
-				t.Fatalf("%s: scanBounds() = %v", name, err)
-			}
-			if got.work < steps {
-				t.Errorf("%s x%d: work %d is under the %d steps go-toml takes", name, repeats, got.work, steps)
-			}
-			if steps < 300*repeats/2 {
-				t.Errorf("%s x%d: only %d steps, the shape no longer repeats the sibling scan", name, repeats, steps)
-			}
-			lastWork = got.work
 		}
-	}
-	if lastWork == 0 {
+	})
+	if measured.Load() == 0 {
 		t.Fatal("no work measured")
 	}
 }
@@ -180,6 +239,7 @@ func TestKeyWorkUpperBoundsTheReviewShapes(t *testing.T) {
 // under a header the struct does not know are skipped. The guard's work
 // under the lock bounds must still cover the steps.
 func TestStructShapeWorkCoversTheDecoder(t *testing.T) {
+	t.Parallel()
 	shape := &decodeShape{knownTables: map[string]bool{"package": true}}
 	for name, doc := range map[string][]byte{
 		"v1 lockfile":        legalLockfileV1(300),
@@ -197,6 +257,7 @@ func TestStructShapeWorkCoversTheDecoder(t *testing.T) {
 		"repeated array children": []byte(repeatedHeaderDocs(300, 800, 0)["array child after table keys"]),
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			steps, err := trackerSteps(doc, shape)
 			if err != nil {
 				t.Fatalf("step tracker: %v", err)

@@ -2,11 +2,11 @@
 """Deterministically assign `go list ./...` packages to shards via LPT.
 
 Reads newline-separated Go package import paths from stdin, applies measured
-`-race` weights from a TSV file (defaulting unlisted packages to 1.0s), and
-assigns every package to exactly one shard in 1..shard_total using Longest
-Processing Time (LPT) scheduling: sort by (-weight, package) and place each
-package into the shard with the smallest accumulated weight (lowest shard
-index breaks ties).
+`-race` weights from a TSV file (defaulting unlisted packages to 1.0s) plus a
+per-package compile/link overhead (default 1.5s), and assigns every package to
+exactly one shard in 1..shard_total using Longest Processing Time (LPT)
+scheduling: sort by (-effective_weight, package) and place each package into
+the shard with the smallest accumulated weight (lowest shard index breaks ties).
 
 Prints the packages assigned to `--shard-index` in sorted order, one per line.
 """
@@ -19,6 +19,7 @@ import pathlib
 import sys
 
 DEFAULT_WEIGHT = 1.0
+DEFAULT_COMPILE_OVERHEAD = 1.5
 
 
 def load_weights(path: pathlib.Path | None) -> dict[str, float]:
@@ -50,20 +51,27 @@ def assign_shards(
     shard_total: int,
     weights: dict[str, float],
     default_weight: float = DEFAULT_WEIGHT,
+    compile_overhead: float = DEFAULT_COMPILE_OVERHEAD,
 ) -> list[list[str]]:
     """Return `shard_total` disjoint package lists forming an exact partition."""
     if shard_total < 1:
         raise ValueError(f"shard_total must be >= 1, got {shard_total}")
+    if not math.isfinite(compile_overhead) or compile_overhead < 0:
+        raise ValueError(f"compile_overhead must be finite and >= 0, got {compile_overhead}")
     unique_pkgs = sorted({p.strip() for p in packages if p.strip()})
+
+    def effective_weight(pkg: str) -> float:
+        return weights.get(pkg, default_weight) + compile_overhead
+
     ordered = sorted(
         unique_pkgs,
-        key=lambda p: (-weights.get(p, default_weight), p),
+        key=lambda p: (-effective_weight(p), p),
     )
     loads = [0.0] * shard_total
     bins: list[list[str]] = [[] for _ in range(shard_total)]
     for pkg in ordered:
         best = min(range(shard_total), key=lambda idx: (loads[idx], idx))
-        loads[best] += weights.get(pkg, default_weight)
+        loads[best] += effective_weight(pkg)
         bins[best].append(pkg)
     return [sorted(bucket) for bucket in bins]
 
@@ -73,6 +81,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--shard-index", type=int, required=True, help="1-based shard index")
     parser.add_argument("--shard-total", type=int, required=True, help="Total shard count (>= 1)")
     parser.add_argument("--weights", type=pathlib.Path, default=None, help="Optional TSV weight file")
+    parser.add_argument(
+        "--compile-overhead",
+        type=float,
+        default=DEFAULT_COMPILE_OVERHEAD,
+        help=f"Per-package compile/link overhead in seconds (default: {DEFAULT_COMPILE_OVERHEAD})",
+    )
     args = parser.parse_args(argv)
 
     if args.shard_total < 1:
@@ -81,10 +95,19 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             f"--shard-index must be in 1..{args.shard_total}, got {args.shard_index}"
         )
+    if not math.isfinite(args.compile_overhead) or args.compile_overhead < 0:
+        parser.error(
+            f"--compile-overhead must be finite and >= 0, got {args.compile_overhead}"
+        )
 
     weights = load_weights(args.weights)
     packages = sys.stdin.read().splitlines()
-    shards = assign_shards(packages, args.shard_total, weights)
+    shards = assign_shards(
+        packages,
+        args.shard_total,
+        weights,
+        compile_overhead=args.compile_overhead,
+    )
     for pkg in shards[args.shard_index - 1]:
         print(pkg)
     return 0

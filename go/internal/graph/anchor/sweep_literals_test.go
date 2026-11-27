@@ -4,15 +4,18 @@
 package anchor
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
-	"testing"
+	"sync"
+	"sync/atomic"
 )
 
 // The static sweep reads Cypher out of Go source. What it admits, by pattern:
@@ -57,11 +60,24 @@ type cypherSite struct {
 	DynamicLabel bool
 }
 
-// walkGoFiles visits the Go files under root: the _test.go files when tests is
-// true, the others otherwise. It skips testdata, vendor, and build-cache
-// directories.
-func walkGoFiles(t *testing.T, root string, tests bool, visit func(rel, path string)) {
-	t.Helper()
+type goFileEntry struct {
+	rel  string
+	path string
+}
+
+type parsedGoFile struct {
+	rel  string
+	dir  string
+	fset *token.FileSet
+	file *ast.File
+	err  error
+}
+
+// collectGoFiles lists the Go files under root in lexical walk order:
+// _test.go files when tests is true, non-test Go files otherwise. It skips
+// testdata, vendor, node_modules, and build-cache directories.
+func collectGoFiles(root string, tests bool) ([]goFileEntry, error) {
+	var files []goFileEntry
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -77,47 +93,74 @@ func walkGoFiles(t *testing.T, root string, tests bool, visit func(rel, path str
 			return nil
 		}
 		rel, _ := filepath.Rel(root, path)
-		visit(rel, path)
+		files = append(files, goFileEntry{rel: rel, path: path})
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk %s: %v", root, err)
+		return nil, fmt.Errorf("walk %s: %w", root, err)
 	}
+	return files, nil
 }
 
-// packageConsts returns, per directory, the string constants its non-test files
-// declare, with constants built from other constants resolved. A named
-// constant in a `+` chain then reads as its value, not as a placeholder.
-func packageConsts(t *testing.T, root string) map[string]map[string]string {
-	t.Helper()
+// runFileWorkers executes fn for every index in [0, n) across bounded
+// goroutines. Callers store per-index results without shared locks.
+func runFileWorkers(n int, fn func(idx int)) {
+	if n <= 0 {
+		return
+	}
+	workers := runtime.GOMAXPROCS(0)
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > n {
+		workers = n
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for {
+				idx := int(next.Add(1) - 1)
+				if idx >= n {
+					return
+				}
+				fn(idx)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// resolvePackageConsts returns, per directory, the string constants its parsed
+// non-test files declare, with constants built from other constants resolved.
+// A named constant in a `+` chain then reads as its value, not as a placeholder.
+func resolvePackageConsts(parsed []parsedGoFile) map[string]map[string]string {
 	out := make(map[string]map[string]string)
 	type decl struct {
 		dir, name string
 		expr      ast.Expr
 	}
 	var decls []decl
-	walkGoFiles(t, root, false, func(rel, path string) {
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		dir := filepath.Dir(rel)
-		for _, d := range file.Decls {
+	for i := range parsed {
+		pf := &parsed[i]
+		for _, d := range pf.file.Decls {
 			gen, ok := d.(*ast.GenDecl)
 			if !ok || gen.Tok != token.CONST {
 				continue
 			}
 			for _, spec := range gen.Specs {
 				vs := spec.(*ast.ValueSpec)
-				for i, name := range vs.Names {
-					if i < len(vs.Values) {
-						decls = append(decls, decl{dir: dir, name: name.Name, expr: vs.Values[i]})
+				for j, name := range vs.Names {
+					if j < len(vs.Values) {
+						decls = append(decls, decl{dir: pf.dir, name: name.Name, expr: vs.Values[j]})
 					}
 				}
 			}
 		}
-	})
-	for pass := 0; pass < 4; pass++ {
+	}
+	for range 4 {
 		for _, d := range decls {
 			if out[d.dir] == nil {
 				out[d.dir] = make(map[string]string)
@@ -133,21 +176,43 @@ func packageConsts(t *testing.T, root string) map[string]map[string]string {
 	return out
 }
 
-// productionCypherSites returns every admitted Cypher literal in the non-test
-// Go files under root. A `+` chain of literals, named constants, and other
-// operands folds to one template whose unresolved operands read as a
-// placeholder.
-func productionCypherSites(t *testing.T, root string) []cypherSite {
-	t.Helper()
-	consts := packageConsts(t, root)
-	var out []cypherSite
-	walkGoFiles(t, root, false, func(rel, path string) {
+// productionCypherSitesErr parses every non-test Go file under root once in
+// parallel and returns every admitted Cypher literal in deterministic order.
+// A `+` chain of literals, named constants, and other operands folds to one
+// template whose unresolved operands read as a placeholder.
+func productionCypherSitesErr(root string) ([]cypherSite, error) {
+	files, err := collectGoFiles(root, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, nil
+	}
+	parsed := make([]parsedGoFile, len(files))
+	runFileWorkers(len(files), func(idx int) {
+		entry := files[idx]
 		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
+		file, parseErr := parser.ParseFile(fset, entry.path, nil, 0)
+		parsed[idx] = parsedGoFile{
+			rel:  entry.rel,
+			dir:  filepath.Dir(entry.rel),
+			fset: fset,
+			file: file,
+			err:  parseErr,
 		}
-		ast.Inspect(file, func(node ast.Node) bool {
+	})
+	for i := range parsed {
+		if parsed[i].err != nil {
+			return nil, fmt.Errorf("parse %s: %w", files[i].path, parsed[i].err)
+		}
+	}
+	consts := resolvePackageConsts(parsed)
+	perFile := make([][]cypherSite, len(parsed))
+	runFileWorkers(len(parsed), func(idx int) {
+		pf := &parsed[idx]
+		dirConsts := consts[pf.dir]
+		var sites []cypherSite
+		ast.Inspect(pf.file, func(node ast.Node) bool {
 			expr, ok := node.(ast.Expr)
 			if !ok {
 				return true
@@ -157,7 +222,7 @@ func productionCypherSites(t *testing.T, root string) []cypherSite {
 				// declaration already supplied; only a `+` chain folds names.
 				return true
 			}
-			text, hasLiteral := foldWithPlaceholders(expr, consts[filepath.Dir(rel)])
+			text, hasLiteral := foldWithPlaceholders(expr, dirConsts)
 			if !hasLiteral {
 				return true
 			}
@@ -170,16 +235,21 @@ func productionCypherSites(t *testing.T, root string) []cypherSite {
 				parameterMapNode.MatchString(text) ||
 				labelRemoval.MatchString(text) && labeledShape.MatchString(text)
 			if admitted {
-				line := fset.Position(expr.Pos()).Line
-				out = append(out, cypherSite{
-					Key: rel + ":" + strconv.Itoa(line), File: rel, Line: line,
+				line := pf.fset.Position(expr.Pos()).Line
+				sites = append(sites, cypherSite{
+					Key: pf.rel + ":" + strconv.Itoa(line), File: pf.rel, Line: line,
 					Text: text, DynamicLabel: dynamic,
 				})
 			}
 			return false
 		})
+		perFile[idx] = sites
 	})
-	return out
+	var out []cypherSite
+	for _, sites := range perFile {
+		out = append(out, sites...)
+	}
+	return out, nil
 }
 
 // foldWithPlaceholders returns the value of a string literal, of a named
