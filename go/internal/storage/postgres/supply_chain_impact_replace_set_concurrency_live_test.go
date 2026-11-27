@@ -214,8 +214,11 @@ func (b gatedCommitBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supp
 	// transaction's C2 supports-maintainer surface from the writer's type
 	// assertion
 	// (reducer/supplychain/core/writer_supports.go: WriteSupplyChainImpactFindingRows
-	// refuses a transaction without it). Fail fast here so a pass that lost
-	// its maintainer never parks the test at commitReached.
+	// refuses a transaction without it). Fail fast here: a pass that lost
+	// its maintainer returns errGatedTxInnerWithoutSupportsMaintainer on
+	// firstDone instead of running unmaintained. (Main still waits on
+	// commitReached first, so this unreachable path would end at the
+	// go-test timeout rather than at the firstDone read after release.)
 	if _, ok := tx.(supplychaincore.SupplyChainImpactSupportsMaintainer); !ok {
 		_ = tx.Rollback()
 		return nil, errGatedTxInnerWithoutSupportsMaintainer
