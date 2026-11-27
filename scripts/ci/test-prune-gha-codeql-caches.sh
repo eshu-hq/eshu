@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Hermetic self-test for scripts/ci/prune-gha-codeql-caches.sh (zero network,
-# mocked gh binary, zero rg dependency).
+# mocked gh binary, zero rg dependency, zero large heredocs).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -14,34 +14,23 @@ fail=0
 ok() { pass=$((pass + 1)); printf 'ok - %s\n' "$1"; }
 bad() { fail=$((fail + 1)); printf 'FAIL - %s\n' "$1" >&2; }
 
-# Mock gh CLI controlled by FAKE_GH_FIXTURE and FAKE_GH_FAIL_MODE.
+# Mock gh CLI controlled by FAKE_GH_FIXTURE and FAKE_GH_FAIL_MODE (<512B heredoc).
 mkdir -p "${work}/bin"
 cat > "${work}/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${1:-}" != "api" ]]; then
-	echo "unexpected gh subcommand: $*" >&2
-	exit 99
-fi
+[[ "${1:-}" == "api" ]] || exit 99
 shift
 if [[ "${1:-}" == "--paginate" ]]; then
-	if [[ "${FAKE_GH_FAIL_MODE:-}" == "list" ]]; then
-		echo "HTTP 403 Forbidden" >&2
-		exit 1
-	fi
+	[[ "${FAKE_GH_FAIL_MODE:-}" != "list" ]] || { echo "HTTP 403" >&2; exit 1; }
 	cat "${FAKE_GH_FIXTURE}"
 	exit 0
 fi
 if [[ "${1:-}" == "--method" && "${2:-}" == "DELETE" ]]; then
-	target="${3:-}"
-	if [[ "${FAKE_GH_FAIL_MODE:-}" == "delete" ]]; then
-		echo "HTTP 500 Internal Server Error" >&2
-		exit 1
-	fi
-	printf '%s\n' "${target}" >> "${FAKE_GH_DELETES}"
+	[[ "${FAKE_GH_FAIL_MODE:-}" != "delete" ]] || { echo "HTTP 500" >&2; exit 1; }
+	printf '%s\n' "${3:-}" >> "${FAKE_GH_DELETES}"
 	exit 0
 fi
-echo "unexpected gh api args: $*" >&2
 exit 99
 EOF
 chmod +x "${work}/bin/gh"
@@ -57,30 +46,29 @@ now_epoch=1795737600
 # - 5 trap caches (all >24h old -> newest 4 kept, oldest 1 deleted: id 205)
 # - 3 python overlay caches (all >24h old -> <=4 so 0 deleted)
 # - 3 non-CodeQL caches (30 days old -> MUST NEVER be deleted: ids 301, 302, 303)
-cat > "${work}/fixture.json" <<'EOF'
-{"actions_caches":[
-  {"id":101,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a1","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T23:00:00.000Z"},
-  {"id":102,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a2","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T20:00:00.000Z"},
-  {"id":103,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a3","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T18:00:00.000Z"},
-  {"id":104,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a4","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T12:00:00.000Z"},
-  {"id":105,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a5","size_in_bytes":140000000,"last_accessed_at":null,"created_at":"2026-11-26T06:00:00.000Z"},
-  {"id":106,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a6","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T09:00:00.000Z"},
-  {"id":107,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a7","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T08:00:00.000Z"},
-  {"id":301,"key":"Linux-X64-gobuild-deadbeef","size_in_bytes":1600000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},
-  {"id":302,"key":"Linux-X64-gobuildrace-deadbeef","size_in_bytes":530000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},
-  {"id":303,"key":"playwright-chromium-Linux-deadbeef","size_in_bytes":270000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"}
-]}
-{"actions_caches":[
-  {"id":201,"key":"codeql-trap-1-a","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T12:00:00.000Z"},
-  {"id":202,"key":"codeql-trap-1-b","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T11:00:00.000Z"},
-  {"id":203,"key":"codeql-trap-1-c","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T10:00:00.000Z"},
-  {"id":204,"key":"codeql-trap-1-d","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T09:00:00.000Z"},
-  {"id":205,"key":"codeql-trap-1-e","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T08:00:00.000Z"},
-  {"id":251,"key":"codeql-overlay-base-database-1-abc123-python-2.27.5-p1","size_in_bytes":27000000,"last_accessed_at":"2026-11-24T01:00:00.000Z"},
-  {"id":252,"key":"codeql-overlay-base-database-1-abc123-python-2.27.5-p2","size_in_bytes":27000000,"last_accessed_at":"2026-11-24T02:00:00.000Z"},
-  {"id":253,"key":"codeql-overlay-base-database-1-abc123-python-2.27.5-p3","size_in_bytes":27000000,"last_accessed_at":"2026-11-24T03:00:00.000Z"}
-]}
-EOF
+printf '%s\n' \
+	'{"actions_caches":[' \
+	'  {"id":101,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a1","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T23:00:00.000Z"},' \
+	'  {"id":102,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a2","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T20:00:00.000Z"},' \
+	'  {"id":103,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a3","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T18:00:00.000Z"},' \
+	'  {"id":104,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a4","size_in_bytes":140000000,"last_accessed_at":"2026-11-26T12:00:00.000Z"},' \
+	'  {"id":105,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.6-a5","size_in_bytes":140000000,"last_accessed_at":null,"created_at":"2026-11-26T06:00:00.000Z"},' \
+	'  {"id":106,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a6","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T09:00:00.000Z"},' \
+	'  {"id":107,"key":"codeql-overlay-base-database-1-abc123-javascript-2.27.5-a7","size_in_bytes":140000000,"last_accessed_at":"2026-11-25T08:00:00.000Z"},' \
+	'  {"id":301,"key":"Linux-X64-gobuild-deadbeef","size_in_bytes":1600000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},' \
+	'  {"id":302,"key":"Linux-X64-gobuildrace-deadbeef","size_in_bytes":530000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"},' \
+	'  {"id":303,"key":"playwright-chromium-Linux-deadbeef","size_in_bytes":270000000,"last_accessed_at":"2026-10-20T00:00:00.000Z"}' \
+	']}' \
+	'{"actions_caches":[' \
+	'  {"id":201,"key":"codeql-trap-1-a","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T12:00:00.000Z"},' \
+	'  {"id":202,"key":"codeql-trap-1-b","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T11:00:00.000Z"},' \
+	'  {"id":203,"key":"codeql-trap-1-c","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T10:00:00.000Z"},' \
+	'  {"id":204,"key":"codeql-trap-1-d","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T09:00:00.000Z"},' \
+	'  {"id":205,"key":"codeql-trap-1-e","size_in_bytes":24000000,"last_accessed_at":"2026-11-25T08:00:00.000Z"},' \
+	'  {"id":251,"key":"codeql-overlay-base-database-1-abc123-python-2.27.5-p1","size_in_bytes":27000000,"last_accessed_at":"2026-11-24T01:00:00.000Z"},' \
+	'  {"id":252,"key":"codeql-overlay-base-database-1-abc123-python-2.27.5-p2","size_in_bytes":27000000,"last_accessed_at":"2026-11-24T02:00:00.000Z"},' \
+	'  {"id":253,"key":"codeql-overlay-base-database-1-abc123-python-2.27.5-p3","size_in_bytes":27000000,"last_accessed_at":"2026-11-24T03:00:00.000Z"}' \
+	']}' > "${work}/fixture.json"
 
 # 1. Refuses positional arguments
 set +e
