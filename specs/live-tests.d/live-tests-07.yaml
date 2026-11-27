@@ -622,7 +622,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_holder_watermark_live_test.go
     tag: ~
     class: scheduled
-    reason: "#11613 PR1: holder-freshness watermark proofs (succeeded-arm union, shadow would-skip, fail-closed matrix, generation-bound watermark, sentinel pin); env-gated live proofs verified locally on disposable PostgreSQL; not enrolled in any gate — promotion is the coordinator's"
+    reason: "#11613 PR1: holder-freshness watermark proofs (succeeded-arm union, shadow would-skip, fail-closed matrix, generation-bound watermark, sentinel pin); env-gated live proofs verified locally on disposable PostgreSQL; scheduled-exempt but selected by the reducer contention gate filter — PR2 skip promotion is the coordinator's"
   - file: go/internal/storage/postgres/supply_chain_impact_manifest_alert_live_test.go
     tag: ~
     class: dedicated_ci

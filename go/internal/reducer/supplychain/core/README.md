@@ -376,7 +376,7 @@ decides per finding.
   pass): 50 passes in 5.67 s, against 24 in 2.80 s with the read off; the
   capacity ceiling is a model. One scope could rerun back to back (14 reruns in 6 s
   at 150 ms arrivals, measured 2026-11-01 under #9695, before the #9740 stamp, the stamp merge and D4b); no cascade. At 3 AM compare `replay_flagged` with
-  `reopened`, `pending_noop`, `prefiltered_pending`, and `stamp_widened` on `eshu_dp_supply_chain_impact_fanout_total`,
+  `reopened`, `shadow_would_skip` (same work, different label in PR1), `pending_noop`, `prefiltered_pending`, and `stamp_widened` on `eshu_dp_supply_chain_impact_fanout_total`,
   the domain's `eshu_dp_reducer_executions_total` rate, and
   `eshu_runtime_domain_oldest_age_seconds`: a storm has `replay_flagged` near
   the execution rate, `reopened` flat, and age rising. Consumers see it as
