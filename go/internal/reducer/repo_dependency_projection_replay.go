@@ -16,7 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type workloadMaterializationReplayRequest struct {
@@ -25,7 +24,7 @@ type workloadMaterializationReplayRequest struct {
 	entityKey    string
 }
 
-// RepoDependencyReadinessFencePayloadKey stores the RUNS_ON input-set fence
+// RepoDependencyReadinessFencePayloadKey stores the repo-dependency input-set fence
 // carried by a workload-materialization replay intent.
 const RepoDependencyReadinessFencePayloadKey = "repo_dependency_readiness_fence"
 
@@ -43,7 +42,7 @@ type workloadMaterializationFenceRequest struct {
 }
 
 // WorkloadMaterializationFenceReplayer schedules a workload replay carrying a
-// deterministic RUNS_ON input fence.
+// deterministic repo-dependency input-set fence.
 type WorkloadMaterializationFenceReplayer interface {
 	ReplayWorkloadMaterializationForFence(
 		ctx context.Context,
@@ -75,68 +74,13 @@ func RepoDependencyReadinessFenceSourceRunID(fence string) string {
 	return repoDependencyReadinessFenceSourceRunPrefix + strings.TrimSpace(fence)
 }
 
-func (r *RepoDependencyProjectionRunner) replayWorkloadMaterialization(
-	ctx context.Context,
-	rows []sharedintent.Row,
-	freshness *repoDependencyGenerationFreshness,
-) (int, error) {
-	requestCount := 0
-	for _, request := range repoDependencyReplayRequests(rows) {
-		retired, err := freshness.retired(ctx, request.scopeID, request.generationID)
-		if err != nil {
-			return requestCount, err
-		}
-		if retired {
-			if freshness.firstSkip(request) {
-				r.recordRepoDependencyReplaySkipped(ctx, request, false)
-			}
-			continue
-		}
-		requestCount++
-		outcome, err := r.replayWorkloadMaterializationRequest(ctx, request)
-		if err != nil {
-			return requestCount, err
-		}
-		switch outcome {
-		case WorkloadMaterializationReplayScheduled:
-		case WorkloadMaterializationReplaySuperseded:
-			// A superseded stable item is nothing to replay only when the
-			// generation is retired. Re-check, because a supersede can land
-			// between the first check and this replay. On the active
-			// generation the queue never revives the item, so the owed
-			// materialization cannot run: count it and fail closed.
-			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
-			if err != nil {
-				return requestCount, err
-			}
-			if retiredNow {
-				if freshness.firstSkip(request) {
-					r.recordRepoDependencyReplaySkipped(ctx, request, false)
-				}
-				continue
-			}
-			r.recordRepoDependencyGenerationAnomaly(
-				ctx, request.scopeID, request.generationID, request.entityKey,
-				telemetry.RepoDependencyAnomalySupersededItemOnActiveGeneration, 1,
-			)
-			return requestCount, errRepoDependencyReplayNotScheduled(request)
-		default:
-			return requestCount, errRepoDependencyReplayNotScheduled(request)
-		}
-	}
-	return requestCount, nil
-}
-
-func errRepoDependencyReplayNotScheduled(request workloadMaterializationReplayRequest) error {
-	return fmt.Errorf(
-		"workload materialization replay was not scheduled for scope %q generation %q entity %q",
-		request.scopeID,
-		request.generationID,
-		request.entityKey,
-	)
-}
-
-func repoDependencyRunsOnFenceRequests(
+// repoDependencyFenceRequests groups rows by scope, generation, entity, and
+// repository, and builds one deterministic input-set fence per group from the
+// member intent IDs and acceptance epochs (created_at). A no-change cycle
+// reproduces the stored fence and leaves the succeeded verdict alone; any
+// member change (a new intent, a re-upserted created_at) moves the fence and
+// reopens the row (#10972).
+func repoDependencyFenceRequests(
 	rows []sharedintent.Row,
 ) ([]workloadMaterializationFenceRequest, error) {
 	type fenceGroup struct {
@@ -163,7 +107,7 @@ func repoDependencyRunsOnFenceRequests(
 		}
 		intentID := strings.TrimSpace(row.IntentID)
 		if intentID == "" || row.CreatedAt.IsZero() {
-			return nil, fmt.Errorf("repo dependency RUNS_ON workload readiness fence requires intent id and created_at")
+			return nil, fmt.Errorf("repo dependency workload replay fence requires intent id and created_at")
 		}
 		group.fenceInputs = append(
 			group.fenceInputs,
@@ -189,7 +133,7 @@ func repoDependencyRunsOnFenceRequests(
 		)
 		key.SourceRunID = RepoDependencyReadinessFenceSourceRunID(fence)
 		if err := key.Validate(); err != nil {
-			return nil, fmt.Errorf("build repo dependency RUNS_ON workload readiness fence: %w", err)
+			return nil, fmt.Errorf("build repo dependency workload replay fence: %w", err)
 		}
 		requests = append(requests, workloadMaterializationFenceRequest{
 			workloadMaterializationReplayRequest: group.request,
@@ -212,39 +156,6 @@ func repoDependencyAcceptanceUnitID(row sharedintent.Row) (string, bool) {
 		return value, true
 	}
 	return "", false
-}
-
-func repoDependencyReplayRequests(rows []sharedintent.Row) []workloadMaterializationReplayRequest {
-	seen := make(map[string]struct{}, len(rows))
-	requests := make([]workloadMaterializationReplayRequest, 0, len(rows))
-	for _, row := range rows {
-		scopeID := strings.TrimSpace(row.ScopeID)
-		generationID := strings.TrimSpace(row.GenerationID)
-		entityKey := repoDependencyReplayEntityKey(row)
-		if scopeID == "" || generationID == "" || entityKey == "" {
-			continue
-		}
-		key := scopeID + "|" + generationID + "|" + entityKey
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		requests = append(requests, workloadMaterializationReplayRequest{
-			scopeID:      scopeID,
-			generationID: generationID,
-			entityKey:    entityKey,
-		})
-	}
-	sort.Slice(requests, func(i, j int) bool {
-		if requests[i].scopeID != requests[j].scopeID {
-			return requests[i].scopeID < requests[j].scopeID
-		}
-		if requests[i].generationID != requests[j].generationID {
-			return requests[i].generationID < requests[j].generationID
-		}
-		return requests[i].entityKey < requests[j].entityKey
-	})
-	return requests
 }
 
 func repoDependencyReplayEntityKey(row sharedintent.Row) string {
@@ -391,7 +302,9 @@ func uniqueGenerationIDs(rows []sharedintent.Row) []string {
 }
 
 // repoDependencyRunsOnRows returns the active RUNS_ON rows whose graph write
-// requires a committed WorkloadInstance prerequisite.
+// requires a committed WorkloadInstance prerequisite. Only these rows gate
+// the pre-write readiness wait; the post-write replay fences every active
+// row, so a non-RUNS_ON-only change still re-materializes workload (#10972).
 func repoDependencyRunsOnRows(rows []sharedintent.Row) []sharedintent.Row {
 	runsOn := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
@@ -417,7 +330,7 @@ func (r *RepoDependencyProjectionRunner) ensureRunsOnWorkloadReadiness(
 	if r.WorkloadReadinessPrefetch == nil {
 		return false, 0, 0, fmt.Errorf("repo dependency RUNS_ON workload readiness prefetch is required")
 	}
-	requests, err := repoDependencyRunsOnFenceRequests(runsOn)
+	requests, err := repoDependencyFenceRequests(runsOn)
 	if err != nil {
 		return false, 0, 0, err
 	}

@@ -110,8 +110,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 				"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 				map[string]any{
 					"repo_id":           repoID,
-					"target_repo_id":    "repository:r_target_1",
-					"relationship_type": "DEPENDS_ON",
+					"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+					"relationship_type": "RUNS_ON",
 					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
@@ -122,8 +122,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 					"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 					map[string]any{
 						"repo_id":           repoID,
-						"target_repo_id":    "repository:r_target_1",
-						"relationship_type": "DEPENDS_ON",
+						"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+						"relationship_type": "RUNS_ON",
 						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
@@ -131,8 +131,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 					"active-2", "scope-a", repoID, repoID, "run-2", "gen-1", now.Add(time.Second),
 					map[string]any{
 						"repo_id":           repoID,
-						"target_repo_id":    "repository:r_target_2",
-						"relationship_type": "DEPLOYS_FROM",
+						"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+						"relationship_type": "RUNS_ON",
 						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
@@ -140,8 +140,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 					"active-3", "scope-b", repoID, repoID, "run-3", "gen-2", now.Add(2*time.Second),
 					map[string]any{
 						"repo_id":           repoID,
-						"target_repo_id":    "repository:r_target_3",
-						"relationship_type": "DEPENDS_ON",
+						"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+						"relationship_type": "RUNS_ON",
 						"evidence_source":   worker.DefaultEvidenceSource,
 					},
 				),
@@ -157,6 +157,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.SourceRunID {
 			case "run-1", "run-2":
@@ -197,14 +198,84 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 	}
 }
 
+// TestRepoDependencyProjectionRunnerReplaysFencedForNonRunsOnOnlyWrites pins
+// the #10972 Decision-4 discharge (path c): a DEPENDS_ON-only acceptance unit
+// still sends a fenced workload replay covering its own input set, so a pure
+// non-RUNS_ON change re-materializes workload instead of stranding a stale
+// verdict. A no-change cycle carries the same fence and stays quiet against
+// the stored one.
+func TestRepoDependencyProjectionRunnerReplaysFencedForNonRunsOnOnlyWrites(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 19, 14, 0, 0, 0, time.UTC)
+	repoID := "repository:r_repo_a"
+	dependsOn := repoDependencyIntentRow(
+		"depends-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
+		map[string]any{
+			"repo_id":           repoID,
+			"target_repo_id":    "repository:r_target_1",
+			"relationship_type": "DEPENDS_ON",
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
+		},
+	)
+	reader := &fakeRepoDependencyIntentStore{
+		pendingByDomain:         []sharedintent.Row{dependsOn},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {dependsOn}},
+		leaseGranted:            true,
+	}
+	writer := &recordingCodeCallProjectionEdgeWriter{}
+	replayer := &recordingWorkloadMaterializationReplayer{}
+	runner := RepoDependencyProjectionRunner{
+		IntentReader:                    reader,
+		LeaseManager:                    reader,
+		AcceptanceUnitGate:              reader,
+		EdgeWriter:                      writer,
+		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
+			if key.SourceRunID == "run-1" {
+				return "gen-1", true
+			}
+			return "", false
+		},
+		Config: RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
+	}
+
+	if _, err := runner.processOnce(context.Background(), now); err != nil {
+		t.Fatalf("processOnce() error = %v, want nil", err)
+	}
+	if got, want := len(writer.writeCalls), 1; got != want {
+		t.Fatalf("write calls = %d, want %d: the DEPENDS_ON row must still project", got, want)
+	}
+	if got, want := len(replayer.calls), 1; got != want {
+		t.Fatalf("replayer calls = %d, want %d: a DEPENDS_ON-only change must still re-materialize workload", got, want)
+	}
+	wantFences, err := repoDependencyFenceRequests([]sharedintent.Row{dependsOn})
+	if err != nil || len(wantFences) != 1 {
+		t.Fatalf("fence requests = (%d, %v), want (1, nil)", len(wantFences), err)
+	}
+	call := replayer.calls[0]
+	if !call.fenced {
+		t.Fatalf("replayer call = %#v, want a fenced request", call)
+	}
+	if call.scopeID != "scope-a" || call.generationID != "gen-1" || call.entityKey != "repo:r_repo_a" {
+		t.Fatalf("replayer call = %#v, want scope-a/gen-1/repo:r_repo_a", call)
+	}
+	if call.fence != wantFences[0].fence || call.repoID != repoID {
+		t.Fatalf("replayer call = %#v, want fence %q for repo %q", call, wantFences[0].fence, repoID)
+	}
+}
+
 func TestRepoDependencyReplayRequestsUseTargetForProvisionedDependencies(t *testing.T) {
 	t.Parallel()
 
 	rows := []sharedintent.Row{
 		{
+			IntentID:     "intent-1",
 			ScopeID:      "git-repository-scope:repository:r_service",
 			GenerationID: "gen-service",
 			RepositoryID: "repository:r_infra",
+			CreatedAt:    time.Date(2026, time.November, 27, 12, 0, 0, 0, time.UTC),
 			Payload: map[string]any{
 				"repo_id":           "repository:r_infra",
 				"target_repo_id":    "repository:r_service",
@@ -213,7 +284,10 @@ func TestRepoDependencyReplayRequestsUseTargetForProvisionedDependencies(t *test
 		},
 	}
 
-	requests := repoDependencyReplayRequests(rows)
+	requests, err := repoDependencyFenceRequests(rows)
+	if err != nil {
+		t.Fatalf("repoDependencyFenceRequests() error = %v", err)
+	}
 	if got, want := len(requests), 1; got != want {
 		t.Fatalf("len(requests) = %d, want %d", got, want)
 	}

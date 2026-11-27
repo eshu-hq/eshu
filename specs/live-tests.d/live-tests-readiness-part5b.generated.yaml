@@ -184,6 +184,11 @@ tests:
     class: postgres_ci
     reason: "#10880 PR-B2 supports not-ready deferral on the real ReducerQueue claim, fail and retry SQL, the real FactStore loader and the real SecurityAlertReconciliationHandler: a reconciliation whose supports table is not ready defers with the non-counting class across four claim cycles with attempt_count frozen at 1, nothing written and no dead letter, then, once the supports backfill reaches ready, runs at attempt 1 and writes exactly the decisions the plain-supports-SQL control writes (no finding-fact control exists: the C2 writer keeps findings in supports only)"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_unstamped_redrive_10972_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10972 disposable PostgreSQL proof that the unstamped re-drive fix holds behaviorally: a retouch keeps an outstanding row's queue position while advancing its cycle bound, and a fenced workload replay reopens a succeeded row only on a fence change"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_ack_contention_live_test.go
     tag: ~
     class: postgres_ci

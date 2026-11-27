@@ -139,6 +139,9 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_supports_not_ready_live_test.go": (
             "TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_unstamped_redrive_10972_live_test.go": (
+            "Test10972UnstampedRedriveLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_ack_contention_live_test.go": (
             "TestWaitingAckParkContentionLive",
         ),

@@ -52,11 +52,11 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 		},
 	)
 
-	oldFences, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{runsOnAtOldEpoch})
+	oldFences, err := repoDependencyFenceRequests([]sharedintent.Row{runsOnAtOldEpoch})
 	if err != nil || len(oldFences) != 1 {
 		t.Fatalf("old-epoch fence requests = (%d, %v), want (1, nil)", len(oldFences), err)
 	}
-	newFences, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{runsOnAfterUpsert})
+	newFences, err := repoDependencyFenceRequests([]sharedintent.Row{runsOnAfterUpsert})
 	if err != nil || len(newFences) != 1 {
 		t.Fatalf("new-epoch fence requests = (%d, %v), want (1, nil)", len(newFences), err)
 	}
@@ -132,16 +132,37 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 	if got := result.BlockedReadiness; got != 0 {
 		t.Fatalf("BlockedReadiness after readiness = %d, want 0", got)
 	}
-	// The post-write replay is an unfenced projection replay; only the fenced
-	// readiness request must stay at one.
-	fenced := 0
+	// The readiness-miss replay carries the RUNS_ON-only fence, while the
+	// post-write replay carries the all-active-rows fence (#10972 Decision 4,
+	// path c): the readiness gate waits on RUNS_ON inputs only, but the
+	// post-write replay covers every row so a DEPENDS_ON-only change still
+	// re-materializes. A no-change cycle reproduces the stored fence on both
+	// and stays quiet instead of reopening unconditionally.
+	allRowsFences, err := repoDependencyFenceRequests([]sharedintent.Row{runsOnAfterUpsert, pendingSibling})
+	if err != nil || len(allRowsFences) != 1 {
+		t.Fatalf("all-rows fence requests = (%d, %v), want (1, nil)", len(allRowsFences), err)
+	}
+	allRowsFence := allRowsFences[0]
+	if allRowsFence.fence == newFence.fence {
+		t.Fatalf("all-rows fence %q equals the RUNS_ON-only fence: the sibling must participate", allRowsFence.fence)
+	}
+	byFence := map[string]int{}
 	for _, replay := range replayer.calls {
 		if replay.fenced {
-			fenced++
+			if replay.repoID != repoID {
+				t.Fatalf("replay call = %#v, want repo %q", replay, repoID)
+			}
+			byFence[replay.fence]++
 		}
 	}
-	if got, want := fenced, 1; got != want {
-		t.Fatalf("fenced replays after readiness = %d, want still %d", got, want)
+	if got, want := byFence[newFence.fence], 1; got != want {
+		t.Fatalf("readiness-miss replays with the RUNS_ON fence = %d, want %d", got, want)
+	}
+	if got, want := byFence[allRowsFence.fence], 1; got != want {
+		t.Fatalf("post-write replays with the all-rows fence = %d, want %d", got, want)
+	}
+	if got, want := len(replayer.calls), 2; got != want {
+		t.Fatalf("replayer calls after readiness = %d, want %d: no unfenced replay remains", got, want)
 	}
 	if got, want := len(writer.writeCalls), 1; got != want {
 		t.Fatalf("write calls after readiness = %d, want %d", got, want)

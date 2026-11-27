@@ -331,44 +331,52 @@ WITH owed AS MATERIALIZED (
 SELECT 1 FROM acknowledged
 `
 
+// scheduleWorkloadMaterializationFencedReplayQuery records replay debt with
+// the new repo-dependency input-set fence ($3) without stealing an active
+// claim. A succeeded row reopens only when the new fence differs from the
+// stored one: an identical fence means an identical repo-dependency input
+// set, so the published verdict already covers them and a no-change
+// repo-dependency cycle must not ping-pong the row (#10972). An absent
+// stored fence still reopens (fail open). The payload always carries the
+// latest fence so the next comparison is against it. Every arm evaluates one
+// CASE on the locked row version: no new lock, no ordering change, no lease
+// touch.
 const scheduleWorkloadMaterializationFencedReplayQuery = `
 UPDATE fact_work_items
 SET status = CASE
-        WHEN status = 'succeeded' THEN 'pending'
+        WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN 'pending'
         ELSE status
     END,
-    attempt_count = CASE WHEN status = 'succeeded' THEN 0 ELSE attempt_count END,
+    attempt_count = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN 0 ELSE attempt_count END,
     payload = jsonb_set(
         jsonb_set(payload, '{repo_dependency_readiness_fence}', to_jsonb($3::text), TRUE),
         '{repo_dependency_readiness_repo_id}', to_jsonb($4::text), TRUE
     ),
-    lease_owner = CASE WHEN status = 'succeeded' THEN NULL ELSE lease_owner END,
-    claim_until = CASE WHEN status = 'succeeded' THEN NULL ELSE claim_until END,
-    visible_at = CASE WHEN status = 'succeeded' THEN $1 ELSE visible_at END,
-    next_attempt_at = CASE WHEN status = 'succeeded' THEN NULL ELSE next_attempt_at END,
+    lease_owner = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE lease_owner END,
+    claim_until = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE claim_until END,
+    visible_at = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN $1 ELSE visible_at END,
+    next_attempt_at = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE next_attempt_at END,
     updated_at = CASE
-        WHEN status = 'succeeded'
-          OR COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3
-            THEN $1
+        WHEN COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN $1
         ELSE updated_at
     END,
-    reopened_at = CASE WHEN status = 'succeeded' THEN $1 ELSE reopened_at END,
+    reopened_at = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN $1 ELSE reopened_at END,
     cross_scope_replay_required = CASE
         WHEN status IN ('claimed', 'running')
           AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3
             THEN TRUE
         ELSE cross_scope_replay_required
     END,
-    failure_class = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_class END,
-    failure_message = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_message END,
-    failure_details = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_details END
+    failure_class = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE failure_class END,
+    failure_message = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE failure_message END,
+    failure_details = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE failure_details END
 WHERE work_item_id = $2
   AND stage = 'reducer'
   AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
 `
 
 // ReplayWorkloadMaterializationForFence schedules workload materialization
-// carrying the deterministic RUNS_ON input fence that its successful handler
+// carrying the deterministic repo-dependency input-set fence that its successful handler
 // pass must publish. A concurrent first insert is followed by one update retry
 // so the winning row cannot retain an older token. It reports only whether
 // the replay was scheduled; use

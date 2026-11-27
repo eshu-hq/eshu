@@ -28,7 +28,7 @@ func TestRepoDependencyReplaySkipsWhenSupersedeLandsBetweenCheckAndReplay(t *tes
 	t.Parallel()
 
 	reader, writer, now := repoDependencyReplaySkipFixture("gen-a")
-	replayer := &outcomeWorkloadReplayer{outcomes: map[string]WorkloadMaterializationReplayOutcome{
+	replayer := &outcomeFenceWorkloadReplayer{outcomes: map[string]WorkloadMaterializationReplayOutcome{
 		"gen-a": WorkloadMaterializationReplaySuperseded,
 	}}
 	freshness := &freshnessByGeneration{sequence: map[string][]bool{"gen-a": {true, false}}}
@@ -39,6 +39,7 @@ func TestRepoDependencyReplaySkipsWhenSupersedeLandsBetweenCheckAndReplay(t *tes
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		GenerationFreshness:             freshness.check,
 		AcceptedGen:                     acceptByRunSuffix,
 		Instruments:                     instruments,
@@ -67,7 +68,7 @@ func TestRepoDependencyReplayFailsClosedOnSupersededItemWithoutFreshness(t *test
 	t.Parallel()
 
 	reader, writer, now := repoDependencyReplaySkipFixture("gen-a")
-	replayer := &outcomeWorkloadReplayer{outcomes: map[string]WorkloadMaterializationReplayOutcome{
+	replayer := &outcomeFenceWorkloadReplayer{outcomes: map[string]WorkloadMaterializationReplayOutcome{
 		"gen-a": WorkloadMaterializationReplaySuperseded,
 	}}
 	runner := RepoDependencyProjectionRunner{
@@ -76,12 +77,13 @@ func TestRepoDependencyReplayFailsClosedOnSupersededItemWithoutFreshness(t *test
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		AcceptedGen:                     acceptByRunSuffix,
 		Config:                          RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
 	}
 
 	_, err := runner.processOnce(context.Background(), now)
-	if err == nil || !strings.Contains(err.Error(), "workload materialization replay was not scheduled") {
+	if err == nil || !strings.Contains(err.Error(), "workload materialization fenced replay was not scheduled") {
 		t.Fatalf("processOnce() error = %v, want the unscheduled-replay error", err)
 	}
 	if got := len(reader.marked); got != 0 {
@@ -104,6 +106,7 @@ func TestRepoDependencyReplayRechecksFreshnessEachCycle(t *testing.T) {
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		GenerationFreshness:             freshness.check,
 		AcceptedGen:                     acceptByRunSuffix,
 		Config:                          RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},

@@ -124,12 +124,11 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 		}
 		result.UpsertedRows = writtenRows
 		if r.WorkloadMaterializationReplayer != nil {
-			replayStart := time.Now()
-			replayRequests, err := r.replayWorkloadMaterialization(ctx, active, freshness)
-			result.ReplayDurationSeconds += time.Since(replayStart).Seconds()
+			replayRequests, replayDuration, err := r.replayWorkloadMaterializationAfterWrite(ctx, active, freshness)
+			result.ReplayDurationSeconds += replayDuration.Seconds()
 			result.ReplayRequests += replayRequests
 			if err != nil {
-				return result, active, writtenGroups, fmt.Errorf("replay workload materialization after repo dependency projection: %w", err)
+				return result, active, writtenGroups, err
 			}
 		}
 	}
@@ -249,32 +248,6 @@ func validateRepoDependencySourceRepositoryIdentity(
 		)
 	}
 	return nil
-}
-
-// replayWorkloadMaterializationRequest sends one replay request and reports
-// the closed outcome. A replayer that does not implement
-// [WorkloadMaterializationOutcomeReplayer] reports only a boolean, so its
-// unscheduled answer stays [WorkloadMaterializationReplayNotScheduled] and the
-// caller fails closed on it.
-func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationRequest(
-	ctx context.Context,
-	request workloadMaterializationReplayRequest,
-) (WorkloadMaterializationReplayOutcome, error) {
-	if replayer, ok := r.WorkloadMaterializationReplayer.(WorkloadMaterializationOutcomeReplayer); ok {
-		return replayer.ReplayWorkloadMaterializationOutcome(
-			ctx, request.scopeID, request.generationID, request.entityKey,
-		)
-	}
-	replayed, err := r.WorkloadMaterializationReplayer.ReplayWorkloadMaterialization(
-		ctx, request.scopeID, request.generationID, request.entityKey,
-	)
-	if err != nil {
-		return WorkloadMaterializationReplayNotScheduled, err
-	}
-	if replayed {
-		return WorkloadMaterializationReplayScheduled, nil
-	}
-	return WorkloadMaterializationReplayNotScheduled, nil
 }
 
 // replayWorkloadMaterializationFenceRequest sends one fenced replay request
@@ -491,6 +464,34 @@ func (r *RepoDependencyProjectionRunner) recordInactiveAcceptedGenerationRows(
 			telemetry.RepoDependencyAnomalyInactiveAcceptedGeneration, counts[key],
 		)
 	}
+}
+
+// replayWorkloadMaterializationAfterWrite sends the post-write workload
+// replay for one acceptance unit's written rows. It fences every active row's
+// input set (not just RUNS_ON), so a no-change cycle compares equal against
+// the stored fence and leaves the succeeded verdict alone, while a pure
+// non-RUNS_ON change still re-materializes workload instead of stranding a
+// stale verdict (#10972). Retired generations are dropped before any replay,
+// and a replay the queue cannot schedule fails the cycle closed.
+func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationAfterWrite(
+	ctx context.Context,
+	active []sharedintent.Row,
+	freshness *repoDependencyGenerationFreshness,
+) (int, time.Duration, error) {
+	replayStart := time.Now()
+	fenceRequests, err := repoDependencyFenceRequests(active)
+	if err != nil {
+		return 0, 0, fmt.Errorf("replay workload materialization after repo dependency projection: %w", err)
+	}
+	fenceRequests, err = r.dropRetiredFenceRequests(ctx, fenceRequests, freshness)
+	if err != nil {
+		return 0, 0, fmt.Errorf("replay workload materialization after repo dependency projection: %w", err)
+	}
+	replayRequests, err := r.replayWorkloadMaterializationForFence(ctx, fenceRequests, freshness)
+	if err != nil {
+		return replayRequests, time.Since(replayStart), fmt.Errorf("replay workload materialization after repo dependency projection: %w", err)
+	}
+	return replayRequests, time.Since(replayStart), nil
 }
 
 func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationForFence(
