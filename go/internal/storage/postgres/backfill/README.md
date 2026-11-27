@@ -211,6 +211,121 @@ while the loader ran, and zero non-idle backfill backends remain after the
 loads return. Existing block telemetry (the `fact_load` block, the
 per-partition duration and fact-count histograms) is unchanged.
 
+## Reopen storm loop and circuit breaker
+
+On 2026-11-27 the QA deferred-maintenance pass entered a self-sustaining
+reopen storm: reopen waves of 64→3→50→442→670 rows on pass cadence while the
+memo table took 0 writes in 36h, so misses never healed and every pass
+reopened the whole succeeded floor pool faster than the reducer could drain
+it (queue depth 13109). The loop below is traced edge-to-edge in the code;
+every box cites its file and line.
+
+```text
+PASS (ingester shard drain)
+  RunDeferredRelationshipMaintenance
+  [postgres/ingestion_reopen_deployment_mapping.go:44]
+   |
+   +-- Track-1 gate: ApplyDeferredPartitionMemoGate
+   |   [backfill/partition_memo_gate.go:168]
+   |   hit  <=> memo row exists AND catalog_fingerprint == current pass's
+   |            DeferredCatalogFingerprint [partition_memo_fingerprint.go:43]
+   |            (over repo IDs, anchor terms, remote URLs)
+   |   miss <=> no row (bootstrap / ArgoCD-bearing /
+   |            WITHHELD publication) or fingerprint changed
+   |
+   +-- Phase two (ArgoCD config reload) times out on the budget sentinel
+   |   ==> degradePhaseTwoOnBudgetTimeout [phase_two_degrade.go:43]
+   |       whole fan-in WITHHELD: no readiness, no memo row
+   |       [engine.go:110-142], skip-set empty-but-non-nil
+   |       [scoped_load.go:163] (nothing provably redundant once
+   |       phase two is parked)
+   |
+   +-- Fan-in (clean pass only): publishDeferredBackfillPartition
+       [fanin.go:309] commits phase row + memo row atomically, AFTER
+       every evidence batch [fanin.go:401-407]; skips when the
+       generation advanced under the lock [fanin.go:339-358].
+       Withheld publication is the tolerated, self-healing direction —
+       UNLESS every pass withholds, in which case misses never heal.
+         |
+         v
+REOPEN (same transaction)
+  reopenMaintenanceWorkItemsInTransaction
+  [postgres/ingestion_reopen_deployment_mapping.go:97]
+   |
+   +-- deployment_mapping / code_import_repo_edge, each:
+   |     list floor pool (replay floor: active generation or newer)
+   |     -> applyReopenPartitionMemoGate
+   |        [postgres/ingestion_reopen_partition_memo_gate.go:111]
+   |        nil skip-set            ==> REOPEN ALL (standalone one-shot)
+   |        non-nil skip-set member ==> skip (provably redundant)
+   |        non-nil skip-set miss   ==> REOPEN (96%-miss pass reopens
+   |                                    the floor: THE STORM)
+   |     -> CIRCUIT BREAKER [postgres/ingestion_reopen_circuit_breaker.go:52]
+   |        park when candidates >= 20 AND miss fraction > 0.5:
+   |        zero reopens, rows stay succeeded for next pass,
+   |        `maintenance_reopen_circuit_breaker_open` line +
+   |        eshu_dp_maintenance_reopen_parked_by_breaker_total{domain}
+   |     -> reopenDeploymentMappingWorkItemsWithSkipSet [...:177] /
+   |        reopenCodeImportRepoEdgeWorkItemsWithSkipSet
+   |        [postgres/ingestion_reopen_code_import.go:50]
+   |
+   +-- correlation domains (unchanged; changed-evidence gated except
+       kubernetes_correlation_materialization)
+         |
+         v
+AMPLIFIER (reducer lane, per completion)
+  each deployment_mapping completion replays workload_materialization
+  ("deployment mapping resolved stronger evidence") via
+  ReplayWorkloadMaterializationOutcome [postgres/reducer_queue_replay.go:240],
+  triggered from repo_dependency_projection_acceptance_cycle.go:264-305.
+  Replays coalesce on the stable work_item_id (reopen-matched-row else
+  enqueue ON CONFLICT DO NOTHING else read-back): no code change needed,
+  the dribble stops when the waves stop feeding it.
+```
+
+Why the loop sustains: one fingerprint flip (any repo onboard, rename,
+removal, or `remote_url` change moves the digest) turns every partition
+into a Track-1 miss, so the pass does a full load; the full load's
+phase-two config pages exceed the budget and the pass degrades; the
+degraded pass withholds the whole fan-in, so no memo heals; the next
+pass misses again. Before the breaker, the degraded pass also reopened
+the floor unconditionally (nil skip-set); the skip-set now stays
+authoritative-empty so the breaker applies to degraded passes too, while
+standalone one-shot callers (nil skip-set, no periodic loop) keep the
+unconditional contract.
+
+Operator signals and alerts:
+
+- `deferred_backfill_catalog_fingerprint fingerprint=... anchor_terms=...
+  repo_ids=... remote_urls=...` (one line per pass, `engine.go`) with the
+  same values as span attributes on `relationship.backfill_deferred`.
+  ALERT when the fingerprint differs from the previous pass's line; the
+  sizes say which input arm moved.
+- `maintenance_reopen_circuit_breaker_open domain=... candidates=...
+  parked=... miss_fraction=...` plus
+  `eshu_dp_maintenance_reopen_parked_by_breaker_total{domain}`. ALERT on
+  any nonzero count: the redundancy signal collapsed that pass.
+- `deferred_backfill_completed_degraded ... parked_config_repos=...
+  affected_partitions=...` plus memo `max(committed_at)` going stale:
+  the fan-in is being withheld (phase-two budget or generation churn).
+- Proof the storm is over: wave amplitude → ~0 across two consecutive
+  passes, queue depth below high water, memo `max(committed_at)` fresh,
+  zero new dead letters.
+
+Performance Evidence (reopen breaker): 96%-miss pass (50 candidates, 48
+would-be reopens) runs 48 reopen execs before vs 0 execs + 1 park line
+after, on disposable Postgres 18 via the RED-first unit suite; small pools
+(<20) still reopen. Parking skips N `ReopenSucceeded` round-trips, so the
+bound is strictly cheaper than the storm path; parked rows retry next
+pass, so no owed replay is dropped and no worker/lease/queue shape
+changes. Safe direction: park on uncertainty, never skip.
+
+Observability Evidence (reopen breaker): no new metric beyond
+`eshu_dp_maintenance_reopen_parked_by_breaker_total{domain}` plus the
+`maintenance_reopen_circuit_breaker_open` line and `parked_by_breaker`
+span attr; rollout watch is wave amplitude, queue depth vs high water,
+memo freshness, and zero new dead letters.
+
 ## Gotchas / invariants
 
 - Batches publish nothing partition-wide. Readiness and memo rows come
