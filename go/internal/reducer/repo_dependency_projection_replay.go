@@ -16,7 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type workloadMaterializationReplayRequest struct {
@@ -73,67 +72,6 @@ type WorkloadMaterializationFenceOutcomeReplayer interface {
 // identity used by token-scoped workload readiness publications.
 func RepoDependencyReadinessFenceSourceRunID(fence string) string {
 	return repoDependencyReadinessFenceSourceRunPrefix + strings.TrimSpace(fence)
-}
-
-func (r *RepoDependencyProjectionRunner) replayWorkloadMaterialization(
-	ctx context.Context,
-	rows []sharedintent.Row,
-	freshness *repoDependencyGenerationFreshness,
-) (int, error) {
-	requestCount := 0
-	for _, request := range repoDependencyReplayRequests(rows) {
-		retired, err := freshness.retired(ctx, request.scopeID, request.generationID)
-		if err != nil {
-			return requestCount, err
-		}
-		if retired {
-			if freshness.firstSkip(request) {
-				r.recordRepoDependencyReplaySkipped(ctx, request, false)
-			}
-			continue
-		}
-		requestCount++
-		outcome, err := r.replayWorkloadMaterializationRequest(ctx, request)
-		if err != nil {
-			return requestCount, err
-		}
-		switch outcome {
-		case WorkloadMaterializationReplayScheduled:
-		case WorkloadMaterializationReplaySuperseded:
-			// A superseded stable item is nothing to replay only when the
-			// generation is retired. Re-check, because a supersede can land
-			// between the first check and this replay. On the active
-			// generation the queue never revives the item, so the owed
-			// materialization cannot run: count it and fail closed.
-			retiredNow, err := freshness.retiredNow(ctx, request.scopeID, request.generationID)
-			if err != nil {
-				return requestCount, err
-			}
-			if retiredNow {
-				if freshness.firstSkip(request) {
-					r.recordRepoDependencyReplaySkipped(ctx, request, false)
-				}
-				continue
-			}
-			r.recordRepoDependencyGenerationAnomaly(
-				ctx, request.scopeID, request.generationID, request.entityKey,
-				telemetry.RepoDependencyAnomalySupersededItemOnActiveGeneration, 1,
-			)
-			return requestCount, errRepoDependencyReplayNotScheduled(request)
-		default:
-			return requestCount, errRepoDependencyReplayNotScheduled(request)
-		}
-	}
-	return requestCount, nil
-}
-
-func errRepoDependencyReplayNotScheduled(request workloadMaterializationReplayRequest) error {
-	return fmt.Errorf(
-		"workload materialization replay was not scheduled for scope %q generation %q entity %q",
-		request.scopeID,
-		request.generationID,
-		request.entityKey,
-	)
 }
 
 func repoDependencyRunsOnFenceRequests(

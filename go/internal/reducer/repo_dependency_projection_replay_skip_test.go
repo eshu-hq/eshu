@@ -23,40 +23,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// outcomeWorkloadReplayer is a replayer that also reports the closed replay
-// outcome, keyed by generation id.
-type outcomeWorkloadReplayer struct {
-	mu       sync.Mutex
-	calls    []workloadMaterializationReplayCall
-	outcomes map[string]WorkloadMaterializationReplayOutcome
-}
-
-func (r *outcomeWorkloadReplayer) ReplayWorkloadMaterialization(
-	ctx context.Context,
-	scopeID, generationID, entityKey string,
-) (bool, error) {
-	outcome, err := r.ReplayWorkloadMaterializationOutcome(ctx, scopeID, generationID, entityKey)
-	return outcome == WorkloadMaterializationReplayScheduled, err
-}
-
-func (r *outcomeWorkloadReplayer) ReplayWorkloadMaterializationOutcome(
-	_ context.Context,
-	scopeID, generationID, entityKey string,
-) (WorkloadMaterializationReplayOutcome, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.calls = append(r.calls, workloadMaterializationReplayCall{
-		scopeID: scopeID, generationID: generationID, entityKey: entityKey,
-	})
-	if outcome, ok := r.outcomes[generationID]; ok {
-		return outcome, nil
-	}
-	return WorkloadMaterializationReplayScheduled, nil
-}
-
 // outcomeFenceWorkloadReplayer is a RUNS_ON fenced replayer that also reports
-// the closed replay outcome, keyed by generation id. It mirrors
-// outcomeWorkloadReplayer for the readiness path.
+// the closed replay outcome, keyed by generation id.
 type outcomeFenceWorkloadReplayer struct {
 	mu       sync.Mutex
 	calls    []workloadMaterializationReplayCall
@@ -143,8 +111,8 @@ func repoDependencyReplaySkipFixture(
 			now.Add(time.Duration(i)*time.Second),
 			map[string]any{
 				"repo_id":           repoID,
-				"target_repo_id":    "repository:r_target_" + generationID,
-				"relationship_type": "DEPENDS_ON",
+				"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+				"relationship_type": "RUNS_ON",
 				"evidence_source":   worker.DefaultEvidenceSource,
 			},
 		))
@@ -232,6 +200,7 @@ func TestRepoDependencyReplaySkipsSupersededGenerationRequest(t *testing.T) {
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		GenerationFreshness:             freshness.check,
 		AcceptedGen:                     acceptByRunSuffix,
 		Instruments:                     instruments,
@@ -266,7 +235,7 @@ func TestRepoDependencyReplayFailsClosedOnSupersededItemOnActiveGeneration(t *te
 	t.Parallel()
 
 	reader, writer, now := repoDependencyReplaySkipFixture("gen-a")
-	replayer := &outcomeWorkloadReplayer{outcomes: map[string]WorkloadMaterializationReplayOutcome{
+	replayer := &outcomeFenceWorkloadReplayer{outcomes: map[string]WorkloadMaterializationReplayOutcome{
 		"gen-a": WorkloadMaterializationReplaySuperseded,
 	}}
 	freshness := &freshnessByGeneration{current: map[string]bool{"gen-a": true}}
@@ -277,6 +246,7 @@ func TestRepoDependencyReplayFailsClosedOnSupersededItemOnActiveGeneration(t *te
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		GenerationFreshness:             freshness.check,
 		AcceptedGen:                     acceptByRunSuffix,
 		Instruments:                     instruments,
@@ -284,7 +254,7 @@ func TestRepoDependencyReplayFailsClosedOnSupersededItemOnActiveGeneration(t *te
 	}
 
 	_, err := runner.processOnce(context.Background(), now)
-	if err == nil || !strings.Contains(err.Error(), "workload materialization replay was not scheduled") {
+	if err == nil || !strings.Contains(err.Error(), "workload materialization fenced replay was not scheduled") {
 		t.Fatalf("processOnce() error = %v, want the unscheduled-replay error", err)
 	}
 	if !strings.Contains(err.Error(), "quarantine repo dependency lease") {
@@ -312,7 +282,7 @@ func TestRepoDependencyReplayStillFailsClosedOnActiveGeneration(t *testing.T) {
 		replayer platformfam.WorkloadMaterializationReplayer
 	}{
 		{name: "boolean replayer", replayer: &recordingWorkloadMaterializationReplayer{reject: true}},
-		{name: "outcome replayer", replayer: &outcomeWorkloadReplayer{
+		{name: "outcome replayer", replayer: &outcomeFenceWorkloadReplayer{
 			outcomes: map[string]WorkloadMaterializationReplayOutcome{
 				"gen-a": WorkloadMaterializationReplayNotScheduled,
 			},
@@ -330,6 +300,7 @@ func TestRepoDependencyReplayStillFailsClosedOnActiveGeneration(t *testing.T) {
 				AcceptanceUnitGate:              reader,
 				EdgeWriter:                      writer,
 				WorkloadMaterializationReplayer: tt.replayer,
+				WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 				GenerationFreshness:             freshness.check,
 				AcceptedGen:                     acceptByRunSuffix,
 				Instruments:                     instruments,
@@ -337,7 +308,7 @@ func TestRepoDependencyReplayStillFailsClosedOnActiveGeneration(t *testing.T) {
 			}
 
 			_, err := runner.processOnce(context.Background(), now)
-			if err == nil || !strings.Contains(err.Error(), "workload materialization replay was not scheduled") {
+			if err == nil || !strings.Contains(err.Error(), "workload materialization fenced replay was not scheduled") {
 				t.Fatalf("processOnce() error = %v, want the unscheduled-replay error", err)
 			}
 			if got := len(reader.marked); got != 0 {
@@ -369,6 +340,7 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 			AcceptanceUnitGate:              reader,
 			EdgeWriter:                      writer,
 			WorkloadMaterializationReplayer: replayer,
+			WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 			GenerationFreshness:             freshness.check,
 			AcceptedGen:                     acceptByRunSuffix,
 			Config:                          RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
@@ -397,6 +369,7 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 			AcceptanceUnitGate:              reader,
 			EdgeWriter:                      writer,
 			WorkloadMaterializationReplayer: replayer,
+			WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 			GenerationFreshness:             freshness.check,
 			AcceptedGen:                     acceptByRunSuffix,
 			Config:                          RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
@@ -420,6 +393,7 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 			AcceptanceUnitGate:              reader,
 			EdgeWriter:                      writer,
 			WorkloadMaterializationReplayer: replayer,
+			WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 			GenerationFreshness:             freshness.check,
 			AcceptedGen:                     acceptByRunSuffix,
 			Config:                          RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
@@ -440,14 +414,18 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 		repoID := "repository:r_fixture01"
-		mkRow := func(id, target string) sharedintent.Row {
+		// RUNS_ON rows: the post-write replay carries RUNS_ON input-set
+		// fences (#10972). The readiness pass and the post-write pass build
+		// the same fence request for the scope generation, so both passes
+		// share one generation-freshness lookup.
+		mkRow := func(id string) sharedintent.Row {
 			return repoDependencyIntentRow(id, "scope-a", repoID, repoID, "run-gen-a", "gen-a", now, map[string]any{
-				"repo_id": repoID, "target_repo_id": target,
-				"relationship_type": "PROVISIONS_DEPENDENCY_FOR", "evidence_source": worker.DefaultEvidenceSource,
+				"repo_id": repoID, "platform_id": "platform:kubernetes:none:cluster/prod:none:none",
+				"relationship_type": "RUNS_ON", "evidence_source": worker.DefaultEvidenceSource,
 			})
 		}
 		rows := []sharedintent.Row{
-			mkRow("i1", "repository:r_t1"), mkRow("i2", "repository:r_t2"), mkRow("i3", "repository:r_t1"),
+			mkRow("i1"), mkRow("i2"),
 		}
 		reader := &fakeRepoDependencyIntentStore{
 			pendingByDomain:         rows,
@@ -462,6 +440,7 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 			AcceptanceUnitGate:              reader,
 			EdgeWriter:                      &recordingCodeCallProjectionEdgeWriter{},
 			WorkloadMaterializationReplayer: replayer,
+			WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 			GenerationFreshness:             freshness.check,
 			AcceptedGen:                     acceptByRunSuffix,
 			Config:                          RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
@@ -469,8 +448,8 @@ func TestRepoDependencyReplayFreshnessEdgeCases(t *testing.T) {
 		if _, err := runner.processOnce(context.Background(), now); err != nil {
 			t.Fatalf("processOnce() error = %v", err)
 		}
-		if got, want := len(replayer.calls), 2; got != want {
-			t.Fatalf("replayer calls = %d, want %d distinct entities", got, want)
+		if got, want := len(replayer.calls), 1; got != want {
+			t.Fatalf("replayer calls = %d, want %d fence request from the post-write pass", got, want)
 		}
 		if got := freshness.lookups["gen-a"]; got != 1 {
 			t.Fatalf("freshness lookups for gen-a = %d, want 1", got)

@@ -13,14 +13,16 @@ import (
 // retouchReducerWorkItemQuery records a same-generation re-touch of one
 // work item without stealing an active claim (#10411). Succeeded work
 // reopens with the shared set clause; pending or retrying work keeps its
-// status but advances reopened_at, which is what the claim read derives
-// CycleStartedAt from, so freshness gates anchored on the cycle start
-// (the advisory-group winners watermark) wait for the later commit, not
-// the first enqueue; claimed or running work keeps its lease, advances
-// reopened_at in place (so a Fail to retrying -- whose trigger only
-// clears the replay bit -- still retries against the later bound), and
-// carries the durable replay bit so an ACK-success returns it to pending
-// for a rerun instead of succeeding.
+// status and its updated_at -- so the fair-rank claim order keeps the
+// row's queue position instead of requeueing it behind the backlog
+// (#10972) -- but still advances reopened_at, which is what the claim
+// read derives CycleStartedAt from, so freshness gates anchored on the
+// cycle start (the advisory-group winners watermark) wait for the later
+// commit, not the first enqueue; claimed or running work keeps its lease,
+// advances reopened_at in place (so a Fail to retrying -- whose trigger
+// only clears the replay bit -- still retries against the later bound),
+// and carries the durable replay bit so an ACK-success returns it to
+// pending for a rerun instead of succeeding.
 //
 // Terminal work (#10566) reopens with the succeeded shape: a touch landing
 // on a failed or dead-letter slot is new evidence, not the same poison, so
@@ -54,7 +56,7 @@ SET status = CASE
     claim_until = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE claim_until END,
     visible_at = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN $1 ELSE visible_at END,
     next_attempt_at = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN NULL ELSE next_attempt_at END,
-    updated_at = $1,
+    updated_at = CASE WHEN status IN ('succeeded', 'failed', 'dead_letter') THEN $1 ELSE updated_at END,
     reopened_at = $1,
     cross_scope_replay_required = CASE
         WHEN status IN ('claimed', 'running') THEN TRUE

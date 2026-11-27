@@ -110,8 +110,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 				"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 				map[string]any{
 					"repo_id":           repoID,
-					"target_repo_id":    "repository:r_target_1",
-					"relationship_type": "DEPENDS_ON",
+					"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+					"relationship_type": "RUNS_ON",
 					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
@@ -122,8 +122,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 					"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 					map[string]any{
 						"repo_id":           repoID,
-						"target_repo_id":    "repository:r_target_1",
-						"relationship_type": "DEPENDS_ON",
+						"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+						"relationship_type": "RUNS_ON",
 						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
@@ -131,8 +131,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 					"active-2", "scope-a", repoID, repoID, "run-2", "gen-1", now.Add(time.Second),
 					map[string]any{
 						"repo_id":           repoID,
-						"target_repo_id":    "repository:r_target_2",
-						"relationship_type": "DEPLOYS_FROM",
+						"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+						"relationship_type": "RUNS_ON",
 						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
@@ -140,8 +140,8 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 					"active-3", "scope-b", repoID, repoID, "run-3", "gen-2", now.Add(2*time.Second),
 					map[string]any{
 						"repo_id":           repoID,
-						"target_repo_id":    "repository:r_target_3",
-						"relationship_type": "DEPENDS_ON",
+						"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
+						"relationship_type": "RUNS_ON",
 						"evidence_source":   worker.DefaultEvidenceSource,
 					},
 				),
@@ -157,6 +157,7 @@ func TestRepoDependencyProjectionRunnerReplaysWorkloadMaterializationForActiveRe
 		AcceptanceUnitGate:              reader,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.SourceRunID {
 			case "run-1", "run-2":

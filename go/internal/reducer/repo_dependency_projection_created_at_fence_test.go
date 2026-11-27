@@ -132,16 +132,23 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 	if got := result.BlockedReadiness; got != 0 {
 		t.Fatalf("BlockedReadiness after readiness = %d, want 0", got)
 	}
-	// The post-write replay is an unfenced projection replay; only the fenced
-	// readiness request must stay at one.
+	// The post-write replay carries the same RUNS_ON fence as the readiness
+	// request (#10972): a no-change cycle compares equal against the stored
+	// fence instead of reopening unconditionally.
 	fenced := 0
 	for _, replay := range replayer.calls {
 		if replay.fenced {
 			fenced++
+			if replay.fence != newFence.fence || replay.repoID != repoID {
+				t.Fatalf("replay call = %#v, want fenced request with new token %q", replay, newFence.fence)
+			}
 		}
 	}
-	if got, want := fenced, 1; got != want {
-		t.Fatalf("fenced replays after readiness = %d, want still %d", got, want)
+	if got, want := fenced, 2; got != want {
+		t.Fatalf("fenced replays after readiness = %d, want %d (readiness plus post-write)", got, want)
+	}
+	if got, want := len(replayer.calls), 2; got != want {
+		t.Fatalf("replayer calls after readiness = %d, want %d: no unfenced replay remains", got, want)
 	}
 	if got, want := len(writer.writeCalls), 1; got != want {
 		t.Fatalf("write calls after readiness = %d, want %d", got, want)
