@@ -44,10 +44,11 @@ jobs:
         with:
           path: /tmp/eshu-ci/go-build
           key: ${{ runner.os }}-${{ runner.arch }}-gobuildrace-v2-${{ hashFiles('go/go.mod', 'go/go.sum') }}
+          # Race-only fallbacks: never restore non-race gobuild- before saving
+          # gobuildrace-v2-, or non-race .a files bloat the saved race archive.
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuildrace-v2-
             ${{ runner.os }}-${{ runner.arch }}-gobuildrace-
-            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:

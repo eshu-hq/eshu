@@ -178,14 +178,18 @@ func TestGoBuildCacheWiring(t *testing.T) {
 	}
 }
 
-// TestGoRaceCacheWarmParity pins CGO_CFLAGS and gobuildrace primary cache key
-// parity between test.yml (go-race) and go-race-cache-warm.yml so warmed CGo
-// and race artifacts hit cleanly across all 12 shards.
+// TestGoRaceCacheWarmParity pins CGO_CFLAGS, runs-on, and gobuildrace primary
+// cache key parity between test.yml (go-race) and go-race-cache-warm.yml so
+// warmed CGo and race artifacts hit cleanly across all 12 shards.
 func TestGoRaceCacheWarmParity(t *testing.T) {
 	t.Parallel()
+	type parityJob struct {
+		RunsOn string          `yaml:"runs-on"`
+		Steps  []readinessStep `yaml:"steps"`
+	}
 	type workflowEnv struct {
-		Env  map[string]string       `yaml:"env"`
-		Jobs map[string]readinessJob `yaml:"jobs"`
+		Env  map[string]string    `yaml:"env"`
+		Jobs map[string]parityJob `yaml:"jobs"`
 	}
 	load := func(name string) workflowEnv {
 		t.Helper()
@@ -199,7 +203,7 @@ func TestGoRaceCacheWarmParity(t *testing.T) {
 		}
 		return wf
 	}
-	restoreKey := func(wfName, jobName string, wf workflowEnv) string {
+	restoreKeyAndRunner := func(wfName, jobName string, wf workflowEnv) (string, string) {
 		t.Helper()
 		job, ok := wf.Jobs[jobName]
 		if !ok {
@@ -207,11 +211,11 @@ func TestGoRaceCacheWarmParity(t *testing.T) {
 		}
 		for _, step := range job.Steps {
 			if step.Uses == "actions/cache/restore@v4" && step.With["path"] == goBuildCacheDir {
-				return strings.TrimSpace(step.With["key"])
+				return strings.TrimSpace(step.With["key"]), strings.TrimSpace(job.RunsOn)
 			}
 		}
 		t.Fatalf("%s %s: missing %s restore step", wfName, jobName, goBuildCacheDir)
-		return ""
+		return "", ""
 	}
 	testWF := load("test.yml")
 	warmWF := load("go-race-cache-warm.yml")
@@ -219,10 +223,13 @@ func TestGoRaceCacheWarmParity(t *testing.T) {
 		t.Errorf("CGO_CFLAGS mismatch: test.yml=%q go-race-cache-warm.yml=%q",
 			testWF.Env["CGO_CFLAGS"], warmWF.Env["CGO_CFLAGS"])
 	}
-	testKey := restoreKey("test.yml", "go-race", testWF)
-	warmKey := restoreKey("go-race-cache-warm.yml", "warm-go-race-cache", warmWF)
+	testKey, testRunner := restoreKeyAndRunner("test.yml", "go-race", testWF)
+	warmKey, warmRunner := restoreKeyAndRunner("go-race-cache-warm.yml", "warm-go-race-cache", warmWF)
 	if testKey == "" || testKey != warmKey {
 		t.Errorf("gobuildrace cache key mismatch: test.yml=%q go-race-cache-warm.yml=%q", testKey, warmKey)
+	}
+	if testRunner == "" || testRunner != warmRunner {
+		t.Errorf("runs-on mismatch: test.yml=%q go-race-cache-warm.yml=%q", testRunner, warmRunner)
 	}
 }
 
