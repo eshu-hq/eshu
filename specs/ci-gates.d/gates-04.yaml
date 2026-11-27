@@ -372,7 +372,7 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
     local:
       command: "bash scripts/verify-query-methodology.sh --static"
-      test_command: "python3 scripts/test-query-methodology-comparison-identity.py && python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh"
+      test_command: "python3 scripts/test-query-methodology-comparison-identity.py && python3 scripts/test-verify-query-methodology-live-contract.py && bash scripts/test-verify-query-methodology.sh && python3 scripts/ci/test-query-plan-filter-superset.py"
       pre_push: floor
     ci:
       workflow: test.yml

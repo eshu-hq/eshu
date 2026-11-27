@@ -80,7 +80,7 @@ def extract_snippet(code: str, start_line: int) -> str:
 def relative_uri(file_path: str, base_dir: Path | None) -> str:
     raw = file_path.strip()
     if not raw:
-        return ""
+        raise ValueError("gosec issue missing non-empty file path")
     if base_dir is not None:
         try:
             rel = Path(raw).resolve().relative_to(base_dir.resolve())

@@ -135,6 +135,7 @@ build_fixture() {
 	printf 'run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@%s\n' "${gosec_version}" \
 		>"${fx}/.github/workflows/security-scan.yml"
 	for p in scripts/dev/precommit-go.sh scripts/lib/precommit-go-gosec.sh \
+		scripts/lib/gosec-json-to-sarif.py \
 		scripts/ci/go-install-retry.sh scripts/ci/go-mod-download-retry.sh; do
 		printf '# fixture\n' >"${fx}/${p}"
 	done
@@ -268,6 +269,7 @@ expect_no_scan "R2 gosec-changed"
 
 # --- R3: each whole-module trigger file widens the scan to every package, as explicit dirs
 for p in go/go.mod go/go.sum scripts/dev/precommit-go.sh scripts/lib/precommit-go-gosec.sh \
+	scripts/lib/gosec-json-to-sarif.py \
 	scripts/ci/go-install-retry.sh scripts/ci/go-mod-download-retry.sh .github/workflows/security-scan.yml; do
 	topic; if [ "${p}" = go/go.mod ]; then printf '// changed\n' >>"${fx}/${p}"; else printf '# changed\n' >>"${fx}/${p}"; fi; commit_all
 	run_arm STUB_MODE=ok bash "${script}" gosec-changed
@@ -442,18 +444,18 @@ else
 	fail "S1: clean SARIF missing or invalid (${sarif_clean})"
 fi
 sarif_err="${tmp_root}/err.sarif"
+printf '{"stale":true}\n' >"${sarif_err}"
 run_arm STUB_MODE=zero GOSEC_SARIF_OUT="${sarif_err}" bash "${script}" gosec-all
 check "S2 gosec-all with GOSEC_SARIF_OUT short scan fails closed" 1 'scanned 0 of'
-if [ -e "${sarif_err}" ]; then fail "S2: SARIF written on failed short scan"; else pass "S2: no SARIF written on short scan"; fi
+if [ -e "${sarif_err}" ]; then fail "S2: stale SARIF survived failed short scan"; else pass "S2: stale SARIF removed on failed short scan"; fi
 use_real
 topic; plant_g301; commit_all
-sarif_dirty="${tmp_root}/dirty.sarif"
-run_arm GOSEC_SARIF_OUT="${sarif_dirty}" bash "${script}" gosec-all
-check "S3 gosec-all with GOSEC_SARIF_OUT planted G301 exits 1" 1 'G301'
-if [ -s "${sarif_dirty}" ] && jq -e '.runs[0].results | any(.ruleId == "G301")' "${sarif_dirty}" >/dev/null 2>&1; then
-	pass "S3: finding SARIF 2.1.0 written before exit 1"
+run_arm GOSEC_SARIF_OUT="go/gosec.sarif" bash "${script}" gosec-all
+check "S3 gosec-all with relative GOSEC_SARIF_OUT planted G301 exits 1" 1 'G301'
+if [ -s "${fx}/go/gosec.sarif" ] && jq -e '.runs[0].results | any(.ruleId == "G301" and .locations[0].physicalLocation.artifactLocation.uri == "go/internal/bad/bad.go")' "${fx}/go/gosec.sarif" >/dev/null 2>&1; then
+	pass "S3: relative SARIF 2.1.0 written with repo-relative URI before exit 1"
 else
-	fail "S3: finding SARIF missing G301 (${sarif_dirty})"
+	fail "S3: finding SARIF missing G301 or repo-relative URI (${fx}/go/gosec.sarif)"
 fi
 if python3 "${repo_root}/scripts/test-gosec-json-to-sarif.py" >/dev/null 2>&1; then
 	pass "S4: gosec-json-to-sarif unit suite passed"

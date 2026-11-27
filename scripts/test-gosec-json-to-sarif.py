@@ -128,6 +128,20 @@ class GosecJsonToSarifTest(unittest.TestCase):
             self.assertNotEqual(run_converter(missing_keys, out, root).returncode, 0)
             self.assertFalse(out.exists())
 
+            empty_file = root / "empty_file.json"
+            empty_file.write_text(
+                json.dumps(
+                    {
+                        "Golang errors": {},
+                        "Issues": [{"rule_id": "G301", "file": "", "line": "1", "column": "1"}],
+                        "Stats": {"files": 1},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertNotEqual(run_converter(empty_file, out, root).returncode, 0)
+            self.assertFalse(out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
