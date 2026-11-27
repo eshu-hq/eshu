@@ -66,58 +66,58 @@ assert_scope "multi-package _test.go-only PR sorts and dedupes packages" \
 	'go/internal/storage/postgres/a_test.go' \
 	'go/internal/alpha/a_test.go'
 
-# 4. Mixed *_test.go + production .go -> full 8 shards.
+# 4. Mixed *_test.go + production .go -> full 12 shards.
 assert_scope "mixed _test.go and production .go stays full" \
-	pull_request full '[1,2,3,4,5,6,7,8]' '' \
+	pull_request full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 	'go/internal/alpha/a_test.go' \
 	'go/internal/alpha/a.go'
 
-# 5. *_test.go + testdata fixture -> full 8 shards.
+# 5. *_test.go + testdata fixture -> full 12 shards.
 assert_scope "_test.go plus testdata fixture stays full" \
-	pull_request full '[1,2,3,4,5,6,7,8]' '' \
+	pull_request full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 	'go/internal/alpha/a_test.go' \
 	'go/internal/alpha/testdata/sample.json'
 
-# 5b. testdata/*_test.go fixture -> full 8 shards (testdata is not a Go package).
+# 5b. testdata/*_test.go fixture -> full 12 shards (testdata is not a Go package).
 mkdir -p "${fake_repo}/go/internal/alpha/testdata"
 printf 'package sample\n' >"${fake_repo}/go/internal/alpha/testdata/fixture_test.go"
 assert_scope "go/**/testdata/*_test.go fixture fails closed to full" \
-	pull_request full '[1,2,3,4,5,6,7,8]' '' \
+	pull_request full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 	'go/internal/alpha/testdata/fixture_test.go'
 
-# 6. *_test.go + markdown -> full 8 shards.
+# 6. *_test.go + markdown -> full 12 shards.
 assert_scope "_test.go plus markdown stays full" \
-	pull_request full '[1,2,3,4,5,6,7,8]' '' \
+	pull_request full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 	'go/internal/alpha/a_test.go' \
 	'docs/public/guide.md'
 
-# 7. sdk/go/*_test.go -> full 8 shards (separate module).
+# 7. sdk/go/*_test.go -> full 12 shards (separate module).
 assert_scope "sdk/go _test.go stays full" \
-	pull_request full '[1,2,3,4,5,6,7,8]' '' \
+	pull_request full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 	'sdk/go/collector/client_test.go'
 
 # 8. Non-PR events always stay full.
 for ev in push schedule workflow_dispatch; do
 	assert_scope "event=${ev} always stays full" \
-		"${ev}" full '[1,2,3,4,5,6,7,8]' '' \
+		"${ev}" full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 		'go/internal/alpha/a_test.go'
 done
 
 # 9. Deleted package directory fails closed to full.
 assert_scope "deleted package directory fails closed to full" \
-	pull_request full '[1,2,3,4,5,6,7,8]' '' \
+	pull_request full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 	'go/internal/deletedpkg/removed_test.go'
 
 # 10. Parent traversal path fails closed to full.
 assert_scope "parent traversal path fails closed to full" \
-	pull_request full '[1,2,3,4,5,6,7,8]' '' \
+	pull_request full '[1,2,3,4,5,6,7,8,9,10,11,12]' '' \
 	'go/internal/alpha/../alpha/a_test.go'
 
 # 11. Empty diff fails closed to full.
 empty_file="${tmp}/empty.txt"
 : >"${empty_file}"
 out="$(bash "${resolver}" --event pull_request --repo-root "${fake_repo}" --changed-files "${empty_file}")"
-if [[ "${out}" == *$'scope=full'* && "${out}" == *$'shards=[1,2,3,4,5,6,7,8]'* ]]; then
+if [[ "${out}" == *$'scope=full'* && "${out}" == *$'shards=[1,2,3,4,5,6,7,8,9,10,11,12]'* ]]; then
 	ok "empty diff fails closed to full"
 else
 	bad "empty diff should fail closed to full, got: ${out}"
@@ -130,7 +130,7 @@ for i in $(seq 1 301); do
 	printf 'go/internal/alpha/f%d_test.go\n' "${i}" >>"${many_file}"
 done
 out="$(bash "${resolver}" --event pull_request --repo-root "${fake_repo}" --changed-files "${many_file}")"
-if [[ "${out}" == *$'scope=full'* && "${out}" == *$'shards=[1,2,3,4,5,6,7,8]'* ]]; then
+if [[ "${out}" == *$'scope=full'* && "${out}" == *$'shards=[1,2,3,4,5,6,7,8,9,10,11,12]'* ]]; then
 	ok ">300 files fails closed to full"
 else
 	bad ">300 files should fail closed to full, got: ${out}"
@@ -174,7 +174,7 @@ git -C "${git_repo}" commit -q -m "rename prod to test"
 git -C "${git_repo}" checkout -q main
 git -C "${git_repo}" merge -q --no-ff pr-rename-prod -m "merge rename prod"
 out="$(bash "${resolver}" --event pull_request --repo-root "${git_repo}")"
-if [[ "${out}" == *$'scope=full'* && "${out}" == *$'shards=[1,2,3,4,5,6,7,8]'* ]]; then
+if [[ "${out}" == *$'scope=full'* && "${out}" == *$'shards=[1,2,3,4,5,6,7,8,9,10,11,12]'* ]]; then
 	ok "git mv prod.go -> _test.go fails closed to full"
 else
 	bad "git mv prod.go -> _test.go must fail closed to full, got: ${out}"
@@ -282,20 +282,20 @@ all_pkgs="${tmp}/all-pkgs.txt"
 } | LC_ALL=C sort -u >"${all_pkgs}"
 union_pkgs="${tmp}/union-pkgs.txt"
 : >"${union_pkgs}"
-for idx in 1 2 3 4 5 6 7 8; do
-	python3 "${selector}" --weights "${real_weights}" --shard-index "${idx}" --shard-total 8 <"${all_pkgs}" >>"${union_pkgs}"
+for idx in 1 2 3 4 5 6 7 8 9 10 11 12; do
+	python3 "${selector}" --weights "${real_weights}" --shard-index "${idx}" --shard-total 12 <"${all_pkgs}" >>"${union_pkgs}"
 done
 if diff -u "${all_pkgs}" <(LC_ALL=C sort "${union_pkgs}") >/dev/null &&
 	[[ "$(wc -l <"${all_pkgs}")" -eq "$(wc -l <"${union_pkgs}")" ]]; then
-	ok "select-go-race-shard.py forms an exact disjoint partition across all 8 shards"
+	ok "select-go-race-shard.py forms an exact disjoint partition across all 12 shards"
 else
-	bad "select-go-race-shard.py partition mismatch across 8 shards"
+	bad "select-go-race-shard.py partition mismatch across 12 shards"
 fi
 
 # Verify heaviest package (internal/cigates) is separated from second-heaviest (internal/content/artifacts).
 # Uses awk (not rg) so this test stays hermetic on ubuntu-24.04 runners where ripgrep is not installed.
 shard1_real="${tmp}/shard1-real.txt"
-python3 "${selector}" --weights "${real_weights}" --shard-index 1 --shard-total 8 <"${all_pkgs}" >"${shard1_real}"
+python3 "${selector}" --weights "${real_weights}" --shard-index 1 --shard-total 12 <"${all_pkgs}" >"${shard1_real}"
 if awk -v want='github.com/eshu-hq/eshu/go/internal/cigates' '$0 == want { found = 1 } END { exit !found }' "${shard1_real}" &&
 	! awk -v want='github.com/eshu-hq/eshu/go/internal/content/artifacts' '$0 == want { found = 1 } END { exit !found }' "${shard1_real}"; then
 	ok "select-go-race-shard.py isolates internal/cigates from internal/content/artifacts"
@@ -303,34 +303,59 @@ else
 	bad "select-go-race-shard.py failed to separate top heavy packages"
 fi
 
-# 16. Fail closed on invalid shard args, missing weights path, and malformed/non-finite/duplicate TSV rows.
-if python3 "${selector}" --weights "${real_weights}" --shard-index 9 --shard-total 8 <"${all_pkgs}" >/dev/null 2>&1; then
+# 15b. Compile overhead spreads small packages onto heavy-package shards once small-package cost passes the heavy weight.
+ov_weights="${tmp}/ov-weights.tsv"
+printf './heavy\t10.00\n' >"${ov_weights}"
+ov_pkgs="${tmp}/ov-pkgs.txt"
+{
+	printf './heavy\n'
+	for i in $(seq -w 1 10); do
+		printf './small%s\n' "${i}"
+	done
+} >"${ov_pkgs}"
+ov_s1_zero="$(python3 "${selector}" --weights "${ov_weights}" --compile-overhead 0 --shard-index 1 --shard-total 2 <"${ov_pkgs}" | wc -l | tr -d ' ')"
+ov_s1_default="$(python3 "${selector}" --weights "${ov_weights}" --shard-index 1 --shard-total 2 <"${ov_pkgs}" | wc -l | tr -d ' ')"
+if [[ "${ov_s1_zero}" -eq 1 && "${ov_s1_default}" -gt 1 ]]; then
+	ok "select-go-race-shard.py --compile-overhead accounts for per-package compile cost"
+else
+	bad "select-go-race-shard.py compile-overhead failed to spread small pkgs: zero=${ov_s1_zero} default=${ov_s1_default}"
+fi
+
+# 16. Fail closed on invalid shard args, compile-overhead, missing weights path, and malformed/non-finite/duplicate TSV rows.
+if python3 "${selector}" --weights "${real_weights}" --shard-index 13 --shard-total 12 <"${all_pkgs}" >/dev/null 2>&1; then
 	bad "select-go-race-shard.py must reject out-of-range shard-index"
 else
 	ok "select-go-race-shard.py rejects out-of-range shard-index"
 fi
-if python3 "${selector}" --weights "${tmp}/does-not-exist.tsv" --shard-index 1 --shard-total 8 <"${all_pkgs}" >/dev/null 2>&1; then
+for bad_ov in -1 nan inf -inf; do
+	if python3 "${selector}" --weights "${real_weights}" --compile-overhead "${bad_ov}" --shard-index 1 --shard-total 12 <"${all_pkgs}" >/dev/null 2>&1; then
+		bad "select-go-race-shard.py must reject invalid compile-overhead (${bad_ov})"
+	else
+		ok "select-go-race-shard.py rejects compile-overhead=${bad_ov}"
+	fi
+done
+if python3 "${selector}" --weights "${tmp}/does-not-exist.tsv" --shard-index 1 --shard-total 12 <"${all_pkgs}" >/dev/null 2>&1; then
 	bad "select-go-race-shard.py must fail closed when explicit --weights file is missing"
 else
 	ok "select-go-race-shard.py fails closed when explicit --weights file is missing"
 fi
 bad_weights="${tmp}/bad-weights.tsv"
 printf 'malformed-line-without-tab\n' >"${bad_weights}"
-if python3 "${selector}" --weights "${bad_weights}" --shard-index 1 --shard-total 8 <"${all_pkgs}" >/dev/null 2>&1; then
+if python3 "${selector}" --weights "${bad_weights}" --shard-index 1 --shard-total 12 <"${all_pkgs}" >/dev/null 2>&1; then
 	bad "select-go-race-shard.py must fail closed on malformed weights TSV"
 else
 	ok "select-go-race-shard.py fails closed on malformed weights TSV"
 fi
 for bad_val in nan inf -inf 0 -5; do
 	printf 'github.com/eshu-hq/eshu/go/internal/a\t%s\n' "${bad_val}" >"${bad_weights}"
-	if python3 "${selector}" --weights "${bad_weights}" --shard-index 1 --shard-total 8 <"${all_pkgs}" >/dev/null 2>&1; then
+	if python3 "${selector}" --weights "${bad_weights}" --shard-index 1 --shard-total 12 <"${all_pkgs}" >/dev/null 2>&1; then
 		bad "select-go-race-shard.py must reject non-finite or non-positive weight (${bad_val})"
 	else
 		ok "select-go-race-shard.py rejects weight=${bad_val}"
 	fi
 done
 printf 'github.com/eshu-hq/eshu/go/internal/a\t10.00\ngithub.com/eshu-hq/eshu/go/internal/a\t20.00\n' >"${bad_weights}"
-if python3 "${selector}" --weights "${bad_weights}" --shard-index 1 --shard-total 8 <"${all_pkgs}" >/dev/null 2>&1; then
+if python3 "${selector}" --weights "${bad_weights}" --shard-index 1 --shard-total 12 <"${all_pkgs}" >/dev/null 2>&1; then
 	bad "select-go-race-shard.py must reject duplicate package weight entries"
 else
 	ok "select-go-race-shard.py rejects duplicate package weight entries"

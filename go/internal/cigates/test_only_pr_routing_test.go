@@ -235,7 +235,7 @@ func TestTestWorkflowWiresScopedGoRaceHelpers(t *testing.T) {
 		"go_race_packages: ${{ steps.go_race_scope.outputs.packages }}",
 		"run: bash scripts/ci/test-resolve-go-race-scope.sh",
 		"run: bash scripts/ci/resolve-go-race-scope.sh >> \"$GITHUB_OUTPUT\"",
-		"shard: ${{ fromJSON(needs.changes.outputs.go_race_shards || '[1,2,3,4,5,6,7,8]') }}",
+		"shard: ${{ fromJSON(needs.changes.outputs.go_race_shards || '[1,2,3,4,5,6,7,8,9,10,11,12]') }}",
 		"run: bash ../scripts/ci/run-go-race-shard.sh",
 	} {
 		if !strings.Contains(text, want) {

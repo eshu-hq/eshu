@@ -4,10 +4,12 @@
 package anchor
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -21,12 +23,15 @@ type sweepResult struct {
 	Dynamic []cypherSite
 }
 
-// sweepSource runs CheckWriters over every static-label Cypher literal under
-// root and collects the dynamic-label template sites for the marker check.
-func sweepSource(t *testing.T, root string, labels map[string]bool) sweepResult {
-	t.Helper()
+// sweepSourceErr runs CheckWriters over every static-label Cypher literal
+// under root and collects the dynamic-label template sites for the marker check.
+func sweepSourceErr(root string, labels map[string]bool) (sweepResult, error) {
+	sites, err := productionCypherSitesErr(root)
+	if err != nil {
+		return sweepResult{}, err
+	}
 	var result sweepResult
-	for _, site := range productionCypherSites(t, root) {
+	for _, site := range sites {
 		if site.DynamicLabel {
 			result.Dynamic = append(result.Dynamic, site)
 			continue
@@ -39,7 +44,49 @@ func sweepSource(t *testing.T, root string, labels map[string]bool) sweepResult 
 	}
 	sort.Strings(result.Failures)
 	sort.Slice(result.Dynamic, func(i, j int) bool { return result.Dynamic[i].Key < result.Dynamic[j].Key })
+	return result, nil
+}
+
+// sweepSource runs CheckWriters over every static-label Cypher literal under
+// root and collects the dynamic-label template sites for the marker check.
+func sweepSource(t *testing.T, root string, labels map[string]bool) sweepResult {
+	t.Helper()
+	result, err := sweepSourceErr(root, labels)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return result
+}
+
+var (
+	repoSweepOnce   sync.Once
+	repoSweepRoot   string
+	repoSweepCached sweepResult
+	repoSweepErr    error
+)
+
+// repoSweep sweeps the read-only go/ module root once per test binary so the
+// static-label and dynamic-label tests do not re-parse all production Go files
+// twice. Scratch-root tests continue calling sweepSource directly.
+func repoSweep(t *testing.T) (string, sweepResult) {
+	t.Helper()
+	repoSweepOnce.Do(func() {
+		root, err := filepath.Abs("../../..")
+		if err != nil {
+			repoSweepErr = err
+			return
+		}
+		if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+			repoSweepErr = fmt.Errorf("go module root %s: %w", root, err)
+			return
+		}
+		repoSweepRoot = root
+		repoSweepCached, repoSweepErr = sweepSourceErr(root, Labels())
+	})
+	if repoSweepErr != nil {
+		t.Fatal(repoSweepErr)
+	}
+	return repoSweepRoot, repoSweepCached
 }
 
 // TestEveryProductionIDWriterNamesAnAnchorLabel is the static half of the
@@ -54,14 +101,8 @@ func sweepSource(t *testing.T, root string, labels map[string]bool) sweepResult 
 // each, naming a test that proves its labels, and the replay half of the gate
 // covers what the corpus executes.
 func TestEveryProductionIDWriterNamesAnAnchorLabel(t *testing.T) {
-	root, err := filepath.Abs("../../..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
-		t.Fatalf("go module root %s: %v", root, err)
-	}
-	result := sweepSource(t, root, Labels())
+	t.Parallel()
+	_, result := repoSweep(t)
 	if result.Writes < 20 {
 		t.Fatalf("static sweep saw %d id writes; the sweep is not reading go/", result.Writes)
 	}
@@ -75,6 +116,7 @@ func TestEveryProductionIDWriterNamesAnAnchorLabel(t *testing.T) {
 // and the sweep must name it. The same scratch root with the planted label
 // covered passes, so the failure is the label and not the harness.
 func TestStaticSweepFailsOnAPlantedUnconstrainedIDWriter(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	source := "package planted\n\nconst plantedCypher = `MERGE (n:Unconstrained {id: $entity_id}) SET n.name = $name`\n"
 	if err := os.WriteFile(filepath.Join(root, "planted.go"), []byte(source), 0o600); err != nil {

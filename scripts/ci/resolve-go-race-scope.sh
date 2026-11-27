@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Resolve whether test.yml's go-race lane can run in single-runner changed-tests
 # mode (only go/**/*_test.go files changed on a pull_request) or must run the
-# full 8-shard matrix. Fails closed to full on every ambiguity.
+# full 12-shard matrix. Fails closed to full on every ambiguity.
 set -euo pipefail
 
-FULL_SHARDS='[1,2,3,4,5,6,7,8]'
+FULL_SHARDS='[1,2,3,4,5,6,7,8,9,10,11,12]'
 MAX_SCOPED_FILES=300
 
 event_name="${GITHUB_EVENT_NAME:-}"
