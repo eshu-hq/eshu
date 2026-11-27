@@ -68,6 +68,34 @@ and land or formally write off G1. No new issue is filed from this lane —
 G1/G2 are already ordered by the merged anchor-conflict ruling (Decisions
 8(iii) and 11), so they ride the goal ledger via #11075 itself.
 
+## Reconciliation 2026-11-27 (arbiter NO-GO triplet; docs-only)
+
+The verdict table above is the 2026-11-21 record at `8a3665ae27` and is
+kept as written. Standing statements it contains are superseded as follows
+(gh-verified 2026-11-27):
+
+- E4/G4 (#11089): CLOSED 2026-11-21. The marker-loss counter and the
+  exact-30-min / 30-min+1ns boundary pair are on main
+  (`handler_marker_loss_test.go`); no residual gap remains in this lane.
+- E6 (#11078): CLOSED 2026-11-21 via #11130/migration 328
+  (`328_supply_chain_impact_winners_dirty_tally_ghsa.sql`,
+  `ghsa_proxy_rows`). The under-backlog tally-zero is documented behavior
+  (2h-recency filter), not a defect; T-inflow uses the read-only
+  `advisory_id` prefix method named in the packet header. Step B stays
+  closed solely on AC3, no longer on GHSA NOT_CHECKED.
+- AC3: still NOT MET. The 2026-11-27 start-gate triplet (pin
+  `sha-e755aa3a`, #11075 comment 7224501755) is NO-GO: lag ~26x the
+  30-min bound on all three reads, R stalling then freezing, dirty log
+  rising net. Full ruling:
+  `docs/internal/arbiter/11075-decision9-gate-nogo-ruling-2026-11-27.md`.
+  The packet window stays unspent; Step B stays refused. Next gate is a
+  fresh 3x5-min triplet only after lag approaches 30 min, then the
+  one-shot Decision-9 packet, then Step B only by fresh arbiter ruling.
+- Dead-letter +500 growth (slow-queue probe window) stays a carrier
+  observation on #11075 pending the marker-split census
+  (first-classification vs sustained stale, window + denominator); it
+  proves nothing about the clock and blocks no gate.
+
 ## A2 evidence packet shape (AC3, post-deploy, read-only)
 
 Run only after the deployed QA commit includes `ae142dcb77` (#11086) and

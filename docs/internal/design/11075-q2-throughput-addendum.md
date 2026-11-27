@@ -30,11 +30,13 @@ clock is redefined retroactively.
 | Phase-1 2026-11-20 22:35:35–22:45:35Z, 6 pulls (#11075 comment 7052476882) | 0.000x (R frozen at 19:28:09.498803Z on all 6 pulls) | 187.4 → 197.4 min (+10.0 in 10.0 wall) | NOT_CHECKED | Union total 66247 → 90310 (+24,063, all into staging 20657 → 44720); log flat ~45590 (no drain); staging floor age 11246s → 11846s (ages with wall, nothing admitted) | ~2.4k/min into staging; split by prefix method (a): log GHSA 9273 / CVE 2838, staging GHSA 32785 / CVE 12327 → ~76% GHSA; tally 0\|0\|0 all pulls (by design under drain; no GHSA predicate — the gap #11078/#11130 later closed) |
 | AC3 2026-11-21 13:39:18–14:39:19Z, 31 pulls (#11075 comment 7064272407) | 0.000x on 00→30, 00→15, 15→30 (R pinned at 07:52:05.817015Z on all 31 pulls) | 347.2 → 407.2 min (+60.0 over 60.0 wall) | 0 commits/hr, 0 identifiers/hr (dirty log byte-static at 48,481; zero tally drains in-window) | Staging +382,943 over 60 min (~6.4k/min; 2068013 → 2450956; ~6.2k/min first half, ~6.6k/min second half); log static | ~6.4k/min sustained; split by both methods: prefix (a) ~76% GHSA / ~24% CVE on staging; tally (b) read 31/31 with 0 buckets / 0 rows — a measured zero, not NOT_CHECKED (the maintainer performed zero drains in-window) |
 | Probe 2026-11-25 20:12:26 / 20:14:38 / 20:18:13Z, 3 reads (#11075 comment 2026-11-25T20:28Z; sha-cb4a799b both lanes) | 0.000x over ~5.8 min (R frozen at 2026-11-25 05:36:07Z on all three reads) | 14h42m (52,926s) vs the 30-min bound, zero passing reads | 47 commits/hr, 30,675 identifiers/hr, all path=keyed on the vulnerability lane, 0 on general | Dirty log 54616 → 54474 → 54344 (net −47/min, negligible against stock); staging 977 → 5252 → 237 (bursty, not steady); commit-remaining 54649 → 59488 (+~7,950/hr: inflow exceeds drain) | Inflow exceeds drain per commit-remaining; NVD/GHSA split NOT_CHECKED for this probe (no split method run in the read set); supports backfill COMPLETE since 2026-11-23 21:55:20Z |
+| Triplet 2026-11-27 17:20:28–17:30:30Z, 3 reads + 17:14Z single (#11075 comment 7224501755; pin sha-e755aa3a) | ~0.82x pull1→pull2 (R +4.1 min / 5.0 min wall), then ~0.000x pull2→pull3 (R frozen at 04:31:19.42Z) | 12:53:17 → 12:54:10 → 12:59:10 (~26x the 30-min bound on every read, growing) | NOT_CHECKED (no keyed-tick commit/identifier counts by lane/path in the triplet read set) | Dirty log 59638 → 60020 → 60395 (net +757 rising); staging 2 → 1351 → 1510 (rising); tally 0 all pulls | Dirty net rising, so inflow exceeds drain; NVD/GHSA split NOT_CHECKED for this triplet (no split method run in the read set); supports complete re-confirmed 2026-11-23T21:55:20Z |
 
 Reading across spans: every span fails dR/dwall > 1 with lag shrinking. The
 best observed pace is A2 at 0.860x, then three consecutive 0.000x regimes
-(phase-1, AC3, 2026-11-25 probe). Catch-up is not reachable by waiting at any
-measured rate.
+(phase-1, AC3, 2026-11-25 probe), then the 2026-11-27 triplet at ~0.82x
+across one 5-min span before freezing (0.000x) with lag ~26x the bound.
+Catch-up is not reachable by waiting at any measured rate.
 
 ## What closes E-R in throughput terms
 
