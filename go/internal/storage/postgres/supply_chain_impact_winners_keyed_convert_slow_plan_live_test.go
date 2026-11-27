@@ -51,7 +51,9 @@ SELECT 'scope', 'activation', 'vuln-intel://10839-conv/s' || g, 'vuln-intel://10
 	h.exec(`INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, package_id, repository_id, subject_digest, c0, advisory_id, captured_at)
 SELECT 'fact', 'scanner', 'pkg:npm/10839-decoy/' || g, 'repo-10839-decoy', 'digest-10839-decoy-' || g, 'c0-10839-decoy', 'CVE-2027-' || g, now() - interval '1 year'
 FROM generate_series(1,500) g`)
-	h.exec(`ANALYZE fact_records`)
+	// The convert plans over the supports table, so the planner statistics it
+	// needs are the supports table's (#10880).
+	h.exec(`ANALYZE supply_chain_impact_finding_supports`)
 	h.exec(`ANALYZE supply_chain_impact_winners_dirty_log`)
 
 	// All 69 converting generations are pending (log pins plus trigger
@@ -64,9 +66,9 @@ SELECT scope_id, generation_id FROM supply_chain_impact_winners_dirty_staging WH
 WHERE scope_id LIKE 'vuln-intel://10839-conv/%' AND generation_id LIKE '%/g2'`); got != scopes {
 		t.Fatalf("pending converting scope pairs = %d, want %d", got, scopes)
 	}
-	if got := h.count(`SELECT count(*) FROM fact_records
-WHERE scope_id LIKE 'vuln-intel://10839-conv/%' AND fact_kind = 'reducer_supply_chain_impact_finding' AND is_tombstone = FALSE`); got != scopes*600 {
-		t.Fatalf("seeded expansion rows = %d, want %d", got, scopes*600)
+	if got := h.count(`SELECT count(*) FROM supply_chain_impact_finding_supports
+WHERE scope_id LIKE 'vuln-intel://10839-conv/%'`); got != scopes*600 {
+		t.Fatalf("seeded expansion supports = %d, want %d", got, scopes*600)
 	}
 
 	convertPlan, deletePlan, err := postgres.ExplainWinnersKeyedConvertSlowWindowForTest(h.ctx, h.db, 500)

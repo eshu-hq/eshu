@@ -60,19 +60,36 @@ VALUES ($1, $2, 'synthetic', $3, $3, 'active', $3, '{}'::jsonb)`, gen, scope, no
 	return gen
 }
 
+// winnersLivePlantFact runs one raw statement that plants frozen finding
+// history in a scoped postgresproof.SeedFindingFacts window, without syncing
+// supports: the proof database stays armed and the writer and maintainer run
+// armed. Most plants sync afterwards (winnersLiveSeedFact); the old-writer
+// simulation plants facts the old writer never backed with supports, so its
+// support must appear only when the backfill drains the scope (#10880).
+func winnersLivePlantFact(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) {
+	t.Helper()
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("plant %q: %v", query, err)
+		}
+	})
+}
+
 func winnersLiveSeedFact(t *testing.T, ctx context.Context, db *sql.DB, id, scope string, payload map[string]any) {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal %s: %v", id, err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	// The plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and a raw finding-fact insert would raise 55000 outside it, while the
+	// supports sync and the winners reads under test run armed.
+	winnersLivePlantFact(t, ctx, db, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), false, $5::jsonb)`,
-		id, scope, scope+"/active", facts.ReducerSupplyChainImpactFindingFactKind, string(body)); err != nil {
-		t.Fatalf("seed fact %s: %v", id, err)
-	}
+		id, scope, scope+"/active", facts.ReducerSupplyChainImpactFindingFactKind, string(body))
 	winnersLiveSyncSupports(t, ctx, db)
 }
 

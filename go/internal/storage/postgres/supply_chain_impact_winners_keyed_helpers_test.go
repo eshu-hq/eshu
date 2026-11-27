@@ -332,16 +332,3 @@ SELECT conname FROM pg_constraint WHERE contype = 'f' AND conparentid = 0 AND co
 		h.exec(`ALTER TABLE ` + table + ` DROP CONSTRAINT "` + name + `"`)
 	}
 }
-
-// findingFactID returns the fact id of the live finding for cve in scope.
-func (h *keyedHarness) findingFactID(scope, cve string) string {
-	h.t.Helper()
-	var id string
-	if err := h.db.QueryRowContext(h.ctx, `
-SELECT fact_id FROM fact_records
-WHERE scope_id = $1 AND fact_kind = $2 AND NOT is_tombstone AND payload->>'cve_id' = $3`,
-		scope, facts.ReducerSupplyChainImpactFindingFactKind, cve).Scan(&id); err != nil {
-		h.t.Fatalf("find fact id for %s in %s: %v", cve, scope, err)
-	}
-	return id
-}

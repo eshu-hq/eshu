@@ -125,9 +125,14 @@ func TestSupplyChainImpactWinnersResweepStaleScanQueuesVerifiedTrueLive(t *testi
 	h := newKeyedHarness(t, "#10416 slice-1 stale scan positive proof")
 	scopeA, _ := keyedSeedSettled(h)
 
-	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '99')
-WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
-	h.syncSupports() // the writer would have updated the support with the fact
+	// A missed capture: change a support's priority with raw SQL, which no
+	// capture path sees. The writer upserts supports only and never writes
+	// finding fact rows, so the mutation runs against the supports table the
+	// audit compares, not the empty facts table (#10880). Both the payload
+	// and the typed column move together, as the writer's upsert leaves them.
+	h.exec(`UPDATE supply_chain_impact_finding_supports
+SET payload = jsonb_set(payload, '{priority_score}', '99'), priority_score = 99
+WHERE scope_id = $1 AND cve_id = 'CVE-2026-2002'`, scopeA)
 	audit, err := staleAuditStore(h, postgres.SQLDB{DB: h.db}, nil).AuditWinners(h.ctx)
 	if err != nil || audit.Skipped || audit.Deferred {
 		t.Fatalf("stale audit = %+v, %v", audit, err)

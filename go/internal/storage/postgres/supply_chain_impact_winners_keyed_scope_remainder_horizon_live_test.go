@@ -118,7 +118,11 @@ func assertScopeHeld(h *keyedHarness, label, prefix string, mark time.Time, wait
 
 // scopeRemainderMarkSQL inserts one fact mark for the g2 finding of package
 // $3 into table, deriving the five-tuple the way the keyed identifier
-// expressions do.
+// expressions do. The row source is the supports table: the scopes seed
+// through the production writer, which upserts supports only and never writes
+// finding fact rows, so fact_records holds no row to derive the mark from
+// (#10880). The payload reads stay verbatim, so the staged mark matches the
+// identifier the tick expands from the same support.
 func scopeRemainderMarkSQL(table string) string {
 	return `INSERT INTO ` + table + `
     (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
@@ -126,9 +130,8 @@ SELECT 'fact', 'fact_upsert', COALESCE(f.payload->>'package_id', ''), COALESCE(f
        COALESCE(f.payload->>'subject_digest', ''),
        COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), ''),
        COALESCE(f.payload->>'advisory_id', '')
-FROM fact_records AS f
-WHERE f.scope_id = $1 AND f.generation_id = $2 AND f.payload->>'package_id' = $3
-  AND f.fact_kind = 'reducer_supply_chain_impact_finding'`
+FROM supply_chain_impact_finding_supports AS f
+WHERE f.scope_id = $1 AND f.generation_id = $2 AND f.payload->>'package_id' = $3`
 }
 
 // TestSupplyChainImpactWinnersResweepKeyedScopeRemainderHoldsWatermarkLive is

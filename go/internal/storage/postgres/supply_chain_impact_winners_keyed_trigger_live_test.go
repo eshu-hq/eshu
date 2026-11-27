@@ -29,6 +29,21 @@ var (
 	assocDeleteTrigger  = winnersTrigger{assocTable, "scanner_associations_winners_dirty_delete"}
 )
 
+// supportFactID returns the fact id of the live support for cve in scope. The
+// seeds run through the production writer, which upserts supports only and
+// never writes finding fact rows, so the supports table is the fact-identity
+// truth for writer-seeded scopes (#10880).
+func supportFactID(h *keyedHarness, scope, cve string) string {
+	h.t.Helper()
+	var id string
+	if err := h.db.QueryRowContext(h.ctx, `
+SELECT fact_id FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND cve_id = $2`, scope, cve).Scan(&id); err != nil {
+		h.t.Fatalf("find support fact id for %s in %s: %v", cve, scope, err)
+	}
+	return id
+}
+
 // TestSupplyChainImpactWinnersResweepTriggerCaptureViolationsAreCaughtLive is the
 // seeded-violation pair for every production statement and DELETE path the
 // migration-272 triggers cover (#9805, ruling B). Each case runs the same
@@ -139,7 +154,7 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			wantSource: "scanner", diverges: true,
 			prepare: func(h *keyedHarness, _, _ string) { h.dropForeignKeysOf(classTable) },
 			change: func(h *keyedHarness, scopeA, _ string) {
-				insertClassification(h, h.findingFactID(scopeA, "CVE-2026-2002"), "derived", "active")
+				insertClassification(h, supportFactID(h, scopeA, "CVE-2026-2002"), "derived", "active")
 			},
 		},
 		{
@@ -147,7 +162,7 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			wantSource: "scanner", diverges: false,
 			prepare: func(h *keyedHarness, _, _ string) { h.dropForeignKeysOf(classTable) },
 			change: func(h *keyedHarness, scopeA, _ string) {
-				insertClassification(h, h.findingFactID(scopeA, "CVE-2026-2002"), "static", "active")
+				insertClassification(h, supportFactID(h, scopeA, "CVE-2026-2002"), "static", "active")
 			},
 		},
 		{
@@ -155,12 +170,12 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			wantSource: "scanner", diverges: true,
 			prepare: func(h *keyedHarness, scopeA, _ string) {
 				h.dropForeignKeysOf(classTable)
-				insertClassification(h, h.findingFactID(scopeA, "CVE-2026-2002"), "static", "active")
+				insertClassification(h, supportFactID(h, scopeA, "CVE-2026-2002"), "static", "active")
 				h.keyed()
 			},
 			change: func(h *keyedHarness, scopeA, _ string) {
 				h.exec(`UPDATE scanner_image_result_fact_classifications SET lifecycle = 'retracted' WHERE finding_fact_id = $1`,
-					h.findingFactID(scopeA, "CVE-2026-2002"))
+					supportFactID(h, scopeA, "CVE-2026-2002"))
 			},
 		},
 		{
@@ -168,12 +183,12 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			wantSource: "scanner", diverges: true,
 			prepare: func(h *keyedHarness, scopeA, _ string) {
 				h.dropForeignKeysOf(classTable)
-				insertClassification(h, h.findingFactID(scopeA, "CVE-2026-2002"), "derived", "active")
+				insertClassification(h, supportFactID(h, scopeA, "CVE-2026-2002"), "derived", "active")
 				h.keyed()
 			},
 			change: func(h *keyedHarness, scopeA, _ string) {
 				h.exec(`DELETE FROM scanner_image_result_fact_classifications WHERE finding_fact_id = $1`,
-					h.findingFactID(scopeA, "CVE-2026-2002"))
+					supportFactID(h, scopeA, "CVE-2026-2002"))
 			},
 		},
 		{
@@ -181,7 +196,7 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			wantSource: "scanner", diverges: true,
 			prepare: func(h *keyedHarness, _, _ string) { h.dropForeignKeysOf(assocTable) },
 			change: func(h *keyedHarness, scopeA, _ string) {
-				insertAssociation(h, h.findingFactID(scopeA, "CVE-2026-2002"))
+				insertAssociation(h, supportFactID(h, scopeA, "CVE-2026-2002"))
 			},
 		},
 		{
@@ -189,12 +204,12 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			wantSource: "scanner", diverges: true,
 			prepare: func(h *keyedHarness, scopeA, _ string) {
 				h.dropForeignKeysOf(assocTable)
-				insertAssociation(h, h.findingFactID(scopeA, "CVE-2026-2002"))
+				insertAssociation(h, supportFactID(h, scopeA, "CVE-2026-2002"))
 				h.keyed()
 			},
 			change: func(h *keyedHarness, scopeA, _ string) {
 				h.exec(`DELETE FROM scanner_image_result_fact_associations WHERE finding_fact_id = $1`,
-					h.findingFactID(scopeA, "CVE-2026-2002"))
+					supportFactID(h, scopeA, "CVE-2026-2002"))
 			},
 		},
 	} {
@@ -251,17 +266,17 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 				t.Fatalf("keyed tick reported %+v, want at least one %q row consumed", result.TriggerCaptured, tc.wantSource)
 			}
 			// The keyed tick reads the supports table (#10880 PR-C1): its table must
-			// equal the facts oracle for this change class, checked before the
+			// equal the supports oracle for this change class, checked before the
 			// recompute below overwrites it.
-			winnersAssertTableEqualsFactsSelect(h, tc.name)
+			winnersAssertTableEqualsSupportsSelect(h, tc.name)
 			h.assertParity(tc.name)
 		})
 	}
 
 	// Scanner changes on a retracted finding (#10880 PR-C1, the change classes of the
-	// PR-C design ruling, section 5): the finding's fact is tombstoned and its support
-	// deleted, so neither capture (311 on facts, 353 on supports) stages a row and no
-	// winner moves; the keyed table must still equal the facts select.
+	// PR-C design ruling, section 5): the second pass deletes the finding's support,
+	// so neither capture (311 on facts, 353 on supports) stages a row and no
+	// winner moves; the keyed table must still equal the supports select.
 	for _, rc := range []struct {
 		name   string
 		change func(h *keyedHarness, fact string)
@@ -278,14 +293,14 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			scopeA, _ := keyedSeedSettled(h)
 			h.dropForeignKeysOf(classTable)
 			h.dropForeignKeysOf(assocTable)
-			retracted := h.findingFactID(scopeA, "CVE-2026-2002")
+			retracted := supportFactID(h, scopeA, "CVE-2026-2002")
 			h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 5))
 			h.keyed()
-			if n := h.count(`SELECT count(*) FROM fact_records WHERE fact_id = $1 AND is_tombstone`, retracted); n != 1 {
-				t.Fatalf("the second pass left %d tombstoned facts for %s, want 1: the finding is not retracted", n, retracted)
-			}
+			// The retraction deletes the support instead of tombstoning a
+			// finding fact: the writer upserts supports only, so no fact row
+			// exists to tombstone (#10880).
 			if n := h.count(`SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, retracted); n != 0 {
-				t.Fatalf("the retracted finding %s still has %d supports, want 0", retracted, n)
+				t.Fatalf("the retracted finding %s still has %d supports, want 0: the second pass did not retract it", retracted, n)
 			}
 			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
@@ -296,7 +311,7 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			if _, err := h.store.ResweepWinnersKeyed(h.ctx); err != nil {
 				t.Fatalf("keyed tick: %v", err)
 			}
-			winnersAssertTableEqualsFactsSelect(h, rc.name)
+			winnersAssertTableEqualsSupportsSelect(h, rc.name)
 			h.assertParity(rc.name)
 		})
 	}
