@@ -108,6 +108,10 @@ jobs:
         run: bash scripts/ci/test-resolve-go-race-scope.sh
       - name: Verify Go race cache warmer contract
         run: bash scripts/ci/test-warm-go-race-cache.sh
+      - name: Verify GHA cache pruner contracts
+        run: |
+          bash scripts/ci/test-prune-gha-codeql-caches.sh
+          bash scripts/ci/test-prune-gha-go-caches.sh
       - name: Resolve Go race scope
         id: go_race_scope
         run: bash scripts/ci/resolve-go-race-scope.sh >> "$GITHUB_OUTPUT"

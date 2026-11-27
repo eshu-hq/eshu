@@ -19,12 +19,12 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: List stale CodeQL caches that would be deleted and delete nothing
+        description: List stale CodeQL and superseded Go caches that would be deleted and delete nothing
         required: false
         default: false
         type: boolean
       min_age_hours:
-        description: Minimum hours since last_accessed_at before pruning (default 24)
+        description: Minimum hours since last_accessed_at before pruning CodeQL caches (default 24)
         required: false
         default: "24"
         type: string

@@ -4,6 +4,8 @@
 # `go.sum` bumps never accumulate past the 10 GB Actions cache quota.
 #
 # Safety invariants (hardcoded allowlist; refuses positional arguments):
+# - Only considers caches on `refs/heads/main`, so PR/branch-scoped caches can
+#   never supersede or cause deletion of the shared default-branch cache.
 # - Always keeps at least the newest 1 cache entry per logical Go cache family,
 #   regardless of age.
 # - Only deletes superseded entries once the newest replacement entry in that
@@ -66,6 +68,7 @@ jq -r -s --argjson cutoff "${cutoff}" --argjson grace "${grace_cutoff}" --argjso
 		else null
 		end;
 	[.[].actions_caches[]]
+	| map(select(.ref == "refs/heads/main"))
 	| map(. + {family: (.key | go_family)})
 	| map(select(.family != null))
 	| map(.created_ts = ((.created_at // .last_accessed_at) | sub("\\.[0-9]+"; "") | fromdateiso8601))
@@ -83,7 +86,7 @@ jq -r -s --argjson cutoff "${cutoff}" --argjson grace "${grace_cutoff}" --argjso
 ' "${work}/caches.json" > "${work}/targets.tsv"
 
 total="$(jq -s '[.[].actions_caches[]] | length' "${work}/caches.json")"
-go_total="$(jq -s '[.[].actions_caches[] | select((.key | startswith("Linux-X64-gobuild-")) or (.key | startswith("Linux-X64-gobuildrace-")) or (.key | startswith("Linux-X64-golangcilint-")) or (.key | startswith("Linux-X64-go-")))] | length' "${work}/caches.json")"
+go_total="$(jq -s '[.[].actions_caches[] | select(.ref == "refs/heads/main") | select((.key | startswith("Linux-X64-gobuild-")) or (.key | startswith("Linux-X64-gobuildrace-")) or (.key | startswith("Linux-X64-golangcilint-")) or (.key | startswith("Linux-X64-go-")))] | length' "${work}/caches.json")"
 
 deleted=0
 reclaimed_bytes=0
