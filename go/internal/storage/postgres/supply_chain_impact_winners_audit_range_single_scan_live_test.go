@@ -416,6 +416,8 @@ func TestSupplyChainImpactWinnersResweepSingleScanCostLive(t *testing.T) {
 WHERE fact_kind = 'reducer_supply_chain_impact_finding'`)
 	h.exec(`VACUUM ANALYZE fact_records`)
 	auditRangePerturb(t, h)
+	h.exec(`VACUUM ANALYZE supply_chain_impact_finding_supports`)
+	h.exec(`VACUUM ANALYZE supply_chain_impact_canonical_winners`)
 
 	for _, budget := range []int{2000, 10000} {
 		old := explainRangeFirst(t, h, postgres.WinnersAuditFirstRangeSQLForTest, budget)
