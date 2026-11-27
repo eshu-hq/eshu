@@ -98,7 +98,7 @@ const reopenSupplyChainImpactSetsFlag = `(work.status IN ('claimed', 'running') 
 // reopenShadowedSQL is TRUE for a succeeded row that meets every PR1
 // freshness condition, so its reopen reports shadow_would_skip while the row
 // still goes pending (#11613). Every arm fails closed: a token-less, set-less,
-// corrupt, or sentinel-free origin, any owed debt, a missing or stale
+// or corrupt origin, any owed debt, a missing or stale
 // watermark, and any non-succeeded prior status all read FALSE, and the row
 // reopens exactly as it did before. NULL-safe throughout: a NULL arm would
 // drop the holder's report, never skip it. The token regex guards the cast:
