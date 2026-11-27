@@ -7,8 +7,11 @@ Refs #11619. Date: 2026-11-27.
 The deployment-evidence replay reopened a finished workload item on every
 rerun holding resolved edges. The fence hashes the resolved set once per
 pass and reopens the item only when the hash changes. A rerun over an
-unchanged set now skips the row entirely, so steady-state reruns do strictly
-less work than before, with no new lock, round trip, or index.
+unchanged set now skips the row entirely (no lock, write, or timestamp
+touch), so steady-state reruns do strictly less work than before, with no
+new lock or index. The quiet path still issues one digest UPDATE (matching
+zero rows) plus one SELECT probe, versus one UPDATE for the legacy
+statement.
 
 ## Environment
 
