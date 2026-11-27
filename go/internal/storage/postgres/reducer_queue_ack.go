@@ -332,14 +332,15 @@ SELECT 1 FROM acknowledged
 `
 
 // scheduleWorkloadMaterializationFencedReplayQuery records replay debt with
-// the new RUNS_ON input-set fence ($3) without stealing an active claim.
-// A succeeded row reopens only when the new fence differs from the stored
-// one: an identical fence means identical RUNS_ON inputs, so the published
-// verdict already covers them and a no-change repo-dependency cycle must
-// not ping-pong the row (#10972). An absent stored fence still reopens
-// (fail open). The payload always carries the latest fence so the next
-// comparison is against it. Every arm evaluates one CASE on the locked row
-// version: no new lock, no ordering change, no lease touch.
+// the new repo-dependency input-set fence ($3) without stealing an active
+// claim. A succeeded row reopens only when the new fence differs from the
+// stored one: an identical fence means an identical repo-dependency input
+// set, so the published verdict already covers them and a no-change
+// repo-dependency cycle must not ping-pong the row (#10972). An absent
+// stored fence still reopens (fail open). The payload always carries the
+// latest fence so the next comparison is against it. Every arm evaluates one
+// CASE on the locked row version: no new lock, no ordering change, no lease
+// touch.
 const scheduleWorkloadMaterializationFencedReplayQuery = `
 UPDATE fact_work_items
 SET status = CASE

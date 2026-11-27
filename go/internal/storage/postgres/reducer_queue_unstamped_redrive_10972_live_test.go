@@ -38,6 +38,9 @@ func Test10972UnstampedRedriveLive(t *testing.T) {
 	t.Run("fenced replay reopens succeeded only on fence change", func(t *testing.T) {
 		prove10972FencedReplayGatesOnFenceChange(t, ctx, db, scope, gen)
 	})
+	t.Run("fenced replay reopens absent fence once then holds", func(t *testing.T) {
+		prove10972FencedReplayReopensAbsentFenceOnce(t, ctx, db, scope, gen)
+	})
 }
 
 func seed10972Scope(t *testing.T, ctx context.Context, db *sql.DB, scope, gen string) {
@@ -223,5 +226,75 @@ func prove10972FencedReplayGatesOnFenceChange(t *testing.T, ctx context.Context,
 	if reopened.attempts != 0 || reopened.owner.Valid {
 		t.Fatalf("changed-fence replay left attempt_count = %d lease_owner valid = %v, want 0 and NULL",
 			reopened.attempts, reopened.owner.Valid)
+	}
+}
+
+// prove10972FencedReplayReopensAbsentFenceOnce covers the fail-open arm the
+// seeded-fence test cannot: a succeeded row with no stored fence (legacy or
+// unfenced-path rows) reopens exactly once on the first fenced replay, and a
+// second same-fence call is a no-op — status, fence, and clocks all hold while
+// still reporting scheduled.
+func prove10972FencedReplayReopensAbsentFenceOnce(t *testing.T, ctx context.Context, db *sql.DB, scope, gen string) {
+	t.Helper()
+	queue := NewReducerQueue(SQLDB{DB: db}, "fenced-replay-absent-fence-10972", time.Minute)
+	queue.MaxAttempts = 10
+	queue.ClaimDomain = reducer.DomainWorkloadMaterialization
+	entityKey := "repo:workload-10972-absent-fence"
+	repoID := "repository:r_10972_absent"
+	intent := runtime.ReducerIntent{
+		ScopeID:      scope,
+		GenerationID: gen,
+		Domain:       reducer.DomainWorkloadMaterialization,
+		EntityKey:    entityKey,
+		Reason:       "unstamped re-drive proof",
+		SourceSystem: "reducer",
+		Payload:      map[string]any{"probe": "absent-fence"},
+	}
+	if _, err := queue.Enqueue(ctx, []runtime.ReducerIntent{intent}); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	claimed, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim: ok=%v err=%v", ok, err)
+	}
+	if err := queue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
+		t.Fatalf("ack: %v", err)
+	}
+	succeeded := readQueueRow10972(t, ctx, db, claimed.IntentID)
+	if succeeded.status != "succeeded" || succeeded.fence != "" {
+		t.Fatalf("after ACK status = %q fence = %q, want succeeded with no stored fence", succeeded.status, succeeded.fence)
+	}
+
+	replayed, err := queue.ReplayWorkloadMaterializationForFence(ctx, scope, gen, entityKey, repoID, "fence-x")
+	if err != nil || !replayed {
+		t.Fatalf("first fenced replay = (%v, %v), want (true, nil): an absent stored fence must reopen", replayed, err)
+	}
+	reopened := readQueueRow10972(t, ctx, db, claimed.IntentID)
+	if reopened.status != "pending" {
+		t.Fatalf("first fenced replay left status = %q, want pending", reopened.status)
+	}
+	if reopened.fence != "fence-x" {
+		t.Fatalf("first fenced replay left fence = %q, want fence-x", reopened.fence)
+	}
+	if reopened.attempts != 0 || reopened.owner.Valid {
+		t.Fatalf("first fenced replay left attempt_count = %d lease_owner valid = %v, want 0 and NULL",
+			reopened.attempts, reopened.owner.Valid)
+	}
+
+	replayed, err = queue.ReplayWorkloadMaterializationForFence(ctx, scope, gen, entityKey, repoID, "fence-x")
+	if err != nil || !replayed {
+		t.Fatalf("second same-fence replay = (%v, %v), want (true, nil)", replayed, err)
+	}
+	held := readQueueRow10972(t, ctx, db, claimed.IntentID)
+	if held.status != "pending" || held.fence != "fence-x" {
+		t.Fatalf("second same-fence replay left status = %q fence = %q, want pending/fence-x", held.status, held.fence)
+	}
+	if !held.updatedAt.Equal(reopened.updatedAt) {
+		t.Fatalf("second same-fence replay moved updated_at from %v to %v: the repeat must be a no-op",
+			reopened.updatedAt, held.updatedAt)
+	}
+	if held.reopenedAt != reopened.reopenedAt {
+		t.Fatalf("second same-fence replay moved reopened_at from %v to %v: the repeat must be a no-op",
+			reopened.reopenedAt, held.reopenedAt)
 	}
 }

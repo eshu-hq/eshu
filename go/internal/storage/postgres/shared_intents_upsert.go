@@ -69,9 +69,10 @@ INSERT INTO shared_projection_intents (
 // rebuild/reset (storage/postgres/rebuild/reset), and a retry is not allowed to
 // trigger a repo-wide retract and rewrite.
 //
-// Why created_at moves: it is the acceptance epoch of the RUNS_ON workload
-// readiness fence (repoDependencyRunsOnFenceRequests in the reducer hashes each
-// active row's intent_id and created_at). Only pending intents select an
+// Why created_at moves: it is the acceptance epoch of the workload replay
+// fence (repoDependencyFenceRequests in the reducer hashes each active row's
+// intent_id and created_at; the RUNS_ON readiness gate waits on the RUNS_ON
+// subset). Only pending intents select an
 // acceptance unit (listPendingDomainIntentsSQL filters completed_at IS NULL),
 // so moving created_at on a completed row is inert while no pending sibling
 // exists. When one does, the runner computes a new fence token, requests one

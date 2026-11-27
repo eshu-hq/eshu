@@ -55,7 +55,7 @@ func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing
 	writer := &recordingCodeCallProjectionEdgeWriter{}
 	replayer := &recordingWorkloadMaterializationReplayer{}
 	workloadReady := false
-	fenceRequests, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{runsOn})
+	fenceRequests, err := repoDependencyFenceRequests([]sharedintent.Row{runsOn})
 	if err != nil || len(fenceRequests) != 1 {
 		t.Fatalf("build fence requests = (%d, %v), want (1, nil)", len(fenceRequests), err)
 	}
@@ -149,15 +149,15 @@ func TestRepoDependencyRunsOnFenceIsOrderIndependentAndInputSensitive(t *testing
 		map[string]any{"repo_id": "repo-a", "relationship_type": "RUNS_ON"},
 	)
 
-	ab, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowA, rowB})
+	ab, err := repoDependencyFenceRequests([]sharedintent.Row{rowA, rowB})
 	if err != nil || len(ab) != 1 {
 		t.Fatalf("AB fence requests = (%d, %v), want (1, nil)", len(ab), err)
 	}
-	ba, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowB, rowA})
+	ba, err := repoDependencyFenceRequests([]sharedintent.Row{rowB, rowA})
 	if err != nil || len(ba) != 1 {
 		t.Fatalf("BA fence requests = (%d, %v), want (1, nil)", len(ba), err)
 	}
-	a, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowA})
+	a, err := repoDependencyFenceRequests([]sharedintent.Row{rowA})
 	if err != nil || len(a) != 1 {
 		t.Fatalf("A fence requests = (%d, %v), want (1, nil)", len(a), err)
 	}
@@ -172,7 +172,7 @@ func TestRepoDependencyRunsOnFenceIsOrderIndependentAndInputSensitive(t *testing
 	// comfortably above that boundary so the unit proof models a value that
 	// survives the real queue round trip.
 	rowANewer.CreatedAt = rowA.CreatedAt.Add(time.Second)
-	newer, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowANewer})
+	newer, err := repoDependencyFenceRequests([]sharedintent.Row{rowANewer})
 	if err != nil || len(newer) != 1 {
 		t.Fatalf("newer fence requests = (%d, %v), want (1, nil)", len(newer), err)
 	}

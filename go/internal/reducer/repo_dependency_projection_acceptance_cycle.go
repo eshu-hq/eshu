@@ -467,19 +467,19 @@ func (r *RepoDependencyProjectionRunner) recordInactiveAcceptedGenerationRows(
 }
 
 // replayWorkloadMaterializationAfterWrite sends the post-write workload
-// replay for one acceptance unit's written rows. It carries the same RUNS_ON
-// input-set fences the readiness path builds, so a no-change cycle compares
-// equal against the stored fence and leaves the succeeded verdict alone
-// (#10972). Rows outside the RUNS_ON input set send no request: their verdict
-// already covers the unchanged inputs. Retired generations are dropped before
-// any replay, and a replay the queue cannot schedule fails the cycle closed.
+// replay for one acceptance unit's written rows. It fences every active row's
+// input set (not just RUNS_ON), so a no-change cycle compares equal against
+// the stored fence and leaves the succeeded verdict alone, while a pure
+// non-RUNS_ON change still re-materializes workload instead of stranding a
+// stale verdict (#10972). Retired generations are dropped before any replay,
+// and a replay the queue cannot schedule fails the cycle closed.
 func (r *RepoDependencyProjectionRunner) replayWorkloadMaterializationAfterWrite(
 	ctx context.Context,
 	active []sharedintent.Row,
 	freshness *repoDependencyGenerationFreshness,
 ) (int, time.Duration, error) {
 	replayStart := time.Now()
-	fenceRequests, err := repoDependencyRunsOnFenceRequests(repoDependencyRunsOnRows(active))
+	fenceRequests, err := repoDependencyFenceRequests(active)
 	if err != nil {
 		return 0, 0, fmt.Errorf("replay workload materialization after repo dependency projection: %w", err)
 	}
