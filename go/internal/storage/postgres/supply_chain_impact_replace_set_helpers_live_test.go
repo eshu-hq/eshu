@@ -11,7 +11,6 @@ import (
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -81,45 +80,54 @@ INSERT INTO fact_records (
 	}
 }
 
-// replaceSetActiveRepositories returns the repository_id of every active
-// finding row in the test's (scope, generation), sorted.
+// replaceSetActiveRepositories returns the repository_id of every support in
+// the test's (scope, generation), sorted. The C2 writer upserts supports only
+// and never writes finding fact rows
+// (reducer/supplychain/core/writer_supports.go: WriteSupplyChainImpactFindingRows),
+// so the supports table is the active-set truth; fact_records holds no writer
+// output on this path.
 func replaceSetActiveRepositories(t *testing.T, ctx context.Context, db *sql.DB) []string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `
-SELECT COALESCE(payload->>'repository_id', '')
-FROM fact_records
-WHERE scope_id = $1 AND generation_id = $2 AND fact_kind = $3
-  AND is_tombstone = FALSE
+SELECT COALESCE(repository_id, '')
+FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2
 ORDER BY 1, fact_id`,
-		replaceSetLiveScope, replaceSetLiveGeneration, facts.ReducerSupplyChainImpactFindingFactKind,
+		replaceSetLiveScope, replaceSetLiveGeneration,
 	)
 	if err != nil {
-		t.Fatalf("list active findings: %v", err)
+		t.Fatalf("list active supports: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 	out := []string{}
 	for rows.Next() {
 		var repositoryID string
 		if err := rows.Scan(&repositoryID); err != nil {
-			t.Fatalf("scan active finding: %v", err)
+			t.Fatalf("scan active support: %v", err)
 		}
 		out = append(out, repositoryID)
 	}
 	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate active findings: %v", err)
+		t.Fatalf("iterate active supports: %v", err)
 	}
 	return out
 }
 
-func replaceSetTombstoneCount(t *testing.T, ctx context.Context, db *sql.DB) int {
+// replaceSetSupportsCount counts the supports in the test's (scope,
+// generation). The pass retraction deletes superseded supports instead of
+// tombstoning finding rows
+// (reducer/supplychain/core/writer_retract.go: retractSupersededSupplyChainImpactFindingsQuery),
+// so a retracting pass shrinks this count; the writer result's FactsRetracted
+// is the retraction proof.
+func replaceSetSupportsCount(t *testing.T, ctx context.Context, db *sql.DB) int {
 	t.Helper()
 	var count int
 	if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM fact_records
-WHERE scope_id = $1 AND generation_id = $2 AND fact_kind = $3 AND is_tombstone = TRUE`,
-		replaceSetLiveScope, replaceSetLiveGeneration, facts.ReducerSupplyChainImpactFindingFactKind,
+SELECT count(*) FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1 AND generation_id = $2`,
+		replaceSetLiveScope, replaceSetLiveGeneration,
 	).Scan(&count); err != nil {
-		t.Fatalf("count tombstones: %v", err)
+		t.Fatalf("count supports: %v", err)
 	}
 	return count
 }

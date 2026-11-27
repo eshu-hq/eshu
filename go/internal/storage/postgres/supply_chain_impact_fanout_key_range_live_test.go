@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -126,7 +127,12 @@ WHERE s.scope_id = $2`, kind, keyRangeNoise, keyRangeNoiseRows)
 // holders keyed there.
 func TestHolderKeyRangeReadMatchesShippedLive(t *testing.T) {
 	ctx, sqldb := fanOutLiveDB(t)
-	keyRangeSeed(t, ctx, sqldb)
+	// The seed plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, sqldb, func() {
+		keyRangeSeed(t, ctx, sqldb)
+	})
 	store := fanOutLiveStore(sqldb)
 	ranges := supplychaincore.HolderKeyRanges()
 
@@ -215,7 +221,12 @@ func (tx *keyRangeFlipTx) QueryContext(ctx context.Context, query string, args .
 // committed (the seeded RED for a per-statement snapshot).
 func TestHolderKeyRangeReadHoldsOneSnapshotLive(t *testing.T) {
 	ctx, sqldb := fanOutLiveDB(t)
-	keyRangeSeed(t, ctx, sqldb)
+	// The seed plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, sqldb, func() {
+		keyRangeSeed(t, ctx, sqldb)
+	})
 	store := fanOutLiveStore(sqldb)
 	before, err := store.FindHolderScopes(ctx, keyRangeOwn, []string{keyRangeHot})
 	if err != nil || !slices.Contains(before, keyRangeLoneLast) {

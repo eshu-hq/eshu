@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // Issue #6831: the supply-chain impact writer must treat each pass's finding
@@ -50,13 +52,22 @@ func TestSupplyChainImpactWriterRetractsSupersededFindingsLive(t *testing.T) {
 	}
 	active := replaceSetActiveRepositories(t, ctx, db)
 	if len(active) != 1 || active[0] != replaceSetLiveRepository {
-		t.Fatalf("active finding repositories = %q, want only %q", active, replaceSetLiveRepository)
+		t.Fatalf("active support repositories = %q, want only %q", active, replaceSetLiveRepository)
 	}
-	if got := replaceSetTombstoneCount(t, ctx, db); got != 2 {
-		t.Fatalf("tombstoned finding rows = %d, want 2 (rows are retracted, never deleted)", got)
+	// The retraction deletes superseded supports instead of tombstoning
+	// finding rows, so only the anchored finding's support survives the
+	// second pass; FactsRetracted below proves the two deletions.
+	if got := replaceSetSupportsCount(t, ctx, db); got != 1 {
+		t.Fatalf("support rows = %d, want 1 (only the anchored finding's support survives)", got)
 	}
 
-	store := query.NewPostgresSupplyChainImpactFindingStore(db)
+	// The legacy finding list reads fact_records, which the C2 writer no
+	// longer writes, so query truth goes through the winners read model: the
+	// production resweep rebuilds it from the supports the passes wrote.
+	if err := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db}).RebuildAllWinners(ctx); err != nil {
+		t.Fatalf("rebuild winners: %v", err)
+	}
+	store := query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(db, true)
 	findings, err := store.ListSupplyChainImpactFindings(ctx, query.SupplyChainImpactFindingFilter{
 		CVEID:             replaceSetLiveCVE,
 		IncludeSuppressed: true,
@@ -112,14 +123,21 @@ func TestSupplyChainImpactWriterRetractionHonorsBoundaryLive(t *testing.T) {
 	// A row carrying a higher fencing token than this writer's pass was
 	// written by a fresher writer and must never be retracted by this one. The
 	// pass takes its token from replaceSetNextToken, so plant one far above it.
-	replaceSetPlantRow(t, ctx, db, "fenced", replaceSetLiveScope, replaceSetLiveGeneration,
-		facts.ReducerSupplyChainImpactFindingFactKind, replaceSetNextToken()+1_000_000)
-	// Rows outside the (scope, generation, fact_kind) conflict domain are
-	// never this pass's to retract.
-	replaceSetPlantRow(t, ctx, db, "other-kind", replaceSetLiveScope, replaceSetLiveGeneration,
-		"reducer_other_finding", 0)
-	replaceSetPlantRow(t, ctx, db, "other-generation", replaceSetLiveScope, replaceSetLiveGeneration+":prior",
-		facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	// The frozen finding rows run in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and a raw finding-fact insert would raise 55000 outside it, while the
+	// writer pass under test runs armed. The other-kind row needs no window
+	// but rides along.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		replaceSetPlantRow(t, ctx, db, "fenced", replaceSetLiveScope, replaceSetLiveGeneration,
+			facts.ReducerSupplyChainImpactFindingFactKind, replaceSetNextToken()+1_000_000)
+		// Rows outside the (scope, generation, fact_kind) conflict domain are
+		// never this pass's to retract.
+		replaceSetPlantRow(t, ctx, db, "other-kind", replaceSetLiveScope, replaceSetLiveGeneration,
+			"reducer_other_finding", 0)
+		replaceSetPlantRow(t, ctx, db, "other-generation", replaceSetLiveScope, replaceSetLiveGeneration+":prior",
+			facts.ReducerSupplyChainImpactFindingFactKind, 0)
+	})
 
 	if _, err := writer.WriteSupplyChainImpactFindings(ctx,
 		replaceSetWrite("intent:6831:boundary", replaceSetFinding(replaceSetLiveRepository))); err != nil {

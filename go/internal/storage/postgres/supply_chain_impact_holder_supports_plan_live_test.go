@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -52,7 +53,11 @@ func holderPlanViolation(plan string, indexes ...string) string {
 func holderPlanCorpus(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	fanOutSeedScope(t, ctx, db, "plan-scope", "g1")
-	if _, err := db.ExecContext(ctx, `
+	// The corpus plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the planner reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 SELECT $2 || ':' || md5(i::text), 'plan-scope', $1, $2, 'k' || i, '1.0.0', 'synthetic', 'k' || i, now(), now(), FALSE,
@@ -63,8 +68,9 @@ SELECT $2 || ':' || md5(i::text), 'plan-scope', $1, $2, 'k' || i, '1.0.0', 'synt
                      'provenance', jsonb_build_object('advisory_group_members',
                          jsonb_build_array('adv-own-' || i, 'adv-own-' || i || '-b', CASE WHEN i % 10 = 3 THEN 'adv-hot-foreign' ELSE 'adv-x-' || (i % 700) END)))
 FROM generate_series(1, 30000) AS i`, fanOutGen("plan-scope", "g1"), facts.ReducerSupplyChainImpactFindingFactKind); err != nil {
-		t.Fatalf("seed plan corpus: %v", err)
-	}
+			t.Fatalf("seed plan corpus: %v", err)
+		}
+	})
 	settleSupplyChainImpactSupports(t, ctx, db)
 	// VACUUM flushes the GIN pending lists the backfill left behind: the planner
 	// prices a GIN scan from the pending-list size, and autovacuum does the same
@@ -177,7 +183,12 @@ func explainHolderStatement(t *testing.T, ctx context.Context, conn holderPlanRu
 // fail the check (#11197, arbiter-b2b).
 func TestSupplyChainImpactSupportsHolderPlanShapeLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
-	holderPlanCorpus(t, ctx, db)
+	// The corpus plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		holderPlanCorpus(t, ctx, db)
+	})
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		t.Fatal(err)

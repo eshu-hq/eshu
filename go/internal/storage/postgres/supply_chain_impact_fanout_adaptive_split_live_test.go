@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const (
@@ -138,7 +139,12 @@ func TestHolderAdaptiveSplitRowIdentityLive(t *testing.T) {
 	if !strings.HasPrefix(trimmed, holderCoveringCTEHead) {
 		t.Fatal("derived split is not a byte-prefix of the shipped constant")
 	}
-	adaptSplitSeedFixture(t, ctx, db)
+	// The fixture plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		adaptSplitSeedFixture(t, ctx, db)
+	})
 	// The statement answers from the supports table (#11197): settle them.
 	settleSupplyChainImpactSupports(t, ctx, db)
 
@@ -209,7 +215,12 @@ func TestHolderAdaptiveSplitRowIdentityLive(t *testing.T) {
 // tombstoned rows.
 func TestHolderMassProbeLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
-	adaptSplitSeedFixture(t, ctx, db)
+	// The fixture plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		adaptSplitSeedFixture(t, ctx, db)
+	})
 
 	store := fanOutLiveStore(db)
 	masses, err := store.EstimateHolderMasses(ctx, []string{
@@ -403,7 +414,12 @@ FROM generate_series(1, 5) g`, facts.ReducerSupplyChainImpactFindingFactKind, ca
 // member arm. It fails on the uncapped probe (hot reads 26k).
 func TestHolderMassProbeCappedLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
-	capProbeSeedFixture(t, ctx, db)
+	// The fixture plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the probe reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		capProbeSeedFixture(t, ctx, db)
+	})
 
 	store := fanOutLiveStore(db)
 	cap := int64(supplychaincore.HolderMassProbeCap)

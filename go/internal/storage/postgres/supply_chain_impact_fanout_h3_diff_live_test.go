@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // holderH0BaselineQuery freezes the pre-H3 holder read (three-arm OR with the
@@ -311,7 +312,12 @@ func h3diffPercentile(durs []time.Duration, p float64) time.Duration {
 func TestHolderH3DiffSetsLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	db.SetMaxOpenConns(1)
-	h3diffSeedFixture(t, ctx, db)
+	// The fixture plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		h3diffSeedFixture(t, ctx, db)
+	})
 	// The statement under test answers from the supports table (#11197); the
 	// fixture wrote finding facts directly, so settle the supports first.
 	settleSupplyChainImpactSupports(t, ctx, db)
@@ -428,7 +434,12 @@ FROM pg_prepared_statements WHERE statement LIKE '%FROM candidates%'`).Scan(&ent
 func TestHolderH3StatementP95Live(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	db.SetMaxOpenConns(1)
-	h3diffSeedFixture(t, ctx, db)
+	// The fixture plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		h3diffSeedFixture(t, ctx, db)
+	})
 	// The statement under test answers from the supports table (#11197); the
 	// fixture wrote finding facts directly, so settle the supports first.
 	settleSupplyChainImpactSupports(t, ctx, db)

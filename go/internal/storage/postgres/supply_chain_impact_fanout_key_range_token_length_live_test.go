@@ -15,6 +15,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // tokenLongBytes is the length of the long member the #10643 PR 2 review
@@ -61,14 +62,25 @@ func TestHolderKeyRangeTokenLongMemberInsertLive(t *testing.T) {
 		{"string scalar", kind + ":1a03", long, nil},
 	} {
 		payload := tokenLengthMembers(tc.members)
-		if _, err := sqldb.ExecContext(ctx, `
+		// The plant is frozen finding history, so it runs in a scoped
+		// postgresproof.SeedFindingFacts window: the proof database stays
+		// armed and the token reads under test run armed. A failed plant
+		// still reports every shape, so the flag carries the skip out of
+		// the window (continue cannot cross the closure).
+		planted := true
+		postgresproof.SeedFindingFacts(t, sqldb, func() {
+			if _, err := sqldb.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, 'len:insert', 'len:insert/g1', $2, $1, '1.0.0', 'synthetic', 'len', now(), now(), false, $3::jsonb)`,
-			tc.factID, kind, payload); err != nil {
-			// Report every shape, so the array, object and scalar cases each
-			// show their own failure.
-			t.Errorf("%s: insert a finding with a %d-byte foreign member: %v", tc.name, tokenLongBytes, err)
+				tc.factID, kind, payload); err != nil {
+				// Report every shape, so the array, object and scalar cases each
+				// show their own failure.
+				t.Errorf("%s: insert a finding with a %d-byte foreign member: %v", tc.name, tokenLongBytes, err)
+				planted = false
+			}
+		})
+		if !planted {
 			continue
 		}
 		var tokens []string
@@ -117,13 +129,18 @@ func TestHolderKeyRangeTokenLengthBoundaryLive(t *testing.T) {
 			n++
 			factID := kind + ":1b" + strconv.FormatInt(int64(n), 16) + "0"
 			payload := tokenLengthMembers(shape.members)
-			if _, err := sqldb.ExecContext(ctx, `
+			// The plant is frozen finding history, so it runs in a scoped
+			// postgresproof.SeedFindingFacts window: the proof database stays
+			// armed and the token reads under test run armed.
+			postgresproof.SeedFindingFacts(t, sqldb, func() {
+				if _, err := sqldb.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, 'len:boundary', 'len:boundary/g1', $2, $1, '1.0.0', 'synthetic', 'len', now(), now(), false, $3::jsonb)`,
-				factID, kind, payload); err != nil {
-				t.Fatalf("%s %s: insert: %v", tc.name, shape.name, err)
-			}
+					factID, kind, payload); err != nil {
+					t.Fatalf("%s %s: insert: %v", tc.name, shape.name, err)
+				}
+			})
 			var tokenized, shipped bool
 			if err := sqldb.QueryRowContext(ctx, `
 SELECT COALESCE(`+postgres.SupplyChainImpactForeignMemberTokensFunction+`(fact_id, payload) @> ARRAY['1:' || $2::text], false),
@@ -151,19 +168,29 @@ FROM fact_records WHERE fact_id = $1`, factID, tc.member).Scan(&tokenized, &ship
 // long id is read only through tokens the function never stores.
 func TestHolderKeyRangeLongLookupFallsBackLive(t *testing.T) {
 	ctx, sqldb := fanOutLiveDB(t)
-	tokenSeed(t, ctx, sqldb)
+	// The seed plants frozen finding facts, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, sqldb, func() {
+		tokenSeed(t, ctx, sqldb)
+	})
 	fanOutSeedScope(t, ctx, sqldb, "tok:long", "g1")
 	kind := facts.ReducerSupplyChainImpactFindingFactKind
 	long := "GHSA-long-" + incompressibleID("fallback", tokenLongBytes-len("GHSA-long-"))
 	const short = "GHSA-tok-long-partner"
-	if _, err := sqldb.ExecContext(ctx, `
+	// The plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the holder reads under test run armed.
+	postgresproof.SeedFindingFacts(t, sqldb, func() {
+		if _, err := sqldb.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, 'tok:long', 'tok:long/g1', $2, $1, '1.0.0', 'synthetic', 'tok', now(), now(), false, $3::jsonb)`,
-		kind+":0c12", kind, `{"cve_id": "CVE-tok-x", "advisory_id": "GHSA-tok-x", "impact_status": "affected_exact",
+			kind+":0c12", kind, `{"cve_id": "CVE-tok-x", "advisory_id": "GHSA-tok-x", "impact_status": "affected_exact",
   "provenance": {"advisory_group_members": [`+strconv.Quote(long)+`, `+strconv.Quote(short)+`]}}`); err != nil {
-		t.Fatalf("seed the long-member holder: %v", err)
-	}
+			t.Fatalf("seed the long-member holder: %v", err)
+		}
+	})
 	store := fanOutLiveStore(sqldb)
 	ranges := supplychaincore.HolderKeyRanges()
 	for _, tc := range []struct {

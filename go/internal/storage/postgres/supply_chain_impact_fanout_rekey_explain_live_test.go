@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // TestRekeyHolderLookupUsesAllThreeArmsLive is the criterion-9 proof for the
@@ -25,7 +26,11 @@ func TestRekeyHolderLookupUsesAllThreeArmsLive(t *testing.T) {
 	for _, scope := range []string{"scope:10408:bulk-a", "scope:10408:bulk-b", "scope:10408:bulk-c"} {
 		fanOutSeedScope(t, ctx, db, scope, "g1")
 	}
-	if _, err := db.ExecContext(ctx, `
+	// The bulk plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the rekey reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,
   source_confidence, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 SELECT 'bulk:' || s.scope_id || ':' || g, s.scope_id, s.active_generation_id, $1, 'bulk:' || g, '1.0.0', 'synthetic',
@@ -42,8 +47,9 @@ SELECT 'bulk:' || s.scope_id || ':' || g, s.scope_id, s.active_generation_id, $1
       ELSE '{}'::jsonb END)
 FROM (SELECT scope_id, active_generation_id FROM ingestion_scopes WHERE scope_id LIKE 'scope:10408:bulk%') s
 CROSS JOIN generate_series(1, 30000) g`, facts.ReducerSupplyChainImpactFindingFactKind); err != nil {
-		t.Fatalf("seed bulk findings: %v", err)
-	}
+			t.Fatalf("seed bulk findings: %v", err)
+		}
+	})
 	if _, err := db.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
 		t.Fatalf("analyze: %v", err)
 	}

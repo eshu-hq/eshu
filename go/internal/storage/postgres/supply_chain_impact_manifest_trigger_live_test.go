@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 const manifestLiveGitScope = "git-repo-checkout"
@@ -67,14 +68,20 @@ func manifestLiveSeedFact(t *testing.T, ctx context.Context, db *sql.DB, scope, 
 	if source == "" {
 		source = "git"
 	}
-	if _, err := db.ExecContext(ctx, `
+	// The plant is frozen finding history when the envelope carries the
+	// finding kind, so it runs in a scoped postgresproof.SeedFindingFacts
+	// window: the proof database stays armed and the manifest reads under
+	// test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, $2, $3, $4, $5, '1.0.0', $6, $1, now(), now(), $7, $8::jsonb)`,
-		envelope.FactID, scope, generation, envelope.FactKind, envelope.StableFactKey, source,
-		envelope.IsTombstone, string(payload)); err != nil {
-		t.Fatalf("seed fact %s: %v", envelope.FactID, err)
-	}
+			envelope.FactID, scope, generation, envelope.FactKind, envelope.StableFactKey, source,
+			envelope.IsTombstone, string(payload)); err != nil {
+			t.Fatalf("seed fact %s: %v", envelope.FactID, err)
+		}
+	})
 	// The repository holder read answers from the supports table (#11197),
 	// which no maintainer filled for a directly written fact.
 	if envelope.FactKind == facts.ReducerSupplyChainImpactFindingFactKind {

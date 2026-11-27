@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // The fact store must keep the linked out-of-stamp probe the handler asserts
@@ -23,15 +24,20 @@ var _ interface {
 // reads (#11197).
 func seedLinkedFindingRow(t *testing.T, ctx context.Context, db *sql.DB, scope, generation, factID, cve, advisory string, members []string) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, `
+	// The plant is frozen finding history, so it runs in a scoped
+	// postgresproof.SeedFindingFacts window: the proof database stays armed
+	// and the probe reads under test run armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), false,
   jsonb_build_object('cve_id', $5::text, 'advisory_id', $6::text, 'package_id', 'pkg-' || $1, 'purl', 'pkg:npm/' || $1 || '@1',
     'package_name', $1, 'ecosystem', 'npm', 'provenance', jsonb_build_object('advisory_group_members', to_jsonb($7::text[]))))`,
-		factID, scope, fanOutGen(scope, generation), facts.ReducerSupplyChainImpactFindingFactKind, cve, advisory, members); err != nil {
-		t.Fatalf("seed finding row %s: %v", factID, err)
-	}
+			factID, scope, fanOutGen(scope, generation), facts.ReducerSupplyChainImpactFindingFactKind, cve, advisory, members); err != nil {
+			t.Fatalf("seed finding row %s: %v", factID, err)
+		}
+	})
 	settleSupplyChainImpactSupports(t, ctx, db)
 }
 
