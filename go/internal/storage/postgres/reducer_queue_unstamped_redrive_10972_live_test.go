@@ -227,6 +227,18 @@ func prove10972FencedReplayGatesOnFenceChange(t *testing.T, ctx context.Context,
 		t.Fatalf("changed-fence replay left attempt_count = %d lease_owner valid = %v, want 0 and NULL",
 			reopened.attempts, reopened.owner.Valid)
 	}
+	// Park this arm's reopened row so the next arm's unfiltered Claim (oldest
+	// pending first) takes its own freshly enqueued row, not this one.
+	parked, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("park claim: ok=%v err=%v", ok, err)
+	}
+	if parked.IntentID != claimed.IntentID {
+		t.Fatalf("park claimed %q, want this arm's row %q", parked.IntentID, claimed.IntentID)
+	}
+	if err := queue.Ack(ctx, parked, reducercontract.Result{}); err != nil {
+		t.Fatalf("park ack: %v", err)
+	}
 }
 
 // prove10972FencedReplayReopensAbsentFenceOnce covers the fail-open arm the
