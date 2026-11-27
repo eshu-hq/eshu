@@ -54,6 +54,14 @@ flowchart TB
 - **Fail triage.** Only explicitly retryable failures retry, up to 3
   attempts with exponential backoff capped at an hour. Readiness waits do
   not spend budget. Dead letters carry triage metadata naming the cause.
+- **Requeue labels.** Every return to an outstanding state stamps
+  `last_requeue_reason` from a closed vocabulary (retry, readiness wait,
+  waiting wake, maintenance reopen, producer activation, completion wake,
+  cross-scope replay, holder fanout, retouch, admin replay/reopen,
+  recovery re-drive), counted per reason. The column answers which path
+  re-pends a row; there are no separate queues per class (a split needs
+  label evidence that one class starves another first). Reducer stage only:
+  projector rows stay NULL.
 - **Ack variants.** The generic ack fences the lease; identity and CI
   correlation acks emit completion events that wake downstream waits;
   workload acks re-trigger catalog rows; batch acks collapse duplicate
@@ -90,7 +98,8 @@ flowchart TB
 
 - Metrics: executions by domain and status, queue-wait seconds, claim
   seconds, retry surge by class, dead letters, missed heartbeats,
-  claim conflicts, park-by-breaker counts.
+  claim conflicts, park-by-breaker counts, requeues by reason
+  (`eshu_dp_reducer_requeue_total`) with depth and oldest age by reason.
 - Logs: per-item execution lines with queue-wait seconds, breaker-open
   lines naming the domain, lease-lost warnings.
 

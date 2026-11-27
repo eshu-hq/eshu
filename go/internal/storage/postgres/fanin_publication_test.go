@@ -127,7 +127,8 @@ CREATE TABLE fact_work_items (
     visible_at TIMESTAMPTZ,
     next_attempt_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ NOT NULL,
-    reopened_at TIMESTAMPTZ
+    reopened_at TIMESTAMPTZ,
+    last_requeue_reason TEXT
 );`); err != nil {
 		t.Fatalf("create fan-in proof wake tables: %v", err)
 	}

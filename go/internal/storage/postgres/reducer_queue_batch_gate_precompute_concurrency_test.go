@@ -11,6 +11,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestClaimBatchGatePrecomputeStorm is the C-3 storm row for #10565 step 1:
@@ -155,7 +156,7 @@ func TestClaimBatchGatePrecomputeDuplicateDelivery(t *testing.T) {
 	if len(again) != 0 {
 		t.Fatalf("post-ack ClaimBatch() = %v, want empty (row is succeeded)", gateIntentIDs(again))
 	}
-	reopened, err := q.ReopenSucceeded(ctx, "dup-1")
+	reopened, err := q.ReopenSucceeded(ctx, "dup-1", telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("ReopenSucceeded() error = %v", err)
 	}

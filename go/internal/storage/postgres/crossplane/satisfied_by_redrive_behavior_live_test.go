@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // crossplaneRedriveSpyEdgeWriter records every SATISFIED_BY row the
@@ -607,7 +608,7 @@ func testCrossplaneReplayClaimedRowCostLive(t *testing.T) {
 	for i := 0; i < pairs; i++ {
 		resetDebt()
 		started := time.Now()
-		reopened, err := queue.ReopenSucceeded(ctx, claimed.IntentID)
+		reopened, err := queue.ReopenSucceeded(ctx, claimed.IntentID, telemetry.RequeueReasonCrossScopeReplay)
 		if err != nil || reopened {
 			t.Fatalf("legacy succeeded-only reopen on claimed row = (%t, %v)", reopened, err)
 		}

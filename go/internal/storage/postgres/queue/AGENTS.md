@@ -37,6 +37,16 @@
   names `reopened_at` in its own SQL and appends this value, so the parent
   package's `TestEveryTerminalReopenWriterStampsReopenedAt` guard sees the
   stamp; the live proof is `TestTerminalReopenWritersStampReopenedAtLive`.
+- Keep the requeue-reason CASE discipline (#11615): `RequeueReasonSetAssignment`
+  for unconditional requeues, `RequeueReasonScheduleValue` for CASE schedulers
+  (terminal transition or newly-flagged debt takes the reason, no-transition
+  rows keep theirs), `RequeueReasonStageGatedValue` for mixed-stage replays
+  (reducer rows take the reason, projector rows keep NULL), and
+  `RequeueReasonUpsertValue` for ON CONFLICT re-drives. The helpers take
+  validated `telemetry.RequeueReason` literals; the parent package's
+  `TestEveryRequeueWriterSetsReason` plus `TestRequeueReasonVocabularyClosure`
+  hold every writer to the column, and `requeue_reason_live_test.go` proves
+  each path on Postgres.
 
 ## Common changes
 

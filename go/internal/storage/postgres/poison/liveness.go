@@ -71,6 +71,10 @@ type RecoveryResult struct {
 	Recovered int
 	// RecoveredScopeIDs names the distinct scopes touched, for logging.
 	RecoveredScopeIDs []string
+	// ReducerRecovered counts the re-enqueued rows at stage reducer: the
+	// rows that took the recovery_redrive reason. Projector rows keep NULL
+	// by the stage gate and are not counted (#11615).
+	ReducerRecovered int
 }
 
 // Store detects and bounds-recovers the dead-letter/poison class
@@ -146,13 +150,16 @@ func (s Store) RecoverDeadLetters(
 	defer func() { _ = rows.Close() }()
 
 	var scopeIDs []string
-	recovered := 0
+	recovered, reducerRecovered := 0, 0
 	for rows.Next() {
-		var workItemID, scopeID, generationID string
-		if scanErr := rows.Scan(&workItemID, &scopeID, &generationID); scanErr != nil {
+		var workItemID, scopeID, generationID, stage string
+		if scanErr := rows.Scan(&workItemID, &scopeID, &generationID, &stage); scanErr != nil {
 			return RecoveryResult{}, fmt.Errorf("recover poison dead letters: %w", scanErr)
 		}
 		recovered++
+		if stage == "reducer" {
+			reducerRecovered++
+		}
 		scopeIDs = append(scopeIDs, scopeID)
 	}
 	if err := rows.Err(); err != nil {
@@ -162,5 +169,6 @@ func (s Store) RecoverDeadLetters(
 	return RecoveryResult{
 		Recovered:         recovered,
 		RecoveredScopeIDs: scopeIDs,
+		ReducerRecovered:  reducerRecovered,
 	}, nil
 }

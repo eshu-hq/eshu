@@ -314,6 +314,9 @@ TABLE = {
         "go/internal/storage/postgres/repository_retirements_purge_requestbudget_live_test.go": (
             "TestRetirementPurgeRequestDeriveLockBudgetLive",
         ),
+        "go/internal/storage/postgres/requeue_reason_live_test.go": (
+            "TestRequeueReasonWritersStampReasonLive",
+        ),
         "go/internal/storage/postgres/retirement_table_census_live_test.go": (
             "TestRetirementTableCensusClassifiesEveryScopeKeyedTable",
             "TestRetirementTableCensusSeededViolationProvesSensitivity",

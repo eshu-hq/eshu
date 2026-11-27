@@ -36,6 +36,9 @@ type Policy struct {
 type Result struct {
 	// Recovered counts dead-letter rows re-enqueued to pending this cycle.
 	Recovered int
+	// ReducerRecovered counts the re-enqueued rows at stage reducer: the
+	// rows that took the recovery_redrive reason (#11615).
+	ReducerRecovered int
 }
 
 // Recoverer runs one bounded poison-recovery sweep against the
@@ -165,6 +168,10 @@ func (r *Runner) wait(ctx context.Context, d time.Duration) error {
 func (r *Runner) recordResult(ctx context.Context, result Result) {
 	if r.Instruments != nil && result.Recovered > 0 {
 		r.Instruments.PoisonLivenessRecovered.Add(ctx, int64(result.Recovered))
+		// #11615: the sweep ran autocommit, so this emission is post-commit
+		// by construction. Only reducer rows count: projector rows keep
+		// NULL by the stage gate.
+		telemetry.RecordReducerRequeue(ctx, r.Instruments, telemetry.RequeueReasonRecoveryRedrive, int64(result.ReducerRecovered))
 	}
 	if r.Logger == nil || result.Recovered == 0 {
 		return

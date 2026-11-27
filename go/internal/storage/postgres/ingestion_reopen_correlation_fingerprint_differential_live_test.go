@@ -159,7 +159,7 @@ func TestDeployableUnitReopenFingerprintGatesTargetedPassLive(t *testing.T) {
 
 			store := NewIngestionStore(SQLDB{DB: db})
 			store.Now = func() time.Time { return w.at.Add(time.Minute) }
-			reopened, err := store.targetedStore().ReopenTargetedMaintenanceWorkItems(ctx, nil,
+			reopened, err := store.targetedStore().ReopenTargetedMaintenanceWorkItems(ctx, nil, nil,
 				[]backfill.ScopeGenerationPartition{{ScopeID: w.a.scopeID, GenerationID: w.a.genID}}, nil)
 			if err != nil {
 				t.Fatalf("ReopenTargetedMaintenanceWorkItems() error = %v", err)

@@ -450,6 +450,10 @@ func registerPostgresQueueGauges(
 			return err
 		}
 	}
+	cached, err = registerRequeueReasonSnapshotGauges(refresher, cached, queueObs)
+	if err != nil {
+		return err
+	}
 	if deadLetterObs, ok := queueObs.(telemetry.SupplyChainImpactDeadLetterObserver); ok {
 		if err := registerSupplyChainImpactDeadLetterGauges(refresher, instruments, meter, deadLetterObs); err != nil {
 			return err

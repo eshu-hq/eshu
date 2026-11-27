@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive is
@@ -118,7 +119,7 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 	// --- Step 2: advance well past the bound relative to `start`, then reopen. ---
 	clock = start.Add(2 * time.Hour)
 	workItemID := reducerWorkItemID(intent)
-	reopened, err := queue.ReopenSucceeded(ctx, workItemID)
+	reopened, err := queue.ReopenSucceeded(ctx, workItemID, telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("ReopenSucceeded() error = %v, want nil", err)
 	}

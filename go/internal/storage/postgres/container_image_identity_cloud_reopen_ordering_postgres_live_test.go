@@ -102,7 +102,7 @@ func proveCloudBeforeOCIReopenOrdering(t *testing.T) cloudReopenOrderingTruth {
 	assertCloudReopenOrderingSupportCount(t, harness.ctx, harness.db, fixture.cloudScopeID, 0)
 
 	activateCloudReopenOrderingOCI(t, harness.ctx, harness.db, fixture)
-	if err := harness.store.ReopenSucceededReducerWorkItems(
+	if _, err := harness.store.ReopenSucceededReducerWorkItems(
 		harness.ctx, nil, nil, CrossScopeCorrelationReopenDomains(),
 	); err != nil {
 		t.Fatalf("ReopenSucceededReducerWorkItems() error = %v", err)
@@ -120,7 +120,7 @@ func proveCloudBeforeOCIReopenOrdering(t *testing.T) cloudReopenOrderingTruth {
 	}
 	truth := readCloudReopenOrderingTruth(t, harness.ctx, harness.db, fixture)
 
-	if err := harness.store.ReopenSucceededReducerWorkItems(
+	if _, err := harness.store.ReopenSucceededReducerWorkItems(
 		harness.ctx, nil, nil, CrossScopeCorrelationReopenDomains(),
 	); err != nil {
 		t.Fatalf("second ReopenSucceededReducerWorkItems() error = %v", err)

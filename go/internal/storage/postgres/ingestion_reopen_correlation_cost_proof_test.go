@@ -10,6 +10,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // scopesForCorrelationReopenCostProof and generationsForCorrelationReopenCostProof
@@ -106,7 +108,7 @@ func timeCorrelationReopen(
 ) time.Duration {
 	t.Helper()
 	start := time.Now()
-	if err := store.ReopenSucceededReducerWorkItems(ctx, nil, nil, domains); err != nil {
+	if _, err := store.ReopenSucceededReducerWorkItems(ctx, nil, nil, domains); err != nil {
 		t.Fatalf("ReopenSucceededReducerWorkItems() error = %v", err)
 	}
 	return time.Since(start)
@@ -143,7 +145,7 @@ ORDER BY updated_at ASC, work_item_id ASC`, domain)
 		}
 		_ = rows.Close()
 		for _, id := range ids {
-			if _, err := queue.ReopenSucceeded(ctx, id); err != nil {
+			if _, err := queue.ReopenSucceeded(ctx, id, telemetry.RequeueReasonMaintenanceReopen); err != nil {
 				t.Fatalf("unbounded reopen of %s: %v", id, err)
 			}
 		}

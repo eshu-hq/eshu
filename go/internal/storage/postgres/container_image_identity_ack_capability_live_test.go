@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -198,6 +199,7 @@ WHERE work_item_id = 'ack-5854-legacy-v2'
 	reopened, err := capableQueue.ReopenSucceeded(
 		ctx,
 		"ack-5854-before-marker",
+		telemetry.RequeueReasonMaintenanceReopen,
 	)
 	if err != nil || !reopened {
 		t.Fatalf("reopen pre-cutover legacy success = %t, %v", reopened, err)

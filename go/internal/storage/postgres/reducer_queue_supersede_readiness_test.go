@@ -355,6 +355,7 @@ func openReducerSupersedeReadinessDBWithSchema(t *testing.T, ctx context.Context
 		// applies the base table without this ALTER makes every Claim() fail
 		// with `column work.reopened_at does not exist`.
 		MigrationSQL("reducer_work_item_reopened_at"),
+		MigrationSQL("fact_work_items_last_requeue_reason"), // #11615: claim reads last_requeue_reason.
 		graphProjectionPhaseStateSchemaSQL,
 	} {
 		if _, err := db.ExecContext(ctx, stmt); err != nil {

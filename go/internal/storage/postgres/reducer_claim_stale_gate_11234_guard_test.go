@@ -32,11 +32,14 @@ import (
 // statement then carried both the second UNION arm and the
 // supply_chain_impact_go_evidence_changed class, while the single statement
 // carried only the class (the arm is batch-only), so the single digest moved
-// from 8aa7 to 2f84 for exactly that enrollment and nothing else.
+// from 8aa7 to 2f84 for exactly that enrollment and nothing else. Both the
+// batch and the single digests move again for #11615: the claim SELECTs
+// carry work.last_requeue_reason read-only (outer SELECT included), and
+// nothing else outside the gate changes.
 const (
 	staleGate11234PreGateSHA    = "30a3fd23ee77b417d8c6cd5a981dfae7953c30749f8552953f41b766a38b3aeb"
-	staleGate11234BaseBatchSHA  = "ce1fa3a1f0b97a95cf53a93a2e0f25d1760e81eb8e2b70e714d7c6945b4848aa"
-	staleGate11234BaseSingleSHA = "2f84b806a2ff61e00d75fcef3f0b81fe2561b7d6c208af013ec4cfec29c02faf"
+	staleGate11234BaseBatchSHA  = "46a984126c67371ed10705b258c6e38ea6cff9d55713a4d959908bd607db74ac"
+	staleGate11234BaseSingleSHA = "d56ee1b628b78f6287c3907d29270a200e63662d6e878622a13e39370cfe93eb"
 	staleGate11234BaseFunnelSHA = "53bf5acdcabd4b6d3cf77e343c3638de3b7fb3066ed02c8829df49258369597f"
 )
 

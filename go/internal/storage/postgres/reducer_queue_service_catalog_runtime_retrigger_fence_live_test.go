@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestReducerContentionGateServiceCatalogFenceWaitsOnRunsOnIntent is proof
@@ -62,7 +63,7 @@ INSERT INTO shared_projection_intents (
 	// The repo_dependency runner's order: write RUNS_ON, replay the workload
 	// materialization, then mark the intents completed.
 	producerQueue := p.queue(p.db, "replayer", reducer.DomainWorkloadMaterialization)
-	if reopened, err := producerQueue.ReopenSucceeded(ctx, "wm-checkout-8169"); err != nil || !reopened {
+	if reopened, err := producerQueue.ReopenSucceeded(ctx, "wm-checkout-8169", telemetry.RequeueReasonMaintenanceReopen); err != nil || !reopened {
 		t.Fatalf("ReopenSucceeded() = %v, %v", reopened, err)
 	}
 	if _, err := NewSharedIntentStore(SQLDB{DB: p.db}).MarkIntentsCompleted(ctx, []string{intentID}, p.clock); err != nil {

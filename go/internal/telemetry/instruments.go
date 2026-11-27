@@ -359,6 +359,12 @@ type Instruments struct {
 	// exponential backoff plus jitter instead of a fixed delay, so a burst
 	// of same-instant failures no longer reconverges on one visible_at.
 	ReducerRetrySurge metric.Int64Counter
+	// ReducerRequeueTotal counts every reducer queue row returned to an
+	// outstanding state, labeled by closed-vocabulary requeue reason only
+	// (#11615, the same bounded set as RequeueReason). No domain label: the
+	// per-domain breakdown is a runbook SQL GROUP BY, and per-domain
+	// execution counters already exist.
+	ReducerRequeueTotal metric.Int64Counter
 	// WorkflowRunTerminalDeadLetterBlocks counts workflow run completeness
 	// reconciliations that terminated a run (blocked/failed, not left
 	// wedged in reducer_converging) because a required graph-projection
@@ -3732,7 +3738,13 @@ type Instruments struct {
 	QueueOldestAge       metric.Float64ObservableGauge
 	SourceQueueDepth     metric.Int64ObservableGauge
 	SourceQueueOldestAge metric.Float64ObservableGauge
-	WorkerPoolActive     metric.Int64ObservableGauge
+	// RequeueReasonDepth and RequeueReasonOldestAge break the live queue
+	// down by closed-vocabulary requeue reason (#11615). The
+	// legacy_unclassified series is the rollout-ramp proof: it must trend
+	// to ~0 for reducer rows as the fleet rolls.
+	RequeueReasonDepth     metric.Int64ObservableGauge
+	RequeueReasonOldestAge metric.Float64ObservableGauge
+	WorkerPoolActive       metric.Int64ObservableGauge
 	// ReducerBatchWorkerExecutionAge reports each busy reducer batch-claim
 	// worker's current execution age in seconds (#10480). Observed only for
 	// busy workers: an absent worker series means idle. Registered by
@@ -7458,6 +7470,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerReducerWaitingInstruments(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerReducerRequeueInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerReducerStaleSweepInstruments(meter, inst); err != nil {
 		return nil, err
 	}
@@ -9121,6 +9136,11 @@ func RegisterObservableGauges(
 		}
 		if orphanObs, ok := queueObs.(ReducerLeaseOrphanObserver); ok {
 			if err := registerReducerLeaseOrphanGauges(inst, meter, orphanObs); err != nil {
+				return err
+			}
+		}
+		if requeueObs, ok := queueObs.(RequeueReasonObserver); ok {
+			if err := registerRequeueReasonGauges(inst, meter, requeueObs); err != nil {
 				return err
 			}
 		}

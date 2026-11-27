@@ -388,6 +388,10 @@ func provisionReopenPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 		`ALTER TABLE fact_work_items ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ NULL`); err != nil {
 		t.Fatalf("add reopened_at column: %v", err)
 	}
+	if _, err := db.ExecContext(ctx,
+		`ALTER TABLE fact_work_items ADD COLUMN IF NOT EXISTS last_requeue_reason TEXT NULL`); err != nil {
+		t.Fatalf("add last_requeue_reason column: %v", err)
+	}
 	// The deployable_unit_correlation reopen (#8283) reads its fingerprint
 	// table and recomputes fingerprints over resolved_relationships joined to
 	// relationship_generations. Apply the shipped DDL for all three, not

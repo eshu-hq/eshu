@@ -114,14 +114,22 @@ func (s IngestionStore) reopenMaintenanceWorkItemsInTransaction(
 	reopenStore := NewIngestionStore(tx)
 	reopenStore.Now = s.Now
 	reopenStore.Logger = s.Logger
-	if err := reopenStore.reopenDeploymentMappingWorkItemsWithSkipSet(ctx, tracer, instruments, skippedPartitions); err != nil {
+	// #11615: accumulate actually-transitioned rows across the three reopen
+	// loops and emit the per-reason counter once, after the commit below,
+	// so a rolled-back pass never counts.
+	var transitioned int64
+	if n, err := reopenStore.reopenDeploymentMappingWorkItemsWithSkipSet(ctx, tracer, instruments, skippedPartitions); err != nil {
 		return err
+	} else {
+		transitioned += n
 	}
 	// Replay code_import_repo_edge in the same transaction: it shares the
 	// after-the-fact dependency on cross-scope evidence and must re-run once that
 	// evidence is committed, just like deployment_mapping.
-	if err := reopenStore.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(ctx, tracer, instruments, skippedPartitions); err != nil {
+	if n, err := reopenStore.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(ctx, tracer, instruments, skippedPartitions); err != nil {
 		return err
+	} else {
+		transitioned += n
 	}
 	// Replay the cross-scope correlation chain in the same transaction. Before
 	// this call the ingester replayed only the two relationship domains above,
@@ -131,15 +139,18 @@ func (s IngestionStore) reopenMaintenanceWorkItemsInTransaction(
 	// output forever under normal ingestion, and the golden-corpus gate — which
 	// drives eshu-bootstrap-index for its maintenance passes — stayed green over
 	// that gap.
-	if err := reopenStore.ReopenSucceededReducerWorkItems(
+	if n, err := reopenStore.ReopenSucceededReducerWorkItems(
 		ctx, tracer, instruments, CrossScopeCorrelationReopenDomains(),
 	); err != nil {
 		return err
+	} else {
+		transitioned += n
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit deferred maintenance reopen transaction: %w", err)
 	}
 	committed = true
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonMaintenanceReopen, transitioned)
 	return nil
 }
 
@@ -164,7 +175,14 @@ func (s IngestionStore) ReopenDeploymentMappingWorkItems(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) error {
-	return s.reopenDeploymentMappingWorkItemsWithSkipSet(ctx, tracer, instruments, nil)
+	// Standalone one-shot: the store runs autocommit, so each statement
+	// committed as it ran and emission here is post-commit by construction.
+	transitioned, err := s.reopenDeploymentMappingWorkItemsWithSkipSet(ctx, tracer, instruments, nil)
+	if err != nil {
+		return err
+	}
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonMaintenanceReopen, transitioned)
+	return nil
 }
 
 // reopenDeploymentMappingWorkItemsWithSkipSet is
@@ -179,9 +197,9 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	skippedPartitions map[backfill.ScopeGenerationPartition]struct{},
-) (err error) {
+) (transitioned int64, err error) {
 	if s.database == nil {
-		return fmt.Errorf("ingestion store db is required")
+		return 0, fmt.Errorf("ingestion store db is required")
 	}
 
 	if tracer != nil {
@@ -202,7 +220,7 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 
 	items, err := listSucceededDeploymentMappingWorkItems(ctx, s.database)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	gateResult := applyReopenPartitionMemoGate(ctx, "deployment_mapping", items, skippedPartitions, instruments)
 	skippedByMemo = len(gateResult.Skipped)
@@ -222,10 +240,16 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 
 	queue := ReducerQueue{database: s.database, Now: s.Now}
 	for _, item := range toReopen {
-		if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
-			return fmt.Errorf("reopen deployment_mapping work items: %w", err)
+		// The bool counts actual transitions for the #11615 per-reason
+		// counter, emitted by the caller after its own commit point.
+		ok, err := queue.ReopenSucceeded(ctx, item.WorkItemID, telemetry.RequeueReasonMaintenanceReopen)
+		if err != nil {
+			return 0, fmt.Errorf("reopen deployment_mapping work items: %w", err)
 		}
 		reopened++
+		if ok {
+			transitioned++
+		}
 	}
 
 	if instruments != nil {
@@ -236,7 +260,7 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 		len(toReopen), len(gateResult.Skipped), parkedByBreaker,
 	)
 
-	return nil
+	return transitioned, nil
 }
 
 func listSucceededDeploymentMappingWorkItems(

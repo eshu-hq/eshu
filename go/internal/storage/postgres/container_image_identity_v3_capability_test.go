@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestContainerImageIdentityV3CapabilityLatchCoversQueueLifecycle(t *testing.T) {
@@ -19,8 +20,8 @@ func TestContainerImageIdentityV3CapabilityLatchCoversQueueLifecycle(t *testing.
 		"ack":          ackContainerImageIdentityReducerWorkQuery,
 		"retry":        retryContainerImageIdentityReducerWorkQuery,
 		"fail":         failContainerImageIdentityReducerWorkQuery,
-		"reopen":       reopenSucceededReducerWorkQuery,
-		"replay":       replaySucceededReducerDomainQuery,
+		"reopen":       reopenSucceededReducerWork(telemetry.RequeueReasonMaintenanceReopen),
+		"replay":       replaySucceededReducerDomain(telemetry.RequeueReasonMaintenanceReopen),
 		"recovery":     replayFailedWorkItemsTemplate,
 		"poison":       poison.RecoverDeadLettersQuery,
 		"supersede":    supersedeInactiveReducerGenerationsCTE,

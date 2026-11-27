@@ -241,6 +241,15 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 
 	recordSupersededGenerationFence(ctx, s.instruments, failure.ReplayGenerationSupersededClass, skipped)
 
+	// #11615: the replay UPDATE matched only dead_letter/failed rows of one
+	// stage, so every returned id transitioned. A reducer replay stamps
+	// recovery_redrive; a projector replay keeps NULL by the stage gate and
+	// is not counted. The statement ran autocommit, so this emission is
+	// post-commit by construction.
+	if filter.Stage == recovery.StageReducer {
+		telemetry.RecordReducerRequeue(ctx, s.instruments, telemetry.RequeueReasonRecoveryRedrive, int64(len(workItemIDs)))
+	}
+
 	return recovery.ReplayResult{
 		Stage:                       filter.Stage,
 		Replayed:                    len(workItemIDs),

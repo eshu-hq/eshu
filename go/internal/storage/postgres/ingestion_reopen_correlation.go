@@ -136,9 +136,9 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	domains []string,
-) error {
+) (int64, error) {
 	if s.database == nil {
-		return fmt.Errorf("ingestion store db is required")
+		return 0, fmt.Errorf("ingestion store db is required")
 	}
 
 	if tracer != nil {
@@ -147,18 +147,25 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 		defer span.End()
 	}
 
+	// Transitioned rows, not listings: callers emit the per-reason counter
+	// after their own commit point, so a rolled-back transaction never
+	// counts. Every correlation domain reopens on deferred maintenance
+	// (#11615 decision 6).
+	var transitioned int64
 	queue := ReducerQueue{database: s.database, Now: s.Now}
 	for _, domain := range domains {
 		domain = strings.TrimSpace(domain)
 		if domain == "" {
 			continue
 		}
-		if err := s.reopenCorrelationDomain(ctx, tracer, queue, instruments, domain); err != nil {
-			return err
+		n, err := s.reopenCorrelationDomain(ctx, tracer, queue, instruments, domain)
+		if err != nil {
+			return 0, err
 		}
+		transitioned += n
 	}
 
-	return nil
+	return transitioned, nil
 }
 
 // reopenCorrelationDomain lists and reopens the succeeded work items of one
@@ -175,7 +182,7 @@ func (s IngestionStore) reopenCorrelationDomain(
 	queue ReducerQueue,
 	instruments *telemetry.Instruments,
 	domain string,
-) (err error) {
+) (transitioned int64, err error) {
 	reopened, skippedUnchanged := 0, 0
 	reopenBlock := backfill.StartBlock(ctx, tracer, instruments, backfill.BlockReopen)
 	defer func() {
@@ -201,13 +208,17 @@ func (s IngestionStore) reopenCorrelationDomain(
 		workItemIDs, err = listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	for _, workItemID := range workItemIDs {
-		if _, err := queue.ReopenSucceeded(ctx, workItemID); err != nil {
-			return fmt.Errorf("reopen %s work items: %w", domain, err)
+		ok, err := queue.ReopenSucceeded(ctx, workItemID, telemetry.RequeueReasonMaintenanceReopen)
+		if err != nil {
+			return 0, fmt.Errorf("reopen %s work items: %w", domain, err)
 		}
 		reopened++
+		if ok {
+			transitioned++
+		}
 	}
 	if instruments != nil {
 		instruments.CorrelationReopened.Add(
@@ -223,7 +234,7 @@ func (s IngestionStore) reopenCorrelationDomain(
 	}
 	log.Printf("reducer_work_items_reopened domain=%s count=%d skipped_unchanged=%d",
 		domain, len(workItemIDs), skippedUnchanged)
-	return nil
+	return transitioned, nil
 }
 
 // listCorpusReopenCandidates runs one domain's changed-evidence listing and

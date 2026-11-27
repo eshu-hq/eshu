@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // retriggerBillingOnlyLoader serves only the billing service's catalog facts,
@@ -82,7 +83,7 @@ func TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo(
 	if err := catalogQueue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("first catalog Ack() error = %v", err)
 	}
-	if reopened, err := catalogQueue.ReopenSucceeded(ctx, runtimeFenceCatalogItem); err != nil || !reopened {
+	if reopened, err := catalogQueue.ReopenSucceeded(ctx, runtimeFenceCatalogItem, telemetry.RequeueReasonMaintenanceReopen); err != nil || !reopened {
 		t.Fatalf("ReopenSucceeded() reopened=%v err=%v, want the catalog row reopened", reopened, err)
 	}
 

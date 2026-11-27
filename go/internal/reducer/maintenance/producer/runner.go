@@ -322,6 +322,15 @@ func (r *Runner) recordOutcome(ctx context.Context, work Activation, result Sett
 					attribute.String(telemetry.MetricDimensionDomain, domain)))
 			}
 		}
+		// #11615: result.Reopened counts only actually-transitioned rows
+		// (the store counts transitions, not listings) and is nonzero
+		// only on a completed settle, so this emission is post-commit by
+		// construction. Every row here reopened on producer activation.
+		var reopenedTotal int64
+		for _, n := range result.Reopened {
+			reopenedTotal += int64(n)
+		}
+		telemetry.RecordReducerRequeue(ctx, r.Instruments, telemetry.RequeueReasonProducerActivationSettle, reopenedTotal)
 	}
 	if r.Logger == nil {
 		return

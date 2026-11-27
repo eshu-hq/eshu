@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 )
@@ -67,14 +68,15 @@ FOR UPDATE SKIP LOCKED
 
 // reopenReducerWorkQuery resets succeeded reducer rows to pending. The SET
 // list is ReopenSucceededReducerSetClause, shared with the replay queries,
-// so the lists cannot drift (#7731). The WHEN refs are bare column names:
-// this is a single-table UPDATE, so they resolve identically to the former
-// work.-qualified refs. The WHERE re-checks the full selection predicate
-// after the lock, so EvalPlanQual drops rows a concurrent writer moved. It
-// returns the reopened ids in stable order.
-const reopenReducerWorkQuery = `
+// so the lists cannot drift (#7731): it carries the admin_reopen reason,
+// the only reason an operator reopen stamps. The WHEN refs are bare column
+// names: this is a single-table UPDATE, so they resolve identically to the
+// former work.-qualified refs. The WHERE re-checks the full selection
+// predicate after the lock, so EvalPlanQual drops rows a concurrent writer
+// moved. It returns the reopened ids in stable order.
+var reopenReducerWorkQuery = `
 UPDATE fact_work_items AS work
-SET ` + postgres.ReopenSucceededReducerSetClause + `
+SET ` + postgres.ReopenSucceededReducerSetClause(telemetry.RequeueReasonAdminReopen) + `
 WHERE work.work_item_id = ANY($2)
   AND work.scope_id = $3
   AND work.generation_id = $4
@@ -233,6 +235,10 @@ func (s *postgresStore) ReopenCompletedWork(ctx context.Context, f admin.ReopenF
 		return result, fmt.Errorf("commit reopen: %w", err)
 	}
 	committed = true
+	// #11615: emit after commit, so a rolled-back reopen never counts.
+	// WHERE status = 'succeeded' makes the RETURNING ids exactly the
+	// transitioned rows.
+	telemetry.RecordReducerRequeue(ctx, s.instruments, telemetry.RequeueReasonAdminReopen, int64(len(result.ReducerWorkItemIDs)))
 	// UPDATE ... RETURNING has no output order; sort so the response and
 	// the ledger outcome are deterministic across runs.
 	sort.Strings(result.ReducerWorkItemIDs)

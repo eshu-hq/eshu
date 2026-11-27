@@ -174,6 +174,11 @@ claimed AS (
         COALESCE(work.failure_class, '') AS failure_class,
         COALESCE(work.failure_message, '') AS failure_message,
         COALESCE(work.failure_details, '') AS failure_details,
+        -- #11615: the last requeue reason rides the claim read-only, so the
+        -- existing per-item execution log can carry it at zero extra
+        -- queries. NULL (never requeued) scans as NULL; the display mapping
+        -- lives in telemetry.DisplayRequeueReason.
+        work.last_requeue_reason,
         work.payload
 )` + ",\n" + reducerQueueLeaseMirrorCTE + `
 SELECT
@@ -190,6 +195,7 @@ SELECT
     failure_class,
     failure_message,
     failure_details,
+    last_requeue_reason,
     payload
 FROM claimed
 `

@@ -45,6 +45,13 @@
 // admission_wait_attempts and source_paced_waits, so the row gets a new row's
 // retries while attempt_count stays the claim fence. It is SQL text, not a query.
 //
+// Requeue-reason helpers (#11615) live in reopen_stamp.go beside
+// ReopenedAtUpsertValue: RequeueReasonSetAssignment,
+// RequeueReasonScheduleValue, RequeueReasonUpsertValue, and
+// RequeueReasonStageGatedValue. They take the already-validated SQL literal
+// (telemetry.RequeueReason.SQLLiteral) so this leaf stays free of the
+// telemetry import while every writer shares one CASE discipline.
+//
 // Every function here is pure: none read rows, write rows, or hold locks.
 // This package must not import the parent postgres package or
 // storage/postgres/poison; both import it.

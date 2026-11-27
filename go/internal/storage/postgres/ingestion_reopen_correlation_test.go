@@ -36,7 +36,7 @@ func TestReopenSucceededReducerWorkItemsReplaysListedItems(t *testing.T) {
 	}
 	store := IngestionStore{database: db, Now: func() time.Time { return now }}
 
-	err := store.ReopenSucceededReducerWorkItems(
+	_, err := store.ReopenSucceededReducerWorkItems(
 		context.Background(), nil, nil, []string{"deployable_unit_correlation"},
 	)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestReopenSucceededReducerWorkItemsSkipsBlankDomains(t *testing.T) {
 	db := &fakeExecQueryer{}
 	store := IngestionStore{database: db, Now: time.Now}
 
-	err := store.ReopenSucceededReducerWorkItems(
+	_, err := store.ReopenSucceededReducerWorkItems(
 		context.Background(), nil, nil, []string{"", "   "},
 	)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestReopenSucceededReducerWorkItemsRequiresDB(t *testing.T) {
 	t.Parallel()
 
 	store := IngestionStore{}
-	err := store.ReopenSucceededReducerWorkItems(
+	_, err := store.ReopenSucceededReducerWorkItems(
 		context.Background(), nil, nil, []string{"deployable_unit_correlation"},
 	)
 	if err == nil {
@@ -116,7 +116,7 @@ func TestReopenSucceededReducerWorkItemsPropagatesReopenError(t *testing.T) {
 	}
 	store := IngestionStore{database: db, Now: func() time.Time { return now }}
 
-	err := store.ReopenSucceededReducerWorkItems(
+	_, err := store.ReopenSucceededReducerWorkItems(
 		context.Background(), nil, nil, []string{"deployable_unit_correlation"},
 	)
 	if err == nil {

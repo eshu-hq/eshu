@@ -210,12 +210,15 @@ func TestReplayAllowanceCarriersRaiseAttemptCount(t *testing.T) {
 			t.Fatalf("%s lowers attempt_count, the claim fence:\n%s", carrier.name, carrier.statement)
 		}
 	}
-	// The sweep appends the fragment as its last assignment, after
-	// reopened_at, so the literal that opens its SET list still names
+	// The sweep appends the reason and the fragment as its last assignments,
+	// after reopened_at, so the literal that opens its SET list still names
 	// reopened_at for the #9320 source guard.
 	sweep := poison.RecoverDeadLettersQuery
-	if !strings.Contains(sweep, "reopened_at = $1,\n    "+queuestore.ReplayRetryAllowanceAssignments+"\nWHERE") {
-		t.Fatalf("poison sweep must append the allowance fragment right after reopened_at:\n%s", sweep)
+	if !strings.Contains(sweep, "reopened_at = $1,\n    last_requeue_reason = ") {
+		t.Fatalf("poison sweep must stamp the requeue reason right after reopened_at (#11615):\n%s", sweep)
+	}
+	if !strings.Contains(sweep, queuestore.ReplayRetryAllowanceAssignments+"\nWHERE") {
+		t.Fatalf("poison sweep must append the allowance fragment right before WHERE:\n%s", sweep)
 	}
 }
 

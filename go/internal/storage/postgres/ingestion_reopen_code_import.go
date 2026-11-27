@@ -38,7 +38,14 @@ func (s IngestionStore) ReopenCodeImportRepoEdgeWorkItems(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) error {
-	return s.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(ctx, tracer, instruments, nil)
+	// Standalone one-shot: the store runs autocommit, so each statement
+	// committed as it ran and emission here is post-commit by construction.
+	transitioned, err := s.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(ctx, tracer, instruments, nil)
+	if err != nil {
+		return err
+	}
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonMaintenanceReopen, transitioned)
+	return nil
 }
 
 // reopenCodeImportRepoEdgeWorkItemsWithSkipSet is
@@ -52,9 +59,9 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	skippedPartitions map[backfill.ScopeGenerationPartition]struct{},
-) (err error) {
+) (transitioned int64, err error) {
 	if s.database == nil {
-		return fmt.Errorf("ingestion store db is required")
+		return 0, fmt.Errorf("ingestion store db is required")
 	}
 
 	if tracer != nil {
@@ -75,7 +82,7 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 
 	items, err := listSucceededCodeImportRepoEdgeWorkItems(ctx, s.database)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	gateResult := applyReopenPartitionMemoGate(ctx, "code_import_repo_edge", items, skippedPartitions, instruments)
 	skippedByMemo = len(gateResult.Skipped)
@@ -95,10 +102,18 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 
 	queue := ReducerQueue{database: s.database, Now: s.Now}
 	for _, item := range toReopen {
-		if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
-			return fmt.Errorf("reopen code_import_repo_edge work items: %w", err)
+		// The bool counts actual transitions for the #11615 per-reason
+		// counter, emitted by the caller after its own commit point; the
+		// reopened tally below keeps counting listings for the existing
+		// reopen-block telemetry.
+		ok, err := queue.ReopenSucceeded(ctx, item.WorkItemID, telemetry.RequeueReasonMaintenanceReopen)
+		if err != nil {
+			return 0, fmt.Errorf("reopen code_import_repo_edge work items: %w", err)
 		}
 		reopened++
+		if ok {
+			transitioned++
+		}
 	}
 
 	if instruments != nil {
@@ -109,7 +124,7 @@ func (s IngestionStore) reopenCodeImportRepoEdgeWorkItemsWithSkipSet(
 		len(toReopen), len(gateResult.Skipped), parkedByBreaker,
 	)
 
-	return nil
+	return transitioned, nil
 }
 
 func listSucceededCodeImportRepoEdgeWorkItems(

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestReducerQueueReopenSucceededResetsSucceededWorkItemToPending(t *testing.T) {
@@ -29,7 +30,7 @@ func TestReducerQueueReopenSucceededResetsSucceededWorkItemToPending(t *testing.
 		Now:      func() time.Time { return now },
 	}
 
-	reopened, err := queue.ReopenSucceeded(context.Background(), "reducer_scope-1_gen-1_deployment_mapping_repo_1")
+	reopened, err := queue.ReopenSucceeded(context.Background(), "reducer_scope-1_gen-1_deployment_mapping_repo_1", telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("ReopenSucceeded() error = %v, want nil", err)
 	}
@@ -55,6 +56,7 @@ func TestReducerQueueReopenSucceededResetsSucceededWorkItemToPending(t *testing.
 		// elapsed-time bound reads) gets a fresh grace window instead of
 		// inheriting the row's original, possibly already-elapsed, created_at.
 		"reopened_at = $1",
+		"last_requeue_reason = 'maintenance_reopen'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("reopen query missing %q:\n%s", want, query)
@@ -76,7 +78,7 @@ func TestReducerQueueReopenSucceededReturnsFalseWhenNoRowMatches(t *testing.T) {
 	}
 	queue := ReducerQueue{database: db}
 
-	reopened, err := queue.ReopenSucceeded(context.Background(), "missing-work-item")
+	reopened, err := queue.ReopenSucceeded(context.Background(), "missing-work-item", telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("ReopenSucceeded() error = %v, want nil", err)
 	}
@@ -94,7 +96,7 @@ func TestReducerQueueReopenSucceededWrapsExecError(t *testing.T) {
 		},
 	}
 
-	_, err := queue.ReopenSucceeded(context.Background(), "work-item")
+	_, err := queue.ReopenSucceeded(context.Background(), "work-item", telemetry.RequeueReasonMaintenanceReopen)
 	if err == nil {
 		t.Fatal("ReopenSucceeded() error = nil, want non-nil")
 	}
@@ -115,7 +117,7 @@ func TestReducerQueueReplayDomainReopensSucceededWorkItem(t *testing.T) {
 		Now:      func() time.Time { return now },
 	}
 
-	replayed, err := queue.ReplayDomain(context.Background(), "scope-1", "gen-1", reducer.DomainWorkloadMaterialization)
+	replayed, err := queue.ReplayDomain(context.Background(), "scope-1", "gen-1", reducer.DomainWorkloadMaterialization, telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("ReplayDomain() error = %v, want nil", err)
 	}
@@ -137,6 +139,7 @@ func TestReducerQueueReplayDomainReopensSucceededWorkItem(t *testing.T) {
 		"container_image_identity_v2_authorized_status = CASE",
 		"THEN 'pending'",
 		"reopened_at = $1",
+		"last_requeue_reason = 'maintenance_reopen'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("ReplayDomain query missing %q:\n%s", want, query)
@@ -164,7 +167,7 @@ func TestReducerQueueReplayDomainReturnsFalseWhenNoSucceededRowMatches(t *testin
 	}
 	queue := ReducerQueue{database: db}
 
-	replayed, err := queue.ReplayDomain(context.Background(), "scope-1", "gen-1", reducer.DomainWorkloadMaterialization)
+	replayed, err := queue.ReplayDomain(context.Background(), "scope-1", "gen-1", reducer.DomainWorkloadMaterialization, telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("ReplayDomain() error = %v, want nil", err)
 	}
@@ -178,8 +181,10 @@ func TestReducerQueueReplayWorkloadMaterializationEnqueuesReplayWhenNoSucceededR
 
 	now := time.Date(2026, time.April, 19, 10, 30, 0, 0, time.UTC)
 	db := &fakeExecQueryer{
+		// The schedule statement finds no eligible row (empty RETURNING),
+		// so the replay falls through to the enqueue insert.
+		queryResponses: []queueFakeRows{{}},
 		execResults: []sql.Result{
-			rowsAffectedResult{},
 			rowsAffectedResult{rowsAffected: 1},
 		},
 	}
@@ -202,26 +207,41 @@ func TestReducerQueueReplayWorkloadMaterializationEnqueuesReplayWhenNoSucceededR
 	if !replayed {
 		t.Fatal("ReplayWorkloadMaterialization() replayed = false, want true")
 	}
-	if got, want := len(db.execs), 2; got != want {
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	scheduleQuery := db.queries[0].query
+	for _, want := range []string{
+		"UPDATE fact_work_items AS work",
+		"last_requeue_reason",
+		"'cross_scope_replay'",
+		"RETURNING",
+		"AS requeued",
+	} {
+		if !strings.Contains(scheduleQuery, want) {
+			t.Fatalf("schedule query missing %q:\n%s", want, scheduleQuery)
+		}
+	}
+	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	enqueueQuery := db.execs[1].query
+	enqueueQuery := db.execs[0].query
 	if !strings.Contains(enqueueQuery, "INSERT INTO fact_work_items") {
 		t.Fatalf("enqueue query missing insert:\n%s", enqueueQuery)
 	}
-	if got, want := db.execs[1].args[1], "scope-1"; got != want {
+	if got, want := db.execs[0].args[1], "scope-1"; got != want {
 		t.Fatalf("enqueue scope arg = %v, want %v", got, want)
 	}
-	if got, want := db.execs[1].args[2], "gen-1"; got != want {
+	if got, want := db.execs[0].args[2], "gen-1"; got != want {
 		t.Fatalf("enqueue generation arg = %v, want %v", got, want)
 	}
-	if got, want := db.execs[1].args[3], string(reducer.DomainWorkloadMaterialization); got != want {
+	if got, want := db.execs[0].args[3], string(reducer.DomainWorkloadMaterialization); got != want {
 		t.Fatalf("enqueue domain arg = %v, want %v", got, want)
 	}
-	payload, ok := db.execs[1].args[7].([]byte)
+	payload, ok := db.execs[0].args[7].([]byte)
 	if !ok {
-		t.Fatalf("enqueue payload type = %T, want []byte", db.execs[1].args[7])
+		t.Fatalf("enqueue payload type = %T, want []byte", db.execs[0].args[7])
 	}
 	if !strings.Contains(string(payload), "deployment mapping resolved stronger evidence") {
 		t.Fatalf("enqueue payload = %s, want replay reason", payload)
@@ -477,6 +497,7 @@ func TestReducerQueueValidateClaimRequiresDBWithClaimSideMarker(t *testing.T) {
 func TestReopenSucceededReducerSetClauseCoversClaimColumns(t *testing.T) {
 	t.Parallel()
 
+	clause := ReopenSucceededReducerSetClause(telemetry.RequeueReasonMaintenanceReopen)
 	for _, want := range []string{
 		"status = 'pending'",
 		"attempt_count = 0",
@@ -490,13 +511,56 @@ func TestReopenSucceededReducerSetClauseCoversClaimColumns(t *testing.T) {
 		"next_attempt_at = NULL",
 		"updated_at = $1",
 		"reopened_at = $1",
+		"last_requeue_reason = 'maintenance_reopen'",
 		"failure_class = NULL",
 		"failure_message = NULL",
 		"failure_details = NULL",
 	} {
-		if !strings.Contains(ReopenSucceededReducerSetClause, want) {
-			t.Fatalf("shared reopen SET clause missing %q:\n%s", want, ReopenSucceededReducerSetClause)
+		if !strings.Contains(clause, want) {
+			t.Fatalf("shared reopen SET clause missing %q:\n%s", want, clause)
 		}
+	}
+}
+
+// TestReopenSucceededReducerSetClauseEmbedsCallerReason proves the shared
+// clause is reason-parameterized (#11615): different vocabulary reasons
+// produce different SET lists, and an invalid reason panics instead of
+// writing a corrupt label.
+func TestReopenSucceededReducerSetClauseEmbedsCallerReason(t *testing.T) {
+	t.Parallel()
+
+	maintenance := ReopenSucceededReducerSetClause(telemetry.RequeueReasonMaintenanceReopen)
+	admin := ReopenSucceededReducerSetClause(telemetry.RequeueReasonAdminReopen)
+	if maintenance == admin {
+		t.Fatal("shared reopen SET clause ignores the caller reason")
+	}
+	for reason, literal := range map[telemetry.RequeueReason]string{
+		telemetry.RequeueReasonMaintenanceReopen: "'maintenance_reopen'",
+		telemetry.RequeueReasonCompletionWake:    "'completion_wake'",
+		telemetry.RequeueReasonAdminReopen:       "'admin_reopen'",
+	} {
+		if got := ReopenSucceededReducerSetClause(reason); !strings.Contains(got, "last_requeue_reason = "+literal) {
+			t.Fatalf("shared reopen SET clause for %q missing literal %s:\n%s", string(reason), literal, got)
+		}
+	}
+	defer func() {
+		if recover() == nil {
+			t.Fatal("shared reopen SET clause with an invalid reason did not panic")
+		}
+	}()
+	_ = ReopenSucceededReducerSetClause(telemetry.RequeueReason("bogus"))
+}
+
+// TestReopenSucceededRejectsInvalidReason proves the API validates its
+// reason before touching the database.
+func TestReopenSucceededRejectsInvalidReason(t *testing.T) {
+	t.Parallel()
+
+	queue := ReducerQueue{database: &fakeExecQueryer{}}
+	if _, err := queue.ReopenSucceeded(
+		context.Background(), "work-item", telemetry.RequeueReason("bogus"),
+	); err == nil {
+		t.Fatal("ReopenSucceeded() error = nil, want invalid reason")
 	}
 }
 
@@ -513,7 +577,7 @@ func sharedReopenColumns(t *testing.T) []string {
 	t.Helper()
 
 	var columns []string
-	for _, line := range strings.Split(ReopenSucceededReducerSetClause, "\n") {
+	for _, line := range strings.Split(ReopenSucceededReducerSetClause(telemetry.RequeueReasonMaintenanceReopen), "\n") {
 		trimmed := strings.TrimLeft(line, " \t")
 		upper := strings.ToUpper(trimmed)
 		if strings.HasPrefix(upper, "WHEN ") || strings.HasPrefix(upper, "ELSE") || strings.HasPrefix(upper, "END") {

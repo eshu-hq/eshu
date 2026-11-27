@@ -333,9 +333,14 @@ func runPipelined(
 	// than a resolution append still waits for the next maintenance pass,
 	// which a one-shot run may not get.
 	correlationReopenStart := time.Now()
-	if err := cd.committer.ReopenSucceededReducerWorkItems(
+	// One-shot bootstrap phase over an autocommit store: each reopen
+	// statement committed as it ran, so emission here is post-commit by
+	// construction. Every correlation domain reopens on deferred
+	// maintenance (#11615 decision 6).
+	transitioned, err := cd.committer.ReopenSucceededReducerWorkItems(
 		ctx, tracer, instruments, postgres.CrossScopeCorrelationReopenDomains(),
-	); err != nil {
+	)
+	if err != nil {
 		recordPhase("correlation_reopen", correlationReopenStart)
 		if logger != nil {
 			logger.ErrorContext(
@@ -346,6 +351,7 @@ func runPipelined(
 		}
 		return fmt.Errorf("reopen correlation work items fatal: %w", err)
 	}
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonMaintenanceReopen, transitioned)
 	recordPhase("correlation_reopen", correlationReopenStart)
 
 	// Phase 3.5: enqueue config_state_drift intents for every state_snapshot

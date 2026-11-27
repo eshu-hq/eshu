@@ -18,29 +18,39 @@ import (
 func TestReducerQueueReplayWorkloadMaterializationOutcome(t *testing.T) {
 	t.Parallel()
 
+	// The schedule statement reports one boolean per matched row: true when
+	// that row transitioned (a succeeded reopen or a newly flagged
+	// in-flight row), false when it was already outstanding or already
+	// flagged (#11615). Terminal and superseded rows match nothing, so the
+	// replay falls through to the enqueue conflict and the status probe.
 	tests := []struct {
 		name         string
-		status       any
+		schedule     [][]any
+		probe        [][]any
 		wantOutcome  reducer.WorkloadMaterializationReplayOutcome
 		wantReplayed bool
 	}{
-		{name: "pending", status: "pending", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "claimed", status: "claimed", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "running", status: "running", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "retrying", status: "retrying", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "succeeded", status: "succeeded", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "superseded", status: "superseded", wantOutcome: reducer.WorkloadMaterializationReplaySuperseded},
-		{name: "dead letter", status: "dead_letter", wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
-		{name: "failed", status: "failed", wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
+		{name: "pending", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "claimed", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "running", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "retrying", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "succeeded", schedule: [][]any{{true}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "superseded", schedule: nil, probe: [][]any{{"superseded"}}, wantOutcome: reducer.WorkloadMaterializationReplaySuperseded},
+		{name: "dead letter", schedule: nil, probe: [][]any{{"dead_letter"}}, wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
+		{name: "failed", schedule: nil, probe: [][]any{{"failed"}}, wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			newQueue := func() ReducerQueue {
+				queries := []queueFakeRows{{rows: tt.schedule}}
+				if tt.probe != nil {
+					queries = append(queries, queueFakeRows{rows: tt.probe})
+				}
 				return ReducerQueue{database: &fakeExecQueryer{
 					execResults:    []sql.Result{rowsAffectedResult{}, rowsAffectedResult{}},
-					queryResponses: []queueFakeRows{{rows: [][]any{{tt.status}}}},
+					queryResponses: queries,
 				}}
 			}
 
@@ -72,7 +82,7 @@ func TestReducerQueueReplayWorkloadMaterializationOutcomeMissingItemIsNotSchedul
 
 	queue := ReducerQueue{database: &fakeExecQueryer{
 		execResults:    []sql.Result{rowsAffectedResult{}, rowsAffectedResult{}},
-		queryResponses: []queueFakeRows{{}},
+		queryResponses: []queueFakeRows{{}, {}},
 	}}
 	outcome, err := queue.ReplayWorkloadMaterializationOutcome(
 		context.Background(), "scope-1", "gen-1", "repo:service-gha",
@@ -85,7 +95,7 @@ func TestReducerQueueReplayWorkloadMaterializationOutcomeMissingItemIsNotSchedul
 func TestReducerQueueReplayWorkloadMaterializationOutcomeScheduledByUpdate(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}}}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{true}}}}}
 	queue := ReducerQueue{database: db}
 	outcome, err := queue.ReplayWorkloadMaterializationOutcome(
 		context.Background(), "scope-1", "gen-1", "repo:service-gha",
@@ -93,8 +103,11 @@ func TestReducerQueueReplayWorkloadMaterializationOutcomeScheduledByUpdate(t *te
 	if err != nil || outcome != reducer.WorkloadMaterializationReplayScheduled {
 		t.Fatalf("outcome = (%q, %v), want (scheduled, nil)", outcome, err)
 	}
-	if got := len(db.execs); got != 1 {
-		t.Fatalf("exec count = %d, want 1: an updated row needs no enqueue", got)
+	if got := len(db.queries); got != 1 {
+		t.Fatalf("query count = %d, want 1: an updated row needs no enqueue", got)
+	}
+	if got := len(db.execs); got != 0 {
+		t.Fatalf("exec count = %d, want 0: an updated row needs no enqueue", got)
 	}
 }
 
@@ -104,8 +117,11 @@ func TestReducerQueueReplayStatusQueryReadsStableItemStatus(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
-		execResults:    []sql.Result{rowsAffectedResult{}, rowsAffectedResult{}},
-		queryResponses: []queueFakeRows{{rows: [][]any{{"superseded"}}}},
+		execResults: []sql.Result{rowsAffectedResult{}, rowsAffectedResult{}},
+		// The schedule finds no eligible row (empty RETURNING); the enqueue
+		// admits nothing, so the held-work-item probe (answered outside the
+		// FIFO, zero rows) runs before the status read.
+		queryResponses: []queueFakeRows{{}, {rows: [][]any{{"superseded"}}}},
 	}
 	queue := ReducerQueue{database: db}
 	if _, err := queue.ReplayWorkloadMaterializationOutcome(
@@ -114,17 +130,20 @@ func TestReducerQueueReplayStatusQueryReadsStableItemStatus(t *testing.T) {
 		t.Fatalf("ReplayWorkloadMaterializationOutcome() error = %v", err)
 	}
 	// The enqueue that follows the unmatched update admits no row (the fake
-	// reports none), so it runs the #11215 held-work-item probe first; the status
-	// read is the second query.
-	if got := len(db.queries); got != 2 {
-		t.Fatalf("query count = %d, want 2 (held-work-item probe, then status)", got)
+	// reports none), so it runs the #11215 held-work-item probe between the
+	// schedule and the status read.
+	if got := len(db.queries); got != 3 {
+		t.Fatalf("query count = %d, want 3 (schedule, held-work-item probe, then status)", got)
 	}
-	if db.queries[0].query != heldWorkItemsQuery {
-		t.Fatalf("first query = %q, want the held-work-item probe", db.queries[0].query)
+	if !strings.Contains(db.queries[0].query, "AS requeued") {
+		t.Fatalf("first query = %q, want the schedule statement", db.queries[0].query)
+	}
+	if db.queries[1].query != heldWorkItemsQuery {
+		t.Fatalf("second query = %q, want the held-work-item probe", db.queries[1].query)
 	}
 	for _, want := range []string{"SELECT status", "work_item_id = $1", "stage = 'reducer'"} {
-		if !strings.Contains(db.queries[1].query, want) {
-			t.Fatalf("status query missing %q:\n%s", want, db.queries[1].query)
+		if !strings.Contains(db.queries[2].query, want) {
+			t.Fatalf("status query missing %q:\n%s", want, db.queries[2].query)
 		}
 	}
 }
@@ -138,29 +157,44 @@ func TestReducerQueueReplayStatusQueryReadsStableItemStatus(t *testing.T) {
 func TestReducerQueueReplayWorkloadMaterializationForFenceOutcome(t *testing.T) {
 	t.Parallel()
 
+	// The fenced schedule reports the same transition boolean as the plain
+	// path; the conflict shape is update miss, enqueue conflict, one update
+	// retry, then the shared status probe. Already-outstanding rows report
+	// matched-but-not-transitioned and schedule at once; terminal rows miss
+	// both updates and read their status from the probe (#11615).
 	tests := []struct {
 		name         string
-		status       any
+		schedule     [][]any
+		retry        [][]any
+		probe        [][]any
 		wantOutcome  reducer.WorkloadMaterializationReplayOutcome
 		wantReplayed bool
 	}{
-		{name: "pending", status: "pending", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "claimed", status: "claimed", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "running", status: "running", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "retrying", status: "retrying", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "succeeded", status: "succeeded", wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
-		{name: "superseded", status: "superseded", wantOutcome: reducer.WorkloadMaterializationReplaySuperseded},
-		{name: "dead letter", status: "dead_letter", wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
-		{name: "failed", status: "failed", wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
+		{name: "pending", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "claimed", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "running", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "retrying", schedule: [][]any{{false}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "succeeded", schedule: [][]any{{true}}, probe: nil, wantOutcome: reducer.WorkloadMaterializationReplayScheduled, wantReplayed: true},
+		{name: "superseded", schedule: nil, probe: [][]any{{"superseded"}}, wantOutcome: reducer.WorkloadMaterializationReplaySuperseded},
+		{name: "dead letter", schedule: nil, probe: [][]any{{"dead_letter"}}, wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
+		{name: "failed", schedule: nil, probe: [][]any{{"failed"}}, wantOutcome: reducer.WorkloadMaterializationReplayNotScheduled},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			newQueue := func() ReducerQueue {
+				// The fenced path issues the schedule twice (initial
+				// update, then one retry after the enqueue conflict)
+				// before the status probe, so the retry slot is always
+				// staged; leftover FIFO entries are harmless.
+				queries := []queueFakeRows{{rows: tt.schedule}, {}}
+				if tt.probe != nil {
+					queries = append(queries, queueFakeRows{rows: tt.probe})
+				}
 				return ReducerQueue{database: &fakeExecQueryer{
 					execResults:    []sql.Result{rowsAffectedResult{}, rowsAffectedResult{}, rowsAffectedResult{}},
-					queryResponses: []queueFakeRows{{rows: [][]any{{tt.status}}}},
+					queryResponses: queries,
 				}}
 			}
 
@@ -192,7 +226,7 @@ func TestReducerQueueReplayWorkloadMaterializationForFenceOutcomeMissingItemIsNo
 
 	queue := ReducerQueue{database: &fakeExecQueryer{
 		execResults:    []sql.Result{rowsAffectedResult{}, rowsAffectedResult{}, rowsAffectedResult{}},
-		queryResponses: []queueFakeRows{{}},
+		queryResponses: []queueFakeRows{{}, {}, {}},
 	}}
 	outcome, err := queue.ReplayWorkloadMaterializationForFenceOutcome(
 		context.Background(), "scope-1", "gen-1", "repo:service-gha", "repository:service-gha", "fence-1",
@@ -205,7 +239,7 @@ func TestReducerQueueReplayWorkloadMaterializationForFenceOutcomeMissingItemIsNo
 func TestReducerQueueReplayWorkloadMaterializationForFenceOutcomeScheduledByUpdate(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}}}
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{true}}}}}
 	queue := ReducerQueue{database: db}
 	outcome, err := queue.ReplayWorkloadMaterializationForFenceOutcome(
 		context.Background(), "scope-1", "gen-1", "repo:service-gha", "repository:service-gha", "fence-1",
@@ -213,7 +247,10 @@ func TestReducerQueueReplayWorkloadMaterializationForFenceOutcomeScheduledByUpda
 	if err != nil || outcome != reducer.WorkloadMaterializationReplayScheduled {
 		t.Fatalf("outcome = (%q, %v), want (scheduled, nil)", outcome, err)
 	}
-	if got := len(db.execs); got != 1 {
-		t.Fatalf("exec count = %d, want 1: an updated row needs no enqueue", got)
+	if got := len(db.queries); got != 1 {
+		t.Fatalf("query count = %d, want 1: an updated row needs no enqueue", got)
+	}
+	if got := len(db.execs); got != 0 {
+		t.Fatalf("exec count = %d, want 0: an updated row needs no enqueue", got)
 	}
 }
