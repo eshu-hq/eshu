@@ -21,7 +21,9 @@ workflows:
   - 'go/**/*_test.go'
   jobs:
   - build
+  - changes
   - release
   job_names:
     build: Build on ${{ matrix.os }}
+    changes: Detect Go build changes
     release: Create Release
