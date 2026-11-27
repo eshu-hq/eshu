@@ -48,11 +48,13 @@ type goBuildLane struct {
 }
 
 // goBuildLanes lists every job that sets GOCACHE to goBuildCacheDir and runs
-// actions/setup-go. go-core and go-race save their keys on main push; the
-// readiness shards restore go-core's entry and never save (#9460).
+// actions/setup-go. go-core and go-race-cache-warm.yml own their main-push
+// saves; go-race and the readiness shards restore read-only (#9460, #11550) so
+// sharded runners never race to save an incomplete partial cache.
 var goBuildLanes = []goBuildLane{
 	{workflow: "test.yml", job: "go-core", saves: true},
-	{workflow: "test.yml", job: "go-race", saves: true},
+	{workflow: "test.yml", job: "go-race", saves: false},
+	{workflow: "go-race-cache-warm.yml", job: "warm-go-race-cache", saves: true},
 	{workflow: "live-postgres-readiness.yml", job: "live-postgres-readiness-shards", saves: false},
 }
 
@@ -173,6 +175,61 @@ func TestGoBuildCacheWiring(t *testing.T) {
 		if problem := checkGoBuildCache(job, lane.saves); problem != "" {
 			t.Errorf("%s %s: %s", lane.workflow, lane.job, problem)
 		}
+	}
+}
+
+// TestGoRaceCacheWarmParity pins CGO_CFLAGS, runs-on, and gobuildrace primary
+// cache key parity between test.yml (go-race) and go-race-cache-warm.yml so
+// warmed CGo and race artifacts hit cleanly across all 12 shards.
+func TestGoRaceCacheWarmParity(t *testing.T) {
+	t.Parallel()
+	type parityJob struct {
+		RunsOn string          `yaml:"runs-on"`
+		Steps  []readinessStep `yaml:"steps"`
+	}
+	type workflowEnv struct {
+		Env  map[string]string    `yaml:"env"`
+		Jobs map[string]parityJob `yaml:"jobs"`
+	}
+	load := func(name string) workflowEnv {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join("..", "..", "..", ".github", "workflows", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wf workflowEnv
+		if err := yaml.Unmarshal(raw, &wf); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return wf
+	}
+	restoreKeyAndRunner := func(wfName, jobName string, wf workflowEnv) (string, string) {
+		t.Helper()
+		job, ok := wf.Jobs[jobName]
+		if !ok {
+			t.Fatalf("%s: job %q missing", wfName, jobName)
+		}
+		for _, step := range job.Steps {
+			if step.Uses == "actions/cache/restore@v4" && step.With["path"] == goBuildCacheDir {
+				return strings.TrimSpace(step.With["key"]), strings.TrimSpace(job.RunsOn)
+			}
+		}
+		t.Fatalf("%s %s: missing %s restore step", wfName, jobName, goBuildCacheDir)
+		return "", ""
+	}
+	testWF := load("test.yml")
+	warmWF := load("go-race-cache-warm.yml")
+	if testWF.Env["CGO_CFLAGS"] == "" || testWF.Env["CGO_CFLAGS"] != warmWF.Env["CGO_CFLAGS"] {
+		t.Errorf("CGO_CFLAGS mismatch: test.yml=%q go-race-cache-warm.yml=%q",
+			testWF.Env["CGO_CFLAGS"], warmWF.Env["CGO_CFLAGS"])
+	}
+	testKey, testRunner := restoreKeyAndRunner("test.yml", "go-race", testWF)
+	warmKey, warmRunner := restoreKeyAndRunner("go-race-cache-warm.yml", "warm-go-race-cache", warmWF)
+	if testKey == "" || testKey != warmKey {
+		t.Errorf("gobuildrace cache key mismatch: test.yml=%q go-race-cache-warm.yml=%q", testKey, warmKey)
+	}
+	if testRunner == "" || testRunner != warmRunner {
+		t.Errorf("runs-on mismatch: test.yml=%q go-race-cache-warm.yml=%q", testRunner, warmRunner)
 	}
 }
 

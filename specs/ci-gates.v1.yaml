@@ -120,3 +120,5 @@ non_gate_workflows:
     reason: "nightly/manual advisory Go coverage report and module floor ranking; moved off per-PR and per-push main runs"
   - file: tagged-builds.yml
     reason: "nightly/manual 73-configuration //go:build sweep; moved out of static-contract-gates.yml"
+  - file: go-race-cache-warm.yml
+    reason: "main-push-only deterministic GOCACHE warmer for test.yml go-race shards (#11550); never a PR gate, self-test and parity checks run in test.yml"
