@@ -75,11 +75,14 @@ jobs:
     permissions:
       contents: read
     needs: [changes]
+    # Fail safe toward building on push: main if the 5s changes detection job
+    # fails (e.g., fetch-depth miss on a multi-commit push or checkout flake),
+    # while keeping pull_request and v* tag gating exact.
     if: >-
-      ${{ !cancelled() && (needs.changes.result == 'success' || needs.changes.result == 'skipped') && (
+      ${{ !cancelled() && (needs.changes.result == 'success' || needs.changes.result == 'skipped' || needs.changes.result == 'failure') && (
         (github.event_name == 'pull_request' && contains(fromJSON(inputs.plan_jobs || '[]'), 'build')) ||
         (github.event_name == 'push' && github.ref_type == 'tag') ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.build == 'true')
+        (github.event_name == 'push' && github.ref == 'refs/heads/main' && (needs.changes.outputs.build == 'true' || needs.changes.result == 'failure'))
       ) }}
     name: Build on ${{ matrix.os }}
     timeout-minutes: 20
