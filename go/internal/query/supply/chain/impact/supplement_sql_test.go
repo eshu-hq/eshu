@@ -5,8 +5,11 @@ package impact
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
+
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 func normalizeSQL(text string) string { return strings.Join(strings.Fields(text), " ") }
@@ -189,5 +192,49 @@ func TestImageReadsMaterializeTheCandidateFetch(t *testing.T) {
 		if strings.Contains(normal, "LIMIT 10000") {
 			t.Errorf("image %s read caps its candidate fetch", name)
 		}
+	}
+}
+
+// TestSupplementVolatileStripMatchesWinnersStore pins #11600: the branch-B
+// support-payload strip carries exactly the winners store volatile set, so a
+// branch B row reads like a branch A row. The expected set is derived from
+// supplychaincore.DigestExcludedPayloadKeys minus the served top-level key,
+// the same rule as winnerPayloadStripExpr in
+// supply_chain_impact_winners_select_digest_test.go: every other excluded key
+// is volatile and the select strips it, while the served key stays.
+func TestSupplementVolatileStripMatchesWinnersStore(t *testing.T) {
+	t.Parallel()
+
+	const servedDigestExcludedKey = "evidence_fact_ids"
+	var want []string
+	for _, key := range supplychaincore.DigestExcludedPayloadKeys() {
+		if key != servedDigestExcludedKey {
+			want = append(want, key)
+		}
+	}
+	if len(want) == 0 {
+		t.Fatal("derived volatile strip set is empty: the DigestExcludedPayloadKeys rule moved")
+	}
+
+	sql := supplyChainImpactVolatileStripSQL("pick.payload")
+	strip := regexp.MustCompile(`- '([a-z_]+)'`)
+	var got []string
+	for _, m := range strip.FindAllStringSubmatch(sql, -1) {
+		got = append(got, m[1])
+	}
+	counts := map[string]int{}
+	for _, key := range got {
+		counts[key]++
+	}
+	for _, key := range want {
+		if counts[key] != 1 {
+			t.Errorf("supplement strip has %d occurrences of %q, want exactly 1 in %q", counts[key], key, sql)
+		}
+	}
+	if counts[servedDigestExcludedKey] != 0 {
+		t.Errorf("supplement strip carries served key %q %d times, want 0 in %q", servedDigestExcludedKey, counts[servedDigestExcludedKey], sql)
+	}
+	if len(got) != len(want) {
+		t.Errorf("supplement strip carries %d top-level strips %v, want exactly %d %v", len(got), got, len(want), want)
 	}
 }
