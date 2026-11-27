@@ -58,6 +58,47 @@ INSERT INTO scope_generations (
 	}
 }
 
+// mirrorReplaceSetSupportsToFactTwins plants one finding-fact twin per
+// support the C2 writer wrote in one (scope, generation), so the frozen
+// fact_records oracles in the C1 reader proofs keep reading the writer's
+// rows on an armed database. The writer plants no finding facts there (#10880
+// PR-C2), so without the twins the oracle side would read back empty. Each
+// twin carries the support's payload and stable_fact_key verbatim and the
+// fact columns the in-file plant precedents carry; the insert is missing-only
+// (WHERE NOT EXISTS), so re-seeding or retracting never rewrites a twin. The
+// generation scope is load-bearing: a later mirror must not re-plant a twin
+// an earlier leg deliberately deleted (the StoredRead no-twin case), so call
+// it after every writer pass a proof's oracles must see with that pass's
+// generation, never before a retraction the oracle must not see.
+func mirrorReplaceSetSupportsToFactTwins(t *testing.T, ctx context.Context, db *sql.DB, now time.Time, scopeID, generationID string) int64 {
+	t.Helper()
+	result, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (
+  fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+  schema_version, collector_kind, fencing_token, source_confidence,
+  source_system, source_fact_key, observed_at, ingested_at, is_tombstone,
+  payload
+)
+SELECT s.fact_id, s.scope_id, s.generation_id,
+  'reducer_supply_chain_impact_finding', s.stable_fact_key,
+  '1.0.0', 'reducer', 0, 'exact',
+  'vulnerability_intelligence', s.fact_id, $1, $1, FALSE, s.payload
+FROM supply_chain_impact_finding_supports AS s
+WHERE s.scope_id = $2
+  AND s.generation_id = $3
+  AND NOT EXISTS (SELECT 1 FROM fact_records AS f WHERE f.fact_id = s.fact_id)`,
+		now, scopeID, generationID,
+	)
+	if err != nil {
+		t.Fatalf("mirror supports to fact twins: %v", err)
+	}
+	mirrored, err := result.RowsAffected()
+	if err != nil {
+		t.Fatalf("mirror supports to fact twins rows: %v", err)
+	}
+	return mirrored
+}
+
 // replaceSetPlantRow inserts one active fact row directly, bypassing the
 // writer, so a test can place a row the pass under test must leave alone.
 func replaceSetPlantRow(

@@ -107,17 +107,23 @@ func supportsReadSeed(t *testing.T, ctx context.Context, db *sql.DB, intent stri
 	if _, err := replaceSetWriter(db).WriteSupplyChainImpactFindings(ctx, replaceSetWrite(intent, findings...)); err != nil {
 		t.Fatalf("seed write %s: %v", intent, err)
 	}
-	return c1ReadLiveFactIDs(t, ctx, db, replaceSetLiveScope)
+	// The C2 writer plants no finding facts, so the frozen oracles would read
+	// back empty: mirror every support the pass just wrote into a fact twin.
+	mirrorReplaceSetSupportsToFactTwins(t, ctx, db, replaceSetLiveNow, replaceSetLiveScope, replaceSetLiveGeneration)
+	return c1ReadLiveSupportIDs(t, ctx, db, replaceSetLiveScope)
 }
 
-func c1ReadLiveFactIDs(t *testing.T, ctx context.Context, db *sql.DB, scope string) []string {
+// c1ReadLiveSupportIDs lists the support ids the writer's pass wrote: the
+// supports table is the writer's output on this path, and the mirrored fact
+// twins carry the same ids for the oracles.
+func c1ReadLiveSupportIDs(t *testing.T, ctx context.Context, db *sql.DB, scope string) []string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `
-SELECT fact_id FROM fact_records
-WHERE scope_id = $1 AND fact_kind = 'reducer_supply_chain_impact_finding' AND NOT is_tombstone
+SELECT fact_id FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1
 ORDER BY fact_id`, scope)
 	if err != nil {
-		t.Fatalf("list fact ids: %v", err)
+		t.Fatalf("list support ids: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 	var ids []string
@@ -138,6 +144,20 @@ func supportsExec(t *testing.T, ctx context.Context, db *sql.DB, query string, a
 	}
 }
 
+// supportsExecOne runs a statement that must touch exactly one row (one
+// twin-planting check per fact id), so a seed the test would otherwise prove
+// nothing about fails instead of passing vacuously.
+func supportsExecOne(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) {
+	t.Helper()
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		t.Fatalf("exec %q: %v", strings.Fields(query)[0], err)
+	}
+	if n, err := result.RowsAffected(); err != nil || n != 1 {
+		t.Fatalf("exec %q affected %d rows, want exactly 1: %v", strings.Fields(query)[0], n, err)
+	}
+}
+
 // TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive proves the supports-backed
 // stored read returns the rows, columns and keys the fact read returned (the fencing
 // token aside, which is the constant 0), including a NULL support key with a twin, with
@@ -154,12 +174,12 @@ func TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive(t *testing.T) {
 		t.Fatalf("seeded %d findings, want 6", len(ids))
 	}
 	nullTwin, noTwin, emptyTwin, differs := ids[1], ids[2], ids[3], ids[4]
-	supportsExec(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = NULL WHERE fact_id = $1`, nullTwin)
-	supportsExec(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = NULL WHERE fact_id = $1`, noTwin)
-	supportsExec(t, ctx, db, `DELETE FROM fact_records WHERE fact_id = $1`, noTwin)
-	supportsExec(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = NULL WHERE fact_id = $1`, emptyTwin)
-	supportsExec(t, ctx, db, `UPDATE fact_records SET stable_fact_key = '' WHERE fact_id = $1`, emptyTwin)
-	supportsExec(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = 'support-key-wins' WHERE fact_id = $1`, differs)
+	supportsExecOne(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = NULL WHERE fact_id = $1`, nullTwin)
+	supportsExecOne(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = NULL WHERE fact_id = $1`, noTwin)
+	supportsExecOne(t, ctx, db, `DELETE FROM fact_records WHERE fact_id = $1`, noTwin)
+	supportsExecOne(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = NULL WHERE fact_id = $1`, emptyTwin)
+	supportsExecOne(t, ctx, db, `UPDATE fact_records SET stable_fact_key = '' WHERE fact_id = $1`, emptyTwin)
+	supportsExecOne(t, ctx, db, `UPDATE supply_chain_impact_finding_supports SET stable_fact_key = 'support-key-wins' WHERE fact_id = $1`, differs)
 
 	legacy := scanStoredRead(t, ctx, db, supportsLegacyStoredRead, replaceSetLiveScope, replaceSetLiveGeneration)
 	supports := scanStoredRead(t, ctx, db, supplychaincore.ProofStoredFindingsQuery(), replaceSetLiveScope, replaceSetLiveGeneration)
@@ -230,8 +250,12 @@ func TestSupplyChainImpactSupportsStoredReadEqualsLegacyReadLive(t *testing.T) {
 	if _, err := replaceSetWriter(db).WriteSupplyChainImpactFindings(ctx, priorWrite); err != nil {
 		t.Fatalf("write the prior generation: %v", err)
 	}
+	// The bypass write above leaves no finding facts behind: mirror its
+	// supports so the frozen oracle reads the prior generation too. Scoped
+	// to that generation, so the deliberately deleted no-twin row stays gone.
+	mirrorReplaceSetSupportsToFactTwins(t, ctx, db, replaceSetLiveNow, replaceSetLiveScope, prior)
 	var priorIDs []string
-	for _, id := range c1ReadLiveFactIDs(t, ctx, db, replaceSetLiveScope) {
+	for _, id := range c1ReadLiveSupportIDs(t, ctx, db, replaceSetLiveScope) {
 		if !before[id] {
 			priorIDs = append(priorIDs, id)
 		}
@@ -390,6 +414,9 @@ func TestSupplyChainImpactSupportsScopeDeleteCaptureStagesTheFactSetLive(t *test
 			if _, err := replaceSetWriter(db).WriteSupplyChainImpactFindings(ctx, priorWrite); err != nil {
 				t.Fatalf("write the retired generation: %v", err)
 			}
+			// The bypass write above leaves no finding facts behind: mirror
+			// its supports so the fact-side capture has something to stage.
+			mirrorReplaceSetSupportsToFactTwins(t, ctx, db, replaceSetLiveNow, replaceSetLiveScope, prior)
 			if tc.deleteGenerationFirst {
 				supportsExec(t, ctx, db, `DELETE FROM scope_generations WHERE generation_id = $1`, prior)
 			}
