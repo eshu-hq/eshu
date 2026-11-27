@@ -284,6 +284,14 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
+      # cache: false because setup-go would cache `go env GOCACHE`, which is
+      # the build cache above, a second time (#9598). The pre-warm step below
+      # downloads the modules instead.
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
       # Daily main-only save (~7 MB zstd, 9x speedup on golangci-lint run ./...);
       # PRs restore read-only. Linter config + filelength plugin hashes stay in
       # every restore-key so stale caches never span config/plugin edits.
@@ -296,14 +304,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
             ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-
-      # cache: false because setup-go would cache `go env GOCACHE`, which is
-      # the build cache above, a second time (#9598). The pre-warm step below
-      # downloads the modules instead.
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go/go.mod
-          cache: false
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
@@ -320,18 +320,18 @@ jobs:
       - name: Record full plan mode
         if: ${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'full' }}
         run: test "${{ needs.pr-plan.outputs.mode }}" = full
-      - name: Save Go build cache
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuild-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/eshu-ci/go-build
-          key: ${{ steps.gobuild-cache.outputs.cache-primary-key }}
       - name: Save golangci-lint cache
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.golangcilint-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: /tmp/eshu-ci/golangci-lint
           key: ${{ steps.golangcilint-cache.outputs.cache-primary-key }}
+      - name: Save Go build cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuild-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ steps.gobuild-cache.outputs.cache-primary-key }}
   go-core-complete:
     needs: [changes, go-core, pr-plan]
     if: ${{ always() }}
