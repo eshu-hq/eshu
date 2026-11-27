@@ -51,6 +51,24 @@ operational lessons that future storage changes still need to respect.
   `source_run_id` so new accepted runs can detect prior graph state;
   `HasCompletedAcceptanceUnitSourceRunDomainIntents` includes `source_run_id`
   so chunked code-call projection can skip only same-run retractions.
+- The #10972 unstamped re-drive fix narrows two single-row reducer-queue
+  UPDATEs without touching their access paths: the retouch advances
+  `updated_at` only on terminal rows, and the fenced workload replay reopens
+  a succeeded row only on a RUNS_ON fence change. Both keep the same `WHERE`
+  (`work_item_id` PK equality plus stage/status), so `EXPLAIN` on PostgreSQL
+  18.6 returns the identical plan before and after. Per acceptance unit the
+  post-write replay issues the same number of UPDATEs (the fence grouping
+  adds the repo ID, constant within a unit), with one row lock per statement,
+  no new lock order, and lease mirrors untouched.
+  No-Regression Evidence: `go test ./internal/storage/postgres -run
+  'Test10972|Retouch|WorkloadReplay|AdvisoryCoalescing' -count=1` and `go
+  test ./internal/reducer -run 'RepoDependency' -count=1` are green at the
+  fix commit, and `Test10972UnstampedRedriveLive` proves the retouch keeps an
+  outstanding row's queue position, a same-fence replay keeps a succeeded row
+  while reporting scheduled, and a changed-fence replay reopens it.
+  No-Observability-Change: no instrument, metric, span, or log changed; the
+  pass still reports `ReplayRequests`/`ReplayDurationSeconds` and the same
+  skip/anomaly reasons.
 
 ## Fact Readback Invariants
 
