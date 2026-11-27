@@ -55,7 +55,8 @@ EOF
 			[[ "${block}" == *'SOURCE_SHA: ${{ needs.pr-plan.outputs.source_sha }}'* ]] &&
 			[[ "${block}" == *'TREE_SHA: ${{ needs.pr-plan.outputs.tree }}'* ]] &&
 			[[ "${block}" == *"${selected_job}"* ]] &&
-			{ [[ "${lane}" != go-race ]] || { [[ "${block}" == *'RACE_CHANGED: ${{ needs.changes.outputs.go_race }}'* ]] && [[ "${block}" == *'LOCKSTEP_CHANGED: ${{ needs.changes.outputs.lockstep }}'* ]]; }; }; then
+			{ [[ "${lane}" != go-race ]] || { [[ "${block}" == *'RACE_CHANGED: ${{ needs.changes.outputs.go_race }}'* ]] && [[ "${block}" == *'LOCKSTEP_CHANGED: ${{ needs.changes.outputs.lockstep }}'* ]]; }; } &&
+			{ [[ "${lane}" != go-core ]] || { [[ "${block}" == *'CORE_CHANGED: ${{ needs.changes.outputs.go_core }}'* ]] && [[ "${block}" == *'LOCKSTEP_CHANGED: ${{ needs.changes.outputs.lockstep }}'* ]]; }; }; then
 			ok "${lane}-complete runs the shared assertion with trusted plan, changes, and lane inputs"
 		else
 			bad "${lane}-complete must wire the checked-out shared assertion and trusted inputs"
