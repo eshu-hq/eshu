@@ -53,6 +53,7 @@ on:
     branches:
       - main
     paths:
+      - 'apps/console/src/**'
       - 'go/**'
       - 'sdk/go/**'
       - 'specs/**'

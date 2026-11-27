@@ -84,8 +84,6 @@ jobs:
     name: Build on ${{ matrix.os }}
     timeout-minutes: 20
     runs-on: ${{ matrix.os }}
-    env:
-      GOCACHE: ${{ matrix.os == 'ubuntu-24.04' && '/tmp/eshu-ci/go-build' || '' }}
     strategy:
       matrix:
         os: [ubuntu-24.04, macos-latest]
@@ -102,15 +100,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
-
-      - name: Restore Go build cache
-        if: ${{ matrix.os == 'ubuntu-24.04' }}
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-gobuild-
 
       - name: Set up Go
         uses: actions/setup-go@v6

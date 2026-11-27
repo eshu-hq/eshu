@@ -494,6 +494,7 @@ workflows:
   - scripts/lib/ifa_fault_injection_uses_service_account_cells.sh
   - scripts/lib/test-ifa-fault-injection-uses-service-account-cases.sh
   - testdata/cassettes/usesserviceaccount/**
+  - scripts/ci/test-ifa-push-paths-superset.py
   jobs:
   - dead-letter-matrix
   - determinism-matrix

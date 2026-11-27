@@ -115,6 +115,8 @@ jobs:
           ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
       - name: Validate the Ifá gates stay wired to Neo4j
         run: bash scripts/test-ifa-graph-backend-neo4j.sh
+      - name: Validate Ifá push-main paths stay a superset of PR spec paths
+        run: python3 scripts/ci/test-ifa-push-paths-superset.py
   determinism-matrix:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'determinism-matrix') }}
     name: determinism-matrix
