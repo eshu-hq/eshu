@@ -12,9 +12,8 @@ and how the periodic maintenance pass reopens finished work for replay.
 Every box names the code that runs it, so agents and humans can jump
 from the picture to the source. (Refs #10880; storm breaker #11595.)
 The Mermaid chart below renders on GitHub; the plain-text version after
-it carries the same flow for terminal readers. The canonical standalone
-source lives at `docs/diagrams/eshu-reducer-workflow.mmd` — keep the two
-in sync when the flow changes.
+it carries the same flow for terminal readers. This chart is the single
+copy — do not mirror it elsewhere (see `docs/diagrams/README.md`).
 
 ```mermaid
 flowchart TB
