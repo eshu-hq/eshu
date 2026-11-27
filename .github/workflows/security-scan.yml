@@ -214,9 +214,17 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+      - name: Restore Go build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -261,9 +269,17 @@ jobs:
     permissions:
       contents: read
       security-events: write
+    env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+      - name: Restore Go build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
