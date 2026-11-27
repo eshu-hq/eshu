@@ -1,0 +1,69 @@
+name: Go Race Cache Warm
+
+# Deterministically populates the shared `gobuildrace-v2` GOCACHE entry on main
+# pushes so all 12 `test.yml` go-race shards restore a complete race build cache
+# (including aws-sdk-go-v2, k8s.io/client-go, and CGo tree-sitter archives)
+# instead of racing to save an incomplete single-shard entry.
+#
+# Runs only on `main` pushes (never on PRs, preserving the #9598 10 GB cache
+# quota guard). When the exact `go.mod`+`go.sum` key already exists, the warm
+# and save steps are skipped; if the key changes or is ever evicted, the next
+# main push automatically rebuilds and saves it once.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-race-cache-warm
+  cancel-in-progress: false
+
+# Must stay in lockstep with .github/workflows/test.yml so CGo action IDs match
+# (enforced by scripts/ci/test-warm-go-race-cache.sh and cigates).
+env:
+  CGO_CFLAGS: "-O2 -g -std=gnu17"
+
+jobs:
+  warm-go-race-cache:
+    name: Warm Go race build cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env: {GOCACHE: /tmp/eshu-ci/go-build}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Restore Go build cache
+        id: gobuildrace-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuildrace-v2-${{ hashFiles('go/go.mod', 'go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuildrace-v2-
+            ${{ runner.os }}-${{ runner.arch }}-gobuildrace-
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache: false
+      - name: Self-test Go race cache warmer
+        run: bash scripts/ci/test-warm-go-race-cache.sh
+      - name: Pre-warm Go modules
+        if: ${{ steps.gobuildrace-cache.outputs.cache-hit != 'true' }}
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Warm Go race build cache
+        if: ${{ steps.gobuildrace-cache.outputs.cache-hit != 'true' }}
+        run: bash scripts/ci/warm-go-race-cache.sh
+      - name: Save Go build cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuildrace-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ steps.gobuildrace-cache.outputs.cache-primary-key }}
