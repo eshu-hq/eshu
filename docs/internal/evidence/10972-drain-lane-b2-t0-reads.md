@@ -10,6 +10,16 @@ zero cluster mutations. Throwaway Go harness (production probe construction,
 `NVDBaselineCheckpointStore.ReadNVDBaselineCheckpoints`) deleted after the
 window; tree otherwise untouched.
 
+## Summary
+
+Two rated reads against the primary under a 60m restart-free floor
+(R3 not taken per stop-on-void) show the backlog growing, not draining:
+outflow −536.8/hr against a −147.5/hr derived inflow (net +389/hr), so D1
+fails and the R2 rule voids the triplet at Interval 1; a 4775/hr reopen
+stratifier independently voids the mix bound. Drain direction NOT
+CONFIRMED. Verdict and numbers posted on #10972; this note is the
+evidence record.
+
 ## T0 verification
 
 - T0 = 2026-11-27T00:30:16Z (R0 freeze read).
