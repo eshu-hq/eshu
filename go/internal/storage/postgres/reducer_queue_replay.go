@@ -277,6 +277,18 @@ func (q ReducerQueue) ReplayWorkloadMaterializationOutcome(
 	if matched > 0 {
 		return reducer.WorkloadMaterializationReplayScheduled, nil
 	}
+	return q.enqueueWorkloadMaterializationReplayTail(ctx, intent, workItemID)
+}
+
+// enqueueWorkloadMaterializationReplayTail enqueues a missing replay intent
+// and maps the post-conflict stable status to the closed replay outcome. It
+// is shared by the unfenced and the digest-fenced replay so both agree on
+// what an absent or terminal row means.
+func (q ReducerQueue) enqueueWorkloadMaterializationReplayTail(
+	ctx context.Context,
+	intent runtime.ReducerIntent,
+	workItemID string,
+) (reducer.WorkloadMaterializationReplayOutcome, error) {
 	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
 	if err != nil {
 		return reducer.WorkloadMaterializationReplayNotScheduled,

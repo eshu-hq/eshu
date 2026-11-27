@@ -67,6 +67,25 @@ type ClaimedCrossRepoRelationshipResolver interface {
 	ResolveClaimed(ctx context.Context, intent reducercontract.Intent) (int, error)
 }
 
+// CrossRepoDigestResolver is the optional digest-reporting extension of the
+// cross-repo resolver contract. It reports the resolved-set digest beside the
+// edge count so the handler can fence the deployment-evidence replay on the
+// set that produced it. A resolver without it keeps the legacy unfenced
+// replay, so nothing owed is skipped.
+type CrossRepoDigestResolver interface {
+	ResolveWithDigest(ctx context.Context, scopeID, generationID string) (writes int, digest string, err error)
+	ResolveClaimedWithDigest(ctx context.Context, intent reducercontract.Intent) (writes int, digest string, err error)
+}
+
+// WorkloadMaterializationDigestReplayer replays workload materialization
+// carrying the deployment-evidence digest of the resolved set that triggered
+// it. The queue reopens a finished item only when the incoming digest differs
+// from the recorded one, so a rerun over an unchanged set stays quiet. A
+// replayer without it keeps the legacy unfenced replay (fail open).
+type WorkloadMaterializationDigestReplayer interface {
+	ReplayWorkloadMaterializationForDigest(ctx context.Context, scopeID, generationID, entityKey, digest string) (bool, error)
+}
+
 // WorkloadMaterializationReplayer requeues workload materialization after
 // stronger deployment evidence becomes available for the same scope generation.
 type WorkloadMaterializationReplayer interface {
@@ -135,13 +154,20 @@ func (h PlatformMaterializationHandler) Handle(
 
 	crossRepoWrites := 0
 	workloadReplayCount := 0
+	resolvedSetDigest := ""
 	// When CrossRepoResolver is provided, resolve cross-repo dependency edges
 	// from persisted evidence facts after platform materialization completes.
 	if h.CrossRepoResolver != nil {
 		crossRepoStarted := time.Now()
 		var resolvedCrossRepoWrites int
 		var err error
-		if intent.ClaimedAt == nil {
+		if digestResolver, ok := h.CrossRepoResolver.(CrossRepoDigestResolver); ok {
+			if intent.ClaimedAt == nil {
+				resolvedCrossRepoWrites, resolvedSetDigest, err = digestResolver.ResolveWithDigest(ctx, intent.ScopeID, intent.GenerationID)
+			} else {
+				resolvedCrossRepoWrites, resolvedSetDigest, err = digestResolver.ResolveClaimedWithDigest(ctx, intent)
+			}
+		} else if intent.ClaimedAt == nil {
 			resolvedCrossRepoWrites, err = h.CrossRepoResolver.Resolve(ctx, intent.ScopeID, intent.GenerationID)
 		} else if claimedResolver, ok := h.CrossRepoResolver.(ClaimedCrossRepoRelationshipResolver); ok {
 			resolvedCrossRepoWrites, err = claimedResolver.ResolveClaimed(ctx, intent)
@@ -158,15 +184,13 @@ func (h PlatformMaterializationHandler) Handle(
 			replayStarted := time.Now()
 			replayEntityKey := workloadMaterializationReplayEntityKey(intent)
 			for _, scopeID := range workloadMaterializationReplayScopes(intent) {
-				if _, err := h.WorkloadMaterializationReplayer.ReplayWorkloadMaterialization(
-					ctx,
-					scopeID,
-					intent.GenerationID,
-					replayEntityKey,
-				); err != nil {
+				replayed, err := h.replayWorkloadMaterialization(ctx, scopeID, intent.GenerationID, replayEntityKey, resolvedSetDigest)
+				if err != nil {
 					return reducercontract.Result{}, fmt.Errorf("replay workload materialization: %w", err)
 				}
-				workloadReplayCount++
+				if replayed {
+					workloadReplayCount++
+				}
 			}
 			timing.workloadReplayDuration = time.Since(replayStarted)
 		}
@@ -204,6 +228,7 @@ func (h PlatformMaterializationHandler) Handle(
 		canonicalWrites,
 		crossRepoWrites,
 		workloadReplayCount,
+		resolvedSetDigest,
 		timing,
 	)
 
@@ -222,6 +247,27 @@ func (h PlatformMaterializationHandler) Handle(
 		SubDurations:    platformMaterializationSubDurations(timing),
 		SubSignals:      reducercontract.MaterializationDiagnosticSignals(inputReady, canonicalWrites),
 	}, nil
+}
+
+// replayWorkloadMaterialization schedules one scope's workload
+// materialization replay for this pass's resolved set. When the resolver
+// reported a digest and the replayer carries the digest fence, the replay is
+// digest-fenced: a rerun over an unchanged set reports quiet. Otherwise it
+// falls back to the legacy unfenced replay so nothing owed is skipped. It
+// reports whether the replay was scheduled.
+func (h PlatformMaterializationHandler) replayWorkloadMaterialization(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	entityKey string,
+	resolvedSetDigest string,
+) (bool, error) {
+	if resolvedSetDigest != "" {
+		if digestReplayer, ok := h.WorkloadMaterializationReplayer.(WorkloadMaterializationDigestReplayer); ok {
+			return digestReplayer.ReplayWorkloadMaterializationForDigest(ctx, scopeID, generationID, entityKey, resolvedSetDigest)
+		}
+	}
+	return h.WorkloadMaterializationReplayer.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
 }
 
 // platformMaterializationSubDurations converts the internal per-phase timing
@@ -248,6 +294,7 @@ func logPlatformMaterializationCompleted(
 	canonicalWrites int,
 	crossRepoWrites int,
 	workloadReplayCount int,
+	resolvedSetDigest string,
 	timing platformMaterializationTiming,
 ) {
 	slog.InfoContext(
@@ -260,6 +307,7 @@ func logPlatformMaterializationCompleted(
 		slog.Int("canonical_write_count", canonicalWrites),
 		slog.Int("cross_repo_write_count", crossRepoWrites),
 		slog.Int("workload_replay_count", workloadReplayCount),
+		slog.String("cross_repo_digest", resolvedSetDigest),
 		slog.Float64("platform_write_duration_seconds", timing.platformWriteDuration.Seconds()),
 		slog.Float64("cross_repo_resolution_duration_seconds", timing.crossRepoResolutionDuration.Seconds()),
 		slog.Float64("workload_replay_duration_seconds", timing.workloadReplayDuration.Seconds()),
