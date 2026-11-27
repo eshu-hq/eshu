@@ -26,42 +26,43 @@ mkdir -p "${fake_go_dir}"
 bin_dir="${tmp}/bin"
 mkdir -p "${bin_dir}"
 
-cat >"${bin_dir}/go" <<'EOF'
-#!/usr/bin/env bash
+python3 -c '
+import os, pathlib, sys
+script = """#!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == "list" && "${2:-}" == "-json" && "${3:-}" == "./..." ]]; then
 	case "${FAKE_GO_LIST_MODE:-normal}" in
 	normal)
-		cat <<'JSON'
-{"ImportPath":"github.com/eshu-hq/eshu/go/internal/a","Imports":["fmt","C","github.com/eshu-hq/eshu/go/internal/b","github.com/aws/aws-sdk-go-v2/service/s3"],"TestImports":["testing","github.com/eshu-hq/eshu/go/internal/testutil"],"XTestImports":["k8s.io/client-go/kubernetes","fmt"]}
-{"ImportPath":"github.com/eshu-hq/eshu/go/internal/b","Imports":["context","github.com/eshu-hq/eshu/go"],"TestImports":["github.com/aws/aws-sdk-go-v2/service/ec2"]}
-JSON
+		printf '\''{"ImportPath":"github.com/eshu-hq/eshu/go/internal/a","Imports":["fmt","C","github.com/eshu-hq/eshu/go/internal/b","github.com/aws/aws-sdk-go-v2/service/s3"],"TestImports":["testing","github.com/eshu-hq/eshu/go/internal/testutil"],"XTestImports":["k8s.io/client-go/kubernetes","fmt"]}\\n{"ImportPath":"github.com/eshu-hq/eshu/go/internal/b","Imports":["context","github.com/eshu-hq/eshu/go"],"TestImports":["github.com/aws/aws-sdk-go-v2/service/ec2"]}\\n'\''
 		exit 0
 		;;
 	empty)
 		exit 0
 		;;
 	invalid)
-		printf '{not valid json\n'
+		printf '\''{not valid json\\n'\''
 		exit 0
 		;;
 	internal-only)
-		printf '{"ImportPath":"github.com/eshu-hq/eshu/go/internal/a","Imports":["C","github.com/eshu-hq/eshu/go/internal/b"]}\n'
+		printf '\''{"ImportPath":"github.com/eshu-hq/eshu/go/internal/a","Imports":["C","github.com/eshu-hq/eshu/go/internal/b"]}\\n'\''
 		exit 0
 		;;
 	esac
 fi
 if [[ "${1:-}" == "build" ]]; then
-	printf '%s\n' "$*" >>"${GO_LOG_FILE}"
+	printf '\''%s\\n'\'' "$*" >>"${GO_LOG_FILE}"
 	if [[ "${FAKE_GO_BUILD_FAIL:-0}" == "1" ]]; then
 		exit 1
 	fi
 	exit 0
 fi
-printf 'unexpected fake go args: %s\n' "$*" >&2
+printf '\''unexpected fake go args: %s\\n'\'' "$*" >&2
 exit 99
-EOF
-chmod +x "${bin_dir}/go"
+"""
+p = pathlib.Path(sys.argv[1])
+p.write_text(script, encoding="utf-8")
+os.chmod(p, 0o755)
+' "${bin_dir}/go"
 
 # 1. Normal mode: extracts unique sorted external/stdlib imports across Imports,
 #    TestImports, and XTestImports, excludes C and internal packages, then builds ./...
@@ -122,9 +123,8 @@ fi
 # 6. Workflow lockstep: go-race-cache-warm.yml must match test.yml CGO_CFLAGS,
 #    GOCACHE, and gobuildrace primary cache key so warmed CGo/Go artifacts hit.
 check_parity() {
-	python3 - "$1" "$2" <<'PY'
-import re
-import sys
+	python3 -c '
+import re, sys
 from pathlib import Path
 
 test_yml = Path(sys.argv[1]).read_text(encoding="utf-8")
@@ -136,22 +136,22 @@ def extract_single(text, pattern, label):
         raise SystemExit(f"{label}: expected 1 match, got {len(matches)}")
     return matches[0].strip()
 
-test_cgo = extract_single(test_yml, r'^\s*CGO_CFLAGS:\s*(.+)$', "test.yml CGO_CFLAGS")
-warm_cgo = extract_single(warm_yml, r'^\s*CGO_CFLAGS:\s*(.+)$', "go-race-cache-warm.yml CGO_CFLAGS")
+test_cgo = extract_single(test_yml, r"^\s*CGO_CFLAGS:\s*(.+)$", "test.yml CGO_CFLAGS")
+warm_cgo = extract_single(warm_yml, r"^\s*CGO_CFLAGS:\s*(.+)$", "go-race-cache-warm.yml CGO_CFLAGS")
 if test_cgo != warm_cgo:
     raise SystemExit(f"CGO_CFLAGS drift: test.yml={test_cgo!r} warm={warm_cgo!r}")
 
-test_key = extract_single(test_yml, r'^\s*key:\s*(\$\{\{\s*runner\.os\s*\}\}.*gobuildrace-.*)$', "test.yml gobuildrace key")
-warm_key = extract_single(warm_yml, r'^\s*key:\s*(\$\{\{\s*runner\.os\s*\}\}.*gobuildrace-.*)$', "go-race-cache-warm.yml gobuildrace key")
+test_key = extract_single(test_yml, r"^\s*key:\s*(\$\{\{\s*runner\.os\s*\}\}.*gobuildrace-.*)$", "test.yml gobuildrace key")
+warm_key = extract_single(warm_yml, r"^\s*key:\s*(\$\{\{\s*runner\.os\s*\}\}.*gobuildrace-.*)$", "go-race-cache-warm.yml gobuildrace key")
 if test_key != warm_key:
     raise SystemExit(f"gobuildrace key drift: test.yml={test_key!r} warm={warm_key!r}")
 
-warm_gocache = extract_single(warm_yml, r'GOCACHE:\s*([^},\s]+)', "go-race-cache-warm.yml GOCACHE")
+warm_gocache = extract_single(warm_yml, r"GOCACHE:\s*([^},\s]+)", "go-race-cache-warm.yml GOCACHE")
 if warm_gocache != "/tmp/eshu-ci/go-build":
     raise SystemExit(f"unexpected GOCACHE in warmer: {warm_gocache!r}")
 if "GOCACHE: /tmp/eshu-ci/go-build" not in test_yml:
     raise SystemExit("test.yml missing GOCACHE: /tmp/eshu-ci/go-build")
-PY
+' "$1" "$2"
 }
 
 test_wf="${repo_root}/.github/workflows/test.yml"

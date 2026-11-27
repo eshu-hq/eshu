@@ -1,9 +1,10 @@
 name: Go Race Cache Warm
 
 # Deterministically populates the shared `gobuildrace-v2` GOCACHE entry on main
-# pushes so all 12 `test.yml` go-race shards restore a complete race build cache
-# (including aws-sdk-go-v2, k8s.io/client-go, and CGo tree-sitter archives)
-# instead of racing to save an incomplete single-shard entry.
+# pushes so all 12 `test.yml` go-race shards restore a complete non-test race
+# build cache (including aws-sdk-go-v2, k8s.io/client-go, CGo tree-sitter
+# archives, and `./...`; test binaries and `go test` vet checks still compile
+# per shard) instead of racing to save an incomplete single-shard entry.
 #
 # Runs only on `main` pushes (never on PRs, preserving the #9598 10 GB cache
 # quota guard). When the exact `go.mod`+`go.sum` key already exists, the warm
