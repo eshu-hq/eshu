@@ -12,7 +12,7 @@ service.
 This command owns two test-only endpoints: `GET /health` and strict
 `GET /api/v1/query_range`. Eshu's metric-name mapping, source configuration,
 range bounds, response decoding, and public API remain in
-`go/internal/query` and `go/cmd/api`.
+`go/internal/query` and `go/cmd/eshu-local-api`.
 
 ## Exported surface
 

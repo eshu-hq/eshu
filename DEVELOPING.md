@@ -109,7 +109,10 @@ matrix here.
 
 The service boundary is explicit:
 
-- `go/cmd/api/`
+- `go/cmd/eshu-local-api/` (NornicDB/unset session serving; the dispatch
+  surface itself ships from the eshu-api satellite, `go/cmd/api/` deleted
+  by `eshu-hq/eshu#11456`)
+- `go/cmd/core-api/` (Neo4j session serving)
 - `go/cmd/bootstrap-index/`
 - `go/cmd/ingester/`
 - `go/cmd/reducer/`

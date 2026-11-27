@@ -17,7 +17,7 @@ exact binary set on `PATH`.
 | Binary | Subdirectory | Lifecycle |
 | --- | --- | --- |
 | `eshu` (CLI) | `eshu/` | One-shot CLI commands plus subcommand dispatch |
-| `eshu-api` | `api/` | Long-running HTTP API |
+| `eshu-api` | External satellite (installed via `scripts/install-local-binaries.sh`) | Long-running HTTP API dispatch |
 | `eshu-mcp-server` | External satellite (installed via `scripts/install-local-binaries.sh`) | Long-running MCP tool server |
 | `eshu-ingester` | `ingester/` | Long-running git sync + parse + fact emission |
 | `eshu-projector` | `projector/` | Long-running source-local projection (local profiles) |
@@ -51,9 +51,12 @@ flowchart LR
   component[collector-component-extension] --> postgres
   cicd[collector-cicd-run] --> postgres
   intake[webhook-intake host] --> postgres
-  api[api] --> graph
-  api --> postgres
-  mcp[eshu-mcp-server satellite] --> api
+  localapi[eshu-local-api] --> postgres
+  localapi --> graph
+  coreapi[eshu-core-api] --> postgres
+  coreapi --> graph
+  mcp[eshu-mcp-server satellite] --> coreapi
+  mcp --> localapi
 ```
 
 For the full lifecycle of any one binary, open its `README.md` and

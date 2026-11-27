@@ -103,6 +103,26 @@ go/internal/storage/postgres/identity_local_must_change_password_test.go:go/cmd/
 # arm itself is unchanged by the removal.
 scripts/test-agent-hooks.sh:go/cmd/api/main.go
 
+# #11456 final removal (go/cmd/api tree deleted, live maps relocated to
+# go/cmd/eshu-local-api): the vacated .md paths below keep their
+# historical-record meaning, so repointing them would falsify the record.
+# Live pointers (retained-tree tests, lockstep manifest, CI triggers, w8
+# census tooling, cross-map links) were repointed in the same change.
+# Dated prep records: the flip-prep drafts inventory the tree as it stood;
+# recounts are new notes, not repoints.
+docs/internal/9669-flip-prep/flip-mechanics-draft.md:go/cmd/api/CUTOVER_OWNERSHIP.md
+docs/internal/9669-flip-prep/flip-mechanics-draft.md:go/cmd/api/AGENTS.md
+docs/internal/9669-flip-prep/mcp-query-dependency-inventory.md:go/cmd/api/AGENTS.md
+docs/internal/9669-flip-prep/mcp-query-dependency-inventory.md:go/cmd/api/READ_TRANSPORT_CENSUS.md
+# Frozen contract + frozen dated plan: the step2 scope pins a historical
+# blob (git show <sha>:<path>) with recorded counts; the 2026-06-22 plan
+# rules on the tree as it stood. Supersede, never edit.
+contracts/step2-frozen-scope.md:go/cmd/api/CUTOVER_OWNERSHIP.md
+docs/superpowers/plans/2026-06-22-authz-token-lifecycle-3460-3461.md:go/cmd/api/README.md
+# Frozen removal inventory: the G2 snapshot records the map byte-identical
+# at its final revision (parent of the #10890 removal); the relay tree the
+# comment names is gone by that record's own statement.
+scripts/lib/g2_snapshot_data.py:go/cmd/api/CUTOVER_OWNERSHIP.md
 # #11514 session-half move (go/cmd/api -> go/cmd/eshu-local-api): the
 # vacated paths below keep their historical or synthetic-fixture meaning,
 # so repointing them would falsify the record or change what the test

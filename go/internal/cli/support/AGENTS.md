@@ -15,7 +15,7 @@
   (graph, Postgres, collector, queue) breaks the package contract and the
   S4 decision record — that belongs in a capability route, not here.
 - Never import this package from `query`, `serviceintel`, `reportbundle`,
-  or `answerquality`. Mount the routes from `go/cmd/api` wiring only.
+  or `answerquality`. Mount the routes from `go/cmd/eshu-local-api` wiring only.
 - Preserve response status contracts: 200 verdict-or-bytes, 400 malformed,
   413 oversize, 422 capture refusal, 500 internal. A new status needs the
   OpenAPI fragment, the handler test, and the http-api doc updated together.

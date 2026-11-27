@@ -19,10 +19,10 @@ import (
 // its existing storeReady gate — never a confident empty page.
 //
 // D-wave consumer: D3 (admin/identity/recovery reads, per the arbiter
-// D-wave ruling on #9669). This constructor lives outside go/cmd/api
-// on purpose: the cmd-local adapter deletes at removal, while this one
-// stays as the canonical core-owned construction the satellite records
-// and the removal-time wiring adopts.
+// D-wave ruling on #9669). This constructor lives outside the retired
+// in-tree api tree on purpose: the cmd-local adapter deleted at the
+// #11456 removal, while this one stays as the canonical core-owned
+// construction the satellite records and the removal-time wiring adopts.
 //
 // Rollback: revert this file and the ReadHandler field swap. The pin
 // itself is untouched, so rollback moves no traffic and changes no data.

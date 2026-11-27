@@ -14,7 +14,7 @@ import (
 
 // TestQueryRootDrained fails while any non-test file in this package still
 // imports the handler-heavy query root (row 9 of
-// REMOVAL_CONSUMER_DRAIN_CHECKLIST.md). The family rows record
+// the retired removal drain checklist). The family rows record
 // `NoReducerEvidence: "read consumption in go/internal/query"` strings only;
 // the payload package must not import the root, so the AST-exact census must
 // stay at zero here even though the loose re-prove grep still names this

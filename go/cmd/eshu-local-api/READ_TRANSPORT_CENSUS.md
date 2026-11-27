@@ -19,7 +19,7 @@ that file and are informational only.
 ## Method (exact commands, run in the worktree root)
 
 ```bash
-rg -c '^\| `(GET|POST|PATCH|PUT|DELETE)' go/cmd/api/CUTOVER_OWNERSHIP.md
+rg -c '^\| `(GET|POST|PATCH|PUT|DELETE)' go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md
 rg -ln 'internal/query"' go --glob '*.go' | rg -v '_test\.go' | rg -v '^(go/cmd/api|go/internal/query)/'
 rg -ln 'cmd/api' go specs --glob '*.go' --glob '*.yml' | rg -v '^go/cmd/api/'
 rg -n 'eshu-api' Dockerfile
@@ -154,7 +154,7 @@ admission-contract clients.
 - `specs/ci-pr-workflows.d/read-api-latency-gate.yml` triggers on `go/**`,
   the route-budget files, and compose files (markdown excluded except the
   lockstep list, which includes this census's sibling
-  `go/cmd/api/CUTOVER_OWNERSHIP.md`). Replacement: eshu-api repo owns the
+  `go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md`). Replacement: eshu-api repo owns the
   latency gate against a pinned core image; core keeps the contract-registry
   and static-contract gates.
 - Live/e2e gates touching the API surface: `e2e-tests.yml`,

@@ -22,7 +22,7 @@ import (
 // every live API route must have a row, no row may name a phantom route or
 // a missing contract fragment, and every row the map claims newRouter mounts
 // must actually resolve on a fully-wired test router.
-const cutoverOwnershipRelPath = "go/cmd/api/CUTOVER_OWNERSHIP.md"
+const cutoverOwnershipRelPath = "go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md"
 
 // cutoverDocOnlyRoutes are mounted by APIRouter.Mount but intentionally have
 // no OpenAPI path entry: the Swagger UI and ReDoc pages serve the spec

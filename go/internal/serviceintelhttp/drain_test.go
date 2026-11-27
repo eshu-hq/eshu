@@ -14,7 +14,7 @@ import (
 
 // TestQueryRootDrained fails while any file in this package still imports the
 // handler-heavy query root (row-8 remainder of
-// REMOVAL_CONSUMER_DRAIN_CHECKLIST.md, per the arbiter ruling). Envelopes and
+// the retired removal drain checklist, per the arbiter ruling). Envelopes and
 // HTTP helpers come from querycontract, the dossier builder from entity (via
 // its service_story_seam), the selector from service, and the impact
 // aggregates from supply/chain/impact. Unlike the ask/engine and serviceintel

@@ -27,8 +27,8 @@ Inputs (read-only, authoritative where cited):
   (`CoreReadContractsVersion = "v0"`; GraphQuery 2 methods, ContentStore
   frozen set in `api_boundary_test.go`; Postgres ReadStore half pinned by
   `TestReadStoreContractIsVersioned` in `storage/postgres/db`).
-- `../eshu-9669-census/go/cmd/api/READ_TRANSPORT_CENSUS.md` — per-family
-  disposition census (lives in the census worktree; not copied here).
+- [READ_TRANSPORT_CENSUS.md](READ_TRANSPORT_CENSUS.md) — per-family
+  disposition census (moved here from `go/cmd/api` with the maps).
 
 ## Contract pin (v0)
 
