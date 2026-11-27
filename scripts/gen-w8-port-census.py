@@ -29,7 +29,7 @@ from w8_port_census_data import (  # noqa: E402
 def find_root():
     """Locate the worktree root without hard-coded absolute paths."""
     for cand in Path(__file__).resolve().parents:
-        if (cand / "go" / "cmd" / "api" / "CUTOVER_OWNERSHIP.md").is_file():
+        if (cand / "go" / "cmd" / "eshu-local-api" / "CUTOVER_OWNERSHIP.md").is_file():
             return cand
     p = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                        capture_output=True, text=True)
@@ -39,14 +39,14 @@ def find_root():
 
 
 ROOT = find_root()
-CUTOVER = ROOT / "go" / "cmd" / "api" / "CUTOVER_OWNERSHIP.md"
+CUTOVER = ROOT / "go" / "cmd" / "eshu-local-api" / "CUTOVER_OWNERSHIP.md"
 OUT = ROOT / "docs" / "internal" / "w8-port-census.md"
 
-# Census-day pair is provenance; REVERIFIED_CORE is the S3 ruling base
+# Census-day pair is provenance; REVERIFIED_CORE is the re-base pointer
 # (origin/main at branch time). To re-base: update it, regenerate, run the checker.
 CENSUS_DAY_CORE = "e3c33de093"
 CENSUS_DAY_SAT = "0b56895"
-REVERIFIED_CORE = "e504e328a7"  # origin/main at branch time (census-regen ruling base)
+REVERIFIED_CORE = "973db66b38"  # origin/main at branch time (11581 re-base: +2 post-closure rows)
 
 W7W_LABEL = "w7w-recorded(#10531-merged, satellite-pending)"
 
@@ -86,7 +86,7 @@ def parse_cutover():
                 "mounted": m.group(7).strip(),
             })
     print(f"CUTOVER rows: {len(rows)}", file=sys.stderr)
-    assert len(rows) == 281, len(rows)
+    assert len(rows) == 283, len(rows)
     return rows
 
 
@@ -119,8 +119,14 @@ def parse_tracker(body):
 
 
 NEW_ROUTE = "GET /api/v0/services/{service_name}/api-surface/endpoints"
+# Post-closure CUTOVER additions (absent from closed #10491 tracker -> ("open","")
+# relay-leg, the S3-+2 path; Done IS the tracker Done box, so M4-proven manifest-dep stays).
+POST_CLOSURE_ROUTES = {
+    "GET /api/v0/repository/manifest-dependencies",
+    "GET /readyz",
+}
 W7W = {"POST /api/v0/auth/setup/admin", "POST /api/v0/auth/setup/claim", "POST /api/v0/auth/setup/mfa", "PATCH /api/v0/auth/admin/sign-in-policy"}
-APIR3 = {"GET /api/v0/docs", "GET /api/v0/redoc", "GET /health"}
+APIR3 = {"GET /api/v0/docs", "GET /api/v0/redoc", "GET /health", "GET /readyz"}
 
 
 # ---------- 3. Mount resolution (read-only rg) ----------
@@ -314,8 +320,9 @@ def c5(bucket, cite, r, route):
 def build_rows(rows, state):
     """Join CUTOVER rows with tracker states into table rows."""
     assert state.get(NEW_ROUTE) == ("open", ""), state.get(NEW_ROUTE)
+    assert all(pr not in state for pr in POST_CLOSURE_ROUTES)
     cutover_routes = {r["method"] + " " + r["path"] for r in rows}
-    assert set(state) == cutover_routes, (set(state) ^ cutover_routes)
+    assert set(state) | POST_CLOSURE_ROUTES == cutover_routes, (set(state) ^ cutover_routes)
     trows = []
     classes = {}
     buckets = {}
@@ -329,8 +336,8 @@ def build_rows(rows, state):
         trows.append((route, r["family"], c1m, ports, cls, c2v, c3v, c4v, c5v))
     print(f"classes: {classes}", file=sys.stderr)
     print(f"buckets: {buckets}", file=sys.stderr)
-    assert sum(classes.values()) == 281
-    assert classes.get("no-port", 0) == 4, classes
+    assert sum(classes.values()) == 283
+    assert classes.get("no-port", 0) == 5, classes
     # C5 full coverage: every row assigned, no residue bucket
     allowed = ("landed-Done", "landed-family", "tierC-G4", "w7w-recorded", "relay-leg")
     for t in trows:
@@ -359,10 +366,12 @@ occurred, no behavior changes, no in-tree code moves. Census day 2026-11-10:
 core `{CENSUS_DAY_CORE}` / satellite `{CENSUS_DAY_SAT}` (provenance; row set proven
 byte-identical at the S3 ruling base). Re-based at core `{REVERIFIED_CORE}`
 (origin/main at branch time; checker PASS with identical {counts}
-counts, relay={relay} w7w={w7w}): +2 rows since the S3 base, named below —
-`GET /api/v0/services/{{service_name}}/downstream-consumers` (Entities read,
-eshu#10562) and `POST /api/v0/admin/workflow-retire-unclaimed` (Admin writer,
-eshu#10553).
+counts, relay={relay} w7w={w7w}): +2 rows since the 281 base, named below —
+manifest-dependencies (ManifestDependencies read, eshu#10714; M4-proven satellite-served,
+bucket relay-leg — Done needs a #10491 amendment) and /readyz (mux probe, APIR3
+sibling of /health: relay-leg(mux-direct,no-wave)).
+Prior re-base (S3): +2 rows — downstream-consumers (Entities, eshu#10562),
+workflow-retire-unclaimed (Admin, eshu#10553).
 
 ## Method (exact commands, run in the worktree root)
 
