@@ -57,7 +57,6 @@ mdcap_check_workflow_job() {
 }
 
 run_markdown_workflow_cases() {
-	run_markdown_rollout_workflow_cases
 	local fixture_dir fixture output status mutation
 	fixture_dir="$(mktemp -d)"
 	fixture="${fixture_dir}/valid.yml"
@@ -150,98 +149,6 @@ YAML
 		output="$(mdcap_check_workflow_job "${fixture_dir}/${mutation}.yml" 2>&1)"
 		status=$?
 		assert_exit "${status}" 1 "workflow checker rejects ${mutation} mutation"
-	done
-	rm -rf "${fixture_dir}"
-}
-
-# During the registry migration, base-branch CI still credits verify-contracts
-# for this gate. Keep its real invocations until that base mapping has landed.
-mdcap_check_rollout_job() {
-	local source="$1" action="${2:-}" found_use
-	if [[ -n "${action}" ]]; then
-		found_use="$(awk '
-			/^  verify-contracts:[[:space:]]*$/ { inside=1; next }
-			inside && /^  [^[:space:]#][^:]*:/ { inside=0 }
-			inside && /^        uses: \.\/\.github\/actions\/ci-verify-contracts[[:space:]]*$/ { found++ }
-			END { print found+0 }
-		' "${source}")"
-		if [[ "${found_use}" != 1 ]]; then
-			printf 'markdown rollout: verify-contracts must call the local proof action once\n'
-			return 1
-		fi
-		source="${action}"
-	fi
-	awk -v action_mode="${action:+1}" '
-		BEGIN { if (action_mode) { inside=1; found=1 } }
-		/^  verify-contracts:[[:space:]]*$/ { inside=1; found=1; next }
-		!action_mode && inside && /^  [^[:space:]#][^:]*:/ { inside=0 }
-		!inside || /^[[:space:]]*#/ { next }
-		/^[[:space:]]+(run:[[:space:]]+)?(bash[[:space:]]+)?scripts\/test-verify-markdown-line-cap\.sh[[:space:]]*$/ { selftest=1 }
-		/^[[:space:]]+(run:[[:space:]]+)?(MARKDOWN_LINE_CAP_REQUIRE_BASE=1[[:space:]]+)?(bash[[:space:]]+)?scripts\/verify-markdown-line-cap\.sh[[:space:]]+--all[[:space:]]*$/ { scan=1 }
-		END {
-			if (!found) print "markdown rollout: missing verify-contracts job"
-			if (!selftest) print "markdown rollout: verify-contracts missing real cap selftest command"
-			if (!scan) print "markdown rollout: verify-contracts missing real cap --all command"
-			exit (!found || !selftest || !scan)
-		}
-	' "${source}"
-}
-
-run_markdown_rollout_workflow_cases() {
-	local fixture_dir fixture output status mutation
-	fixture_dir="$(mktemp -d)"
-	fixture="${fixture_dir}/valid.yml"
-	local live_workflow="${script_root}/../.github/workflows/test.yml"
-	local live_action="${script_root}/../.github/actions/ci-verify-contracts/action.yml"
-	output="$(mdcap_check_rollout_job "${live_workflow}" "${live_action}" 2>&1)"
-	status=$?
-	printf 'workflow rollout live CLI wiring exit=%d\n%s\n' "${status}" "${output}"
-	assert_exit "${status}" 0 "live verify-contracts retains cap selftests and --all during registry rollout"
-	local disabled="${fixture_dir}/disabled-action.yml"
-	sed 's|uses: ./.github/actions/ci-verify-contracts|run: true|' "${live_workflow}" >"${disabled}"
-	output="$(mdcap_check_rollout_job "${disabled}" "${live_action}" 2>&1)"
-	status=$?
-	assert_exit "${status}" 1 "rollout checker rejects a disconnected proof action"
-	sed '/scripts\/test-verify-markdown-line-cap\.sh/d' "${live_action}" >"${fixture_dir}/no-action-selftest.yml"
-	output="$(mdcap_check_rollout_job "${live_workflow}" "${fixture_dir}/no-action-selftest.yml" 2>&1)"
-	status=$?
-	assert_exit "${status}" 1 "rollout checker rejects missing composite-action cap selftest"
-	cat >"${fixture}" <<'YAML'
-name: fixture
-jobs:
-  verify-contracts:
-    needs: changes
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          scripts/test-verify-markdown-line-cap.sh
-          MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
-  markdown-file-cap:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          scripts/test-verify-markdown-line-cap.sh
-          MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
-YAML
-	output="$(mdcap_check_rollout_job "${fixture}" 2>&1)"
-	status=$?
-	assert_exit "${status}" 0 "rollout checker accepts existing verify-contracts invocations"
-	for mutation in no-selftest no-scan comment-selftest comment-scan; do
-		awk -v mutation="${mutation}" '
-			/^  markdown-file-cap:/ { outside=1 }
-			!outside && /scripts\/test-verify/ {
-				if (mutation == "no-selftest") next
-				if (mutation == "comment-selftest") { print "#" $0; next }
-			}
-			!outside && /scripts\/verify/ {
-				if (mutation == "no-scan") next
-				if (mutation == "comment-scan") { print "#" $0; next }
-			}
-			{ print }
-		' "${fixture}" >"${fixture_dir}/${mutation}.yml"
-		output="$(mdcap_check_rollout_job "${fixture_dir}/${mutation}.yml" 2>&1)"
-		status=$?
-		assert_exit "${status}" 1 "rollout checker rejects ${mutation} despite dedicated job commands"
 	done
 	rm -rf "${fixture_dir}"
 }

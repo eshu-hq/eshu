@@ -7,6 +7,10 @@ inputs:
   gates:
     description: JSON array of selected registry gate IDs.
     required: true
+  query_plan:
+    description: Whether query-plan/methodology inputs changed (always true off PRs).
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -16,12 +20,10 @@ runs:
       run: |
         scripts/test-verify-codeql-setup.sh
         scripts/verify-codeql-setup.sh
-    - name: Verify Markdown file cap during registry rollout
+    - name: Verify query-plan filter superset contract
       if: ${{ inputs.mode != 'smoke' }}
       shell: bash
-      run: |
-        scripts/test-verify-markdown-line-cap.sh
-        MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all
+      run: python3 scripts/ci/test-query-plan-filter-superset.py
     - name: Verify security-scan tee-status helper
       if: ${{ inputs.mode != 'smoke' }}
       shell: bash
@@ -35,13 +37,13 @@ runs:
         scripts/test-verify-performance-evidence.sh
         scripts/verify-performance-evidence.sh
     - name: Set up Python for query methodology hook proof
-      if: ${{ inputs.mode != 'smoke' }}
+      if: ${{ inputs.mode != 'smoke' && inputs.query_plan == 'true' }}
       uses: actions/setup-python@v6
       with:
         python-version: '3.12'
 
     - name: Install query methodology hook runner
-      if: ${{ inputs.mode != 'smoke' }}
+      if: ${{ inputs.mode != 'smoke' && inputs.query_plan == 'true' }}
       shell: bash
       run: python -m pip install pre-commit==4.6.2
     - name: Verify query methodology static contract in smoke
@@ -49,7 +51,7 @@ runs:
       shell: bash
       run: bash scripts/verify-query-methodology.sh --static
     - name: Verify query-plan regression gate
-      if: ${{ inputs.mode != 'smoke' }}
+      if: ${{ inputs.mode != 'smoke' && inputs.query_plan == 'true' }}
       shell: bash
       run: |
         git fetch --no-tags origin main:refs/remotes/origin/main
@@ -67,7 +69,7 @@ runs:
     # is a terminal artifact with no in-repo downstream consumer.
     - name: Guard query methodology evidence exists (fail fast, no retry)
       id: qm-evidence-guard
-      if: ${{ always() && inputs.mode != 'smoke' }}
+      if: ${{ always() && inputs.mode != 'smoke' && inputs.query_plan == 'true' }}
       shell: bash
       run: |
         set -euo pipefail
@@ -77,7 +79,7 @@ runs:
         fi
     - name: Archive query methodology evidence (attempt 1 of 3)
       id: qm-evidence-upload-1
-      if: ${{ always() && inputs.mode != 'smoke' && steps.qm-evidence-guard.outcome == 'success' }}
+      if: ${{ always() && inputs.mode != 'smoke' && inputs.query_plan == 'true' && steps.qm-evidence-guard.outcome == 'success' }}
       continue-on-error: true
       uses: actions/upload-artifact@v4
       with:
@@ -86,7 +88,7 @@ runs:
         if-no-files-found: error
     - name: Re-archive query methodology evidence (attempt 2 of 3)
       id: qm-evidence-upload-2
-      if: ${{ always() && inputs.mode != 'smoke' && steps.qm-evidence-upload-1.outcome == 'failure' }}
+      if: ${{ always() && inputs.mode != 'smoke' && inputs.query_plan == 'true' && steps.qm-evidence-upload-1.outcome == 'failure' }}
       continue-on-error: true
       uses: actions/upload-artifact@v4
       with:
@@ -95,7 +97,7 @@ runs:
         if-no-files-found: error
     - name: Re-archive query methodology evidence (attempt 3 of 3)
       id: qm-evidence-upload-3
-      if: ${{ always() && inputs.mode != 'smoke' && steps.qm-evidence-upload-2.outcome == 'failure' }}
+      if: ${{ always() && inputs.mode != 'smoke' && inputs.query_plan == 'true' && steps.qm-evidence-upload-2.outcome == 'failure' }}
       continue-on-error: true
       uses: actions/upload-artifact@v4
       with:
@@ -103,7 +105,7 @@ runs:
         path: .proof-artifacts/query-methodology/*.json
         if-no-files-found: error
     - name: Verify query methodology evidence archived (fail-closed)
-      if: ${{ always() && inputs.mode != 'smoke' }}
+      if: ${{ always() && inputs.mode != 'smoke' && inputs.query_plan == 'true' }}
       shell: bash
       env:
         ATTEMPT_1: ${{ steps.qm-evidence-upload-1.outcome }}

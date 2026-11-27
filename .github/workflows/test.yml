@@ -35,6 +35,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
+      query_plan: ${{ steps.query_plan.outputs.query_plan }}
       go_race: ${{ steps.go_race.outputs.go_race == 'true' || steps.go_race_include.outputs.include == 'true' }}
       go_race_scope: ${{ steps.go_race_scope.outputs.scope }}
       go_race_shards: ${{ steps.go_race_scope.outputs.shards }}
@@ -58,6 +59,13 @@ jobs:
           predicate-quantifier: 'some'
           # Shared single-source filter (#10980): generated from specs/ci-docs-lockstep-paths.txt.
           filters: .github/leaf-lockstep-filter.yml
+      - name: Filter query-plan regression inputs
+        id: query_plan
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'some'
+          # Strict superset of query-plan-regression and query-methodology-static registry triggers.
+          filters: .github/leaf-query-plan-filter.yml
       - name: Filter Go race inputs
         id: go_race
         uses: dorny/paths-filter@v3
@@ -240,6 +248,7 @@ jobs:
         with:
           mode: ${{ needs.pr-plan.outputs.mode }}
           gates: ${{ needs.pr-plan.outputs.gates }}
+          query_plan: ${{ github.event_name != 'pull_request' || needs.changes.outputs.query_plan == 'true' }}
   go-core:
     if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core'))) && ((github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) }}
     needs: [changes, pr-plan]

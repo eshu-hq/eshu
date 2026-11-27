@@ -430,6 +430,37 @@ else
 	pass "C3: absolute pattern refused, exit 1"
 fi
 
+# --- S1-S3: GOSEC_SARIF_OUT emits valid SARIF 2.1.0 on clean & finding scans,
+# and writes nothing when gosec fails closed on short/invalid results.
+topic; touch_ok; commit_all
+sarif_clean="${tmp_root}/clean.sarif"
+run_arm STUB_MODE=ok GOSEC_SARIF_OUT="${sarif_clean}" bash "${script}" gosec-all
+check "S1 gosec-all with GOSEC_SARIF_OUT clean" 0 'file(s) scanned'
+if [ -s "${sarif_clean}" ] && jq -e '.version == "2.1.0" and (.runs[0].results | length) == 0' "${sarif_clean}" >/dev/null 2>&1; then
+	pass "S1: clean SARIF 2.1.0 written with 0 results"
+else
+	fail "S1: clean SARIF missing or invalid (${sarif_clean})"
+fi
+sarif_err="${tmp_root}/err.sarif"
+run_arm STUB_MODE=zero GOSEC_SARIF_OUT="${sarif_err}" bash "${script}" gosec-all
+check "S2 gosec-all with GOSEC_SARIF_OUT short scan fails closed" 1 'scanned 0 of'
+if [ -e "${sarif_err}" ]; then fail "S2: SARIF written on failed short scan"; else pass "S2: no SARIF written on short scan"; fi
+use_real
+topic; plant_g301; commit_all
+sarif_dirty="${tmp_root}/dirty.sarif"
+run_arm GOSEC_SARIF_OUT="${sarif_dirty}" bash "${script}" gosec-all
+check "S3 gosec-all with GOSEC_SARIF_OUT planted G301 exits 1" 1 'G301'
+if [ -s "${sarif_dirty}" ] && jq -e '.runs[0].results | any(.ruleId == "G301")' "${sarif_dirty}" >/dev/null 2>&1; then
+	pass "S3: finding SARIF 2.1.0 written before exit 1"
+else
+	fail "S3: finding SARIF missing G301 (${sarif_dirty})"
+fi
+if python3 "${repo_root}/scripts/test-gosec-json-to-sarif.py" >/dev/null 2>&1; then
+	pass "S4: gosec-json-to-sarif unit suite passed"
+else
+	fail "S4: gosec-json-to-sarif unit suite failed"
+fi
+
 if [ "${failures}" -ne 0 ]; then
 	printf 'test-precommit-go-gosec: %d failure(s)\n' "${failures}" >&2
 	exit 1
