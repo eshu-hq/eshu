@@ -36,6 +36,7 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       lockstep: ${{ steps.lockstep.outputs.lockstep }}
       query_plan: ${{ steps.query_plan.outputs.query_plan }}
+      go_core: ${{ steps.go_core.outputs.go_core }}
       go_race: ${{ steps.go_race.outputs.go_race == 'true' || steps.go_race_include.outputs.include == 'true' }}
       go_race_scope: ${{ steps.go_race_scope.outputs.scope }}
       go_race_shards: ${{ steps.go_race_scope.outputs.shards }}
@@ -66,6 +67,15 @@ jobs:
           predicate-quantifier: 'some'
           # Strict superset of query-plan-regression and query-methodology-static registry triggers.
           filters: .github/leaf-query-plan-filter.yml
+      - name: Filter Go core inputs
+        id: go_core
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: 'some'
+          # Strict superset of all test.yml go-core registry gate triggers.
+          filters: .github/leaf-go-core-filter.yml
+      - name: Verify Go core filter superset contract
+        run: python3 scripts/ci/test-go-core-filter-superset.py
       - name: Filter Go race inputs
         id: go_race
         uses: dorny/paths-filter@v3
@@ -250,16 +260,19 @@ jobs:
           gates: ${{ needs.pr-plan.outputs.gates }}
           query_plan: ${{ github.event_name != 'pull_request' || needs.changes.outputs.query_plan == 'true' }}
   go-core:
-    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core'))) && ((github.event_name != 'pull_request' || (needs.changes.outputs.code == 'true' || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) }}
+    if: ${{ (github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core'))) && ((github.event_name != 'pull_request' || ((needs.changes.outputs.code == 'true' && needs.changes.outputs.go_core == 'true') || needs.changes.outputs.lockstep == 'true')) && (github.event_name != 'pull_request' || needs.pr-plan.outputs.mode != 'reuse')) }}
     needs: [changes, pr-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
-    env: {GOCACHE: /tmp/eshu-ci/go-build}
+    env: {GOCACHE: /tmp/eshu-ci/go-build, GOLANGCI_LINT_CACHE: /tmp/eshu-ci/golangci-lint}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+      - name: Compute UTC cache day
+        id: cache-day
+        run: printf 'day=%s\n' "$(date -u +%F)" >> "$GITHUB_OUTPUT"
       # Restore here, save only on main push (last step). A PR-scoped copy is
       # visible to that PR alone but counts against the 10 GB store, and it
       # evicted main's entry (#9598). PR runs fall back to main's entry.
@@ -279,6 +292,18 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache: false
+      # Daily main-only save (~7 MB zstd, 9x speedup on golangci-lint run ./...);
+      # PRs restore read-only. Linter config + filelength plugin hashes stay in
+      # every restore-key so stale caches never span config/plugin edits.
+      - name: Restore golangci-lint cache
+        id: golangcilint-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/eshu-ci/golangci-lint
+          key: ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-${{ hashFiles('go/go.mod', 'go/go.sum') }}-${{ steps.cache-day.outputs.day }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
+            ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
@@ -295,6 +320,12 @@ jobs:
       - name: Record full plan mode
         if: ${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'full' }}
         run: test "${{ needs.pr-plan.outputs.mode }}" = full
+      - name: Save golangci-lint cache
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.golangcilint-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/eshu-ci/golangci-lint
+          key: ${{ steps.golangcilint-cache.outputs.cache-primary-key }}
       - name: Save Go build cache
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuild-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
@@ -316,6 +347,8 @@ jobs:
           LANE_RESULT: ${{ needs.go-core.result }}
           CHANGES_RESULT: ${{ needs.changes.result }}
           CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          CORE_CHANGED: ${{ needs.changes.outputs.go_core }}
+          LOCKSTEP_CHANGED: ${{ needs.changes.outputs.lockstep }}
           PLAN_RESULT: ${{ needs.pr-plan.result }}
           MODE: ${{ needs.pr-plan.outputs.mode }}
           HEAD_SHA: ${{ needs.pr-plan.outputs.head_sha }}

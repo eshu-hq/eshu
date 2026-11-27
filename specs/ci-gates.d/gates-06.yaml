@@ -58,7 +58,9 @@ gates:
     triggers:
       - ".github/workflows/build.yml"
       - ".github/workflows/test.yml"
+      - ".github/leaf-go-core-filter.yml"
       - ".github/leaf-go-race-filter.yml"
+      - "scripts/ci/test-go-core-filter-superset.py"
       - ".github/workflows/security-scan.yml"
       - ".github/workflows/mcp-schema-drift.yml"
       - "specs/ci-gates.v1.yaml"
@@ -74,7 +76,7 @@ gates:
       - "scripts/lib/ci-gate-predicate-quantifier.sh"
     local:
       command: "bash scripts/verify-docs-only-ci-skip.sh"
-      test_command: "bash scripts/test-verify-docs-only-ci-skip.sh && bash scripts/test-verify-docs-only-ci-skip-docs-set.sh"
+      test_command: "bash scripts/test-verify-docs-only-ci-skip.sh && bash scripts/test-verify-docs-only-ci-skip-docs-set.sh && python3 scripts/ci/test-go-core-filter-superset.py"
     ci:
       workflow: test.yml
       job: "docs-helm-hygiene"

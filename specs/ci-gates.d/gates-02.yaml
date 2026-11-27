@@ -498,7 +498,7 @@ gates:
       # in any of them, so a workflow-only edit that adds one must still
       # select this gate.
       - ".github/workflows/**"
-      - ".github/actions/ci-go-core/action.yml"
+      - ".github/actions/**"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
     local:
