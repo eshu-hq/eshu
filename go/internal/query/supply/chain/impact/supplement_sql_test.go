@@ -237,4 +237,7 @@ func TestSupplementVolatileStripMatchesWinnersStore(t *testing.T) {
 	if len(got) != len(want) {
 		t.Errorf("supplement strip carries %d top-level strips %v, want exactly %d %v", len(got), got, len(want), want)
 	}
+	if !strings.Contains(sql, "#- '{provenance,content_digest}'") {
+		t.Errorf("supplement strip drops the nested content_digest exclusion in %q: branch A keeps it, so branch B must strip it too", sql)
+	}
 }
