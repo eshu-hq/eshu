@@ -3,7 +3,7 @@
 Refs eshu-hq/eshu#10972, part of #10860. Lane: Lane-B2 10972 T0 reads.
 Plan: [10972-drain-measurement-amended-plan.md](10972-drain-measurement-amended-plan.md),
 followed exactly. Read-only posture throughout
-(`default_transaction_read_only=on`, 15s statement timeouts, kubectl ops-qa);
+(`default_transaction_read_only=on`, 15s statement timeouts, kubectl against the QA cluster);
 zero cluster mutations. Throwaway Go harness (production probe construction,
 `NewNVDBaselineDrainProbe(postgres.SQLDB{DB: db})`, no `WithReadTimeout`;
 `StatusStore.ReadStatusSnapshotFiltered` with empty selection;
