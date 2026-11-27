@@ -232,8 +232,8 @@ SELECT
     COALESCE(source.payload->'workload_ids', '[]'::jsonb) AS workload_ids,
     COALESCE(source.payload->'environments', '[]'::jsonb) AS environments,
     -- #10880: normalized payload (volatile digest-excluded keys stripped per the 2026-11-21 arbiter ruling) with operator suppression baked in (state rewritten at read).
-    CASE WHEN override.fact_id IS NULL THEN ((source.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}')::jsonb
-         ELSE ((source.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}') || jsonb_build_object('suppression', COALESCE(CASE WHEN jsonb_typeof(override.payload->'suppression') = 'object' THEN override.payload->'suppression' END, '{}'::jsonb)) END AS payload,
+    CASE WHEN override.fact_id IS NULL THEN ((source.payload - 'intent_id' - 'cause' - 'generation_id' - 'selected_epss_score_date') #- '{provenance,content_digest}')::jsonb
+         ELSE ((source.payload - 'intent_id' - 'cause' - 'generation_id' - 'selected_epss_score_date') #- '{provenance,content_digest}') || jsonb_build_object('suppression', COALESCE(CASE WHEN jsonb_typeof(override.payload->'suppression') = 'object' THEN override.payload->'suppression' END, '{}'::jsonb)) END AS payload,
     source.source_confidence
 FROM source_winners AS source
 LEFT JOIN operator_overrides AS override

@@ -31,7 +31,7 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 		"jsonb_build_object('suppression'",
 		// #10880 arbiter ruling decision 3: volatile digest-excluded keys
 		// are stripped before the bake, never stored.
-		"(source.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}'",
+		"(source.payload - 'intent_id' - 'cause' - 'generation_id' - 'selected_epss_score_date') #- '{provenance,content_digest}'",
 	} {
 		if !strings.Contains(supplyChainImpactWinnerSelectSQL, want) {
 			t.Errorf("winner select missing %q", want)

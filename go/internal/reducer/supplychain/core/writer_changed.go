@@ -26,10 +26,20 @@ type SupplyChainImpactRows interface {
 // changed nothing from one that did, without a column or a schema change.
 const contentDigestProvenanceKey = "content_digest"
 
+// selectedEPSSScoreDateProvenanceKey is the open provenance key carrying the
+// selected EPSS observation's score date. The pinned SDK finding struct
+// carries no typed score-date field (reducerderived/v1 findings.go names only
+// epss_probability and epss_percentile), so this provenance entry is the only
+// surface that marshals the date into the digest input.
+const selectedEPSSScoreDateProvenanceKey = "selected_epss_score_date"
+
 // supplyChainImpactContentDigest hashes everything a finding row asserts except
 // what differs on every pass or every rescan without the finding changing: the
-// intent id and cause, the generation id, and the source fact ids the finding
-// cites (a rescan mints new fact ids for identical records). The suppression
+// intent id and cause, the generation id, the source fact ids the finding
+// cites (a rescan mints new fact ids for identical records), and the selected
+// EPSS score date (which differs on every rescan without the finding changing
+// once the score is unchanged; the score itself stays covered through
+// epss_probability and epss_percentile). The suppression
 // state is inside it, so an operator copy flipping between accepted_risk and
 // advisory_retracted is a change. An error while marshalling returns the empty
 // digest, which the next pass reads as "changed".
@@ -42,10 +52,11 @@ func contentDigestOf(payload reducerderivedv1.SupplyChainImpactFinding) string {
 	payload.Cause = ""
 	payload.GenerationID = ""
 	payload.EvidenceFactIDs = nil
-	if hasDigestProvenanceKey(payload.Provenance) {
+	_, hasScoreDate := payload.Provenance[selectedEPSSScoreDateProvenanceKey]
+	if hasDigestProvenanceKey(payload.Provenance) || hasScoreDate {
 		trimmed := make(map[string]any, len(payload.Provenance))
 		for key, value := range payload.Provenance {
-			if !isDigestProvenanceKey(key) {
+			if !isDigestProvenanceKey(key) && key != selectedEPSSScoreDateProvenanceKey {
 				trimmed[key] = value
 			}
 		}

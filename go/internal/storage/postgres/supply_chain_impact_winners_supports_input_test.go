@@ -155,6 +155,15 @@ func TestWinnersSupportsInputReadsOnlyColumnsTheSupportsTableHas(t *testing.T) {
 	}
 }
 
+// reverseWinnersEPSSDateStrip inverts the #11598 top-level date strip,
+// restoring the version-2 projection text. The strip is output-preserving
+// on real payloads (the date lives nested in provenance, never top-level),
+// so the re-pin stands without a contract version bump or a resweep; the
+// nested-date behavior itself is pinned by the digest unit tests.
+func reverseWinnersEPSSDateStrip(statement string) string {
+	return strings.ReplaceAll(statement, " - 'selected_epss_score_date'", "")
+}
+
 // TestWinnersContractRepinnedForSupportsInputs is the differential that lets the
 // version-2 pin be re-pinned instead of bumped: reversing the supports swaps in
 // every contract statement must give the statements the previous pin hashed.
@@ -169,14 +178,17 @@ func TestWinnersSupportsInputReadsOnlyColumnsTheSupportsTableHas(t *testing.T) {
 // byte-identity proof the re-pin rests on. The CTE-streaming body (#9805 C5 /
 // #9975 C4) chains a third, innermost reversal first:
 // reverseWinnersKeyedStreamLayer restores the wide supports builds and the
-// shipped body, so the triply reversed statements hash to the same pin.
+// shipped body, so the triply reversed statements hash to the same pin. The
+// #11598 date strip chains a fourth, outermost reversal first:
+// reverseWinnersEPSSDateStrip restores the version-2 projection text, so the
+// quadruply reversed statements hash to the same pin.
 func TestWinnersContractRepinnedForSupportsInputs(t *testing.T) {
 	t.Parallel()
 
 	shipped := supplyChainImpactWinnersContractStatements()
 	reversed := make([]string, len(shipped))
 	for i, stmt := range shipped {
-		reversed[i] = reverseWinnersDetoast(reverseWinnersSupportsInput(reverseWinnersKeyedStreamLayer(stmt)))
+		reversed[i] = reverseWinnersDetoast(reverseWinnersSupportsInput(reverseWinnersKeyedStreamLayer(reverseWinnersEPSSDateStrip(stmt))))
 	}
 	if got := supplyChainImpactWinnersContractHashOf(reversed); got != winnersLegacyContractPin {
 		t.Fatalf("the contract statements with the supports swaps reversed hash to %s, want the previous version-2 pin %s", got, winnersLegacyContractPin)

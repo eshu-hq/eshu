@@ -201,7 +201,9 @@ func TestIdentityDigestClassifiesEveryPayloadField(t *testing.T) {
 
 // TestIdentityDigestClassifiesProvenanceEntries covers the nested entries: the
 // EPSS and KEV provenance keys change only the full digest, any other entry
-// changes both, and the two stored digests change neither.
+// changes both, and the two stored digests change neither. The selected EPSS
+// score date is the one exception (#11598 Fix 2): it differs on every rescan
+// without the finding changing, so it changes neither digest.
 func TestIdentityDigestClassifiesProvenanceEntries(t *testing.T) {
 	t.Parallel()
 
@@ -217,6 +219,12 @@ func TestIdentityDigestClassifiesProvenanceEntries(t *testing.T) {
 		return out
 	}
 	for key := range enrichmentProvenanceKeys {
+		if key == selectedEPSSScoreDateProvenanceKey {
+			if contentDigestOf(with(key)) != baseFull || identityDigestOf(with(key)) != baseIdentity {
+				t.Errorf("enrichment provenance %q: want both digests unchanged: a score-date-only rescan is not a change", key)
+			}
+			continue
+		}
 		if contentDigestOf(with(key)) == baseFull || identityDigestOf(with(key)) != baseIdentity {
 			t.Errorf("enrichment provenance %q: want the full digest changed and the identity digest unchanged", key)
 		}

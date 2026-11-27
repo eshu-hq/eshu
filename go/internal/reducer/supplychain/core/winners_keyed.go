@@ -158,19 +158,26 @@ type SupplyChainImpactWinnersContractStore interface {
 // keyed tick's lease.
 const SupplyChainImpactWinnersAuditDomain = "supply_chain_impact_winners_audit"
 
-// DigestExcludedPayloadKeys lists the top-level payload keys the finding content
-// digest leaves out, plus nothing else: the provenance key that carries the
-// digest itself is the only nested exclusion and is handled by contentDigestOf.
+// DigestExcludedPayloadKeys lists the payload keys the finding content digest
+// leaves out: the top-level volatile keys, plus the nested provenance entry
+// carrying the selected EPSS score date (a rescan re-dates an unchanged score,
+// so the date is digest-excluded while the score stays covered). The
+// provenance keys that carry the digests themselves are the other nested
+// exclusions and are handled by contentDigestOf.
 //
 // The #9805 capture filter skips a rewrite whose digest equals the stored one.
 // That is sound only while no payload key the winners select reads is in this
 // list; a guard in the postgres package reads the select and fails if one is.
 // Since #10880 the stored winner payload carries evidence_fact_ids, the one
-// served key in this list: the select strips the volatile keys before storing
-// and the capture secondary-compares the evidence set (#10880 arbiter ruling
-// 2026-11-21), so no key here can move a stored winner uncaptured.
+// top-level served key in this list: the select strips the volatile keys
+// before storing and the capture secondary-compares the evidence set (#10880
+// arbiter ruling 2026-11-21), so no key here can move a stored winner
+// uncaptured. The score date is the one nested served key: the select keeps
+// the provenance entry and no capture compares it, so the served date goes
+// stale on a date-only refresh (#11598: accepted staleness for provenance
+// metadata while the score is unchanged).
 func DigestExcludedPayloadKeys() []string {
-	return []string{"intent_id", "cause", "generation_id", "evidence_fact_ids"}
+	return []string{"intent_id", "cause", "generation_id", "evidence_fact_ids", selectedEPSSScoreDateProvenanceKey}
 }
 
 // dirtyIdentifierOf derives the dirty-log identifier of a finding from the
