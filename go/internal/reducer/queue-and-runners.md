@@ -11,6 +11,41 @@ One picture of how work enters the queue, how the reducer drains it,
 and how the periodic maintenance pass reopens finished work for replay.
 Every box names the code that runs it, so agents and humans can jump
 from the picture to the source. (Refs #10880; storm breaker #11595.)
+The Mermaid chart below renders on GitHub; the plain-text version after
+it carries the same flow for terminal readers.
+
+```mermaid
+flowchart TB
+  Drain["shard drain"] --> Maint["RunDeferredRelationshipMaintenanceAfterShardDrain"]
+  Maint --> Backfill["BackfillAllRelationshipEvidence\ncommit deferred evidence first"]
+  Backfill --> SkipSet["same-pass skip-set\npartitions this pass skipped"]
+  SkipSet --> ReopenTx["reopenMaintenanceWorkItemsInTransaction\nONE transaction, all-or-nothing"]
+  ReopenTx --> DM["deployment_mapping reopen"]
+  ReopenTx --> CI["code_import_repo_edge reopen"]
+  ReopenTx --> Corr["correlation chain reopen\nno skip-set: waits on generation activation"]
+  DM --> Gate["applyReopenPartitionMemoGate"]
+  CI --> Gate
+  Gate -->|in skip-set| Stay["stays succeeded"]
+  Gate -->|not skipped| Breaker{"evaluateReopenCircuitBreaker"}
+  Breaker -->|pool < 20| ReopenAll["reopen all"]
+  Breaker -->|reopen share > 50%| Park["PARK: stay succeeded, re-listed next pass\nlog + parked_by_breaker counter"]
+  Breaker -->|otherwise| Reopen["ReducerQueue.ReopenSucceeded\nsucceeded -> pending"]
+  ReopenAll --> Pending["fact_work_items\npending / retrying"]
+  Reopen --> Pending
+  Pending --> Claim["Claim oldest-first, SKIP LOCKED"]
+  Claim --> Beat["startHeartbeat\nlease until Ack/Fail"]
+  Beat --> Exec["Execute:\nGenerationCheck -> Definition -> Handler.Handle"]
+  Exec --> Writes["writes: Postgres facts + graph via EdgeWriter"]
+  Exec --> Ack["Ack -> succeeded"]
+  Exec --> Sup["Superseded: newer generation, no write"]
+  Exec --> Fail{"Fail: attempt budget left?"}
+  Fail -->|yes| Retry["retrying (backoff)"]
+  Fail -->|no| DL["dead_letter"]
+  Retry --> Pending
+  Miss["fleet-wide miss:\nfingerprint flip + withheld memo"] -->|every pass| Reopen
+  Reopen -->|pool grows faster than drain| Miss
+  Park -->|cuts the loop| Pending
+```
 
 ```text
 INGESTER SIDE (periodic maintenance pass, one goroutine per shard drain)
