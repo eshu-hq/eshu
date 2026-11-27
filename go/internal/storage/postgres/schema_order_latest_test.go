@@ -231,4 +231,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// targeted anchor-scoped relationship fact load's lower(payload::text)
 	// LIKE ANY predicate, built CONCURRENTLY.
 	"fact_records_anchor_payload_trgm_idx",
+	// Migration 361 (#11613) adds the holder freshness watermark columns
+	// to the scope pass state (token, generation, evidence-complete), all
+	// nullable with no default or backfill, so the reopen can compare the
+	// origin token against the last proven pass instead of wall times.
+	"supply_chain_impact_scope_pass_state_watermark",
 }
