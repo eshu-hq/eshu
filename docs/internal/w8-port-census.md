@@ -6,17 +6,19 @@
 Refs eshu-hq/eshu#9669, eshu-hq/eshu#10491. Status: preparation only — no cutover has
 occurred, no behavior changes, no in-tree code moves. Census day 2026-11-10:
 core `e3c33de093` / satellite `0b56895` (provenance; row set proven
-byte-identical at the S3 ruling base). Re-based at core `e504e328a7`
-(origin/main at branch time; checker PASS with identical 281/125/17/27/112
-counts, relay=108 w7w=4): +2 rows since the S3 base, named below —
-`GET /api/v0/services/{service_name}/downstream-consumers` (Entities read,
-eshu#10562) and `POST /api/v0/admin/workflow-retire-unclaimed` (Admin writer,
-eshu#10553).
+byte-identical at the S3 ruling base). Re-based at core `973db66b38`
+(origin/main at branch time; checker PASS with identical 283/125/17/27/114
+counts, relay=110 w7w=4): +2 rows since the 281 base, named below —
+manifest-dependencies (ManifestDependencies read, eshu#10714; M4-proven satellite-served,
+bucket relay-leg — Done needs a #10491 amendment) and /readyz (mux probe, APIR3
+sibling of /health: relay-leg(mux-direct,no-wave)).
+Prior re-base (S3): +2 rows — downstream-consumers (Entities, eshu#10562),
+workflow-retire-unclaimed (Admin, eshu#10553).
 
 ## Method (exact commands, run in the worktree root)
 
 ```bash
-rg -c '^\| `' go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md            # 281 live rows
+rg -c '^\| `' go/cmd/eshu-local-api/CUTOVER_OWNERSHIP.md            # 283 live rows
 python3 scripts/gen-w8-port-census.py [--tracker FILE]    # regenerate this file
 bash scripts/check-w8-port-census.sh                      # drift gate (row parity)
 ```
@@ -104,16 +106,16 @@ lands, per the W7-writers ruling — this label rename changes no box.
 `bash scripts/check-w8-port-census.sh` at census commit:
 
 ```text
-PASS w8-port-census: rows=281 done=125 family=17 tierC=27 tomigrate=112 (relay=108 w7w=4)
+PASS w8-port-census: rows=283 done=125 family=17 tierC=27 tomigrate=114 (relay=110 w7w=4)
 ```
 
-281 = 142 terminated (125 Done + 17 family-native) + 27 tier-C + 112 to-migrate,
+283 = 142 terminated (125 Done + 17 family-native) + 27 tier-C + 114 to-migrate,
 each count derived from table buckets, no hand-typed counts. Route set is byte-equal
 to the CUTOVER_OWNERSHIP.md row set. Mount citations were resolved per row by the
 generator (literals, `Route` constants, and path-only constants with `"METHOD "+Const`
 registrations); every row carries a non-empty C1–C5 and a known C5 bucket.
 
-## Route table (281 rows)
+## Route table (283 rows)
 
 | route | family | C1 mount+class | C2 | C3 | C4 | C5 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -218,6 +220,7 @@ registrations); every row carries a non-empty C1–C5 and a known C5 bucket.
 | `GET /api/v0/repositories/{repo_id}/stats` | Repositories | Mount q/repository/handler.go (Handler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CICDRunCorrelations(CICDRunCorrelationStore),ServiceCatalogCorrelations(ServiceCatalogCorrelationStore),Freshness(FreshnessReader),Selections(PageSelectionReader),Retirements(PageRetirementReader),Profile(QueryProfile); candidate | blanket | native-Done via newRouter | read | landed-Done |
 | `GET /api/v0/repositories/{repo_id}/story` | Repositories | Mount q/repository/handler.go (Handler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CICDRunCorrelations(CICDRunCorrelationStore),ServiceCatalogCorrelations(ServiceCatalogCorrelationStore),Freshness(FreshnessReader),Selections(PageSelectionReader),Retirements(PageRetirementReader),Profile(QueryProfile); candidate | blanket | relay-leg via newRouter | read | relay-leg |
 | `GET /api/v0/repositories/{repo_id}/tree` | Repositories | Mount q/repository/handler.go (Handler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CICDRunCorrelations(CICDRunCorrelationStore),ServiceCatalogCorrelations(ServiceCatalogCorrelationStore),Freshness(FreshnessReader),Selections(PageSelectionReader),Retirements(PageRetirementReader),Profile(QueryProfile); candidate | blanket | native-Done via newRouter | read | landed-Done |
+| `GET /api/v0/repository/manifest-dependencies` | ManifestDependencies | Mount q/manifest/handler.go (Handler.Mount); ports:Profile(QueryProfile); candidate | blanket | relay-leg via newRouter | read-held(writer-handle-held,no-HTTP-path-writes) | relay-leg |
 | `GET /api/v0/secrets-iam/identity-trust-chains` | SecretsIAM | Mount q/secrets/handler.go (Handler.Mount); ports:IdentityTrustChains(IAMIdentityTrustChainStore),PrivilegePostureObservations(IAMPrivilegePostureObservationStore),SecretAccessPaths(IAMSecretAccessPathStore),PostureGaps(IAMPostureGapStore),Summary(IAMPostureSummaryStore),GrantPosture(IAMGrantPostureStore),Profile(QueryProfile); pinned | dedicated:SecretsIAMReadAdmission | relay-leg via newRouter | read | relay-leg |
 | `GET /api/v0/secrets-iam/posture-gaps` | SecretsIAM | Mount q/secrets/handler.go (Handler.Mount); ports:IdentityTrustChains(IAMIdentityTrustChainStore),PrivilegePostureObservations(IAMPrivilegePostureObservationStore),SecretAccessPaths(IAMSecretAccessPathStore),PostureGaps(IAMPostureGapStore),Summary(IAMPostureSummaryStore),GrantPosture(IAMGrantPostureStore),Profile(QueryProfile); pinned | dedicated:SecretsIAMReadAdmission | relay-leg via newRouter | read | relay-leg |
 | `GET /api/v0/secrets-iam/posture-summary` | SecretsIAM | Mount q/secrets/handler.go (Handler.Mount); ports:IdentityTrustChains(IAMIdentityTrustChainStore),PrivilegePostureObservations(IAMPrivilegePostureObservationStore),SecretAccessPaths(IAMSecretAccessPathStore),PostureGaps(IAMPostureGapStore),Summary(IAMPostureSummaryStore),GrantPosture(IAMGrantPostureStore),Profile(QueryProfile); pinned | dedicated:SecretsIAMReadAdmission | relay-leg via newRouter | read | relay-leg |
@@ -266,6 +269,7 @@ registrations); every row carries a non-empty C1–C5 and a known C5 bucket.
 | `GET /api/v0/workloads/{workload_id}/context` | Entities | Mount q/entity/handler.go (Handler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CICDRunCorrelations(CICDRunCorrelationStore),ContainerImageIdentities(supplychain.ContainerImageIdentityStore),SBOMAttachments(supplychain.SBOMAttestationAttachmentStore),Profile(QueryProfile),ContentRelationships(ContentRelationshipBuilder); candidate | blanket | relay-leg via newRouter | read | relay-leg |
 | `GET /api/v0/workloads/{workload_id}/story` | Entities | Mount q/entity/handler.go (Handler.Mount); ports:Neo4j(GraphQuery),Content(ContentStore),CICDRunCorrelations(CICDRunCorrelationStore),ContainerImageIdentities(supplychain.ContainerImageIdentityStore),SBOMAttachments(supplychain.SBOMAttestationAttachmentStore),Profile(QueryProfile),ContentRelationships(ContentRelationshipBuilder); candidate | blanket | relay-leg via newRouter | read | relay-leg |
 | `GET /health` | APIRouter | APIRouter.Mount q/handler.go:147; Serve funcs q/handler.go:460-470; ports:-; no-port | n/a | mux-direct via newRouter | mux | relay-leg(mux-direct,no-wave) |
+| `GET /readyz` | APIRouter | APIRouter.Mount q/handler.go:147; Serve funcs q/handler.go:460-470; ports:-; no-port | n/a | mux-direct via wireAPI | mux | relay-leg(mux-direct,no-wave) |
 | `PATCH /api/v0/auth/admin/sign-in-policy` | SignInPolicyMutations | Mount q/sign_in_policy_mutations.go (SignInPolicyMutationHandler.Mount); ports:Store(SignInPolicyMutationStore); writer | writer:SignInPolicyAdmission v0 | w7w-record-inflight via wireAPI | mut(core-store) | w7w-recorded(#10531-merged, satellite-pending) |
 | `PATCH /api/v0/auth/browser-session/context` | BrowserSessions | Mount q/browser_session_handler.go (BrowserSessionHandler.Mount); ports:Store(BrowserSessionStore),SignInPolicy(SignInPolicyReadStore); writer | writer:BrowserSessionAdmission v0 | tierC-dispatch via newRouter | mut(core-store) | tierC-G4(re-verify) |
 | `POST /api/v0/admin/backfill` | Admin | Mount q/admin/handler.go (Handler.Mount); ports:ReindexProgress(ReindexProgressReader),Store(Store),ReadStore(ReadStore); writer | writer:generic(core-owned) | tierC-dispatch via newRouter | mut(core-store) | tierC-G4(re-verify) |
