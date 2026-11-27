@@ -13,8 +13,8 @@ Eshu depends on queues, so this page maps every one in the reducer path:
 the main reducer queue, the lease mirror, the deferred-wait set-aside, the
 separate control-plane queue, and the maintenance reopen loop with its
 breaker. For the drain-loop picture, see the reducer queue internals in
-`go/internal/reducer/queue-and-runners.md` (mirrored for the web in
-`docs/diagrams/eshu-reducer-workflow.mmd`).
+`go/internal/reducer/queue-and-runners.md`, which holds the single copy
+of the drain-loop chart (this page's own chart maps the queues).
 
 ```mermaid
 flowchart TB
