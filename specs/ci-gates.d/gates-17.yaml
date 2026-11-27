@@ -45,3 +45,21 @@ gates:
     requirements:
       - credentials
     ci_only_reason: "scheduled delete against the live GHCR package with packages: write; the blocking ghcr-buildcache-prune row runs its hermetic self-test"
+
+  - id: gha-codeql-cache-prune-run
+    name: GHA CodeQL cache prune (daily)
+    category: hygiene
+    layer: secondary
+    purpose: "Deletes stale CodeQL overlay/trap Actions caches older than 24h (keeping newest 4/family) to protect the 10 GB cache store."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - ".github/workflows/gha-codeql-cache-prune.yml"
+      - "scripts/ci/prune-gha-codeql-caches.sh"
+      - "scripts/ci/test-prune-gha-codeql-caches.sh"
+    ci:
+      workflow: gha-codeql-cache-prune.yml
+      job: "GHA CodeQL cache prune"
+    requirements:
+      - credentials
+    ci_only_reason: "scheduled delete against the live Actions cache API with actions: write; scripts/ci/test-prune-gha-codeql-caches.sh exercises the selection and fail-closed contract hermetically"

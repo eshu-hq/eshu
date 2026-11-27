@@ -1,0 +1,54 @@
+name: GHA CodeQL Cache Prune
+
+# GitHub Default Setup CodeQL writes new overlay (~140 MB JS, ~28 MB Python)
+# and TRAP (~24 MB) cache entries on frequent merges and PRs. Left unpruned,
+# those entries consume >6 GB of the repository's 10 GB Actions cache quota
+# and evict Go build/race and Playwright caches.
+#
+# This daily job deletes ONLY `codeql-overlay-*` and `codeql-trap-*` caches
+# whose last_accessed_at is older than 24 hours, always keeping the 4 newest
+# entries per family. Go, Playwright, Trivy, and Node caches are never touched.
+on:
+  schedule:
+    # Daily 05:17 UTC, outside busy merge hours and offset from ghcr-buildcache-prune.
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List stale CodeQL caches that would be deleted and delete nothing
+        required: false
+        default: false
+        type: boolean
+      min_age_hours:
+        description: Minimum hours since last_accessed_at before pruning (default 24)
+        required: false
+        default: "24"
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: gha-codeql-cache-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: GHA CodeQL cache prune
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Self-test the prune script
+        run: bash scripts/ci/test-prune-gha-codeql-caches.sh
+      - name: Prune stale CodeQL Actions caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRUNE_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          PRUNE_MIN_AGE_HOURS: ${{ inputs.min_age_hours || '24' }}
+        run: bash scripts/ci/prune-gha-codeql-caches.sh
