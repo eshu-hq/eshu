@@ -271,9 +271,11 @@ func TestRepoDependencyReplayRequestsUseTargetForProvisionedDependencies(t *test
 
 	rows := []sharedintent.Row{
 		{
+			IntentID:     "intent-1",
 			ScopeID:      "git-repository-scope:repository:r_service",
 			GenerationID: "gen-service",
 			RepositoryID: "repository:r_infra",
+			CreatedAt:    time.Date(2026, time.November, 27, 12, 0, 0, 0, time.UTC),
 			Payload: map[string]any{
 				"repo_id":           "repository:r_infra",
 				"target_repo_id":    "repository:r_service",
@@ -282,7 +284,10 @@ func TestRepoDependencyReplayRequestsUseTargetForProvisionedDependencies(t *test
 		},
 	}
 
-	requests := repoDependencyReplayRequests(rows)
+	requests, err := repoDependencyFenceRequests(rows)
+	if err != nil {
+		t.Fatalf("repoDependencyFenceRequests() error = %v", err)
+	}
 	if got, want := len(requests), 1; got != want {
 		t.Fatalf("len(requests) = %d, want %d", got, want)
 	}

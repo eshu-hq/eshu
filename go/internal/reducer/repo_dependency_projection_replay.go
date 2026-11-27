@@ -158,39 +158,6 @@ func repoDependencyAcceptanceUnitID(row sharedintent.Row) (string, bool) {
 	return "", false
 }
 
-func repoDependencyReplayRequests(rows []sharedintent.Row) []workloadMaterializationReplayRequest {
-	seen := make(map[string]struct{}, len(rows))
-	requests := make([]workloadMaterializationReplayRequest, 0, len(rows))
-	for _, row := range rows {
-		scopeID := strings.TrimSpace(row.ScopeID)
-		generationID := strings.TrimSpace(row.GenerationID)
-		entityKey := repoDependencyReplayEntityKey(row)
-		if scopeID == "" || generationID == "" || entityKey == "" {
-			continue
-		}
-		key := scopeID + "|" + generationID + "|" + entityKey
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		requests = append(requests, workloadMaterializationReplayRequest{
-			scopeID:      scopeID,
-			generationID: generationID,
-			entityKey:    entityKey,
-		})
-	}
-	sort.Slice(requests, func(i, j int) bool {
-		if requests[i].scopeID != requests[j].scopeID {
-			return requests[i].scopeID < requests[j].scopeID
-		}
-		if requests[i].generationID != requests[j].generationID {
-			return requests[i].generationID < requests[j].generationID
-		}
-		return requests[i].entityKey < requests[j].entityKey
-	})
-	return requests
-}
-
 func repoDependencyReplayEntityKey(row sharedintent.Row) string {
 	if strings.EqualFold(
 		strings.TrimSpace(repoDependencyPayloadString(row, "relationship_type")),
