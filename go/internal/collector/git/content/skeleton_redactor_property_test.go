@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"unicode/utf8"
 
@@ -129,8 +132,51 @@ func skeletonLine(rng *rand.Rand, seed string) []string {
 func TestRedactSkeletonPropertyCorpus(t *testing.T) {
 	t.Parallel()
 
+	type corpusCase struct {
+		body    string
+		planted []string
+	}
+	workers := max(runtime.GOMAXPROCS(0), 1)
+	const batchSize = 32
+	jobs := make(chan []corpusCase, workers*2)
+	var (
+		firstErr atomic.Pointer[string]
+		wg       sync.WaitGroup
+	)
+	recordErr := func(msg string) {
+		firstErr.CompareAndSwap(nil, &msg)
+	}
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for batch := range jobs {
+				if firstErr.Load() != nil {
+					continue
+				}
+				for _, tc := range batch {
+					if firstErr.Load() != nil {
+						break
+					}
+					out, err := checkSkeletonPropertiesErr(tc.body)
+					if err != nil {
+						recordErr(err.Error())
+						break
+					}
+					for _, token := range tc.planted {
+						if strings.Contains(out, token) {
+							recordErr(fmt.Sprintf("planted %q survived:\n in\n%s\n out\n%s", token, tc.body, out))
+							break
+						}
+					}
+				}
+			}
+		}()
+	}
+
 	rng := rand.New(rand.NewPCG(8833, 8813))
-	for i := 0; i < 3000; i++ {
+	batch := make([]corpusCase, 0, batchSize)
+	for range 3000 {
 		var raw []string
 		var planted []string
 		for n := 1 + rng.IntN(12); n > 0; n-- {
@@ -138,33 +184,51 @@ func TestRedactSkeletonPropertyCorpus(t *testing.T) {
 			raw = append(raw, skeletonLine(rng, seed.planted)...)
 			planted = append(planted, seed.token)
 		}
-		body := strings.Join(raw, "\n") + "\n"
-		checkSkeletonProperties(t, body)
-		out, _, _ := redactSkeleton(body)
-		for _, token := range planted {
-			if strings.Contains(out, token) {
-				t.Fatalf("planted %q survived:\n in\n%s\n out\n%s", token, body, out)
-			}
+		if firstErr.Load() != nil {
+			break
 		}
+		batch = append(batch, corpusCase{body: strings.Join(raw, "\n") + "\n", planted: planted})
+		if len(batch) == batchSize {
+			jobs <- batch
+			batch = make([]corpusCase, 0, batchSize)
+		}
+	}
+	if len(batch) > 0 && firstErr.Load() == nil {
+		jobs <- batch
+	}
+	close(jobs)
+	wg.Wait()
+	if msg := firstErr.Load(); msg != nil {
+		t.Fatal(*msg)
 	}
 }
 
-// checkSkeletonProperties asserts the invariants every skeleton body holds.
-func checkSkeletonProperties(t *testing.T, body string) {
-	t.Helper()
+// checkSkeletonPropertiesErr asserts the invariants every skeleton body holds
+// and returns the redacted body for callers that also check planted tokens.
+func checkSkeletonPropertiesErr(body string) (string, error) {
 	out, _, err := redactSkeleton(body)
 	if err != nil {
-		t.Fatalf("redactSkeleton(%q): %v", body, err)
+		return "", fmt.Errorf("redactSkeleton(%q): %w", body, err)
 	}
+	if err := checkSkeletonPropertiesWithOutErr(body, out); err != nil {
+		return "", err
+	}
+	return out, nil
+}
+
+// checkSkeletonPropertiesWithOutErr checks skeleton invariants given an already
+// redacted output for body, avoiding a redundant redactSkeleton call when the
+// oracle has just produced out.
+func checkSkeletonPropertiesWithOutErr(body, out string) error {
 	rawLines, outLines := strings.Split(body, "\n"), strings.Split(out, "\n")
 	if len(rawLines) != len(outLines) {
-		t.Fatalf("line count %d -> %d:\n%q\n%q", len(rawLines), len(outLines), body, out)
+		return fmt.Errorf("line count %d -> %d:\n%q\n%q", len(rawLines), len(outLines), body, out)
 	}
 	if again, _, _ := redactSkeleton(out); again != out {
-		t.Fatalf("not a fixed point:\n in   %q\n out  %q\n out2 %q", body, out, again)
+		return fmt.Errorf("not a fixed point:\n in   %q\n out  %q\n out2 %q", body, out, again)
 	}
 	if err := skeletonGrammar(outLines); err != nil {
-		t.Fatalf("%v\n in  %q\n out %q", err, body, out)
+		return fmt.Errorf("%w\n in  %q\n out %q", err, body, out)
 	}
 	for i := range rawLines {
 		raw, stored := strings.TrimSuffix(rawLines[i], "\r"), strings.TrimSuffix(outLines[i], "\r")
@@ -172,11 +236,20 @@ func checkSkeletonProperties(t *testing.T, body string) {
 		// migration stores the same finding for the skeleton line as for the
 		// raw line, for all six kinds and for no finding.
 		if want, got := rawFindingKind(raw), rawFindingKind(stored); got != want {
-			t.Fatalf("line %d: raw finding %q, stored finding %q: %q -> %q", i+1, want, got, raw, stored)
+			return fmt.Errorf("line %d: raw finding %q, stored finding %q: %q -> %q", i+1, want, got, raw, stored)
 		}
 		if rawFindingKind(raw) == "" && holdsKindMarker(stored) && stored != raw {
-			t.Fatalf("line %d: no raw finding but a kind marker was added: %q -> %q", i+1, raw, stored)
+			return fmt.Errorf("line %d: no raw finding but a kind marker was added: %q -> %q", i+1, raw, stored)
 		}
+	}
+	return nil
+}
+
+// checkSkeletonProperties asserts the invariants every skeleton body holds.
+func checkSkeletonProperties(t *testing.T, body string) {
+	t.Helper()
+	if _, err := checkSkeletonPropertiesErr(body); err != nil {
+		t.Fatal(err)
 	}
 }
 

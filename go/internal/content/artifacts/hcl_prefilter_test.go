@@ -6,8 +6,10 @@ package artifacts
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -24,34 +26,65 @@ func hclRandomFileCount() int {
 func TestHCLPrefilterOutputEqualsShippedExtractor(t *testing.T) {
 	t.Parallel()
 	corpus := hclCorpus(hclRandomFileCount(), 7126)
-	var withRows, skippedAny, skippedAll int
-	for i, file := range corpus {
-		files := []File{file}
-		want := extractHCLConfigAssetRowsShipped("acme-repo", files)
-		got := extractHCLConfigAssetRows("acme-repo", files)
-		if !reflect.DeepEqual(got, want) {
-			t.Fatalf("file %d (%s) rows differ\n content: %q\n shipped: %v\n gated:   %v", i, file.RelativePath, file.Content, want, got)
-		}
-		if len(want) > 0 {
-			withRows++
-		}
-		plan := planHCLScans(hclScanPrefilters, file.Content)
-		ran := countRunning(plan)
-		if ran < 6 {
-			skippedAny++
-		}
-		if ran == 0 {
-			skippedAll++
-		}
+	var (
+		withRows, skippedAny, skippedAll atomic.Int64
+		firstErr                         atomic.Pointer[string]
+		nextIdx                          atomic.Int64
+		wg                               sync.WaitGroup
+	)
+	workers := min(max(runtime.GOMAXPROCS(0), 1), len(corpus))
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			var localWithRows, localSkippedAny, localSkippedAll int64
+			for {
+				if firstErr.Load() != nil {
+					return
+				}
+				i := int(nextIdx.Add(1) - 1)
+				if i >= len(corpus) {
+					break
+				}
+				file := corpus[i]
+				files := []File{file}
+				want := extractHCLConfigAssetRowsShipped("acme-repo", files)
+				got := extractHCLConfigAssetRows("acme-repo", files)
+				if !reflect.DeepEqual(got, want) {
+					msg := fmt.Sprintf("file %d (%s) rows differ\n content: %q\n shipped: %v\n gated:   %v", i, file.RelativePath, file.Content, want, got)
+					firstErr.CompareAndSwap(nil, &msg)
+					return
+				}
+				if len(want) > 0 {
+					localWithRows++
+				}
+				plan := planHCLScans(hclScanPrefilters, file.Content)
+				ran := countRunning(plan)
+				if ran < 6 {
+					localSkippedAny++
+				}
+				if ran == 0 {
+					localSkippedAll++
+				}
+			}
+			withRows.Add(localWithRows)
+			skippedAny.Add(localSkippedAny)
+			skippedAll.Add(localSkippedAll)
+		}()
 	}
-	t.Logf("corpus files=%d with_rows=%d skipped_any_scan=%d skipped_all_scans=%d", len(corpus), withRows, skippedAny, skippedAll)
+	wg.Wait()
+	if msg := firstErr.Load(); msg != nil {
+		t.Fatal(*msg)
+	}
+	gotWithRows, gotSkippedAny, gotSkippedAll := int(withRows.Load()), int(skippedAny.Load()), int(skippedAll.Load())
+	t.Logf("corpus files=%d with_rows=%d skipped_any_scan=%d skipped_all_scans=%d", len(corpus), gotWithRows, gotSkippedAny, gotSkippedAll)
 	// Vacuity guards: the proof only means something if rows were produced
 	// and if the gates really skipped scans.
-	if withRows < len(corpus)/10 {
-		t.Fatalf("only %d of %d corpus files emit rows; the corpus is too weak", withRows, len(corpus))
+	if gotWithRows < len(corpus)/10 {
+		t.Fatalf("only %d of %d corpus files emit rows; the corpus is too weak", gotWithRows, len(corpus))
 	}
-	if skippedAny < len(corpus)/4 || skippedAll < len(corpus)/20 {
-		t.Fatalf("gates skipped scans on %d files (all scans on %d) of %d; the prefilter is not exercised", skippedAny, skippedAll, len(corpus))
+	if gotSkippedAny < len(corpus)/4 || gotSkippedAll < len(corpus)/20 {
+		t.Fatalf("gates skipped scans on %d files (all scans on %d) of %d; the prefilter is not exercised", gotSkippedAny, gotSkippedAll, len(corpus))
 	}
 }
 

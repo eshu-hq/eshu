@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"regexp"
 	"regexp/syntax"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -260,8 +261,34 @@ func TestHCLPrefilterMutantsAreKilled(t *testing.T) {
 	t.Parallel()
 	corpus := hclCorpus(1500, 31)
 	want := make([][]map[string]any, len(corpus))
-	for i, f := range corpus {
-		want[i] = extractHCLConfigAssetRowsShipped("acme-repo", []File{f})
+	{
+		workers := min(max(runtime.GOMAXPROCS(0), 1), len(corpus))
+		var nextIdx atomic.Int64
+		var wg sync.WaitGroup
+		wg.Add(workers)
+		for range workers {
+			go func() {
+				defer wg.Done()
+				for {
+					i := int(nextIdx.Add(1) - 1)
+					if i >= len(corpus) {
+						return
+					}
+					want[i] = extractHCLConfigAssetRowsShipped("acme-repo", []File{corpus[i]})
+				}
+			}()
+		}
+		wg.Wait()
+	}
+	var (
+		secondOnce   sync.Once
+		secondCorpus []File
+	)
+	getSecondCorpus := func() []File {
+		secondOnce.Do(func() {
+			secondCorpus = hclCorpus(4000, 977)
+		})
+		return secondCorpus
 	}
 	cases := hclMutantCases(t)
 	if len(cases) < 20 {
@@ -291,7 +318,7 @@ func TestHCLPrefilterMutantsAreKilled(t *testing.T) {
 				// narrower on some file but changes no rows means the
 				// corpus lacks the case.
 				orig := hclScanRegexps()[c.scan]
-				for _, f := range hclCorpus(4000, 977) {
+				for _, f := range getSecondCorpus() {
 					if !reflect.DeepEqual(orig.FindAllStringSubmatch(f.Content, -1), res[c.scan].FindAllStringSubmatch(f.Content, -1)) {
 						t.Errorf("SURVIVED: mutant %s (pattern %s) is narrower than the production pattern on %q but changed no rows; add the case to the corpus",
 							key, c.pattern, f.Content)

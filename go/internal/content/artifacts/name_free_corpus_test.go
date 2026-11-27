@@ -15,21 +15,24 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
-// nameFreeNamesFor returns the names to bind a file set to: fixed names that cover
-// the ruling's classes, plus names derived from the tree's own path components
-// (equal, a proper prefix, a suffix, and equal plus a letter), so the name
-// actually meets a path component.
-func nameFreeNamesFor(files []File, rng *rand.Rand) []string {
+// nameFreeNamesForRaw returns the names to bind a file set to using its
+// precomputed empty-name build: fixed names that cover the ruling's classes,
+// plus names derived from the tree's own path components (equal, a proper
+// prefix, a suffix, and equal plus a letter), so the name actually meets a
+// path component.
+func nameFreeNamesForRaw(files []File, raw []nameFreeRow, rng *rand.Rand) []string {
 	names := []string{
 		"", "svc", "env", "modules", "accounts", "configd", "roles", "payments", "group_vars", "a.b*c[d]", "(.*)", "^svc$", "svc|api",
 		"$1", "..", ".", "[", `a\b`, "ü-é", " svc ", "svc/api", "%s",
 	}
-	raw := nameFreeFlatten(BuildConfigPaths("", files))
 	set := map[string]struct{}{}
 	add := func(p string) {
 		for _, part := range strings.Split(p, "/") {
@@ -167,17 +170,21 @@ func nameFreeEcosystemRepos(t *testing.T) map[string][]File {
 
 func nameFreeRunCorpus(t *testing.T, cfg nameFreeApply, seeds int64) *nameFreeAgg {
 	t.Helper()
-	agg := &nameFreeAgg{}
-	rng := rand.New(rand.NewSource(7126))
-	run := func(label string, files []File, extraNames ...string) {
-		for _, name := range append(nameFreeNamesFor(files, rng), extraNames...) {
-			agg.check(label, name, files, cfg)
-		}
+	type fileSet struct {
+		label          string
+		files          []File
+		extraNames     []string
+		raw            []nameFreeRow
+		sentinelBroken bool
+	}
+	var sets []fileSet
+	addSet := func(label string, files []File, extraNames ...string) {
+		sets = append(sets, fileSet{label: label, files: files, extraNames: extraNames})
 	}
 	for i, c := range nameFreeLoadCorpus(t) {
-		run(fmt.Sprintf("recorded[%d]", i), c.files(), c.Name)
+		addSet(fmt.Sprintf("recorded[%d]", i), c.files(), c.Name)
 	}
-	run("kitchen-sink", kitchenSinkFiles())
+	addSet("kitchen-sink", kitchenSinkFiles())
 	mutants := mutantCorpus()
 	scenarios := make([]string, 0, len(mutants))
 	for scenario := range mutants {
@@ -185,7 +192,7 @@ func nameFreeRunCorpus(t *testing.T, cfg nameFreeApply, seeds int64) *nameFreeAg
 	}
 	sort.Strings(scenarios)
 	for _, scenario := range scenarios {
-		run("mutant-corpus/"+scenario, mutants[scenario])
+		addSet("mutant-corpus/"+scenario, mutants[scenario])
 	}
 	ecosystem := nameFreeEcosystemRepos(t)
 	dirs := make([]string, 0, len(ecosystem))
@@ -194,26 +201,106 @@ func nameFreeRunCorpus(t *testing.T, cfg nameFreeApply, seeds int64) *nameFreeAg
 	}
 	sort.Strings(dirs)
 	for _, dir := range dirs {
-		run("tests/fixtures/"+filepath.ToSlash(dir), ecosystem[dir], path.Base(filepath.ToSlash(dir)))
+		addSet("tests/fixtures/"+filepath.ToSlash(dir), ecosystem[dir], path.Base(filepath.ToSlash(dir)))
 	}
 	// PR1's generated trees, plain and with every path under a name directory.
 	for seed := int64(1); seed <= seeds; seed++ {
 		files := randomTree(rand.New(rand.NewSource(seed)))
-		run(fmt.Sprintf("seed-%d", seed), files)
+		addSet(fmt.Sprintf("seed-%d", seed), files)
 		nameDir := []string{"svc", "env", "deploy", "ops"}[seed%4]
 		nested := make([]File, len(files))
 		for i, f := range files {
 			f.RelativePath = nameDir + "/" + f.RelativePath
 			nested[i] = f
 		}
-		run(fmt.Sprintf("seed-%d-nested-%s", seed, nameDir), nested, nameDir)
+		addSet(fmt.Sprintf("seed-%d-nested-%s", seed, nameDir), nested, nameDir)
+	}
+
+	workers := runtime.GOMAXPROCS(0)
+	if workers < 1 {
+		workers = 1
+	}
+
+	// Precompute empty-name and sentinel builds once per file set in parallel.
+	var prepIdx atomic.Int64
+	var prepWG sync.WaitGroup
+	prepWorkers := min(workers, len(sets))
+	prepWG.Add(prepWorkers)
+	for range prepWorkers {
+		go func() {
+			defer prepWG.Done()
+			for {
+				i := int(prepIdx.Add(1) - 1)
+				if i >= len(sets) {
+					return
+				}
+				sets[i].raw = nameFreeFlatten(BuildConfigPaths("", sets[i].files))
+				sets[i].sentinelBroken = nameFreeSentinelMismatch(sets[i].raw, sets[i].files)
+			}
+		}()
+	}
+	prepWG.Wait()
+
+	// Derive names sequentially so the RNG stream stays identical to the serial
+	// corpus walk.
+	rng := rand.New(rand.NewSource(7126))
+	type pairTask struct {
+		label          string
+		name           string
+		files          []File
+		raw            []nameFreeRow
+		sentinelBroken bool
+	}
+	var tasks []pairTask
+	for i := range sets {
+		names := append(nameFreeNamesForRaw(sets[i].files, sets[i].raw, rng), sets[i].extraNames...)
+		for _, name := range names {
+			tasks = append(tasks, pairTask{
+				label:          sets[i].label,
+				name:           name,
+				files:          sets[i].files,
+				raw:            sets[i].raw,
+				sentinelBroken: sets[i].sentinelBroken,
+			})
+		}
 	}
 	// Name-bearing trees, generated per name so the name sits inside the
 	// references and two raw paths collapse.
 	for _, name := range []string{"", "svc", "env", "a.b*c[d]", "(.*)", "..", "ü-é", "svc/api"} {
 		files := nameFreeNameBearingFiles(name)
-		agg.check("name-bearing", name, files, cfg)
-		agg.check("name-bearing/other-name", "other", files, cfg)
+		raw := nameFreeFlatten(BuildConfigPaths("", files))
+		broken := nameFreeSentinelMismatch(raw, files)
+		tasks = append(tasks,
+			pairTask{label: "name-bearing", name: name, files: files, raw: raw, sentinelBroken: broken},
+			pairTask{label: "name-bearing/other-name", name: "other", files: files, raw: raw, sentinelBroken: broken},
+		)
 	}
+
+	runWorkers := min(workers, len(tasks))
+	locals := make([]nameFreeAgg, runWorkers)
+	var taskIdx atomic.Int64
+	var runWG sync.WaitGroup
+	runWG.Add(runWorkers)
+	for w := range runWorkers {
+		go func() {
+			defer runWG.Done()
+			local := &locals[w]
+			for {
+				i := int(taskIdx.Add(1) - 1)
+				if i >= len(tasks) {
+					return
+				}
+				task := tasks[i]
+				local.checkWithPrepared(task.label, task.name, task.files, task.raw, task.sentinelBroken, cfg)
+			}
+		}()
+	}
+	runWG.Wait()
+
+	agg := &nameFreeAgg{}
+	for i := range locals {
+		agg.merge(&locals[i])
+	}
+	sort.Strings(agg.failures)
 	return agg
 }

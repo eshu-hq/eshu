@@ -21,6 +21,7 @@ import (
 // contract. A subject-script change that breaks order, refusal, or
 // idempotence fails here exactly as it failed the old gate cell.
 func TestCollectorCutoverRollbackContract(t *testing.T) {
+	t.Parallel()
 	root := repositoryRoot(t)
 	script := filepath.Join(root, "scripts", "test-collector-cutover-rollback.sh")
 
