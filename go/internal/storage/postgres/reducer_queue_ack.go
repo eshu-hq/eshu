@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:filelength // 508 lines (base 485): merged #11614 fence-diff const + #11615 reason/RETURNING port must stay beside the schedule statement they describe; split deferred to #11624 hoist which reshapes these funcs.
 
 import (
 	"context"
