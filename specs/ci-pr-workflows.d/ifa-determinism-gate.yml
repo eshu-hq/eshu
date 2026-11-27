@@ -111,7 +111,6 @@ workflows:
   - .github/workflows/ifa-determinism-gate.comments.md
   - scripts/ci/verify-ifa-fault-diagnostics-complete.sh
   - scripts/lib/ci-gates-resolved-fixtures.sh
-  - docker-compose.yaml
   - testdata/cassettes/gcpcloud/supply-chain-demo.json
   - testdata/golden/e2e-20repo-snapshot.json
   - go/cmd/golden-corpus-gate/main.go
@@ -494,6 +493,7 @@ workflows:
   - scripts/lib/ifa_fault_injection_uses_service_account_cells.sh
   - scripts/lib/test-ifa-fault-injection-uses-service-account-cases.sh
   - testdata/cassettes/usesserviceaccount/**
+  - scripts/ci/test-ifa-push-paths-superset.py
   jobs:
   - dead-letter-matrix
   - determinism-matrix

@@ -12,7 +12,43 @@ on:
       plan_mode:
         required: true
         type: string
-  push: {branches: [main]}
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ifa-determinism-gate.yml'
+      - '.github/workflows/ifa-determinism-gate.comments.md'
+      - 'go/cmd/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'go/internal/collector/**'
+      - 'go/internal/content/**'
+      - 'go/internal/goldengate/**'
+      - 'go/internal/graph/**'
+      - 'go/internal/graphbackpressure/**'
+      - 'go/internal/graphowner/**'
+      - 'go/internal/graphschemacompat/**'
+      - 'go/internal/ifa/**'
+      - 'go/internal/projector/**'
+      - 'go/internal/reducer/**'
+      - 'go/internal/relationships/**'
+      - 'go/internal/replay/**'
+      - 'go/internal/runtime/**'
+      - 'go/internal/storage/**'
+      - 'go/internal/synth/**'
+      - 'schema/data-plane/**'
+      - 'scripts/ci/**'
+      - 'scripts/lib/**'
+      - 'scripts/test-ifa-*.sh'
+      - 'scripts/test-verify-ifa-*.sh'
+      - 'scripts/verify-ifa-*.sh'
+      - 'sdk/go/**'
+      - 'specs/ci-gates.d/**'
+      - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-images.v1.json'
+      - 'specs/ci-pr-workflows.d/**'
+      - 'specs/ifa-materialized-edge-coverage*.yaml'
+      - 'testdata/cassettes/**'
+      - 'testdata/golden/**'
 concurrency:
   group: ci-leaf-ifa-determinism-gate-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
@@ -78,6 +114,8 @@ jobs:
           ESHU_DEPLOY_CHECKOUT: ${{ github.workspace }}/eshu-deploy
       - name: Validate the Ifá gates stay wired to Neo4j
         run: bash scripts/test-ifa-graph-backend-neo4j.sh
+      - name: Validate Ifá push-main paths stay a superset of PR spec paths
+        run: python3 scripts/ci/test-ifa-push-paths-superset.py
   determinism-matrix:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'determinism-matrix') }}
     name: determinism-matrix
