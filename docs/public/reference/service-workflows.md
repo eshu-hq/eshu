@@ -56,6 +56,7 @@ environment, process shape, volumes, ports, and health checks.
 
 ## Related Docs
 
+- [Flow Atlas](../concepts/flows/index.md) — one picture per flow
 - [System Architecture](../architecture.md)
 - [Service Runtimes](../deployment/service-runtimes.md)
 - [Runtime Admin API](runtime-admin-api.md)

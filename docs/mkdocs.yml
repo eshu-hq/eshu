@@ -88,6 +88,14 @@ nav:
     - Graph Model: concepts/graph-model.md
     - Modes: concepts/modes.md
     - Service Workflows: reference/service-workflows.md
+    - Flow Atlas:
+      - Overview: concepts/flows/index.md
+      - Repo Collector: concepts/flows/repo-collector.md
+      - Cloud Collectors: concepts/flows/cloud-collectors.md
+      - Projector: concepts/flows/projector.md
+      - Reducer Queues: concepts/flows/reducer-queues.md
+      - Supply-Chain Impact: concepts/flows/supply-chain-impact.md
+      - Read Path: concepts/flows/read-path.md
     - Why Eshu: why-eshu.md
     - Use Cases: use-cases.md
     - Testing & Conformance:
