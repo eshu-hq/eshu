@@ -6,7 +6,14 @@ import type { CatalogWire } from "../../api/contracts/wire/CatalogWire";
 import type { StatusCollectorReadinessWire } from "../../api/contracts/wire/StatusCollectorReadinessWire";
 import type { KnowledgeHomeData, Section } from "../../api/knowledgeHome";
 
-export type RoleId = "everyone" | "engineering" | "security" | "sre" | "platform" | "support" | "leadership";
+export type RoleId =
+  | "everyone"
+  | "engineering"
+  | "security"
+  | "sre"
+  | "platform"
+  | "support"
+  | "leadership";
 
 export type Tone = "critical" | "warning" | "info";
 
@@ -52,10 +59,13 @@ export function health(data: KnowledgeHomeData): Health {
   if (!index) return { state: "unknown" };
   const queue = index.queue ?? {};
   const notes: string[] = [];
-  if (n(queue.dead_letter) > 0) notes.push(`${plural(n(queue.dead_letter), "update")} could not be processed.`);
+  if (n(queue.dead_letter) > 0)
+    notes.push(`${plural(n(queue.dead_letter), "update")} could not be processed.`);
   for (const reason of index.reasons ?? []) {
-    if (/generations are failed/.test(reason)) notes.push("Some repositories failed their last refresh, so their answers are older.");
-    else if (/findings are stale/.test(reason)) notes.push("Vulnerability findings are behind; recent advisories may be missing.");
+    if (/generations are failed/.test(reason))
+      notes.push("Some repositories failed their last refresh, so their answers are older.");
+    else if (/findings are stale/.test(reason))
+      notes.push("Vulnerability findings are behind; recent advisories may be missing.");
   }
   const unique = [...new Set(notes)];
   if (index.status === "healthy" && unique.length === 0) {
@@ -64,7 +74,15 @@ export function health(data: KnowledgeHomeData): Health {
   return { state: "degraded", summary: "Some answers may be out of date.", notes: unique };
 }
 
-const ROLE_ALL: readonly RoleId[] = ["everyone", "engineering", "security", "sre", "platform", "support", "leadership"];
+const ROLE_ALL: readonly RoleId[] = [
+  "everyone",
+  "engineering",
+  "security",
+  "sre",
+  "platform",
+  "support",
+  "leadership",
+];
 
 export function attentionItems(data: KnowledgeHomeData): AttentionItem[] {
   const items: AttentionItem[] = [];
@@ -100,7 +118,8 @@ export function attentionItems(data: KnowledgeHomeData): AttentionItem[] {
       id: "docs",
       tone: "warning",
       title: `${plural(contradicted, "documentation claim")} no longer match the code`,
-      detail: "Runbooks or READMEs describe something that has changed. Fixing them keeps answers trustworthy.",
+      detail:
+        "Runbooks or READMEs describe something that has changed. Fixing them keeps answers trustworthy.",
       href: "/findings",
       action: "Review the docs",
       audiences: ["support", "engineering", "sre", "everyone"],
@@ -113,20 +132,26 @@ export function attentionItems(data: KnowledgeHomeData): AttentionItem[] {
       id: "pipeline",
       tone: deadLetter > 1000 ? "critical" : "warning",
       title: `Eshu couldn't process ${plural(deadLetter, "update")}`,
-      detail: "Those changes aren't reflected in answers yet. The platform team can replay them once the cause is fixed.",
+      detail:
+        "Those changes aren't reflected in answers yet. The platform team can replay them once the cause is fixed.",
       href: "/operations",
       action: "Open operations",
       audiences: ["platform", "sre"],
     });
   }
   const collectors = ready(data.collectors);
-  const broken = (collectors?.readiness ?? []).filter((row) => row.promotion_state === "failed" || row.promotion_state === "stale");
+  const broken = (collectors?.readiness ?? []).filter(
+    (row) => row.promotion_state === "failed" || row.promotion_state === "stale",
+  );
   if (broken.length > 0) {
     items.push({
       id: "collectors",
       tone: "warning",
       title: `${plural(broken.length, "data source")} stopped updating`,
-      detail: broken.map((row) => row.display_name ?? row.collector_kind).slice(0, 4).join(", "),
+      detail: broken
+        .map((row) => row.display_name ?? row.collector_kind)
+        .slice(0, 4)
+        .join(", "),
       href: "/collector-readiness",
       action: "See data sources",
       audiences: ["platform", "leadership"],
@@ -163,29 +188,70 @@ export interface CoverageArea {
   readonly connected: number;
   readonly total: number;
   readonly state: "connected" | "partial" | "missing";
-  readonly sources: readonly { readonly name: string; readonly state: string; readonly next: string }[];
+  readonly sources: readonly {
+    readonly name: string;
+    readonly state: string;
+    readonly next: string;
+  }[];
 }
 
 const AREAS: readonly { id: string; name: string; answers: string; kinds: readonly string[] }[] = [
-  { id: "code", name: "Code & ownership", answers: "What a service does, who owns it, what calls what", kinds: ["git", "scanner_worker", "semantic_extraction"] },
-  { id: "delivery", name: "Builds & deployments", answers: "How things ship and where they run", kinds: ["ci_cd_run", "kubernetes_live", "oci_registry", "webhook"] },
-  { id: "cloud", name: "Cloud & infrastructure", answers: "Which cloud resources exist and who manages them", kinds: ["aws", "gcp", "azure", "terraform_state", "vault_live"] },
-  { id: "security", name: "Security & dependencies", answers: "Which vulnerabilities actually affect us", kinds: ["vulnerability_intelligence", "sbom_attestation", "security_alert", "package_registry"] },
-  { id: "operations", name: "Incidents & monitoring", answers: "What broke, what changed and who was paged", kinds: ["pagerduty", "grafana", "prometheus_mimir", "loki", "tempo"] },
-  { id: "knowledge", name: "Docs & tickets", answers: "Which runbooks are current and what work is tracked", kinds: ["documentation", "confluence", "jira"] },
+  {
+    id: "code",
+    name: "Code & ownership",
+    answers: "What a service does, who owns it, what calls what",
+    kinds: ["git", "scanner_worker", "semantic_extraction"],
+  },
+  {
+    id: "delivery",
+    name: "Builds & deployments",
+    answers: "How things ship and where they run",
+    kinds: ["ci_cd_run", "kubernetes_live", "oci_registry", "webhook"],
+  },
+  {
+    id: "cloud",
+    name: "Cloud & infrastructure",
+    answers: "Which cloud resources exist and who manages them",
+    kinds: ["aws", "gcp", "azure", "terraform_state", "vault_live"],
+  },
+  {
+    id: "security",
+    name: "Security & dependencies",
+    answers: "Which vulnerabilities actually affect us",
+    kinds: ["vulnerability_intelligence", "sbom_attestation", "security_alert", "package_registry"],
+  },
+  {
+    id: "operations",
+    name: "Incidents & monitoring",
+    answers: "What broke, what changed and who was paged",
+    kinds: ["pagerduty", "grafana", "prometheus_mimir", "loki", "tempo"],
+  },
+  {
+    id: "knowledge",
+    name: "Docs & tickets",
+    answers: "Which runbooks are current and what work is tracked",
+    kinds: ["documentation", "confluence", "jira"],
+  },
 ];
 
 type ReadinessRow = NonNullable<StatusCollectorReadinessWire["readiness"]>[number];
 
 export function coverageAreas(collectors: StatusCollectorReadinessWire): CoverageArea[] {
   const rows = collectors.readiness ?? [];
-  const byKind = (kinds: readonly string[]): ReadinessRow[] => rows.filter((row) => kinds.includes(row.collector_kind));
+  const byKind = (kinds: readonly string[]): ReadinessRow[] =>
+    rows.filter((row) => kinds.includes(row.collector_kind));
   return AREAS.map((area) => {
     const sources = byKind(area.kinds);
     const connected = sources.filter((row) => row.promotion_state === "implemented").length;
-    const usable = sources.filter((row) => row.promotion_state === "implemented" || row.promotion_state === "partial").length;
+    const usable = sources.filter(
+      (row) => row.promotion_state === "implemented" || row.promotion_state === "partial",
+    ).length;
     const state: CoverageArea["state"] =
-      sources.length > 0 && connected === sources.length ? "connected" : usable > 0 ? "partial" : "missing";
+      sources.length > 0 && connected === sources.length
+        ? "connected"
+        : usable > 0
+          ? "partial"
+          : "missing";
     return {
       id: area.id,
       name: area.name,

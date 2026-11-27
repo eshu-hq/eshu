@@ -36,8 +36,14 @@ fi
 
 shard_index="${SHARD_INDEX:?SHARD_INDEX is required in full mode}"
 shard_total="${SHARD_TOTAL:?SHARD_TOTAL is required in full mode}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/../.." && pwd)"
+weights_file="${GO_RACE_WEIGHTS_FILE:-${repo_root}/specs/go-race-shard-weights.tsv}"
 
-shard_pkgs="$(go list ./... | awk -v n="${shard_total}" -v k="${shard_index}" 'NR % n == (k % n)')"
+shard_pkgs="$(go list ./... | python3 "${script_dir}/select-go-race-shard.py" \
+	--weights "${weights_file}" \
+	--shard-index "${shard_index}" \
+	--shard-total "${shard_total}")"
 if [[ -z "${shard_pkgs}" ]]; then
 	printf 'shard %s/%s: no packages selected — nothing to test\n' "${shard_index}" "${shard_total}"
 	exit 0

@@ -17,7 +17,13 @@ tail artifact of the unpaired p95 on a noisy replica, not a lane effect.
 Disposition: band miscalibration; re-runs score a paired-median bar.
 No code change.
 
-## Verdict: FAIL P5 (unpaired hot-exec p95 −15.6%, band ±15%) — with a paired
+Run 2 (same day, raw log retained as a secret gist, checksums in-note):
+10m30s, 42 rounds, 336 rows — 8 of 9 bars PASS; P4 FAILS only on shape-B
+cold completion (−545 ms, favorable direction, max-of-14 outlier), with the
+paired-median bar at +43.9 ms (22/20 split) and the hot-completion guard at
++4.0% both PASS. No code change.
+
+## Verdict (Run 1): FAIL P5 (unpaired hot-exec p95 −15.6%, band ±15%) — with a paired
 ## diagnosis showing no systematic lane effect (see below)
 
 | Bar | Measured | Verdict |
@@ -112,7 +118,7 @@ signature of replica noise, not a lane effect.
 - Scored: the throwaway TestH211563QAContentionCut harness (verbose, single count, 20 min timeout) → FAIL (P5 only, 688 s wall, exit 1). Raw per-statement log held 322 scored rows (scratch paths removed after the run; aggregates kept in this note).
 - Replica identity each run: `pg_is_in_recovery()=true`, lag ≤ 0.2 s; lag re-checked every 8 rounds (no A3 trip).
 
-## Cleanup
+## Cleanup (Run 1)
 
 Throwaway harness
 (`supply_chain_impact_fanout_h2_11563_qa_cut_live_test.go`) and printer
@@ -120,3 +126,69 @@ Throwaway harness
 note + the manifest are kept (new files owned by this lane, uncommitted).
 No source file edited; no push; no deploy; no cluster mutation.
 Drive/10728* and drive/10972* lanes untouched.
+
+## Run 2 (re-run 2026-11-26, raw log retained)
+
+Same vehicle rebuilt from clean `origin/main` (`54c0f3e4a5`;
+`git merge-base --is-ancestor f67e24903fc7501860388de7a59826e186e3e313`
+exit 0): local H2 build, read-only txns vs `svc/eshu-postgresql-read`
+(`ns eshu`) via port-forward, read-only role DSN, explicit read-only
+`REPEATABLE READ` txns + 15 s LOCAL guards on harness SQL, production 10 s
+in-txn guard on every sample statement. Zero mutations, no knob moves.
+42 rounds, 336 scored rows, 10m30s usable. Replica
+`pg_is_in_recovery()=true`, replay lag within 0.3 s, re-checked every 8
+rounds. Warmup gate held: 14 warm hots, 2 warm cold packs.
+
+Raw per-statement log (336 JSONL rows) and the verbose run log are kept
+durably as a secret gist; nothing raw is committed, per the hygiene gate:
+[run-2 raw log + run log](https://gist.github.com/linuxdynasty/05e9d775a57353f6c1b0661f14168fc6)
+(`11563-qa-cut-run2-raw.jsonl` sha256
+`af00d69c493eed334b985d3e449e291c1b4b78e09e66d0d4d7f1d5e149b07945`,
+`11563-qa-cut-run2-run.log` sha256
+`d5e461f81dec510479d0eb110fea935574eb51e7d8bfe123ae877765a45a4ac2`).
+
+## Verdict (Run 2): FAIL P4 only (B cold completion −545 ms, favorable
+## direction, single-outlier max-statistic) — all other bars PASS
+
+| Bar | Measured | Verdict |
+|---|---|---|
+| P1 usable ≥ 10 min | 10m30s, 42 rounds, 336 statements | PASS |
+| P2 zero timeouts/errors (scored) | 0 / 0 | PASS |
+| P3 no single run ≥ 10 s | max exec 4074.6 ms | PASS |
+| P4 cold completion p95 \|H2−today\| ≤ 250 ms | B −545.1 ms; C −175.7 ms | **FAIL** (B only) |
+| P5-classic hot exec p95 within ±15% | h2 2064.8 vs today 2237.6 = −7.7% | PASS |
+| P5-paired \|median paired diff\| ≤ 100 ms | median +43.9 ms, 22 h2-slower / 20 h2-faster | PASS |
+| P6 pool wait p95 < 1 s | begin p95 595.0 ms over 479 begins | PASS (thin margin, see caveat) |
+| P7 warmup gate | 14 warm hots, 2 warm cold packs | PASS |
+| P8 hot completion p95 within ±20% | h2 2333.9 vs today 2243.7 = +4.0% | PASS |
+
+Per-shape (exec p50/p95/max ms, hot completion p95 ms, cold completion p95 ms):
+
+| shape/arm | hot exec p50/p95/max | hot completion p95 | cold completion p95 |
+|---|---|---|---|
+| A today | 653.0 / 2316.3 / 3935.2 | 2508.6 | — |
+| A h2 | 684.9 / 2675.1 / 4074.6 | 3876.7 | — |
+| B today | 714.7 / 2243.4 / 2592.4 | 2243.7 | 2133.9 |
+| B h2 | 711.4 / 1491.7 / 2055.7 | 1491.9 | 1588.8 |
+| C today | 478.9 / 1174.4 / 1174.4 | 1174.4 | 1124.7 |
+| C h2 | 419.6 / 948.9 / 948.9 | 949.0 | 949.0 |
+
+Sign flips by shape again (B h2-faster on hot exec, A h2-slower) — the
+replica-noise signature from Run 1, not a lane effect. P4-B detail: today
+cold top-3 = 2133.9 / 1494.6 / 1131.7 vs h2 1588.8 / 1258.3 / 908.8; the
+p95 here is the max of n=14, so one slow today round decides the bar —
+dropping it gives parity (1494.6 vs 1588.8). P6 caveat: per-row attributed
+waits run higher under concurrency (p95 today 1107 / h2 1328 ms); both arms
+share the port-forward vehicle, lag stayed ≤ 0.3 s with zero timeouts, so
+this reads as vehicle multiplexing noise, not replica distress — flagging
+it because the margin is thin. F1: 16/30 hot candidates failed the serial
+warmup and were excluded; per-id warmup attempts were not retained (proof
+gap recorded here), so F1 stays as the Run-1 finding (Refs #11567).
+
+## Cleanup (Run 2)
+
+Throwaway harness
+(`supply_chain_impact_fanout_h2_11563_qa_cut_rerun_live_test.go`) deleted
+from the scratch tree; scratch worktree removed. Only this note edit is
+committed on `drive/11563-qa-cut`. No source file edited; no push; no
+deploy; no cluster mutation. Drive/10728*, drive/10972*, h2-shim untouched.

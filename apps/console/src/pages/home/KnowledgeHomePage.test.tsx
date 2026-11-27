@@ -26,11 +26,17 @@ describe("KnowledgeHomePage", () => {
   it("renders every panel from the contract-validated demo fixtures", async () => {
     renderHome(createDemoApiClient());
 
-    expect(await screen.findByText(/connected to 128 repositories, 64 services/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/connected to 128 repositories, 64 services/),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Knowledge is up to date.")).toBeInTheDocument();
-    expect(await screen.findByText("6 urgent vulnerabilities affect software we run")).toBeInTheDocument();
+    expect(
+      await screen.findByText("6 urgent vulnerabilities affect software we run"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("team-payments")).toBeInTheDocument();
-    expect(await screen.findByText("Guided vulnerable-dependency investigation")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Guided vulnerable-dependency investigation"),
+    ).toBeInTheDocument();
     const coverage = screen.getByRole("region", { name: "What Eshu can see" });
     expect(within(coverage).getByText("Code & ownership")).toBeInTheDocument();
   });
@@ -47,7 +53,9 @@ describe("KnowledgeHomePage", () => {
     fireEvent.change(box, { target: { value: "who owns payments-api?" } });
     fireEvent.submit(box.closest("form") as HTMLFormElement);
     await waitFor(() =>
-      expect(screen.getByTestId("location").textContent).toBe("/ask?q=who%20owns%20payments-api%3F"),
+      expect(screen.getByTestId("location").textContent).toBe(
+        "/ask?q=who%20owns%20payments-api%3F",
+      ),
     );
   });
 
@@ -62,7 +70,8 @@ describe("KnowledgeHomePage", () => {
   it("degrades one panel at a time when reads fail", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = input instanceof Request ? input.url : input.toString();
-      if (url.includes("/supply-chain/")) return new Response("upstream request timeout", { status: 504 });
+      if (url.includes("/supply-chain/"))
+        return new Response("upstream request timeout", { status: 504 });
       if (url.includes("/status/collector-readiness")) return new Response("{}", { status: 403 });
       return createDemoFetch(url);
     });

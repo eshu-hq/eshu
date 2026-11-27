@@ -58,7 +58,10 @@ export function KnowledgeHomePage({ client, onFind }: KnowledgeHomePageProps): R
     () => suggestedQuestions(lens, exampleService(ready(data.catalog)), ready(data.workflows)),
     [lens, data.catalog, data.workflows],
   );
-  const attention = useMemo(() => orderForRole(attentionItems(data), role).slice(0, 5), [data, role]);
+  const attention = useMemo(
+    () => orderForRole(attentionItems(data), role).slice(0, 5),
+    [data, role],
+  );
 
   function changeRole(next: RoleId): void {
     setRole(next);
@@ -88,7 +91,11 @@ export function KnowledgeHomePage({ client, onFind }: KnowledgeHomePageProps): R
             subtitle="Who owns what, from your service catalog."
             action={{ to: "/catalog", label: "All services" }}
           >
-            <SectionBody section={data.catalog} label="teams" render={(catalog) => <TeamsPanel catalog={catalog} />} />
+            <SectionBody
+              section={data.catalog}
+              label="teams"
+              render={(catalog) => <TeamsPanel catalog={catalog} />}
+            />
           </Panel>
         </div>
         <div className="kh-col">
@@ -110,7 +117,11 @@ export function KnowledgeHomePage({ client, onFind }: KnowledgeHomePageProps): R
             subtitle="Step-by-step help when you don't know where to start."
             action={{ to: "/guided-questions", label: "Start one" }}
           >
-            <SectionBody section={data.workflows} label="guided investigations" render={(wf) => <GuidedList workflows={wf} />} />
+            <SectionBody
+              section={data.workflows}
+              label="guided investigations"
+              render={(wf) => <GuidedList workflows={wf} />}
+            />
           </Panel>
           <TruthGuide />
         </div>

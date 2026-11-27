@@ -14,12 +14,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 
-import {
-  coverageAreas,
-  teams,
-  unavailableSentence,
-  type AttentionItem,
-} from "./homeModel";
+import { coverageAreas, teams, unavailableSentence, type AttentionItem } from "./homeModel";
 import type { CatalogWire } from "../../api/contracts/wire/CatalogWire";
 import type { EcosystemOverviewWire } from "../../api/contracts/wire/EcosystemOverviewWire";
 import type { InvestigationWorkflowsWire } from "../../api/contracts/wire/InvestigationWorkflowsWire";
@@ -80,9 +75,17 @@ export function SectionBody<T>(props: {
 
 const TONE_LABEL = { critical: "Urgent", warning: "Needs a look", info: "FYI" } as const;
 
-export function AttentionPanel({ items }: { readonly items: readonly AttentionItem[] }): React.JSX.Element {
+export function AttentionPanel({
+  items,
+}: {
+  readonly items: readonly AttentionItem[];
+}): React.JSX.Element {
   return (
-    <Panel id="kh-attention" title="Needs attention" subtitle="The most important things Eshu has noticed, in plain language.">
+    <Panel
+      id="kh-attention"
+      title="Needs attention"
+      subtitle="The most important things Eshu has noticed, in plain language."
+    >
       {items.length === 0 ? (
         <p className="kh-empty">Nothing needs attention right now.</p>
       ) : (
@@ -113,17 +116,61 @@ interface BrowseTile {
   readonly count: number | null;
 }
 
-export function BrowsePanel({ overview }: { readonly overview: EcosystemOverviewWire | null }): React.JSX.Element {
+export function BrowsePanel({
+  overview,
+}: {
+  readonly overview: EcosystemOverviewWire | null;
+}): React.JSX.Element {
   const tiles: readonly BrowseTile[] = [
-    { to: "/catalog", icon: Boxes, title: "Services", text: "Everything we run, who owns it and where it runs.", count: overview?.workload_count ?? null },
-    { to: "/repositories", icon: FolderGit2, title: "Code", text: "Every repository, what's in it and what it powers.", count: overview?.repo_count ?? null },
-    { to: "/cloud", icon: Cloud, title: "Infrastructure", text: "Cloud resources, clusters and how they connect.", count: overview?.instance_count ?? null },
-    { to: "/vulnerabilities", icon: ShieldCheck, title: "Security", text: "Vulnerabilities that actually affect running software.", count: null },
-    { to: "/semantic-search", icon: BookOpen, title: "Docs & runbooks", text: "Search documentation and see which pages are still true.", count: null },
-    { to: "/guided-questions", icon: Compass, title: "Guided investigations", text: "Step-by-step help for common questions.", count: null },
+    {
+      to: "/catalog",
+      icon: Boxes,
+      title: "Services",
+      text: "Everything we run, who owns it and where it runs.",
+      count: overview?.workload_count ?? null,
+    },
+    {
+      to: "/repositories",
+      icon: FolderGit2,
+      title: "Code",
+      text: "Every repository, what's in it and what it powers.",
+      count: overview?.repo_count ?? null,
+    },
+    {
+      to: "/cloud",
+      icon: Cloud,
+      title: "Infrastructure",
+      text: "Cloud resources, clusters and how they connect.",
+      count: overview?.instance_count ?? null,
+    },
+    {
+      to: "/vulnerabilities",
+      icon: ShieldCheck,
+      title: "Security",
+      text: "Vulnerabilities that actually affect running software.",
+      count: null,
+    },
+    {
+      to: "/semantic-search",
+      icon: BookOpen,
+      title: "Docs & runbooks",
+      text: "Search documentation and see which pages are still true.",
+      count: null,
+    },
+    {
+      to: "/guided-questions",
+      icon: Compass,
+      title: "Guided investigations",
+      text: "Step-by-step help for common questions.",
+      count: null,
+    },
   ];
   return (
-    <Panel id="kh-browse" title="Browse your organization" subtitle="Not sure what to search for? Start here.">
+    <Panel
+      id="kh-browse"
+      title="Browse your organization"
+      subtitle="Not sure what to search for? Start here."
+    >
       <ul className="kh-tiles">
         {tiles.map((tile) => {
           const Icon = tile.icon;
@@ -152,29 +199,44 @@ export function TeamsPanel({ catalog }: { readonly catalog: CatalogWire }): Reac
     <p className="kh-empty">No ownership has been declared in your service catalog yet.</p>
   ) : (
     <>
-    {catalog.truncated ? <p className="kh-note">Based on the first {listed.toLocaleString("en-US")} services in the catalog.</p> : null}
-    <ul className="kh-teams">
-      {rows.map((team) => (
-        <li key={team.name}>
-          <Users aria-hidden />
-          <div>
-            <strong>{team.name}</strong>
-            <span>
-              {team.services.length} {team.services.length === 1 ? "service" : "services"}
-              {team.critical > 0 ? ` · ${team.critical} business-critical` : ""}
-            </span>
-            <p>{team.services.slice(0, 4).join(", ")}{team.services.length > 4 ? "…" : ""}</p>
-          </div>
-        </li>
-      ))}
-    </ul>
+      {catalog.truncated ? (
+        <p className="kh-note">
+          Based on the first {listed.toLocaleString("en-US")} services in the catalog.
+        </p>
+      ) : null}
+      <ul className="kh-teams">
+        {rows.map((team) => (
+          <li key={team.name}>
+            <Users aria-hidden />
+            <div>
+              <strong>{team.name}</strong>
+              <span>
+                {team.services.length} {team.services.length === 1 ? "service" : "services"}
+                {team.critical > 0 ? ` · ${team.critical} business-critical` : ""}
+              </span>
+              <p>
+                {team.services.slice(0, 4).join(", ")}
+                {team.services.length > 4 ? "…" : ""}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
 
-const AREA_STATE = { connected: "Connected", partial: "Partly connected", missing: "Not connected" } as const;
+const AREA_STATE = {
+  connected: "Connected",
+  partial: "Partly connected",
+  missing: "Not connected",
+} as const;
 
-export function CoverageList({ collectors }: { readonly collectors: StatusCollectorReadinessWire }): React.JSX.Element {
+export function CoverageList({
+  collectors,
+}: {
+  readonly collectors: StatusCollectorReadinessWire;
+}): React.JSX.Element {
   return (
     <ul className="kh-coverage">
       {coverageAreas(collectors).map((area) => (
@@ -192,7 +254,8 @@ export function CoverageList({ collectors }: { readonly collectors: StatusCollec
               <ul>
                 {area.sources.map((source) => (
                   <li key={source.name}>
-                    <strong>{source.name}</strong> — {source.state === "implemented" ? "working" : source.state}
+                    <strong>{source.name}</strong> —{" "}
+                    {source.state === "implemented" ? "working" : source.state}
                     {source.state !== "implemented" ? <span> · {source.next}</span> : null}
                   </li>
                 ))}
@@ -205,7 +268,11 @@ export function CoverageList({ collectors }: { readonly collectors: StatusCollec
   );
 }
 
-export function GuidedList({ workflows }: { readonly workflows: InvestigationWorkflowsWire }): React.JSX.Element {
+export function GuidedList({
+  workflows,
+}: {
+  readonly workflows: InvestigationWorkflowsWire;
+}): React.JSX.Element {
   const rows = workflows.workflows ?? [];
   return rows.length === 0 ? (
     <p className="kh-empty">No guided investigations are published on this deployment.</p>

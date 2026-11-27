@@ -77,17 +77,31 @@ export const demoCollectorReadiness: StatusCollectorReadinessWire = {
     collector("git", "Git repositories", "implemented", "No action needed."),
     collector("terraform_state", "Terraform state", "implemented", "No action needed."),
     collector("aws", "AWS cloud", "implemented", "No action needed."),
-    collector("kubernetes_live", "Kubernetes (live)", "partial", "Grant read access to the prod cluster.", [
-      "no fact evidence observed yet",
-    ]),
+    collector(
+      "kubernetes_live",
+      "Kubernetes (live)",
+      "partial",
+      "Grant read access to the prod cluster.",
+      ["no fact evidence observed yet"],
+    ),
     collector("ci_cd_run", "CI/CD runs", "implemented", "No action needed."),
-    collector("vulnerability_intelligence", "Vulnerability intelligence", "implemented", "No action needed."),
+    collector(
+      "vulnerability_intelligence",
+      "Vulnerability intelligence",
+      "implemented",
+      "No action needed.",
+    ),
     collector("sbom_attestation", "SBOMs & attestations", "implemented", "No action needed."),
     collector("oci_registry", "Container registry", "implemented", "No action needed."),
     collector("pagerduty", "PagerDuty", "partial", "Confirm reducer readback for incident facts.", [
       "reducer readback not yet available",
     ]),
-    collector("grafana", "Grafana", "disabled", "Enable the collector instance to resume collection."),
+    collector(
+      "grafana",
+      "Grafana",
+      "disabled",
+      "Enable the collector instance to resume collection.",
+    ),
     collector("documentation", "Docs & runbooks", "implemented", "No action needed."),
     collector("jira", "Jira", "disabled", "Enable the collector instance to resume collection."),
   ],
@@ -172,7 +186,8 @@ export const demoWorkflows: InvestigationWorkflowsWire = {
       name: "Guided vulnerable-dependency investigation",
       version: "1.0.0",
       domain: "supply_chain",
-      description: "Start from a CVE or package and follow it to the services and owners it affects.",
+      description:
+        "Start from a CVE or package and follow it to the services and owners it affects.",
       starter_prompts: ["Which services are affected by CVE-2025-13465?"],
     },
     {
@@ -196,7 +211,13 @@ export const demoWorkflows: InvestigationWorkflowsWire = {
 
 type Workload = NonNullable<CatalogWire["workloads"]>[number];
 
-function workload(name: string, repo: string, domain: string, tier: string, envs: readonly string[]): Workload {
+function workload(
+  name: string,
+  repo: string,
+  domain: string,
+  tier: string,
+  envs: readonly string[],
+): Workload {
   return {
     id: `workload:${name}`,
     name,
@@ -235,13 +256,28 @@ export const demoCatalog: CatalogWire = {
 };
 
 const HOME_FIXTURES: ReadonlyMap<string, DemoResult> = new Map([
-  ["/api/v0/ecosystem/overview", { capability: "platform_impact.context_overview", data: demoEcosystemOverview }],
+  [
+    "/api/v0/ecosystem/overview",
+    { capability: "platform_impact.context_overview", data: demoEcosystemOverview },
+  ],
   ["/api/v0/index-status", { capability: "operations.index_status", data: demoIndexStatus }],
-  ["/api/v0/status/collector-readiness", { capability: "status.collector_readiness", data: demoCollectorReadiness }],
-  ["/api/v0/supply-chain/impact/findings/count", { capability: "supply_chain.impact_findings.aggregate", data: demoImpactCount }],
-  ["/api/v0/documentation/findings/count", { capability: "documentation_findings.aggregate", data: demoDocumentationCount }],
+  [
+    "/api/v0/status/collector-readiness",
+    { capability: "status.collector_readiness", data: demoCollectorReadiness },
+  ],
+  [
+    "/api/v0/supply-chain/impact/findings/count",
+    { capability: "supply_chain.impact_findings.aggregate", data: demoImpactCount },
+  ],
+  [
+    "/api/v0/documentation/findings/count",
+    { capability: "documentation_findings.aggregate", data: demoDocumentationCount },
+  ],
   ["/api/v0/query-playbooks", { capability: "query_playbooks.list", data: demoPlaybooks }],
-  ["/api/v0/investigation-workflows", { capability: "investigation_workflows.list", data: demoWorkflows }],
+  [
+    "/api/v0/investigation-workflows",
+    { capability: "investigation_workflows.list", data: demoWorkflows },
+  ],
   ["/api/v0/catalog", { capability: "catalog.list", data: demoCatalog }],
 ]);
 

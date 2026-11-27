@@ -106,7 +106,9 @@ export function suggestedQuestions(
   service: string | null,
   workflows: InvestigationWorkflowsWire | null,
 ): string[] {
-  const named = lens.questions.map((q) => (service ? q.replaceAll("{service}", service) : q.replaceAll("{service}", "our main service")));
+  const named = lens.questions.map((q) =>
+    service ? q.replaceAll("{service}", service) : q.replaceAll("{service}", "our main service"),
+  );
   const starters = (workflows?.workflows ?? [])
     .filter((wf) => wf.domain !== undefined && lens.workflowDomains.includes(wf.domain))
     .flatMap((wf) => ("starter_prompts" in wf ? (wf.starter_prompts ?? []) : []));

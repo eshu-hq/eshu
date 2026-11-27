@@ -274,6 +274,8 @@ class ReplayTierEnrollmentTest(unittest.TestCase):
                 "          go-version-file: go/go.mod\n",
                 "          go-version-file: go/go.mod\n"
                 "          go-version-file: other/go.mod\n", 1),
+            "push path dropped": workflow_source.replace(
+                "      - 'specs/live-tests.d/**'\n", "", 1),
         }
         with tempfile.TemporaryDirectory() as temporary:
             fixture = Path(temporary)

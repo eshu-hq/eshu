@@ -8,7 +8,9 @@ import { App } from "./App";
 // expandNav opens every collapsed sidebar group so link assertions see the
 // whole navigation (groups other than Start and the active page start closed).
 function expandNav(): void {
-  for (const toggle of document.querySelectorAll<HTMLButtonElement>('.nav-group-toggle[aria-expanded="false"]')) {
+  for (const toggle of document.querySelectorAll<HTMLButtonElement>(
+    '.nav-group-toggle[aria-expanded="false"]',
+  )) {
     fireEvent.click(toggle);
   }
 }
@@ -46,10 +48,7 @@ describe("App shell", () => {
     // findBy lets the boot connect attempt settle before assertions.
     expect(await screen.findByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
     expandNav();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
-      "href",
-      "/dashboard",
-    );
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: "Ask Eshu" })).toHaveAttribute("href", "/ask");
     expect(screen.getByRole("link", { name: "Graph Explorer" })).toHaveAttribute(
       "href",
