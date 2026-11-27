@@ -13,13 +13,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// servedDigestExcludedKey is the one digest-excluded payload key the
+// servedDigestExcludedKey is the digest-excluded top-level payload key the
 // stored winner payload serves (findings_decode.go), so the winner
 // select keeps it and the writer capture secondary-compares it
-// (#10880 arbiter ruling 2026-11-21, decision 4). Every other excluded
-// key is volatile: the select strips it from the stored payload
-// (decision 3), so neither a per-key read nor a wholesale copy of it
-// may reach the winners table.
+// (#10880 arbiter ruling 2026-11-21, decision 4). The selected EPSS
+// score date is the second served excluded key, kept nested inside
+// provenance while the select strips any top-level occurrence (#11598:
+// accepted staleness for provenance metadata while the score is
+// unchanged). Every other excluded key is volatile: the select strips
+// it from the stored payload (decision 3), so neither a per-key read
+// nor a wholesale copy of it may reach the winners table.
 const servedDigestExcludedKey = "evidence_fact_ids"
 
 // winnerPayloadStripExpr renders the payload normalization the winner

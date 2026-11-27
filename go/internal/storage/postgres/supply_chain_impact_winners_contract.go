@@ -54,6 +54,16 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// carry payload and source_confidence, so winners a resweep produces
 	// change for the same facts. Every instance runs one full after
 	// the roll; migration 332 backfills at migration time.
+	// Re-pinned under the same version for #11598: the winner select
+	// projection strips a top-level selected_epss_score_date that real
+	// payloads never carry (the date lives nested in provenance, which
+	// the projection keeps). Winner output is byte-identical for the
+	// same facts: the hermetic reversal (reverseWinnersEPSSDateStrip,
+	// chained in TestWinnersContractRepinnedForSupportsInputs back to
+	// the 25e4d891 pin) proves the shipped text differs from the legacy
+	// text only by that strip, and the volatile live test rewrites every
+	// DigestExcludedPayloadKeys entry top-level and proves no winner is
+	// written. No full resweep is triggered by this re-pin.
 	// Re-pinned under the same version for #10839: the keyed active_facts
 	// build precomputes the live generation set once per tick instead of
 	// probing liveness per copy. Winner output is byte-identical for the
@@ -117,7 +127,7 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// pins the narrow temp at half the wide temp's bytes and the late fetch
 	// at a fact_id point lookup. No full resweep is triggered by this
 	// re-pin.
-	2: "405877edbe7ecbe38f11a6a2247e516e6929d05ebdde89cf5f48186e538a1610",
+	2: "8f94f0f67e4eaa5f07f606192301dc7c5e2343230afbf1c1b829665386fb3bc1",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the

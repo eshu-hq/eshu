@@ -7,9 +7,12 @@ import "strings"
 
 // supplyChainImpactVolatileStripSQL strips from a support payload the keys the
 // winners store strips from a winner payload (the 2026-11-21 digest-exclusion
-// ruling), so a branch B row reads like a branch A row.
+// ruling plus the #11598 EPSS score-date exclusion), so a branch B row reads
+// like a branch A row. The date strip is a no-op on real payloads (the date
+// lives nested in provenance); it is kept so the strip set matches the
+// winners store textually.
 func supplyChainImpactVolatileStripSQL(payloadExpr string) string {
-	return "((" + payloadExpr + " - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}')::jsonb"
+	return "((" + payloadExpr + " - 'intent_id' - 'cause' - 'generation_id' - 'selected_epss_score_date') #- '{provenance,content_digest}')::jsonb"
 }
 
 // listSupplementBinds is the list read's parameter numbering ($2.. key filters,

@@ -28,10 +28,11 @@ import (
 
 // TestEnrichmentChangeReportsChangedCVE9878 pins the trigger precondition:
 // a pass whose only difference from the scope's previous generation is an
-// enrichment change (lowered EPSS with a newer score_date, a new KEV
-// listing, or a newer EPSS score_date alone) reports the CVE as changed, so
-// the fan-out re-triggers the other scopes holding copies. An identical
-// re-derivation reports nothing.
+// enrichment change (lowered EPSS with a newer score_date, or a new KEV
+// listing) reports the CVE as changed, so the fan-out re-triggers the other
+// scopes holding copies. A newer EPSS score_date alone reports nothing (#11598
+// Fix 2: the date differs on every rescan without the finding changing), as
+// does an identical re-derivation.
 func TestEnrichmentChangeReportsChangedCVE9878(t *testing.T) {
 	t.Parallel()
 
@@ -52,9 +53,10 @@ func TestEnrichmentChangeReportsChangedCVE9878(t *testing.T) {
 			want:    []string{rescore9878CVE},
 		},
 		{
+			// #11598 Fix 2: a date-only rescan is not a change.
 			name:    "newer EPSS score_date alone",
 			finding: mustRescore9878Finding(t, rescore9878BaseEnvelopes(3.0, "0.71", "0.98", "2026-05-17", false)),
-			want:    []string{rescore9878CVE},
+			want:    nil,
 		},
 		{
 			name:    "identical re-derivation",
