@@ -236,13 +236,14 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      # Read-only restore of go-core's gobuild cache (0 extra bytes in 10 GB store).
+      # Read-only restore of go-core's daily gobuild cache (0 extra bytes in 10 GB store).
       - name: Restore Go build cache
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -280,14 +281,17 @@ jobs:
         run: printf 'day=%s\n' "$(date -u +%F)" >> "$GITHUB_OUTPUT"
       # Restore here, save only on main push (last step). A PR-scoped copy is
       # visible to that PR alone but counts against the 10 GB store, and it
-      # evicted main's entry (#9598). PR runs fall back to main's entry.
+      # evicted main's entry (#9598). Daily UTC rotation keeps gobuild in
+      # lockstep with golangcilint below so go/packages export data stays fresh;
+      # gha-codeql-cache-prune.yml prunes superseded gobuild entries daily.
       - name: Restore Go build cache
         id: gobuild-cache
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}-${{ steps.cache-day.outputs.day }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
       # cache: false because setup-go would cache `go env GOCACHE`, which is
       # the build cache above, a second time (#9598). The pre-warm step below
