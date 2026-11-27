@@ -236,4 +236,12 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// nullable with no default or backfill, so the reopen can compare the
 	// origin token against the last proven pass instead of wall times.
 	"supply_chain_impact_scope_pass_state_watermark",
+	// Migration 362 (#9975 round 6) adds the key_presence bitmask column on
+	// the supports table the triple-guarded keyed probe reads, NOT NULL
+	// DEFAULT 0 (fail-closed until the key-presence fill completes).
+	"supply_chain_impact_supports_key_presence",
+	// Migration 363 (#9975 round 6) adds the covering btree for the
+	// triple-guarded keyed probe on the plain supports columns, built
+	// CONCURRENTLY (migration 354 stays for the pre-marker fallback probe).
+	"supply_chain_impact_supports_keyed_triple_guard_idx",
 }

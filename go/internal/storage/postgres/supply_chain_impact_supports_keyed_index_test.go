@@ -131,12 +131,20 @@ func indexKeyExpressions(ddl string) ([]string, error) {
 
 var keyedProbeEquality = regexp.MustCompile(`(?m)^\s+(?:WHERE|AND) (.+?) = ident\.\w+\s*$`)
 
+// keyedProbeSupportsAlias strips the supports-table qualifier from a probe
+// expression: the triple-guarded probe (#9975 round 6) equates plain columns
+// qualified with its table alias, while the index DDL names bare columns.
+var keyedProbeSupportsAlias = regexp.MustCompile(`\bs\.([a-z_]+)`)
+
 // keyedProbeExpressions returns, in order, the left-hand expressions the keyed
-// probe equates to the identifier columns, normalized over the unaliased payload.
+// probe equates to the identifier columns, normalized over the unaliased payload
+// or the de-aliased plain columns.
 func keyedProbeExpressions(probe string) []string {
 	var exprs []string
 	for _, match := range keyedProbeEquality.FindAllStringSubmatch(probe, -1) {
-		exprs = append(exprs, normalizeKeyExpr(strings.ReplaceAll(match[1], "f.payload", "payload")))
+		expr := strings.ReplaceAll(match[1], "f.payload", "payload")
+		expr = keyedProbeSupportsAlias.ReplaceAllString(expr, "$1")
+		exprs = append(exprs, normalizeKeyExpr(expr))
 	}
 	return exprs
 }
@@ -243,6 +251,137 @@ func TestKeyedProbeCoverageRejectsSeededViolations(t *testing.T) {
 	if extra == probe {
 		extra = strings.Replace(probe, "OFFSET 0", "AND (f.payload->>'workload_id') = ident.advisory_id\n        OFFSET 0", 1)
 	}
+	if extra == probe {
+		t.Fatal("could not seed a sixth equality into the probe")
+	}
+	if err := keyedProbeCoveredByIndex(extra, ddl); err == nil {
+		t.Error("a probe with a sixth equality was accepted")
+	}
+}
+
+const keyedTripleGuardIndexMigration = "migrations/363_supply_chain_impact_supports_keyed_triple_guard_idx.sql"
+
+// TestKeyedTripleGuardIndexCoversTheKeyedProbe pins that the triple-guard
+// index's leading five keys are exactly the expressions the triple-guarded
+// probe equates, in the probe's order, so the planner can use every equality
+// as an index condition on the plain columns.
+func TestKeyedTripleGuardIndexCoversTheKeyedProbe(t *testing.T) {
+	t.Parallel()
+
+	ddl := keyedIndexStatement(t, keyedTripleGuardIndexMigration)
+	if err := keyedProbeCoveredByIndex(buildWinnersKeyedNarrowKeyPresenceSQL, ddl); err != nil {
+		t.Fatalf("migration 363 does not cover the triple-guarded keyed probe: %v", err)
+	}
+	// The matcher still reads the shipped pair, so the s.-strip is not
+	// vacuous: a matcher that dropped every qualifier would accept anything.
+	if err := keyedProbeCoveredByIndex(buildWinnersKeyedNarrowFromSupportsSQL, keyedIndexStatement(t, keyedSupportsIndexMigration)); err != nil {
+		t.Fatalf("the matcher rejects the shipped probe and index: %v", err)
+	}
+}
+
+// indexIncludeExpressions returns the normalized column list of a CREATE
+// INDEX ... INCLUDE clause, in order.
+func indexIncludeExpressions(ddl string) ([]string, error) {
+	up := strings.ToUpper(ddl)
+	at := strings.Index(up, "INCLUDE")
+	if at < 0 {
+		return nil, fmt.Errorf("no INCLUDE clause in %q", ddl)
+	}
+	lp := strings.Index(ddl[at:], "(")
+	if lp < 0 {
+		return nil, fmt.Errorf("no INCLUDE list in %q", ddl)
+	}
+	lp += at
+	depth, end := 0, -1
+	for i := lp; i < len(ddl); i++ {
+		switch ddl[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				end = i
+			}
+		}
+		if end >= 0 {
+			break
+		}
+	}
+	if end < 0 {
+		return nil, fmt.Errorf("unterminated INCLUDE list in %q", ddl)
+	}
+	var cols []string
+	for _, part := range splitTopLevel(ddl[lp+1 : end]) {
+		cols = append(cols, normalizeKeyExpr(part))
+	}
+	return cols, nil
+}
+
+// TestKeyedTripleGuardIndexShape pins migration 363's one-statement,
+// no-predicate, plain-column covering shape: the five key expressions byte
+// for byte from the probe, then the output and guard inputs in INCLUDE. A
+// dropped INCLUDE column (key_presence, cve_id) keeps the five-key cover but
+// denies the Index Only Scan, so the list is pinned exactly.
+func TestKeyedTripleGuardIndexShape(t *testing.T) {
+	t.Parallel()
+
+	ddl := keyedIndexStatement(t, keyedTripleGuardIndexMigration)
+	if !strings.HasPrefix(ddl, "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_keyed_triple_guard_idx ON supply_chain_impact_finding_supports (") {
+		t.Fatalf("migration 363 is not one CONCURRENTLY IF NOT EXISTS index on the supports table: %s", ddl)
+	}
+	if strings.Count(ddl, ";") != 1 || !strings.HasSuffix(ddl, ";") {
+		t.Fatalf("migration 363 must hold exactly one statement: %s", ddl)
+	}
+	if strings.Contains(ddl, " WHERE ") {
+		t.Fatalf("migration 363 carries a predicate: supports hold only live finding rows, so none is needed: %s", ddl)
+	}
+	got, err := indexIncludeExpressions(ddl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"fact_id", "scope_id", "generation_id", "key_presence", "cve_id"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("migration 363 INCLUDE =\n%v\nwant exactly the probe output and guard inputs =\n%v", got, want)
+	}
+}
+
+// TestKeyedTripleGuardCoverageRejectsSeededViolations proves the triple-guard
+// coverage rule fails on planted defects: a dropped key, a payload expression
+// in place of a plain column, a dropped INCLUDE column, and a probe that
+// gained a sixth equality.
+func TestKeyedTripleGuardCoverageRejectsSeededViolations(t *testing.T) {
+	t.Parallel()
+
+	ddl := keyedIndexStatement(t, keyedTripleGuardIndexMigration)
+	probe := buildWinnersKeyedNarrowKeyPresenceSQL
+	if err := keyedProbeCoveredByIndex(probe, ddl); err != nil {
+		t.Fatalf("clean pair rejected: %v", err)
+	}
+	for name, mutated := range map[string]string{
+		"dropped key":     strings.Replace(ddl, "(subject_digest),", "", 1),
+		"payload column":  strings.Replace(ddl, "(package_id),", "((payload->>'package_id')),", 1),
+		"dropped include": strings.Replace(ddl, ", key_presence,", ",", 1),
+	} {
+		if mutated == ddl {
+			t.Fatalf("%s: the seeded mutation did not change the index", name)
+		}
+		bad := mutated
+		if name == "dropped include" {
+			// The five-key cover survives a dropped INCLUDE column, so the
+			// shape test (not the cover rule) must reject it.
+			if _, err := indexIncludeExpressions(bad); err != nil {
+				t.Fatalf("%s: cannot parse INCLUDE of the mutated index: %v", name, err)
+			}
+			if got, _ := indexIncludeExpressions(bad); strings.Join(got, "|") == "fact_id|scope_id|generation_id|key_presence|cve_id" {
+				t.Errorf("%s: a defective INCLUDE was accepted", name)
+			}
+			continue
+		}
+		if err := keyedProbeCoveredByIndex(probe, bad); err == nil {
+			t.Errorf("%s: a defective index was accepted", name)
+		}
+	}
+	extra := strings.Replace(probe, "OFFSET 0", "AND s.package_id = ident.package_id\n        OFFSET 0", 1)
 	if extra == probe {
 		t.Fatal("could not seed a sixth equality into the probe")
 	}

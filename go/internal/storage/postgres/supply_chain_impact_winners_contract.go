@@ -37,7 +37,7 @@ import (
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
 // supplyChainImpactWinnerDataColumns byte-parity rule).
-const SupplyChainImpactWinnersContractVersion int64 = 2
+const SupplyChainImpactWinnersContractVersion int64 = 3
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
 // of the statements it names. A version maps to exactly one hash. Version 2
@@ -128,6 +128,18 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// at a fact_id point lookup. No full resweep is triggered by this
 	// re-pin.
 	2: "8f94f0f67e4eaa5f07f606192301dc7c5e2343230afbf1c1b829665386fb3bc1",
+	// Version 3 (#9975 round-6 triple-guard probe): the keyed narrow probe
+	// gains a triple-guarded plain-column twin
+	// (buildWinnersKeyedNarrowKeyPresenceSQL) alongside the shipped
+	// payload-expression build it falls back to before the key-presence fill
+	// marker completes. Winner output is byte-identical for the same facts:
+	// the live differential
+	// (TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive, EXCEPT both
+	// directions over every advisory-absent and triple edge class) proves the
+	// twin returns the same copies, and the audit keeps the legacy statement
+	// as its oracle. Every instance runs one full after the roll, per the
+	// #11117 model, which also heals any winner a pre-marker tick wrote.
+	3: "1469bfaecd6468092ee1e67744057b3998d26b5c2b9e5c359c8349d29715dc04",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
@@ -145,6 +157,7 @@ func supplyChainImpactWinnersContractStatements() []string {
 		selectWinnersKeyedChunkIdentsSQL,
 		restrictWinnersKeyedIdentsToChunkSQL,
 		buildWinnersKeyedNarrowFromSupportsSQL,
+		buildWinnersKeyedNarrowKeyPresenceSQL,
 		analyzeWinnersKeyedNarrowSQL,
 		buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
 		addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,

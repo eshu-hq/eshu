@@ -112,8 +112,10 @@ func TestSupportsGuardDifferentialRejectsOtherEdits(t *testing.T) {
 func TestSupportsGuardDoesNotChangeTheVersion1Statements(t *testing.T) {
 	t.Parallel()
 	statements := supplyChainImpactSupportsContractStatements()
+	// The C1-era fill-only list: this test's subject is the guard strip, and
+	// the key_presence fill-only column (#9975 round 6) rides outside it.
 	c1Upsert := supplyChainImpactUpsertSupportsStatementGuarded(
-		supplyChainImpactSupportsSelectSQL("fact.fact_id = ANY($1::text[])"), supplyChainImpactSupportFillOnlyColumns, nil)
+		supplyChainImpactSupportsSelectSQLWith("fact.fact_id = ANY($1::text[])", stableKeyOnlyFillColumns()), stableKeyOnlyFillColumns(), nil)
 	c1 := append([]string{c1Upsert}, statements[1:6]...)
 	if got := supplyChainImpactSupportsContractHashOf(c1); got != supportsContractVersion1C1Pin {
 		t.Fatalf("the statements without the guard strip hash to %s, want the C1 version-1 pin %s: B3a changed more than the guard", got, supportsContractVersion1C1Pin)

@@ -94,6 +94,14 @@ type winnersChunkOutcome struct {
 	// (as opposed to the identifier bound): the tick maps it to
 	// ChunkTruncatedBy so the log distinguishes the two.
 	budgetTruncated bool
+	// keyPresenceProbe reports the tick probed with the triple-guarded
+	// plain-column probe (#9975 round 6) instead of the shipped
+	// payload-expression one: the key-presence fill marker was complete when
+	// the chunk was built. It is recorded for tests and future wiring, not
+	// operator telemetry: an operator tells which probe text a tick ran from
+	// the marker row and pg_stat_statements (the two texts are distinct
+	// statements).
+	keyPresenceProbe bool
 }
 
 // selectWinnersKeyedChunkIdentsSQL lists the identifier set's five-tuples
@@ -207,6 +215,14 @@ func buildWinnersKeyedChunk(
 	if _, err := tx.ExecContext(ctx, createWinnersKeyedNarrowSQL); err != nil {
 		return outcome, fmt.Errorf("create supply chain impact winners keyed narrow probe: %w", err)
 	}
+	// The probe flip (#9975 round 6): the triple-guarded plain-column probe
+	// is correct only once every support carries its key-presence bits, so
+	// it runs only after the fill's disagreement-0 verification completes
+	// the marker. Before that — including when the marker row does not exist
+	// yet — the shipped payload-expression probe runs, which ignores the
+	// bits and is correct on unfilled rows. One indexed row read per tick.
+	outcome.keyPresenceProbe = winnersKeyPresenceFillCompleted(ctx, tx)
+	probeBatchSQL := winnersKeyedProbeVariant(outcome.keyPresenceProbe)
 	// Budgeted admission (Dec 6(ii)): probe the identifiers oldest-first one
 	// at a time and stop admitting new ones once the scanned-copies budget
 	// is spent. RowsAffected of the per-identifier probe is that
@@ -244,7 +260,7 @@ func buildWinnersKeyedChunk(
 		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 			return outcome, fmt.Errorf("stage supply chain impact winners batch identifier: %w", err)
 		}
-		res, err := tx.ExecContext(ctx, insertWinnersKeyedNarrowBatchSQL)
+		res, err := tx.ExecContext(ctx, probeBatchSQL)
 		if err != nil {
 			return outcome, fmt.Errorf("probe supply chain impact winners chunk scanned copies: %w", err)
 		}

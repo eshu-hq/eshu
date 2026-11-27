@@ -156,22 +156,70 @@ func TestStableFactKeyDoesNotChangeTheVersion1Statements(t *testing.T) {
 	}
 }
 
-// supportsContractBeforeRowsUpsertPin is the version-1 pin after PR-C1 a and before
-// PR-C2 h appended the writer's in-memory upsert.
-const supportsContractBeforeRowsUpsertPin = "6b89c4b096c58c65a649ff24e4dd90201b34d9ad9da00c585189c891eca10713"
+// supportsContractBeforeKeyPresencePin is the version-1 first-6 pin after
+// PR-C1 a and PR-C2 h and before #9975 round 6 added the key_presence
+// fill-only column, kept so the differential below proves the re-pin changes
+// nothing else.
+const supportsContractBeforeKeyPresencePin = "6b89c4b096c58c65a649ff24e4dd90201b34d9ad9da00c585189c891eca10713"
+
+// supportsContractFullBeforeKeyPresencePin is the version-1 full-list pin
+// before #9975 round 6: the previous pins[1] value, kept for the full-list
+// differential in the contract test.
+const supportsContractFullBeforeKeyPresencePin = "562247bd8c5b9f2d4a22083b7d9a707818df86611ee8be2f87a96945a5cb45f3"
+
+// supportsContractWithKeyPresencePin is the version-1 pin after the
+// key_presence fill-only column: same statements, both upserts additionally
+// filling key_presence from the payload-derived bitmask.
+const supportsContractWithKeyPresencePin = "2c91286bd132574922283a24fe4cef13a919d03dae82022d718a8c04ecf7da37"
+
+// stableKeyOnlyFillColumns is the fill-only list before #9975 round 6: the
+// differential renders the covered upserts over it so the re-pin proves the
+// only change is the key_presence column.
+func stableKeyOnlyFillColumns() []supplyChainImpactSupportColumn {
+	var out []supplyChainImpactSupportColumn
+	for _, column := range supplyChainImpactSupportFillOnlyColumns {
+		if column.name != "key_presence" {
+			out = append(out, column)
+		}
+	}
+	return out
+}
+
+// strippedOfKeyPresence renders the shipped contract statements with the
+// pre-key-presence fill-only list: the differential input for both re-pins.
+func strippedOfKeyPresence() []string {
+	stableOnly := stableKeyOnlyFillColumns()
+	factUpsert := supplyChainImpactUpsertSupportsStatementGuarded(
+		supplyChainImpactSupportsSelectSQLWith("fact.fact_id = ANY($1::text[])", stableOnly),
+		stableOnly, supplyChainImpactSupportsGuardIgnoredPayloadKeys)
+	rowsUpsert := supplyChainImpactUpsertSupportsStatementWith(
+		supplyChainImpactSupportRowsSelectSQLWith(stableOnly), stableOnly)
+	statements := supplyChainImpactSupportsContractStatements()
+	statements[0] = factUpsert
+	statements[len(statements)-1] = rowsUpsert
+	return statements
+}
 
 // TestRowsUpsertOnlyAppendsToTheVersion1Contract proves the PR-C2 h re-pin is an
-// append: the statements the contract covered before still hash to the previous pin,
-// so no existing statement changed and the version stays 1 (a bump would re-run the
+// append, extended by the #9975 round-6 key_presence fill-only column: the
+// statements the contract covered before still hash to the previous pin once
+// rendered without key_presence, so no existing statement changed beyond the
+// one added fill-only column and the version stays 1 (a bump would re-run the
 // supports backfill and answer 503 on every supports read until it finished).
 func TestRowsUpsertOnlyAppendsToTheVersion1Contract(t *testing.T) {
 	t.Parallel()
 
 	statements := supplyChainImpactSupportsContractStatements()
-	if got := supplyChainImpactSupportsContractHashOf(statements[:supportsContractBaseStatementCount]); got != supportsContractBeforeRowsUpsertPin {
-		t.Fatalf("the first %d statements hash to %s, want the previous pin %s: an existing statement changed", supportsContractBaseStatementCount, got, supportsContractBeforeRowsUpsertPin)
+	if got := supplyChainImpactSupportsContractHashOf(statements[:supportsContractBaseStatementCount]); got != supportsContractWithKeyPresencePin {
+		t.Fatalf("the first %d statements hash to %s, want the key-presence pin %s: an existing statement changed beyond the fill-only column", supportsContractBaseStatementCount, got, supportsContractWithKeyPresencePin)
 	}
 	if statements[len(statements)-1] != upsertSupplyChainImpactSupportRowsSQL {
 		t.Fatal("the appended statement is not the writer's in-memory upsert")
+	}
+	// Differential: without key_presence the same statements hash to the
+	// pre-key-presence pin, so the re-pin adds only that column.
+	stripped := strippedOfKeyPresence()
+	if got := supplyChainImpactSupportsContractHashOf(stripped[:supportsContractBaseStatementCount]); got != supportsContractBeforeKeyPresencePin {
+		t.Fatalf("the stripped first %d statements hash to %s, want the pre-key-presence pin %s", supportsContractBaseStatementCount, got, supportsContractBeforeKeyPresencePin)
 	}
 }
