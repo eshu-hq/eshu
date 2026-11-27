@@ -102,6 +102,10 @@ reads the select SQL and fails if it reads one of the four. A same-fact-id
 rewrite keeps scope, generation and tombstone state, so the winner inputs are
 unchanged. A new generation mints new fact ids and is compared against the prior generation by stable key, so only findings whose inputs changed are captured.
 
+No-Regression Evidence (11414): judging first passes by stable key only suppresses staging of findings whose winners are already computed and unchanged. Baseline: an exemplar 02:48Z OSV batch pass restaged 2,291 findings that all pre-existed in winners; after: `TestFirstPassOverUnchangedPriorGenerationStagesNothing` stages zero rows on identical inputs while changed inputs still stage, and the full `supplychain/core` package suite plus `go vet` pass on the final head.
+
+No-Observability-Change (11414): no new metrics, spans, logs, or phase labels; the keyed tick phase timers are untouched and the empty-capture early return path pre-existed for reruns.
+
 ## Concurrency
 
 Conflict domain: the winners table and the dirty log.
