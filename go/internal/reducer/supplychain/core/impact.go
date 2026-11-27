@@ -301,7 +301,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	// After the writer commit and before the queue acknowledgement (Handle
 	// returns first): reopen the scopes that hold stale copies of what this pass
 	// changed. A failed read or reopen fails the pass so the queue retries it.
-	fanOut, err := h.fanOutHolders(ctx, intent, withFanOutOrigin(withFullPassMarker(writeResult, intent, loaded), loaded.scopeFactKinds), fanOutCause(loaded.scopeFactKinds), inFlightAtLoad)
+	fanOut, err := h.fanOutHolders(ctx, intent, withFanOutOriginToken(withFanOutOrigin(withFullPassMarker(writeResult, intent, loaded), loaded.scopeFactKinds), fencingToken), fanOutCause(loaded.scopeFactKinds), inFlightAtLoad)
 	if err != nil {
 		return reducercontract.Result{}, err
 	}

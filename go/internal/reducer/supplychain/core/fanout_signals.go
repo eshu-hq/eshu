@@ -48,6 +48,11 @@ type fanOutResult struct {
 	// stampWidened counts holders whose queued or already-flagged item got
 	// this change merged into its stamp (#10972).
 	stampWidened int
+	// shadowSkipped counts holders that met every PR1 freshness condition
+	// and still reopened: the would-skip share PR2 decides on (#11613). It
+	// is counted apart from pendingNoop so the Gate-B stock metric cannot
+	// absorb it silently.
+	shadowSkipped int
 	// prefiltered counts holders the queued-holder prefilter dropped before
 	// the cap slice: their item was already pending or retrying (#10972).
 	prefiltered int
@@ -136,6 +141,7 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 	h.countFanOut(ctx, r.cause, string(FanOutPendingNoop), r.pendingNoop)
 	h.countFanOut(ctx, r.cause, string(FanOutEnqueued), r.enqueued)
 	h.countFanOut(ctx, r.cause, string(FanOutStampWidened), r.stampWidened)
+	h.countFanOut(ctx, r.cause, string(FanOutShadowWouldSkip), r.shadowSkipped)
 	h.countFanOut(ctx, r.cause, fanOutOutcomePrefilteredPending, r.prefiltered)
 	h.countFanOut(ctx, r.cause, string(FanOutNoActiveGeneration), r.noActiveGeneration)
 	h.countFanOut(ctx, r.cause, fanOutOutcomeDeferred, r.newlyDeferred)
@@ -157,6 +163,7 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 		slog.Int("replay_flagged", r.replayFlagged),
 		slog.Int("pending_noop", r.pendingNoop),
 		slog.Int("stamp_widened", r.stampWidened),
+		slog.Int("shadow_would_skip", r.shadowSkipped),
 		slog.Int("prefiltered_pending", r.prefiltered),
 		slog.Int("enqueued", r.enqueued),
 		slog.Int("dead_letter_reopened", r.deadLetterReopened),
@@ -227,6 +234,8 @@ func (r *fanOutResult) record(outcome FanOutOutcome) {
 		r.enqueued++
 	case FanOutStampWidened:
 		r.stampWidened++
+	case FanOutShadowWouldSkip:
+		r.shadowSkipped++
 	case FanOutDeadLetterReopened:
 		r.deadLetterReopened++
 	case FanOutDeadLetterSkipped:
@@ -252,6 +261,7 @@ func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_reopened"] = float64(r.reopened)
 	subSignals["fanout_replay_flagged"] = float64(r.replayFlagged)
 	subSignals["fanout_stamp_widened"] = float64(r.stampWidened)
+	subSignals["fanout_shadow_would_skip"] = float64(r.shadowSkipped)
 	subSignals["fanout_dead_letter_reopened"] = float64(r.deadLetterReopened)
 	subSignals["fanout_dead_letter_skipped"] = float64(r.deadLetterSkipped)
 	subSignals["fanout_deferred"] = float64(r.deferred)
@@ -384,6 +394,7 @@ func (r fanOutResult) setSpanAttributes(span trace.Span) {
 		attribute.Int("reopened", r.reopened),
 		attribute.Int("replay_flagged", r.replayFlagged),
 		attribute.Int("stamp_widened", r.stampWidened),
+		attribute.Int("shadow_would_skip", r.shadowSkipped),
 		attribute.Int("deferred", r.deferred),
 		attribute.Int("prefiltered_pending", r.prefiltered),
 		attribute.Int("holder_statements", r.holderStatements),

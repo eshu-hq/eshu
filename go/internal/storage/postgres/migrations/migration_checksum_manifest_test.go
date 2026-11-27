@@ -555,6 +555,9 @@ var migrationShippedChecksums = map[string]string{
 	// #7584: the partial trigram GIN serving the targeted anchor-scoped
 	// relationship fact load's lower(payload::text) LIKE ANY predicate.
 	"360_fact_records_anchor_payload_trgm_idx.sql": "4db8040b3d0b7d4875fc10cfa0a939a9868434e938c089fd3273377715b082d7",
+	// #11613 PR1: the holder freshness watermark columns on the per-scope
+	// pass state (watermark token, generation, evidence-complete flag).
+	"361_supply_chain_impact_scope_pass_state_watermark.sql": "6db4c87496892550ae5befe11c9757df3a826d91d6900b52550c3638675e45fe",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

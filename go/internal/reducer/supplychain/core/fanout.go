@@ -78,6 +78,14 @@ const (
 	// flagged, had a stamp that did not name this change, and the reopen merged
 	// the change into it without touching anything else (#10972).
 	FanOutStampWidened FanOutOutcome = "stamp_widened"
+	// FanOutShadowWouldSkip means the holder met every PR1 freshness
+	// condition for a future skip (succeeded at its active generation, a
+	// generation-bound watermark strictly newer than the origin pass, no
+	// owed debt, a token-bearing bounded-or-sentinel origin) but PR1 still
+	// reopened it: the outcome counts the would-skip, it does not take it
+	// (#11613). PR2 enables the skip only if this share predicts
+	// arrival/service under 0.5.
+	FanOutShadowWouldSkip FanOutOutcome = "shadow_would_skip"
 )
 
 // The closed fan-out cause set (#9878): the evidence family of the
@@ -346,6 +354,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		SourceGenerationID: intent.GenerationID,
 		SourceIntentID:     intent.IntentID,
 		CVEIDs:             stampOut,
+		FencingToken:       write.originToken,
 	}
 	for _, holder := range batch {
 		done := times.begin(telemetry.SupplyChainImpactFanOutSiteReopenLoop)

@@ -1411,7 +1411,9 @@ type Instruments struct {
 	// fan-out a supply-chain impact pass runs after its writer commit (#9695).
 	// Labels: domain (supply_chain_impact), outcome (reopened,
 	// replay_flagged, pending_noop, enqueued, dead_letter_reopened,
-	// dead_letter_skipped, no_active_generation, crash_recovery, deferred,
+	// dead_letter_skipped, no_active_generation, shadow_would_skip (#11613:
+	// counted when a succeeded reopen met every freshness condition but PR1
+	// still reopened it), crash_recovery, deferred,
 	// read_error, read_timeout, reopen_error, state_error), and cause (#9878:
 	// epss, kev, advisory, suppression, package_evidence, mixed, other — the
 	// evidence family of the committing pass's own generation; enrichment

@@ -106,9 +106,21 @@ func TestClassifyHolderReopenNamesAStampWiden(t *testing.T) {
 		{"succeeded", true, false, supplychaincore.FanOutReopened},
 	}
 	for _, tc := range cases {
-		if got := classifyHolderReopen(tc.prior, tc.rewritten, tc.priorFlag, "").Outcome; got != tc.want {
+		if got := classifyHolderReopen(tc.prior, tc.rewritten, tc.priorFlag, "", false).Outcome; got != tc.want {
 			t.Errorf("classify(%s, rewritten=%v, flag=%v) = %q, want %q", tc.prior, tc.rewritten, tc.priorFlag, got, tc.want)
 		}
+	}
+	if got := classifyHolderReopen("succeeded", true, false, "", true).Outcome; got != supplychaincore.FanOutShadowWouldSkip {
+		t.Errorf("classify(succeeded, rewritten, shadowed) = %q, want shadow_would_skip", got)
+	}
+	if got := classifyHolderReopen("pending", true, false, "", true).Outcome; got != supplychaincore.FanOutStampWidened {
+		t.Errorf("classify(pending, rewritten, shadowed) = %q, want stamp_widened: the shadow flag never fires off the succeeded arm", got)
+	}
+	if reopenRank(supplychaincore.FanOutShadowWouldSkip) <= reopenRank(supplychaincore.FanOutDeadLetterReopened) {
+		t.Error("shadow_would_skip must rank above dead_letter_reopened")
+	}
+	if reopenRank(supplychaincore.FanOutShadowWouldSkip) >= reopenRank(supplychaincore.FanOutReopened) {
+		t.Error("a genuine reopen must outrank a would-skip shadow")
 	}
 	if reopenRank(supplychaincore.FanOutStampWidened) <= reopenRank(supplychaincore.FanOutPendingNoop) {
 		t.Error("stamp_widened must rank above pending_noop")

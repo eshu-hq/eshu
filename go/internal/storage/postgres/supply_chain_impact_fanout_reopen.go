@@ -60,11 +60,14 @@ const reopenSupplyChainImpactSetsFlag = `(work.status IN ('claimed', 'running') 
 // list matches scheduleCrossScopeMaterializationReplayQuery, including the
 // container-image-identity authorization columns the claim path reads.
 //
-// Per state: a succeeded row returns to pending, stamped with the incoming
-// origin. A claimed or running row gets the durable replay bit the migration
-// 093 trigger turns into one rerun, and its stamp is MERGED with the incoming
-// one (fanOutMergedStampSQL), so a set the running pass was told about is
-// never dropped. A pending or retrying row whose next pass covers the change
+// Per state: a succeeded row returns to pending, its stamp UNIONED with the
+// incoming origin (fanOutMergedStampSQL), so a set a mid-pass widen told it
+// about survives the consume fence and is never dropped (#11613: without the
+// union a second origin's CVE set vanished when the succeeded row already
+// carried one). A claimed or running row gets the durable replay bit the
+// migration 093 trigger turns into one rerun, and its stamp is MERGED with the
+// incoming one, so a set the running pass was told about is never dropped.
+// A pending or retrying row whose next pass covers the change
 // (fanOutQueuedRowCoversSQL) is classified and left untouched, so it costs no
 // row version; one that does not is widened (#10972): only payload.fanout_origin
 // is written, never status, attempts, lease, failure fields, visible_at, or
@@ -81,19 +84,58 @@ const reopenSupplyChainImpactSetsFlag = `(work.status IN ('claimed', 'running') 
 // runs as a CVE-scoped one hop and would hide the unfinished genuine pass. Its
 // fanout_owed marker and fanout_remaining list stay, so the reopened pass still
 // fans out what it owes. A dead letter in an unsafe class is locked and
-// classified but not written. Arguments: $1 holder scope id, $2 now, $3 stamp
+// classified but not written.
+//
+// The SELECT reports whether a succeeded reopen met every PR1 freshness
+// condition (shadowed): the origin stamp carries a positive fencing token
+// and a non-empty CVE set, the item owes nothing, and the scope's durable
+// holder watermark names this generation with a strictly newer
+// evidence-complete token. PR1 still reopens the row; the flag only changes
+// the reported outcome to shadow_would_skip so the would-skip share is
+// counted. Arguments: $1 holder scope id, $2 now, $3 stamp
 // JSON, $4 the unsafe-replay failure classes, $5 the stamp ids as a jsonb
 // array and $6 whether they are bounded (fanOutChangeArgs).
+// reopenShadowedSQL is TRUE for a succeeded row that meets every PR1
+// freshness condition, so its reopen reports shadow_would_skip while the row
+// still goes pending (#11613). Every arm fails closed: a token-less, set-less,
+// corrupt, or sentinel-free origin, any owed debt, a missing or stale
+// watermark, and any non-succeeded prior status all read FALSE, and the row
+// reopens exactly as it did before. NULL-safe throughout: a NULL arm would
+// drop the holder's report, never skip it. The token regex guards the cast:
+// a non-numeric fencing_token reads 0 instead of erroring the reopen. The
+// cves arm is CASE-fenced because jsonb_array_length on a non-array errors;
+// only the proven-array arm evaluates it.
+const reopenShadowedSQL = `(target.prior_status = 'succeeded'
+    AND target.origin_token > 0
+    AND (target.item_payload->'` + supplychaincore.PayloadKeyFanOutOwed + `' IS DISTINCT FROM 'true'::jsonb)
+    AND (target.item_payload->'` + supplychaincore.PayloadKeyFanOutRemaining + `' IS NULL
+         OR target.item_payload->'` + supplychaincore.PayloadKeyFanOutRemaining + `' = '[]'::jsonb)
+    AND (CASE WHEN jsonb_typeof($3::jsonb->'` + supplychaincore.FanOutStampCVEKey + `') = 'array'
+              THEN jsonb_array_length($3::jsonb->'` + supplychaincore.FanOutStampCVEKey + `') > 0
+              ELSE FALSE END)
+    AND target.watermark_complete IS TRUE
+    AND target.watermark_generation = target.item_generation
+    AND target.watermark_token > target.origin_token)`
+
 var reopenSupplyChainImpactHolderQuery = `
 WITH target AS MATERIALIZED (
     SELECT work.work_item_id,
            work.status AS prior_status,
            work.cross_scope_replay_required AS prior_flag,
-           COALESCE(work.failure_class, '') AS prior_failure_class
+           COALESCE(work.failure_class, '') AS prior_failure_class,
+           work.generation_id AS item_generation,
+           work.payload AS item_payload,
+           CASE WHEN ($3::jsonb->>'` + supplychaincore.FanOutStampFencingTokenKey + `') ~ '^[0-9]+$'
+                THEN (($3::jsonb->>'` + supplychaincore.FanOutStampFencingTokenKey + `')::bigint) ELSE 0 END AS origin_token,
+           wm.watermark_token AS watermark_token,
+           wm.watermark_generation_id AS watermark_generation,
+           wm.watermark_evidence_complete AS watermark_complete
     FROM fact_work_items AS work
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = work.scope_id
      AND scope.active_generation_id = work.generation_id
+    LEFT JOIN supply_chain_impact_scope_pass_state AS wm
+      ON wm.scope_id = work.scope_id
     WHERE work.scope_id = $1
       AND work.stage = 'reducer'
       AND work.domain = 'supply_chain_impact'
@@ -135,7 +177,8 @@ WITH target AS MATERIALIZED (
         failure_details = CASE WHEN ` + reopenSupplyChainImpactToPending + ` THEN NULL ELSE work.failure_details END,
         payload = CASE
             WHEN ` + reopenSupplyChainImpactDeadLetter + ` THEN work.payload - '` + supplychaincore.PayloadKeyFanOutOrigin + `'
-            WHEN work.status = 'succeeded' THEN jsonb_set(work.payload, '{` + supplychaincore.PayloadKeyFanOutOrigin + `}', $3::jsonb, TRUE)
+            WHEN work.status = 'succeeded' THEN jsonb_set(work.payload, '{` + supplychaincore.PayloadKeyFanOutOrigin + `}',
+                COALESCE(` + fanOutMergedStampSQL("$3::jsonb", "$5::jsonb", "$6::boolean") + `, $3::jsonb), TRUE)
             ELSE jsonb_set(work.payload, '{` + supplychaincore.PayloadKeyFanOutOrigin + `}',
                 COALESCE(` + fanOutMergedStampSQL("$3::jsonb", "$5::jsonb", "$6::boolean") + `, $3::jsonb), TRUE)
         END
@@ -150,7 +193,8 @@ WITH target AS MATERIALIZED (
 SELECT target.prior_status,
        EXISTS (SELECT 1 FROM moved WHERE moved.work_item_id = target.work_item_id) AS rewritten,
        target.prior_flag,
-       target.prior_failure_class
+       target.prior_failure_class,
+       ` + reopenShadowedSQL + ` AS shadowed
 FROM target
 ORDER BY target.work_item_id COLLATE "C"
 `
@@ -164,10 +208,13 @@ SELECT COALESCE(active_generation_id, '') FROM ingestion_scopes WHERE scope_id =
 // ReopenHolderDetailed implements supplychaincore.SupplyChainImpactFanOut: it
 // reopens the holder's supply_chain_impact item at its current active
 // generation, or enqueues one when that generation has none, and names a dead
-// letter's prior failure class. The stamp carries the origin's CVE set (#9740);
-// the enqueue path stamps none, so a generation that never had an item runs its
+// letter's prior failure class. The stamp carries the origin's CVE set (#9740)
+// and, when the origin names one, its fencing token (#11613); the enqueue
+// path stamps none, so a generation that never had an item runs its
 // establishing pass full, and a reopened dead letter carries none (#11147), so
-// it runs a full genuine pass. A dead letter in an unsafe-replay class
+// it runs a full genuine pass. A succeeded reopen that meets every PR1
+// freshness condition reports shadow_would_skip while the row still goes
+// pending. A dead letter in an unsafe-replay class
 // (recovery.UnsafeReplayFailureClasses) is left dead and reported skipped.
 func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 	ctx context.Context,
@@ -201,13 +248,14 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 		var (
 			prior, priorClass    string
 			rewritten, priorFlag bool
+			shadowed             bool
 		)
-		if err := rows.Scan(&prior, &rewritten, &priorFlag, &priorClass); err != nil {
+		if err := rows.Scan(&prior, &rewritten, &priorFlag, &priorClass, &shadowed); err != nil {
 			_ = rows.Close()
 			return supplychaincore.FanOutReopen{}, fmt.Errorf("scan supply chain impact holder reopen: %w", err)
 		}
 		matched++
-		if next := classifyHolderReopen(prior, rewritten, priorFlag, priorClass); reopenRank(next.Outcome) > reopenRank(result.Outcome) {
+		if next := classifyHolderReopen(prior, rewritten, priorFlag, priorClass, shadowed); reopenRank(next.Outcome) > reopenRank(result.Outcome) {
 			result = next
 		}
 	}
@@ -230,12 +278,16 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 // the label the dead-letter gauge uses, so the counter, the log line, and the
 // gauge name a NULL class the same way. A rewritten pending or retrying row, or
 // a rewritten claimed or running row whose flag was already on, had only its
-// stamp widened (#10972).
-func classifyHolderReopen(prior string, rewritten, priorFlag bool, priorClass string) supplychaincore.FanOutReopen {
+// stamp widened (#10972). A succeeded row the statement reports shadowed met
+// every PR1 freshness condition: it still went pending (PR1 enables no skip),
+// but the outcome counts the would-skip (#11613).
+func classifyHolderReopen(prior string, rewritten, priorFlag bool, priorClass string, shadowed bool) supplychaincore.FanOutReopen {
 	if prior == "dead_letter" && priorClass == "" {
 		priorClass = supplyChainImpactDeadLetterUnclassified
 	}
 	switch {
+	case prior == "succeeded" && rewritten && shadowed:
+		return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutShadowWouldSkip}
 	case prior == "succeeded" && rewritten:
 		return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutReopened}
 	case prior == "dead_letter" && rewritten:
@@ -252,12 +304,16 @@ func classifyHolderReopen(prior string, rewritten, priorFlag bool, priorClass st
 
 // reopenRank orders the per-row outcomes when a scope's active generation has
 // more than one item, so the holder reports the strongest thing the statement
-// did: a reopen beats a flag, either beats a skipped dead letter, and a skipped
-// dead letter, which an operator must act on, beats a stamp widen, which still
-// beats a no-op: a widened row wrote a row version and is not a no-op (#10972).
+// did: a reopen beats a would-skip shadow (a genuinely reopened row did work
+// the shadow row did not), the shadow beats a dead-letter reopen, either beats
+// a skipped dead letter, and a skipped dead letter, which an operator must act
+// on, beats a stamp widen, which still beats a no-op: a widened row wrote a
+// row version and is not a no-op (#10972).
 func reopenRank(outcome supplychaincore.FanOutOutcome) int {
 	switch outcome {
 	case supplychaincore.FanOutReopened:
+		return 6
+	case supplychaincore.FanOutShadowWouldSkip:
 		return 5
 	case supplychaincore.FanOutDeadLetterReopened:
 		return 4

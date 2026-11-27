@@ -156,6 +156,10 @@ type SupplyChainImpactWriteResult struct {
 	// (nextFullPassMarker, #10972 D2), carried to the fan-out state update.
 	// Writers never set it.
 	fullPassMarker map[string]any
+	// originToken is the pass's own evidence-read fencing token, carried to
+	// the fan-out origin the handler stamps (#11613). Set by the handler
+	// through withFanOutOriginToken; writers never set it.
+	originToken int64
 	// IdentityChangedCVEIDs and IdentityTouchedGroupIDs are ChangedCVEIDs and
 	// TouchedGroupIDs judged on the identity digest, which leaves out the
 	// fields computed only from EPSS and KEV facts (#10972 D7,
