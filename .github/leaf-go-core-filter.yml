@@ -8,7 +8,7 @@ go_core:
   - 'tools/golangci-lint-filelength/**'
   - 'Makefile'
   - '.github/workflows/**'
-  - '.github/actions/ci-go-core/**'
+  - '.github/actions/**'
   - '.github/leaf-go-core-filter.yml'
   - 'scripts/dev/precommit-go.sh'
   - 'scripts/lib/go-toolchain.sh'

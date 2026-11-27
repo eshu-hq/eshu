@@ -285,16 +285,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
       # Daily main-only save (~7 MB zstd, 9x speedup on golangci-lint run ./...);
-      # PRs restore read-only so they never consume cache quota.
+      # PRs restore read-only. Linter config + filelength plugin hashes stay in
+      # every restore-key so stale caches never span config/plugin edits.
       - name: Restore golangci-lint cache
         id: golangcilint-cache
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/golangci-lint
-          key: ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'go/go.sum', 'tools/golangci-lint-filelength/go.sum') }}-${{ steps.cache-day.outputs.day }}
+          key: ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-${{ hashFiles('go/go.mod', 'go/go.sum') }}-${{ steps.cache-day.outputs.day }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'go/go.sum', 'tools/golangci-lint-filelength/go.sum') }}-
-            ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-
+            ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
+            ${{ runner.os }}-${{ runner.arch }}-golangcilint-v2.12.2-${{ hashFiles('go/.golangci.yml', 'tools/golangci-lint-filelength/*.go', 'tools/golangci-lint-filelength/go.mod', 'tools/golangci-lint-filelength/go.sum') }}-
       # cache: false because setup-go would cache `go env GOCACHE`, which is
       # the build cache above, a second time (#9598). The pre-warm step below
       # downloads the modules instead.

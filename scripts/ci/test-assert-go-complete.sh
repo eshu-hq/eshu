@@ -28,7 +28,9 @@ run_case pass env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CO
 run_case pass env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=true CORE_CHANGED=false LOCKSTEP_CHANGED=false LANE_RESULT=skipped
 run_case fail env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=true CORE_CHANGED=false LOCKSTEP_CHANGED=false LANE_RESULT=failure
 run_case pass env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=false CORE_CHANGED=false LOCKSTEP_CHANGED=false LANE_RESULT=skipped
+run_case pass env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=false CORE_CHANGED=true LOCKSTEP_CHANGED=false LANE_RESULT=skipped
 run_case fail env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=false CORE_CHANGED=false LOCKSTEP_CHANGED=true LANE_RESULT=skipped
+run_case fail env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=true CORE_CHANGED=false LOCKSTEP_CHANGED=true LANE_RESULT=skipped
 run_case pass env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=false CORE_CHANGED=false LOCKSTEP_CHANGED=true LANE_RESULT=success
 run_case fail env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=true CORE_CHANGED= LOCKSTEP_CHANGED=false LANE_RESULT=skipped
 run_case fail env MODE=full LANE=go-core SELECTED=true CHANGES_RESULT=success CODE_CHANGED=true CORE_CHANGED=unknown LOCKSTEP_CHANGED=false LANE_RESULT=skipped
