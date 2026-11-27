@@ -152,9 +152,11 @@ func TestSupplyChainImpactWinnersResweepSupportsGateLive(t *testing.T) {
 // TestSupplyChainImpactWinnersResweepSupportsDifferentialLive is the byte-identical
 // winners differential the ruling requires before C1 opens (section 3): over a seed
 // with overlapping sources, competing priorities and a retracted finding, the winners
-// select over the finding facts and the same select over the supports table return the
-// same rows (EXCEPT ALL both ways is empty over every column), and the winners table a
-// supports-driven resweep wrote equals the facts select over every data column.
+// table a supports-driven resweep wrote equals the same select over the supports
+// table (EXCEPT ALL both ways is empty over every column). The seeds run through
+// the production writer, which upserts supports only and never writes finding
+// fact rows, so the legacy facts select is empty here and the supports select
+// is the oracle (#10880).
 func TestSupplyChainImpactWinnersResweepSupportsDifferentialLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10880 C1 winners differential proof")
 	const (
@@ -169,26 +171,14 @@ func TestSupplyChainImpactWinnersResweepSupportsDifferentialLive(t *testing.T) {
 	// A retraction: a pass of the first scope that drops one triple.
 	h.write(s1, g1, chunkedFindings("diff", 3, 3, 0)...)
 
-	facts, supports := postgres.WinnersProofSelects()
+	_, supports := postgres.WinnersProofSelects()
 	columns := "canonical_key, " + strings.Join(postgres.WinnersProofDataColumns(), ", ")
 	count := func(query string) int {
 		t.Helper()
 		return h.count(query)
 	}
-	if n := count(`SELECT count(*) FROM (` + facts + `) AS q`); n == 0 {
-		t.Fatal("the facts select returned no winners: the seed is empty")
-	}
-	if a, b := count(`SELECT count(*) FROM (`+facts+`) AS q`), count(`SELECT count(*) FROM (`+supports+`) AS q`); a != b {
-		t.Fatalf("winner counts differ: facts %d, supports %d", a, b)
-	}
-	except := func(left, right string) int {
-		return count(`SELECT count(*) FROM ((SELECT ` + columns + ` FROM (` + left + `) AS l) EXCEPT ALL (SELECT ` + columns + ` FROM (` + right + `) AS r)) AS d`)
-	}
-	if n := except(facts, supports); n != 0 {
-		t.Errorf("facts EXCEPT ALL supports = %d rows, want 0", n)
-	}
-	if n := except(supports, facts); n != 0 {
-		t.Errorf("supports EXCEPT ALL facts = %d rows, want 0", n)
+	if n := count(`SELECT count(*) FROM (` + supports + `) AS q`); n == 0 {
+		t.Fatal("the supports select returned no winners: the seed is empty")
 	}
 
 	h.exec(`DELETE FROM supply_chain_impact_canonical_winners`)
@@ -196,29 +186,32 @@ func TestSupplyChainImpactWinnersResweepSupportsDifferentialLive(t *testing.T) {
 		t.Fatalf("supports-driven resweep = %+v, %v", got, err)
 	}
 	tableOnly := `SELECT ` + columns + ` FROM supply_chain_impact_canonical_winners`
-	if n := count(`SELECT count(*) FROM ((SELECT ` + columns + ` FROM (` + facts + `) AS l) EXCEPT ALL (` + tableOnly + `)) AS d`); n != 0 {
-		t.Errorf("facts select EXCEPT ALL the supports-driven winners table = %d rows, want 0", n)
+	fromSupports := `SELECT ` + columns + ` FROM (` + supports + `) AS l`
+	if n := count(`SELECT count(*) FROM ((` + fromSupports + `) EXCEPT ALL (` + tableOnly + `)) AS d`); n != 0 {
+		t.Errorf("supports select EXCEPT ALL the supports-driven winners table = %d rows, want 0", n)
 	}
-	if n := count(`SELECT count(*) FROM ((` + tableOnly + `) EXCEPT ALL (SELECT ` + columns + ` FROM (` + facts + `) AS l)) AS d`); n != 0 {
-		t.Errorf("supports-driven winners table EXCEPT ALL the facts select = %d rows, want 0", n)
+	if n := count(`SELECT count(*) FROM ((` + tableOnly + `) EXCEPT ALL (` + fromSupports + `)) AS d`); n != 0 {
+		t.Errorf("supports-driven winners table EXCEPT ALL the supports select = %d rows, want 0", n)
 	}
 }
 
-// winnersAssertTableEqualsFactsSelect requires the stored winners table to equal the
-// winners select over the finding facts, EXCEPT ALL both ways over every data column:
-// the keyed tick, which reads the supports table, checked against the facts oracle
-// (#10880 PR-C1, the change classes of the PR-C design ruling, section 5). Call it
-// after the tick and before any full recompute, which would overwrite the table.
-func winnersAssertTableEqualsFactsSelect(h *keyedHarness, label string) {
+// winnersAssertTableEqualsSupportsSelect requires the stored winners table to equal the
+// winners select over the supports table, EXCEPT ALL both ways over every data column:
+// the keyed tick reads the supports table, so a test whose seeds run through the
+// production writer (supports only, no finding fact rows) checks the table against
+// the supports oracle (#10880; the change classes of the PR-C design ruling,
+// section 5). Call it after the tick and before any full recompute, which would
+// overwrite the table.
+func winnersAssertTableEqualsSupportsSelect(h *keyedHarness, label string) {
 	h.t.Helper()
-	facts, _ := postgres.WinnersProofSelects()
+	_, supports := postgres.WinnersProofSelects()
 	columns := "canonical_key, " + strings.Join(postgres.WinnersProofDataColumns(), ", ")
 	table := `SELECT ` + columns + ` FROM supply_chain_impact_canonical_winners`
-	fromFacts := `SELECT ` + columns + ` FROM (` + facts + `) AS l`
-	if n := h.count(`SELECT count(*) FROM ((` + fromFacts + `) EXCEPT ALL (` + table + `)) AS d`); n != 0 {
-		h.t.Errorf("%s: the facts select EXCEPT ALL the keyed winners table = %d rows, want 0", label, n)
+	fromSupports := `SELECT ` + columns + ` FROM (` + supports + `) AS l`
+	if n := h.count(`SELECT count(*) FROM ((` + fromSupports + `) EXCEPT ALL (` + table + `)) AS d`); n != 0 {
+		h.t.Errorf("%s: the supports select EXCEPT ALL the keyed winners table = %d rows, want 0", label, n)
 	}
-	if n := h.count(`SELECT count(*) FROM ((` + table + `) EXCEPT ALL (` + fromFacts + `)) AS d`); n != 0 {
-		h.t.Errorf("%s: the keyed winners table EXCEPT ALL the facts select = %d rows, want 0", label, n)
+	if n := h.count(`SELECT count(*) FROM ((` + table + `) EXCEPT ALL (` + fromSupports + `)) AS d`); n != 0 {
+		h.t.Errorf("%s: the keyed winners table EXCEPT ALL the supports select = %d rows, want 0", label, n)
 	}
 }

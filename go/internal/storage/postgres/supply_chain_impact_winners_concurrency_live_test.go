@@ -347,9 +347,18 @@ func TestSupplyChainImpactWinnersResweepConvergesUnderContentionLive(t *testing.
 	writerDone := make(chan struct{})
 	go func() {
 		defer close(writerDone)
+		// The churn mutates supports with raw SQL: the C2 writer upserts
+		// supports only and never writes finding fact rows, so a raw fact
+		// write would raise 55000 on the armed proof database and the
+		// resweep under test reads the supports table (#10880). Like the
+		// raw fact writes this replaces, the churn stages no capture: the
+		// resweep must still never fail or deadlock, and one settle tick
+		// must leave the table equal to a fresh recompute.
 		for i := 0; !stopWriter.Load(); i++ {
 			fact := fmt.Sprintf("f-churn-%d", i%winners)
-			if _, err := db.ExecContext(ctx, `UPDATE fact_records SET is_tombstone = NOT is_tombstone WHERE fact_id = $1`, fact); err != nil {
+			if _, err := db.ExecContext(ctx, `UPDATE supply_chain_impact_finding_supports
+SET payload = jsonb_set(payload, '{priority_score}', to_jsonb($2::int)), priority_score = $2
+WHERE fact_id = $1`, fact, 1+(i+1)%9); err != nil {
 				writerErr = err
 				return
 			}

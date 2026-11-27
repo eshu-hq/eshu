@@ -17,7 +17,7 @@ import (
 // roll) writes a finding fact, which marks its scope dirty in the old-writer fence. A scanner
 // classification that retracts that finding lands while the scope is dirty, when the finding has no
 // support yet. After the backfill drains the scope and one keyed tick runs, the stored winners must
-// equal the winners select over the finding facts (EXCEPT ALL both ways is empty).
+// equal the winners select over the supports table (EXCEPT ALL both ways is empty).
 //
 // Two variants. "with the old writer's mark": the old writer also stages its own winner mark, as
 // the real one does, and writes a second plain finding that the mark alone must carry into the
@@ -70,8 +70,14 @@ func runDirtyFenceScanner(t *testing.T, withMark bool) {
 		t.Fatalf("the scanner capture in effect does not read the supports table only (migration 353 not applied?):\n%s", definition)
 	}
 
+	// A write without the supports writer setting: the old writer. The plant
+	// runs windowed but WITHOUT the supports sync, so the finding lands with
+	// no support: the old writer never wrote the supports table, and the
+	// support must appear only when the backfill drains the scope (#10880).
+	// The AFTER INSERT trigger still marks the scope dirty (the disarm window
+	// covers only the write stop, not the dirty fence).
 	insert := func(fact, finding, cve, pkg string) {
-		h.exec(`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
+		winnersLivePlantFact(h.t, h.ctx, h.db, `INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
   source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), false,
   jsonb_build_object('finding_id', $5::text, 'cve_id', $6::text, 'package_id', $7::text,
@@ -85,8 +91,6 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), false,
 VALUES ('fact', 'fact_upsert', $2, 'repo-9805', '', $1, '')`, cve, pkg)
 	}
 
-	// A write without the supports writer setting: the old writer. The AFTER INSERT trigger marks
-	// the scope dirty.
 	const retractedFact = "f-old-writer"
 	insert(retractedFact, "finding:old-writer", "CVE-2026-9910", "pkg:npm/old-writer")
 	if withMark {
@@ -94,6 +98,12 @@ VALUES ('fact', 'fact_upsert', $2, 'repo-9805', '', $1, '')`, cve, pkg)
 	}
 	if dirty := h.count(`SELECT count(*) FROM supply_chain_impact_finding_supports_dirty WHERE scope_id = $1`, scopeA); dirty != 1 {
 		t.Fatalf("a write without the writer setting left %d dirty fence rows, want 1: the old-writer simulation did not take", dirty)
+	}
+	// The old writer's findings land with no support: a support here would
+	// mean the plant synced, and the drain and the equality below would prove
+	// nothing (#10880).
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id IN ($1, 'f-old-writer-plain')`, retractedFact); n != 0 {
+		t.Fatalf("the old writer's findings have %d supports before the drain, want 0", n)
 	}
 	if withMark {
 		mark("CVE-2026-9910", "pkg:npm/old-writer")
@@ -140,18 +150,21 @@ FROM supply_chain_impact_winners_dirty_staging`)
 	// One maintainer tick consumes whatever is staged against the drained supports.
 	h.keyed()
 
-	fromFacts, _ := postgres.WinnersProofSelects()
+	// The oracle is the supports select: the seeds run through the production
+	// writer plus the old-writer plants the drain backs with supports, and the
+	// legacy facts select cannot see that shape (#10880).
+	_, fromSupports := postgres.WinnersProofSelects()
 	columns := "canonical_key, " + strings.Join(postgres.WinnersProofDataColumns(), ", ")
 	table := `SELECT ` + columns + ` FROM supply_chain_impact_canonical_winners`
-	onFacts := `SELECT ` + columns + ` FROM (` + fromFacts + `) AS f`
-	if n := h.count(`SELECT count(*) FROM (` + onFacts + `) AS q`); n == 0 {
-		t.Fatal("the facts select returned no winners: the seed is empty")
+	onSupports := `SELECT ` + columns + ` FROM (` + fromSupports + `) AS f`
+	if n := h.count(`SELECT count(*) FROM (` + onSupports + `) AS q`); n == 0 {
+		t.Fatal("the supports select returned no winners: the seed is empty")
 	}
-	if n := h.count(`SELECT count(*) FROM ((` + onFacts + `) EXCEPT ALL (` + table + `)) AS d`); n != 0 {
-		t.Errorf("facts select EXCEPT ALL the stored winners = %d rows, want 0", n)
+	if n := h.count(`SELECT count(*) FROM ((` + onSupports + `) EXCEPT ALL (` + table + `)) AS d`); n != 0 {
+		t.Errorf("supports select EXCEPT ALL the stored winners = %d rows, want 0", n)
 	}
-	if n := h.count(`SELECT count(*) FROM ((` + table + `) EXCEPT ALL (` + onFacts + `)) AS d`); n != 0 {
-		t.Errorf("stored winners EXCEPT ALL the facts select = %d rows, want 0", n)
+	if n := h.count(`SELECT count(*) FROM ((` + table + `) EXCEPT ALL (` + onSupports + `)) AS d`); n != 0 {
+		t.Errorf("stored winners EXCEPT ALL the supports select = %d rows, want 0", n)
 	}
 	if n := h.count(`SELECT count(*) FROM supply_chain_impact_canonical_winners WHERE cve_id = 'CVE-2026-9910'`); n != 0 {
 		t.Errorf("the retracted old-writer finding is a stored winner (%d rows), want none", n)
@@ -161,5 +174,5 @@ FROM supply_chain_impact_winners_dirty_staging`)
 			t.Errorf("the old writer's plain finding is %d stored winners, want 1: its mark did not reach the winners", n)
 		}
 	}
-	t.Logf("end state equal to the facts select; variant mark=%v", withMark)
+	t.Logf("end state equal to the supports select; variant mark=%v", withMark)
 }

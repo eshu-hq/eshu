@@ -18,11 +18,14 @@ func TestSupplyChainImpactWinnersResweepAuditRepairsAMissedCaptureLive(t *testin
 		t.Fatalf("audit of a settled table = %+v, %v; want zero repairs", clean, err)
 	}
 
-	// A missed capture: change a fact's priority with raw SQL, which no capture
-	// path sees.
-	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '99')
-WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
-	h.syncSupports() // the writer would have updated the support with the fact
+	// A missed capture: change a support's priority with raw SQL, which no
+	// capture path sees. The writer upserts supports only and never writes
+	// finding fact rows, so the mutation runs against the supports table the
+	// audit compares (#10880). Payload and typed column move together, as the
+	// writer's upsert leaves them.
+	h.exec(`UPDATE supply_chain_impact_finding_supports
+SET payload = jsonb_set(payload, '{priority_score}', '99'), priority_score = 99
+WHERE scope_id = $1 AND cve_id = 'CVE-2026-2002'`, scopeA)
 	audit, err := h.store.AuditWinners(h.ctx)
 	if err != nil || audit.Skipped {
 		t.Fatalf("audit = %+v, %v", audit, err)
@@ -45,11 +48,14 @@ WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
 }
 
 // TestSupplyChainImpactWinnersResweepAuditFindsAMissedDeleteLive covers the other
-// direction: a winner whose facts vanished with no capture.
+// direction: a winner whose support vanished with no capture.
 func TestSupplyChainImpactWinnersResweepAuditFindsAMissedDeleteLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 audit delete proof")
 	scopeA, _ := keyedSeedSettled(h)
-	h.exec(`UPDATE fact_records SET is_tombstone = TRUE WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
+	// The retraction deletes the support directly, as the writer's retraction
+	// statement does: the writer upserts supports only, so no fact row exists
+	// to tombstone (#10880).
+	h.exec(`DELETE FROM supply_chain_impact_finding_supports WHERE scope_id = $1 AND cve_id = 'CVE-2026-2002'`, scopeA)
 	audit, err := h.store.AuditWinners(h.ctx)
 	if err != nil || audit.Repairs != 1 {
 		t.Fatalf("audit = %+v, %v; want one repair for the missed delete", audit, err)

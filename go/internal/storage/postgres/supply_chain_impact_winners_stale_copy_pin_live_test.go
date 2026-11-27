@@ -120,7 +120,7 @@ func TestSupplyChainImpactWinnersResweepStaleActiveCopyOutranksRetractedCopyLive
 	lowerScope := map[string]string{}
 	lowerFact := map[string]string{}
 	for _, cve := range ties {
-		factStale, factFresh := h.findingFactID(stale, cve), h.findingFactID(fresh, cve)
+		factStale, factFresh := supportFactID(h, stale, cve), supportFactID(h, fresh, cve)
 		lowerScope[cve], lowerFact[cve] = stale, factStale
 		if factFresh < factStale {
 			lowerScope[cve], lowerFact[cve] = fresh, factFresh
@@ -141,12 +141,12 @@ func TestSupplyChainImpactWinnersResweepStaleActiveCopyOutranksRetractedCopyLive
 		swapped[cve] = other(scope)
 	}
 	tieWinner := func(cve string) stalePinWinner {
-		return h.stalePinWinnerOf(h.findingFactID(stale, cve), h.findingFactID(fresh, cve))
+		return h.stalePinWinnerOf(supportFactID(h, stale, cve), supportFactID(h, fresh, cve))
 	}
 
 	t.Run("a higher scoring stale active copy wins over the retracted copy", func(t *testing.T) {
 		baseline(layout)
-		winner := h.stalePinWinnerOf(h.findingFactID(stale, cveHigher), h.findingFactID(fresh, cveHigher))
+		winner := h.stalePinWinnerOf(supportFactID(h, stale, cveHigher), supportFactID(h, fresh, cveHigher))
 		if winner.scopeID != stale || winner.state != "active" || winner.score != 100 {
 			t.Fatalf("winner = %+v, want the stale active copy (scope %s, active, score 100)", winner, stale)
 		}
@@ -218,7 +218,7 @@ func TestSupplyChainImpactWinnersResweepStaleActiveCopyOutranksRetractedCopyLive
 			t.Fatalf("StaleCopyRepairs = %+v, want %+v", result.StaleCopyRepairs, want)
 		}
 		h.keyed()
-		winner := h.stalePinWinnerOf(h.findingFactID(stale, cveHigher), h.findingFactID(fresh, cveHigher))
+		winner := h.stalePinWinnerOf(supportFactID(h, stale, cveHigher), supportFactID(h, fresh, cveHigher))
 		if winner.state != "advisory_retracted" {
 			t.Fatalf("winner = %+v after the stale scope re-derived, want advisory_retracted", winner)
 		}

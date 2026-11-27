@@ -60,7 +60,7 @@ VALUES ('fact', 'audit', 'pkg:npm/drain-00', 'repo-9805', '', 'CVE-2026-drain-00
 
 // TestSupplyChainImpactWinnersResweepFullLeavesLateCommitMarkQueuedLive
 // proves the drain deletes only rows visible to it: a writer that changes a
-// fact and stages its mark before the full but commits after it keeps that
+// support and stages its mark before the full but commits after it keeps that
 // mark queued, and the next keyed tick applies it.
 func TestSupplyChainImpactWinnersResweepFullLeavesLateCommitMarkQueuedLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11117 full resweep late-commit proof")
@@ -77,15 +77,27 @@ func TestSupplyChainImpactWinnersResweepFullLeavesLateCommitMarkQueuedLive(t *te
 		t.Fatalf("begin late writer: %v", err)
 	}
 	defer func() { _ = late.Rollback() }()
+	// The late writer mutates the support the production writer would have
+	// rewritten and stages its mark from the same support: the C2 writer
+	// upserts supports only and never writes finding fact rows, so the fact
+	// statements below would match no row (#10880). Each statement must hit
+	// exactly its one row, or the late commit the full must miss is not the
+	// one the assertions below count.
 	for _, q := range []string{
-		`UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '97') WHERE payload->>'cve_id' = 'CVE-2026-late-01-00'`,
+		`UPDATE supply_chain_impact_finding_supports
+SET payload = jsonb_set(payload, '{priority_score}', '97'), priority_score = 97
+WHERE cve_id = 'CVE-2026-late-01-00'`,
 		`INSERT INTO supply_chain_impact_winners_dirty_staging (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
 SELECT 'fact', 'fact_upsert', COALESCE(payload->>'package_id', ''), COALESCE(payload->>'repository_id', ''), COALESCE(payload->>'subject_digest', ''),
        COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), ''), COALESCE(payload->>'advisory_id', '')
-FROM fact_records WHERE payload->>'cve_id' = 'CVE-2026-late-01-00'`,
+FROM supply_chain_impact_finding_supports WHERE cve_id = 'CVE-2026-late-01-00'`,
 	} {
-		if _, err := late.ExecContext(h.ctx, q); err != nil {
+		res, err := late.ExecContext(h.ctx, q)
+		if err != nil {
 			t.Fatalf("late writer statement: %v", err)
+		}
+		if n, err := res.RowsAffected(); err != nil || n != 1 {
+			t.Fatalf("late writer statement affected %d rows, %v; want exactly 1", n, err)
 		}
 	}
 

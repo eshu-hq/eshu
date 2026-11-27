@@ -169,7 +169,16 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), false, $5::j
 	if got, err := a.AuditWinners(h.ctx); err != nil || !got.Deferred || tel.Deferrals(pgaccess.StagedAuditDeferNullKey) != 1 {
 		t.Fatalf("sweep start with a NULL key = %+v, %v; want a null_key deferral", got, err)
 	}
+	// The null-repo row leaves both a fact and its synced support: the probe
+	// reads the support, so the fact delete alone would leave the NULL key
+	// behind and the pipe leg below would defer on the null key instead of
+	// the pipe (#10880). Delete both, then require the probe clean before
+	// the pipe leg proves the pipe deferral is the pipe's alone.
 	h.exec(`DELETE FROM fact_records WHERE fact_id = 'null-repo'`)
+	h.exec(`DELETE FROM supply_chain_impact_finding_supports WHERE fact_id = 'null-repo'`)
+	if keys, err := postgres.ProbeWinnersAuditNullKeys(h.ctx, reader); err != nil || keys.Any() {
+		t.Fatalf("NULL probe after removing the null-repo rows = %+v, %v; want all false before the pipe leg", keys, err)
+	}
 
 	insert("pipe", `{"cve_id":"CVE-P","advisory_id":"GHSA-P","package_id":"pkg:npm/p00|x","repository_id":"repo-0","subject_digest":""}`)
 	if rng, err := postgres.ReadWinnersAuditRange(h.ctx, reader, nil, 100000); err != nil || !rng.Pipe {
