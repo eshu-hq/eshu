@@ -276,13 +276,11 @@ Operator signals and alerts:
   and the only escalation is the repeated log line and counter. The cause
   is a catalog that keeps changing between passes (fingerprint churn) or a
   phase-two budget that keeps timing out (the
-  `deferred_backfill_completed_degraded` line below). Alert on consecutive
-  parked passes, not on a single one (rule and named parameters in the
-  [Hosted Ops Alert Pack](../../../../../docs/public/operate/hosted-ops-alert-pack.md#reopen-breaker-chronic-parking-alerts)),
-  then investigate catalog churn (which input arm moved in the
-  `deferred_backfill_catalog_fingerprint` line) and the phase-two budget
-  before raising any breaker bound. Do not widen the breaker to silence the
-  alert: that trades a visible drought for hidden reopen storms.
+  `deferred_backfill_completed_degraded` line below). The consecutive-pass
+  alert recipe and its named parameters are in the
+  [Hosted Ops Alert Pack](../../../../../docs/public/operate/hosted-ops-alert-pack.md#reopen-breaker-chronic-parking-alerts);
+  the rule is not shipped yet. Investigate catalog churn and the phase-two
+  budget before raising any breaker bound.
 - `deferred_backfill_completed_degraded ... parked_config_repos=...
   affected_partitions=...` plus memo `max(committed_at)` going stale:
   the fan-in is being withheld (phase-two budget or generation churn).

@@ -46,8 +46,7 @@ The alert pack covers:
 - degraded or stalled runtime dependency health;
 - schema bootstrap failure;
 - MCP tool error rate;
-- status summary freshness (see below);
-- chronic reopen breaker parking (documented rule, see below).
+- status summary freshness (see below).
 
 Every alert must include `severity`, `component`, `runbook_section`, and a
 `runbook` annotation that points at a concrete diagnostic check. Alert text must
@@ -145,21 +144,28 @@ min_over_time(
 
 With `K=3` and `W=1h` this reads: parking in each of the last three hourly
 windows, per `domain` (`deployment_mapping` or `code_import_repo_edge`).
-Give the rule a `for:` of at most `W` and a `warning` severity. Page only if
-you also see the owed-replay backlog grow.
+Give the rule a `for:` of at most `W` and a `warning` severity. Treat it as a
+ticket, not a page: nothing is lost while it fires, and the signal says the
+reopen path is delayed, not broken.
 
-This rule is documentation, not a shipped alert. The deploy-side rule files and
-verifier live in the eshu-deploy checkout and do not carry it yet. Adding it
-there is an explicit decision: if permanent catalog churn leaves this alert
-firing and ignored, the breaker bound has turned into a reopen drought nobody
-is watching.
+Status: this is a recipe. It is not a shipped alert, and neither this repo nor
+the eshu-deploy checkout carries it today. No `promtool` run, rule-file test, or
+verifier entry covers it, so the expression has not been exercised against a
+live Prometheus. The rule files and their verifier live only in eshu-deploy, so
+shipping it is owed there (#11594), with a test that pins the
+`> bool 0` and `min_over_time` shape. Until then, if permanent catalog churn
+leaves the breaker parking every pass, nobody is watching the reopen drought.
 
 Behavior to expect:
 
 - A quiet fleet runs no passes, so the counter stays flat and the alert clears.
   It does not mean the catalog is healthy.
-- A new series (first park after a restart) can undercount its first window;
-  the rule then fires one window late.
+- A series that did not exist before its first park has no point for the
+  earlier windows, and the inner `> bool 0` drops absent series. The subquery
+  can then hold only the windows after the first park, so the rule can fire
+  after fewer than `K` windows. A restart that resets the counter can also
+  undercount its first window. Treat a first firing right after a restart or
+  first deploy as unconfirmed until the next window.
 - Magnitude comes from the `parked=` field of the
   `maintenance_reopen_circuit_breaker_open` log line, not from the counter
   alone.
