@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -506,20 +507,75 @@ type crossplaneReplayInsertWinner struct {
 	firstUpdateRows  int64
 }
 
-func (d *crossplaneReplayInsertWinner) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	result, err := d.SQLDB.ExecContext(ctx, query, args...)
+// crossplaneReplayScheduleRows replays one buffered schedule outcome so the
+// hook can run the insert winner between the scheduler's zero-row UPDATE and
+// the caller's conflict-aware INSERT without changing what the caller reads.
+type crossplaneReplayScheduleRows struct {
+	requeued []bool
+	pos      int
+}
+
+func (r *crossplaneReplayScheduleRows) Next() bool { return r.pos < len(r.requeued) }
+
+func (r *crossplaneReplayScheduleRows) Scan(dest ...any) error {
+	if len(dest) != 1 {
+		return errors.New("crossplane replay schedule rows: scan requires a single destination")
+	}
+	flag, ok := dest[0].(*bool)
+	if !ok {
+		return errors.New("crossplane replay schedule rows: scan requires a *bool destination")
+	}
+	if r.pos >= len(r.requeued) {
+		return errors.New("crossplane replay schedule rows: scan without a current row")
+	}
+	*flag = r.requeued[r.pos]
+	r.pos++
+	return nil
+}
+
+func (r *crossplaneReplayScheduleRows) Err() error   { return nil }
+func (r *crossplaneReplayScheduleRows) Close() error { return nil }
+
+// QueryContext intercepts the scheduler's schedule statement
+// (reducer_queue_replay_schedule.go scheduleCrossScopeMaterializationReplay,
+// an UPDATE .. RETURNING .. AS requeued issued through QueryContext) instead
+// of the caller's conflict-aware INSERT. It buffers the schedule outcome so
+// the caller still reads the true zero-row result, records the row count for
+// the true/zero/claimed assertion, and -- only when the UPDATE found no row
+// -- runs the insert winner before the caller INSERT, preserving the
+// deterministic insert-winner interleaving. Later schedule statements (the
+// post-conflict retry that records replay debt on the winner) pass through
+// untouched via d.called.
+func (d *crossplaneReplayInsertWinner) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	rows, err := d.SQLDB.QueryContext(ctx, query, args...)
 	if err != nil || d.called {
-		return result, err
+		return rows, err
 	}
-	d.firstUpdateRows, err = result.RowsAffected()
-	if err != nil {
+	if !strings.Contains(query, "AS requeued") {
+		return rows, nil
+	}
+	var buffered crossplaneReplayScheduleRows
+	for rows.Next() {
+		var requeued bool
+		if err := rows.Scan(&requeued); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		buffered.requeued = append(buffered.requeued, requeued)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
 		return nil, err
 	}
+	_ = rows.Close()
+	d.firstUpdateRows = int64(len(buffered.requeued))
 	d.called = true
-	if err := d.afterFirstUpdate(ctx); err != nil {
-		return nil, err
+	if len(buffered.requeued) == 0 {
+		if err := d.afterFirstUpdate(ctx); err != nil {
+			return nil, err
+		}
 	}
-	return result, nil
+	return &buffered, nil
 }
 
 func testCrossplaneRedriveConcurrentInsertWinnerKeepsReplayDebtLive(t *testing.T) {
