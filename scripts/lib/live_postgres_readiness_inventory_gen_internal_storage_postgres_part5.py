@@ -35,6 +35,7 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_evidence_live_test.go": (
             "TestSupplyChainImpactActiveEvidenceMatchesRetiredStatementLive",
             "TestSupplyChainImpactActiveEvidenceBufferBudgetLive",
+            "TestSupplyChainImpactPackageBoundRebindsLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_evidence_plan_live_test.go": (
             "TestSupplyChainImpactBranchPlansStayOnAnchorsLive",

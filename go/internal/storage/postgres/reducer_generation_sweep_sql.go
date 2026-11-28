@@ -31,11 +31,8 @@ const supersedeInactiveReducerCarrierArmSQL = `       -- #10269 carrier arm: als
        OR (stale.stage = 'reducer'
            AND stale.domain = 'crossplane_satisfied_by_materialization'
            AND stale.status IN ('pending', 'retrying')
-           AND scope.scope_id = stale.scope_id
-           AND stale_generation.scope_id = stale.scope_id
-           AND stale_generation.generation_id = stale.generation_id
+           AND active_generation.generation_id IS NOT NULL
            AND scope.active_generation_id = active_generation.generation_id
-           AND active_generation.scope_id = stale.scope_id
            AND stale.generation_id = scope.active_generation_id
            AND EXISTS (
              SELECT 1
@@ -95,9 +92,10 @@ const supersedeInactiveReducerUpdateRowFiltersSQL = `scope.scope_id = stale.scop
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       -- The lock step also locks active-generation Crossplane carriers
       -- (#10269 arm above); they are never themselves superseded. Every
-      -- other locked row passed the lock predicate's older-generation
-      -- guard, so this id check is the whole generation recheck.
-      AND stale.generation_id <> scope.active_generation_id
+      -- other locked row passed the lock predicate's generation guard
+      -- (older than active or retired NULL-active superseded), so IS DISTINCT
+      -- FROM is the whole generation recheck (#11703).
+      AND stale.generation_id IS DISTINCT FROM scope.active_generation_id
       -- #10269: a Crossplane row is superseded only when the locked set
       -- holds a newer carrier for the same scope: same domain, strictly
       -- newer generation in activation order (ingested_at, then

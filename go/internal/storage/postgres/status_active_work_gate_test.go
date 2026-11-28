@@ -22,19 +22,22 @@ import (
 
 // SHA-256 of the #7009 S5 shim renders of the gated a2v variant (harness
 // 7009-c3-shim-src, render_s5.py), re-rendered for #8954 (the blockage fragment
-// now names the fence holder) and again for #9292 (the outstanding-age
-// aggregates read COALESCE(reopened_at, created_at) and the active work CTE
-// carries reopened_at) and for #9320 (the shared-projection pending age reads
-// COALESCE(reopened_at, created_at)), so these no longer match the historical
-// shim files byte for byte; the only differences are those fragments. The measured
-// statement has no mode section; activeWorkSummaryMeasuredText removes it before hashing.
+// now names the fence holder), #9292 (the outstanding-age aggregates read
+// COALESCE(reopened_at, created_at) and the active work CTE carries reopened_at),
+// #9320 (the shared-projection pending age reads COALESCE(reopened_at, created_at)),
+// and #11703 (activeFactWorkItemsScopeJoinWhere hides unleased reducer rows on
+// retired scopes where active_generation_id IS NULL and
+// stale_generation.status = 'superseded'), so these no longer match the
+// historical shim files byte for byte; the only differences are those fragments.
+// The measured statement has no mode section; activeWorkSummaryMeasuredText
+// removes it before hashing.
 const (
-	shimA2vThresholdSHA256     = "24142f3028dc803fe452699953bc2d53658b96a80af1cb727b622f9b1272cbf5" // s5_a2v_T.sql, T=0.4
-	shimA2vForcedGroupedSHA256 = "c93c9bbfccbfe943c904908c06e60a49ff76c6481be303ea8e3eabde052557e6" // s5_a2v_g.sql
-	shimA2vForcedDetailSHA256  = "8b1132d06a12fca236ad9050ddf3b50862bfa7e829f5c9d85b9e8d0ad52059bf" // s5_a2v_d.sql
-	shimA2vMutDropHistorySHA   = "65ddb804cadb99d54e4aee975c97e54c1f6c87823555fbbd1d7382366995881f" // s5_mut_a2v_b_drop_hist_notin.sql
-	shimA2vMutGateNullSHA      = "cd15ef52d7e926ce6face8fbc70913eee913516ec916c7200e215c77f4171e52" // s5_mut_a2v_c_gate_null.sql
-	shimA2vMutGroupedNullSHA   = "5abd04188adcf37f8a013ec342079e190457b00709b2a3f0da7bb4017d32a38f" // s5_mut_a2v_c2_grouped_null.sql
+	shimA2vThresholdSHA256     = "06b771120fbaa7af079bb4cf0dce3cee10be80f89323d0a21046365efb57841d" // s5_a2v_T.sql, T=0.4 (#11703)
+	shimA2vForcedGroupedSHA256 = "470a7931db97eb15edb428baa9c568a201fcbd0123d08e6349d57671ae404807" // s5_a2v_g.sql (#11703)
+	shimA2vForcedDetailSHA256  = "b19431c0757ac5faa42f689f1139e343cc05e45731daa26aa0b5eba5951cdfe9" // s5_a2v_d.sql (#11703)
+	shimA2vMutDropHistorySHA   = "54bdd4c63f978929ac9da52e46dc4cbfd9cd9e43560b0f5aabcbae26511bc2ac" // s5_mut_a2v_b_drop_hist_notin.sql (#11703)
+	shimA2vMutGateNullSHA      = "b7dc5d7799d6c2c8e0a1cf44a3564aae990eb05e1ce807fc5e9b417faaf3145a" // s5_mut_a2v_c_gate_null.sql (#11703)
+	shimA2vMutGroupedNullSHA   = "48bc3ceb4afa8254bc3ae97a686f1c8a83e382d2cecd01c74dbcf2bc775a2e17" // s5_mut_a2v_c2_grouped_null.sql (#11703)
 )
 
 // Forced-branch threshold literals of the shim's _g/_d renderings: the MCV

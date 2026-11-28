@@ -14,11 +14,13 @@ package postgres
 // the statuses a claim can hand out, reusing its fragments rather than
 // restating them:
 //
-//   - generation guard: the row's generation is not the scope's active
-//     generation and is older in activation order (ingested_at, then
-//     generation_id), read from the row's own active-generation lookup
-//     (#11234; before it, a once-per-statement claim_active_generations
-//     set).
+//   - generation guard: either the row's generation is not the scope's
+//     active generation and is older in activation order (ingested_at, then
+//     generation_id) with readiness met under own or active generation, OR
+//     the scope is retired (active_generation_id IS NULL) and the row's own
+//     generation is terminally 'superseded' (#11703; never 'failed', so
+//     recover-failed-scopes still inspects failed scopes), read from the
+//     row's own active-generation lookup (#11234).
 //   - readiness hold (#4445/#7664): the same own-generation OR
 //     active-generation readiness gate text the sweep applies, so a row
 //     whose phases exist under neither generation is not fenced here
@@ -99,7 +101,7 @@ func reducerClaimStaleGateCTEs() string {
     WHERE work.stage = 'reducer'
       AND work.status IN ('pending', 'retrying')
       AND ($2::text[] IS NULL OR work.domain = ANY($2::text[]))
-      AND work.generation_id <> work_scope.active_generation_id
+      AND work.generation_id IS DISTINCT FROM work_scope.active_generation_id
 ),
 stale_reducer_candidates AS MATERIALIZED (
     SELECT stale.work_item_id
@@ -107,9 +109,10 @@ stale_reducer_candidates AS MATERIALIZED (
     CROSS JOIN LATERAL (
         SELECT scope.scope_id,
                scope.active_generation_id,
+               active_generation.generation_id AS present_active_generation_id,
                active_generation.ingested_at AS active_ingested_at
         FROM ingestion_scopes AS scope
-        JOIN scope_generations AS active_generation
+        LEFT JOIN scope_generations AS active_generation
           ON active_generation.generation_id = scope.active_generation_id
          AND active_generation.scope_id = scope.scope_id
         WHERE scope.scope_id = stale.scope_id
@@ -121,17 +124,26 @@ stale_reducer_candidates AS MATERIALIZED (
     WHERE stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying')
       AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
-      AND stale.generation_id <> scope.active_generation_id
       AND (
-        stale_generation.ingested_at < scope.active_ingested_at
-        OR (
-          stale_generation.ingested_at = scope.active_ingested_at
-          AND stale_generation.generation_id < scope.active_generation_id
+        (
+          scope.present_active_generation_id IS NOT NULL
+          AND stale.generation_id <> scope.active_generation_id
+          AND (
+            stale_generation.ingested_at < scope.active_ingested_at
+            OR (
+              stale_generation.ingested_at = scope.active_ingested_at
+              AND stale_generation.generation_id < scope.active_generation_id
+            )
+          )
+          AND (
+            ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
+            OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
+          )
         )
-      )
-      AND (
-        ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
-        OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
+        OR (
+          scope.active_generation_id IS NULL
+          AND stale_generation.status = 'superseded'
+        )
       )
       AND ` + supplyChainFanOutDebtSpareSQL + `
       AND (stale.domain <> 'crossplane_satisfied_by_materialization'

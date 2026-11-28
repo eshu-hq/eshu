@@ -51,13 +51,21 @@ const activeFactWorkItemsScopeJoinWhere = `
   WHERE NOT (
     work.stage = 'reducer'
     AND work.status IN ('pending', 'retrying', 'failed', 'dead_letter')
-    AND scope_state.present_active_generation_id IS NOT NULL
-    AND work.generation_id <> scope_state.active_generation_id
     AND (
-      stale_generation.ingested_at < scope_state.active_ingested_at
+      (
+        scope_state.present_active_generation_id IS NOT NULL
+        AND work.generation_id <> scope_state.active_generation_id
+        AND (
+          stale_generation.ingested_at < scope_state.active_ingested_at
+          OR (
+            stale_generation.ingested_at = scope_state.active_ingested_at
+            AND stale_generation.generation_id < scope_state.present_active_generation_id
+          )
+        )
+      )
       OR (
-        stale_generation.ingested_at = scope_state.active_ingested_at
-        AND stale_generation.generation_id < scope_state.present_active_generation_id
+        scope_state.active_generation_id IS NULL
+        AND stale_generation.status = 'superseded'
       )
     )
   )`
@@ -108,62 +116,76 @@ active_fact_work_items AS (
   WHERE NOT (
     work.stage = 'reducer'
     AND work.status IN ('pending', 'retrying', 'failed', 'dead_letter')
-    AND active_generation.generation_id IS NOT NULL
-    AND work.generation_id <> scope.active_generation_id
     AND (
-      stale_generation.ingested_at < active_generation.ingested_at
+      (
+        active_generation.generation_id IS NOT NULL
+        AND work.generation_id <> scope.active_generation_id
+        AND (
+          stale_generation.ingested_at < active_generation.ingested_at
+          OR (
+            stale_generation.ingested_at = active_generation.ingested_at
+            AND stale_generation.generation_id < active_generation.generation_id
+          )
+        )
+      )
       OR (
-        stale_generation.ingested_at = active_generation.ingested_at
-        AND stale_generation.generation_id < active_generation.generation_id
+        scope.active_generation_id IS NULL
+        AND stale_generation.status = 'superseded'
       )
     )
   )
 )
 `
 
-// supersedeInactiveReducerGenerationsJoin is the FROM list the sweep joins
-// fact_work_items AS stale against, shared by its lock step and its UPDATE.
-const supersedeInactiveReducerGenerationsJoin = `ingestion_scopes AS scope,
-         scope_generations AS stale_generation,
-         scope_generations AS active_generation`
+// supersedeInactiveReducerGenerationsJoin is the LATERAL join chain the sweep
+// composes onto fact_work_items AS stale (#11703): joining ingestion_scopes
+// first and probing scope_generations via LATERAL LIMIT 1 avoids the composite
+// (scope_id, generation_id) 1-row misestimate that would otherwise turn a
+// LEFT JOIN on active_generation into a Cartesian nested loop over all scopes.
+const supersedeInactiveReducerGenerationsJoin = `JOIN ingestion_scopes AS scope
+      ON scope.scope_id = stale.scope_id
+    CROSS JOIN LATERAL (
+        SELECT sg.generation_id, sg.scope_id, sg.ingested_at, sg.status
+        FROM scope_generations AS sg
+        WHERE sg.generation_id = stale.generation_id
+          AND sg.scope_id = stale.scope_id
+        LIMIT 1
+    ) AS stale_generation
+    LEFT JOIN LATERAL (
+        SELECT ag.generation_id, ag.scope_id, ag.ingested_at
+        FROM scope_generations AS ag
+        WHERE ag.generation_id = scope.active_generation_id
+          AND ag.scope_id = stale.scope_id
+        LIMIT 1
+    ) AS active_generation ON TRUE`
 
 // supersedeInactiveReducerGenerationsPredicate selects the unleased rows of an
-// older, inactive generation the sweep may supersede: the generation guard
-// (never the scope's active generation, only an older one), the readiness
-// gate described on supersedeInactiveReducerGenerationsCTE, and the fan-out
-// debt spare in the same place. The sweep's lock step applies it, so a waited
-// lock rechecks it on the newest row version — a debt write committed while
-// the claim waited on the row is seen and spares the row (#10060).
+// older, inactive generation — or a retired scope's terminally 'superseded'
+// generation when active_generation_id IS NULL (#11703) — that the sweep may
+// supersede, preserving readiness (#4445/#7664) and fan-out debt (#10060).
 var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
       AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
-      -- #10106/#10269: no domain is exempt from LOCKING here. Crossplane
-      -- SATISFIED_BY rows are scope-keyed replays that rebind to the
-      -- active generation at execute time, so terminalizing a sole stale
-      -- row would drop debt a quiet delta never re-derives; the UPDATE
-      -- below therefore supersedes a locked Crossplane row only when the
-      -- locked set also contains a newer pending/retrying sibling for
-      -- the same scope to carry that debt (see there). Locking every
-      -- stale candidate in this one ordered pass is what makes that
-      -- check race-free: a sibling claimed between snapshot and lock
-      -- fails this predicate's row-self status qual on EvalPlanQual
-      -- recheck and never enters the locked set.
-      AND scope.scope_id = stale.scope_id
-      AND stale_generation.scope_id = stale.scope_id
-      AND stale_generation.generation_id = stale.generation_id
-      AND scope.active_generation_id = active_generation.generation_id
-      AND active_generation.scope_id = stale.scope_id
-      AND stale.generation_id <> scope.active_generation_id
       AND (
-        stale_generation.ingested_at < active_generation.ingested_at
-        OR (
-          stale_generation.ingested_at = active_generation.ingested_at
-          AND stale_generation.generation_id < active_generation.generation_id
+        (
+          active_generation.generation_id IS NOT NULL
+          AND stale.generation_id <> scope.active_generation_id
+          AND (
+            stale_generation.ingested_at < active_generation.ingested_at
+            OR (
+              stale_generation.ingested_at = active_generation.ingested_at
+              AND stale_generation.generation_id < active_generation.generation_id
+            )
+          )
+          AND (
+            ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
+            OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
+          )
         )
-      )
-      AND (
-        ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
-        OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
+        OR (
+          scope.active_generation_id IS NULL
+          AND stale_generation.status = 'superseded'
+        )
       )
       AND ` + supplyChainFanOutDebtSpareSQL + `
 `
@@ -326,18 +348,28 @@ func supersedeInactiveReducerGenerationsCTEs(lockTail string) string {
 // cursor boundary only ever spares more. An empty afterParam renders the
 // canonical text byte-for-byte, which the shape pins read.
 func supersedeInactiveReducerGenerationsCTEsAfter(lockTail string, afterParam string) string {
-	lockWhere := `WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
-` + supersedeInactiveReducerCarrierArmSQL + lockTail
+	// Top-level prefilter implied by both arms lets Postgres scan only unleased
+	// reducer rows via fact_work_items_status_idx and skip LATERAL probes for
+	// live non-Crossplane rows (#11703).
+	lockPrefilter := `WHERE stale.stage = 'reducer'
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      AND (
+        stale.generation_id IS DISTINCT FROM scope.active_generation_id
+        OR (stale.domain = 'crossplane_satisfied_by_materialization'
+            AND stale.status IN ('pending', 'retrying'))
+      )
+      AND ((` + supersedeInactiveReducerGenerationsPredicate + `)
+` + supersedeInactiveReducerCarrierArmSQL + `)`
+	lockWhere := lockPrefilter + lockTail
 	if afterParam != "" {
-		lockWhere = `WHERE ((` + supersedeInactiveReducerGenerationsPredicate + `)
-` + supersedeInactiveReducerCarrierArmSQL + `)
+		lockWhere = lockPrefilter + `
       AND (` + afterParam + `::text = '' OR stale.work_item_id COLLATE "C" > ` + afterParam + `::text)` + lockTail
 	}
 	return `
 superseded_stale_reducer_locked AS (
     ` + supersedeInactiveReducerLockedColumnsSQL + `
-    FROM fact_work_items AS stale,
-         ` + supersedeInactiveReducerGenerationsJoin + `
+    FROM fact_work_items AS stale
+    ` + supersedeInactiveReducerGenerationsJoin + `
     ` + lockWhere + `),
 ` + supersededCrossplaneNewestCarrierCTE + `
 superseded_stale_reducer_generations AS (

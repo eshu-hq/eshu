@@ -189,6 +189,11 @@ tests:
     class: postgres_ci
     reason: "#10972 disposable PostgreSQL proof that the unstamped re-drive fix holds behaviorally: a retouch keeps an outstanding row's queue position while advancing its cycle bound, and a fenced workload replay reopens a succeeded row only on a fence change"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_superseded_null_active_11703_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11703 disposable PostgreSQL 18 proof that Claim, ClaimBatch, SupersedeStaleReducerGenerations, and active_fact_work_items fence, hide, and sweep unleased reducer work items on retired scopes (active_generation_id IS NULL and scope_generations.status = 'superseded') while sparing failed/pending generations, dangling active pointers, claimed/projector rows, and fan-out-debt continuations, plus EvalPlanQual recheck and concurrent SKIP LOCKED sweep safety; isolated schemas; about 4 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_ack_contention_live_test.go
     tag: ~
     class: postgres_ci

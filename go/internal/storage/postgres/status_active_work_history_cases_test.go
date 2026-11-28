@@ -190,7 +190,10 @@ func historyEdgeCases() []historyCase {
 				staleShimRows(ctx, t, conn)
 				historyExec(ctx, t, conn, `UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = 'sa'`)
 			},
-			expect: []historyExpectation{{"queue", 1, "outstanding_count", "5"}},
+			// #11703 hides unleased reducer rows on superseded generations (w-old, w-tie-low)
+			// when active_generation_id IS NULL while keeping pending-generation (w-tie-high),
+			// running (w-old-running), and projector (w-proj-old) rows visible.
+			expect: []historyExpectation{{"queue", 1, "outstanding_count", "3"}},
 		},
 		{
 			name: "dangling_active_pointer",
