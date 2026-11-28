@@ -44,6 +44,15 @@ Layout:
   `DeltaUnionStore` port): explicit scope filter required, 500-scope
   cap with the narrow-the-filter text, graph outages answered as a
   fixed local 500 (never a partial `complete`), never repairs.
+- `deltaunion_check.go` / `deltaunion_expectations.go` /
+  `deltaunion_graphverdict.go` — the checker itself behind
+  `DeltaUnionStore`: `DeltaUnionCompletenessChecker` over the narrow
+  `DeltaUnionActiveSource` (ACTIVE snapshot; documented semantics, no
+  exported SQL) and `DeltaUnionGraphRunner` ports, the exported
+  anchored `DeltaUnionGraphFilesCypher`, the expectation assembly and
+  comparison functions, and `DeltaUnionGraphErrorHandler`, the non-nil
+  hook that reproduces the core graph verdicts. Core delegates here,
+  so there is one implementation.
 - `MountReindexProgress` / `MountDeltaUnionCompleteness` (in
   `bqueries_mount.go`) — one `Mount*` per maintenance/graph family.
   These stay out of `MountProofReads` like the B-query mounts, so one

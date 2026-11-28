@@ -6,22 +6,21 @@ package admin
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/goldengate"
+	apilibadmin "github.com/eshu-hq/eshu/go/apilib/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// defaultDeltaUnionMaxRepos bounds one completeness check to 500
-// repositories: one anchored graph query each. Past that the caller narrows
-// the scope filter instead of paging silently.
-const defaultDeltaUnionMaxRepos = 500
+// The completeness checker itself lives in apilib (#11697) so the external
+// API host consumes the same ACTIVE assembly, comparison, and anchored
+// Cypher. This file keeps only the core adapter: the Postgres snapshot
+// source, the recovery-report conversion that preserves the admission pin
+// v0 Check signature, and the core route with its querycontract verdicts.
 
 // DeltaUnionActiveSource reads the ACTIVE side of the completeness check:
 // every in-filter scope's active generation plus its union base.
@@ -29,25 +28,13 @@ type DeltaUnionActiveSource interface {
 	ReadDeltaUnionActive(ctx context.Context, scopeIDs []string) (pgstatus.DeltaUnionActiveSnapshot, error)
 }
 
-// DeltaUnionGraphRunner runs one read-only Cypher statement. The query-layer
-// graph reader satisfies it; the check issues one anchored per-repo query,
-// never a whole-graph traversal.
+// DeltaUnionGraphRunner runs one read-only Cypher statement.
 type DeltaUnionGraphRunner interface {
 	Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
 }
 
-// deltaUnionGraphFilesCypher reads one repository's GRAPH side: its file set
-// with per-path Function counts. The Repository anchor uses id (the
-// canonical node key), the shape mirrors the production deadcode surface,
-// and it must stay valid on both supported backends: validate against the
-// pinned NornicDB binary before claiming both dialects.
-const deltaUnionGraphFilesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
-OPTIONAL MATCH (f)-[:CONTAINS]->(e:Function)
-RETURN f.relative_path AS rel, count(e) AS entities`
-
 // DeltaUnionCompletenessChecker is the read-only prod completeness check
-// (#7797): per repository, the graph's file set against the ACTIVE set. It
-// never repairs; a mismatch names the diff and the generations to re-parse.
+// (#7797). Check delegates to the apilib checker.
 type DeltaUnionCompletenessChecker struct {
 	// Active reads the ACTIVE side from Postgres.
 	Active DeltaUnionActiveSource
@@ -58,199 +45,92 @@ type DeltaUnionCompletenessChecker struct {
 	MaxRepos int
 }
 
-// ErrDeltaUnionScopeRequired reports a completeness check call without an
-// explicit scope filter. An empty filter fans out over every active
-// generation plus one anchored graph query per repository (#7797: p95
-// 1.648s past the 1.5s default budget), so callers must name their scopes.
-// The read-api latency gate's no-arg sweep answers this with a fast 400 and
-// stays unexercised instead of sampling the fan-out; a named latency/work
-// budget for scoped calls must be rendered from GREEN gate reports via
-// scripts/refresh-read-api-work-budgets.sh, never hand-written.
-var ErrDeltaUnionScopeRequired = errors.New("delta union completeness requires at least one explicit scope filter")
+// ErrDeltaUnionScopeRequired reports a check call without an explicit scope filter.
+var ErrDeltaUnionScopeRequired = apilibadmin.ErrDeltaUnionScopeRequired
 
-// deltaUnionCapError reports a completeness check past its repository cap.
-// Its text holds only the counts and the cap, so the route answers it as its
-// own fixed message (deltaUnionCapMessage) rather than a store error's text.
-type deltaUnionCapError struct {
-	count, limit int
-	unit         string
+// deltaUnionActiveAdapter converts the Postgres snapshot to the apilib
+// snapshot. Row types are goldengate aliases of the apilib types, so the
+// conversion is a direct rewrap with no per-row copy.
+type deltaUnionActiveAdapter struct {
+	source DeltaUnionActiveSource
 }
 
-func (e *deltaUnionCapError) Error() string {
-	return deltaUnionCapMessage(e.count, e.limit, e.unit)
+// ReadDeltaUnionActive reads through the core source and rewraps its snapshot.
+func (a deltaUnionActiveAdapter) ReadDeltaUnionActive(ctx context.Context, scopeIDs []string) (apilibadmin.DeltaUnionActiveSnapshot, error) {
+	snapshot, err := a.source.ReadDeltaUnionActive(ctx, scopeIDs)
+	if err != nil {
+		return apilibadmin.DeltaUnionActiveSnapshot{}, err
+	}
+	return apilibadmin.DeltaUnionActiveSnapshot{Rows: snapshot.Rows, Deltas: snapshot.Deltas}, nil
 }
 
-// deltaUnionCapMessage is the narrow-the-filter text for count units (scopes
-// or repositories) past limit.
-func deltaUnionCapMessage(count, limit int, unit string) string {
-	return fmt.Sprintf("delta union completeness covers %d %s, past the %d cap: narrow the scope filter", count, unit, limit)
+// inner builds the apilib checker behind this core adapter, preserving nil
+// ports so the apilib unconfigured verdict applies verbatim.
+func (c *DeltaUnionCompletenessChecker) inner() *apilibadmin.DeltaUnionCompletenessChecker {
+	if c == nil {
+		return nil
+	}
+	inner := &apilibadmin.DeltaUnionCompletenessChecker{MaxRepos: c.MaxRepos}
+	if c.Active != nil {
+		inner.Active = deltaUnionActiveAdapter{source: c.Active}
+	}
+	if c.Graph != nil {
+		inner.Graph = c.Graph
+	}
+	return inner
 }
 
-// Check runs the completeness check over an explicit scope filter: at
-// least one scope is required (see ErrDeltaUnionScopeRequired). A filter
-// wider than MaxRepos fails before the ACTIVE fact fan-out; scopes with
-// no active generation, or whose active generation is not a delta, are
-// reported skipped without a graph read; delta-active scopes past
-// MaxRepos fail loudly instead of paging silently.
+// Check runs the completeness check over an explicit scope filter and
+// converts the apilib report to the recovery report the admission pin v0
+// promises. Errors pass through with the apilib checker's own wrapping, so
+// the route's scope-required, cap, and graph-verdict mapping sees the same
+// sentinels as before the extraction.
 func (c *DeltaUnionCompletenessChecker) Check(
 	ctx context.Context,
 	scopeIDs []string,
 ) (recovery.DeltaUnionCompletenessReport, error) {
-	if c == nil || c.Active == nil || c.Graph == nil {
-		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf("delta union completeness check is not configured")
-	}
-	scopes := make([]string, 0, len(scopeIDs))
-	for _, id := range scopeIDs {
-		if strings.TrimSpace(id) == "" {
-			continue
-		}
-		scopes = append(scopes, id)
-	}
-	if len(scopes) == 0 {
-		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf("%w: pass at least one ?scope= query value", ErrDeltaUnionScopeRequired)
-	}
-	maxRepos := c.MaxRepos
-	if maxRepos <= 0 {
-		maxRepos = defaultDeltaUnionMaxRepos
-	}
-	// Reject an over-cap filter before the ACTIVE fact fan-out: the read
-	// loads every fact of every in-filter generation plus their bases, so
-	// a filter wider than the cap must fail before that work, not after.
-	// The post-assembly cap check below stays as defense in depth for the
-	// delta-active subset.
-	if len(scopes) > maxRepos {
-		return recovery.DeltaUnionCompletenessReport{}, &deltaUnionCapError{count: len(scopes), limit: maxRepos, unit: "scopes"}
-	}
-	snapshot, err := c.Active.ReadDeltaUnionActive(ctx, scopes)
+	report, err := c.inner().Check(ctx, scopeIDs)
 	if err != nil {
-		return recovery.DeltaUnionCompletenessReport{}, fmt.Errorf("read delta union active: %w", err)
+		return recovery.DeltaUnionCompletenessReport{}, err
 	}
-	expected := goldengate.AssembleDeltaUnionExpectations(snapshot.Rows, snapshot.Deltas)
-	var comparable []goldengate.DeltaUnionExpectation
-	for _, exp := range expected {
-		// Only delta-active scopes issue graph reads: the check covers
-		// delta-active scopes, so a full active generation is out of
-		// this comparison's scope and skips without a graph read.
-		if exp.ActiveGenerationID == "" || !exp.ActiveIsDelta {
-			continue
-		}
-		comparable = append(comparable, exp)
+	return recoveryDeltaUnionReport(report), nil
+}
+
+// recoveryDeltaUnionReport converts an apilib report to the recovery report
+// with identical field values and ordering.
+func recoveryDeltaUnionReport(report apilibadmin.DeltaUnionCompletenessReport) recovery.DeltaUnionCompletenessReport {
+	out := recovery.DeltaUnionCompletenessReport{
+		Repos:      make([]recovery.DeltaUnionRepoReport, 0, len(report.Repos)),
+		Mismatches: report.Mismatches,
 	}
-	if len(comparable) > maxRepos {
-		return recovery.DeltaUnionCompletenessReport{}, &deltaUnionCapError{count: len(comparable), limit: maxRepos, unit: "repositories"}
-	}
-	repos := make([]recovery.DeltaUnionRepoReport, 0, len(expected))
-	for _, exp := range expected {
-		if exp.ActiveGenerationID == "" || !exp.ActiveIsDelta {
-			annotation := fmt.Sprintf("repo=%s scope=%s: no active generation",
-				exp.RepoID, exp.ScopeID)
-			if exp.ActiveGenerationID != "" {
-				annotation = fmt.Sprintf("repo=%s scope=%s: active generation is not a delta",
-					exp.RepoID, exp.ScopeID)
-			}
-			repos = append(repos, recovery.DeltaUnionRepoReport{
-				RepoID: exp.RepoID, ScopeID: exp.ScopeID,
-				Outcome:    recovery.DeltaUnionRepoSkipped,
-				Active:     recovery.DeltaUnionGeneration{},
-				Annotation: annotation,
-			})
-			continue
-		}
-		observation, err := c.readGraphRepo(ctx, exp.RepoID)
-		if err != nil {
-			return recovery.DeltaUnionCompletenessReport{}, err
-		}
-		result := goldengate.CompareDeltaUnionRepo(exp, observation)
-		repos = append(repos, recovery.DeltaUnionRepoReport{
-			RepoID:  result.RepoID,
-			ScopeID: result.ScopeID,
-			Outcome: recovery.DeltaUnionRepoOutcome(result.Outcome),
+	for _, repo := range report.Repos {
+		out.Repos = append(out.Repos, recovery.DeltaUnionRepoReport{
+			RepoID:  repo.RepoID,
+			ScopeID: repo.ScopeID,
+			Outcome: recovery.DeltaUnionRepoOutcome(repo.Outcome),
 			Base: recovery.DeltaUnionGeneration{
-				GenerationID: exp.BaseGenerationID, Status: exp.BaseStatus,
+				GenerationID: repo.Base.GenerationID, Status: repo.Base.Status, IsDelta: repo.Base.IsDelta,
 			},
 			Active: recovery.DeltaUnionGeneration{
-				GenerationID: exp.ActiveGenerationID, Status: "active", IsDelta: exp.ActiveIsDelta,
+				GenerationID: repo.Active.GenerationID, Status: repo.Active.Status, IsDelta: repo.Active.IsDelta,
 			},
-			GraphFiles:  len(observation.Files),
-			ActiveFiles: len(exp.Files),
-			Missing:     result.Missing,
-			Extra:       result.Extra,
-			Drifted:     result.Drifted,
-			Annotation:  result.Annotation,
+			GraphFiles:  repo.GraphFiles,
+			ActiveFiles: repo.ActiveFiles,
+			Missing:     repo.Missing,
+			Extra:       repo.Extra,
+			Drifted:     repo.Drifted,
+			Annotation:  repo.Annotation,
 		})
 	}
-	// A requested scope with no rows and no delta entry assembles no
-	// expectation, so without this it would vanish into an all-clear.
-	// Report each such scope skipped with a reason, in the same shape as
-	// the no-active-generation skips above; skipped entries never count
-	// as mismatches (see SummarizeDeltaUnionCompleteness).
-	seen := make(map[string]struct{}, len(expected))
-	for _, exp := range expected {
-		seen[exp.ScopeID] = struct{}{}
-	}
-	for _, scopeID := range scopes {
-		if _, ok := seen[scopeID]; ok {
-			continue
-		}
-		seen[scopeID] = struct{}{}
-		repos = append(repos, recovery.DeltaUnionRepoReport{
-			ScopeID: scopeID,
-			Outcome: recovery.DeltaUnionRepoSkipped,
-			Active:  recovery.DeltaUnionGeneration{},
-			Annotation: fmt.Sprintf("repo=%s scope=%s: no active generation",
-				"", scopeID),
-		})
-	}
-	return recovery.SummarizeDeltaUnionCompleteness(repos), nil
-}
-
-// readGraphRepo reads one repository's GRAPH side.
-func (c *DeltaUnionCompletenessChecker) readGraphRepo(
-	ctx context.Context,
-	repoID string,
-) (goldengate.DeltaUnionObservation, error) {
-	observation := goldengate.DeltaUnionObservation{RepoID: repoID, Files: map[string]int64{}}
-	rows, err := c.Graph.Run(ctx, deltaUnionGraphFilesCypher, map[string]any{"repo_id": repoID})
-	if err != nil {
-		return goldengate.DeltaUnionObservation{}, fmt.Errorf("read delta union graph for repo %s: %w", repoID, err)
-	}
-	for _, row := range rows {
-		rel, _ := row["rel"].(string)
-		if rel == "" {
-			continue
-		}
-		observation.Files[rel] = deltaUnionGraphCount(row["entities"])
-	}
-	return observation, nil
-}
-
-// deltaUnionGraphCount converts a Bolt count cell to int64 across driver
-// numeric spellings.
-func deltaUnionGraphCount(value any) int64 {
-	switch count := value.(type) {
-	case int64:
-		return count
-	case int:
-		return int64(count)
-	case float64:
-		return int64(count)
-	default:
-		return 0
-	}
+	return out
 }
 
 // deltaUnionCompleteness serves GET /api/v0/admin/delta-union/completeness:
-// the read-only prod completeness report over explicit ?scope= filters (at
-// least one is required; an empty filter fans out and is rejected with
-// 400). It never repairs. A graph read that fails with a shared graph-read
-// verdict answers it first (#8292): the retryable 503 with Retry-After for
-// an unavailable graph, 504 for an expired graph deadline, each with the
-// fixed verdict text. Any other failed ACTIVE or graph read answers
-// deltaUnionCompletenessFailedMessage through
-// tracing.ServerFailureEnvelope: 500 with the error on the request span, or
-// 499 when the caller canceled (#7674). A filter past the repository cap
-// keeps its 500 with the narrow-the-filter text built from the counts. The
-// body keeps its {"status","detail"} shape.
+// the read-only prod completeness report over explicit ?scope= filters. It
+// never repairs. A graph verdict answers first (#8292); any other failure
+// answers the fixed text through tracing.ServerFailureEnvelope (500, or
+// 499 on client cancel). A cap failure keeps its narrow-the-filter 500.
+// The body keeps its {"status","detail"} shape.
 func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request) {
 	if h.Completeness == nil {
 		querycontract.WriteJSON(w, http.StatusServiceUnavailable, map[string]any{
@@ -272,9 +152,9 @@ func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		message := deltaUnionCompletenessFailedMessage
-		var overCap *deltaUnionCapError
+		var overCap *apilibadmin.DeltaUnionCapError
 		if errors.As(err, &overCap) {
-			message = deltaUnionCapMessage(overCap.count, overCap.limit, overCap.unit)
+			message = overCap.Error()
 		}
 		status, _ := tracing.ServerFailureEnvelope(r.Context(), err, message, "")
 		querycontract.WriteJSON(w, status, map[string]any{
@@ -288,12 +168,6 @@ func (h *Handler) deltaUnionCompleteness(w http.ResponseWriter, r *http.Request)
 
 // writeDeltaUnionGraphVerdict answers err with the shared graph-read verdict
 // under deltaUnionCompletenessCapability and reports whether it did (#8292).
-// The route's callers read the {"status","detail"} body, so the verdict keeps
-// that shape: status "error" and the verdict's fixed text as detail, never the
-// backend error text. A caller that asks for the Eshu envelope gets the full
-// envelope, which names the capability. The retryable 503 carries Retry-After
-// in both shapes. A false return leaves the response untouched for the
-// route's own 500/499 mapping.
 func writeDeltaUnionGraphVerdict(w http.ResponseWriter, r *http.Request, err error) bool {
 	status, envelope, ok := querycontract.GraphReadErrorEnvelope(err, deltaUnionCompletenessCapability)
 	if !ok {
