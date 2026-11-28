@@ -51,6 +51,8 @@ CREATE TEMP TABLE fact_work_items (
     visible_at timestamptz, next_attempt_at timestamptz, last_attempt_at timestamptz,
     failure_class text, failure_message text, failure_details text,
     created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, reopened_at timestamptz,
+    -- migration 364 (#11615): the reopen selects work.last_requeue_reason.
+    last_requeue_reason text,
     container_image_identity_claim_epoch bigint NOT NULL,
     container_image_identity_v2_required boolean NOT NULL,
     container_image_identity_v2_authorized_status text NOT NULL,
