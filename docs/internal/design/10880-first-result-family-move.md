@@ -497,3 +497,4 @@ No-Observability-Change: slices 1–2 add no metric, span, log key,
 route, worker, or knob; existing resweep counts and
 `eshu_dp_postgres_query_duration_seconds` cover the wider rows.
 The rejected-legacy-write counter lands with slice 3.
+- Lane D pointer: [10880-ac5-ac6-closeout.md](../evidence/10880-ac5-ac6-closeout.md) reports AC5/AC6 from Lane B outputs (save time NOT_CHECKED); it closes nothing.
