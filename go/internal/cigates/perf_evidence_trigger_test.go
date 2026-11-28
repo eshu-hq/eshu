@@ -32,7 +32,7 @@ func TestPerfEvidenceSelectsSingleFileReducerCommandChange(t *testing.T) {
 		"go/cmd/reducer/main.go",
 		"go/cmd/reducer/observed_service_wiring.go",
 	} {
-		sels := reg.Select([]string{path}, cigates.TierPrePush)
+		sels := reg.Select([]string{path}, cigates.TierPrePR)
 		found := false
 		for _, s := range sels {
 			if s.Gate.ID != "perf-evidence" {

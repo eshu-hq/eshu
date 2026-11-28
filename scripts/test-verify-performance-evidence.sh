@@ -1,500 +1,108 @@
 #!/usr/bin/env bash
+# Regression and seeded-violation tests for scripts/verify-performance-evidence.sh
+# (PR-body enforcement; tracked files must NOT satisfy the gate).
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-performance-evidence.sh"
 
 tmp_root="$(mktemp -d)"
-# #8673: keep fixture git out of host daemon Trace2 tracking (cf. test-verify-moved-file-refs.sh).
 export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 init_repo() {
-  local name="$1"
-  local dir="${tmp_root}/${name}"
-  mkdir -p "${dir}"
+  local dir="${tmp_root}/$1"
+  mkdir -p "${dir}/go/internal/reducer" "${dir}/docs/internal/evidence"
   git -C "${dir}" init -q
   git -C "${dir}" config user.email "test@example.invalid"
   git -C "${dir}" config user.name "Eshu Test"
-  mkdir -p "${dir}/docs/public/reference" "${dir}/go/internal/storage/cypher"
-  printf '# Local Performance\n' >"${dir}/docs/public/reference/local-performance-envelope.md"
-  printf 'package cypher\n' >"${dir}/go/internal/storage/cypher/doc.go"
+  cat >"${dir}/go/internal/reducer/worker.go" <<'GO'
+package reducer
+
+func Run() int { return 1 }
+GO
   git -C "${dir}" add .
-  git -C "${dir}" commit -q -m initial
+  git -C "${dir}" commit -q -m "initial"
   printf '%s\n' "${dir}"
 }
 
-run_verifier() {
-  local dir="$1"
-  ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${dir}" \
-    ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
-    "${verifier}" >/tmp/eshu-perf-gate.out 2>/tmp/eshu-perf-gate.err
-}
-
-expect_pass() {
-  local dir="$1"
-  if ! run_verifier "${dir}"; then
-    printf 'expected verifier to pass in %s\n' "${dir}" >&2
-    sed -n '1,120p' /tmp/eshu-perf-gate.err >&2
-    exit 1
-  fi
-  if rg -q 'No such file or directory' /tmp/eshu-perf-gate.err; then
-    printf 'expected verifier stderr to stay clean in %s\n' "${dir}" >&2
-    sed -n '1,120p' /tmp/eshu-perf-gate.err >&2
-    exit 1
-  fi
-}
-
-expect_fail() {
-  local dir="$1"
-  if run_verifier "${dir}"; then
-    printf 'expected verifier to fail in %s\n' "${dir}" >&2
-    sed -n '1,120p' /tmp/eshu-perf-gate.out >&2
-    exit 1
-  fi
-}
-
-# Build a hard-timeout wrapper so a hung verifier fails the suite fast instead
-# of blocking forever. Prefer coreutils timeout/gtimeout; fall back to a
-# portable perl alarm wrapper (perl ships on macOS and Linux). timeout_cmd stays
-# empty only when none of the three exist, in which case expect_completes_fail
-# SKIPS the guard with a message rather than running unguarded — an unguarded
-# run would hang forever on exactly the bash where the here-string bug bites.
-timeout_secs=30
-timeout_cmd=()
-if command -v timeout >/dev/null 2>&1; then
-  timeout_cmd=(timeout -s KILL "${timeout_secs}")
-elif command -v gtimeout >/dev/null 2>&1; then
-  timeout_cmd=(gtimeout -s KILL "${timeout_secs}")
-elif command -v perl >/dev/null 2>&1; then
-  # SIGALRM fires after the timeout and default-terminates the exec'd verifier
-  # (the alarm timer survives exec); a hang then exits 128+14=142.
-  timeout_cmd=(perl -e 'alarm shift; exec @ARGV or exit 127' "${timeout_secs}")
-fi
-
-# expect_completes_fail asserts the verifier both terminates under a hard
-# timeout and fails on its own (hot change needs evidence). It guards the
-# diff-processing loop against reintroducing a `<<<` here-string, which hangs
-# bash 5.3.x on a large diff (see the diff-loop comment in
-# verify-performance-evidence.sh). Exit-code map: 124 (timeout SIGTERM) or any
-# signal kill >=128 (137 SIGKILL, 142 SIGALRM) means the verifier was still
-# running at the deadline — a hang; 125/126/127 means the timeout wrapper itself
-# could not run the command; 0 means the verifier wrongly passed; 1..123 is the
-# verifier's own expected non-zero exit.
-expect_completes_fail() {
-  local dir="$1"
-  if [ "${#timeout_cmd[@]}" -eq 0 ]; then
-    printf 'SKIP: no timeout/gtimeout/perl available to guard %s against a hang\n' "${dir}" >&2
-    return
-  fi
+expect_rc() {
+  local label="$1" want="$2"
+  shift 2
   local rc=0
-  "${timeout_cmd[@]}" env \
-    ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${dir}" \
-    ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
-    "${verifier}" >/tmp/eshu-perf-gate.out 2>/tmp/eshu-perf-gate.err || rc=$?
-  if [ "${rc}" -eq 124 ] || [ "${rc}" -ge 128 ]; then
-    printf 'verifier did not finish within %ss in %s (rc=%s) — diff-loop here-string hang\n' \
-      "${timeout_secs}" "${dir}" "${rc}" >&2
-    sed -n '1,40p' /tmp/eshu-perf-gate.err >&2
+  "$@" >"${tmp_root}/out" 2>"${tmp_root}/err" || rc=$?
+  if [ "$rc" -ne "$want" ]; then
+    printf 'FAIL [%s]: want exit %s, got %s\n' "$label" "$want" "$rc" >&2
+    cat "${tmp_root}/out" "${tmp_root}/err" >&2
     exit 1
   fi
-  if [ "${rc}" -ge 125 ] && [ "${rc}" -le 127 ]; then
-    printf 'timeout wrapper could not run the verifier in %s (rc=%s)\n' "${dir}" "${rc}" >&2
-    sed -n '1,40p' /tmp/eshu-perf-gate.err >&2
-    exit 1
-  fi
-  if [ "${rc}" -eq 0 ]; then
-    printf 'expected verifier to fail (hot change needs evidence) in %s\n' "${dir}" >&2
-    sed -n '1,120p' /tmp/eshu-perf-gate.out >&2
-    exit 1
-  fi
+  printf 'PASS [%s]\n' "$label"
 }
 
-plain_repo="$(init_repo plain)"
-printf 'package docs\n' >"${plain_repo}/go/internal/storage/cypher/notes_test.go"
-git -C "${plain_repo}" add .
-git -C "${plain_repo}" commit -q -m 'test-only change'
-expect_pass "${plain_repo}"
+# 1. Hot-path change with empty PR body fails (RED).
+hot_dir="$(init_repo hot)"
+cat >"${hot_dir}/go/internal/reducer/worker.go" <<'GO'
+package reducer
 
-hot_repo="$(init_repo hot)"
-printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
-  >"${hot_repo}/go/internal/storage/cypher/writer.go"
-git -C "${hot_repo}" add .
-git -C "${hot_repo}" commit -q -m 'hot cypher change'
-expect_fail "${hot_repo}"
-
-new_collector_repo="$(init_repo new-collector)"
-mkdir -p "${new_collector_repo}/go/internal/collector/terraformcloud"
-printf 'package terraformcloud\nconst query = "MATCH (r:Repository {id: $id}) RETURN r"\n' \
-  >"${new_collector_repo}/go/internal/collector/terraformcloud/project.go"
-git -C "${new_collector_repo}" add .
-git -C "${new_collector_repo}" commit -q -m 'new collector query'
-expect_fail "${new_collector_repo}"
-
-new_concurrency_repo="$(init_repo new-concurrency)"
-mkdir -p "${new_concurrency_repo}/go/internal/collector/awscloud/service/s3"
-cat >"${new_concurrency_repo}/go/internal/collector/awscloud/service/s3/runner.go" <<'GO'
-package s3
-
-type Runner struct {
-	MaxConcurrentClaims int
-}
-
-func (r Runner) ClaimBatch() int {
-	return r.MaxConcurrentClaims
-}
+func Run() int { return 2 }
 GO
-git -C "${new_concurrency_repo}" add .
-git -C "${new_concurrency_repo}" commit -q -m 'new collector concurrency'
-expect_fail "${new_concurrency_repo}"
+git -C "${hot_dir}" add . && git -C "${hot_dir}" commit -q -m "change reducer"
+empty_body="${tmp_root}/empty.md"
+printf 'Refs #1234.\n\nJust a summary.\n' >"${empty_body}"
+expect_rc "hot change with empty PR body fails" 1 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
+  bash "${verifier}" --pr-body "${empty_body}"
 
-evidence_repo="$(init_repo evidence)"
-printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
-  >"${evidence_repo}/go/internal/storage/cypher/writer.go"
-printf '\n## Current Evidence\n\nPerformance Evidence: focused writer benchmark stayed flat.\n\nObservability Evidence: existing writer metrics covered the changed path.\n' \
-  >>"${evidence_repo}/docs/public/reference/local-performance-envelope.md"
-git -C "${evidence_repo}" add .
-git -C "${evidence_repo}" commit -q -m 'hot change with evidence'
-expect_pass "${evidence_repo}"
+# 2. Hot-path change with markers ONLY in tracked markdown file still fails when PR body lacks them (RED).
+printf 'Performance Evidence: 10ms -> 5ms\nObservability Evidence: metric x\n' >"${hot_dir}/go/internal/reducer/README.md"
+git -C "${hot_dir}" add . && git -C "${hot_dir}" commit -q -m "add tracked marker"
+expect_rc "tracked markdown marker does not satisfy PR-body gate" 1 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
+  bash "${verifier}" --pr-body "${empty_body}"
 
-package_evidence_repo="$(init_repo package-evidence)"
-mkdir -p "${package_evidence_repo}/go/internal/query"
-printf 'package query\nconst query = "MATCH (r:Repository) RETURN r"\n' \
-  >"${package_evidence_repo}/go/internal/query/repository.go"
-cat >"${package_evidence_repo}/go/internal/query/evidence-notes.md" <<'MD'
-# Query Evidence Notes
+# 3. Hot-path change with both markers in --pr-body passes (GREEN).
+good_body="${tmp_root}/good.md"
+cat >"${good_body}" <<'MD'
+Refs #1234.
 
-No-Regression Evidence: focused query tests prove the bounded read shape.
-
-No-Observability-Change: existing query spans cover the changed path.
+No-Regression Evidence: unit bench unchanged at 1.2ms on Postgres 16.
+No-Observability-Change: existing eshu_dp_reducer_items_total covers this path.
 MD
-git -C "${package_evidence_repo}" add .
-git -C "${package_evidence_repo}" commit -q -m 'hot change with package evidence note'
-expect_pass "${package_evidence_repo}"
+expect_rc "hot change with both markers in --pr-body passes" 0 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
+  bash "${verifier}" --pr-body "${good_body}"
 
-# A recorded-run write-up under docs/internal/evidence/ is a valid evidence
-# file. The searchbench gate docs point future gate evaluations at
-# docs/internal/evidence/searchbench-evidence/, so the verifier must count
-# markers recorded there or the documented location disagrees with the gate.
-internal_evidence_repo="$(init_repo internal-evidence)"
-mkdir -p "${internal_evidence_repo}/docs/internal/evidence/searchbench-evidence"
-printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
-  >"${internal_evidence_repo}/go/internal/storage/cypher/writer.go"
-cat >"${internal_evidence_repo}/docs/internal/evidence/searchbench-evidence/record.md" <<'MD'
-# Search Gate Record
+# 4. Hot-path change with both markers in ESHU_PERFORMANCE_EVIDENCE_PR_BODY env var passes (GREEN).
+expect_rc "hot change with env PR body passes" 0 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
+  ESHU_PERFORMANCE_EVIDENCE_PR_BODY="$(cat "${good_body}")" \
+  bash "${verifier}"
 
-No-Regression Evidence: focused writer benchmark stayed flat.
+# 5. Missing observability marker fails (RED).
+perf_only="${tmp_root}/perf-only.md"
+printf 'Performance Evidence: 10ms -> 4ms\n' >"${perf_only}"
+expect_rc "missing observability marker fails" 1 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
+  bash "${verifier}" --pr-body "${perf_only}"
 
-No-Observability-Change: existing writer metrics covered the changed path.
-MD
-git -C "${internal_evidence_repo}" add .
-git -C "${internal_evidence_repo}" commit -q -m 'hot change with internal evidence write-up'
-expect_pass "${internal_evidence_repo}"
+# 6. Non-PR event (push to main) with no PR body skips cleanly (GREEN).
+expect_rc "non-PR event with no PR body skips cleanly" 0 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
+  GITHUB_EVENT_NAME=push \
+  bash "${verifier}"
 
-deleted_evidence_repo="$(init_repo deleted-evidence)"
-mkdir -p "${deleted_evidence_repo}/go/internal/collector/oldsource"
-printf 'package oldsource\nconst query = "MATCH (n) RETURN n"\n' \
-  >"${deleted_evidence_repo}/go/internal/collector/oldsource/source.go"
-cat >"${deleted_evidence_repo}/go/internal/collector/oldsource/README.md" <<'MD'
-# Old Source
+# 7. Comment-only change passes even with empty PR body (GREEN).
+comment_dir="$(init_repo comment-only)"
+cat >"${comment_dir}/go/internal/reducer/worker.go" <<'GO'
+// Clarify comment only.
+package reducer
 
-Performance Evidence: baseline fixture only.
+func Run() int { return 1 }
+GO
+git -C "${comment_dir}" add . && git -C "${comment_dir}" commit -q -m "comment only"
+expect_rc "comment-only hot file passes" 0 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${comment_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
+  bash "${verifier}" --pr-body "${empty_body}"
 
-No-Observability-Change: baseline fixture only.
-MD
-git -C "${deleted_evidence_repo}" add .
-git -C "${deleted_evidence_repo}" commit -q -m 'old collector baseline'
-rm -rf "${deleted_evidence_repo}/go/internal/collector/oldsource"
-printf '\n## Current Evidence\n\nPerformance Evidence: removed facade source; no runtime work remains.\n\nNo-Observability-Change: no runtime path remains.\n' \
-  >>"${deleted_evidence_repo}/docs/public/reference/local-performance-envelope.md"
-git -C "${deleted_evidence_repo}" add -A
-git -C "${deleted_evidence_repo}" commit -q -m 'delete collector with evidence'
-expect_pass "${deleted_evidence_repo}"
-
-missing_observability_repo="$(init_repo missing-observability)"
-printf 'package cypher\nconst query = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n' \
-  >"${missing_observability_repo}/go/internal/storage/cypher/writer.go"
-printf '\n## Current Evidence\n\nPerformance Evidence: focused writer benchmark stayed flat.\n' \
-  >>"${missing_observability_repo}/docs/public/reference/local-performance-envelope.md"
-git -C "${missing_observability_repo}" add .
-git -C "${missing_observability_repo}" commit -q -m 'hot change without observability evidence'
-expect_fail "${missing_observability_repo}"
-
-compose_runtime_repo="$(init_repo compose-runtime)"
-printf 'services:\n  nornicdb:\n    environment:\n      NORNICDB_EMBEDDING_ENABLED: "false"\n' \
-  >"${compose_runtime_repo}/docker-compose.yaml"
-git -C "${compose_runtime_repo}" add .
-git -C "${compose_runtime_repo}" commit -q -m 'runtime compose change'
-expect_fail "${compose_runtime_repo}"
-
-compose_runtime_removal_repo="$(init_repo compose-runtime-removal)"
-printf 'services:\n  nornicdb:\n    environment:\n      NORNICDB_EMBEDDING_ENABLED: "false"\n' \
-  >"${compose_runtime_removal_repo}/docker-compose.yaml"
-git -C "${compose_runtime_removal_repo}" add .
-git -C "${compose_runtime_removal_repo}" commit -q -m 'add runtime compose baseline'
-printf 'services:\n  nornicdb:\n    environment: {}\n' \
-  >"${compose_runtime_removal_repo}/docker-compose.yaml"
-git -C "${compose_runtime_removal_repo}" add .
-git -C "${compose_runtime_removal_repo}" commit -q -m 'remove runtime compose knob'
-expect_fail "${compose_runtime_removal_repo}"
-
-# Live-gate shell coordination changes alter contention, external Docker calls,
-# and operator diagnostics, so they require the same durable performance and
-# observability evidence as Go/runtime-config concurrency changes.
-live_gate_repo="$(init_repo live-gate-shell)"
-mkdir -p "${live_gate_repo}/scripts/lib"
-printf '#!/usr/bin/env bash\nacquire_live_gate_lock() { return 0; }\n' \
-  >"${live_gate_repo}/scripts/lib/live-gate-lock.sh"
-printf '#!/usr/bin/env bash\nkeep_marker_blocks() { return 0; }\n' \
-  >"${live_gate_repo}/scripts/lib/golden-corpus-keep-marker.sh"
-git -C "${live_gate_repo}" add .
-git -C "${live_gate_repo}" commit -q -m 'change live gate coordination without evidence'
-expect_fail "${live_gate_repo}"
-
-live_gate_evidence_repo="$(init_repo live-gate-shell-evidence)"
-mkdir -p "${live_gate_evidence_repo}/scripts/lib"
-printf '#!/usr/bin/env bash\nacquire_live_gate_lock() { return 0; }\n' \
-  >"${live_gate_evidence_repo}/scripts/lib/live-gate-lock.sh"
-printf '\nNo-Regression Evidence: no-marker path performs no Docker query.\n\nObservability Evidence: stderr reports holder and reason.\n' \
-  >>"${live_gate_evidence_repo}/docs/public/reference/local-performance-envelope.md"
-git -C "${live_gate_evidence_repo}" add .
-git -C "${live_gate_evidence_repo}" commit -q -m 'change live gate coordination with evidence'
-expect_pass "${live_gate_evidence_repo}"
-
-# Comment-only change to an EXISTING hot-path Go file (e.g. SPDX header
-# rollout): the file already exists with hot-path content, and the diff
-# only adds comment lines at the top. The gate must NOT trip.
-spdx_repo="$(init_repo spdx-rollout)"
-{
-  printf 'package cypher\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${spdx_repo}/go/internal/storage/cypher/writer.go"
-git -C "${spdx_repo}" add .
-git -C "${spdx_repo}" commit -q -m 'baseline hot-path writer'
-{
-  printf '// SPDX-License-Identifier: MIT\n'
-  printf '// Copyright (c) 2025-2026 eshu-hq\n'
-  printf '\n'
-  printf 'package cypher\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${spdx_repo}/go/internal/storage/cypher/writer.go"
-git -C "${spdx_repo}" add .
-git -C "${spdx_repo}" commit -q -m 'add SPDX header (comment-only)'
-expect_pass "${spdx_repo}"
-
-# Mixed change to an existing hot-path Go file: comment header AND a real
-# code edit in the same commit. Gate must still trip because the code
-# change is real.
-mixed_repo="$(init_repo mixed-change)"
-{
-  printf 'package cypher\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${mixed_repo}/go/internal/storage/cypher/writer.go"
-git -C "${mixed_repo}" add .
-git -C "${mixed_repo}" commit -q -m 'baseline hot-path writer'
-{
-  printf '// SPDX-License-Identifier: MIT\n'
-  printf '// Copyright (c) 2025-2026 eshu-hq\n'
-  printf '\n'
-  printf 'package cypher\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid, kind: row.kind})"\n'
-} >"${mixed_repo}/go/internal/storage/cypher/writer.go"
-git -C "${mixed_repo}" add .
-git -C "${mixed_repo}" commit -q -m 'add SPDX header and tweak hot-path query'
-expect_fail "${mixed_repo}"
-
-# Deletion-only change to an existing hot-path Go file: a real code line is
-# REMOVED with no additions (e.g. dropping a map entry, a query branch, or a
-# retry clause). The file stays hot because other hot-path content remains.
-# The gate must trip: removing hot-path code is a real change that needs
-# evidence. Regression for the removed-line classifier bug -- the case pattern
-# matched the bare "-" character exactly instead of "-"*, so a real "-<code>"
-# removed line fell through both arms and was recorded neither as a comment
-# ("0") nor a code change ("1"), leaving a deletion-only diff wrongly
-# classified comment-only.
-deletion_only_repo="$(init_repo deletion-only)"
-{
-  printf 'package cypher\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-  printf 'const readerQuery = "MATCH (r:Repository {id: $id}) RETURN r"\n'
-} >"${deletion_only_repo}/go/internal/storage/cypher/writer.go"
-git -C "${deletion_only_repo}" add .
-git -C "${deletion_only_repo}" commit -q -m 'baseline hot-path writer with two queries'
-{
-  printf 'package cypher\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${deletion_only_repo}/go/internal/storage/cypher/writer.go"
-git -C "${deletion_only_repo}" add .
-git -C "${deletion_only_repo}" commit -q -m 'remove readerQuery (deletion-only hot-path change)'
-expect_fail "${deletion_only_repo}"
-
-# Multi-file comment-only change across two hot-path Go files. The second
-# file's old-path header ("--- a/.../z_writer.go") is read while the current
-# file is still the first file, so it must be skipped rather than misread as a
-# removed content line -- otherwise it flips the first file to a code change and
-# the gate wrongly trips. Both files change comment-only, so the gate must NOT
-# trip. Regression guard for the "--- a/" header exclusion that the "-"* fix
-# above requires.
-multi_comment_repo="$(init_repo multi-comment-only)"
-{
-  printf 'package cypher\n\n'
-  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${multi_comment_repo}/go/internal/storage/cypher/a_writer.go"
-{
-  printf 'package cypher\n\n'
-  printf 'const zQuery = "UNWIND $rows AS row MERGE (n:Directory {uid: row.uid})"\n'
-} >"${multi_comment_repo}/go/internal/storage/cypher/z_writer.go"
-git -C "${multi_comment_repo}" add .
-git -C "${multi_comment_repo}" commit -q -m 'baseline two hot-path writers'
-{
-  printf '// SPDX-License-Identifier: MIT\n'
-  printf 'package cypher\n\n'
-  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${multi_comment_repo}/go/internal/storage/cypher/a_writer.go"
-{
-  printf '// SPDX-License-Identifier: MIT\n'
-  printf 'package cypher\n\n'
-  printf 'const zQuery = "UNWIND $rows AS row MERGE (n:Directory {uid: row.uid})"\n'
-} >"${multi_comment_repo}/go/internal/storage/cypher/z_writer.go"
-git -C "${multi_comment_repo}" add .
-git -C "${multi_comment_repo}" commit -q -m 'add SPDX header to both (comment-only)'
-expect_pass "${multi_comment_repo}"
-
-# Comment-only change to a hot-path Go file in the SAME commit as a deleted
-# file. git orders "go/..." before "nonhot/...", so the deleted file's
-# new-path header ("+++ /dev/null") and its removed lines are processed while
-# the current file is still the hot file. They must not be attributed to it,
-# which would falsely flip the comment-only hot change to a code change. Gate
-# must NOT trip. Regression guard for the deleted-file _perf_cur reset that the
-# "-"* fix requires.
-deleted_after_comment_repo="$(init_repo deleted-after-comment)"
-mkdir -p "${deleted_after_comment_repo}/nonhot"
-{
-  printf 'package cypher\n\n'
-  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${deleted_after_comment_repo}/go/internal/storage/cypher/a.go"
-printf 'throwaway\nlines\nto delete\n' >"${deleted_after_comment_repo}/nonhot/delete.txt"
-git -C "${deleted_after_comment_repo}" add .
-git -C "${deleted_after_comment_repo}" commit -q -m 'baseline hot writer + deletable non-hot file'
-{
-  printf '// SPDX-License-Identifier: MIT\n'
-  printf 'package cypher\n\n'
-  printf 'const aQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${deleted_after_comment_repo}/go/internal/storage/cypher/a.go"
-rm "${deleted_after_comment_repo}/nonhot/delete.txt"
-git -C "${deleted_after_comment_repo}" add -A
-git -C "${deleted_after_comment_repo}" commit -q -m 'comment-only hot edit + delete non-hot file'
-expect_pass "${deleted_after_comment_repo}"
-
-# Whitespace-only change to a hot-path Go file (no comment, no code): gate
-# must NOT trip because the diff is purely indentation/blank lines.
-whitespace_repo="$(init_repo whitespace-only)"
-{
-  printf 'package cypher\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${whitespace_repo}/go/internal/storage/cypher/writer.go"
-git -C "${whitespace_repo}" add .
-git -C "${whitespace_repo}" commit -q -m 'baseline hot-path file'
-{
-  printf 'package cypher\n'
-  printf '\n'
-  printf '\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${whitespace_repo}/go/internal/storage/cypher/writer.go"
-git -C "${whitespace_repo}" add .
-git -C "${whitespace_repo}" commit -q -m 'add blank line (whitespace-only)'
-expect_pass "${whitespace_repo}"
-
-# Regression: a large hot-path diff must not hang the diff-processing loop.
-# bash 5.3.x hangs indefinitely when a `<<<` here-string feeds the while-read
-# loop once the cached diff crosses a byte threshold; the loop reads its input
-# via process substitution to stay safe. ~1200 real code lines push the cached
-# diff well past the threshold that hangs the here-string form.
-large_diff_repo="$(init_repo large-diff)"
-{
-  printf 'package cypher\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-  for i in $(seq 1 1200); do
-    printf 'const pad%d = "row %d value padding a wide diff payload"\n' "${i}" "${i}"
-  done
-} >"${large_diff_repo}/go/internal/storage/cypher/writer.go"
-git -C "${large_diff_repo}" add .
-git -C "${large_diff_repo}" commit -q -m 'large hot-path diff'
-expect_completes_fail "${large_diff_repo}"
-
-# Regression: the final line of the cached diff must still be processed. The
-# cached diff is captured via command substitution, which strips the trailing
-# newline, so the loop must restore it (printf '%s\n', not '%s'). Here the only
-# real code change is the last diff line (a new const appended after two
-# comment-only additions); if the loop drops that line the file is misread as
-# comment-only and the gate wrongly passes.
-last_line_repo="$(init_repo last-line)"
-{
-  printf 'package cypher\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-} >"${last_line_repo}/go/internal/storage/cypher/writer.go"
-git -C "${last_line_repo}" add .
-git -C "${last_line_repo}" commit -q -m 'baseline hot-path writer'
-{
-  printf '// header comment one\n'
-  printf '// header comment two\n'
-  printf 'package cypher\n'
-  printf 'const writerQuery = "UNWIND $rows AS row MERGE (n:File {uid: row.uid})"\n'
-  printf 'const extra = "another real hot-path line"\n'
-} >"${last_line_repo}/go/internal/storage/cypher/writer.go"
-git -C "${last_line_repo}" add .
-git -C "${last_line_repo}" commit -q -m 'append decisive code on last diff line'
-expect_fail "${last_line_repo}"
-
-# Regression (eshu-hq/eshu#5542): a PR that touches a file which already
-# carries an unrelated, correctly-formatted marker inherited from an earlier
-# PR must not inherit a passing verdict from that untouched marker. Split
-# into its own file to keep this one under the repo's 500-line file cap.
-"${repo_root}/scripts/test-verify-performance-evidence-inherited-marker.sh"
-
-# Regression (eshu-hq/eshu#5542 P0 follow-up): exercises the actual CI base
-# resolution path (GITHUB_BASE_REF -> origin/$GITHUB_BASE_REF), which every
-# test above bypasses via ESHU_PERFORMANCE_EVIDENCE_BASE. Split into its own
-# file to keep this one under the repo's 500-line file cap.
-"${repo_root}/scripts/test-verify-performance-evidence-ci-base.sh"
-
-# Regression: a marker that IS in the diff's added lines must be found even
-# when the evidence block is large and the marker is not on the last line. The
-# old `printf | rg -q` pipe lost rg's exit status to printf's SIGPIPE under
-# pipefail and reported the marker missing. Split into its own file to keep
-# this one under the repo's 500-line cap.
-"${repo_root}/scripts/test-verify-performance-evidence-large-marker.sh"
-
-# Regression: with neither ESHU_PERFORMANCE_EVIDENCE_BASE nor GITHUB_BASE_REF
-# set -- the shape of a local `make pre-pr` run, which every test above bypasses
-# -- the base must be the merge base with origin/main, not HEAD~1. A HEAD~1
-# base scopes the gate to the last commit, so a branch whose hot-path change
-# sits in an earlier commit and whose tip commit is innocuous passed with no
-# evidence at all. Split into its own file to keep this one under the repo's
-# 500-line cap.
-"${repo_root}/scripts/test-verify-performance-evidence-merge-base.sh"
-
-# Regression (eshu-hq/eshu#7134): an explicit base SHA that is absent from a
-# shallow PR-merge checkout (main moved before the job started) must resolve
-# to HEAD^1 on a pull_request event, be fetched otherwise, and fail with an
-# actionable message when unfetchable -- never die with `bad object`. Split
-# into its own file to keep this one under the repo's 500-line cap.
-"${repo_root}/scripts/test-verify-performance-evidence-missing-base.sh"
-
-# Regression (eshu-hq/eshu#8048): resolving a base over the network -- the
-# GITHUB_BASE_REF branch fetch and the explicit-base SHA fetch -- must not
-# change the depth of a complete checkout. Split into its own file to keep
-# this one under the repo's 500-line cap.
-"${repo_root}/scripts/test-verify-performance-evidence-shared-shallow.sh"
-
-# Workflow-artifact pointers (#9315) satisfy the gate without committed records.
-"${repo_root}/scripts/test-verify-performance-evidence-workflow-artifact.sh"
-
-printf 'verify-performance-evidence tests passed\n'
+printf 'test-verify-performance-evidence: all cases passed\n'

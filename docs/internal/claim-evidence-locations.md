@@ -17,29 +17,28 @@ marketing-damaging false negative.
 The evidence found MUST substantiate the specific tier the claim asserts —
 this does NOT license retaining a top-tier claim on lower-tier proof. A
 `production` / deployed-tier `supported` claim needs deployed evidence: a
-committed `docs/internal/remote-validation/<slug>.md` production artifact, a
-`scripts/run-remote-e2e-*` / compose driver, or a live-backend
-`docs/internal/evidence/*.md` — NOT merely a local unit test that only
+committed remote-validation proof, a `scripts/run-remote-e2e-*` / compose
+driver, or a linked CI workflow run — NOT merely a local unit test that only
 exercises a lower profile. When matching-tier evidence genuinely exists,
 VALIDATE (wire the pointer to it), keep the claim, and confirm with the owner
 before any bulk change. When it does NOT, take the action the remote-validation
-contract already mandates: commit the matching deployed-validation artifact, or
+contract already mandates: record the matching deployed-validation proof, or
 downgrade the claim to the tier its committed evidence actually supports. Never
 retain a `production:supported` matrix row (or a GA `product-claims` maturity)
 whose sole committed evidence is a lower-tier test.
 
 Committed validation evidence lives in:
 
-- `docs/internal/evidence/*.md` — concise, plain-English validation summaries
-  (see `docs/internal/evidence/README.md`). Never commit raw `.txt`/`.sql`/`.tsv`
-  run dumps or `*-raw/` directories here; raw EXPLAIN plans and timing logs
-  belong in untracked local scratch during review or in GitHub Actions workflow
-  artifacts.
-- `docs/internal/remote-validation/<slug>.md` — production-validation artifacts
-  for capability-matrix `remote_validation` proof-IDs (#5407 gate).
+- `docs/internal/remote-validation/<slug>.md` (scheduled for consolidation into
+  `specs/` under #11639) — production-validation records for capability-matrix
+  `remote_validation` proof-IDs (#5407 gate).
 - `go/internal/**/*_test.go` (e.g. `internal/query`, `internal/mcp`) — the
   `go_test` suites the matrix local profiles cite.
 - `scripts/run-remote-e2e-*.sh` plus `docs/public/run-locally/docker-compose.*.yaml`
   — deployed / e2e drivers (the matrix `compose_e2e` evidence kind).
 - `testdata/cassettes/` and `testdata/golden/e2e-20repo-snapshot.json` (the B-12
   golden snapshot) — replay/golden evidence.
+
+Point-in-time PR proofs, shims, probes, and raw `EXPLAIN`/timing outputs belong
+in GitHub PR descriptions and CI workflow artifacts, never in git
+(`scripts/verify-no-ephemeral-docs.sh`).

@@ -47,15 +47,14 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `go-fmt` (`golangci-lint fmt --diff`) | commit | the gofumpt formatting gate |
 | `go-lint` (`golangci-lint run`) | commit | the `Lint Go` gate (errcheck, staticcheck, …) |
 | `go-file-cap` | commit | the 500-line file cap (the `filelength` plugin) |
+| `no-ephemeral-docs` | commit | `verify-no-ephemeral-docs.sh` — blocks new files under `docs/internal/evidence/`, `docs/internal/arbiter/`, `docs/superpowers/`, `docs/plans/`, `go/**/evidence-*.md`, and newly added PR evidence markers in `go/**/*.md` |
 | `go-package-docs` | commit | `verify-package-docs.sh` (new packages need doc.go/README.md/AGENTS.md) |
 | `capability-surface-inventory` | commit | the `surface_stale` drift gate (run the generator after catalog/command changes) |
 | `go-gosec` | **push** | the gosec security gate on the changed packages. Also in `make pre-push` as `gosec-changed` (#8326), so it runs twice per push (0.3-8 s for changed packages; a change to a trigger file such as `go/go.mod` scans the whole module, 40-85 s). Fails closed (#8335): a non-zero gosec exit (143 is SIGTERM), a missing, empty or unparsable result, zero files scanned, a scanned file count that differs from `go list`, or a package with Go errors fails the run. |
-| `go-perf-evidence` | **push** | the hot-path performance-evidence gate (a change under storage/cypher, storage/postgres, collector, reducer, query, runtime, workers, or queues needs a tracked No-Regression / No-Observability marker in an `evidence-*.md` / README / AGENTS file). Diffs the branch against origin/main, so it runs at push time; needs bash ≥ 4. |
 | `go-telemetry-coverage` | **push** | the telemetry-coverage gate (a new metric or pipeline stage must be reflected in `docs/public/observability/telemetry-coverage.md`, and the doc must not drift from `instruments.go`). Diffs the branch against origin/main. |
 | `console-e2e` | **push** | the `Console (apps/console)` per-page e2e gate (`console:e2e:mock`): boots a Vite dev server + headless Chromium and renders all 84 console routes. Catches blank-rendering pages and stale e2e selectors that the unit suite (`console:test`) cannot. Runs only when a file under `apps/console/` changed; installs Chromium idempotently. Bypass with `ESHU_SKIP_CONSOLE_E2E=1` (logged, not silent). |
 | `docs-build-changed` | **push** | the docs build (`mkdocs build --strict` on changed docs/navigation/project-guidance files). Bounded by `ESHU_DOCS_BUILD_TIMEOUT_SECONDS` (default 600); fails closed past the bound (#7983). |
 | `frontend-format-changed` | **push** | the changed-file Prettier check (frontend.yml mirror). Advisory (`--advisory`): drift and a missing `node_modules/prettier` print `format: advisory:` and never fail the push; the script runs strict in CI, but that CI job is advisory (#8355). |
-| `go-measurement-citations` | **push** | the measurement-ledger citation gate (new `<N>/<M> trials` or `Measurement:` claims must cite `docs/internal/measurements.jsonl`). |
 
 The lint/format/gosec hooks run only on the **changed packages**, so a normal
 commit is fast. `golangci-lint` runs against a config copy with the custom

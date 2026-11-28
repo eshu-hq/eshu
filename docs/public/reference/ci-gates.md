@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (45 gates)
+### Hygiene: Is the change well-formed? (44 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -83,8 +83,7 @@ results are derived from the inputs rather than written by hand. See
 - `docker-image-promotion` (advisory): Promotes the pushed per-commit digest to the moving main/latest tags behind an ancestry guard, after publish.
 - `cgo-cflags-guard` (blocking): Fails when a Go workflow, CGO_ENABLED=1 go script, or developer entrypoint lacks CGO_CFLAGS -std=gnu17, which keeps the perl grammar building on GCC 15 (#9066).
 - `nornicdb-ci-off` (blocking): Fails when a live CI job starts NornicDB, directly or via a script or composite action, or a disabled job keeps a blocking registry row (owner order, #7331).
-- `evidence-hygiene` (blocking): Keeps docs/internal/evidence/ free of raw dumps and enforces a plain-English summary and 150-line cap on new notes.
-- `root-cause-evidence` (advisory): Advisory local scan checking that any documented root-cause claim also records the observation that established it.
+- `no-ephemeral-docs` (blocking): Prevents new ephemeral evidence, arbiter, plan, or go/**/evidence-*.md files and rejects newly added PR evidence markers in go/**/*.md.
 - `codex-goal-continuation` (blocking): Exercises Codex Stop-hook error continuation and per-session goal progress handling.
 
 ### Unit: Does the code do what its tests say? (6 gates)
@@ -166,7 +165,7 @@ results are derived from the inputs rather than written by hand. See
 
 - `query-plan-regression` (blocking): Runs a live Neo4j PROFILE proof plus manifest-binding tests to catch query-plan regressions and index misses.
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
-- `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
+- `perf-evidence` (blocking): Requires hot-path PRs to record performance and observability markers in the GitHub PR description rather than committed Markdown files.
 
 ### Secondary: What do we watch without blocking a merge? (11 gates)
 
@@ -298,9 +297,8 @@ results are derived from the inputs rather than written by hand. See
 | `docker-publish` | Docker image publication | release | manual | false | — (CI-only: post-merge publication requires registry push credentials and cannot block its own merge) | docker-publish.yml / build-and-push-image | 4 path(s): go/**, Dockerfile, docker/satellites/**, … |
 | `satellite-gates` | Satellite digest gates hold for every satellite x arch | exactness | ci-heavy | true | — (CI-only: multi-arch image builds (including emulated whisper builds) run CI-only; the pins and floors are proven locally by the digest-gate builds and floor audits before merge) | docker-publish.yml / verify-satellite-gates | 7 path(s): docker/satellites/ocr/Dockerfile, docker/satellites/transcription/Dockerfile, docker/satellites/README.md, … |
 | `macos-build` | macOS build verification (nightly) | build | ci-heavy | false | — (CI-only: requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~30 macOS-min/day for the single nightly run)) | macos.yml / macos | 2 path(s): go/**, scripts/ci/go-mod-download-retry.sh |
-| `evidence-hygiene` | Internal evidence folder hygiene (Markdown-only, concise, no local links) | exactness | pre-commit | true | `bash scripts/verify-evidence-hygiene.sh`<br>then self-test: `bash scripts/test-verify-evidence-hygiene.sh` | test.yml / docs-helm-hygiene | 4 path(s): docs/internal/evidence/**, scripts/verify-evidence-hygiene.sh, scripts/test-verify-evidence-hygiene.sh, … |
-| `root-cause-evidence` | Root-cause claims carry observed evidence | exactness | pre-pr | false | `bash scripts/verify-root-cause-evidence.sh`<br>then self-test: `bash scripts/test-verify-root-cause-evidence.sh` | — | 7 path(s): docs/internal/evidence/**, scripts/verify-root-cause-evidence.sh, scripts/test-verify-root-cause-evidence.sh, … |
-| `perf-evidence` | Hot-path performance evidence | telemetry | pre-push | true | `bash scripts/dev/precommit-go.sh perf-evidence`<br>then self-test: `bash scripts/test-verify-performance-evidence.sh` | test.yml / verify-contracts | 24 path(s): go/cmd/reducer/**, go/internal/storage/**, go/internal/reducer/**, … |
+| `no-ephemeral-docs` | Block new ephemeral docs and go/**/*.md PR evidence markers | exactness | pre-commit | true | `bash scripts/verify-no-ephemeral-docs.sh`<br>then self-test: `bash scripts/test-verify-no-ephemeral-docs.sh` | test.yml / docs-helm-hygiene | 8 path(s): docs/internal/evidence/**, docs/internal/arbiter/**, docs/superpowers/**, … |
+| `perf-evidence` | Hot-path performance evidence (PR body) | telemetry | pre-pr | true | `bash scripts/verify-performance-evidence.sh`<br>then self-test: `bash scripts/test-verify-performance-evidence.sh` | test.yml / verify-contracts | 11 path(s): go/cmd/reducer/**, go/internal/storage/**, go/internal/reducer/**, … |
 | `product-claim-ledger` | Product Claim Ledger (deterministic verify) | exactness | pre-pr | true | `cd go && go run ./cmd/capability-inventory -mode product-claims` | product-claim-ledger.yml / Verify product claim ledger | 5 path(s): specs/product-claims.v1.yaml, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml, … |
 | `replay-tier` | Replay tier (offline cassette replay) | exactness | ci-heavy | true | `bash scripts/verify-replay-tier.sh`<br>then self-test: `bash scripts/test-verify-replay-tier.sh` | verify-replay-tier.yml / Offline replay tier vs real Neo4j | 28 path(s): scripts/lib/ci-gates-resolved-fixtures.sh, go/cmd/ingester/**, go/cmd/projector/**, … |
 | `go-test-race` | Go tests with race detector | race | pre-pr | true | `cd go && go test -race -count=1 -timeout 300s ./internal/replay/inputtape/... ./internal/replay/schedulereplay/... ./internal/replay/crashreplay/... ./internal/replay/concurrentreplay/... ./internal/replay/costcounting/...` | test.yml / go-race-complete | 6 path(s): go/internal/replay/inputtape/**, go/internal/replay/schedulereplay/**, go/internal/replay/crashreplay/**, … |
@@ -308,7 +306,6 @@ results are derived from the inputs rather than written by hand. See
 | `codex-goal-continuation` | Codex goal continuation hook behavior | hygiene | pre-pr | true | `bash scripts/test-codex-goal-continue-hook.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 6 path(s): .agent-kit-version, scripts/ci/install-eshu-agent-kit.sh, scripts/test-codex-goal-continue-hook.sh, … |
 | `ghcr-buildcache-prune-run` | GHCR build cache prune (daily) | hygiene | ci-heavy | false | — (CI-only: scheduled delete against the live GHCR package with packages: write; the blocking ghcr-buildcache-prune row runs its hermetic self-test) | ghcr-buildcache-prune.yml / GHCR build cache prune | 2 path(s): .github/workflows/ghcr-buildcache-prune.yml, scripts/ci/prune-ghcr-buildcache.sh |
 | `gha-codeql-cache-prune-run` | GHA CodeQL cache prune (daily) | hygiene | ci-heavy | false | — (CI-only: scheduled delete against the live Actions cache API with actions: write; scripts/ci/test-prune-gha-codeql-caches.sh and scripts/ci/test-prune-gha-go-caches.sh exercise the selection and fail-closed contracts hermetically) | gha-codeql-cache-prune.yml / GHA CodeQL cache prune | 5 path(s): .github/workflows/gha-codeql-cache-prune.yml, scripts/ci/prune-gha-codeql-caches.sh, scripts/ci/test-prune-gha-codeql-caches.sh, … |
-| `go-measurement-citations` | *(alias — local pre-commit measurement-citation hygiene hook; retired from automatic CI static-contract-gates)* | — | — | — | — | — | — |
 | `codex-spawn-guard` | *(alias — pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI)* | — | — | — | — | — | — |
 | `goal-role-routing` | *(alias — pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow)* | — | — | — | — | — | — |
 | `no-ai-attribution-message` | *(alias — commit-msg-stage variant of the no-ai-attribution gate (same check, different stage))* | — | — | — | — | — | — |

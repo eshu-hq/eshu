@@ -155,8 +155,11 @@ report these separately:
 
 Hot-path changes touching Cypher, graph writes, reducers, projectors, queues,
 workers, leases, batching, runtime stages, collectors, Compose, Helm, pprof, or
-NornicDB knobs must update a tracked repo file with one benchmark marker and
-one observability marker:
+NornicDB knobs must include one benchmark marker and one observability marker
+in the **GitHub PR description** (enforced in CI by
+`scripts/verify-performance-evidence.sh`; never commit ephemeral evidence files
+or append PR markers to `go/**/README.md`, enforced by
+`scripts/verify-no-ephemeral-docs.sh`):
 
 - `Performance Evidence:`
 - `Benchmark Evidence:`
@@ -164,10 +167,10 @@ one observability marker:
 - `Observability Evidence:`
 - `No-Observability-Change:`
 
-PR text alone is not proof; review requires the exact command or measurement.
-Prefer updating the owning package doc, an ADR, or a `workflow-artifact:` ref
-over creating new files in `docs/internal/evidence/` (see
-`docs/internal/evidence/README.md`; never commit raw `.txt`/`.sql` dumps).
+Claims without commands or measurements are not proof; review requires the
+exact command or measurement in the PR body (with raw `EXPLAIN` plans and
+timing logs in CI workflow artifacts, not git). Durable architecture invariants
+belong in `go/<pkg>/README.md` or `docs/public/decisions/`.
 
 The five evidence markers above are the per-PR audit trail. Telemetry discipline
 (X1 doc, X2 verifier, X3 CI gate, X4 dashboard) links markers to runnable
@@ -364,11 +367,11 @@ NOT reformat the whole changed set in one commit; commit the pure reformat
 first (formatting-only, verifiable with `--list-different`), then the real
 change on top. Never `--no-verify` past a format hook.
 
-## Measurement Ledger
+## Measurement Provenance
 
-Cite a `docs/internal/measurements.jsonl` row id (`ledger:<id>`) instead of
-restating a number; `scripts/verify-measurement-citations.sh` enforces it.
-See [Measurement Ledger](measurement-ledger.md) for schema and gate details.
+Record numeric measurements (benchmark timings, trial counts, before/after
+tables) in the PR body or CI workflow artifacts with the exact command and
+commit SHA. Do not commit ephemeral measurement notes or ledgers to git.
 
 ## API, MCP, And Query Reads
 

@@ -318,7 +318,7 @@ without it falls back to the later steps in that order.
 The same rule covers the other diff-scoped gates. On a `pull_request` run
 `verify-moved-file-refs.sh`, `verify-parser-relationship-kit.sh`,
 `verify-route-coverage.sh`, `verify-telemetry-coverage.sh`,
-`verify-root-cause-evidence.sh`, and the Markdown and tooling line-cap ledger
+`verify-no-ephemeral-docs.sh`, and the Markdown and tooling line-cap ledger
 checks all follow the merge ref's first parent. Local runs keep their existing
 base, and an explicit base override or variable still wins. The docker-publish
 lane selector diffs the PR head against its branch point (the merge base with

@@ -385,9 +385,11 @@ earlier run. See
 [Agent Engineering Guide](docs/internal/agent-guide.md#evidence-capture-pitfalls)
 for the false-green incidents behind both rules.
 
-Do not accept a PR on explanation alone. A code change MUST prove the code works
-with focused tests or an integration gate. A runtime-affecting change MUST
-include performance proof or a no-regression measurement for the touched path.
+A runtime-affecting change MUST record its performance/no-regression and
+observability evidence in the **PR description** (never in ephemeral files
+under `docs/internal/evidence/`, `go/**/evidence-*.md`, or appended to
+`go/**/README.md`). Raw `EXPLAIN` plans and timing logs belong in CI workflow
+artifacts, not git.
 
 ## Claim Evidence Lives In Known Locations
 
@@ -397,12 +399,12 @@ capability, maturity, or support claim as "unvalidated" (especially a
 committed-evidence location in
 [Claim Evidence Locations](docs/internal/claim-evidence-locations.md). The
 evidence MUST support the tier the claim asserts. A deployed-tier claim needs
-deployed evidence: a remote-validation artifact, a `scripts/run-remote-e2e-*` or
-compose driver, or a live-backend evidence note. A local unit test is not enough.
+deployed evidence: a remote-validation proof, a `scripts/run-remote-e2e-*` or
+compose driver, or a verified live CI run. A local unit test is not enough.
 If matching-tier evidence exists, VALIDATE (wire the pointer to it), keep the
 claim, and confirm with the owner before any bulk change. If it does not exist,
-commit the matching deployed-validation artifact, or downgrade the claim to the
-tier its evidence supports.
+commit the matching deployed-validation proof, or downgrade the claim to the
+tier its committed evidence supports.
 
 ## Serialization Is Not A Fix
 
@@ -421,6 +423,20 @@ the write path, partition by conflict key, or make the write idempotent under
 concurrent execution.
 
 ## Documentation Discipline
+
+Before writing or editing documentation, load the governing documentation skills
+so prose stays legible and free of slop (enforced by the `skill-nudge` hook):
+
+- **`docs/public/**` or `docs/internal/**`:** load **`publish`** for the
+  plain-English, anti-slop writing standard, and follow
+  [Documentation Style Guide](docs/public/documentation-style-guide.md)
+  (Diátaxis page types, `docs/mkdocs.yml` nav) for public pages or
+  [Writing For Agents](docs/internal/writing-for-agents.md) for maintainer guides.
+- **`go/**/{doc.go,README.md,AGENTS.md}`:** load **`folder-doc-keeper`** and
+  **`publish`** (wording rules). Keep package docs focused on durable contracts
+  and architecture; never append PR evidence markers.
+- **Unfamiliar architecture or diagrams:** load **`explain`** or **`show-me`**
+  so explanations trace real git/code history and use concise visuals.
 
 Every code PR that touches user-visible wire contracts, CLI flags, environment
 variables, runtime profiles, capability ports, collector contracts, or chunk
@@ -482,7 +498,7 @@ check commands, see
 
 ## Orchestration, PR, And CI Discipline
 
-- For substantive implementation, review, and research, the orchestrator MUST use bounded subagents/workflows on two or more independent lanes (or record why inline is correct); single-lane work stays inline. On Muse this overrides the built-in inline preference (native spawns apply each definition's manifest model; workflow children take it per call), per the tier map in [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools). A subagent never downgrades its own model. Leaf agents do not dispatch. After every `gh pr create`, arm the CI watcher in the same turn (GHA failures, merge conflicts, any-author reviews/comments; `eshu-session-lifecycle` babysit-prs). NEVER request a GitHub Copilot review. Every issue created during a goal is captured in the goal's issue ledger and worked in that goal: the Stop hook refuses `DONE` while one is open without a `DEFER: #N <arbiter ruling path>` line ([Issue Capture Hooks](docs/internal/agent-hooks-issues.md)). Give it an existing label and link its epic when one exists (`eshu-issue-driver`). Before you file, fix what fits the files this PR already changes and search open issues for the same problem; each issue is one problem (`eshu-issue-driver`, "Before You File An Issue").
+- For substantive implementation, review, and research, the orchestrator MUST use bounded subagents/workflows on two or more independent lanes (or record why inline is correct); single-lane work stays inline. On Muse this overrides the built-in inline preference (native spawns apply each definition's manifest model; workflow children take it per call), per the tier map in [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools). A subagent never downgrades its own model. Leaf agents do not dispatch. After every `gh pr create`, arm the CI watcher in the same turn (GHA failures, merge conflicts, any-author reviews/comments; `eshu-session-lifecycle` babysit-prs). NEVER request a GitHub Copilot review. Every issue created during a goal is captured in the goal's issue ledger and worked in that goal: the Stop hook refuses `DONE` while one is open without a `DEFER: #N <github-issue-comment-url>` line ([Issue Capture Hooks](docs/internal/agent-hooks-issues.md); never commit arbiter ruling files to git). Give it an existing label and link its epic when one exists (`eshu-issue-driver`). Before you file, fix what fits the files this PR already changes and search open issues for the same problem; each issue is one problem (`eshu-issue-driver`, "Before You File An Issue").
 - Only the **orchestrator** runs `make pre-push`, once per PR, immediately
   before the push that opens it. It runs `make pre-pr` or `make pre-pr-full` only
   for a package move, a CI red it must reproduce, or when the owner asks.

@@ -45,16 +45,18 @@ proven bug surface (see "The two hooks must decide alike" in
 new branch in both hooks.
 
 ```text
-owner/repo#N <created-iso> <open|closed|deferred> [<ruling path>]
-DEFER: [owner/repo]#N <ruling path>
+owner/repo#N <created-iso> <open|closed|deferred> [<ruling url or path>]
+DEFER: [owner/repo]#N <ruling url or path>
 ```
 
 The first form is a record. The second is written by the agent to ask for a
-deferral and is consumed by the next check, which rewrites the matching record to
-`deferred <path>`. Lines that match neither form are ignored and kept. Writers
-take a lock file beside the ledger (`<ledger>.lock`, gitignored with the rest of
-`.claude/`), because parallel subagents capture while the lead's Stop hook
-rewrites.
+deferral—preferring a GitHub issue comment URL for that issue
+(`https://github.com/<owner>/<repo>/issues/<N>#issuecomment-<id>`) so arbiter
+rulings stay on GitHub instead of committed repo files—and is consumed by the
+next check, which rewrites the matching record to `deferred <target>`. Lines
+that match neither form are ignored and kept. Writers take a lock file beside
+the ledger (`<ledger>.lock`, gitignored with the rest of `.claude/`), because
+parallel subagents capture while the lead's Stop hook rewrites.
 
 ## What counts as "created an issue"
 

@@ -32,6 +32,7 @@ runs:
       if: ${{ inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'perf-evidence') }}
       env:
         ESHU_PERFORMANCE_EVIDENCE_BASE: ${{ github.event.pull_request.base.sha }}
+        ESHU_PERFORMANCE_EVIDENCE_PR_BODY: ${{ github.event.pull_request.body }}
       shell: bash
       run: |
         scripts/test-verify-performance-evidence.sh
