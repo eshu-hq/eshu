@@ -122,7 +122,7 @@ func historySummaryMutants() []historySummaryMutant {
 			{historyDetailSix, without(historyDetailSix, "retrying")},
 		}},
 		{name: "drop the stale-generation predicate", replacements: [][2]string{
-			{"    AND work.generation_id <> scope_state.active_generation_id\n", "    AND FALSE\n"},
+			{"        AND work.generation_id <> scope_state.active_generation_id\n", "        AND FALSE\n"},
 		}},
 		{name: "join history generations without the scope key", replacements: [][2]string{
 			{historyJoinKey, "    ON stale_generation.generation_id = status_group.generation_id"},

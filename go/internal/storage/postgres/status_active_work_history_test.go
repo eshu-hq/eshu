@@ -30,7 +30,9 @@ func TestActiveWorkSummaryOracleIsThePinnedBaseline(t *testing.T) {
 // compare packet refuses to run when its text hashes differently (#7009
 // arbiter ruling S4 D3 C1, S5 D5.4). Any edit to the statement must re-pin
 // this with the re-rendered SHA-256 and rerun the oracle differential.
-const activeWorkSummaryQuerySHA256 = "6e65c3d1435d4e0fdeceab31e5ba0ecdb74b6c60cb22a59c3ba163c9d56c01de"
+// Re-pinned for #11703's NULL-active superseded generation arm in
+// activeFactWorkItemsScopeJoinWhere.
+const activeWorkSummaryQuerySHA256 = "bd3f2b27b6c75dfc689a67e46f44495c95d7e1e3ec861774c15fcfc3e708e552"
 
 // TestActiveWorkSummaryQueryIsThePinnedRender keeps the calibrated production
 // statement equal to the reviewed render.
@@ -115,17 +117,20 @@ func TestActiveWorkSummaryDiffersFromOracleOnlyInHistoryGroups(t *testing.T) {
 }
 
 // activeWorkStatusPredicate matches one status predicate on a column named
-// exactly status: its operator and its literal or literal list.
-var activeWorkStatusPredicate = regexp.MustCompile(`\bstatus\s*(NOT\s+IN|IN|=|<>|!=)\s*(\([^)]*\)|'[^']*')`)
+// status (with optional table alias): its qualifier, operator, and literal or
+// literal list.
+var activeWorkStatusPredicate = regexp.MustCompile(`(?:([a-z_]+)\.)?\bstatus\s*(NOT\s+IN|IN|=|<>|!=)\s*(\([^)]*\)|'[^']*')`)
 
-// checkSectionStatusesWithinDetail requires every status predicate a summary
-// section applies, outside the grouped history CTEs and succeeded_count, to
-// name only activeWorkDetailStatuses with IN or =. In the grouped branch a
-// section that read any other status from active_fact_work_items would see
-// no rows since #7009, because only grouped history counts them.
-// succeeded_count is exempt: it sums grouped history and the detail branch's
-// succeeded rows, one of which is empty. It returns the number of predicates
-// checked.
+// checkSectionStatusesWithinDetail requires every work-row status predicate a
+// summary section applies, outside the grouped history CTEs and
+// succeeded_count, to name only activeWorkDetailStatuses with IN or =.
+// Predicates on stale_generation.status (scope_generations.status, #11703) are
+// exempt because they inspect the generation lifecycle, not fact_work_items.status.
+// In the grouped branch a section that read any other work status from
+// active_fact_work_items would see no rows since #7009, because only grouped
+// history counts them. succeeded_count is exempt: it sums grouped history and
+// the detail branch's succeeded rows, one of which is empty. It returns the
+// number of predicates checked.
 func checkSectionStatusesWithinDetail(query string) (int, error) {
 	sections := query
 	for _, history := range []string{activeWorkSummaryHistoryCTEs, historySucceededSource, historySucceededDetail} {
@@ -139,17 +144,22 @@ func checkSectionStatusesWithinDetail(query string) (int, error) {
 		detail[status[1]] = true
 	}
 	matches := activeWorkStatusPredicate.FindAllStringSubmatch(sections, -1)
+	checked := 0
 	for _, m := range matches {
-		if op := strings.Join(strings.Fields(m[1]), " "); op != "IN" && op != "=" {
+		if m[1] == "stale_generation" {
+			continue
+		}
+		checked++
+		if op := strings.Join(strings.Fields(m[2]), " "); op != "IN" && op != "=" {
 			return 0, fmt.Errorf("section predicate %q excludes statuses; it can read history rows the detail CTE no longer holds", m[0])
 		}
-		for _, status := range regexp.MustCompile(`'([^']*)'`).FindAllStringSubmatch(m[2], -1) {
+		for _, status := range regexp.MustCompile(`'([^']*)'`).FindAllStringSubmatch(m[3], -1) {
 			if !detail[status[1]] {
 				return 0, fmt.Errorf("section predicate %q reads status %q outside activeWorkDetailStatuses %s", m[0], status[1], activeWorkDetailStatuses)
 			}
 		}
 	}
-	return len(matches), nil
+	return checked, nil
 }
 
 // TestActiveWorkSummarySectionStatusesStayWithinDetailStatuses is the

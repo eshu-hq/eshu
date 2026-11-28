@@ -55,7 +55,7 @@ func TestCrossplaneCoalesceSweepShape(t *testing.T) {
 		"carrier.generation_id DESC",
 		// Locked active-generation carriers are never themselves
 		// superseded.
-		"AND stale.generation_id <> scope.active_generation_id",
+		"AND stale.generation_id IS DISTINCT FROM scope.active_generation_id",
 		// The UPDATE supersedes a Crossplane row only against the locked
 		// set's newest carrier, strictly newer in activation order.
 		"AND (stale.domain <> 'crossplane_satisfied_by_materialization'",
@@ -72,7 +72,7 @@ func TestCrossplaneCoalesceSweepShape(t *testing.T) {
 	if strings.Contains(cte, "carrier.updated_at") || strings.Contains(cte, "sibling.updated_at") {
 		t.Errorf("carrier ordering must not use updated_at:\n%s", cte)
 	}
-	if !strings.Contains(cte, "WHERE ("+predicate+")") {
+	if !strings.Contains(cte, "AND (("+predicate+")") {
 		t.Fatal("sweep lock step must carry the full supersede predicate for the EvalPlanQual recheck")
 	}
 }

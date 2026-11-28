@@ -56,7 +56,7 @@ stale_gate_rows AS MATERIALIZED (
     WHERE work.stage = 'reducer'
       AND work.status IN ('pending', 'retrying')
       AND ($2::text[] IS NULL OR work.domain = ANY($2::text[]))
-      AND work.generation_id <> work_scope.active_generation_id
+      AND work.generation_id IS DISTINCT FROM work_scope.active_generation_id
 ),
 stale_reducer_candidates AS MATERIALIZED (
     SELECT stale.work_item_id
@@ -64,9 +64,10 @@ stale_reducer_candidates AS MATERIALIZED (
     CROSS JOIN LATERAL (
         SELECT scope.scope_id,
                scope.active_generation_id,
+               active_generation.generation_id AS present_active_generation_id,
                active_generation.ingested_at AS active_ingested_at
         FROM ingestion_scopes AS scope
-        JOIN scope_generations AS active_generation
+        LEFT JOIN scope_generations AS active_generation
           ON active_generation.generation_id = scope.active_generation_id
          AND active_generation.scope_id = scope.scope_id
         WHERE scope.scope_id = stale.scope_id
@@ -78,16 +79,19 @@ stale_reducer_candidates AS MATERIALIZED (
     WHERE stale.stage = 'reducer'
       AND stale.status IN ('pending', 'retrying')
       AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))
-      AND stale.generation_id <> scope.active_generation_id
       AND (
-        stale_generation.ingested_at < scope.active_ingested_at
-        OR (
-          stale_generation.ingested_at = scope.active_ingested_at
-          AND stale_generation.generation_id < scope.active_generation_id
-        )
-      )
-      AND (
-        NOT EXISTS (
+        (
+          scope.present_active_generation_id IS NOT NULL
+          AND stale.generation_id <> scope.active_generation_id
+          AND (
+            stale_generation.ingested_at < scope.active_ingested_at
+            OR (
+              stale_generation.ingested_at = scope.active_ingested_at
+              AND stale_generation.generation_id < scope.active_generation_id
+            )
+          )
+          AND (
+            NOT EXISTS (
           SELECT 1
           FROM reducer_claim_readiness_requirements AS supersede_readiness_req
           WHERE supersede_readiness_req.domain = stale.domain
@@ -106,7 +110,7 @@ stale_reducer_candidates AS MATERIALIZED (
                   AND supersede_readiness_phase.phase = supersede_readiness_req.phase
             )
       )
-        OR NOT EXISTS (
+            OR NOT EXISTS (
           SELECT 1
           FROM reducer_claim_readiness_requirements AS supersede_active_readiness_req
           WHERE supersede_active_readiness_req.domain = stale.domain
@@ -125,6 +129,12 @@ stale_reducer_candidates AS MATERIALIZED (
                   AND supersede_active_readiness_phase.phase = supersede_active_readiness_req.phase
             )
       )
+          )
+        )
+        OR (
+          scope.active_generation_id IS NULL
+          AND stale_generation.status = 'superseded'
+        )
       )
       AND NOT (
         stale.domain = 'supply_chain_impact'

@@ -142,6 +142,11 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_unstamped_redrive_10972_live_test.go": (
             "Test10972UnstampedRedriveLive",
         ),
+        "go/internal/storage/postgres/reducer_superseded_null_active_11703_live_test.go": (
+            "TestReducerSupersededNullActiveClaimAndSweepLive",
+            "TestReducerSupersededNullActiveEvalPlanQualAndConcurrencyLive",
+            "TestActiveFactWorkItemsNullActiveSupersededParityLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_ack_contention_live_test.go": (
             "TestWaitingAckParkContentionLive",
         ),

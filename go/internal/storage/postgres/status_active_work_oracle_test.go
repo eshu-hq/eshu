@@ -85,13 +85,21 @@ active_fact_work_items AS MATERIALIZED (
   WHERE NOT (
     work.stage = 'reducer'
     AND work.status IN ('pending', 'retrying', 'failed', 'dead_letter')
-    AND scope_state.present_active_generation_id IS NOT NULL
-    AND work.generation_id <> scope_state.active_generation_id
     AND (
-      stale_generation.ingested_at < scope_state.active_ingested_at
+      (
+        scope_state.present_active_generation_id IS NOT NULL
+        AND work.generation_id <> scope_state.active_generation_id
+        AND (
+          stale_generation.ingested_at < scope_state.active_ingested_at
+          OR (
+            stale_generation.ingested_at = scope_state.active_ingested_at
+            AND stale_generation.generation_id < scope_state.present_active_generation_id
+          )
+        )
+      )
       OR (
-        stale_generation.ingested_at = scope_state.active_ingested_at
-        AND stale_generation.generation_id < scope_state.present_active_generation_id
+        scope_state.active_generation_id IS NULL
+        AND stale_generation.status = 'superseded'
       )
     )
   )
@@ -427,5 +435,7 @@ SELECT 'failure', ordinal, section_json::text FROM active_work_failure
 ORDER BY section, ordinal
 `
 
-// activeWorkSummaryPreHistoryGroupsOracleSHA256 pins the oracle text.
-const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "c1079cc0e2d433c92e4cb0cebbc3ac23a71a44266d927204889283178e2da8c5"
+// activeWorkSummaryPreHistoryGroupsOracleSHA256 pins the oracle text
+// (re-derived for #11703's NULL-active superseded generation arm in
+// activeFactWorkItemsScopeJoinWhere).
+const activeWorkSummaryPreHistoryGroupsOracleSHA256 = "4f3283a621504b93d2fea8a6e98666e3997439cb5885e7efc1370e87b0c28c6d"

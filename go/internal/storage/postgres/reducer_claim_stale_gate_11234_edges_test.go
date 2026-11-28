@@ -131,9 +131,13 @@ VALUES ($1, $2, $3, $3, 'cloud_resource_uid', 'canonical_nodes_committed', $4, $
 	gen("edge-a-5", "edge-s-5", "active", t0)
 	gen("edge-n-5", "edge-s-5", "pending", t0.Add(time.Hour))
 	row("edge-newer-gen", "edge-s-5", "edge-n-5", "pending", `{}`)
-	// Scope 6: no active generation.
+	// Scope 6: no active generation, with a non-superseded ('failed')
+	// generation. #11703 fences retired scopes whose active_generation_id IS
+	// NULL and stale_generation.status = 'superseded' (proven separately in
+	// TestReducerSupersededNullActiveClaimAndSweepLive) while sparing 'failed'
+	// generations so recover-failed-scopes keeps inspecting them.
 	scope("edge-s-6", "")
-	gen("edge-o-6", "edge-s-6", "superseded", older)
+	gen("edge-o-6", "edge-s-6", "failed", older)
 	row("edge-null-active", "edge-s-6", "edge-o-6", "pending", `{}`)
 	// Scope 7: the active id names scope 5's newer generation, not one of
 	// its own (ingestion_scopes_active_generation_idx keeps active ids

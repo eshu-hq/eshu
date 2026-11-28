@@ -122,10 +122,12 @@ func TestStaleGate11234LeavesEveryOtherByteUnchanged(t *testing.T) {
 const staleGate11234BodyHead = "stale_reducer_candidates AS MATERIALIZED ("
 
 // staleGate11234CheckBody returns nil when gate's stale_reducer_candidates
-// body is the base body with exactly two lines replaced: the FROM line now
-// reads stale_gate_rows, and the join to claim_active_generations is now a
-// CROSS JOIN LATERAL ... OFFSET 0 lookup aliased scope that carries the
-// base active-generation ON text verbatim. Any other difference fails.
+// body is the base body with the #11234 join-order fence (FROM stale_gate_rows,
+// CROSS JOIN LATERAL ... OFFSET 0 carrying the base active-generation ON text
+// verbatim via LEFT JOIN for #11703) and the #11703 NULL-active retired-scope
+// generation-guard arm (strictly gated on stale_generation.status = 'superseded',
+// wrapping the base active-generation guard + readiness block verbatim). Any
+// other difference fails.
 func staleGate11234CheckBody(pre, gate string) error {
 	_, preBody, okPre := strings.Cut(pre, staleGate11234BodyHead)
 	_, gateBody, okGate := strings.Cut(gate, staleGate11234BodyHead)
@@ -140,20 +142,53 @@ func staleGate11234CheckBody(pre, gate string) error {
 	if len(onLines) != 2 {
 		return fmt.Errorf("base active-generation ON text has %d lines, want 2: %q", len(onLines), preOn)
 	}
-	preLines := strings.Split(preBody, "\n")
-	gateLines := strings.Split(gateBody, "\n")
 	const (
-		preFrom   = "    FROM fact_work_items AS stale"
-		gateFrom  = "    FROM stale_gate_rows AS stale"
-		preJoin   = "    JOIN claim_active_generations AS scope ON scope.scope_id = stale.scope_id"
-		gateOpen  = "    CROSS JOIN LATERAL ("
-		gateClose = "    ) AS scope"
+		preGenStart  = "      AND stale.generation_id <> scope.active_generation_id"
+		preGenEnd    = "      AND NOT ("
+		gateGenStart = "      AND (\n        (\n          scope.present_active_generation_id IS NOT NULL\n          AND stale.generation_id <> scope.active_generation_id"
+		gateNullArm  = "\n        )\n        OR (\n          scope.active_generation_id IS NULL\n          AND stale_generation.status = 'superseded'\n        )\n      )\n"
+		preFrom      = "    FROM fact_work_items AS stale"
+		gateFrom     = "    FROM stale_gate_rows AS stale"
+		preJoin      = "    JOIN claim_active_generations AS scope ON scope.scope_id = stale.scope_id"
+		gateOpen     = "    CROSS JOIN LATERAL ("
+		gateClose    = "    ) AS scope"
 	)
+	// Strip the #11703 wrapper from gateBody so the base active-generation guard
+	// and readiness block compare line-for-line (trimmed) against preBody, while
+	// pinning the exact NULL-active 'superseded' arm.
+	gHead, gRest, ok := strings.Cut(gateBody, "\n"+gateGenStart+"\n")
+	if !ok {
+		return fmt.Errorf("shipped body missing #11703 generation guard wrapper")
+	}
+	gWrapped, gTail, ok := strings.Cut(gRest, gateNullArm)
+	if !ok {
+		return fmt.Errorf("shipped body missing #11703 NULL-active superseded arm")
+	}
+	pHead, pRest, ok := strings.Cut(preBody, "\n"+preGenStart+"\n")
+	if !ok {
+		return fmt.Errorf("base body missing generation guard start")
+	}
+	pWrapped, pTail, ok := strings.Cut(pRest, "\n"+preGenEnd+"\n")
+	if !ok {
+		return fmt.Errorf("base body missing fan-out debt spare anchor")
+	}
+	// Compare the wrapped active-generation + readiness lines (ignoring the extra
+	// indentation introduced by the #11703 OR-wrapper).
+	if strings.Join(staleGate11234TrimmedLines(gWrapped), "\n") != strings.Join(staleGate11234TrimmedLines(pWrapped), "\n") {
+		return fmt.Errorf("wrapped active-generation/readiness predicate differs from base")
+	}
+	// Tail (fan-out debt spare + Crossplane carrier) must remain byte-identical.
+	if gTail != preGenEnd+"\n"+pTail {
+		return fmt.Errorf("shipped body after generation guard differs from base")
+	}
+	// Head (SELECT, FROM, LATERAL lookup, stale_generation JOIN, stage/status/domain).
+	preLines := strings.Split(pHead, "\n")
+	gateLines := strings.Split(gHead, "\n")
 	replaced := 0
 	j := 0
 	for i := 0; i < len(preLines); i++ {
 		if j >= len(gateLines) {
-			return fmt.Errorf("shipped body ends early at base line %d", i)
+			return fmt.Errorf("shipped body head ends early at base line %d", i)
 		}
 		switch preLines[i] {
 		case preFrom:
@@ -177,9 +212,10 @@ func staleGate11234CheckBody(pre, gate string) error {
 			want := []string{
 				"SELECT scope.scope_id,",
 				"scope.active_generation_id,",
+				"active_generation.generation_id AS present_active_generation_id,",
 				"active_generation.ingested_at AS active_ingested_at",
 				"FROM ingestion_scopes AS scope",
-				"JOIN scope_generations AS active_generation",
+				"LEFT JOIN scope_generations AS active_generation",
 				onLines[0],
 				onLines[1],
 				"WHERE scope.scope_id = stale.scope_id",
@@ -199,7 +235,7 @@ func staleGate11234CheckBody(pre, gate string) error {
 		j++
 	}
 	if j != len(gateLines) {
-		return fmt.Errorf("shipped body has %d extra lines", len(gateLines)-j)
+		return fmt.Errorf("shipped body head has %d extra lines", len(gateLines)-j)
 	}
 	if replaced != 2 {
 		return fmt.Errorf("replaced %d base lines, want exactly 2", replaced)
@@ -262,6 +298,7 @@ func TestStaleGate11234KeepsTheStalePredicate(t *testing.T) {
 		"third body line":       {"AND stale.status IN ('pending', 'retrying')", "AND stale.status IN ('pending')"},
 		"lateral ON text":       {"AND active_generation.scope_id = scope.scope_id", "AND active_generation.scope_id IS NOT NULL"},
 		"lateral without fence": {"        OFFSET 0\n", ""},
+		"null active failed":    {"AND stale_generation.status = 'superseded'", "AND stale_generation.status IN ('superseded', 'failed')"},
 	} {
 		mutated := strings.Replace(gate, mutant[0], mutant[1], 1)
 		if mutated == gate {
@@ -289,7 +326,7 @@ func TestStaleGate11234KeepsTheStalePredicate(t *testing.T) {
 	}
 	for _, want := range []string{
 		"stale_gate_rows AS MATERIALIZED (",
-		"AND work.generation_id <> work_scope.active_generation_id",
+		"AND work.generation_id IS DISTINCT FROM work_scope.active_generation_id",
 	} {
 		if !strings.Contains(gate, want) {
 			t.Fatalf("stale gate missing %q", want)

@@ -33,11 +33,13 @@ func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 		t.Fatalf("sweep has no lock step ending %q before its UPDATE:\n%s", sweepLockStepEnd, cte)
 	}
 	lockStep := cte[start : end+len("FOR NO KEY UPDATE OF stale")]
-	if !strings.Contains(lockStep, "WHERE ("+supersedeInactiveReducerGenerationsPredicate+")") {
+	if !strings.Contains(lockStep, "AND (("+supersedeInactiveReducerGenerationsPredicate+")") {
 		t.Errorf("lock step must carry the whole sweep predicate:\n%s", lockStep)
 	}
 	for _, want := range []string{
 		"stale.generation_id <> scope.active_generation_id",
+		"scope.active_generation_id IS NULL",
+		"stale_generation.status = 'superseded'",
 		"stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
 	} {
 		if !strings.Contains(lockStep, want) {
@@ -55,7 +57,7 @@ func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 	for _, want := range []string{
 		"WHERE stale.work_item_id = ANY(ARRAY(SELECT work_item_id FROM superseded_stale_reducer_locked))",
 		"AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
-		"AND stale.generation_id <> scope.active_generation_id",
+		"AND stale.generation_id IS DISTINCT FROM scope.active_generation_id",
 		"FROM superseded_crossplane_newest_carrier AS carrier",
 	} {
 		if !strings.Contains(update, want) {
@@ -75,7 +77,7 @@ func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 	// the keyset cursor parenthesizing the whole lock-step disjunction so
 	// it filters the stale predicate and the carrier arm alike.
 	for _, want := range []string{
-		"WHERE ((" + supersedeInactiveReducerGenerationsPredicate + ")",
+		"AND ((" + supersedeInactiveReducerGenerationsPredicate + ")",
 		`stale.work_item_id COLLATE "C" > $4::text`,
 		`ORDER BY stale.work_item_id COLLATE "C"`,
 		"LIMIT $3",

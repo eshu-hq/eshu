@@ -24,6 +24,8 @@ var staleGateClaimWants = []string{
 	"stale.generation_id <> scope.active_generation_id",
 	"stale_generation.ingested_at < scope.active_ingested_at",
 	"stale_generation.generation_id < scope.active_generation_id",
+	"scope.active_generation_id IS NULL",
+	"stale_generation.status = 'superseded'",
 	"AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))",
 	// #10106/#10269: scope-keyed Crossplane SATISFIED_BY rows stay claimable
 	// for the runtime rebind unless a newer pending/retrying sibling for the
@@ -37,7 +39,7 @@ var staleGateClaimWants = []string{
 
 var staleGateClaimBanned = []string{
 	"UPDATE fact_work_items AS stale",
-	"status = 'superseded'",
+	"SET status = 'superseded'",
 	"superseded_stale_reducer_locked",
 	"superseded_stale_reducer_generations",
 }
@@ -154,6 +156,8 @@ func TestReducerStaleSweepSupersedesInactiveGenerationReducerWork(t *testing.T) 
 		"scope.active_generation_id = active_generation.generation_id",
 		"stale_generation.ingested_at < active_generation.ingested_at",
 		"stale_generation.generation_id < active_generation.generation_id",
+		"scope.active_generation_id IS NULL",
+		"stale_generation.status = 'superseded'",
 		"AND ($2::text[] IS NULL OR stale.domain = ANY($2::text[]))",
 		// #10106/#10269: scope-keyed Crossplane SATISFIED_BY rows are
 		// terminalized only when a newer pending/retrying sibling in the
