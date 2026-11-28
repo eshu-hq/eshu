@@ -161,6 +161,7 @@ require (
 	github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4
 	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19.0.20261117021456-ec5cfef48073
 	github.com/eshu-hq/eshu-workflow v0.2.0
+	github.com/eshu-hq/tree-sitter-elixir v0.3.5-eshu.1
 	github.com/fergusstrange/embedded-postgres v1.34.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -184,7 +185,6 @@ require (
 	github.com/tree-sitter/tree-sitter-c v0.24.1
 	github.com/tree-sitter/tree-sitter-c-sharp v0.23.1
 	github.com/tree-sitter/tree-sitter-cpp v0.23.4
-	github.com/tree-sitter/tree-sitter-elixir v0.0.0-00010101000000-000000000000
 	github.com/tree-sitter/tree-sitter-go v0.25.0
 	github.com/tree-sitter/tree-sitter-haskell v0.23.1
 	github.com/tree-sitter/tree-sitter-java v0.23.5
@@ -381,7 +381,5 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
-
-replace github.com/tree-sitter/tree-sitter-elixir => github.com/elixir-lang/tree-sitter-elixir v0.3.5
 
 replace github.com/fergusstrange/embedded-postgres => github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1

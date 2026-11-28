@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
+	tree_sitter_elixir "github.com/eshu-hq/tree-sitter-elixir/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	tree_sitter_elixir "github.com/tree-sitter/tree-sitter-elixir/bindings/go"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )

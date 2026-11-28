@@ -472,7 +472,7 @@ function-append site.
 
 - `github.com/tree-sitter/go-tree-sitter` — `Runtime` and grammar dispatch
 - Tree-sitter grammar bindings: C, C#, C++, Elixir, Go, Haskell, Java, JavaScript, Kotlin, PHP, Python, Rust, Scala, TypeScript
-- Elixir grammar packaging replaces `github.com/tree-sitter/tree-sitter-elixir` with the official `github.com/elixir-lang/tree-sitter-elixir v0.3.5` tag.
+- Elixir grammar packaging uses the `github.com/eshu-hq/tree-sitter-elixir v0.3.5-eshu.1` fork (v0.3.5 grammar bytes with the corrected module path).
 - PHP grammar packaging uses the official
   `github.com/tree-sitter/tree-sitter-php v0.24.2` module via its
   `bindings/go` `LanguagePHP` loader. Refresh by running

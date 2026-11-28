@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	tree_sitter_elixir "github.com/tree-sitter/tree-sitter-elixir/bindings/go"
+	tree_sitter_elixir "github.com/eshu-hq/tree-sitter-elixir/bindings/go"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
