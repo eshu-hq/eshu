@@ -125,6 +125,57 @@ if [ "$rc" -ne 1 ]; then
   cat "${tmp_root}/out" "${tmp_root}/err" >&2
   exit 1
 fi
-printf 'PASS [pull_request merge ref catches new evidence]\n'
+  printf 'PASS [pull_request merge ref catches new evidence]\n'
+
+# 9. Stray proof/evidence/prep/numbered-issue Markdown files in go/ fail (RED), while testdata/ passes (GREEN).
+go_stray_dir="$(init_repo go-stray)"
+printf '# Cost\n' >"${go_stray_dir}/go/internal/demo/COST_EVIDENCE.md"
+git -C "${go_stray_dir}" add . && git -C "${go_stray_dir}" commit -q -m "add uppercase evidence"
+run_case "go COST_EVIDENCE.md rejected" 1 "${go_stray_dir}"
+run_case "go COST_EVIDENCE.md rejected in --files mode" 1 "${go_stray_dir}" --files go/internal/demo/COST_EVIDENCE.md
+
+go_proof_dir="$(init_repo go-proof)"
+printf '# Proof\n' >"${go_proof_dir}/go/internal/demo/consolidation-proof.md"
+printf '# Prep\n' >"${go_proof_dir}/go/internal/demo/EXTRACTION_PREP.md"
+printf '# Issue dump\n' >"${go_proof_dir}/go/internal/demo/10658-failure.md"
+git -C "${go_proof_dir}" add . && git -C "${go_proof_dir}" commit -q -m "add proof prep issue dump"
+run_case "go proof/prep/numbered dump rejected" 1 "${go_proof_dir}"
+
+go_td_dir="$(init_repo go-testdata)"
+mkdir -p "${go_td_dir}/go/internal/demo/testdata"
+printf '# Fixture\n\n## Evidence\n' >"${go_td_dir}/go/internal/demo/testdata/8874-fixture.md"
+git -C "${go_td_dir}" add . && git -C "${go_td_dir}" commit -q -m "add testdata fixture"
+run_case "go testdata fixture passes" 0 "${go_td_dir}"
+run_case "go testdata fixture passes in --files mode" 0 "${go_td_dir}" --files go/internal/demo/testdata/8874-fixture.md
+
+# 10. Raw .sql packets, fork rulings, and implementation plans in docs/internal/ fail (RED).
+int_slop_dir="$(init_repo internal-slop)"
+mkdir -p "${int_slop_dir}/docs/internal/design"
+printf 'SELECT 1;\n' >"${int_slop_dir}/docs/internal/design/11075-a2-packet.sql"
+printf '# Fork rulings\n' >"${int_slop_dir}/docs/internal/design/10882-fork-rulings.md"
+printf '# Plan\n' >"${int_slop_dir}/docs/internal/security-implementation-plan.md"
+git -C "${int_slop_dir}" add . && git -C "${int_slop_dir}" commit -q -m "add internal slop"
+run_case "internal sql/fork-ruling/plan rejected" 1 "${int_slop_dir}"
+run_case "internal sql rejected in --files mode" 1 "${int_slop_dir}" --files docs/internal/design/11075-a2-packet.sql
+
+# 11. Appending PR-dump H2 headings to go/**/*.md or docs/public/**/*.md fails (RED); generated docs pass (GREEN).
+pub_dump_dir="$(init_repo pub-dump)"
+mkdir -p "${pub_dump_dir}/docs/public/reference"
+printf '# Cypher Perf\n\n## Evidence Notes\n\nIssue #3567 details.\n' >"${pub_dump_dir}/docs/public/reference/cypher.md"
+git -C "${pub_dump_dir}" add . && git -C "${pub_dump_dir}" commit -q -m "add public evidence notes"
+run_case "docs/public Evidence Notes H2 rejected" 1 "${pub_dump_dir}"
+run_case "docs/public Evidence Notes H2 rejected in --files mode" 1 "${pub_dump_dir}" --files docs/public/reference/cypher.md
+
+go_h2_dir="$(init_repo go-issue-h2)"
+printf '\n## Deferred backfill tuning (#5096)\n\nRan locally.\n' >>"${go_h2_dir}/go/internal/demo/README.md"
+git -C "${go_h2_dir}" add . && git -C "${go_h2_dir}" commit -q -m "add issue H2"
+run_case "go issue-numbered H2 rejected" 1 "${go_h2_dir}"
+run_case "go issue-numbered H2 rejected in --files mode" 1 "${go_h2_dir}" --files go/internal/demo/README.md
+
+pub_gen_dir="$(init_repo pub-generated)"
+mkdir -p "${pub_gen_dir}/docs/public/reference/generated"
+printf '# Replay Coverage\n\n## Case (#1234)\n' >"${pub_gen_dir}/docs/public/reference/generated/replay.md"
+git -C "${pub_gen_dir}" add . && git -C "${pub_gen_dir}" commit -q -m "add generated reference"
+run_case "docs/public/reference/generated passes" 0 "${pub_gen_dir}"
 
 printf 'test-verify-no-ephemeral-docs: all cases passed\n'

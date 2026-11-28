@@ -12,9 +12,14 @@ This directory holds maintainer-only documentation for Eshu.
 - Before adding or editing any page here, load the **`publish`** skill and
   follow [Writing For Agents](writing-for-agents.md) so internal guides stay
   concise, legible, and free of session shorthand.
-- Never commit ephemeral PR proof notes, shims, probes, or arbiter rulings here
-  (`scripts/verify-no-ephemeral-docs.sh`); put PR proof in GitHub PR descriptions
-  or CI artifacts, and arbiter rulings in GitHub issue comments.
+- Never commit ephemeral PR proof notes, raw `.sql` packets, arbiter fork
+  rulings, PR review limits, agent implementation plans, extraction-prep
+  drafts, or dated point-in-time reviews here or under `go/`
+  (`scripts/verify-no-ephemeral-docs.sh`). Do not append `## Evidence`,
+  `## Evidence Notes`, `## Move evidence`, or `## ... (#NNNN)` PR-changelog
+  sections to `go/**/*.md` or `docs/public/**/*.md`. Put PR proof in GitHub PR
+  descriptions or CI artifacts, and arbiter rulings or extraction checklists in
+  GitHub issue comments.
 - Internal specs and plans must be updated or removed when the active codebase
   changes. Treat them as current guidance only when they still match the repo.
 - The [Correlation Atlas](correlation-atlas/README.md) maps which collector

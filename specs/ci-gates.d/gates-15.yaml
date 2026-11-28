@@ -193,7 +193,7 @@ gates:
     name: Block new ephemeral docs and go/**/*.md PR evidence markers
     category: exactness
     layer: hygiene
-    purpose: "Prevents new ephemeral evidence, arbiter, plan, or go/**/evidence-*.md files and rejects newly added PR evidence markers in go/**/*.md."
+    purpose: "Blocks new ephemeral docs, stray go/ proof or prep files, internal SQL packets, and PR evidence markers or PR-log H2 headings in go/ and docs/public/."
     tier: pre-commit
     blocking: true
     triggers:
