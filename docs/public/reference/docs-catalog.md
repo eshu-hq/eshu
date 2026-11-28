@@ -79,3 +79,5 @@ The verifier fails on:
 - invalid `type` values
 - invalid `entrypoint` or `landing` booleans
 - entrypoint pages that are not reachable from a catalog landing page
+- missing `docs/mkdocs.yml`
+- orphaned `docs/public/**/*.md` pages that are not linked in `docs/mkdocs.yml` `nav:`

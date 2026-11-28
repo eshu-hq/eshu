@@ -193,6 +193,27 @@ test_missing_mkdocs_yml_fails_closed() {
   assert_contains "missing docs/mkdocs.yml" "${out}"
 }
 
+test_commented_nav_entries_do_not_hide_orphan() {
+  local root="${tmp_root}/commented-nav"
+  local out="${tmp_root}/commented-nav.out"
+  seed_repo "${root}"
+  write_doc "${root}" "reference/commented-col0.md" "reference" "false" "false"
+  write_doc "${root}" "reference/commented-indent.md" "reference" "false" "false"
+  printf '# - Col0: reference/commented-col0.md\n' >>"${root}/docs/mkdocs.yml"
+  printf '  # - Indent: reference/commented-indent.md\n' >>"${root}/docs/mkdocs.yml"
+  if run_verifier "${root}" "${out}"; then
+    echo "test-docs-catalog: expected commented nav entries to still fail orphan check (RED)" >&2
+    exit 1
+  fi
+  assert_contains "reference/commented-col0.md: orphaned public page not linked in docs/mkdocs.yml nav" "${out}"
+  assert_contains "reference/commented-indent.md: orphaned public page not linked in docs/mkdocs.yml nav" "${out}"
+
+  printf "  - 'Col0': 'reference/commented-col0.md' # active link\n" >>"${root}/docs/mkdocs.yml"
+  printf '  - Indent: reference/commented-indent.md # active link\n' >>"${root}/docs/mkdocs.yml"
+  run_verifier "${root}" "${out}"
+  assert_contains "metadata check passed" "${out}"
+}
+
 test_valid_catalog_passes
 test_missing_required_file_fails
 test_bad_type_fails
@@ -200,5 +221,6 @@ test_unreachable_entrypoint_fails
 test_unterminated_metadata_block_fails
 test_orphan_public_page_fails_and_wiring_recovers
 test_missing_mkdocs_yml_fails_closed
+test_commented_nav_entries_do_not_hide_orphan
 
 echo "test-docs-catalog: all tests passed"

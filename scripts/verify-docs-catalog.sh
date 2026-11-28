@@ -252,8 +252,9 @@ else
     nav_pages["${nav_path}"]=1
   done < <(
     awk '
-      /^nav:[[:space:]]*$/ { in_nav = 1; next }
+      /^nav:[[:space:]]*(#.*)?$/ { in_nav = 1; next }
       in_nav && /^[^[:space:]#]/ { in_nav = 0 }
+      in_nav && /^[[:space:]]*#/ { next }
       in_nav {
         line = $0
         sub(/[[:space:]]+#.*$/, "", line)
@@ -267,7 +268,9 @@ else
     ' "${repo_root}/docs/mkdocs.yml"
   )
 
+  public_pages=0
   while IFS= read -r rel; do
+    public_pages=$((public_pages + 1))
     if [[ -z "${nav_pages[${rel}]:-}" ]]; then
       log "${rel}: orphaned public page not linked in docs/mkdocs.yml nav"
       failures=$((failures + 1))
@@ -280,4 +283,4 @@ if [[ "${failures}" -ne 0 ]]; then
   exit 1
 fi
 
-log "metadata check passed for ${#required_pages[@]} required page(s)"
+log "metadata check passed for ${#required_pages[@]} required page(s) and ${public_pages} public nav page(s)"
