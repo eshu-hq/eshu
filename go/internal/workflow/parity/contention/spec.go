@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// Environment names of the REMOVAL_CONTENTION_SPEC.md §2 fields. Each one is
+// Environment names of the #8875 contention spec fields. Each one is
 // required; LoadSpec fails closed and names every blank field.
 const (
 	EnvTarget             = "ESHU_CONTENTION_TARGET"

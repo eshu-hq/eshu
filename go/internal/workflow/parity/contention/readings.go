@@ -3,8 +3,7 @@
 
 package contention
 
-// SpecReading is one interpretation the harness makes of a sentence in
-// REMOVAL_CONTENTION_SPEC.md. Every report carries the full list, so the
+// SpecReading is one interpretation the harness makes of the #8875 contention spec. Every report carries the full list, so the
 // arbiter can accept or reject each reading at the live-run review.
 type SpecReading struct {
 	ID string `json:"id"`

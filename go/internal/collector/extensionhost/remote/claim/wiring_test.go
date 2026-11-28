@@ -3,7 +3,7 @@
 
 package claim
 
-// Wired-path replay of the EXTRACTION_PREP.md section 7 hostile-input sites
+// Wired-path replay of the #8877 hostile-input sites
 // through the cutover gate, one row per test. This header extends the
 // replay_test.go map for the flag-on path; replay_test.go itself is at the
 // file-size cap, so its table stays untouched and every wired row lives here:

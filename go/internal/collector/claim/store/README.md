@@ -75,4 +75,3 @@ like the Postgres store.
 ## Related docs
 
 - [Design note](../../../../../docs/internal/design/8875-claim-plane-collector-wiring.md)
-- [Removal prep](../../../../cmd/workflow-coordinator/REMOVAL_PREP.md)

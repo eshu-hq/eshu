@@ -7,8 +7,7 @@ extension-host extraction (`eshu-hq/eshu#8877`). It speaks the merged
 `workflow.v1` protocol table from `eshu-hq/eshu-workflow`: claim via
 `ClaimNext`, commit via `ValidateAndPinClaimForCommit` plus the
 claim-lifecycle operations, and live producer-grant re-read via a
-`GrantReader`. It exists so the section 7 hostile-input sites from
-`go/cmd/collector-component-extension/EXTRACTION_PREP.md` can be replayed
+`GrantReader`. It exists so the #8877 hostile-input sites can be replayed
 against the exact protocol the extracted host will use, before any
 production wiring moves.
 
@@ -99,7 +98,6 @@ proven above.
 
 ## Related docs
 
-- `go/cmd/collector-component-extension/EXTRACTION_PREP.md` §7
-  (replayed hostile-input sites; mapping table in `replay_test.go`)
+- `replay_test.go` (replayed #8877 hostile-input mapping table)
 - `go/internal/collector/extensionhost/AGENTS.md` (host invariants)
 - `docs/public/reference/local-testing.md` (gate source of truth)

@@ -13,7 +13,7 @@
 // expectation.
 //
 // Out of scope here (core-owned, recorded for the external producer):
-// grant revocation enforcement (see PRODUCER_GRANT_DRAFT.md) and durable
+// grant revocation enforcement (#8856) and durable
 // commit/lease semantics owned by the ingestion store and workflow control
 // store. The in-tree path pins the emission half; the external path must
 // additionally fail closed on missing, expired, or revoked grants.
@@ -470,7 +470,7 @@ func TestGCP8856ParityRedactionKeepsRawIdentityOutOfPayloads(t *testing.T) {
 // TestGCP8856ParityInTreeNeedsNoGrant documents the deliberate delegation
 // delta: the in-tree first-party path emits with no grant lookup, so this
 // asserts emission succeeds grant-free. The extracted producer must instead
-// fail closed on a missing, expired, or revoked grant (PRODUCER_GRANT_DRAFT);
+// fail closed on a missing, expired, or revoked grant (#8856);
 // the fencing token on every envelope is the host-side input that
 // enforcement keys on.
 func TestGCP8856ParityInTreeNeedsNoGrant(t *testing.T) {

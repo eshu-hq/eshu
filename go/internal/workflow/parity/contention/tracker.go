@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// Trigger names one REMOVAL_CONTENTION_SPEC.md §7 abort trigger.
+// Trigger names one #8875 contention abort trigger.
 type Trigger string
 
 // Abort triggers. The first four are the grant's own (§7 first sentence);

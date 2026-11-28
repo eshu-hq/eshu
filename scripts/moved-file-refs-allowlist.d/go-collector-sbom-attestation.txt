@@ -10,10 +10,5 @@
 # 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
 # tree as it stood at those SHAs, including the sbom importers this deletion
 # removes. Updating the census is a recount, not a repoint.
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-sbom-attestation/config.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-sbom-attestation/service.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/attestation.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/attestation_slsa.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/source.go
 # SHIM_MAP.md is the relocated #10450 extraction record: its targetJSON cell
 # cites the in-tree config the map was drawn against.

@@ -13,7 +13,7 @@
 // live side is the oracle, the cassette is the recorded expectation.
 //
 // Out of scope here (core-owned, recorded for the external producer):
-// grant revocation enforcement (see PRODUCER_GRANT_DRAFT.md) and durable
+// grant revocation enforcement (#8859) and durable
 // commit/lease semantics owned by the ingestion store and workflow control
 // store. The in-tree path pins the emission half; the external path must
 // additionally fail closed on missing, expired, or revoked grants.
@@ -105,8 +105,7 @@ func parity8859LiveSource(t *testing.T) *Source {
 		// No ingresses: the ingress group (networking.k8s.io) is not a
 		// documented safe host form, so the recorder's private-data belt
 		// refuses a cassette containing it. Ingress-to-service emission
-		// stays pinned by TestSourceHappyPathEmitsTypedFacts; see
-		// EXTRACTION_PREP.md for the fixture-scope note.
+		// stays pinned by TestSourceHappyPathEmitsTypedFacts; see #8859 for the fixture-scope note.
 		serviceAccounts: ListResult[ServiceAccountObject]{Items: []ServiceAccountObject{{
 			Meta: ObjectMeta{
 				Version: "v1", Resource: "serviceaccounts",
@@ -122,7 +121,7 @@ func parity8859LiveSource(t *testing.T) *Source {
 		// (rbac.authorization.k8s.io) is not a documented safe host form,
 		// so the recorder's private-data belt refuses a cassette
 		// containing it. RBAC emission stays pinned by
-		// secrets_iam_source_test.go; see EXTRACTION_PREP.md.
+		// secrets_iam_source_test.go (#8859).
 	}
 
 	hostile := &fakeClient{
@@ -444,7 +443,7 @@ func TestKubernetesLive8859ParityDuplicateDeliveryIsStable(t *testing.T) {
 // delegation delta: the in-tree first-party path emits with no grant lookup,
 // so this asserts emission succeeds grant-free. The extracted producer must
 // instead fail closed on a missing, expired, or revoked grant
-// (PRODUCER_GRANT_DRAFT); the fencing token and collector kind on every
+// (#8859); the fencing token and collector kind on every
 // envelope are the host-side inputs that enforcement keys on.
 func TestKubernetesLive8859ParityInTreeNeedsNoGrant(t *testing.T) {
 	t.Parallel()
@@ -524,8 +523,7 @@ func TestKubernetesLive8859ParityHostileInputs(t *testing.T) {
 		// source URI, so the secrets_iam_coverage_warning fact carries the
 		// credential-bearing URI verbatim. The extracted producer must
 		// sanitize or drop SourceURI for posture facts; fixing the shared
-		// seam belongs to the secrets-IAM lane, not this PREP. See
-		// EXTRACTION_PREP.md credential handling.
+		// seam belongs to the secrets-IAM lane, not this PREP. See #8859 credential handling.
 		if envelope.FactKind == "secrets_iam_coverage_warning" {
 			if !strings.Contains(envelope.SourceRef.SourceURI, "HOSTILESECRET") {
 				t.Fatalf("posture SourceURI = %q, want the verbatim (unsanitized) pre-extraction bytes", envelope.SourceRef.SourceURI)

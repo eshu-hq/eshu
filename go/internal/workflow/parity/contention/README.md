@@ -2,9 +2,7 @@
 
 ## Purpose
 
-This package runs the deployed-binary claim-plane contention workload that
-`go/cmd/workflow-coordinator/REMOVAL_CONTENTION_SPEC.md` describes (#9727,
-#8875). One `Run` call is one seed on one leg. It seeds a synthetic backlog,
+This package runs the deployed-binary claim-plane contention workload described on #8875 and #9727. One `Run` call is one seed on one leg. It seeds a synthetic backlog,
 runs the §5 nine-step mix from W concurrent claim loops for a timed window,
 drains, then reverses: prefix-only cleanup and the three-zero residue check.
 It writes a JSON report and a human summary.
@@ -117,7 +115,7 @@ proves the core server stayed inside pg_headroom while it ran.
 It does not prove:
 
 - **The cross-service commit fence.** Core does not consume the commit pin
-  on `origin/main` (`PLANE_DECLARATION_9376.md` §4). The pin step proves the
+  on `origin/main` (#9376). The pin step proves the
   satellite route's single-holder and stale rejection only, not
   generation-level fencing.
 - **Behavior of real collectors.** The claimers are harness goroutines with
@@ -127,7 +125,7 @@ It does not prove:
   drive host, and the local satellite leg runs an emulated amd64 image. The
   hop and the emulator distort latency, so no throughput or latency bar can
   be derived from either. The live leg yields correctness and headroom only.
-  The binding throughput comparison is `REMOVAL_PREP.md` §4.
+  The binding throughput comparison is tracked on #8875.
 - **Grant or revert state.** The harness cannot see the grant expire or
   the revert PR merge; the operator watches both.
 - **Authority.** A pass moves no authority, and a new digest voids it (spec
@@ -137,8 +135,7 @@ It does not prove:
 
 Each row interprets one spec sentence. `SpecReadings()` in `readings.go`
 holds the same list, and every report carries it under `spec_readings`, so
-the arbiter can accept or reject each reading at the live-run review. Line
-numbers refer to `REMOVAL_CONTENTION_SPEC.md` on this branch.
+the arbiter can accept or reject each reading at the live-run review. Spec sections refer to the #8875 contention checklist.
 
 | ID | Spec | Reading |
 | --- | --- | --- |
@@ -461,6 +458,5 @@ LIMIT 1000)`) as `DeletePrefixed` does. Then rerun the residue counts.
 
 ## Related docs
 
-- `go/cmd/workflow-coordinator/REMOVAL_CONTENTION_SPEC.md` (the contract)
 - `go/internal/workflow/parity/README.md` (the parity harness and its legs)
 - [Local Testing](../../../../../docs/public/reference/local-testing.md)

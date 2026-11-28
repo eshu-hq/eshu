@@ -26,7 +26,7 @@ One shared constructor, `store.New` in the new package
 | valid `http`/`https` URL | `workflow.ClaimPlaneClient` with a bounded HTTP client | no fallback to Postgres, ever |
 | invalid URL | startup error naming the variable | credentials in the URL are rejected and never echoed |
 
-The package sits on the collector side because `REMOVAL_PREP.md` §2 keeps the
+The package sits on the collector side because #8875 keeps the
 narrow claim interface (`collector.ClaimControlStore`) in-tree behind the
 client: collectors keep calling the interface and the wiring swaps the store.
 The Postgres store is injected, so `claim/store` does not import

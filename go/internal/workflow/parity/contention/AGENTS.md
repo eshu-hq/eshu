@@ -3,10 +3,9 @@
 ## Read first
 
 1. `README.md` here — spec readings, environment, and the live runbook
-2. `go/cmd/workflow-coordinator/REMOVAL_CONTENTION_SPEC.md` — the contract
-3. `doc.go` — godoc contract
-4. `run.go`, `worker.go`, `loops.go` — phases, the §5 mix, the sampler
-5. `tracker.go`, `observer.go` — the two independent §7 detectors
+2. `doc.go` — godoc contract
+3. `run.go`, `worker.go`, `loops.go` — phases, the §5 mix, the sampler
+4. `tracker.go`, `observer.go` — the two independent §7 detectors
 
 ## Invariants this package enforces
 

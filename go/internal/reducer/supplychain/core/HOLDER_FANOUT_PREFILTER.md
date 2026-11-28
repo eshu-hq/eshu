@@ -4,8 +4,7 @@ How the supply-chain impact holder fan-out drops holders whose queued pass
 already covers a change before it slices the list, and how the reopen widens
 the stamp of a queued holder that is not covered. This is a section of
 [`HOLDER_FANOUT.md`](HOLDER_FANOUT.md), split out to keep that file under the
-500-line Markdown cap. The proofs and QA evidence are in
-[`HOLDER_FANOUT_PREFILTER_EVIDENCE.md`](HOLDER_FANOUT_PREFILTER_EVIDENCE.md).
+500-line Markdown cap.
 
 ## The cost it removes
 

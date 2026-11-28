@@ -3,7 +3,7 @@
 
 package claim
 
-// Replay of the EXTRACTION_PREP.md section 7 hostile-input proof sites
+// Replay of the #8877 hostile-input proof sites
 // through the remote seam, one row per test:
 //
 //	PREP row                          Replay test
