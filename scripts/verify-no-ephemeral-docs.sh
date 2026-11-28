@@ -243,9 +243,10 @@ else
 
       # Check PR-dump / issue-numbered H2 headings in go/**/*.md and docs/public/**/*.md.
       head_hits="${tmp_dir}/heading-hits.txt"
-      awk -F'\t' '{ print $2 }' "$added_md" >/dev/null
+      tab=$'\t'
+      heading_tab_re="^[^${tab}]+${tab}${heading_re#^}"
       rg_rc=0
-      rg --no-config -i --no-filename --no-line-number -e $'^[^\t]+\t##[[:space:]]+((Evidence|Evidence Notes|Current Hot-Path Evidence|Move evidence|Runtime Scaffolding Evidence|Performance Evidence)[[:space:]]*$|.*#[0-9]{3,5}([^0-9]|$))' "$added_md" >"$head_hits" || rg_rc=$?
+      rg --no-config -i --no-filename --no-line-number -e "$heading_tab_re" "$added_md" >"$head_hits" || rg_rc=$?
       if [ "$rg_rc" -gt 1 ]; then
         printf 'verify-no-ephemeral-docs: rg failed scanning added H2 headings (exit %s)\n' "$rg_rc" >&2
         exit 2

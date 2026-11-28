@@ -190,7 +190,7 @@ gates:
     ci_only_reason: "requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~30 macOS-min/day for the single nightly run)"
   # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
   - id: no-ephemeral-docs
-    name: Block new ephemeral docs and go/**/*.md PR evidence markers
+    name: Block new ephemeral docs, stray go/ proofs, and PR-log H2 dumps
     category: exactness
     layer: hygiene
     purpose: "Blocks new ephemeral docs, stray go/ proof or prep files, internal SQL packets, and PR evidence markers or PR-log H2 headings in go/ and docs/public/."

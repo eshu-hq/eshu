@@ -125,13 +125,23 @@ if [ "$rc" -ne 1 ]; then
   cat "${tmp_root}/out" "${tmp_root}/err" >&2
   exit 1
 fi
-  printf 'PASS [pull_request merge ref catches new evidence]\n'
+printf 'PASS [pull_request merge ref catches new evidence]\n'
+
+assert_err_contains() {
+  local label="$1" needle="$2"
+  if ! rg --no-config -Fq -- "$needle" "${tmp_root}/err"; then
+    printf 'FAIL [%s]: stderr missing expected substring: %s\n' "$label" "$needle" >&2
+    cat "${tmp_root}/err" >&2
+    exit 1
+  fi
+}
 
 # 9. Stray proof/evidence/prep/numbered-issue Markdown files in go/ fail (RED), while testdata/ passes (GREEN).
 go_stray_dir="$(init_repo go-stray)"
 printf '# Cost\n' >"${go_stray_dir}/go/internal/demo/COST_EVIDENCE.md"
 git -C "${go_stray_dir}" add . && git -C "${go_stray_dir}" commit -q -m "add uppercase evidence"
 run_case "go COST_EVIDENCE.md rejected" 1 "${go_stray_dir}"
+assert_err_contains "go COST_EVIDENCE.md named" "go/internal/demo/COST_EVIDENCE.md"
 run_case "go COST_EVIDENCE.md rejected in --files mode" 1 "${go_stray_dir}" --files go/internal/demo/COST_EVIDENCE.md
 
 go_proof_dir="$(init_repo go-proof)"
@@ -140,6 +150,12 @@ printf '# Prep\n' >"${go_proof_dir}/go/internal/demo/EXTRACTION_PREP.md"
 printf '# Issue dump\n' >"${go_proof_dir}/go/internal/demo/10658-failure.md"
 git -C "${go_proof_dir}" add . && git -C "${go_proof_dir}" commit -q -m "add proof prep issue dump"
 run_case "go proof/prep/numbered dump rejected" 1 "${go_proof_dir}"
+assert_err_contains "go proof named" "go/internal/demo/consolidation-proof.md"
+assert_err_contains "go prep named" "go/internal/demo/EXTRACTION_PREP.md"
+assert_err_contains "go numbered dump named" "go/internal/demo/10658-failure.md"
+run_case "go proof rejected in --files mode" 1 "${go_proof_dir}" --files go/internal/demo/consolidation-proof.md
+run_case "go prep rejected in --files mode" 1 "${go_proof_dir}" --files go/internal/demo/EXTRACTION_PREP.md
+run_case "go numbered dump rejected in --files mode" 1 "${go_proof_dir}" --files go/internal/demo/10658-failure.md
 
 go_td_dir="$(init_repo go-testdata)"
 mkdir -p "${go_td_dir}/go/internal/demo/testdata"
@@ -156,15 +172,27 @@ printf '# Fork rulings\n' >"${int_slop_dir}/docs/internal/design/10882-fork-ruli
 printf '# Plan\n' >"${int_slop_dir}/docs/internal/security-implementation-plan.md"
 git -C "${int_slop_dir}" add . && git -C "${int_slop_dir}" commit -q -m "add internal slop"
 run_case "internal sql/fork-ruling/plan rejected" 1 "${int_slop_dir}"
+assert_err_contains "internal sql named" "docs/internal/design/11075-a2-packet.sql"
+assert_err_contains "internal fork-ruling named" "docs/internal/design/10882-fork-rulings.md"
+assert_err_contains "internal plan named" "docs/internal/security-implementation-plan.md"
 run_case "internal sql rejected in --files mode" 1 "${int_slop_dir}" --files docs/internal/design/11075-a2-packet.sql
+run_case "internal fork-ruling rejected in --files mode" 1 "${int_slop_dir}" --files docs/internal/design/10882-fork-rulings.md
+run_case "internal plan rejected in --files mode" 1 "${int_slop_dir}" --files docs/internal/security-implementation-plan.md
 
-# 11. Appending PR-dump H2 headings to go/**/*.md or docs/public/**/*.md fails (RED); generated docs pass (GREEN).
+# 11. Appending PR-dump H2 headings to go/**/*.md or docs/public/**/*.md fails (RED); generated & durable headings pass (GREEN).
 pub_dump_dir="$(init_repo pub-dump)"
 mkdir -p "${pub_dump_dir}/docs/public/reference"
 printf '# Cypher Perf\n\n## Evidence Notes\n\nIssue #3567 details.\n' >"${pub_dump_dir}/docs/public/reference/cypher.md"
 git -C "${pub_dump_dir}" add . && git -C "${pub_dump_dir}" commit -q -m "add public evidence notes"
 run_case "docs/public Evidence Notes H2 rejected" 1 "${pub_dump_dir}"
 run_case "docs/public Evidence Notes H2 rejected in --files mode" 1 "${pub_dump_dir}" --files docs/public/reference/cypher.md
+
+pub_clean_dir="$(init_repo pub-clean-h2)"
+mkdir -p "${pub_clean_dir}/docs/public/reference"
+printf '# Model\n\n## Evidence model\n\nDurable explanation.\n' >"${pub_clean_dir}/docs/public/reference/model.md"
+git -C "${pub_clean_dir}" add . && git -C "${pub_clean_dir}" commit -q -m "add durable public heading"
+run_case "docs/public durable Evidence model H2 passes" 0 "${pub_clean_dir}"
+run_case "docs/public durable Evidence model H2 passes in --files mode" 0 "${pub_clean_dir}" --files docs/public/reference/model.md
 
 go_h2_dir="$(init_repo go-issue-h2)"
 printf '\n## Deferred backfill tuning (#5096)\n\nRan locally.\n' >>"${go_h2_dir}/go/internal/demo/README.md"
@@ -177,5 +205,6 @@ mkdir -p "${pub_gen_dir}/docs/public/reference/generated"
 printf '# Replay Coverage\n\n## Case (#1234)\n' >"${pub_gen_dir}/docs/public/reference/generated/replay.md"
 git -C "${pub_gen_dir}" add . && git -C "${pub_gen_dir}" commit -q -m "add generated reference"
 run_case "docs/public/reference/generated passes" 0 "${pub_gen_dir}"
+run_case "docs/public/reference/generated passes in --files mode" 0 "${pub_gen_dir}" --files docs/public/reference/generated/replay.md
 
 printf 'test-verify-no-ephemeral-docs: all cases passed\n'

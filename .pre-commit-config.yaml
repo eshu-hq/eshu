@@ -180,7 +180,7 @@ repos:
         name: block new ephemeral docs, stray go/ proofs, and PR-log H2 dumps
         entry: scripts/verify-no-ephemeral-docs.sh --files
         language: script
-        files: '^(docs/.*\.(md|sql)|go/.*\.md|scripts/(test-)?verify-no-ephemeral-docs\.sh$)'
+        files: '^(docs/internal/(evidence|arbiter)/|docs/(superpowers|plans)/|docs/.*\.(md|sql)|go/.*\.md|scripts/(test-)?verify-no-ephemeral-docs\.sh$)'
         pass_filenames: true
 
       - id: markdown-file-cap
