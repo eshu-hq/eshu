@@ -9,7 +9,7 @@ var WinnerSelectSQLForTest = supplyChainImpactWinnerSelectSQL
 
 // WinnersAuditDiffSelectForTest and the range audit SQL exports expose every
 // shipped audit diff statement so tests can pin the #11598 audit payload mask
-// without altering the winners contract v3 select.
+// without altering the winners contract v4 select.
 var (
 	WinnersAuditDiffSelectForTest         = winnersAuditDiffSelect("winners_now", "supply_chain_impact_canonical_winners")
 	WinnersAuditRangeFirstSQLForTest      = selectWinnersAuditFirstRangeSQL
@@ -23,6 +23,13 @@ var (
 // shape-built active-facts table. The body is byte-identical to the shipped
 // select's tail: a digest match proves the shape preserves winner truth.
 var WinnerBodySQLForTest = supplyChainImpactWinnerBodySQL
+
+// WinnerSelectFromSupportsSQLForTest exposes the supports-swapped winners
+// select: the legacy select's row source moved to the supports table, which
+// is the oracle the chunked full agrees with on production-shaped data. On
+// supports-only data the fact_records twin reads nothing, so a differential
+// against it is vacuous; this twin is the comparison that can fail.
+var WinnerSelectFromSupportsSQLForTest = supplyChainImpactWinnerSelectFromSupportsSQL
 
 // WinnersKeyedActiveFactsSQLForTest exposes the statement that builds the keyed
 // active_facts temp table from the analyzed identifier temp table, so a plan

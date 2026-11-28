@@ -94,7 +94,7 @@ func winnersStagingPlanStatements(t *testing.T, ctx context.Context, conn *sql.C
 		{name: "collapse scope arm", sql: collapseWinnersStagingScopeSQL, args: rng},
 		{name: "staging residual", sql: selectWinnersStagingResidualSQL, args: capArg},
 		{name: "dirty log gauge sample", sql: selectWinnersDirtyLogStatsSQL, args: capArg},
-		{name: "rebuild stamp", sql: rebuildSupplyChainImpactWinnersSQL, args: []string{stamp}},
+		{name: "rebuild stamp", sql: stampWinnersFullWatermarkSQL, args: []string{stamp}},
 	}
 }
 

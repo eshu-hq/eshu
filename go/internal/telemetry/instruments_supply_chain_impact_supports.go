@@ -125,6 +125,12 @@ const (
 	// while it is not, because a supports-only write must never run before the stop it
 	// replaces the fact write with exists.
 	SupplyChainImpactSupportsReaderFactWriteStop = "fact_write_stop"
+	// SupplyChainImpactSupportsReaderWinnersFull is the ruled #9805 chunked
+	// rebuild's per-resweep gate probe (round 5: both variants read
+	// supports): served ran the triple-guarded presence probe, not_ready
+	// ran the supports payload-expression probe with the gate closed, and
+	// failed ran it after a gate probe error. The resweep never refuses.
+	SupplyChainImpactSupportsReaderWinnersFull = "winners_full"
 )
 
 // Outcomes of a reducer read of the per-support table. They are the closed set

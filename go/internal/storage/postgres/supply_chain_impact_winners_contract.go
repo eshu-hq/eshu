@@ -37,7 +37,7 @@ import (
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
 // supplyChainImpactWinnerDataColumns byte-parity rule).
-const SupplyChainImpactWinnersContractVersion int64 = 3
+const SupplyChainImpactWinnersContractVersion int64 = 5
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
 // of the statements it names. A version maps to exactly one hash. Version 2
@@ -139,19 +139,88 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// twin returns the same copies, and the audit keeps the legacy statement
 	// as its oracle. Every instance runs one full after the roll, per the
 	// #11117 model, which also heals any winner a pre-marker tick wrote.
-	3: "1469bfaecd6468092ee1e67744057b3998d26b5c2b9e5c359c8349d29715dc04",
+	//
+	// Re-pinned under the same version for the ruled #9805 v3-full fix: the
+	// single-statement supports rebuild becomes bounded keyed chunks over
+	// fact_records. Winner output is byte-identical for the same facts, by
+	// construction and hermetic proof, so no full resweep is triggered by
+	// this re-pin:
+	//   - the enumeration pages the shipped active-facts inner select, the
+	//     exact legacy candidate set the audit runs;
+	//   - the chunk select is the shipped body over the chunk temp
+	//     (TestWinnersFullChunkSelectDerivesFromShippedBody), and the
+	//     streamed body reverses byte-for-byte to the shipped body
+	//     (TestWinnersFullChunkStreamBodyReversesToShipped), so rank and
+	//     final projection match the legacy select row for row;
+	//   - the chunk apply is the keyed apply with only the select swapped
+	//     (the derivation panics on any other drift), keeping the same
+	//     changed/upserted/deleted shape, and the chunk deletes tile the
+	//     enumeration, so the union is the full delete;
+	//   - the chunk narrow builds are narrow() of the shipped wide builds,
+	//     the exact legacy base the pinned supports twins commute with
+	//     (TestWinnersKeyedNarrowingCommutesWithSupportsSwaps).
+	// The shipped-environment live differential of the chunked full against
+	// the legacy select rides the live proofs
+	// (TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive).
+	3: "2bff09ee3c0d3b9e667f9f096dca497ed95d1a75a2835e95323498f6828b56b2",
+	// Version 4 (ruled #9805 stored-arm fix): the full enumeration unions the
+	// live candidate set with the stored winners' identifiers
+	// (winnersFullStoredIdentsSQL, derived from winnersStoredIdentSelectList,
+	// which shares winnersStoredIdentC0 with the delete match). Winners a
+	// resweep produces change for the same facts exactly where they were
+	// wrong before: a stored-only key (tombstoned facts, a rotated canonical
+	// key, a row left by a resweep to zero) is now visited and deleted, so
+	// the stored table converges to the legacy select. Every instance runs
+	// one full after the roll, which also heals any dead key an older binary
+	// left behind. Differential justification, measured on the seeded
+	// backend (TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive):
+	// phases 1-2 agree with the legacy select EXCEPT ALL 0 in both directions
+	// with equal row counts (live keys byte-identical: ranking, projection
+	// and write shape untouched), phase 3 deletes exactly the tombstoned and
+	// rotation-dropped keys (Deleted 2, Inserted 1) with EXCEPT ALL 0/0 and
+	// stored == legacy == 8, and phase 4 deletes all 8 remaining winners on
+	// a resweep to zero with the table and the legacy select both empty.
+	// The UnlessCurrent healing proof (stored v3 runs the full, stored v4
+	// skips) rides the same live run.
+	4: "2e8903a9f694893f3caf8bdb1ec8bce8afd705c92974dc12e567cd371a2dfc40",
+	// Version 5 (ruled #9805 round-5 row-source fix): every chunked-full
+	// statement reads the supports table the way the shipped keyed path
+	// does — the supports-swapped identifier enumeration, probe pair,
+	// active-facts and operator builds, and the supports payload table
+	// for the streamed winner and override fetches. Winners a resweep
+	// produces change for the same facts exactly where they were wrong
+	// before: on supports-only data the fact-sourced full rebuilt zero
+	// winners and the stored arm emptied the table; the re-sourced full
+	// ranks the verbatim supports payloads, so the stored table converges
+	// to the supports oracle. Every instance runs one full after the roll,
+	// which also heals any table a v4 binary emptied. Differential
+	// justification, measured on seeded backends
+	// (TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive phases 1-4
+	// against the legacy and supports oracles, and
+	// TestSupplyChainImpactWinnersFullChunkedMatchesSupportsWriterLive
+	// seeded end to end through the production writer with no finding rows
+	// in fact_records): phases agree with the supports oracle EXCEPT ALL 0
+	// in both directions with equal row counts (payload-derived ranking,
+	// projection and write shape untouched), and the writer-seeded phase
+	// proves the legacy fact select reads nothing on that data. The
+	// hermetic pins carry the row source per statement
+	// (TestWinnersFullChunkedReadsPayloadDerivedRanking,
+	// TestWinnersMaintainerStatementsReadNoFactRecords with the v3-full
+	// exemption removed).
+	5: "2a3dc4a2b1c250aca2efa17f4d5489478d7a108f66fcad57b287ec51f91ab736",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
 // rendered statements whose text defines what a resweep writes to the
-// winners tables: the full rebuild (which embeds the winner select), every
-// keyed build and apply statement, and the scope-remainder convert (#11145),
-// which decides which keys a later tick recomputes and the capture time the
-// horizon reads. The enrichment first-carry stamps (#11466) are intentionally
-// outside this pin: they land in a side table, not in winner content, and
-// the live carry tests cover them instead.
+// winners tables: the full-chunk enumeration, probe, rank and apply
+// statements (which embed the winner select), every keyed build and apply
+// statement, and the scope-remainder convert (#11145), which decides which
+// keys a later tick recomputes and the capture time the horizon reads. The
+// enrichment first-carry stamps (#11466) are intentionally outside this pin:
+// they land in a side table, not in winner content, and the live carry tests
+// cover them instead.
 func supplyChainImpactWinnersContractStatements() []string {
-	stmts := []string{rebuildSupplyChainImpactWinnersSQL}
+	stmts := winnersFullChunkContractStatements()
 	stmts = append(stmts, winnersKeyedBuildIdentsStmts...)
 	return append(stmts,
 		selectWinnersKeyedChunkIdentsSQL,

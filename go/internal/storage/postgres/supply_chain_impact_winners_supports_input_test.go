@@ -21,11 +21,23 @@ import (
 // maintainer's inputs moved to supports.
 const winnersLegacyContractPin = "25e4d8910be1951ac76980f97de64e5d5f9b483e9151a459236dc0761175747a"
 
-// TestWinnersMaintainerStatementsReadNoFactRecords proves every statement the
-// winners contract names, the full rebuild and every keyed build and apply
-// statement, reads the supports table and not fact_records: after the PR-C write
-// stop the finding facts are no longer written, so a maintainer statement that
-// still read them would read stale rows.
+// winnersKeyedLegacyReversedPin pins the hash of the keyed contract
+// statements with every reversal applied (supports swaps, stream layer,
+// detoast, EPSS strip), after the ruled #9805 v3-full re-pin moved the full
+// rebuild to chunked statements. It proves the keyed inputs still reduce to
+// the legacy statements byte-for-byte: these members are untouched by the
+// v3-full edit, and the completed-reversal assertions above prove no layer
+// stopped halfway.
+const winnersKeyedLegacyReversedPin = "02700e716da69adf716099f1e2d6d262cc880621ea3370c50a2091d18ef12146"
+
+// TestWinnersMaintainerStatementsReadNoFactRecords proves every statement
+// the winners contract names reads the supports table and not fact_records:
+// after the PR-C write stop the finding facts are no longer written, so a
+// maintainer statement that still read them would read stale rows. The ruled
+// #9805 chunked full is covered, not exempt: round 5 re-sourced every chunk
+// statement to supports (TestWinnersFullChunkedReadsPayloadDerivedRanking
+// pins the row source per statement), so the exemption the v3-full tree
+// carried is gone.
 func TestWinnersMaintainerStatementsReadNoFactRecords(t *testing.T) {
 	t.Parallel()
 
@@ -38,7 +50,6 @@ func TestWinnersMaintainerStatementsReadNoFactRecords(t *testing.T) {
 		}
 	}
 	for name, stmt := range map[string]string{
-		"rebuild":                   rebuildSupplyChainImpactWinnersSQL,
 		"scope idents":              buildWinnersKeyedScopeIdentsFromSupportsSQL,
 		"keyed active":              buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
 		"keyed operator":            addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
@@ -108,12 +119,13 @@ func TestWinnersSupportsInputsDeriveFromTheLegacyStatements(t *testing.T) {
 	t.Parallel()
 
 	for name, c := range map[string]struct{ derived, legacy string }{
-		"full active facts": {supplyChainImpactWinnerActiveFactsFromSupportsSQL, supplyChainImpactWinnerActiveFactsSQL},
-		"full select":       {supplyChainImpactWinnerSelectFromSupportsSQL, supplyChainImpactWinnerSelectSQL},
-		"scope idents":      {buildWinnersKeyedScopeIdentsFromSupportsSQL, buildWinnersKeyedScopeIdentsSQL},
-		"keyed active":      {buildWinnersKeyedActiveFactsFromSupportsSQL, buildWinnersKeyedActiveFactsSQL},
-		"keyed operator":    {addWinnersKeyedOperatorFactsFromSupportsSQL, addWinnersKeyedOperatorFactsSQL},
-		"keyed narrow":      {buildWinnersKeyedNarrowFromSupportsSQL, buildWinnersKeyedNarrowSQL},
+		"full active facts":       {supplyChainImpactWinnerActiveFactsFromSupportsSQL, supplyChainImpactWinnerActiveFactsSQL},
+		"full active facts inner": {supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL, supplyChainImpactWinnerActiveFactsInnerSQL},
+		"full select":             {supplyChainImpactWinnerSelectFromSupportsSQL, supplyChainImpactWinnerSelectSQL},
+		"scope idents":            {buildWinnersKeyedScopeIdentsFromSupportsSQL, buildWinnersKeyedScopeIdentsSQL},
+		"keyed active":            {buildWinnersKeyedActiveFactsFromSupportsSQL, buildWinnersKeyedActiveFactsSQL},
+		"keyed operator":          {addWinnersKeyedOperatorFactsFromSupportsSQL, addWinnersKeyedOperatorFactsSQL},
+		"keyed narrow":            {buildWinnersKeyedNarrowFromSupportsSQL, buildWinnersKeyedNarrowSQL},
 	} {
 		if c.derived == c.legacy {
 			t.Errorf("%s: the supports statement equals the legacy one", name)
@@ -167,40 +179,79 @@ func reverseWinnersEPSSDateStrip(statement string) string {
 
 // TestWinnersContractRepinnedForSupportsInputs is the differential that lets the
 // version-2 pin be re-pinned instead of bumped: reversing the supports swaps in
-// every contract statement must give the statements the previous pin hashed.
-// The winner output for the same rows is unchanged by construction here (the
-// supports payload is the fact payload verbatim); the live byte-identity proof on
-// a seed is owed with the live proofs.
+// the keyed contract statements must give the legacy statements back, pinned
+// below. The winner output for the same rows is unchanged by construction here
+// (the supports payload is the fact payload verbatim); the live byte-identity
+// proof on a seed is owed with the live proofs.
 //
 // Single-detoast (#11120) chains a second reversal: reverseWinnersDetoast
-// restores the legacy `->>` reads, so the doubly reversed statements hash to
-// the same pre-supports pin. The field pairs the reversal inverts are covered
-// live per field (TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive), which is the
+// restores the legacy `->>` reads. The field pairs the reversal inverts are
+// covered live per field (TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive), which is the
 // byte-identity proof the re-pin rests on. The CTE-streaming body (#9805 C5 /
 // #9975 C4) chains a third, innermost reversal first:
 // reverseWinnersKeyedStreamLayer restores the wide supports builds and the
-// shipped body, so the triply reversed statements hash to the same pin. The
-// #11598 date strip chains a fourth, outermost reversal first:
-// reverseWinnersEPSSDateStrip restores the version-2 projection text, so the
-// quadruply reversed statements hash to the same pin.
+// shipped body. The #11598 date strip chains a fourth, outermost reversal
+// first: reverseWinnersEPSSDateStrip restores the version-2 projection text.
+//
+// The ruled #9805 v3-full chunks are new statements, not swaps: they cannot
+// reverse to a version-2 member, so the reversal skips them. Their own
+// differential is the v3-full suite (stream reversal, select prefix, insert
+// round-trip), chained into the version-3 re-pin in
+// supplyChainImpactWinnersContractPins. The triple-guarded probe (#9975
+// round 6) is likewise authored on the plain supports columns and skipped;
+// its row agreement with the shipped twin is proven live by
+// TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive instead.
 func TestWinnersContractRepinnedForSupportsInputs(t *testing.T) {
 	t.Parallel()
 
 	shipped := supplyChainImpactWinnersContractStatements()
-	// The triple-guarded probe (#9975 round 6) is authored on the plain
-	// supports columns, not derived by swaps: it has no legacy twin to
-	// reverse to, so the reversal below skips it. Its row agreement with the
-	// shipped twin is proven live by
-	// TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive instead.
+	fullChunk := map[string]bool{}
+	for _, stmt := range winnersFullChunkContractStatements() {
+		fullChunk[stmt] = true
+	}
 	var reversed []string
+	var shippedKept []string
 	for _, stmt := range shipped {
-		if stmt == buildWinnersKeyedNarrowKeyPresenceSQL {
+		if stmt == buildWinnersKeyedNarrowKeyPresenceSQL || fullChunk[stmt] {
 			continue
 		}
+		shippedKept = append(shippedKept, stmt)
 		reversed = append(reversed, reverseWinnersDetoast(reverseWinnersSupportsInput(reverseWinnersKeyedStreamLayer(reverseWinnersEPSSDateStrip(stmt)))))
 	}
-	if got := supplyChainImpactWinnersContractHashOf(reversed); got != winnersLegacyContractPin {
-		t.Fatalf("the contract statements with the supports swaps reversed hash to %s, want the previous version-2 pin %s", got, winnersLegacyContractPin)
+	// Every reversal ran to completion: no supports row source, no extracted
+	// record, no streamed fetch and no date strip survives. A statement whose
+	// shipped form read facts or supports reads its legacy row source again:
+	// the facts, or the keyed temp table the streamed body ranks over.
+	legacyRowSources := append([]string{"fact_records"},
+		winnersKeyedActiveFactsTable, winnersKeyedNarrowTable, winnersKeyedIdentsTable)
+	for i, stmt := range reversed {
+		for _, banned := range []string{
+			"supply_chain_impact_finding_supports",
+			"jsonb_to_record",
+			"source_payload",
+			"override_payload",
+			"selected_epss_score_date",
+		} {
+			if strings.Contains(stmt, banned) {
+				t.Errorf("reversed keyed statement %d still carries %q: a reversal layer did not run", i, banned)
+			}
+		}
+		if !strings.Contains(shippedKept[i], "fact_records") &&
+			!strings.Contains(shippedKept[i], "supply_chain_impact_finding_supports") {
+			continue
+		}
+		restored := false
+		for _, source := range legacyRowSources {
+			if strings.Contains(stmt, source) {
+				restored = true
+			}
+		}
+		if !restored {
+			t.Errorf("reversed keyed statement %d lost its legacy row source", i)
+		}
+	}
+	if got := supplyChainImpactWinnersContractHashOf(reversed); got != winnersKeyedLegacyReversedPin {
+		t.Fatalf("the keyed contract statements with the supports swaps reversed hash to %s, want the pinned legacy reversal %s", got, winnersKeyedLegacyReversedPin)
 	}
 	if got := supplyChainImpactWinnersContractHashOf(shipped); got == winnersLegacyContractPin {
 		t.Fatal("the shipped contract statements still hash to the previous pin: the maintainer did not move")

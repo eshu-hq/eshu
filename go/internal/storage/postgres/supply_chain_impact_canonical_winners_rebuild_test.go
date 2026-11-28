@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -75,14 +76,15 @@ func TestWinnerDataColumnsMatchTableAndSelect(t *testing.T) {
 	}
 }
 
-// TestRebuildSQLWritesOnlyChangedRows pins the write-on-change shape (#9774):
-// the insert reads from the changed set, the change test covers every data
-// column and not materialized_at, and the form is the anti-join, not a bare
-// DO UPDATE ... WHERE, which still locks every conflicting row.
-func TestRebuildSQLWritesOnlyChangedRows(t *testing.T) {
+// TestFullChunkApplyWritesOnlyChangedRows pins the write-on-change shape
+// (#9774) of each full-rebuild chunk: the insert reads from the changed set,
+// the change test covers every data column and not materialized_at, and the
+// form is the anti-join, not a bare DO UPDATE ... WHERE, which still locks
+// every conflicting row.
+func TestFullChunkApplyWritesOnlyChangedRows(t *testing.T) {
 	t.Parallel()
 
-	sqlText := rebuildSupplyChainImpactWinnersSQL
+	body := applyWinnersFullChunkBodySQL
 	for _, want := range []string{
 		"changed AS MATERIALIZED (",
 		"LEFT JOIN supply_chain_impact_canonical_winners AS w",
@@ -90,20 +92,19 @@ func TestRebuildSQLWritesOnlyChangedRows(t *testing.T) {
 		") IS DISTINCT FROM ROW(",
 		"FROM changed\n    ON CONFLICT (canonical_key) DO UPDATE SET",
 		"materialized_at = EXCLUDED.materialized_at",
-		"RETURNING\n    (SELECT count(*) FROM changed WHERE is_new),",
 	} {
-		if !strings.Contains(sqlText, want) {
-			t.Errorf("rebuild SQL missing %q", want)
+		if !strings.Contains(body, want) {
+			t.Errorf("full chunk apply SQL missing %q", want)
 		}
 	}
-	if strings.Contains(sqlText, "FROM winners_now\n    ON CONFLICT") {
-		t.Error("rebuild SQL inserts every winner; it must insert only the changed set")
+	if strings.Contains(body, "FROM winners_now\n    ON CONFLICT") {
+		t.Error("full chunk apply SQL inserts every winner; it must insert only the changed set")
 	}
-	if strings.Contains(sqlText, "DO UPDATE SET materialized_at = EXCLUDED.materialized_at\n    WHERE") ||
-		regexp.MustCompile(`(?s)environments = EXCLUDED\.environments,\s+materialized_at = EXCLUDED\.materialized_at\s+WHERE`).MatchString(sqlText) {
-		t.Error("rebuild SQL filters with ON CONFLICT ... WHERE, which still locks every row")
+	if strings.Contains(body, "DO UPDATE SET materialized_at = EXCLUDED.materialized_at\n    WHERE") ||
+		regexp.MustCompile(`(?s)environments = EXCLUDED\.environments,\s+materialized_at = EXCLUDED\.materialized_at\s+WHERE`).MatchString(body) {
+		t.Error("full chunk apply SQL filters with ON CONFLICT ... WHERE, which still locks every row")
 	}
-	_, afterChanged, _ := strings.Cut(sqlText, "changed AS MATERIALIZED")
+	_, afterChanged, _ := strings.Cut(body, "changed AS MATERIALIZED")
 	compare, _, _ := strings.Cut(afterChanged, "upserted AS")
 	if strings.Contains(compare, "n.materialized_at") || strings.Contains(compare, "w.materialized_at") {
 		t.Error("the change test compares materialized_at, which differs every tick")
@@ -114,6 +115,18 @@ func TestRebuildSQLWritesOnlyChangedRows(t *testing.T) {
 		}
 		if !strings.Contains(compare, "w."+col+",") && !strings.Contains(compare, "w."+col+")") {
 			t.Errorf("change test omits stored column %s", col)
+		}
+	}
+	// The chunk reports the keyed apply's first four counts; the watermark
+	// stamps once, after every chunk, never per chunk.
+	for _, want := range []string{
+		"(SELECT count(*) FROM changed WHERE is_new),",
+		"(SELECT count(*) FROM changed WHERE NOT is_new),",
+		"(SELECT count(*) FROM deleted),",
+		"(SELECT count(*) FROM winners_now) - (SELECT count(*) FROM changed)",
+	} {
+		if !strings.Contains(applyWinnersFullChunkSQL, want) {
+			t.Errorf("full chunk apply SQL missing count %q", want)
 		}
 	}
 }
@@ -146,7 +159,18 @@ func (r *winnersCountRows) Scan(dest ...any) error {
 		case *sql.NullInt64:
 			*d = v.(sql.NullInt64)
 		case *time.Time:
-			*d = v.(time.Time)
+			// The final stamp reports its watermark for arity only: a NULL
+			// reads as the zero time.
+			switch t := v.(type) {
+			case time.Time:
+				*d = t
+			case sql.NullTime:
+				if t.Valid {
+					*d = t.Time
+				}
+			default:
+				return fmt.Errorf("bad time value %T", v)
+			}
 		case *sql.NullString:
 			*d = v.(sql.NullString)
 		case *string:
@@ -169,8 +193,10 @@ func (r *winnersCountRows) Close() error {
 }
 
 // winnersFakeTx scripts the resweep transaction: the single-flight claim, the
-// DB clock read, the dirty-log and staging drains (#11117), the rebuild
-// statement, the residual counts and the committed watermark read.
+// DB clock read, the dirty-log and staging drains (#11117), the pre-stamp
+// read, the supports-ready gate, the chunked walk (identifier pages and
+// per-chunk applies), the final stamp, the residual counts and the committed
+// watermark read.
 type winnersFakeTx struct {
 	claim      *winnersCountRows
 	counts     *winnersCountRows
@@ -199,6 +225,28 @@ type winnersFakeTx struct {
 	hasPre   bool
 	preEmpty bool
 	wmReads  int
+	// supportsReady scripts the full-chunk supports-ready gate; supportsReadyErr
+	// fails the gate read, which fails the full closed onto the fact_records probe.
+	supportsReady    bool
+	supportsReadyErr error
+	// pages scripts the identifier pages the chunk walk reads, one entry per
+	// page call; a missing entry reads as an empty page. Each row is one
+	// five-tuple. A nil script reads one default page, so a test that only
+	// needs the full to run scripts nothing.
+	pages [][]winnersKeyedChunkIdent
+	// pageCalls counts the page reads served.
+	pageCalls int
+	// applies scripts the per-chunk apply count cursors, popped in order; an
+	// empty script reports one (1,0,0,0) chunk.
+	applies []*winnersCountRows
+	// stampValue is the watermark the final stamp reports (arity only).
+	stampValue time.Time
+	// issued tracks the chunk-walk cursors so Commit can prove every one
+	// closed before the transaction committed.
+	issued []interface{ Closed() bool }
+	// execs records the Exec statements in order, so the walk setup and the
+	// per-chunk probe, build and stage order is pinned alongside the queries.
+	execs []string
 
 	queries    []string
 	args       [][]any
@@ -206,6 +254,46 @@ type winnersFakeTx struct {
 	rolledBack bool
 	openAtEnd  bool
 }
+
+// winnersPageRows is a scripted identifier page: five text columns per row.
+type winnersPageRows struct {
+	rows   [][]any
+	i      int
+	closed bool
+}
+
+func (r *winnersPageRows) Next() bool {
+	r.i++
+	return r.i <= len(r.rows)
+}
+
+func (r *winnersPageRows) Scan(dest ...any) error {
+	for i, v := range r.rows[r.i-1] {
+		s, ok := v.(string)
+		if !ok {
+			return errors.New("page row is not a string five-tuple")
+		}
+		p, ok := dest[i].(*string)
+		if !ok {
+			return errors.New("page destination is not a string")
+		}
+		*p = s
+	}
+	return nil
+}
+
+func (r *winnersPageRows) Err() error { return nil }
+
+func (r *winnersPageRows) Close() error {
+	r.closed = true
+	return nil
+}
+
+// Closed reports whether the page cursor closed before commit.
+func (r *winnersPageRows) Closed() bool { return r.closed }
+
+// Closed reports whether the counts cursor closed before commit.
+func (r *winnersCountRows) Closed() bool { return r.closed }
 
 func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	tx.queries, tx.args = append(tx.queries, query), append(tx.args, args)
@@ -239,6 +327,40 @@ func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...a
 			return winnersCounts(tx.clockOrDefault()), nil
 		}
 		return winnersCounts(tx.watermark), nil
+	case supplyChainImpactSupportsReadySQL:
+		if tx.supportsReadyErr != nil {
+			return nil, tx.supportsReadyErr
+		}
+		return winnersCounts(tx.supportsReady), nil
+	case selectWinnersFullChunkPageSQL:
+		var rows [][]any
+		page := []winnersKeyedChunkIdent{{pkg: "pkg", repo: "repo", digest: "digest", c0: "c0", advisory: "advisory"}}
+		if tx.pages != nil {
+			page = nil
+			if tx.pageCalls < len(tx.pages) {
+				page = tx.pages[tx.pageCalls]
+			}
+		}
+		tx.pageCalls++
+		for _, id := range page {
+			rows = append(rows, []any{id.pkg, id.repo, id.digest, id.c0, id.advisory})
+		}
+		cur := &winnersPageRows{rows: rows}
+		tx.issued = append(tx.issued, cur)
+		return cur, nil
+	case applyWinnersFullChunkSQL:
+		var cur *winnersCountRows
+		if len(tx.applies) > 0 {
+			cur, tx.applies = tx.applies[0], tx.applies[1:]
+		} else {
+			cur = winnersCounts(int64(1), int64(0), int64(0), int64(0))
+		}
+		tx.issued = append(tx.issued, cur)
+		return cur, tx.rebuildErr
+	case stampWinnersFullWatermarkSQL:
+		cur := winnersCounts(sql.NullTime{Time: tx.stampValue, Valid: !tx.stampValue.IsZero()})
+		tx.issued = append(tx.issued, cur)
+		return cur, nil
 	}
 	// #10876: the resweep commit is the providing save for the
 	// winners-watermark wait kind, so it wakes parked waits in the same
@@ -263,11 +385,14 @@ func (tx *winnersFakeTx) clockOrDefault() time.Time {
 	return tx.clock
 }
 
-// ExecContext accepts only the #11117 isolation pin (recording whether it
-// ran first), the contract stamp, and the #11466 enrichment first-carry
-// claims (which return no rows back: the stamp table is the observable, like
-// the pin and the stamp); any other Exec is a fake mismatch.
+// ExecContext accepts the #11117 isolation pin (recording whether it ran
+// first), the chunked-walk DDL and probe statements, the contract stamp, and
+// the #11466 enrichment first-carry claims (which return no rows back: the
+// stamp table is the observable, like the pin and the stamp); any other Exec
+// is a fake mismatch. The chunk walk never reads RowsAffected off these
+// results, so they carry none.
 func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	tx.execs = append(tx.execs, query)
 	switch query {
 	case pinWinnersFullReadCommittedSQL:
 		tx.pinnedFirst = len(tx.queries) == 0
@@ -275,15 +400,36 @@ func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, args ...an
 		tx.contractStamps = append(tx.contractStamps, args)
 	case claimSupplyChainImpactWinnersEnrichmentCarryFullSQL,
 		claimSupplyChainImpactWinnersEnrichmentCarryKeyedSQL:
+	case dropWinnersFullChunkTempSQL,
+		buildWinnersFullIdentsSQL,
+		analyzeWinnersFullIdentsSQL,
+		createWinnersKeyedIdentsSQL,
+		createWinnersKeyedNarrowSQL,
+		createWinnersKeyedActiveFactsNarrowSQL,
+		clearWinnersKeyedIdentsSQL,
+		clearWinnersKeyedNarrowSQL,
+		clearWinnersKeyedActiveFactsSQL,
+		insertWinnersKeyedNarrowSupportsFullChunkSQL,
+		insertWinnersKeyedNarrowPresenceFullChunkSQL,
+		analyzeWinnersKeyedNarrowSQL,
+		insertWinnersFullChunkActiveFactsSQL,
+		analyzeWinnersKeyedActiveFactsSQL,
+		addWinnersKeyedOperatorFactsNarrowFromSupportsSQL:
 	default:
-		return nil, errors.New("the resweep must not use ExecContext")
+		if !strings.HasPrefix(query, insertWinnersKeyedIdentsPrefix) {
+			return nil, errors.New("the resweep must not use ExecContext")
+		}
 	}
 	return nil, nil
 }
 
 func (tx *winnersFakeTx) Commit() error {
 	tx.committed = true
-	tx.openAtEnd = !tx.counts.closed
+	for _, cur := range tx.issued {
+		if !cur.Closed() {
+			tx.openAtEnd = true
+		}
+	}
 	return tx.commitErr
 }
 
@@ -325,15 +471,22 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	previous := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	clock := previous.Add(30 * time.Second)
 	committed := clock.Add(-time.Second)
+	chunk := []winnersKeyedChunkIdent{
+		{pkg: "a", repo: "r", digest: "d", c0: "CVE-2026-1", advisory: ""},
+		{pkg: "b", repo: "r", digest: "d", c0: "CVE-2026-2", advisory: ""},
+	}
 	tx := &winnersFakeTx{
-		claim:        winnersClaimed(true),
-		counts:       winnersCounts(int64(1), int64(2), int64(3), int64(4), sql.NullTime{Time: committed, Valid: true}),
-		clock:        clock,
-		watermark:    committed,
-		pre:          previous,
-		hasPre:       true,
-		logDrain:     [][]any{{"fact_upsert", int64(5)}, {"activation", int64(2)}},
-		stagingDrain: [][]any{{"scanner", int64(3)}, {"fact_upsert", int64(1)}},
+		claim:         winnersClaimed(true),
+		supportsReady: true,
+		pages:         [][]winnersKeyedChunkIdent{chunk},
+		applies:       []*winnersCountRows{winnersCounts(int64(1), int64(2), int64(3), int64(4))},
+		stampValue:    committed,
+		clock:         clock,
+		watermark:     committed,
+		pre:           previous,
+		hasPre:        true,
+		logDrain:      [][]any{{"fact_upsert", int64(5)}, {"activation", int64(2)}},
+		stagingDrain:  [][]any{{"scanner", int64(3)}, {"fact_upsert", int64(1)}},
 	}
 
 	got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
@@ -350,44 +503,145 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 		t.Fatalf("ResweepWinners() drained %d marks, trigger %+v; want 11 and activation 2, scanner 3", got.Identifiers, got.TriggerCaptured)
 	}
 	// #11117: the clock is read, the log and staging are drained, then the
-	// rebuild runs on a later snapshot; the residual counts and the committed
-	// watermark follow, and the #10876 wake closes the transaction. The
-	// pre-stamp watermark is read immediately before the rebuild statement,
-	// since the rebuild's RETURNING column reports the post-upsert value.
+	// chunk runs on a later snapshot; the final stamp, the residual counts
+	// and the committed watermark follow, and the #10876 wake closes the
+	// transaction. The pre-stamp watermark is read before the first chunk
+	// statement, since the chunks' writes must never be visible to it. The
+	// two-ident page is short of the 200-identifier bound, so one page and
+	// one chunk end the walk with no second page.
 	want := []string{
 		tryClaimSupplyChainImpactWinnersResweepSQL,
 		selectWinnersKeyedTickClockSQL,
 		drainWinnersDirtyLogForFullSQL,
 		drainWinnersStagingForFullSQL,
 		selectWinnersWatermarkSQL,
-		rebuildSupplyChainImpactWinnersSQL,
+		supplyChainImpactSupportsReadySQL,
+		selectWinnersFullChunkPageSQL,
+		applyWinnersFullChunkSQL,
+		stampWinnersFullWatermarkSQL,
 		countWinnersKeyedRemainingSQL,
 		selectWinnersStagingResidualSQL,
 		selectWinnersWatermarkSQL,
 	}
 	if len(tx.queries) != len(want)+1 || !slices.Equal(tx.queries[:len(want)], want) {
-		t.Fatalf("queries = %q, want claim, clock, log drain, staging drain, pre-stamp read, rebuild, residual, watermark, wake", tx.queries)
+		t.Fatalf("queries = %q, want claim, clock, log drain, staging drain, pre-stamp read, gate, page, apply, stamp, residual, watermark, wake", tx.queries)
 	}
 	if wake := tx.queries[len(want)]; !strings.Contains(wake, "reducer_waiting_items") || !strings.Contains(wake, "reopened") {
 		t.Fatalf("last query = %q, want the winners-watermark wake", wake)
 	}
+	// The chunk walk creates its temps once, then clears, stages, probes,
+	// builds and applies one page. The gate is open, so the probe is the
+	// triple-guarded presence probe over supports. The isolation pin runs
+	// first; the enrichment first-carry claim and the contract stamp close
+	// the walk.
+	wantExecs := []string{
+		pinWinnersFullReadCommittedSQL,
+		dropWinnersFullChunkTempSQL,
+		buildWinnersFullIdentsSQL,
+		analyzeWinnersFullIdentsSQL,
+		createWinnersKeyedIdentsSQL,
+		createWinnersKeyedNarrowSQL,
+		createWinnersKeyedActiveFactsNarrowSQL,
+		clearWinnersKeyedIdentsSQL,
+		"",
+		clearWinnersKeyedNarrowSQL,
+		insertWinnersKeyedNarrowPresenceFullChunkSQL,
+		analyzeWinnersKeyedNarrowSQL,
+		clearWinnersKeyedActiveFactsSQL,
+		insertWinnersFullChunkActiveFactsSQL,
+		analyzeWinnersKeyedActiveFactsSQL,
+		addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
+		claimSupplyChainImpactWinnersEnrichmentCarryFullSQL,
+		stampSupplyChainImpactWinnersContractSQL,
+	}
+	if len(tx.execs) != len(wantExecs) {
+		t.Fatalf("execs = %q, want the walk setup plus one full chunk", tx.execs)
+	}
+	for i, wantExec := range wantExecs {
+		if i == 8 {
+			if !strings.HasPrefix(tx.execs[i], insertWinnersKeyedIdentsPrefix) {
+				t.Fatalf("execs[%d] = %q, want the staged chunk page", i, tx.execs[i])
+			}
+			continue
+		}
+		if tx.execs[i] != wantExec {
+			t.Fatalf("execs[%d] = %q, want %q", i, tx.execs[i], wantExec)
+		}
+	}
 	if !tx.pinnedFirst {
 		t.Fatal("the full did not pin READ COMMITTED as its first statement")
 	}
-	if args := tx.args[5]; len(args) != 1 || args[0] != clock {
-		t.Fatalf("rebuild args = %v, want the DB clock %v", args, clock)
+	stampIdx := slices.Index(tx.queries, stampWinnersFullWatermarkSQL)
+	if stampIdx < 0 || len(tx.args[stampIdx]) != 1 || tx.args[stampIdx][0] != clock {
+		t.Fatalf("stamp args = %v, want the DB clock %v", tx.args, clock)
 	}
 	if !tx.committed || tx.openAtEnd {
-		t.Fatalf("committed = %v with the cursor open = %v, want a commit after the cursor closed", tx.committed, tx.openAtEnd)
+		t.Fatalf("committed = %v with a cursor open = %v, want a commit after every cursor closed", tx.committed, tx.openAtEnd)
 	}
 	if len(tx.contractStamps) != 1 || tx.contractStamps[0][0] != SupplyChainImpactWinnersContractVersion || tx.contractStamps[0][1] != supplyChainImpactWinnersContractHash {
 		t.Fatalf("contract stamps = %v, want one stamp of version %d and the binary hash", tx.contractStamps, SupplyChainImpactWinnersContractVersion)
 	}
+	if tx.pageCalls != 1 {
+		t.Fatalf("page calls = %d, want the single short page", tx.pageCalls)
+	}
 
-	tx = &winnersFakeTx{claim: winnersClaimed(true), counts: winnersCounts(int64(0), int64(0), int64(0), int64(0), sql.NullTime{}), preEmpty: true}
+	tx = &winnersFakeTx{claim: winnersClaimed(true), preEmpty: true}
 	first, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
 	if err != nil || !first.PreviousWatermark.IsZero() {
 		t.Fatalf("first resweep = %+v, %v; want a zero previous watermark", first, err)
+	}
+}
+
+// TestResweepWinnersFallsBackToSupportsExpressionProbeWhenSupportsNotReady pins
+// the ruled gate: a closed (or unreadable) supports gate runs the chunk probe
+// over supports with the payload expression instead of refusing, and an open
+// gate runs the triple-guarded presence probe over supports. Both variants
+// read supports; the flip is the probe shape, never the row source.
+func TestResweepWinnersFallsBackToSupportsExpressionProbeWhenSupportsNotReady(t *testing.T) {
+	t.Parallel()
+
+	oneIdent := [][]winnersKeyedChunkIdent{{{pkg: "a", repo: "r", digest: "d", c0: "c", advisory: ""}}}
+	for name, tx := range map[string]*winnersFakeTx{
+		"closed":     {claim: winnersClaimed(true), pages: oneIdent},
+		"unreadable": {claim: winnersClaimed(true), supportsReadyErr: errors.New("gate read failed"), pages: oneIdent},
+	} {
+		got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
+		if err != nil || got.Skipped {
+			t.Fatalf("%s: ResweepWinners() = %+v, %v; want the full to run on the fallback probe", name, got, err)
+		}
+		foundFallback, foundPresence := false, false
+		for _, exec := range tx.execs {
+			if exec == insertWinnersKeyedNarrowSupportsFullChunkSQL {
+				foundFallback = true
+			}
+			if exec == insertWinnersKeyedNarrowPresenceFullChunkSQL {
+				foundPresence = true
+			}
+		}
+		if !foundFallback || foundPresence {
+			t.Fatalf("%s: supports-expression probe %v, presence probe %v; want only the fallback probe", name, foundFallback, foundPresence)
+		}
+	}
+
+	openTx := &winnersFakeTx{
+		claim: winnersClaimed(true), supportsReady: true,
+		pages: [][]winnersKeyedChunkIdent{{{pkg: "a", repo: "r", digest: "d", c0: "c", advisory: ""}}},
+	}
+	openStore := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: openTx}}
+	if _, err := openStore.ResweepWinners(context.Background()); err != nil {
+		t.Fatalf("open gate ResweepWinners() error = %v", err)
+	}
+	foundPresence := false
+	for _, exec := range openTx.execs {
+		if exec == insertWinnersKeyedNarrowPresenceFullChunkSQL {
+			foundPresence = true
+		}
+		if exec == insertWinnersKeyedNarrowSupportsFullChunkSQL {
+			t.Fatal("open gate ran the fallback probe; want the presence probe")
+		}
+	}
+	if !foundPresence {
+		t.Fatal("open gate ran no presence probe; want the triple-guarded probe over supports")
 	}
 }
 
@@ -483,12 +737,17 @@ func TestResweepWinnersFailsLoudly(t *testing.T) {
 	good := func() *winnersCountRows {
 		return winnersCounts(int64(1), int64(0), int64(0), int64(0), sql.NullTime{})
 	}
-	afterRow := good()
-	afterRow.err = errors.New("commit failed after the row")
-	closeFails := good()
-	closeFails.closeErr = errors.New("close failed")
-	twoRows := good()
-	twoRows.rows = append(twoRows.rows, twoRows.rows[0])
+	// Chunk applies scan four counts (no watermark column: the final stamp is
+	// its own statement), so the apply fixtures carry four values.
+	goodApply := func() *winnersCountRows {
+		return winnersCounts(int64(1), int64(0), int64(0), int64(0))
+	}
+	afterRowApply := goodApply()
+	afterRowApply.err = errors.New("commit failed after the row")
+	closeFailsApply := goodApply()
+	closeFailsApply.closeErr = errors.New("close failed")
+	twoRowsApply := goodApply()
+	twoRowsApply.rows = append(twoRowsApply.rows, twoRowsApply.rows[0])
 
 	for name, tx := range map[string]*winnersFakeTx{
 		"claim error":        {claimErr: errors.New("boom"), claim: &winnersCountRows{}, counts: good()},
@@ -496,11 +755,11 @@ func TestResweepWinnersFailsLoudly(t *testing.T) {
 		"claim cursor error": {claim: &winnersCountRows{err: errors.New("cursor")}, counts: good()},
 		"rebuild error":      {claim: winnersClaimed(true), rebuildErr: context.DeadlineExceeded, counts: good()},
 		"drain error":        {claim: winnersClaimed(true), drainErr: errors.New("drain"), counts: good()},
-		"no counts row":      {claim: winnersClaimed(true), counts: &winnersCountRows{}},
-		"cursor error":       {claim: winnersClaimed(true), counts: &winnersCountRows{err: errors.New("cursor")}},
-		"error after row":    {claim: winnersClaimed(true), counts: afterRow},
-		"close error":        {claim: winnersClaimed(true), counts: closeFails},
-		"extra counts row":   {claim: winnersClaimed(true), counts: twoRows},
+		"no counts row":      {claim: winnersClaimed(true), applies: []*winnersCountRows{{}}},
+		"cursor error":       {claim: winnersClaimed(true), applies: []*winnersCountRows{{err: errors.New("cursor")}}},
+		"error after row":    {claim: winnersClaimed(true), applies: []*winnersCountRows{afterRowApply}},
+		"close error":        {claim: winnersClaimed(true), applies: []*winnersCountRows{closeFailsApply}},
+		"extra counts row":   {claim: winnersClaimed(true), applies: []*winnersCountRows{twoRowsApply}},
 		"commit error":       {claim: winnersClaimed(true), counts: good(), commitErr: errors.New("commit")},
 	} {
 		got, err := (SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}).ResweepWinners(context.Background())

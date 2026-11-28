@@ -143,13 +143,18 @@ func TestWinnerSelectReadsNoDigestExcludedPayloadField(t *testing.T) {
 // alignment: winnersAuditDiffSelect must mask evidence_fact_ids and nested
 // provenance.selected_epss_score_date on both sides of the ROW comparison so
 // AuditWinners does not loop repairs on accepted staleness, while keeping
-// SupplyChainImpactWinnersContractVersion at 3 and leaving semantic fields
+// SupplyChainImpactWinnersContractVersion at 5 and leaving semantic fields
 // compared verbatim.
 func TestWinnersAuditDiffMasksEvidenceAndScoreDate(t *testing.T) {
 	t.Parallel()
 
-	if postgres.SupplyChainImpactWinnersContractVersion != 3 {
-		t.Fatalf("SupplyChainImpactWinnersContractVersion = %d, want 3 (audit mask must not bump winners contract)", postgres.SupplyChainImpactWinnersContractVersion)
+	// The version gate forces this re-examination on every contract bump:
+	// the round-5 re-source changes which rows the resweep writes, never
+	// the payload shape the mask strips, and the v5 healing proof
+	// (TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive)
+	// runs AuditWinners over the healed table with zero repairs.
+	if postgres.SupplyChainImpactWinnersContractVersion != 5 {
+		t.Fatalf("SupplyChainImpactWinnersContractVersion = %d, want 5 (re-examine the audit mask on every winners contract bump)", postgres.SupplyChainImpactWinnersContractVersion)
 	}
 	check := func(sql string) []string {
 		var errs []string

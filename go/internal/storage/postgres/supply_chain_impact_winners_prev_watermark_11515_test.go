@@ -37,6 +37,12 @@ func (r *prevFakeRows) Scan(dest ...any) error {
 	}
 	for i, d := range dest {
 		switch p := d.(type) {
+		case *bool:
+			v, ok := r.values[i].(bool)
+			if !ok {
+				return fmt.Errorf("scan: bad bool value %T", r.values[i])
+			}
+			*p = v
 		case *time.Time:
 			switch v := r.values[i].(type) {
 			case time.Time:
@@ -107,10 +113,18 @@ func (tx *prevFakeTx) QueryContext(_ context.Context, query string, _ ...any) (d
 			int64(1), int64(0), int64(0), int64(0), int64(1),
 			sql.NullTime{Time: tx.post, Valid: true},
 		}}, nil
-	case rebuildSupplyChainImpactWinnersSQL:
+	case supplyChainImpactSupportsReadySQL:
+		return &prevFakeRows{values: []any{false}}, nil
+	case selectWinnersFullChunkPageSQL:
+		return &prevFakeRows{}, nil
+	case applyWinnersFullChunkSQL:
 		tx.stamped = true
 		return &prevFakeRows{values: []any{
 			int64(1), int64(0), int64(0), int64(0),
+		}}, nil
+	case stampWinnersFullWatermarkSQL:
+		tx.stamped = true
+		return &prevFakeRows{values: []any{
 			sql.NullTime{Time: tx.post, Valid: true},
 		}}, nil
 	}
@@ -198,14 +212,23 @@ func TestStampSitesReportPreStampOnAdvance(t *testing.T) {
 	t.Run("rebuild", func(t *testing.T) {
 		t.Parallel()
 		tx := &prevFakeTx{pre: pre, post: post}
-		got, err := runSupplyChainImpactWinnersRebuild(context.Background(), tx, post)
+		store := SupplyChainImpactWinnersStore{}
+		got, err := store.runSupplyChainImpactWinnersRebuild(context.Background(), tx, post, store.chunkBounds())
 		if err != nil {
 			t.Fatalf("runSupplyChainImpactWinnersRebuild() error = %v", err)
 		}
 		if !got.PreviousWatermark.Equal(pre) {
 			t.Fatalf("rebuild PreviousWatermark = %v, want the pre-stamp %v", got.PreviousWatermark, pre)
 		}
-		requirePreReadImmediatelyPrecedesStamp(t, tx, rebuildSupplyChainImpactWinnersSQL)
+		// The pre-stamp read is the first statement, so it can never
+		// observe a chunk's own write; the final stamp runs after the
+		// chunks, once per resweep.
+		if len(tx.queries) == 0 || tx.queries[0] != selectWinnersWatermarkSQL {
+			t.Fatalf("first query = %q, want the pre-stamp watermark read before any chunk write", tx.queries)
+		}
+		if last := tx.queries[len(tx.queries)-1]; last != stampWinnersFullWatermarkSQL {
+			t.Fatalf("last query = %q, want the final watermark stamp after every chunk", last)
+		}
 	})
 }
 

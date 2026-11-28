@@ -225,3 +225,9 @@ func TestConvertWinnersKeyedScopeRemainderSelectUsesMaterializedChunkApplied(t *
 		t.Error("convert arm still carries the correlated applied-scope EXISTS: the per-expansion-row chunk re-probe is back")
 	}
 }
+
+// WinnersFullIdentsSQLForTest exposes the full enumeration (live candidate
+// arm UNION stored winners arm) so the old-vs-new EXPLAIN proof can run the
+// shipped statement and derive the pre-fix live-only text by cutting the
+// stored arm at its stable UNION boundaries, never by hand-copying.
+var WinnersFullIdentsSQLForTest = buildWinnersFullIdentsSQL

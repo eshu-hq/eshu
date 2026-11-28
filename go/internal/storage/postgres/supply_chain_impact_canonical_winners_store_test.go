@@ -76,13 +76,14 @@ func TestSupplyChainImpactWinnerSelectMirrorsReadDedup(t *testing.T) {
 	}
 }
 
-// TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile pins that the rebuild
-// upserts current winners, deletes winners no longer in the active set, and
-// stamps the maintainer watermark in one statement (no torn rebuild visible to
-// readers). The winners upsert and delete are data-modifying CTEs; the final,
-// unconditional watermark upsert runs even on a zero-winner resweep so the read
-// can tell "never populated" from "reswept to zero findings".
-func TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile(t *testing.T) {
+// TestRebuildSupplyChainImpactWinnersChunkedReconcile pins that the chunked
+// rebuild (#9805 v3-full) upserts current winners and deletes winners its
+// chunk no longer produces, in one transaction whose final, unconditional
+// watermark stamp runs even on a zero-winner resweep (no torn rebuild visible
+// to readers; the read tells "never populated" from "reswept to zero
+// findings"). The winners upsert and delete are data-modifying CTEs of the
+// per-chunk apply; the stamp caps under the residual and never regresses.
+func TestRebuildSupplyChainImpactWinnersChunkedReconcile(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
@@ -91,19 +92,27 @@ func TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile(t *testing.T) {
 		"suppression_state, suppression_expires_at",
 		"ON CONFLICT (canonical_key) DO UPDATE SET",
 		"suppression_expires_at = EXCLUDED.suppression_expires_at",
-		"deleted AS (\n    DELETE FROM supply_chain_impact_canonical_winners w\n    WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)\n    RETURNING 1\n)",
-		// Unconditional watermark upsert is the final statement so it stamps even
+		"deleted AS (\n    DELETE FROM supply_chain_impact_canonical_winners AS w",
+		winnersStoredIdentMatch,
+		"AND NOT EXISTS (SELECT 1 FROM winners_now AS n WHERE n.canonical_key = w.canonical_key)",
+	} {
+		if !strings.Contains(applyWinnersFullChunkSQL, want) {
+			t.Fatalf("full chunk apply SQL missing %q:\n%s", want, applyWinnersFullChunkSQL)
+		}
+	}
+	for _, want := range []string{
+		// Unconditional watermark stamp is the final statement so it stamps even
 		// a zero-winner resweep.
 		"INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)",
-		// #11117: the stamp is capped under the residual marks the statement
+		// #11117: the stamp is capped under the residual marks the walk
 		// still sees and never regresses the watermark.
 		"VALUES (1, LEAST($1::timestamptz, (",
 		"SELECT min(captured_at) AS captured_at FROM supply_chain_impact_winners_dirty_log",
 		"SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_staging",
 		"ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(\n    supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)",
 	} {
-		if !strings.Contains(rebuildSupplyChainImpactWinnersSQL, want) {
-			t.Fatalf("rebuild SQL missing %q:\n%s", want, rebuildSupplyChainImpactWinnersSQL)
+		if !strings.Contains(stampWinnersFullWatermarkSQL, want) {
+			t.Fatalf("full watermark stamp SQL missing %q:\n%s", want, stampWinnersFullWatermarkSQL)
 		}
 	}
 }

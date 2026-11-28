@@ -108,6 +108,14 @@ var (
 	// the active supports of every active scope generation.
 	supplyChainImpactWinnerActiveFactsFromSupportsSQL = applyWinnersSupportsInputSwaps(
 		"full active facts", supplyChainImpactWinnerActiveFactsSQL, winnersActiveFactsSwaps)
+	// supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL is the inner
+	// candidate set of the full select over the supports table: the same
+	// swaps narrow the inner select the chunked-full enumeration pages, so
+	// the full rebuild's live arm reads the supports row source the keyed
+	// tick and the audit read. The table stays aliased AS fact, so the
+	// detoast lateral keeps resolving fact.payload verbatim.
+	supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL = applyWinnersSupportsInputSwaps(
+		"full active facts inner", supplyChainImpactWinnerActiveFactsInnerSQL, winnersActiveFactsSwaps)
 	// supplyChainImpactWinnerSelectFromSupportsSQL is the winner select the
 	// maintainer's rebuild runs; the audit keeps supplyChainImpactWinnerSelectSQL.
 	supplyChainImpactWinnerSelectFromSupportsSQL = supplyChainImpactWinnerActiveFactsFromSupportsSQL + supplyChainImpactWinnerBodySQL
@@ -216,6 +224,17 @@ func narrowWinnersKeyedTempBuild(name, wideSupports, spliceBefore string) string
 // rows flow. Every anchor must match its exact count, so a change to the
 // shipped body fails loudly instead of running half-streamed.
 func streamWinnersKeyedBody(body string) string {
+	return streamWinnersKeyedBodyFrom(body, winnersSupportsTable)
+}
+
+// streamWinnersKeyedBodyFrom derives the CTE-streaming keyed body from the
+// shipped winner body with the payload fetched from payloadTable. The keyed
+// tick and the ruled #9805 chunked full both stream over the supports table,
+// so the winner and override payloads arrive by fact_id point lookup from
+// the supports while the shipped final projection runs verbatim. Every
+// anchor count is independent of the table name, so two derivations over
+// different payload tables differ only by the declared row source.
+func streamWinnersKeyedBodyFrom(body, payloadTable string) string {
 	if n := strings.Count(body, winnersDetoastFactLateral); n != 2 {
 		panic("winners stream body: lateral occurs " + fmt.Sprintf("%d", n) + " times, want 2")
 	}
@@ -257,10 +276,10 @@ LEFT JOIN operator_overrides AS override
 	}
 	return strings.Replace(out, streamFromAnchor,
 		`FROM source_winners AS source
-JOIN `+winnersSupportsTable+` AS source_payload ON source_payload.fact_id = source.fact_id
+JOIN `+payloadTable+` AS source_payload ON source_payload.fact_id = source.fact_id
 LEFT JOIN operator_overrides AS override
   ON override.canonical_key = source.canonical_key
-LEFT JOIN `+winnersSupportsTable+` AS override_payload ON override_payload.fact_id = override.fact_id`, 1)
+LEFT JOIN `+payloadTable+` AS override_payload ON override_payload.fact_id = override.fact_id`, 1)
 }
 
 // Single-detoast extraction (#11120 criterion 2). Every `payload->>'field'`

@@ -65,6 +65,28 @@ func TestWinnersKeyedBuildIdentsStatementOrder(t *testing.T) {
 	}
 }
 
+// TestWinnersFullChunkTempDropMatchesTheTableConstants pins the full walk's
+// single-lifecycle DROP to the temp tables it owns: a renamed table the
+// DROP still names old would leave the keyed seven-column identifier table
+// behind, and the walk's CREATE would fail with 42P07 on the fallback path.
+func TestWinnersFullChunkTempDropMatchesTheTableConstants(t *testing.T) {
+	t.Parallel()
+
+	if !strings.HasPrefix(strings.TrimSpace(dropWinnersFullChunkTempSQL), "DROP TABLE IF EXISTS") {
+		t.Fatalf("full-chunk temp lifecycle is not a guarded drop: %.120s", strings.TrimSpace(dropWinnersFullChunkTempSQL))
+	}
+	for _, table := range []string{
+		// The enumeration table has no constant (the CREATE/ANALYZE spell
+		// it literally, like the DDL parity scan reads); the rest reuse
+		// the keyed table constants the walk shares with the tick.
+		"winners_full_idents", winnersKeyedIdentsTable, winnersKeyedNarrowTable, winnersKeyedActiveFactsTable,
+	} {
+		if !strings.Contains(dropWinnersFullChunkTempSQL, table) {
+			t.Errorf("full-chunk DROP does not drop temp table %q: %.120s", table, dropWinnersFullChunkTempSQL)
+		}
+	}
+}
+
 // TestWinnersTempTableDDLNamesMatchTheTableConstants pins the literal temp
 // table names in the CREATE statements to the constants the rest of the
 // keyed and audit SQL reference. The DDL parity guard cannot read a table
