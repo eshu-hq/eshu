@@ -200,9 +200,9 @@ cleanup() {
   fi
   [[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
 	done
-	if [[ -n "${work_dir}" && -f "${work_dir}/logs/api.log" ]]; then
-		cp "${work_dir}/logs/api.log" "${api_log_preserve_path}" 2>/dev/null || true
-	fi
+	for leg in legacy winners; do
+		[[ -n "${work_dir}" && -f "${work_dir}/logs/api-${leg}.log" ]] && cp "${work_dir}/logs/api-${leg}.log" "${api_log_preserve_path%.log}-${leg}.log" 2>/dev/null || true
+	done
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/mcp-server.log" ]]; then
 		cp "${work_dir}/logs/mcp-server.log" "${mcp_log_preserve_path}" 2>/dev/null || true
 	fi
@@ -439,7 +439,7 @@ log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-labe
 # before the satellite's /readyz can answer (issue #11170).
 log "start eshu-core-api (legacy leg: winners-read off)"
 start_core_api false
-start_satellite_api
+start_satellite_api false
 start_mcp_server
 
 if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
@@ -459,14 +459,14 @@ require_grouped_inventory 503 service_id
 require_grouped_inventory 503 workload_id
 require_grouped_inventory 503 environment
 
-# The winners flag is read once at mux build, so the leg needs its own core
-# process. The satellite and MCP stay up: they forward to the core address,
-# which does not move between legs.
-log "restart eshu-core-api (winners leg: winners-read on)"
+# The winners flag is read once at mux build, so the winners leg restarts the
+# core and the satellite (which serves the findings list itself, not via the
+# core); the MCP server stays up on the unmoved satellite address.
+log "restart core + satellite (winners leg: winners-read on)"
 stop_core_api
 start_core_api true
-wait_for_satellite_readyz
-kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) did not survive the core restart"
+stop_satellite_api
+start_satellite_api true
 kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) did not survive the core restart"
 
 log "prove the winners leg serves the seeded truth"
@@ -475,11 +475,11 @@ require_winners_findings_oracle "${work_dir}/findings-winners.json"
 # Positive control: the seeded service/workload/environment dimensions must
 # answer 200 from the rebuilt winners table, proving the leg measured the
 # read model rather than an empty fallback.
-require_grouped_inventory 200 service_id
-require_grouped_inventory 200 workload_id
-require_grouped_inventory 200 environment
-# Default (precise) profile: 503 only while the stack's supports backfill is incomplete; red once it completes.
-require_grouped_inventory 503 service_id
+require_grouped_inventory 200 service_id comprehensive
+require_grouped_inventory 200 workload_id comprehensive
+require_grouped_inventory 200 environment comprehensive
+# Default (precise) profile: 200 from the rebuilt winners table now that the supports backfill completes.
+require_grouped_inventory 200 service_id precise
 
 # The winners leg re-sweeps the same corpus into separate reports (never
 # merged with the legacy leg's): each report's identity block carries
