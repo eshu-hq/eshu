@@ -274,8 +274,6 @@ Rules that keep a manifest read bounded and fail closed:
   Composer files may still be read and decoded by the generic JSON parser up
   to its shared 64 MiB per-file cap before this extraction guard runs.
 
-Measured collector cost and observability evidence for the PHP and Ruby manifest readers lives in [COST_EVIDENCE.md](./COST_EVIDENCE.md).
-
 ## Dockerfile and workflow sources
 
 A Dockerfile `FROM` line declares the base image's tag, and a workflow
@@ -414,5 +412,3 @@ cd go && go test -race ./internal/collector/repo/runtime/declaration/... ./inter
 
 Changes to emitted facts also need the golden-corpus gate (B-7) and the B-12
 snapshot; see `docs/public/reference/local-testing/golden-corpus-gate.md`.
-
-The benchmark evidence that backed the Dockerfile and workflow readers moved to [COST_EVIDENCE.md](./COST_EVIDENCE.md).

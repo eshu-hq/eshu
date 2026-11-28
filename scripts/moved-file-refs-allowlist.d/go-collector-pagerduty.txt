@@ -14,7 +14,3 @@ docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/p
 # 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
 # tree as it stood at those SHAs, including the pagerduty importers this
 # deletion removes. Updating the census is a recount, not a repoint.
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-pagerduty/config.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-pagerduty/service.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-pagerduty/source_config.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/pagerduty/source.go

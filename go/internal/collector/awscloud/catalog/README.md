@@ -306,13 +306,6 @@ that consume these constants keep their existing counters; see
   and `devtools_test.go` pin every constant byte-identical to its
   pre-consolidation value; a red test there is a behavior change, not a move.
 
-## Consolidation proof
-
-Per-lane move evidence lives in [`consolidation-proof.md`](consolidation-proof.md):
-baseline values read from the base tree, byte-identical pins, affected-suite
-results, and the no-regression / no-observability-change markers the
-performance-evidence gate scans. Add one entry per follow-up category lane.
-
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

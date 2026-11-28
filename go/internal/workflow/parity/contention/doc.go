@@ -2,8 +2,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package contention is the executable harness for the deployed-binary
-// claim-plane contention proof (#9727, REMOVAL_CONTENTION_SPEC.md in
-// go/cmd/workflow-coordinator).
+// claim-plane contention proof (#9727, #8875).
 //
 // Run drives the spec's nine-step interleaved mix (claim, heartbeat,
 // complete/release/fail, reap, quota, guarded admission, commit pin, replay,

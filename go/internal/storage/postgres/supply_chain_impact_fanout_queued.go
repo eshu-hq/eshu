@@ -33,8 +33,7 @@ import (
 // those matched rows, not by the queue table. Two costs sit outside that
 // bound: the join reads ingestion_scopes by a Seq Scan into its hash (15,408
 // rows on QA), and the aggregate evaluates the cover rule over each matched
-// row's payload, which is most of the 1.26 s the QA reading measured
-// (HOLDER_FANOUT_PREFILTER_EVIDENCE.md). Arguments: $1 the holder scope ids, $2
+// row's payload, which is most of the 1.26 s measured on QA. Arguments: $1 the holder scope ids, $2
 // the change's stamp ids as a jsonb array, $3 whether they are bounded (see
 // fanOutChangeArgs). The external test package reads it through
 // supply_chain_impact_fanout_queued_export_test.go for the differential and

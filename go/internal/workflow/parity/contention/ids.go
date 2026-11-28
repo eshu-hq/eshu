@@ -9,7 +9,7 @@ import (
 )
 
 // Prefix is the single synthetic id prefix the run writes under
-// (REMOVAL_CONTENTION_SPEC.md §4). Every run, work item, scope, claim, and
+// (#8875). Every run, work item, scope, claim, and
 // owner id the harness creates starts with it, and every cleanup and residue
 // query filters on it. The value holds no LIKE wildcard ('%' or '_'), so the
 // pattern Prefix+"%" matches the literal prefix only.

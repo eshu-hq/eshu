@@ -23,7 +23,7 @@ Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`,
   `AuthorizeEmission` for emission), once per evaluated core-owned
   kind. Observation must never change the allow/deny outcome.
 - Add failing tests first for every behavior change, replaying the
-  corresponding `EXTRACTION_PREP.md` §7 row through the client. Keep the
+  corresponding #8877 hostile-input row through the client. Keep the
   row-to-test mapping table at the top of `replay_test.go` current.
 - Keep every file under 500 lines. Run `gofumpt`, `go vet`, the package
   tests with `-race`, `scripts/verify-package-docs.sh`, and a secret

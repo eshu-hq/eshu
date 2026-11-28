@@ -18,7 +18,6 @@
 # tree as it stood at its frozen SHA; a recount is a new note, not a repoint.
 docs/internal/agent-hooks.md:go/cmd/api/main.go
 go/cmd/reducer/evidence-cmd-wiring-split-3790.md:go/cmd/api/wiring.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/api/metrics_source.go
 go/internal/query/AGENTS-evidence-history-3.md:go/cmd/api/wiring.go
 go/internal/query/AGENTS-evidence-history-3.md:go/cmd/api/wiring_graph.go
 go/internal/storage/postgres/evidence-notes.md:go/cmd/api/seed_initial_admin.go
@@ -115,7 +114,6 @@ scripts/test-agent-hooks.sh:go/cmd/api/main.go
 # proves. Live pointers were repointed in the same change instead.
 # Dated per-file importer census (§6c, re-run 2026-11-01): a frozen count
 # of the tree as it stood, not a live pointer.
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/api/metrics_source.go
 # Dated issue note in public reference docs: the same recorded-emitter
 # sentence as the exempt oidc_login.go/wiring.go lines above names the
 # sibling refresh file.

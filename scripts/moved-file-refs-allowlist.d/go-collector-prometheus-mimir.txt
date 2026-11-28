@@ -15,6 +15,3 @@
 # 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the
 # tree as it stood at those SHAs, including the prometheus-mimir importers
 # this deletion removes. Updating the census is a recount, not a repoint.
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-prometheus-mimir/config.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/cmd/collector-prometheus-mimir/service.go
-go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/observability/prometheus/source.go
