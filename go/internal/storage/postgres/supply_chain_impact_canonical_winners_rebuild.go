@@ -384,7 +384,7 @@ func (s SupplyChainImpactWinnersStore) runSupplyChainImpactWinnersRebuild(
 		return result, err
 	}
 	ready := fullChunkSupportsProbeReady(ctx, tx, s.Instruments)
-	inserted, updated, deleted, unchanged, err := runWinnersFullChunks(ctx, tx, bounds, ready)
+	inserted, updated, deleted, unchanged, err := runWinnersFullChunks(ctx, tx, stamp, bounds, ready)
 	if err != nil {
 		return result, err
 	}

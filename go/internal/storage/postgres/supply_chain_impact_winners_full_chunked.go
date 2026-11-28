@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -216,6 +217,9 @@ var applyWinnersFullChunkBodySQL = func() string {
 
 // applyWinnersFullChunkSQL runs one chunk's apply and reports its counts. It
 // carries no watermark write: the final stamp runs once, after every chunk.
+// Its $1 is the stamp ceiling S the keyed body writes as materialized_at on
+// every row it touches, bound per chunk exactly as the keyed apply binds
+// its candidate.
 var applyWinnersFullChunkSQL = applyWinnersFullChunkBodySQL + `
 SELECT
     (SELECT count(*) FROM changed WHERE is_new),
@@ -294,10 +298,12 @@ func scanWinnersFullChunkPage(rows db.Rows) (winnersFullChunkPage, error) {
 
 // applyWinnersFullChunk runs one identifier page: it stages the page, probes
 // it, builds the chunk active_facts, ranks the chunk and writes only its new
-// or changed winners, and reports the chunk counts.
+// or changed winners, and reports the chunk counts. stamp is the resweep's
+// stamp ceiling S, written as materialized_at on every row the chunk touches.
 func applyWinnersFullChunk(
 	ctx context.Context,
 	tx db.Transaction,
+	stamp time.Time,
 	page winnersFullChunkPage,
 	supportsReady bool,
 ) (inserted, updated, deleted, unchanged int64, err error) {
@@ -332,7 +338,7 @@ func applyWinnersFullChunk(
 	if _, err := tx.ExecContext(ctx, addWinnersKeyedOperatorFactsNarrowSQL); err != nil {
 		return 0, 0, 0, 0, fmt.Errorf("add supply chain impact winners full chunk operator facts: %w", err)
 	}
-	rows, err := tx.QueryContext(ctx, applyWinnersFullChunkSQL)
+	rows, err := tx.QueryContext(ctx, applyWinnersFullChunkSQL, stamp)
 	if err != nil {
 		return 0, 0, 0, 0, fmt.Errorf("apply supply chain impact winners full chunk: %w", err)
 	}
@@ -365,6 +371,7 @@ func applyWinnersFullChunk(
 func runWinnersFullChunks(
 	ctx context.Context,
 	tx db.Transaction,
+	stamp time.Time,
 	bounds winnersChunkBounds,
 	supportsReady bool,
 ) (inserted, updated, deleted, unchanged int64, err error) {
@@ -401,7 +408,7 @@ func runWinnersFullChunks(
 			return inserted, updated, deleted, unchanged, nil
 		}
 		var ins, upd, del, unc int64
-		if ins, upd, del, unc, err = applyWinnersFullChunk(ctx, tx, page, supportsReady); err != nil {
+		if ins, upd, del, unc, err = applyWinnersFullChunk(ctx, tx, stamp, page, supportsReady); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		inserted, updated, deleted, unchanged = inserted+ins, updated+upd, deleted+del, unchanged+unc
@@ -445,7 +452,12 @@ func runWinnersFullStamp(ctx context.Context, tx db.Transaction, stamp time.Time
 		}
 		return fmt.Errorf("stamp supply chain impact winners full watermark: statement returned no watermark")
 	}
-	var stamped time.Time
+	// The RETURNING subquery reads the post-upsert value; it is scanned for
+	// arity only, exactly as the keyed stamp does. On a first resweep the
+	// plain-insert path's self-table subquery reads the pre-statement
+	// snapshot and yields NULL while the inserted row itself carries the
+	// stamp; the caller re-reads the committed watermark afterwards.
+	var stamped sql.NullTime
 	if err := rows.Scan(&stamped); err != nil {
 		_ = rows.Close()
 		return fmt.Errorf("scan supply chain impact winners full watermark: %w", err)
