@@ -214,6 +214,16 @@ go_package_content_hashes() {
   printf '%s\n' "${hashes[@]}" | LC_ALL=C sort
 }
 
+has_non_comment_parser_change() {
+  local file
+  for file in "${changed_files[@]}"; do
+    if is_parser_source "$file" && ! is_comment_only_diff "$file"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 has_non_comment_language_query_change() {
   local file
   for file in "${changed_files[@]}"; do
