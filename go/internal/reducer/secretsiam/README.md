@@ -127,34 +127,6 @@ writes nothing because everything was skipped and a projection that writes
 nothing because there was nothing to do look identical in the written counters
 alone; `skip_reason` is what separates them.
 
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk inside the moved production files is package-clause and
-import requalification: symbols the reducer root used to supply as one-line
-forwarders are now imported from the leaf that already owned them
-(`payloadcore` for the payload and string helpers, `contract` for the domain
-and result vocabulary, `factdecode`/`factload`/`factwrite`/`schemadecode`/
-`gpphase` for the rest). Three symbols were hoisted rather than requalified —
-`payloadcore.CloudResourceUID`, `factwrite.SingleInsertQuery` and
-`gpphase.EndpointPresenceLookup` — each moved whole, with a root forwarder or
-alias left behind, so no root call site changed. The two domain-definition
-constructors were exported (`TrustChainDomainDefinition`,
-`GraphProjectionDomainDefinition`) and the root now calls them through
-forwarders under their former unexported names. On the test side,
-`secrets_iam_graph_projection_wiring_test.go` moved back to the root because it
-exercises root registration, and gained its own stub loader and writer, and
-`secrets_iam_trust_chain_writer_test.go` gained a local copy of the root's exec
-double — Go test files cannot share unexported symbols across a package
-boundary. A Go import change adds no indirection at runtime. Measured on this
-branch after the final edit: `go build ./...` and `go vet ./...` both exit 0,
-and `go test ./internal/reducer/... -count=1` passes, including this package.
-Binary output was not compared and no such claim is made here.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span, or
-log field. The five counters above, the span, and the executions that wrap them
-are the same before and after the move; only the file paths the
-telemetry-coverage rows point at changed.
-
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a symbol

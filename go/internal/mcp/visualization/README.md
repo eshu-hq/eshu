@@ -48,11 +48,6 @@ retains the shared API request duration and error metrics.
 - This tool reshapes a caller-supplied response. Keep global fanout, HTTP
   execution, query, storage, authorization, and telemetry out of this package.
 
-No-Observability-Change: this extraction moves only pure visualization route
-selection. The root adapter still feeds the same global fanout, dispatch,
-authorization, summaries, and transport telemetry, and the same query handler
-executes the request.
-
 ## Related docs
 
 - [MCP package](../README.md)

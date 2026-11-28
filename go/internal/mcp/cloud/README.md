@@ -45,9 +45,6 @@ API request duration and error metrics.
   `project_id` requires GCP, and `subscription_id` requires Azure. Registration
   must not expose raw provider locators or credentials.
 
-No-Observability-Change: this extraction does not change routing, dispatch,
-authorization, query execution, or telemetry.
-
 ## Related docs
 
 - [MCP package](../README.md)

@@ -137,21 +137,3 @@ A non-test file under `internal/query` importing this package fails
 ## Related docs
 
 `../README.md`, `../AGENTS.md`.
-
-## Performance and observability
-
-No-Regression Evidence: this package is a test double and runs only inside test
-binaries -- `internal/queryplan`'s callsite inventory walks it and records zero
-`Run`/`RunSingle` call expressions, so nothing here is on a production query or
-graph path. `FakeRepoGraphReader` and `FakeWorkloadGraphReader` trip the
-perf-evidence gate on the word "Cypher" in their doc comments, which describe
-which Cypher FRAGMENT a caller registers, not a query this code issues. The
-promotion is a move: the dispatch bodies came across from
-`repository_context_test.go` and `workload_context_test.go` unchanged, so the
-dispatch work per call is identical; the adapter adds one struct construction
-per call, in test binaries only. Root suite: 8324 `=== RUN`, 0 `--- FAIL`, on
-this branch rebased onto `origin/main` 460c59481.
-
-No-Observability-Change: no metric, span, log, or status surface is touched. A
-test double deliberately emits no telemetry -- one that produced spans would
-pollute the traces of whatever it stands in for.

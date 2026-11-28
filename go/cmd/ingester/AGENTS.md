@@ -171,27 +171,6 @@
 
 ## Concurrency evidence (issue #3501)
 
-No-Regression Evidence: `go build ./...` (exit 0);
-`go test ./cmd/ingester/... ./internal/runtime/... -count=1 -race` (369 passed);
-`go test ./internal/collector/ -count=1 -race` (381 passed). The composite
-runner change removes a serialized fail-fast teardown rather than adding one and
-touches no Cypher, graph write shape, worker count, batch size, lease, or queue
-ordering, so there is no throughput regression to measure; concurrency is
-preserved because the projector keeps running through a transient collector
-fault. Conflict domain: the shared cancel context and the result channel
-(buffered to `len(runners)` so sends never block and no goroutine leaks);
-coordination is by context cancellation and a single-reader channel, with no
-locks. `TestCompositeRunnerNoGoroutineLeak` and
-`TestCompositeRunnerBoundsDrainOnWedgedSibling` (both run under `-race`) prove
-no leak and bounded teardown.
-
-Observability Evidence: a retryable collector commit logs `WARN` with
-`failure_class=commit_retryable` and `retryable=true`; a composite fatal logs
-`ERROR` with `failure_class=composite_runner_fatal`, `runner_index`, and
-`drain_grace`; a bounded drain timeout logs `ERROR` with
-`failure_class=composite_runner_drain_timeout` and returns
-`errCompositeDrainTimeout`. These let an operator separate a retried generation,
-a fatal teardown, and a forced bounded drain without reading code.
 - The workspace PVC ownership model — moving workspace ownership to another
   runtime requires a coordinated deployment change and an ADR documenting
   the new ownership boundary.

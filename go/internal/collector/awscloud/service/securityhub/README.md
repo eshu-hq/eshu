@@ -86,10 +86,6 @@ enumeration, enabled standards, controls, action targets, insight summaries,
 safe insight-control grouping, tag reads, and one paginated GetFindings stream
 reduced to aggregate counts.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Security Hub fact emission, finding-body and insight-filter omission,
-runtime registration, command configuration, and EventBridge freshness routing.
-
 Collector Observability Evidence: Security Hub uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -97,11 +93,6 @@ Collector Observability Evidence: Security Hub uses the existing AWS collector
 labels stay bounded to service, account, region, operation, result, and
 resource type; finding IDs, resource ARNs from finding bodies, tags, and
 insight filters stay out of metric labels.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Security Hub scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: Security Hub runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

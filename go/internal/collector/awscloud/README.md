@@ -183,36 +183,6 @@ maps at the collector seam. The collector output contract stays the same:
 `StableFactKey` construction remains in this package, and reducers still read
 the same wire keys through the existing fact-kind registry.
 
-Benchmark Evidence: `cd sdk/go/factschema && go test -run '^$' -bench
-'BenchmarkEmitStrategy/(small_dns_record|medium_aws_resource)' -benchmem
--count=5` on darwin/arm64 Apple M5 Max compared inline maps with the shipped
-direct-map `Encode` path. For `small_dns_record`, inline maps measured
-782.6-927.8 ns/op, 2352 B/op, 20 allocs/op; `encode_existing` measured
-472.4-872.7 ns/op, 1456 B/op, 17 allocs/op. For `medium_aws_resource`,
-inline maps measured 507.4-1152 ns/op, 1104 B/op, 14 allocs/op;
-`encode_existing` measured 507.8-549.2 ns/op, 1104 B/op, 14 allocs/op.
-The input shapes are the benchmark fixtures for one small Route 53 DNS record
-payload and one medium AWS resource payload. No graph backend, queue, or
-Postgres row-count dimension applies to this measurement because the changed
-path is in-process payload map construction before fact commit.
-
-No-Regression Evidence: `cd sdk/go/factschema && go test ./... -count=1`
-passes for the typed payloads, schemas, and encode/decode contracts. The
-rebased `make pre-pr` run passed gofumpt, golangci-lint, build, vet, changed
-package tests, file cap, package docs, factschema diff, registry drift,
-payload-usage manifest, scorecard conformance, accuracy, replay coverage,
-code-coverage generation, and race lanes before stopping on the missing tracked
-evidence markers this note supplies.
-
-No-Observability-Change: `go/internal/collector/awscloud/factschema_helpers.go`
-contains pure in-process conversion helpers and emits no metric, span, or log
-of its own. The AWS runtime remains covered by
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_scan_duration_seconds`, `eshu_dp_aws_resources_emitted_total`,
-`eshu_dp_aws_relationships_emitted_total`, scan-status counters, and claim
-concurrency telemetry at `awsruntime/source.go`; downstream graph writes remain
-covered by the reducer AWS/IAM/EC2/S3/security-group telemetry rows.
-
 ## Gotchas / invariants
 
 - AWS observations are reported source evidence. Do not claim canonical
@@ -402,24 +372,6 @@ exported API surface (`awscloud.ServiceXxx`, `awscloud.ResourceTypeXxx...`,
 `DNSGeoLocation`, `WarningObservation`) plus `CollectorKind`, which is why
 it stays under the 500-line cap after the split.
 
-No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/... -count=1 -race`
-covers every existing scanner builder and the per-service constants used as
-fact-envelope identifiers, telemetry label values, and graph-resource-type
-strings. Tests pass without any test-source change because constant
-identifiers and string values are preserved across the move. `golangci-lint
-run ./internal/collector/awscloud/... ./cmd/collector-aws-cloud/...` reports
-zero issues after the split, confirming the package still type-checks with
-no orphaned imports or unused identifiers.
-
-No-Observability-Change: AWS collector metrics use the per-service constants
-as the `service` label value (`eshu_dp_aws_resources_emitted_total{service=...}`,
-`eshu_dp_aws_api_calls_total{service=...}`,
-`eshu_dp_aws_pagination_checkpoint_events_total{service=...}`,
-`aws.service.scan` span attributes, status keys). Because every
-`Service<X>` constant keeps its identifier and string value, label
-cardinality, span shape, and status keys are byte-identical before and
-after the split.
-
 ## Evidence (canonical service_kind on every emitted fact)
 
 Every service scanner gates its work behind
@@ -433,25 +385,6 @@ the empty and canonical cases (`case "", awscloud.Service<X>:`) so the canonical
 constant is written back on the matched path. It covers the 91 scanners that
 carried the defect; the MWAA scanner that introduced the canonicalizing pattern
 was already correct.
-
-No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/... -count=1`
-covers the per-scanner `TestScannerCanonicalizesPaddedServiceKind` regression in
-all 91 changed service packages (each feeds a whitespace-padded `service_kind`
-through `Scan` and asserts every emitted fact carries the canonical value) plus
-the by-construction `TestScannerServiceKindSwitchesCanonicalize` AST guard, which
-walks all 92 scanners and fails if any service_kind switch regresses to an
-empty-bodied non-default case. Reverting the source fix turns all 91 regression
-tests and the guard red, confirming they catch the defect. The fix performs one
-string write
-per `Scan` invocation (not per resource): it adds no fact-hot-path allocations
-and leaves the emitted fact count unchanged, so there is no throughput impact.
-
-No-Observability-Change: the change only corrects the `service_kind` string
-`envelope.go` stamps into emitted fact payloads. AWS collector telemetry already
-labels spans/metrics with the per-service canonical `Service<X>` constant
-(`aws.service.scan` attributes, `eshu_dp_aws_resources_emitted_total{service=...}`,
-`aws_scan_status`), so span shape, metric label cardinality, and status keys are
-unchanged.
 
 ## Related docs
 

@@ -59,13 +59,6 @@ stricter plan-key validator, for the reason in the invariants below.
 None. Planning inherits the parent reconcile metrics, workflow and claim
 status, and the parent's waiting-on-git-generation log line.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-status field, queue, worker, lease, retry, or runtime setting. Coordinator
-failures remain visible through
-`eshu_dp_workflow_coordinator_reconcile_total`,
-`eshu_dp_workflow_coordinator_reconcile_duration_seconds`, workflow row and
-claim status, and the existing admission logs.
-
 ## Gotchas / invariants
 
 - **The plan-key validator is deliberately stricter than
@@ -101,16 +94,6 @@ claim status, and the existing admission logs.
 - **The waiting-on-git-generation path lives at root.** This planner returns
   the resolver's error unchanged; `tfstate_service.go` classifies it with
   `terraformstate.IsWaitingOnGitGeneration` and continues.
-
-No-Regression Evidence: `go test ./internal/coordinator/planner/tfstate ./internal/coordinator -count=1`
-proves seed-candidate planning with pinned run identity and locator-free work
-item IDs, runtime compatibility of the planned item with
-`tfstateruntime.ClaimedSource`, distinct recurring run and work-item identity
-per plan key, rejection of an invalid durable discovery config, and
-requested-scope hashing that names the scope and candidate IDs while excluding
-the bucket, key, and version ID — plus the root scheduling and admission
-wiring through `fakeTerraformStatePlanner`. This is a same-behavior file move:
-no lease, conflict-key, retry, batching, or ordering change.
 
 ## Related docs
 

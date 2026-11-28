@@ -195,29 +195,6 @@ creates schema objects.
   to its declared builder or execution-path owner. Handler entries additionally
   bind an anchor fragment to the declared builder symbol.
 
-No-Regression Evidence: `scripts/verify-query-plan-regression.sh` exercises the
-static fixtures, exhaustive production callsite inventory, deliberately bad
-query/plan fixtures, production-builder binding, and the required hermetic live
-PROFILE proof. Run the live proof independently as:
-
-```bash
-scripts/verify-query-plan-profile.sh
-```
-
-No-Regression Evidence (#7335): the baseline gate passed an unbounded
-`[:CALLS*]` read. After the change, the same Neo4j 2026.05.0 PROFILE run (the
-pinned image, 927 production shapes) passes with the plan-details check active,
-and the seeded unbounded, lower-bound-only, DISTINCT and quantified `SHORTEST`
-shapes fail. The change only rejects manifest entries and plans. It does not
-change any production query.
-
-No-Observability-Change (#7335): the new check runs in tests and the validator
-only, so it adds no metric, span, log or runtime path.
-
-No-Observability-Change: this package performs static validation only. It adds
-no API route, graph query, graph write, metric, span, runtime knob, queue work,
-or provider call.
-
 When a backend cannot return a full plan, alternate evidence must include a
 nonempty structured `plan` surrogate, structured numeric `work`, and a
 `producer` distinct from the declared runner. Its `artifact_sha256` must equal

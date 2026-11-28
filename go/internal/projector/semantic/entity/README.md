@@ -58,12 +58,7 @@ because root had no other caller for them.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total` and
-`eshu_dp_projector_run_duration_seconds`; the reducer handler that consumes
-the intent keeps `eshu_dp_reducer_executions_total` and
-`eshu_dp_reducer_run_duration_seconds`. Moving the pure builder adds no
-queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total` and `eshu_dp_projector_run_duration_seconds`; the reducer handler that consumes the intent keeps `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
 
 ## Gotchas / invariants
 
@@ -106,24 +101,6 @@ queue, storage, graph, span, metric, or log boundary.
   cites this package's Elixir tests as parity evidence
 - [Package restructure](../../../../../docs/internal/design/package-restructure.md)
 
-No-Regression Evidence: this extraction moves one builder and its four test
-files without changing the trigger or the intent value. The domain
-(`DomainSemanticEntityMaterialization`), the `repo:<repo_id>` entity key, the
-`semantic entity follow-up for <entity_type>` reason string, the `FactID`
-anchor, and the raw `SourceRef.SourceSystem` label are unchanged from the base
-commit; the function is called at the same position in root's per-fact loop,
-still after `buildRepositoryRefs` and before `buildReducerIntent`. The
-per-fact call site is in `../../runtime.go`, not the
-`scope_generation_intents.go` fan-out, so the ordered fan-out is untouched:
-`appendScopeGenerationReducerIntents` has 44 builder probes on `origin/main`
-and 44 on this branch, and `TestReducerIntentProbeCountMatchesDocumentedCount`
-still passes against the unchanged
-`documentedReducerIntentProbeCount`. Verified with
-`go build ./...` (rc=0), `go vet ./internal/projector/...` (rc=0),
-`go test ./internal/projector/... -count=1` (rc=0, 30 packages),
-`go test ./internal/mcp/ -run TestRouteServesDataRegistry -count=1` (rc=0,
-8 `=== RUN` lines), and `bash scripts/verify-dirgate.sh --all` (rc=0).
-
 The four moved test files are the builder-level coverage and they moved
 verbatim apart from the package clause and the now-exported call. Root keeps
 the integration coverage that goes through the dispatcher:
@@ -134,41 +111,3 @@ equivalence tests in `../../runtime_clone_removal_test.go`, which exercise this
 builder through `buildProjection`. The root fan-out parity fixture
 (`../../scope_generation_intents_fanout_parity_test.go`) does NOT mention this
 domain and never did — it only covers `appendScopeGenerationReducerIntents`.
-
-No-Observability-Change: no metric, span, log, or quarantine counter is added,
-moved, or renamed by this extraction. Root assembly and
-`eshu_dp_reducer_intents_enqueued_total` are untouched, and the two new
-non-test files under this package emit no signal of their own —
-`payload.go` is unexported map and scalar readers that perform no I/O, and
-`intents.go` is a pure trigger-and-value builder. The
-telemetry-coverage rows for both were written from what the files contain.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 semanticentity nesting): base `1e046489d`,
-backend go1.27.1 darwin/arm64; rename-only `semanticentity` to
-`semantic/entity` move with no trigger, value, or per-fact call-site change.
-Whole-module build exit 0, vet clean, recursive projector tests green,
-moved tests green in the new path via the test-run guard, and the repoint
-listing is non-empty (`projectorentity.BuildSemanticEntityReducerIntent`
-at root's per-fact loop plus the two root test call sites). B-7
-golden-corpus was not run locally: the Docker daemon is unreachable, so CI
-is the blocking authority there. Rename-only, so no benchmark delta exists
-to measure.
-
-No-Regression Evidence (#6627 de-stutter): follow-up rename of
-`entity_intents*.go` to `intents*.go` inside this package. All 5 renames are
-sha256-identical (0 content lines changed); whole-module build exit 0, vet
-clean, entity plus root projector tests green, doc-citations green.
-Rename-only, so no benchmark delta exists to measure.
-
-No-Observability-Change (#6627 de-stutter): the rename changes file paths
-only; no metric, span, log, or quarantine counter is added, moved, or
-renamed. The telemetry-coverage row repoint is a path string, and
-`eshu_dp_reducer_intents_enqueued_total` is untouched.
-
-No-Observability-Change (#6627 semanticentity nesting): no metric, span, log,
-or quarantine counter is added, moved, or renamed by this move. Root assembly
-and `eshu_dp_reducer_intents_enqueued_total` remain unchanged; the explicit
-`projectorentity` import alias exists only because `entity` is already a loop
-variable in `runtime.go`, and changes no dispatched symbol.

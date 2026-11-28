@@ -41,10 +41,7 @@ never decodes the payload, so it carries no `factschema_decode_*` seam.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution, comparison, and graph-write telemetry. Moving the
-pure builder adds no queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, comparison, and graph-write telemetry.
 
 ## Gotchas / invariants
 
@@ -69,14 +66,6 @@ Run the package contract tests, the root incident-routing `buildProjection`
 tests, ordered fan-out parity and probe-count tests, the projector package
 tree, package-doc and path mirrors, dirgate, telemetry coverage, and the
 golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: the #6627 move changes the package path, filename,
-and exported builder name without changing the production body, trigger,
-intent value, or fan-out position. The dispatcher's ordered fan-out remains
-44 builder probes, with this probe immediately after observability coverage
-correlation and before code taint evidence. The focused package and root
-dispatch tests pin those contracts; the issue evidence record contains the
-exact commands and results.
 
 The nested namespace makes the ownership boundary legible for a future
 service split, but it does not make this package independently extractable.

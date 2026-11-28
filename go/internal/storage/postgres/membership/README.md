@@ -96,12 +96,6 @@ without changing the outcome. The collector cycle continues.
 
 ### Expired-row sweep
 
-Performance Evidence (#7774, prove-theory-first): PostgreSQL 18.6 at
-127.0.0.1:25432 with 200,000 rows (20,000 scopes x 10 selectors, 48h windows):
-one live selector, one inside the grace, and eight abandoned 30 days ago. The
-shipped statement was run as a prepared statement with a 7-day grace and a
-batch of 500:
-
 | Case | Plan | Buffers | Result |
 | --- | --- | --- | --- |
 | One batch, unordered (shipped) | seq scan, stops at 500 | 3,014 | 5.3 ms, 500 deleted |
@@ -133,54 +127,7 @@ predicate combines two columns with an interval, and an expression index on
 `timestamptz + interval` is not allowed because the operator is only
 `STABLE`.
 
-Observability Evidence (#7774): rows the sweep deletes are counted on
-`eshu_dp_collector_repository_selection_observations_deleted_total{collector_kind}`.
-A sweep with nothing to delete records no sample, and a failed sweep logs
-`git_repository_selection_store_failed` with `failure_class=expired_sweep`
-without changing the evaluation outcome.
-`TestObserverSweepsExpiredRowsAfterAnEvaluation`,
-`TestObserverRecordsNoDeletedSampleWhenNothingExpired`, and
-`TestObserverSweepFailureIsLoggedAndKeepsTheOutcome` pin these. The count
-the observer adds is the value `DeleteExpiredObservations` returns, and
-`TestObservationStoreSweepLive` asserts that value against the rows actually
-removed (10 of 30 in the guard-history case).
-
-Performance Evidence (#7840): the reclaim predicate was proven before the
-change and re-measured with the shipped statement after it, on PostgreSQL
-18.6 with 200,000 rows (184,000 live `selected`, 8,000 abandoned
-`not_listed` with a stale marker, 8,000 `not_listed` of a still-cycling
-selector with a fresh marker; 1h windows, 7-day grace, pinned `now`). Before
-(#7774 predicate, `state <> 'not_listed'`): the steady-state probe took
-19.1 ms (seq scan, 2,874 buffers, 0 rows) and the abandoned `not_listed`
-rows were never selected. After (shipped `LEFT JOIN repository_selectors`
-batch with `FOR UPDATE OF o SKIP LOCKED ... RETURNING o.state`): one batch
-deleted 500 abandoned `not_listed` rows in 16.7 ms, and the steady-state
-probe after the drain took 15.7 ms (0 rows; the still-cycling selector's
-8,000 rows filtered by the marker arm). The plan is the same sequential scan
-plus a hash of the one-row-per-selector marker table, so the probe cost does
-not grow with kept `not_listed` rows of live selectors beyond the scan the
-#7774 predicate already paid. No new index, for the same reason as #7774.
-Migration 200's backfill stamps pre-existing selectors at
-`clock_timestamp()` once (`ON CONFLICT DO NOTHING`), verified idempotent on
-re-apply against the same table.
-
-Observability Evidence (#7840): reclaimed rows count on
-`eshu_dp_collector_repository_selection_not_listed_reclaimed_total{collector_kind}`
-in addition to the deleted total, the INFO `git_repository_selection_evaluated`
-log carries `not_listed_reclaimed_count` next to `expired_deleted_count`, and
-a failed marker write logs `git_repository_selection_store_failed` with
-`failure_class=selector_cycle_upsert` without changing the outcome.
-`TestObserverReportsReclaimedNotListed`,
-`TestObserverTouchesSelectorCycleOnEveryOutcome`,
-`TestObserverSelectorTouchFailureKeepsOutcomeAndLogsClass`, and the
-`assertAbandonedNotListedRowsAreReclaimed` leg of
-`TestObservationStoreSweepLive` pin these.
-
 ## Evidence
-
-Performance Evidence (#7625), PostgreSQL 18 with 12,000 `ingestion_scopes`
-rows (1,000 in the target org, 300 in another org, 10,700 other kinds), the
-exact production statements as prepared statements:
 
 | Statement | Result |
 | --- | --- |
@@ -229,31 +176,6 @@ org scope; the evaluation transaction held only `AccessShareLock` on
 key. The work runs once per githubOrg cycle, or once per owner of an explicit
 list, on shard 0 only.
 
-### Performance Evidence (#7765)
-
-Performance Evidence: the gitlab_group prefix partition read
-(`starts_with(lower(payload->>'repo_slug'), $1)` with `$1` the lowercased
-group path plus `/`, same host predicate) was re-measured on PostgreSQL
-18.6 with 20,000 seeded scopes before any index decision; scripts and raw
-output are in (#7765).
-Baseline (prove-first shim on the same shape): sub-millisecond small-set
-reads with a 0.9 ms contended read. After: the group read returns exactly
-the 900 nested scopes (sibling, lookalike, underscore-prefix, other-host,
-`repository_ref`, and remote-less scopes drop out) in **9.22 ms median**
-(seq scan, 495 shared buffers), 1.56x the host-filtered first-segment
-baseline (5.93 ms) from per-row `lower()` CPU, not a plan difference.
-pgbench read-only: 8.5 ms average, stddev 0.5 ms. A `FOR UPDATE` held on a
-nested scope does not block the read. The change is safe because the read is
-read-only, runs once per cycle on shard 0, and the planner correctly
-seq-scans at this scale. **No new index**: an index would add write
-amplification without serving this shape.
-
-Observability Evidence: `eshu_dp_collector_repository_listing_requests_total`
-(`collector_kind`, `provider`, `outcome`) counts every group resolve and page
-request, with INFO `git_gitlab_group_listing_completed` per finished listing
-and WARN `git_gitlab_group_listing_retry` per waited retry; selection
-outcomes ride the existing `repository_selection_evaluations_total` counter.
-
 ### Freshness read
 
 The repository freshness reader calls `ReadLiveScopeObservations`
@@ -264,27 +186,6 @@ boundary. `selection.Summarize` (`go/internal/scope/selection`) then applies
 confirmation and the aggregate rules in Go, so the collector gauge and the
 `not_selected` verdict share one definition. A lookup error fails the whole
 freshness read; the API answers 500 instead of a verdict missing evidence.
-
-Observability Evidence (#7625 phase B): no new signal. A selection lookup
-failure increments `eshu_dp_repository_freshness_query_errors_total`, and the
-lookup's time is inside `eshu_dp_repository_freshness_query_duration_seconds`,
-both recorded once per `ReadRepositoryFreshness` call.
-
-Performance Evidence (#7625 phase B, prove-theory-first): PostgreSQL 18 at
-127.0.0.1:25432, a scratch schema with 20,000 rows (4,000 scopes x 5
-selectors, one selector stale, mixed states), the exact production statement
-prepared and executed twice:
-
-```text
-Sort (actual time=0.016..0.017 rows=5 loops=1)  Sort Key: selector_id
-  Buffers: shared hit=8
-  ->  Bitmap Heap Scan on repository_selection_observations (rows=5)
-        Recheck Cond: (scope_id = 'git-repository-scope:repository:r_001700')
-        Heap Blocks: exact=5
-        ->  Bitmap Index Scan on repository_selection_observations_pkey
-              Index Cond: (scope_id = ...)  Index Searches: 1  Buffers: shared hit=3
-Execution Time: 0.044 ms cold, 0.020 ms warm; a missing scope 0.019 ms (3 buffers)
-```
 
 After amendment 1 the shipped live read (36,000 rows, 3 selectors per scope,
 one expired) is an index scan on `repository_selection_observations_pkey`
@@ -313,14 +214,6 @@ No new index. The read serves one repository per request and only for a scope
 that already has confirmed exclusion evidence, so a selected or pending scope
 never pays for it.
 
-Observability Evidence (#7625): the store has no signal of its own by design.
-Every failure surfaces through `membership.Observer` as the
-`git_repository_selection_store_failed` WARN with a closed `failure_class` and
-the `store_error` outcome on
-`eshu_dp_collector_repository_selection_evaluations_total`; Postgres latency
-for these statements appears on the instrumented database handle the
-binaries pass in (`eshu_dp_postgres_query_duration_seconds`).
-
 ### Probe verdicts (#8454)
 
 Migration 199 adds three nullable columns to
@@ -336,36 +229,11 @@ The reads (`Observations`, `ReadLiveScopeObservations`) return the verdict
 with the row; `TestObservationStoreClassificationLive` pins the round trip,
 the stale guard, the relist clear, and the CHECK against real PostgreSQL 18.
 
-Performance Evidence (#8454, prove-theory-first): PostgreSQL 18.6, a scratch
-schema at the 802-scope QA shape (one selector, 25 confirmed `not_listed`,
-migration 166 DDL plus 199), the exact production UPDATE with a 2-row probe
-batch, `EXPLAIN (ANALYZE, BUFFERS)`:
-
-```text
-Update on repository_selection_observations o  (actual time=0.087..0.087 rows=0.00 loops=1)
-  Buffers: shared hit=27
-  ->  Nested Loop
-        ->  Subquery Scan on s (rows=2, quicksort on scope_id, 25kB)
-        ->  Memoize
-              ->  Index Scan using repository_selection_observations_pkey
-                    Index Cond: ((scope_id = s.scope_id) AND (selector_id = 'sel'::text))
-```
-
 One PK probe per verdict row, 0.087 ms for the batch at QA shape; the batch
 is capped at 25 rows per cycle. No new index: the primary key serves the
 write. Migration 199 re-ran cleanly on the seeded schema (idempotent
 `ADD COLUMN IF NOT EXISTS` plus a guarded CHECK add), the way bootstrap
 re-applies every migration on every boot.
-
-Observability Evidence (#8454): the store emits no signal of its own. Probe
-answers count on
-`eshu_dp_collector_repository_selection_probe_total{outcome}` (`transferred`,
-`renamed`, `still_present`, `not_found_or_inaccessible`, `kept_prior`), the
-post-cycle verdicts sample on
-`eshu_dp_collector_repository_selection_classifications{classification}`
-(`unclassified` while no probe has reported), and a failed verdict write
-logs WARN `git_repository_selection_store_failed` with
-`failure_class=classification_upsert` while the outcome stays `evaluated`.
 
 ## Verification
 

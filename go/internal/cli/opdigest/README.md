@@ -154,9 +154,6 @@ This package arrived by moving files out of `go/cmd/eshu`, not by changing what
 they do, so there is no before/after measurement to report and inventing one
 would be dishonest. What follows is what was actually established.
 
-No-Regression Evidence: the extraction is behaviour-preserving. Two independent
-proofs say so, and they cover different things.
-
 The first is a CLI parity run. One `eshu` binary was built from `840763ed2` and
 one from this branch's first extraction commit, and their stdout, stderr, and
 exit code were diffed across eleven invocations: `eshu report --help`, the root
@@ -284,13 +281,6 @@ nor the hashing. The edits to this file were identifier renames for the package
 boundary, the doc comments the exported names now need, and the three
 `//nolint:wrapcheck` directives on `writeArtifactFile` -- which is exactly what
 the zero-token `go/ast` comparison above reports.
-
-No-Observability-Change: this package emits no metrics, spans, or logs, and
-the move neither added nor removed an instrument. Operator-visible output is
-unchanged -- the parity captures show that for the trees they ran on, and the
-`go/ast` comparison carries it forward to the tree that ships. The
-redaction profile and the share-safe token rules are the same code in a new
-package, so an artifact built before and after this change is identical.
 
 ## Related docs
 

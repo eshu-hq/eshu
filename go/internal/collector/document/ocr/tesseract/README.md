@@ -107,67 +107,6 @@ tesseract (`TestMain`). The sandbox script runs the real pinned binary under
 `--network none --read-only --cap-drop ALL --user 65532:65532 --memory 512m
 --pids-limit 64` against rendered fixtures with PII canaries.
 
-## Evidence
-
-Performance Evidence: this is a new path with no prior general-purpose
-engine, so there is no before figure on this backend. The closest baseline
-is `ocr.LocalEngine` (0.1.0), at about 0.12 ms/op on a 232x44 fixture, which
-cannot read mixed-case text at all. After: tesseract 5.5.0 with
-eng.traineddata (`sha256:daa0c97d…`), `--oem 1 --psm 3`,
-`OMP_THREAD_LIMIT=1`, on a 900x200 three-line screenshot rendered in DejaVu
-Sans 28 pt. `scripts/prove-ocr-sandbox.sh` on 2026-11-01, after library
-pinning, measured about 0.2 s per recognition and about 80 MB child peak
-RSS on native arm64,
-and about 6.6 s and about 92 MB on amd64 under qemu emulation. Each run was
-5 recognitions per fixture across PNG, JPEG, GIF, and WebP, all identical.
-There is no queue, lease, batch, worker, Cypher, or graph write. The path
-is one bounded subprocess per image with no caller wired, so no terminal
-queue or row counts apply. It is safe because every cap fails closed and
-nothing calls it in production yet.
-
-Observability Evidence: each run's outcome, duration, and sampled peak RSS
-are recorded through `eshu_dp_ocr_recognitions_total`,
-`eshu_dp_ocr_recognition_duration_seconds`, and
-`eshu_dp_ocr_engine_peak_rss_bytes`, and each extraction through
-`eshu_dp_ocr_extractions_total` and `eshu_dp_ocr_redacted_regions_total`.
-`TestExtractRedactsCanariesBeforeFactsAndRecordsTelemetry`, which runs
-against a fake binary, asserts those series, the `ocr.extract` and
-`ocr.recognize` spans, and the outcome log fields, and asserts that no canary
-reaches any of them. The real-binary sandbox proof wires no instruments: it
-proves behavior, not telemetry.
-
-No-Regression Evidence: the runner change adds one nil check per sampler
-tick (every 25 ms) for the unexported `onRSSSample` test seam, which is nil
-in production. Sampling, the `peakRSS > 0` guard, and every recorded series
-are unchanged. A child that exits before its first `/proc` read still
-records no `eshu_dp_ocr_engine_peak_rss_bytes` sample: a zombie has no
-`VmHWM`, and `ru_maxrss` reports the Go parent's RSS, so no exit-time sample
-is possible. The tests gate their fake child on the seam so it outlives the
-first reading (#9794).
-
-No-Observability-Change: no metric, span, log key, or status field is added
-or changed; the seam is not an operator signal.
-
-No-Regression Evidence (#9800): the start-error classification adds one
-`ctx.Err()` and one `runCtx.Err()` read on the `cmd.Start` failure path
-only; a successful start takes the same path as before. Baseline on the
-unchanged base: three new `run` tests that cancel the caller context, pass a
-caller deadline, or pass the run deadline before `Start` returned
-`exec_failed`, and the package's pre-existing tests passed 200 of 200 runs
-(non-race, 8 parallel, fake tesseract on linux/arm64 with go1.26.10). After:
-the same tests return `canceled` and `timeout`, the package passed 200 of
-200 non-race runs and 200 of 200 `-race` runs, and a missing binary still
-returns `exec_failed`. There is no queue, lease, batch, or graph write on
-this path.
-
-Observability Evidence (#9800): `eshu_dp_ocr_recognitions_total` and
-`eshu_dp_ocr_recognition_duration_seconds` keep their label set. A caller
-that gives up between the pre-exec context check and `cmd.Start` is now
-counted as `canceled` (and a passed run deadline as `timeout`) instead of
-`exec_failed`, so an `exec_failed` alert no longer fires on a caller
-cancellation. `TestRunClassifiesStartErrorFromEndedCallerContextAsCanceled`
-and its two siblings assert the outcome labels.
-
 ## Accuracy eval
 
 `scripts/eval-ocr-wer.sh` (#10073) scores word-level WER
@@ -186,21 +125,6 @@ report-only until the band is ratified from 3 enforcement-host runs.
 Measured rows land in `testdata/accuracy/ocr-media-wer-baseline.json` via
 `scripts/refresh-ocr-media-wer-baseline.sh`, which updates measured fields
 only — thresholds are separate reviewed edits.
-
-Performance Evidence (#10073): the scorer (`wer.go`) is a pure function
-over at most 47 reference words (worst case key-body: about 0.7 ms per
-call, dominated by the character-level table, measured on a 48-word pair);
-it runs only in unit tests and the sandbox-eval test, never
-on any ingester or collector runtime path. After: eval rows in the baseline
-carry `wall_seconds` per fixture (about 0.19–0.23 s for prose layouts,
-0.43–0.85 s for key-body, dominated by the tesseract subprocess exec).
-There is no worker, queue, lease, graph write, or storage work. It is safe
-because no serving path calls it — the only callers are the
-sandbox-gated eval tests.
-
-No-Observability-Change (#10073): production telemetry is untouched.
-`OCR_WER_EVIDENCE` lines are test-binary stdout consumed by the eval
-scripts, not operator signals.
 
 ## Gotchas / invariants
 

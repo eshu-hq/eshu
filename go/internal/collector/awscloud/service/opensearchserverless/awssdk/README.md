@@ -50,12 +50,6 @@ operation, and result.
 - Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime
   object that created this adapter.
 
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/opensearchserverless/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `../README.md` for the OpenSearch Serverless scanner contract.

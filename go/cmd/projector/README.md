@@ -193,21 +193,6 @@ package's telemetry section.
   existing projector queue items and writes graph/content output. Empty queues
   produce no errors; the binary polls indefinitely.
 
-No-Regression Evidence: `go test ./cmd/projector -run
-'TestBuildProjectorService(HeartbeatsLongRunningClaims|UsesWorkerCountFromEnv|WiresRetryPolicyFromEnv)'
--count=1` covers standalone projector lease renewal, worker tuning, and
-retry-policy wiring. `go test ./cmd/projector -run
-'TestProjectorCanonicalExecutor' -count=1` proves NornicDB graph writes use the
-retrying executor and canonical-write timeout wrapper while Neo4j keeps the
-plain grouped executor path. Remote E2E Compose now starts this runtime after
-bootstrap indexing so hosted collector `source_local/projector` rows have an
-always-on claimer. Clean full-corpus run
-`vulnerability-targets-20260524T050624Z` observed NornicDB package
-unique-conflict retries from the standalone projector and still reached
-queue-zero with no dead-letter rows.
-
-Observability Evidence: the standalone projector now wires the same projector spans, metrics, structured logs, runtime memory gauge, `/metrics`, `/admin/status`, and optional pprof startup log used by hosted data-plane workers.
-
 ## Related docs
 
 - `docs/public/deployment/service-runtimes.md` — local verification runtime lanes

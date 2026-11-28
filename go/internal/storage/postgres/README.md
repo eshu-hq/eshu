@@ -235,39 +235,6 @@ High-signal invariants for this package:
   `list_documentation_facts` search remains unchanged and has no dedicated
   expression index because the measured candidates imposed too much write cost.
 
-Performance Evidence: the checked-in aggregate planner proof executes the
-production total, grouped, and inventory builders against a 200,000-row,
-5%-ACL-visible fixture and requires the aggregate-visible index. The opt-in
-live run selected it for total/grouped/inventory in 7.123/5.524/5.311 ms with
-10,000 rows, 10,351 shared hits, and zero shared reads per builder.
-On the same 200,000-row theory fixture, the production no-filter page moved
-from a 200.842 ms parallel scan and sort to a 0.202 ms order-index scan; the
-fully selective six-filter page moved from 19.229 ms to a 0.360 ms filter-index scan.
-Their 51-row and 66-row digests stayed identical. The exact 500-row production
-finding batch measured a 1.243x median write ratio for the final three-index
-shape, below the 1.50x rejection threshold.
-Search-index candidates for
-the five-field documentation-fact query were rejected because the fastest
-candidate increased the exact 500-row production batch median from 4.207 ms to
-9.257 ms (2.20x); the scoped candidate reached 9.786 ms (2.33x). The complete
-production search over 1.6 million rows completed in 1,503.519 ms on the named
-local proof profile, so the accepted change does not alter free-text search.
-The full measurements and rejected-candidate ledger are in
-(#5275).
-
-No-Regression Evidence: the unfiltered and fully selective list shapes return
-the same 51-row and 66-row digests before and after their indexes. The
-5%-visibility theory shim had bidirectional set difference 0/0 and digest
-`1f713158f4cc5b3d724244b56cbeb292`; the live production-builder proof
-independently returned the expected 10,000 visible rows. The live migration
-test keeps all three findings indexes valid through invalid-build recovery and
-proves repeated and concurrent bootstrap calls leave their definitions
-unchanged.
-
-No-Observability-Change: no metric, span, route, worker, queue, lease, or runtime
-setting changes. Operators continue to see both reads through `postgres.query`
-spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
-`list_documentation_findings` or `list_documentation_facts`.
 - Eshu search-document projection writes derived document facts and a persisted
   BM25 read index in the same reducer retry path. `eshu_search_index_documents`
   stores active-generation document payloads and lengths,
@@ -340,10 +307,6 @@ spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
   component results by content-derived component key, so unchanged components
   can be reused across reducer restarts and replicas without re-solving.
 
-No-Regression Evidence: scoped hot-path notes live in
-retired evidence record, including #2059 claimed fact commit
-tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
-
 ### Current IaC inventory index (#5262)
 
 Migration `067_iac_active_inventory_index.sql` adds a concurrent partial
@@ -353,77 +316,6 @@ entity kind, name, and id; source bodies and other large payload fields remain
 outside the index. `PostgresIaCInventoryStore` uses this shape to select exact
 current identities before graph hydration and to compute caller-authorized
 search and bounded facets.
-
-Performance Evidence: on the retained 8,080,369-row `fact_records` corpus, a
-same-data rollback-only comparison returned the same current IaC set (symmetric
-difference 0/0). The existing broad index shape took 1,351.841 ms with 851,388
-local reads; the partial expression index took 93.671 ms with 24,723 reads. The
-predicate selected about 24,610 rows, roughly 0.3 percent of the fact corpus,
-which bounds index write amplification.
-
-No-Observability-Change: this is a read index and adds no queue, lease, worker,
-metric, span, or log contract. Existing Postgres query spans and the IaC handler
-latency/error signals cover the read path.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBarrier|ShardDrainBarrier)|TestBootstrapDefinitionsIncludeDeferredMaintenanceBarrier'
--count=1` covers the per-repo shared source-commit barrier and per-repo deferred
-maintenance barrier, the multi-shard drain rendezvous, and bootstrap DDL.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestResolveSAMLExternalSubject' -count=1` covers the #3712 SAML resolution
-fix. Read path only: one `resolveSAMLExternalSubjectQuery` (Postgres GROUP BY +
-BOOL_OR on mr.role_id, no rg JOIN, ORDER BY effective_at DESC + workspace_id
-ASC, LIMIT 1) plus one `resolveLocalIdentityRolesQuery` on the non-admin path.
-No new hot Cypher, no worker, no lease, no queue. Admin-role determination is
-now membership-based (`mr.role_id IN ('owner','tenant_admin')`) matching local
-and OIDC paths; non-admin subjects get `PermissionCatalogEnforced=true` with a
-catalog snapshot from `resolvePermissionGrantsForRoles`. Resolution does not
-require an active grant row (rg JOIN removed); grant absence yields an empty
-catalog snapshot, not a login denial. Observability: fail-closed `slog.ErrorContext`
-on role/grant resolution errors so an operator can distinguish a
-permission-catalog outage from any other login failure.
-
-No-Regression Evidence: source-fair projector claims and reducer batch claims
-keep the existing worker count, batch size, lease expiry priority, same-scope
-projector representative, reducer conflict-key fencing, retry,
-stale-generation, and dead-letter paths intact while adding source-aware tie
-breakers to admission. Reducer batch claim predicates are backed by
-`fact_work_items_reducer_source_claim_idx`, a partial expression index over the
-normalized reducer intent `source_system`, domain, status, visibility, lease,
-and deterministic claim-order columns.
-`go test ./internal/storage/postgres ./internal/telemetry -run
-'Test(ProjectorQueue|ReducerQueue|ClaimBatch).*Source|TestQueueObserverStoreSource|TestSourceQueueObserverQueriesUseBoundedSourceSystem|TestRegisterObservableGauges'
--count=1` covers the source-admission ordering and bounded metric registration.
-Performance Evidence: disposable Postgres 18-alpine, reducer claim benchmark
-input shape `ESHU_REDUCER_CLAIM_BENCH_DEPTHS=10000`, one source, 10,000 pending
-reducer rows, single `ReducerQueue.Claim` path unchanged by this PR. Baseline
-`origin/main` samples were 20.3 ms, 22.4 ms, and 22.3 ms/op; after samples were
-20.6 ms, 23.7 ms, and 22.0 ms/op with the same 34 KiB/op and 145-147 allocs/op
-range. The first source-fair draft used per-row source-rank counts and was
-rejected after a 10,000-row run was interrupted at 132 seconds; the landed
-reducer batch query instead uses a pre-aggregated in-flight source count, a
-source-head priority, and the partial source expression index above.
-Observability Evidence: `eshu_dp_queue_source_depth` and
-`eshu_dp_queue_source_oldest_age_seconds` expose queue pressure by bounded
-`queue`, `source_system`, and `status` labels. Projector metrics derive
-`source_system` from `ingestion_scopes.source_system`; reducer metrics prefer
-the reducer intent payload `source_system` and fall back to the scope source so
-operators can distinguish noisy-source starvation from ordinary backlog.
-No-Regression Evidence: the PR #4083 review fix changes only the source queue
-observer `GROUP BY` clauses from the ambiguous `source_system` alias to selected
-expression ordinals. `go test ./internal/storage/postgres -run
-TestSourceQueueObserverQueriesUseBoundedSourceSystem -count=1` failed before
-the fix and passed after it; `ESHU_REDUCER_FAIRNESS_PROOF_DSN=<disposable
-Postgres 18-alpine DSN> go test ./internal/storage/postgres -run
-TestQueueObserverStoreSourceQueriesRunOnPostgres -count=1 -v` proved the
-`SourceQueueDepths` and `SourceQueueOldestAge` queries execute against live
-Postgres with one projector source row and one reducer source row. Performance
-Evidence: this is a correctness-of-shape fix over the same queue observer scan,
-with no added join, predicate, or row expansion. Observability Evidence: the
-same `eshu_dp_queue_source_depth` and `eshu_dp_queue_source_oldest_age_seconds`
-metrics continue to expose the source labels; the fix restores their scrape
-path instead of adding a new telemetry surface.
 
 ### Deferred maintenance lock partitioning (issue #3482)
 
@@ -525,13 +417,6 @@ to 50.167 ms, with `EXCEPT ALL` reporting `0/0` table differences. The query
 repeats the exact trim-aware predicate so Postgres can prove partial-index
 eligibility, then materializes at most 200 deterministic candidates before
 freshness and authorization checks.
-
-No-Regression Evidence: `TestCloudResourceOwnerPageIndexesMigration` pins the
-strict predicate. `TestCloudResourceOwnerPageIndexesApplyAndReapplyLive` uses
-the real migration 086 definition on a populated store and proves first apply,
-reapply, connection restart, clean rollback, invalid concurrent-build cleanup,
-and successful rebuild. Query and route proof commands are retained in
-(#5469).
 
 Migration `074_graph_node_owner_backfill_state.sql` records completion of the
 one-time CloudResource upgrade backfill. `ownerstore.GraphNodeOwnerBackfillStore`
@@ -727,22 +612,6 @@ Primary groups:
   `cloudruntime`'s `valueAttributeAllowlist`; adding it would turn an
   out-of-band Image-to-Zip repackaging into a reported `image_version_drift`.
 
-No-Regression Evidence (#5859): the redaction check sits on the value-drift
-decode path, so it was measured rather than assumed.
-`BenchmarkStateDeclaredValueAttributes` (in
-`aws_cloud_runtime_drift_value_attributes_redaction_test.go`) runs the
-production shape -- an `aws_instance` payload whose `ami` is a real,
-non-redacted string -- through `stateDeclaredValueAttributes`. Old shape
-(`strings.TrimSpace(coerceJSONString(attributes[key]))`, measured by reverting
-`comparableScalarAttr` in place on this same branch and restoring it
-byte-identically afterwards) against new shape, `-benchtime=2s -count=5`, Go
-1.26 on an Apple M1 Max:
-
-```text
-OLD  118.9  119.6  119.7  120.6  119.6 ns/op   336 B/op   2 allocs/op
-NEW  126.4  121.8  121.0  121.4  121.6 ns/op   336 B/op   2 allocs/op
-```
-
 About +2 ns/op on a ~120 ns/op call, and byte-for-byte identical allocation.
 That is the cost of two failed type assertions per allowlisted key
 (`map[string]any`, then `[]any`) ahead of the coercion the old code called
@@ -772,15 +641,6 @@ budget. The join key's guard (`awsRuntimeStateRowFromPayload`) adds one such
 check per rejected row and is not separately benchmarked -- it runs once per
 row on the same no-allocation shape as the decoder path above.
 
-No-Observability-Change (#5859): no new metric, span, queue, lease, worker, or
-runtime knob. The one new signal is a `failure_class` value
-(`state_resource_arn_redacted`) on the loader's already-registered decode WARN
-described above; the value-suppression case surfaces through #5837's existing
-`value_comparison_inconclusive` finding kind and its
-`Summary.ValueComparisonInconclusiveResources` counter, not through anything
-added here. The terraform-state collector already counts every redaction at
-emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
-
 - `cloudObservedValueAttributes`/`stateDeclaredValueAttributes`
   (`aws_cloud_runtime_drift_value_attributes.go`, reused by
   `multi_cloud_runtime_drift_evidence.go`) normalize the bounded,
@@ -802,19 +662,6 @@ emission time on `eshu_dp_tfstate_redactions_applied_total{reason}`.
   across the AWS and multi-cloud loaders build these rows, and one that copied
   `Attributes` while forgetting `DegradedAttributes` would silently reinstate
   the #5861 convergence for its provider alone.
-
-No-Regression Evidence (#5861): the `package_type` completeness rule sits on the
-same value-drift decode path, so it was measured rather than assumed.
-`BenchmarkLambdaDeclaredValueAttributes` (in
-`aws_cloud_runtime_drift_value_completeness_test.go`) runs the healthy
-production shape -- an image-packaged `aws_lambda_function` whose `image_uri`
-IS present, so the guard evaluates and falls through -- through
-`stateDeclaredValueAttributes`. The #5859 benchmark next to it runs an
-`aws_instance` payload, which never reaches this rule, so it would have
-reported "no change" about the wrong path. Baseline measured by reverting both
-call sites to `comparableScalarAttrSet(attributes, "image_uri", "version")`
-through `go test -overlay=` against a scratchpad copy, leaving the worktree
-untouched. Go 1.26 on an Apple M5 Max.
 
 Method matters here, because a first attempt at this measurement got the SIGN
 wrong. Both arms are compiled once with `go test -c` and then sampled
@@ -858,14 +705,6 @@ that carries an `image_uri`. The two conditions commute -- verified by running
 both packages against a reordered overlay, which no test distinguishes -- so
 `lambdaImagePackagedWithoutImageURI` tests the `image_uri` blank first.
 
-No-Observability-Change (#5861): the rule adds no metric, span, or log. It
-routes an affected pair onto the EXISTING `value_comparison_inconclusive`
-finding kind, already counted on
-`Summary.ValueComparisonInconclusiveResources` and already carrying
-`comparable_attribute:<key>` in `missing_evidence` (#5837). An operator sees
-the same durable row and the same counter they read for the redaction case;
-what changes is which pairs land on it.
-
 Two shapes move, and the second is a finding-kind CONVERSION an operator will
 see, not just a rescue:
 
@@ -899,23 +738,6 @@ first, so a comparison that ran and disagreed is never downgraded. A genuinely
 absent comparable is still not degraded -- that is the zip-packaged-Lambda noise
 line the issue records.
 
-No-Regression Evidence (#5861): the change is on the reducer's per-ARN hot path,
-so it was measured, not assumed. `go test ./internal/correlation/drift/cloudruntime
--run XXX -bench Benchmark -benchtime 3s -count=6`, Go 1.26 on an Apple M4 Pro,
-medians of six samples. The AFTER arm was sampled twice, on two different
-machine loads, and both are shown -- reporting only the first would have made a
-noise band look like a small win:
-
-```text
-                                    before      after#1    after#2
-BenchmarkClassifyExistenceOnly      0.2529      0.2503     0.2532   ns/op
-BenchmarkClassifyWithValueDrift     37.34       36.67      37.64    ns/op
-BenchmarkBuildCandidatesWithValueDrift
-                                   805.0       738.5      749.2    ns/op
-
-allocations identical on every arm: 0/0, 48 B/1 alloc, 2962 B/19 allocs
-```
-
 **The citable results are: the two `Classify` benchmarks are unchanged, and
 `BuildCandidates` is 7-8% faster.** `Classify` straddles zero between the two
 samplings (-1.8% and +0.8% on the value-drift arm), which is what "no
@@ -928,13 +750,6 @@ mechanism for it: the change removed a redundant classification.
 `ClassifyValueComparison` independently, and `buildOneCandidate` now computes it
 once and passes it to both. That also removes the possibility of the drift atoms
 and the coverage-gap atoms describing different comparisons.
-
-No-Observability-Change (#5861): no metric, span, or log is added. The affected
-pairs move between the EXISTING `image_version_drift` and
-`value_comparison_inconclusive` finding kinds, both already counted on
-`Summary`, and the gap atoms reuse the `comparable_attribute:<key>`
-`missing_evidence` value #5837 introduced.
-`scripts/verify-telemetry-coverage.sh` passes with no new stage.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its
 constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
@@ -1036,32 +851,6 @@ retired evidence record.
 - New schema table — add a `Definition` to `bootstrapDefinitions` in
   `schema.go`; keep DDL idempotent; place FK-dependent tables after their
   referenced tables in the slice.
-
-No-Regression Evidence: #4222 bounds startup/restart schema lock waits for
-Postgres SQLDB executors. A bounded session-level advisory ownership boundary
-serializes one complete `ApplyBootstrap` on one connection; each definition
-still sets session `lock_timeout` and resets it before the next definition.
-Focused tests prove
-`ApplyDefinitionsWithLockTimeout` routes lock-timeout-capable executors through
-the bounded path and preserves direct execution order for simple test executors.
-Live Postgres proof covers `CREATE INDEX CONCURRENTLY` in autocommit mode and a
-held-lock failure returning inside the configured lock budget. Concurrent index
-schema applies also inspect `pg_index` before retrying and drop same-named
-invalid indexes left by failed concurrent builds, so `IF NOT EXISTS` cannot
-silently accept an unusable hot-path index. Migration 062 also owns its
-check-and-create boundary with a transaction-scoped advisory lock because
-Postgres does not make concurrent same-name `CREATE INDEX IF NOT EXISTS`
-attempts atomic. The live proof exercises a populated table, lock timeout,
-context interruption, concurrent migration retry, concurrent full bootstrap,
-and the then-current three-index validator. #7033 adds relative path to the
-validator; its live tests cover upgrades and invalid same-name recovery.
-
-Observability Evidence: no new metric series or labels were added. Operators
-continue to diagnose schema bootstrap through the one-shot `db-migrate` /
-`bootstrap-index` startup logs, the wrapped `apply <definition>` error that
-names the blocked schema definition, and existing Postgres lock-wait views. A
-lock timeout now fails the schema bootstrap instead of letting startup wait
-indefinitely behind corpus reads.
 
 ## Gotchas / invariants
 
@@ -1178,19 +967,6 @@ exactly the new-repo entries regardless of fleet size) and
 `TestBackfillScopedCatalogDiscoversSameEvidenceAsFullCatalog` (scoped discovery
 equals the prior full-catalog-then-filter result edge-for-edge).
 
-Benchmark Evidence: `BenchmarkBackfillDiscoveryFullCatalog` vs
-`BenchmarkBackfillDiscoveryScoped` on Apple M4 Pro (`go test -bench
-BenchmarkBackfillDiscovery -benchmem`, one source fact per fleet repo, fixed
-two-repo onboarding delta). At a 5000-repo fleet the scoped path drops catalog
-matcher memory from `5009964 B/op`/`65117 allocs/op` to `1508890 B/op`/`25072
-allocs/op` (about 3.3x less memory, 2.6x fewer allocations); at 1000 repos from
-`968620 B/op`/`13058 allocs/op` to `338582 B/op`/`5045 allocs/op`. The matcher
-build and the discarded full-catalog evidence set no longer scale with fleet
-size, so onboarding-commit correlation memory scales with the onboarding delta.
-No-Observability-Change: the backfill emits no new metric, span, or log shape;
-existing `relationship_backfill` commit-stage timing and the evidence-persist
-rows still surface the path, now with bounded matcher cost.
-
 ### Content-scoped per-commit fact load (#3570)
 
 The #3500 scope bound narrowed the catalog matcher but left the per-commit fact
@@ -1260,22 +1036,6 @@ mixed corpus that genuinely excludes non-matching facts), and
 `TestTwoPhaseScopedLoadIncludesExternalArgoCDConfig` (the two-phase load discovers
 the external-config-synthesized ApplicationSet deploy edge that a single marker-only
 phase drops, matching the full-corpus result edge-for-edge).
-
-Benchmark Evidence: `BenchmarkBackfillDiscoveryFullFleet{1k,5k}` vs
-`BenchmarkBackfillDiscoveryScopedFleet{1k,5k}` in
-`go/internal/relationships/catalog_anchor_bench_test.go` on Apple M5 Max
-(`go test ./internal/relationships -run '^$' -bench BenchmarkBackfillDiscovery
--benchmem`, one source fact per fleet repo, fixed one-repo onboarding delta).
-Per-commit discovery cost for the full-load path is `7930898 ns/op`
-(`784070 B/op`, `12972 allocs/op`) at a 1000-repo fleet and `38288156 ns/op`
-(`3721535 B/op`, `65002 allocs/op`) at 5000 repos — linear in fleet size. The
-content-scoped path is `14093 ns/op` (`3537 B/op`, `48 allocs/op`) at 1000 repos
-and `13914 ns/op` (`3545 B/op`, `48 allocs/op`) at 5000 repos — flat. Per-commit
-backfill time and memory now scale with the onboarding delta, not the fleet.
-
-No-Observability-Change: the per-commit backfill emits no new metric, span, or
-log shape; the existing `relationship_backfill` commit-stage timing and the
-evidence-persist rows still surface the path, now reading a bounded fact set.
 
 ### Corpus-wide deferred fact load (#3569)
 
@@ -1357,26 +1117,6 @@ deferred backfill issues the self-exclusion query (never the per-commit or
 full-corpus query) and issues no fact query at all when the catalog has no usable
 anchors, while still publishing backward-evidence readiness.
 
-Performance Evidence: `BenchmarkDeferredBackfillDiscovery{Full,Scoped}Fleet{1k,5k}`
-in `go/internal/relationships/catalog_anchor_bench_test.go` on Apple M-series
-(`go test ./internal/relationships -run '^$' -bench BenchmarkDeferredBackfillDiscovery
--benchmem`, one edge-forming fact plus four orphan facts per fleet repo, every
-payload carrying `repo_id`, whole-fleet catalog, scoped variant run through the
-#3659 self-exclusion predicate). At a 1000-repo fleet deferred discovery drops
-from `27748503 ns/op` (`44039593 B/op`, `399019 allocs/op`) to `6509206 ns/op`
-(`5105782 B/op`, `55916 allocs/op`) — about 4.3x faster, 8.6x fewer allocs. At
-5000 repos it drops from `122223287 ns/op` (`218460600 B/op`) to `31142259 ns/op`
-(`25836605 B/op`) — about 3.9x faster, 8.4x fewer bytes. These are lower than the
-unrepresentative #3655 numbers because the fixture now carries `repo_id`; both
-variants yield the same evidence set.
-
-No-Observability-Change: the deferred backfill emits no new metric, span, or log
-shape; the existing `relationship.backfill_deferred` span, the
-`DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments, and the
-`deferred_backfill_completed` log line still surface the path, now recording a
-bounded fact load. A shrinking `DeferredBackfillDuration` against a growing fleet
-is the operator-visible signal that the scope bound is in effect.
-
 #### Relationship-family partial index and reference narrowing (#5122)
 
 The deferred query now applies its existing exact relationship-family predicate
@@ -1385,15 +1125,6 @@ matching concurrent partial index on `(scope_id, generation_id, observed_at,
 fact_id)`. The repo-id reference arm also materializes reference keys only for
 those candidate fact IDs before comparing catalog keys; the previous plan
 compared every catalog key with every reference row in the scope.
-
-Performance Evidence: The retained-shape Odù contains 60,988 source facts
-across eight skewed partitions but only 84 exact family candidates. On local
-PostgreSQL 18, the shipped worst-scope query took 1,411.501 ms, the index-only
-rewrite with the old reference join took 721.259 ms, and the complete narrowed
-query took 3.053 ms.
-The eight-task critical path fell from 1.501561 s to 6.241708 ms. Both directions
-of the fact-id differential were empty, loaded counts matched, UNION de-duplication
-was preserved, and the self-reference and prefix-collision cases stayed excluded.
 
 Against the retained 896-repository data, the shipped 14,190-row worst-scope
 query exceeded a bounded 120-second statement timeout. A temporary-table proof
@@ -1428,11 +1159,6 @@ transactional SQL calls, and fails unless measured baseline minus candidate
 minus the conservative 45.008-second write tax clears the current
 220.691-second target gap.
 
-No-Observability-Change: the query and index add no worker, queue, lease, metric,
-span, or log shape. Operators continue to use the existing
-`relationship.backfill_deferred` span, deferred-backfill duration/batch metrics,
-and committed-batch logs; `workers` remains the concurrency diagnostic.
-
 ### Backfill source-file split (#3673)
 
 `ingestion_backfill.go` had grown to 735 lines, over the repo's 500-line
@@ -1455,24 +1181,6 @@ Package `postgres` and every exported and unexported symbol are preserved
 verbatim; only the per-file import sets are narrowed. The exported surface is
 unchanged, so `doc.go`, `README.md` (other than this note), and `AGENTS.md` need
 no contract edits.
-
-No-Regression Evidence: pure mechanical move on PostgreSQL 16 (the package's
-test backend). Function bodies, the `deferredMaintenanceRepoBatchSize = 32`
-constant, lock-key derivation, batch sizing, and SQL queries are byte-identical
-to the prior single file, so the deferred-maintenance lock partitioning,
-per-batch transaction scope, idempotency, and scope-bounded discovery behavior
-documented above are unchanged. Verified with `go build ./...`,
-`go test ./internal/storage/postgres -count=1` (1065 tests pass, same terminal
-count as before the split), and `golangci-lint run ./internal/storage/postgres/...`
-(no issues). No benchmark is rerun because no instruction on any hot path
-changed; the #3569/#3500/#3570 benchmarks above still describe the same code.
-
-No-Observability-Change: the split moves code between files only. The
-`relationship.backfill_deferred` and `bootstrap.reopen_deployment_mapping`
-spans, the `DeferredBackfillDuration`/`DeferredBackfillEvidence`/
-`DeploymentMappingReopened` instruments, and the `deferred_backfill_completed`/
-`deployment_mapping_reopened`/`relationship_backfill_deferred_source_skipped`
-log lines are emitted from the same statements, now relocated.
 
 ### Deferred relationship-evidence backfill long pole (#3704)
 
@@ -1594,17 +1302,6 @@ advisory-lock manager would hang on a lock-order deadlock), and
 `TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne` (worker count 1 keeps
 the pass single-flight for `ESHU_POSTGRES_MAX_OPEN_CONNS=1`). All run under `-race`.
 
-Benchmark Evidence (concurrency, the long-pole fix): `BenchmarkDeferredBackfill{Serial,Concurrent4,Concurrent8}`
-in `ingestion_backfill_bench_test.go`, 256 repositories at batch size 8 (32
-batches) with a 50 µs per-statement round-trip stand-in, darwin/arm64. One
-representative run: serial (1 worker) `95,065,912 ns/op`; 4 workers
-`23,205,104 ns/op` (4.10x faster); 8 workers `11,598,673 ns/op` (8.20x faster)
-— near-linear in worker count, as expected for round-trip-bound batch writes. End-to-end wall-time on the de-nested
-896-repo / ~3.5M-fact corpus is measured by the operator's remote validation
-stack (no local corpus of that size); the structural argument is serial → W-way
-concurrent across the independent per-repository batches plus N → ⌈N/500⌉
-evidence-write round-trips.
-
 The absolutes are illustrative, not a target to re-measure against. Across nine
 runs on one loaded developer machine, serial ranged 92.8–118.6 ms — a 1.28x
 spread with no code change between runs — so any band drawn around these numbers
@@ -1652,30 +1349,6 @@ per-partition ArgoCD probe entirely — the probe measured at 2.34 ms per call i
 the fan-in's real cost requires a non-empty fingerprint, and the benchmark's
 `latencyBackfillDB` deliberately errors on the probe query rather than guessing
 its column shape, so that run fails with a named error until someone adds it.
-
-Performance Evidence (CTE plan shape, supporting cleanup): PostgreSQL 18, fixture
-of 2000 scopes × 3 generations (6000 generation rows, half with an active
-pointer), `ANALYZE`d, with `scope_generations_scope_latest_lookup_idx` present.
-`EXPLAIN` of the legacy correlated form yields total cost `21654.36` with two
-correlated `SubPlan` nodes (`Group` node cost `21594.66`). `EXPLAIN` of the
-DISTINCT ON rewrite yields total cost `372.85` — a single `Unique` over one Merge
-Left Join + Index Only Scan, **no SubPlan** — about a 58x planner-cost reduction
-at that scale. Note: live `EXPLAIN ANALYZE` on the real corpus showed both forms
-already execute in ~476 ms, so this plan-cost reduction is a query-shape cleanup,
-not the wall-time long-pole fix — the concurrency change above is that fix.
-
-Observability Evidence: the deferred backfill previously logged nothing until the
-whole pass returned, hiding intra-pass progress. `runDeferredBackfillBatches`
-records `eshu_dp_deferred_backfill_batch_duration_seconds` (histogram) and
-`eshu_dp_deferred_backfill_batches_completed_total` (counter) per committed
-per-repository batch, and emits a `deferred_backfill_batch_committed batch=N
-total_batches=M repos=R partitions=Q duration_s=D workers=W` log line per
-batch. A rising `…batches_completed_total` during a pass is the operator-visible
-progress signal for the backfill long pole, and the `workers=W` attribute shows
-the active concurrency; the existing `relationship.backfill_deferred` span and
-`DeferredBackfillDuration`/`DeferredBackfillEvidence` instruments still record the
-whole-pass totals. New instruments are registered in
-`internal/telemetry/instruments.go`.
 
 The batch line reports `partitions=Q` rather than a readiness count because
 batches no longer publish readiness; see
@@ -1817,18 +1490,6 @@ including non-matching scope shapes. The existing #3659/#3710 non-DB regression
 guards (`ingestion_backfill_deferred_scope_test.go`) were updated in lockstep for
 the new six-parameter (`$1`..`$6`) call shape and still pass.
 
-Performance Evidence: live-corpus pure-SQL shim on the `eshufull` Postgres
-instance (PostgreSQL 18), comparing the pre-hoist #3710 query shape against the
-hoisted `$5`/`$6` shape with identical params. A representative medium scope
-(1,990 facts) went from 149,525ms (pre-hoist) to 15,181ms with the hoist alone
-(9.85x), then to 914ms with the hoist plus the `$5`/`$6` fast arm (163x total). A
-giant-tail scope (24,802 facts) completed in 13,864ms with the hoist plus fast
-arm. Both scopes' fact_id sets are byte-identical (0/0 set-diff, both directions)
-to the pre-hoist shape. Separately, over the full corpus (314,879 fact_records
-rows, all `git-repository-scope`), the `scope_id`-derived `$6` equals the row's
-actual `own_repo_id` for 314,799 rows (99.975%); the remaining 80 rows are handled
-correctly by the fallback arm exactly as designed above.
-
 Coordinator end-to-end (independent, live `eshufull` corpus; VPN down so run
 locally): the NEW shape run once across all 907 `(scope_id, generation_id)`
 partitions (314,879 rows, the real `$2` catalog and per-partition `$5`/`$6`)
@@ -1838,17 +1499,6 @@ apples-to-apples number remains the per-scope 163x above; this aggregate also
 folds in the per-domain re-run that a separate candidate-extraction change
 (#3711) targets, so it is reported as a corroborating end-to-end figure, not the
 headline speedup.
-
-No-Observability-Change: the query rewrite changes only the SQL text and its bind
-parameters; `loadDeferredScopedRelationshipFactsForPartition` still returns the
-same `[]facts.Envelope` shape to the same caller
-(`loadDeferredScopedFactsAcrossPartitions`), which still records
-`DeferredBackfillPartitions`, `DeferredBackfillPartitionWorkers`, and
-`DeferredBackfillPartitionLoadDuration` and logs
-`deferred_backfill_fact_load_completed` exactly as before (#3710). No new metric,
-span, or log shape is introduced; a falling `DeferredBackfillPartitionLoadDuration`
-against the same partition shape is the operator-visible signal this fix is
-effective.
 
 ### Deferred pass partition memoization (#3624 Track 1 / B')
 
@@ -1879,32 +1529,6 @@ NOT a substring scan over the bare key names:
 `argocd_applications`/`argocd_applicationsets` are empty struct keys that
 `parsed_file_data` serializes into every parsed file's payload, so such a
 scan flags every partition (measured 869 of 869) and defeats the memo.
-
-Performance Evidence: live `eshufull` corpus (Postgres 18, 4.09M fact_records,
-869 fact-bearing partitions). The precise ArgoCD signal flags 23 partitions
-(the broad `argocd_applications` empty-struct-key marker flagged all 869), so a
-no-change drain skips 846 of 869 partitions (97.4%) — the full ~188s fact load
-plus `DiscoverEvidence` CPU replaced by one indexed
-`deferred_backfill_partition_memo` lookup, with the 23 always-reload ArgoCD
-partitions. The read gate performs NO payload scan; the earlier read-side ArgoCD
-probe (removed) would have re-serialized `payload::text` over every skip
-candidate (measured ~59s per pass). Accuracy is pinned by
-`TestDeferredBackfillPartitionMemoNoChangeRerunSkipsAndIsIdentical` (pass 2 skips
-every partition and leaves the evidence edge set byte-identical to a full
-reload — 0/0), `...CatalogChangeInvalidatesAll`,
-`...GenerationChangeReloadsOnlyThatPartition`, `...ArgoCDCarveOutAlwaysReloads`,
-`...BootstrapUnchangedFullLoad`, and
-`TestArgoCDBearingSignalIgnoresEmptyParsedStructKeys` (the empty-struct-key
-regression guard), all against a disposable Postgres 18. Bootstrap wall time is
-unchanged (an empty memo loads every partition).
-
-Observability Evidence: `eshu_dp_deferred_backfill_partitions_skipped_total`
-(reason=`catalog_unchanged`) and `eshu_dp_deferred_backfill_partitions_loaded_total`
-(reason=`memo_miss`) via the `telemetry.Instruments` contract, plus a
-`deferred_backfill_partition_memo_gate_completed` structured log with
-candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
-the operator-visible signal the memo is effective; a skip ratio that collapses to
-zero signals a catalog churn or a memo-write regression.
 
 ### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5699 / #5740)
 
@@ -2013,28 +1637,6 @@ fact rows. For them the floor matters more, not less — a stale generation's
 re-projection spends graph writes anchoring edges to a generation the read
 surfaces no longer resolve.
 
-Performance Evidence: 900 scopes x 25 generations, Postgres 16, against the
-PRODUCTION index `(stage, domain, status, visible_at, updated_at DESC)`.
-Listing `EXPLAIN ANALYZE`, median of three runs: 29.8 ms unbounded, 114.2 ms for
-the superseded-exclusion shape this replaced, 20.3 ms for the replay floor
-(166.0 ms without the `MATERIALIZED` hint). Rows listed per domain: 22 551
-unbounded, 951 superseded-exclusion, 903 floor. Expected delta versus unbounded:
-`floor \ unbounded = 0`, `unbounded \ floor = 21 648`, no kept row on a
-superseded generation, and the never-activated scope's row kept. Script:
-(#5426).
-
-Performance Evidence (failed-generation exclusion, PR #5850 P2): same script,
-same run, so each run yields a PAIRED gap. Over six consecutive runs on
-Postgres 16.14, floor-only spans 19.2-20.3 ms and floor plus
-`work_generation.status <> 'failed'` spans 19.7-21.0 ms. The two pairs the
-original claim rested on cannot establish a constant, so its "+0.3 ms constant"
-wording claimed more than it had. What the accumulated pairs do establish is a
-small, reproducible cost of about +0.3 ms — roughly 2% of the listing, under
-0.05% of the pass's 5.5 s once the five listings are counted (the five-domain
-pass; #5837 added a sixth and re-measured it at 5.927 s, which only makes the
-fraction smaller — see the six-domain no-regression table below).
-Immaterial, but a cost, not noise.
-
 Judge it on the paired gap's sign, not on either arm's spread across runs: the
 arms share a machine, a script, and a run, so pairing cancels the between-run
 common-mode variance that swings the absolute times by more than 1 ms. That is
@@ -2065,28 +1667,6 @@ Rows listed per domain drop 903 -> 902, all of the difference being the failed
 scope's one perpetually-churning row. Same-run controls: `shipped \ unbounded
 = 0`, no kept row on a superseded generation, no kept row on a failed
 generation, and the never-activated scope's row still kept.
-
-Performance Evidence (real per-drain cost; same corpus shape and size as the
-listing proof above, 900 scopes x 25 generations, but WITHOUT its three extra
-hole-shape scopes — so the per-domain row counts are 900 and 22 500 here rather
-than 903 and 22 551): the listing is not
-where this pass spends its time, and the pre-change ingester baseline was ZERO —
-it ran no correlation reopen at all. Production issues one client round-trip per
-reopened row, so the whole five-domain call takes 5.5 s wall (74 ms of it the
-five listings, the rest 4500 single-row `UPDATE` round-trips — 900 x 5 domains)
-versus 2 m 17 s and 112 500 round-trips unbounded (22 500 x 5). Measured by
-`TestCorrelationReopenPerDrainCostProof`
-(`ESHU_CORRELATION_REOPEN_COST_PROOF_DSN`-gated), over a loopback connection —
-a networked Postgres pays more per round-trip.
-
-No-Regression Evidence: #5837 adds `aws_cloud_runtime_drift` as a sixth
-reopened domain, so the five-domain figures above were re-run at six rather
-than scaled on paper. Same test, same corpus shape, same loopback topology,
-Postgres 16.14. Measured on the pre-reconcile branch tip
-(`5837-drift-reopen-prereconcile` = `12bd12dc8`), carried forward unchanged
-into this reconciled branch rather than re-measured on this diff's HEAD — the
-six-domain figures below are inherited provenance, not a claim proven on this
-commit:
 
 | | five domains | six domains |
 | --- | --- | --- |
@@ -2214,18 +1794,6 @@ deploy, crash-loop) re-arms each shard's own once-latch, so a fleet that
 restarts while still quiet may open another epoch — intended, since a
 restarted fleet warrants its own startup pass, not a leak.
 
-No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
--count=1` proves a quiet fleet — driven by real `collector.Service.Run`
-instances, one goroutine per shard, against the real join-only barrier logic
-— opens exactly one epoch across many idle polls per shard, and that a
-never-committed shard can still join, and even lead, an epoch a committing
-shard already opened. `go test ./internal/collector -run
-'TestServiceRun(CallsAfterBatchDrainedOnceAfterCommittedBatch|CallsAfterBatchDrainedForConfiguredEmptyBatch|CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard)'
--count=1` proves `hasCommitted` is reported `true` for a real commit AND for
-the process-first call whatever leg drove it, and `false` for every later
-idle-poll arrival with nothing to account for.
-
 Cost Evidence (recurring idle-path transaction; measured): both
 No-Regression Evidence entries above prove correctness of the row set opened,
 joined, and completed. This entry measures the Postgres cost of the
@@ -2326,11 +1894,6 @@ TestIngestionStoreRunDeferredRelationshipMaintenanceAfterShardDrainRateLimitsIdl
 -count=1` proves at most one line per interval, and a fresh line once the
 interval elapses.
 
-No-Observability-Change: the join-only no-op path adds one rate-limited INFO
-log line (`deferred maintenance barrier idle; no epoch to join`) and
-otherwise reuses every existing metric, span, and log field. No new metric,
-span, worker, queue, or runtime knob.
-
 `waitDeferredMaintenanceBarrierCompletion` itself remains deliberately
 unbounded — no arrival deadline, no partial-arrival quorum — because running
 deferred maintenance while any shard might still be mid-ingest is a
@@ -2372,9 +1935,6 @@ CI-visible proofs, needing no Postgres:
 drive the real maintenance pass against the package fakes, so deleting the
 `ReopenSucceededReducerWorkItems` call or dropping the replay floor fails
 hermetically instead of silently skipping.
-
-No-Observability-Change: `eshu_dp_correlation_reopened_total` keeps its name,
-type, and `domain` attribute; only its emitting call sites widen.
 
 ### Reopen partition memoization (#4770 / #3624 Track 2)
 
@@ -2458,24 +2018,6 @@ never land in the same-pass skip-set — always a miss, always reopened on the
 same-pass path, and trivially always reopened on the nil path along with every
 other candidate.
 
-Performance Evidence (same-pass skip-set path, unaffected by the P0 nil-path
-fix): disposable Postgres 16.14 (`postgres:16-alpine`),
-`ESHU_DEFERRED_PARTITION_PROOF_DSN`-gated live proof
-(`ingestion_reopen_partition_memo_gate_integration_test.go`,
-`TestRunDeferredRelationshipMaintenanceReopensPartitionProcessedThisPass`):
-seeds a partition with NO prior memo row (a genuine memo miss at the start of
-the pass) and a `succeeded` `deployment_mapping` work item for it, then drives
-`RunDeferredRelationshipMaintenance` — the real ingester call sequence,
-backfill immediately followed by reopen — end to end. Pre-P1-fix, this
-reproduced the earlier same-pass bug exactly:
-`reopen_partition_memo_gate_completed domain=deployment_mapping
-candidate_work_items=1 skipped=1 reopened=0` and the work item stayed
-`succeeded`, even though the backfill had just committed fresh evidence for
-that same partition this pass
-(`deferred_backfill_partition_memo_gate_completed candidate_partitions=2
-skipped=0 loaded=2`). Post-fix, the same run produces `skipped=0 reopened=1`
-and the work item transitions to `pending`.
-
 The P0 nil-skip-set fix (this change) has its own dedicated RED-then-GREEN
 proofs against real Postgres:
 `TestReopenDeploymentMappingWorkItemsNilSkipSetAlwaysReopensEvenAfterMemoHit`
@@ -2501,12 +2043,6 @@ above. This removes redundant reducer replay scheduling work on the same-pass
 path and restores correct reopen-all behavior on the nil path; it does not
 change conflict-domain partitioning, worker counts, or batch sizes on the
 reopen path.
-
-Performance Evidence: remote controlled before/after on the
-eshu-remote-validation host, against a Postgres clone of the persisted
-~896-partition corpus, using built binaries for `main` (OLD) and
-`perf/4770-reopen-fingerprint-gate` (NEW). Two numbers matter and they tell
-different stories, stated honestly rather than blended into one headline:
 
 - The `RunDeferredRelationshipMaintenance` call itself is FLAT: ~45.5s OLD vs
   ~46.2s NEW. The call is dominated by the shared evidence-backfill scan (Track
@@ -2549,17 +2085,6 @@ the same-pass skip-set path (the ingester) and the nil reopen-all path
 computeCurrentReopenCatalogFingerprint` across `go/` returns no function
 definitions or call sites — only historical doc-comment references explaining
 why the legacy fallback was removed.
-
-Observability Evidence: `eshu_dp_reopen_skipped_by_partition_memo_total`
-(labeled `domain` = `deployment_mapping`/`code_import_repo_edge`, `reason` =
-`catalog_unchanged`) via the `telemetry.Instruments` contract, plus a
-`reopen_partition_memo_gate_completed` structured log with
-domain/candidate/skipped/reopened counts and `deployment_mapping_reopened`/
-`code_import_repo_edge_reopened` logs now also reporting `skipped_by_memo`. A
-rising skip count against a stable catalog is the operator-visible signal the
-reopen gate is eliminating redundant replay; a skip count that stays at zero
-against an otherwise-quiet catalog signals a memo-write regression or a
-fingerprint mismatch worth investigating.
 
 ## Platform-Graph Conflict-Domain Partition (#3672)
 
@@ -2617,54 +2142,6 @@ upsert Postgres `fact_records` (idempotent per `fact_id`), and
 `deployable_unit_correlation` MERGEs only Repository→Repository correlation
 edges. They are safe to drain concurrently.
 
-### Benchmark Evidence
-
-darwin/arm64, Apple M5 Max, Go 1.26,
-`pkg: github.com/eshu-hq/eshu/go/internal/storage/postgres`
-
-```
-BenchmarkReducerPlatformGraphConflictKey-18              38711040   157.2 ns/op   352 B/op   5 allocs/op
-BenchmarkReducerPlatformGraphConflictKeyAllDomains-18    38427297   160.7 ns/op   352 B/op   5 allocs/op
-```
-
-Cost per intent at enqueue time: ~157 ns, 5 allocs (SHA-256 of the partition
-token + scope string). This is negligible against any graph write (measured at
-≥0.85 s in PR #3671 telemetry). No Postgres query shape changed; the claim SQL
-fences on the stored `(conflict_domain, conflict_key)` columns unchanged.
-
-No-Regression Evidence: the claim SQL fence predicate
-(`inflight.conflict_domain = fact_work_items.conflict_domain AND COALESCE(...)`)
-is unchanged. Only the conflict key value stored at enqueue time changes. The
-existing `TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey` and
-`TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys` proofs (live
-Postgres, `-race`) cover the fence contract for same-key serialization and
-disjoint-key concurrency respectively; both continue to pass with the new key
-shape. `TestPlatformNodeWritersShareConflictKeyForSameScope` proves the two
-Platform-node writers share one key per scope so they remain serialized.
-
-Expected drain improvement: the three non-Platform-writing domains
-(`workload_identity`, `cloud_asset_resolution`, `deployable_unit_correlation`)
-no longer queue behind the Platform-node writers or each other for a scope —
-four concurrent lanes per scope instead of one. The two Platform-node writers
-(`workload_materialization`, `deployment_mapping`) still serialize against each
-other, by design, because they MERGE the same Platform node without a shared
-lock. Removing the cross-domain false serialization is the primary win; the
-`workload_materialization` long pole is no longer blocked by the other four
-domains' queue waits. Exact speedup depends on worker count, per-domain intent
-mix, and graph-write latency; full-corpus `sub_duration_*` telemetry measurement
-requires the operator's remote validation environment.
-
-### Observability Evidence
-
-No new telemetry emitted by this change. The `sub_duration_*` log attributes
-landed in PR #3671 (`sub_duration_graph_write_seconds`, `queue_wait_seconds`)
-are the primary signal for validating drain improvement after this partition.
-Operators should compare `queue_wait_seconds` histograms for the
-`workload_materialization` domain before and after deployment.
-
-No-Observability-Change: conflict key derivation is enqueue-time only; no
-runtime spans, metrics, or log lines were added or removed.
-
 ## Identity profile read queries (#3462 Slice B)
 
 `ListSessionsBySubject`, `ListAPITokensBySubject`, and
@@ -2672,21 +2149,6 @@ runtime spans, metrics, or log lines were added or removed.
 console profile page (`GET /api/v0/auth/profile`, `/sessions`,
 `/local/api-tokens`). They are not on the ingestion/reducer hot path; each is a
 single dashboard-triggered read for the authenticated caller's own rows.
-
-No-Regression Evidence: all three are net-new SELECTs that add no predicate to
-any existing query and modify no existing index or write path, so there is no
-prior baseline to regress. Backend PostgreSQL 16. Input shape: exactly one
-`subject_id_hash` per call (never a scan over subjects). Each query filters on
-the indexed `subject_id_hash`, and the two list reads are bounded `LIMIT 200`,
-so the terminal row count per call is at most 200 rows (MFA returns a single
-status row). The `(session_hash = $2) AS current` boolean is an equality on the
-`browser_sessions` primary key, matching at most one row. No unbounded fan-out,
-no cross-subject scan, no N+1.
-
-Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
-per-statement latency/error spans and metrics are inherited without per-call
-wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths so an
-operator sees a server-side signal instead of a silent empty/"none" result.
 
 ## Admin identity read queries (#3462 Slice C)
 
@@ -2710,14 +2172,6 @@ eligible tenant/workspace rows before cursor filtering and sorting, so
 per-page work scales with that row count rather than the 500-row cap.
 The fixture proves paging correctness, not loaded QA latency.
 
-Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
-per-statement latency/error spans and metrics are inherited without per-call
-wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths so an
-operator sees a server-side signal instead of a silent empty result. No query
-selects a hashed secret, invite code, credential handle, or external group hash;
-the SQL-security tests in `identity_admin_reads_test.go` assert the safe-column
-contract per query.
-
 ## Admin identity mutation queries (#3703 PR-2)
 
 `RevokeAdminInvitation`, `GrantAdminRoleAssignment`, `RevokeAdminRoleAssignment`,
@@ -2734,37 +2188,6 @@ carries one), resolved from the all-scope `AuthContext`, never cross-tenant. The
 external group name is supplied to the store only as its precomputed hash (the
 same `sha256:`-prefixed digest the OIDC login path uses to read mappings); the
 raw group name never reaches this layer.
-
-No-Regression Evidence: all are net-new statements that add no predicate to any
-existing query and modify no existing index or write path, so there is no prior
-baseline to regress. Backend PostgreSQL 16. Input shape: exactly one
-`tenant_id` (and `workspace_id`) per call — never a scan over tenants. Each
-write is idempotent under concurrent retry by construction, not by serialization:
-the two grant/create paths upsert with `ON CONFLICT` on the table's full primary
-key (`(tenant_id, workspace_id, user_id, role_id)` for membership roles;
-`(provider_config_id, external_group_hash, tenant_id, workspace_id, role_id)` for
-group mappings), so a double grant/create converges on one row rather than
-violating the active partial index; the three revoke/delete paths are
-terminal-state-guarded `UPDATE`s (`status = 'active' AND ... IS NULL`) that affect
-zero rows on a repeat without erroring. The invitation revoke runs a row-locked
-(`FOR UPDATE`) read-then-write in one transaction so a concurrent revoke
-serializes on that single row only, not the table. Grant and create validate the
-referenced role/provider is active in the tenant with a bounded
-`SELECT 1 ... LIMIT 1` before writing, so an unknown or tombstoned role/provider
-is rejected rather than fabricating a row. The delete resolves the opaque
-`mapping_ref` with a tenant/workspace-scoped SHA-256 digest. FIPS rejects Postgres `md5()`; saved 32-hex refs must be
-refreshed through list (64-hex) before delete, which returns 409 for a stale ref; no cross-tenant scan or fan-out.
-
-Observability Evidence: the statements run on the `InstrumentedDB`-wrapped pool,
-so per-statement latency/error spans and metrics are inherited without per-call
-wiring; the handlers add `slog.ErrorContext` on the store-error (500) paths and
-emit a governance audit event for every allowed and denied mutation
-(`EventTypeRoleGrantChange` for invitation/role-assignment changes,
-`EventTypeIDPConfigChange` for group-mapping changes), which an operator reads
-back through the PR-1 audit endpoints. No statement selects or writes a hashed
-secret, invite code, credential handle, or raw external group name; the
-SQL-security tests in `identity_admin_mutations_test.go` assert the
-parameterized, tenant-scoped, idempotent, no-secret contract per statement.
 
 ## Bootstrap admin credential (epic #4962, issue #4963)
 
@@ -2804,60 +2227,6 @@ concurrent round; `TestAdminInitialCredentialAndResetRoundTrip`
 that the printed code actually authenticates, the code it replaced does not,
 and a pre-seeded active TOTP factor survives untouched.
 
-No-Regression Evidence: this is a net-new table and net-new statements on it;
-no existing query, index, or write path changes. Backend PostgreSQL 16. Input
-shape: exactly one `(tenant_id, workspace_id)` row ever exists in practice
-(Eshu's self-hosted deployment model is single-tenant) — never a scan. Call
-frequency is intentionally low: `GenerateBootstrapCredential` runs at most once
-per process lifetime (idempotent `INSERT ... ON CONFLICT (tenant_id,
-workspace_id) DO NOTHING`, proven by
-`TestGenerateBootstrapCredentialIdempotentOnRestart`);
-`ConsumeBootstrapCredential` runs once per local login as an indexed
-conditional `UPDATE` by primary key, which is a no-op after the bootstrap
-admin's first login (or always, for every other subject/mode); `Reset` is an
-explicit rare operator action. Concurrency is guarded by
-`pg_advisory_xact_lock(3456)`, a distinct key from `BootstrapLocalIdentity`'s
-own `pg_advisory_xact_lock(3455)` (`identity_local_sql.go`).
-`GenerateBootstrapAdminWithCredential` acquires both in the same transaction,
-always in the fixed order 3455 then 3456; that same-session, fixed-order
-acquisition is what rules out a deadlock between the two keys — deadlock
-requires two *different* transactions each holding one lock and blocking on
-the other, which cannot happen when a single session takes both, in the same
-order, every time. `GenerateBootstrapCredential` and `ResetBootstrapCredential`
-each take 3456 alone. `ConsumeBootstrapCredential` deliberately takes no lock
-at all: its atomic conditional `UPDATE ... WHERE consumed_at IS NULL` is
-itself the concurrency guard, so it never contends with 3456 or 3455. A real
-Postgres concurrency gate
-(`identity_bootstrap_credential_concurrency_test.go`,
-`TestBootstrapCredentialConcurrencyGateGenerateConsumeReset`, `-race`, 5
-rounds, skipped without `ESHU_POSTGRES_DSN`/`ESHU_BOOTSTRAP_CREDENTIAL_PROOF_DSN`)
-drives 2 concurrent `Generate` + 1 `Consume` + 1 `Reset` against one row and
-proves: both racing `Generate` calls report `inserted=false` against an
-already-provisioned row; `reset_count` increases by exactly 1; the row is
-always exactly one of retrievable (`consumed_at` NULL, ciphertext present) or
-consumed (`consumed_at` set, ciphertext cleared) — never both, never neither;
-and the `identity_local_credentials` bcrypt hash always matches whatever
-`Reset` sealed, so the database password and the sealed envelope never
-diverge under concurrent Consume/Reset pressure.
-
-Observability Evidence: the identity DB handle these methods run on is
-wrapped in `InstrumentedDB` by both callers (`StoreName:
-"identity_bootstrap_credential"`), so per-statement `eshu_dp_postgres_query_duration_seconds{operation,store}`
-is inherited without per-call wiring. `go/cmd/eshu-local-api/seed_initial_admin.go` adds
-an OTEL span (`auth.bootstrap_seed`) around the whole seeding stage plus three
-new counters: `eshu_dp_auth_bootstrap_seed_total{outcome}` (sealed_existing,
-seeded_env, generated, skipped, error), `eshu_dp_auth_bootstrap_credential_generated_total{result}`
-(generated vs. already_provisioned), and `eshu_dp_auth_secret_seal_total{operation,result}`
-around the `secretcrypto.Keyring.Seal` call. No statement, span, log, or
-metric attribute ever carries plaintext password, recovery code, or
-ciphertext; the generated plaintext appears only in the one-time startup
-banner (`bootstrapBannerWriter`), the `eshu admin initial-credential`/
-`reset-initial-credential` CLI stdout, and an operator's own
-`ESHU_ADMIN_PASSWORD`/`ESHU_ADMIN_PASSWORD_FILE` — proven by
-`TestSeedInitialAdminNegativeLeakage` (structured-log capture) and the
-SQL-exec-argument leak checks in `identity_bootstrap_credential_test.go` and
-`identity_bootstrap_credential_concurrency_test.go`.
-
 ## Local-identity MFA reset serialization
 
 `ResetLocalIdentityMFA` (`identity_local_lifecycle.go`) revokes a user's
@@ -2894,36 +2263,6 @@ per-user key stays the innermost (last-acquired, first-released) lock in any
 transaction that holds it, and is never held by a transaction that is also
 waiting on 3456.
 
-No-Regression Evidence: the lock is a single additional
-`pg_advisory_xact_lock($1::bigint)` statement inside the existing
-`ResetLocalIdentityMFA` transaction — an explicit, rare operator/admin
-action, not a per-login hot path; no other statement, index, or read path
-changes. A real Postgres concurrency gate
-(`identity_local_mfa_reset_concurrency_test.go`,
-`TestLocalIdentityMFAResetConcurrencyGateSingleActiveFactor`, 5 rounds,
-skipped without `ESHU_POSTGRES_DSN`/`ESHU_LOCAL_IDENTITY_MFA_RESET_PROOF_DSN`)
-drives two concurrent `ResetLocalIdentityMFA` calls for the same user and
-proves exactly one active, unrevoked `identity_mfa_factors` row survives;
-before the lock, all 5 rounds reproduced two active rows. Two deterministic
-lock-contention proofs in `identity_local_mfa_reset_lock_contention_test.go`
-are the primary regression gates for the lock itself:
-`TestLocalIdentityMFAResetLockBlocksConcurrentResetForSameUser` holds the
-per-user advisory lock open in one transaction and asserts a second reset
-parks in `pg_locks` as an ungranted advisory-lock waiter until the first
-commits, and
-`TestLocalIdentityMFAResetRaceWithoutLockDuplicatesActiveFactor` drives the
-same revoke/insert statement sequence with the lock omitted and a barrier
-between the revokes and inserts, proving the unserialized path lands two
-simultaneously active factor rows (the hazard the lock closes). Both skip
-without `ESHU_LOCAL_IDENTITY_MFA_RESET_PROOF_DSN`/`ESHU_POSTGRES_DSN`.
-
-No-Observability-Change: the lock adds no metric, span, log field, status
-payload field, route, worker, queue, index, or table. `ResetLocalIdentityMFA`
-is an explicit rare admin/operator action, not a hot path, and the advisory
-lock is transaction-scoped and released automatically on commit/rollback;
-operator-visible evidence remains the reset's own success/error and the
-existing identity telemetry, which is unchanged here.
-
 ### Sibling factor-mutating paths join the per-user lock
 
 The per-user lock above only closes the duplicate-active-factor hazard for
@@ -2940,31 +2279,6 @@ revoke/insert, so the lock hierarchy stays a strict linear
 `3455 -> 3456 -> per-user` chain (no reverse-ordering site exists, so no
 wait-for cycle can form).
 
-No-Regression Evidence: the change is one additional
-`pg_advisory_xact_lock($1::bigint)` statement inside each of two existing,
-already-3456-serialized rare admin/setup transactions — no new statement on any
-login or read hot path, and no query, index, or read-path change. RED->GREEN
-gate `identity_bootstrap_reenroll_mfa_lock_contention_test.go`
-(`TestResetBootstrapCredentialBlocksOnConcurrentMFAResetLock`,
-`TestCompleteSetupMFABlocksOnConcurrentMFAResetLock`, skipped without
-`ESHU_BOOTSTRAP_CREDENTIAL_PROOF_DSN`/`ESHU_POSTGRES_DSN`): each holds the
-per-user lock open in one transaction and proves the full production method on
-a second connection parks in `pg_locks` as an ungranted advisory-lock waiter
-until release. Before the fix both returned immediately (RED); after, both
-block then complete (GREEN). The existing
-`TestBootstrapCredentialConcurrencyGateGenerateConsumeReset` and setup-completion
-concurrency gates still pass, and
-`TestLocalIdentityMFAResetRaceWithoutLockDuplicatesActiveFactor` documents the
-identical revoke/insert statement shapes whose duplicate-factor outcome this
-lock closes.
-
-No-Observability-Change: the two added locks introduce no metric, span, log
-field, status payload field, route, worker, queue, index, or table. Both host
-methods are explicit rare admin/setup actions, not hot paths, and each advisory
-lock is transaction-scoped and released automatically on commit/rollback;
-operator-visible evidence remains each method's own success/error and the
-existing identity telemetry, which is unchanged here.
-
 ## Browser-session permission-catalog persistence (#3684)
 
 `browser_sessions` gains three additive columns —
@@ -2978,29 +2292,6 @@ through the shared `resolvePermissionGrantsForRoles` helper (the same
 membership roles via `resolveLocalIdentityRolesQuery` before deriving grants.
 Only non-all-scope sessions are issued enforced; all-scope (admin) sessions keep
 `permission_catalog_enforced=false` and stay fail-open.
-
-No-Regression Evidence: the three columns are additive
-`ADD COLUMN IF NOT EXISTS ... DEFAULT` migrations on PostgreSQL 16; existing rows
-default to `enforced=false` / empty arrays, so prior sessions keep today's
-fail-open behavior with no backfill. The new reads are bounded: the per-login
-role and permission-grant SELECTs filter on indexed
-`(tenant_id, workspace_id, user_id)` / `(tenant_id, role_id)` with active,
-non-tombstoned, time-bounded predicates and a `LIMIT` (`maxOIDCGrantLimit`), and
-run once per login or once per bounded OIDC refresh pass — never on the
-ingestion/reducer hot path and never as a cross-subject scan. The grant SELECT is
-the exact query scoped-token resolution already runs, so it adds no new query
-shape or index to that path. The session resolve/switch SELECT projections and
-the create INSERT add three columns to existing single-row-by-primary-key
-statements, adding no predicate, join, or fan-out. Terminal row counts are
-unchanged: one session row per resolve/switch/insert, and at most
-`maxOIDCGrantLimit` grant rows per login.
-
-No-Observability-Change: the new columns and per-login grant resolution add no
-new metric, span, or log shape. The reads run on the existing
-`InstrumentedDB`-wrapped pool, so per-statement latency/error spans and metrics
-are inherited without per-call wiring; permission-denied outcomes continue to
-surface through the existing `permission_catalog` enforcement envelope at the
-query layer.
 
 ## Deferred backfill fact-load per-scope fan-out (#3710)
 
@@ -3055,20 +2346,6 @@ whole-token matching plus the self-match drop (`entry.RepoID == sourceRepoID`).
 The LIKE form replaced the regex to widen the SQL result to a matcher-refinable
 superset, not to enable an index.
 
-Performance Evidence (measured, `EXPLAIN ANALYZE`): backend PostgreSQL 18
-(`postgres:18-alpine`), local measurement. `fact_records` holds 7,345,641 rows
-(12 GB); 294,991 of them are in the queried kinds (147,496 `file` + 147,495
-`content` + 0 `gcp_cloud_relationship`), spread across 1,093 scopes, with the
-largest scope partition at 22,744 facts. The OLD corpus-wide single scan (no
-per-scope partition) over the latest-generation content/file/gcp facts measured
-65,770 ms: a nested loop over the 1,093 scopes whose `$2` EXISTS SubPlan ran once
-per candidate fact. The NEW per-scope query bounds each run to one `(scope_id,
-generation_id)` via `fact_records_scope_generation_idx`; the largest scope
-(22,744 facts) measured 4,607 ms, and the worker fan-out runs these disjoint
-per-scope scans concurrently (~8 workers), parallelizing the total. The residual
-cost is the `$2` self-exclusion correlated EXISTS (once per fact, un-indexable);
-the `$1` LIKE ANY is a cheap filter on the bounded set.
-
 A partial `pg_trgm` GIN index on `lower(payload::text)` was evaluated and REMOVED.
 The planner never selects it on the partitioned path (with-index 4,607 ms ==
 without-index 4,599 ms for the largest scope), while it cost 631 MB of storage and
@@ -3119,25 +2396,6 @@ load, cross-scope references survive) is proven on real Postgres by
 `ESHU_DEFERRED_PARTITION_PROOF_DSN`), which fails against the rejected
 per-repository partition source and passes against the scope-generation source.
 
-Observability Evidence: the per-scope fan-out emits aggregate signals.
-`BackfillAllRelationshipEvidence` records
-`eshu_dp_deferred_backfill_partitions_total` (counter, partitions per pass),
-`eshu_dp_deferred_backfill_partition_workers` (histogram, worker saturation), and
-`eshu_dp_deferred_backfill_partition_load_duration_seconds` (histogram, per-scope
-load wall time — a long tail isolates the dominating scope), and emits a
-`deferred_backfill_fact_load_completed partitions=… workers=… loaded_facts=…` log
-line. The `relationship.backfill_deferred` span now also carries `partition_count`
-and `worker_count` attributes, so the fan-out shape is readable off the trace
-without correlating the log, and records a `partition_load_failed` event naming the
-`scope_id` of the partition that aborts a pass — so a failed backfill names the
-offending scope on the trace, not only in the returned error string (issue #3710
-follow-up). New instruments are registered in `internal/telemetry/instruments.go`. The
-per-scope queries still run on the existing `InstrumentedDB`-wrapped pool, so
-per-statement latency/error spans and `eshu_dp_postgres_query_duration_seconds` are
-inherited without per-call wiring, and the pass still records
-`DeferredBackfillDuration`/`DeferredBackfillEvidence` and the
-`deferred_backfill_completed` summary log.
-
 ### Deferred fact-load repo-id query chunking (#4257)
 
 The residual post-#3710 long tail was still shaped by one giant repository scope
@@ -3156,34 +2414,6 @@ single fact-load query without adding unbounded concurrency or changing the
 write-side maintenance lock model. The threshold intentionally keeps the current
 896-repository full-corpus run to one query task per scope; oversized catalogs
 still split into bounded chunks.
-
-No-Regression Evidence: `TestLoadDeferredScopedFactsChunksRepoIDArm` failed on
-the pre-fix path because an oversized repo-id catalog issued one fact-load query;
-it passes after chunking by proving the path issues three bounded query chunks,
-each query has at most 1024 repo-id values, the non-repo-id alias arm runs once,
-distinct facts from each chunk survive, and duplicate fact IDs collapse once.
-`TestLoadDeferredScopedFactsKeepsRepresentativeCorpusSingleTask` failed on the
-post-#4262 path because the 896-repository catalog split one scope into seven
-fact-load queries; it now proves that representative full-corpus runs issue one
-query task per scope while preserving oversized-catalog chunking.
-`TestLoadDeferredScopedFactsCanceledContextReturnsError` proves a canceled
-fact-load pass returns an error and no partial fact set before discovery or
-readiness publication. The surrounding focused storage tests passed with
-`go test ./internal/storage/postgres -run 'Test(BackfillDeferred|BackfillAllRelationshipEvidence|LoadDeferredScopedFacts|DeferredBackfill|BuildPayloadAnchorLikeTerms|ScopedRelationshipFactQueryShape)' -count=1`.
-
-Benchmark Evidence: `BenchmarkMergeDeferredScopedTaskFactsManyTasks` exercises
-the local merge shape for 256 query tasks with 64 unique fact IDs per task plus
-one duplicate in every task. The merge de-duplicates in one pass with one
-`seen` map, so chunking does not rebuild the accumulated fact-id map per query
-task.
-
-Observability Evidence: no new metric series or labels were added. The existing
-`relationship.backfill_deferred` span now includes `query_task_count`, and the
-existing `deferred_backfill_fact_load_completed` log includes `query_tasks` so
-operators can distinguish many partitions from a single partition split into
-repo-id chunks. Existing partition duration histograms continue to time each
-fact-load query task, and the existing Postgres query spans/metrics still show
-the underlying SQL latency and errors.
 
 ### Deferred backfill per-task fact-load telemetry (#5096)
 
@@ -3218,34 +2448,6 @@ above are additive, not a replacement.
 `TestLoadDeferredScopedFactsAcrossPartitionsLogsPerTaskCompletion` pins the
 per-task log line's continued presence so a future cleanup cannot silently
 drop it while the metric and span-event tests stay green.
-
-No-Regression Evidence: the two new calls sit in different places, and the
-difference matters.
-`instruments.DeferredBackfillPartitionLoadFactCount.Record` is immediately
-beside the pre-existing `DeferredBackfillPartitionLoadDuration.Record`, in the
-same `instruments != nil` block and before the error check, so it records for
-every task that ran the query — including a failed one, which contributes a
-0-fact data point alongside its duration. That matches the duration sibling's
-existing behavior rather than changing it, but an operator reading a
-high-duration/low-fact-count bucket as contention should know a failure
-presents the same way — and that the span event does NOT separate them.
-`partition_load_failed` fires at most once per pass, inside `if firstErr ==
-nil`: the first failure calls `cancel()`, and the in-flight tasks it aborts
-return `ctx.Canceled` after recording their duration and a 0-fact point, then
-find `firstErr` already set and emit nothing. A pass that dies several minutes
-in can therefore leave up to `workers-1` high-duration, zero-fact points with
-no event at all. Even the one event that does fire carries only `scope_id`,
-while both histograms are deliberately unattributed, so there is no key
-joining an event to a data point. Treat the event as a pass-level "something
-failed" signal, not a per-point discriminator; the per-task
-`deferred_backfill_fact_load_task_completed` log is what identifies which
-tasks completed.
-`span.AddEvent("partition_load_completed", …)` sits further down, on the
-success path only, immediately after the per-task `log.Printf`.
-Both run inside the same worker goroutine after the fact-load query already
-returned, read already-computed values (`len(envelopes)`, the already-measured
-`duration`, and the task's own params), and perform no I/O and no additional
-query.
 
 They are NOT lock-free. `AddEvent` takes the span's own mutex
 (`sdk@v1.44.0/trace/span.go`), so every worker serializes there once per task.
@@ -3291,14 +2493,6 @@ surviving on the failure path) while the pre-existing
 `TestBackfillDeferredSpanRecordsPartitionLoadFailure` stay green, and restoring
 the file is byte-identical by `shasum -a 256`.
 
-Observability Evidence: `eshu_dp_deferred_backfill_partition_load_fact_count`
-registers via the `telemetry.Instruments` contract
-(`internal/telemetry/instruments.go`) and is documented in the X1 coverage doc
-(`docs/public/observability/telemetry-coverage.md`, "deferred backfill
-partition fan-out" row) and the public telemetry reference
-(`docs/public/reference/telemetry/index.md`, "Deferred backfill per-task
-fact-load telemetry (#5096)").
-
 ### Deferred backfill default worker cap (#3624)
 
 The representative 896-repository #3710 full-corpus proof used 8 deferred
@@ -3307,28 +2501,6 @@ current-main validation used the same 896-partition shape but the default
 4-worker cap, and measured relationship backfill at about 1,489 s. The default
 now uses `min(NumCPU, 8)`, matching the existing hard cap and preserving the
 explicit `ESHU_DEFERRED_BACKFILL_CONCURRENCY=1` path for single-connection pools.
-
-No-Regression Evidence: `TestDeferredBackfillDefaultWorkerCountUsesHardCap`
-pins CPU-derived defaults at 1, 4, and the 8-worker hard cap;
-`TestDeferredBackfillWorkerCountEnvOverrideClampsToMax` keeps the override clamp;
-`TestWriteDeferredBackfillInBatchesSerialWhenWorkerCountOne` keeps the
-single-worker escape hatch; `TestWriteDeferredBackfillInBatchesRunsConcurrently`
-keeps bounded concurrent batch execution.
-
-Benchmark Evidence: `go test ./internal/storage/postgres -run '^$' -bench
-'BenchmarkDeferredBackfill(Concurrent4|Concurrent8)$' -benchmem -count=5` on
-darwin/arm64 measured 4-worker mean `10,533,690 ns/op` and 8-worker mean
-`5,296,068 ns/op` on the existing 256-repository write-batch benchmark, a 1.99x
-speedup with effectively unchanged allocations. This benchmark covers the
-write-batch concurrency slice. Full-corpus acceptance still requires a remote
-bootstrap run to confirm the aggregate backfill phase moves toward the earlier
-882 s evidence point.
-
-Observability Evidence: no metric, span, log, label, route, queue domain, SQL
-query, or batch size changed. Operators continue to see the active worker count
-in `deferred_backfill_batch_committed ... workers=W`, the whole-pass duration in
-`DeferredBackfillDuration`, and per-partition/load signals from the existing
-deferred-backfill instruments.
 
 ## Reducer claim rank-once window rewrite (#3624)
 
@@ -3405,9 +2577,6 @@ shipped `locked` CTE — drops it. A hermetic shape assertion in
 `TestClaimBatchFencesSameConflictCandidates` requires those predicates in the
 shipped query so the fix cannot silently regress.
 
-Performance Evidence: proven at three scales, design shim → package EXPLAIN →
-live re-drain of the compiled binary.
-
 1. Design shim: a live pure-SQL shim of this shape (proven before any Go change
    landed) measured 56ms vs 23,598ms — a 421x speedup — on the same ~9,638-item
    backlog, with a bidirectional EXCEPT diff against the pre-rewrite candidate
@@ -3436,14 +2605,6 @@ replacing it with a direct `reps.same_rn = 1` fence closed the gap to ~92ms. The
 0/0 differential (`TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder`)
 held across both fixes, confirming they were pure cost removals with no change to
 the claimed candidate set or order.
-
-Observability Evidence: no new metric was added. The claim call this query
-backs was already wrapped in `eshu_dp_queue_claim_duration_seconds`
-(`Instruments.QueueClaimDuration`, tagged `queue=reducer,mode=batch`) and
-`eshu_dp_reducer_batch_claim_size` (`Instruments.BatchClaimSize`) at the
-existing call site in `internal/reducer/service_batch.go`'s claimer goroutine,
-so a future claim-cost regression on this query remains visible on both
-existing series without any wiring change.
 
 ## Reducer batch claim idle-domain ordering (#8024)
 
@@ -3475,17 +2636,6 @@ lease theft or duplicate work) with the idle domain still winning slots.
 `TestClaimReducerWorkBatchQueryOrdersIdleDomainsBeforeBusyBacklog` pins the
 ordering key hermetically.
 
-No-Regression Evidence: `TestReducerContentionGateClaimBatchLatencyBoundedOnSeededBacklog`
-over 5000 pending rows measured 53.3ms before and 54.6ms after on disposable
-Postgres 18-alpine (8s budget) — the extra GROUP BY over the small
-claimed/running set adds no measurable claim cost. The #3385 fairness pair,
-the rank-once differential, and the lock-recheck lease-theft guard stay green.
-
-Observability Evidence: no new metric. The batch claim path keeps its
-existing `eshu_dp_queue_claim_duration_seconds` (`queue=reducer,mode=batch`)
-and `eshu_dp_reducer_batch_claim_size` series, so any future claim-cost change
-on this query stays visible without wiring changes.
-
 ## Live operations activity read (#5137)
 
 `status_operations.go` adds `LiveActivityStore.ReadLiveActivity`, the bounded
@@ -3505,15 +2655,6 @@ not `allScopes`, mirroring `admin_store_dead_letters.go`'s
 caller with no grants never reaches this query at all — both
 `ReadLiveActivity` and the query handler (`getOperations`) short-circuit to
 zero rows first.
-
-Performance Evidence: prove-theory shim on a disposable Postgres 16-alpine
-(`docker run -d --name eshu-perf-5137 -e POSTGRES_PASSWORD=postgres -e
-POSTGRES_DB=eshu_perf -p 15437:5432 postgres:16-alpine`), migrations
-001/002/005 applied via `psql`, and a synthetic corpus above current QA scale
-(20,000 `ingestion_scopes`, 150,000 `fact_work_items`; in-flight rows use
-`status='retrying'` only, to stay clear of the reducer's one-live-lease
-partial unique index while still exercising the identical `status IN
-('claimed','running','retrying')` filter and index).
 
 - Normal shape (3,380 in-flight rows): **allScopes** (unfiltered, pre-fix
   query text) 7.2ms via a Parallel Bitmap Heap Scan feeding a `Gather Merge`
@@ -3541,13 +2682,6 @@ regardless of generation liveness, so a `retrying` work item belonging to a
 superseded/stale `scope_generations` row rendered identically to genuinely
 live work until the reducer's retention sweep cleared it. See "Generation-state
 annotation for retrying rows (#5138)" below for the fix.
-
-Observability Evidence: every `ReadLiveActivity` call records
-`eshu_dp_status_operations_live_activity_query_duration_seconds` and failures
-increment `eshu_dp_status_operations_live_activity_query_errors_total`
-(registered in `go/internal/telemetry/instruments.go`, X1 row in
-`docs/public/observability/telemetry-coverage.md`); both are proven by an
-OTEL SDK-backed test in `status_operations_test.go`.
 
 ## Generation-state annotation for retrying rows (#5138)
 
@@ -3636,12 +2770,6 @@ without the predicate) and
 `TestReadRepositoryFreshnessDispatchesRealStageCountsQuery` (proves the store
 dispatches the real, reviewed constant) in `repository_freshness_test.go`.
 
-Performance Evidence (prove-theory-first, inherited from the #5143 design
-brief and built on rather than re-derived): scratch Postgres 16 seeded with
-migrations 001/002/005/008 and a synthetic corpus of 20,000
-`ingestion_scopes`, 150,000 `fact_work_items`, and 60,000
-`shared_projection_intents` rows.
-
 - Single-scope composite read (active generation via the `ingestion_scopes`
   primary key plus `scope_generations_scope_generation_idx`; stage counts via
   `fact_work_items_scope_generation_idx`): 2.5ms full shape; the scope- and
@@ -3661,28 +2789,6 @@ The webhook-trigger lookup (`repositoryFreshnessWebhookQuery`) is bounded by
 it was not part of the above proof because it runs against a separate,
 independently small table (queued/claimed rows only) with no join to the
 20k/150k/60k corpus above.
-
-No-Regression Evidence: the #5148 case-fold (`LOWER(repository_full_name) =
-LOWER($1)` in `repository_freshness_sql.go`) changes only the equality
-predicate of that already-bounded lookup. Baseline and after share the same
-shape on Postgres 18 (alpine, migrations 001/002/005): the status predicate
-still drives `webhook_refresh_triggers_status_idx`, no index covers
-`repository_full_name` on either side (folding it cannot lose an index), and
-the scan stays bounded to queued/claimed rows with `LIMIT 5`. Behavior delta
-(the point of the fix) is proven by the DSN-gated
-`TestReadRepositoryFreshnessLiveDB` case-fold subtest against live Postgres
-(mixed-case `repository_full_name` now matches; 7/7 subtests green) plus the
-hermetic `TestRepositoryFreshnessWebhookQueryFoldsRepositoryNameCase`
-query-text guard that runs in CI. No worker, lease, queue, or Cypher change.
-No-Observability-Change: #5148 adds no new signal shape; the existing
-freshness duration/error instruments cover the touched read path.
-
-Observability Evidence: every `ReadRepositoryFreshness` call records
-`eshu_dp_repository_freshness_query_duration_seconds` and failures increment
-`eshu_dp_repository_freshness_query_errors_total` (registered in
-`go/internal/telemetry/instruments.go`, X1 row in
-`docs/public/observability/telemetry-coverage.md`); both are proven by an
-OTEL SDK-backed test in `repository_freshness_test.go`.
 
 ### `content_entities` stale-row reap (#5329)
 
@@ -3711,32 +2817,6 @@ set. See `reapStaleContentEntities`'s doc comment for the completeness
 invariant (every caller gives `Write` the complete, all-label entity set for
 a touched file in one call) that makes this safe without orphan_sweep's
 TOCTOU re-verify.
-
-Performance Evidence: live double-ingest proof, Postgres 18-alpine +
-NornicDB `eshu-nornicdb-pr261:149245885258` (pinned local Compose stack),
-`tests/fixtures/ecosystems/json_comprehensive` (package.json + composer.json
-+ 2 other files, 15 content entities). First ingest: `content_entities` = 15
-(11 from the two manifest files). Edited `package.json` to shift every
-dependency/script line by one and remove one `devDependencies` entry
-(`vitest`). Second ingest (re-ingest after the edit): `content_entities` =
-14 — not 15→26 (the pre-fix defect shape of 11 permanent stale duplicates on
-a single re-ingest) — every `package.json` entity row got a fresh
-`entity_id` at its new line, none of the prior-line `entity_id`s survived,
-`vitest`'s row is gone, and `composer.json`'s 4 rows (an untouched file)
-kept their original, unchanged `entity_id`s. Third ingest with no further
-changes: `content_entities` stayed at 14 with an identical `entity_id` set
-(the freshness-hint content-hash skip means bootstrap-index does not even
-reprocess the scope — `scopes_collected: 0` — which is itself the correct,
-cheapest form of idempotency). The added cost is one bounded `DELETE`
-per ≤500 touched paths per `Write()` call (`reapStaleContentEntitiesPathBatchSize`),
-after the existing entity upsert batches; no query-plan or index change.
-
-No-Observability-Change: the reap runs through the existing
-`ContentWriter.logStage` structured-log helper under a new `stage` value
-(`reap_stale_entities`, alongside the existing `prepare_entities`/
-`upsert_entities` stages), recording `fresh_row_count` and duration — no new
-metric, span, worker, queue, lease, or runtime knob. Operators already
-watching `content writer stage completed` logs see the new stage for free.
 
 Concurrency: see `TestContentWriterReapConcurrentDifferentRepos`
 (`content_writer_reap_concurrency_test.go`), which proves under `go test

@@ -48,10 +48,6 @@ The scanner itself emits no new metrics. The AWS SDK adapter records API calls
 with the shared AWS collector API-call events, spans, throttle counters, and
 operation labels.
 
-No-Observability-Change: existing AWS collector API-call metrics, pagination
-spans, throttle counters, and per-service operation labels cover CloudFront
-distribution and tag listing.
-
 ## Gotchas / invariants
 
 - CloudFront is treated as a global service. The boundary region should be the

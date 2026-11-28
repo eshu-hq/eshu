@@ -75,11 +75,6 @@ changes in this slice. The default-off collector routing test keeps media files
 out of hosted documentation ingestion until a reviewed transcription extractor
 slice enables them.
 
-No-Observability-Change: this package is a pure metadata preflight helper. It
-adds no worker, queue consumer, graph write, database query, HTTP handler, MCP
-tool, runtime stage, transcription engine, codec runtime, or hosted collector
-path.
-
 ## Gotchas / invariants
 
 - Preflight never stores media bytes, transcript text, subtitle text, speaker

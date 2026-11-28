@@ -116,34 +116,6 @@ changed. No production-file rename this move required touched the
 `querycontract`/`auth`/`decode`/`selector`/`tracing` leaf
 packages it depends on.
 
-## No-Regression Evidence
-
-No-Regression Evidence (#6642 rename): baseline `020757ad6` (pre-move HEAD) vs this branch: a name-for-name test-list
-union (`go test ./internal/query/packagereg/... -list '.*'` at the baseline,
-`go test ./internal/query/package/registry/... -list '.*'` on this branch)
-matches exactly. `go test ./internal/query/... -count=1` and
-`go test ./cmd/api ./cmd/mcp-server -count=1` pass; `go/internal/queryplan`'s
-manifests were re-pinned and `go test ./internal/queryplan/ -count=1` passes.
-The `git diff origin/main --stat -- testdata/golden testdata/cassettes` is
-empty: this move touches no Cypher text, queue behavior, or projection
-output. `go list -deps ./internal/query/package/registry` does not include
-`internal/query` -- the leaf still does not import the root.
-
-`go test ./internal/mcp -count=1` passes: the `internal/mcp` route-serves-data
-registry entry for `GET /api/v0/package-registry/packages`
-(`go/internal/mcp/route_serves_data_registry_routes_2.go`) had its path
-strings and handler struct name repointed to
-`go/internal/query/package/registry/{handler.go,cypher.go}` and `Handler` in
-the same change, the way every earlier query rename repointed that registry.
-
-## No-Observability-Change
-
-No-Observability-Change (#6642 rename): this package emits the same spans it always did. `handler_tracing.go` holds
-a package-local `packageregTracer = tracing.HandlerTracer()` and a
-`startQueryHandlerSpan` that forwards to `tracing.StartHandlerSpanWith`, so
-the tracer scope name and every span attribute are unchanged from before the
-move. No metric was added, renamed, or removed, and no log key changed.
-
 ## Dependencies
 
 The Go standard library, `database/sql`, `go/internal/storage/postgres/array`,
@@ -254,25 +226,6 @@ read as "not granted". The nonexistent-anchor timing probe shares its
 route's access-check message with the resolving path's gate, so a failed
 probe is no existence oracle. `server_failure*_test.go` covers each route and
 step with a canary fault, a client cancel, and a stale reader.
-
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No Cypher, SQL, query parameter, call count, row bound,
-authorization verdict, or success path changed; the queryplan source digests
-for `listPackages`, `listVersions`, and `listDependencies` were re-pinned
-because their error branches changed. A failure now costs one span
-`RecordError`/`SetStatus` and a fixed-string write instead of formatting the
-error into the body. `go test ./internal/query/... ./internal/queryplan/...
--count=1` and `go test -race ./internal/query/package/registry/...` exit 0.
-No benchmark is claimed because the success path has no runtime delta to
-measure.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the step's
-fixed message as the description; a client cancel adds
-`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
-The `pkgreg.*` span attributes the gates set are unchanged.
-`server_failure*_test.go` asserts both span shapes with a recording tracer for
-every route and step.
 
 ## Related docs
 

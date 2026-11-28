@@ -96,18 +96,3 @@ No Postgres, graph backend, or Docker required.
   `reducer.Service` loop. Lease settings: single worker (`Workers: 1`), a
   1-minute simulated lease TTL, lease expiry driven by `clock.Simulated` (R-12),
   fencing via the per-item attempt count.
-
-- No-Regression Evidence: this package is a new offline, credential-free test
-  gate. It is imported only by tests/gates, never by `cmd/*` or runtime wiring,
-  so it changes no production hot path. `go test -race
-  ./internal/replay/crashreplay/ -count=1` is green; the crash/recovery
-  invariant is proven by mutation testing — removing the recovery clock-advance
-  makes the dirty-window scenarios fail to drain, and making the store re-hand
-  completed items breaks convergence — so the lease/fencing logic is
-  load-bearing, not decorative.
-
-- No-Observability-Change: no operator-facing metric, span, log, or status
-  surface is added or altered. The run's progress/contention signal is the
-  in-test `Report` (PreCrashAcks, RecoveryAcks, ReclaimedAfterCrash, MaxAttempt,
-  DoubleAcks) plus the byte-identical recovered-vs-no-crash canonical snapshot —
-  assertions, not runtime telemetry.

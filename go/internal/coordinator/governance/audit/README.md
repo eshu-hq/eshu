@@ -43,12 +43,6 @@ None. This package registers no instrument and emits no log. The events whose
 identity it renders are appended by its callers and surface through the
 governance audit store.
 
-No-Observability-Change: extracting these helpers from the coordinator root
-adds or renames no metric, span, log field, status field, queue, worker, lease,
-or runtime setting. `Hash` and `CorrelationID` are byte-identical to the root's
-former `governanceAuditHash` and `governanceAuditCorrelation`, so every audit
-row's `scope_id_hash` and `correlation_id` value is unchanged.
-
 ## Gotchas / invariants
 
 - `Hash` joins its parts with a NUL separator, not a delimiter that can appear

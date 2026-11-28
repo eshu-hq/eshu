@@ -108,23 +108,10 @@ DescribeTransitGatewayAttachments, DescribeTransitGatewayPeeringAttachments,
 DescribeTransitGatewayMulticastDomains, and DescribeTransitGatewayPolicyTables
 with `MaxResults=1000`, and no route, multicast-membership, or policy-rule reads.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers transit gateway resource and relationship fact emission, the
-cross-account peer surfacing without remote-account resolution, omission of
-policy rule entries, runtime registration, command configuration, and the SDK
-adapter's safe metadata mapping. The scanner adds no Cypher, graph write, queue,
-worker, lease, batching, or runtime-stage code; it reuses the bounded AWS
-collector claim path already measured for the VPC and KMS scanners on the same
-input shape.
-
 Collector Observability Evidence: Transit Gateway uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Transit Gateway scans through the bounded shared instruments; this
-scanner adds no new metric, span, or log.
 
 Collector Deployment Evidence: Transit Gateway runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

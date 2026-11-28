@@ -56,35 +56,3 @@ carries `resource_fact_count`, `posture_fact_count`, `node_update_count`,
 `skipped_by_reason`, `skip_retract`, and per-stage `load` / `extract` /
 `retract` / `graph_write` / `total_duration_seconds` fields — the same fields
 the pre-move root file logged.
-
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Every hunk in the moved production files is a package
-clause, an import requalification, or an identifier requalification: symbols
-the reducer root exposed as one-line forwarders
-(`loadFactsForKinds`→`factload.LoadFactsForKinds`,
-`partitionDecodeFailures`/`recordQuarantinedFacts`→`factdecode.*`,
-`cloudResourceUID`→`cloudjoin.CloudResourceUID`,
-`derefString`/`uniqueSortedStrings`→`payloadcore.*`,
-`decodeAWSResource`/`decodeRDSInstancePosture`→`schemadecode.*`) are now
-called on the leaf package directly. No handler branch, extraction rule,
-readiness gate, retract/write ordering, or Cypher-facing row shape changed.
-`go test ./internal/reducer/rdsposture/... -count=1` passes with the moved
-test suite unchanged in assertion content (only import paths and unexported
-symbol duplication for the package boundary).
-
-No-Observability-Change: the move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; the
-`reducer.rds_posture_materialization` span and the shared
-`eshu_dp_postgres_query_duration_seconds` metric are unchanged, and the
-completion log keeps the same key set at the new import path.
-
-No-Regression Evidence: this PR also carries two comment-only
-`// #nosec G115` annotations on pre-existing bounded modulo conversions
-(`partitioning.go:26`, `repo_dependency_projection_concurrency_proof.go:180`).
-Shrinking the root package lets gosec's loader complete and surface them;
-both results are `%` a positive int divisor (range-checked at the call
-site), so the value fits `int` and behavior is unchanged.
-`go test ./internal/reducer/ -count=1` passes.
-
-No-Observability-Change: the annotations emit nothing and change no
-control flow; no metric, label, log field, queue, or runtime knob changes.

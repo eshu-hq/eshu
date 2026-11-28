@@ -64,19 +64,6 @@ wiring) must be able to name; `StringMapVal` is exported because root's
 still call it, through the `stringMapVal` forward in
 `compat_supply_chain.go`.
 
-No-Regression Evidence: baseline `origin/main` vs this branch --
-`go test ./internal/query/...` and `go test ./internal/query/supply/chain/alerts/`
-pass with the same test-name union before and after the move (see the PR
-description for the counts); the SQL query consts are byte-identical to the
-pre-move text (normalized only for the identifier rename); the
-route-serves-data registry entry for the reconciliation route points at the
-new files with unchanged evidence markers, and its gate passes.
-
-No-Observability-Change: this package emits no metric or span of its own.
-The reconciliation routes keep `eshu_dp_api_request_duration_seconds` and
-`eshu_dp_api_request_errors_total` via the unchanged query-surface
-middleware, and the handler span name is unchanged.
-
 ## Related docs
 
 - `docs/internal/design/5584-route-serves-data-registry.md`

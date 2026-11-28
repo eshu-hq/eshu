@@ -154,31 +154,6 @@ envelope rather than writing a response. Every caller of that seam gets the
 same answer, including `GET /api/v0/services/{service_name}/intelligence-report`
 in `serviceintelhttp`.
 
-No-Regression Evidence (#7626): the success path runs no new code and the
-`ResolveEntity` string literals hash identically before and after (40
-literals, `go/parser` digest unchanged), so no query text or plan changed. A
-throwaway benchmark of `ApplyRepositorySelectorForAccess` against in-memory
-fakes (darwin/arm64 Apple M5 Max, test binaries built from ac9f03359 and this
-change, run interleaved 10 times each, `benchstat`) measured: catalog hit
-207.1ns to 205.0ns (p=0.353, not significant), 5 allocs and 288B unchanged;
-lookup failure 1.623µs to 1.665µs (p=0.280, not significant), 26 allocs
-unchanged, 1.764KiB to 1.686KiB. A first sequential run (baseline then change)
-showed +13% on both paths; interleaving removed it, so it was run-order noise.
-The entity branch has the same shape and was not benchmarked separately.
-
-Observability Evidence (#7626): a lookup failure on these routes now sets the
-request span to Error with the fixed description
-`repository selector lookup failed` and an `exception` event, where it
-previously answered 400 (500 on the service routes) with no span signal.
-On the `otelhttp` server span the description is later replaced by the empty
-one `otelhttp` sets for a 5xx; the Error status and the `exception` event
-remain (see the selector README).
-Pinned by `TestResolveEntitySelectorLookupFailureAnswers500`,
-`TestCodeRouteSelectorLookupFailureAnswers500`,
-`TestLanguageQuerySelectorLookupFailureAnswers500`,
-`TestServiceRoutesSelectorLookupFailureAnswers500`, and
-`TestBuildServiceStoryEnvelopeSelectorLookupFailure`.
-
 ## Service read failures (#7626)
 
 Every other 500 on `GET /api/v0/services/{service_name}/context`,
@@ -198,12 +173,6 @@ reader but went straight to 500, so a stale reader answered 500 instead of the
 retryable 503 with `Retry-After`. They now run `GraphReadErrorEnvelope` first.
 A client that cancels its request mid-read now answers 499 with the span left
 Unset and an `eshu.request.client_canceled` event, not a 500.
-
-No-Regression Evidence (#7626): only failure branches changed; the success
-path and every query string are unchanged. Observability Evidence (#7626):
-the request span now carries Error, an `exception` event, and the fixed
-description on each 500, and the client-cancel event on each 499. Pinned by
-`TestServiceRoutesServerFailureAnswersFixedMessage`.
 
 ## Entity and workload read failures (#7674)
 
@@ -237,24 +206,6 @@ service story and investigation not-found answers carry only the typed
 `selector.NotFoundError` text. The operator contract is in
 [Selector And Read Failures](../../../../docs/public/reference/http-api/selector-and-read-failures.md).
 
-No-Regression Evidence (#7674): only failure branches changed. No Cypher,
-SQL, query parameter, call count, or success path changed; the
-`GetEntityContext` and `ResolveEntity` source digests in
-`queryplan/testdata/query-source-coverage.yaml` were re-pinned because their
-error branches changed. `go test ./internal/query/... ./internal/queryplan/...`
-passes.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the request span as an `exception` event with status Error and the step's
-fixed message; a configuration-state 503 does the same with the sentinel text;
-a client cancel adds `eshu.request.client_canceled` and leaves the status
-Unset. Pinned by `TestResolveEntityServerFailureAnswersFixedMessage`,
-`TestResolveEntityUnavailableSentinelsAnswerSentinelText`,
-`TestEntityContextServerFailureAnswersFixedMessage`,
-`TestEntityContextRelationshipBuilderSentinelAnswersSentinelText`,
-`TestWorkloadRoutesServerFailureAnswersFixedMessage`, and
-`TestEnrichmentSubstringIndexSentinelAnswersSentinelText`.
-
 ## Exported surface
 
 Exports exist only for staying callers: the root deployment-trace wrapper,
@@ -286,18 +237,6 @@ code, never Cypher text or queue/projection behavior. The
 `query-source-coverage.yaml` file keys move with the functions; digests
 change only when a function source actually changes, proven by the queryplan
 test.
-
-No-Regression Evidence (#6060 lane-B B5): this package is a pure move of
-the entity family from the query root (base a66064728) with no handler
-logic changes — function bodies are identical modulo package qualifiers and
-the documented export renames. Emitted Cypher text is byte-identical, pinned
-by the queryplan production-binding tests (green) and the per-symbol
-source_sha256 audits in `query-source-coverage.yaml`.
-
-No-Observability-Change (#6060 lane-B B5): no new runtime behavior, so no
-new spans, metrics, or logs. The existing entity telemetry events
-(instruments, k8s-scan truncation disclosure) moved with their handlers
-unchanged; operator signals are identical to base.
 
 ## Naming (#6642 Part D)
 
@@ -392,18 +331,6 @@ that other type's own `EntityType` field. Verified for a sample of the list
 `"github.com/eshu-hq/eshu/go/internal/query/entity"` import exists in those
 files.
 
-No-Regression Evidence (#6642 rule 2/4): `go test ./internal/query/... -count=1`,
-`go test ./cmd/api ./cmd/mcp-server ./internal/mcp ./internal/queryplan/...
-./cmd/golden-corpus-gate/... -count=1`, `go build ./...`, and `go vet ./...`
-all exit 0 on the renamed tree; `go test ./internal/query/entity -list '.*'`
-lists the identical sorted test-function set before and after (93 names).
-The queryplan digests that moved did so only because the recorded function
-text names the renamed `Handler` receiver, not because any Cypher, row
-shape, or bound changed; `go test ./internal/queryplan/... -count=1` is
-green on the re-pinned rows. The B-7 cassettes and B-12 golden snapshot are
-byte-identical (`git diff origin/main --stat -- testdata/golden
-testdata/cassettes` is empty).
-
 Four citations of the old names are left in place on purpose, with the
 reason recorded here rather than silently: `docs/internal/design/5385-workload-identity-key.md`
 row 692 cites root-qualified `go/internal/query/entity.go` (line 283), which was
@@ -415,7 +342,3 @@ authority); and comments in `go/internal/query/language_query_graph_error_test.g
 file trips `scripts/verify-parser-relationship-kit.sh`, which then demands
 an unrelated Language Query DSL doc update. All become fixable when their
 respective gates are widened; none is a live path the gates resolve.
-
-No-Observability-Change (#6642 rule 2/4): file and identifier renames only;
-no span, metric, log, status field, or route changes, so the telemetry
-contract this package documents above is untouched.

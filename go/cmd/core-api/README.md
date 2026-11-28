@@ -62,37 +62,6 @@ listen address):
 - `GET /readyz` — backend-gated: 200 only when both Postgres and Neo4j
   answer, else the permanent 503 with no `Retry-After`, public.
 
-## Telemetry
-
-No-Observability-Change: the binary reuses the shared `eshu_dp_*`
-instruments (`telemetry.NewInstruments`) and the process logger; the only
-addition is the one startup event `runtime.commit_listener.listening`
-(with `addr`) when the commit listener is enabled. The Prometheus handler
-serves on `/metrics` (public, behind the same auth chain).
-
-## Performance Evidence: commit listener (issue #11064)
-
-- Baseline: no :8089 listener existed, so every CommitClaimFacts call
-  failed at dial time (connection refused); there is no prior
-  per-request cost to regress against.
-- After: one bounded second HTTP server serving only the
-  `workflow.v1/CommitClaimFacts` protocol route through the pre-existing
-  `extensionhost` commit handler and claim-plane fence. No new hot
-  loops, no Cypher/SQL schema or index changes, no new worker pools;
-  when `ESHU_COMMIT_LISTEN` is unset the primary serve path is
-  byte-identical to before (dark by default: `TestCommitListenerDarkByDefault`
-  pins the config reports nil, and the `TestJoinCoreServersDarkLane*`
-  lifecycle tests prove the join drains with a nil commit channel).
-- Input shape: framed client envelopes capped at
-  `workflow.MaxCommitClaimFactsBytes`; handler ack happens only after
-  the commit is durable. Join shutdown (`joinCoreServers`) drains both
-  servers on cancel and reports the first fatal error — proven by the
-  `TestJoinCoreServers*` lifecycle tests.
-- Telemetry: one startup event (`runtime.commit_listener.listening`
-  with `addr`); per-request rows flow through the existing satellite
-  log. Observability Evidence: the startup event above, present only
-  when the listener is enabled.
-
 ## Rollback plan: commit listener (issue #11064)
 
 - To take the listener out of service, revert the IaC core pin to the
@@ -103,17 +72,10 @@ serves on `/metrics` (public, behind the same auth chain).
   budget while the endpoint is down (budget-exhausted or
   terminal-classified failures still go `FailClaimTerminal`).
 
-## No-regression proof (Wave-6 review findings)
+## Telemetry
 
-No-Regression Evidence: `TestCoreOuterMiddlewareV1CarriesNoDeprecation`
-(red before the header/rewrite reorder, green after) plus the full
-`go/internal/query` and `go/cmd/core-api` suites green at this commit;
-`scripts/prove-core-api-live.sh` (driven by
-`TestCoreAPILiveD44Proof` under `ESHU_D44_LIVE=1`) replays `/readyz`
-200/503/200 per backend and byte-identical satellite relay legs against
-live backends — see
-`docs/internal/9669-removal/wave6-d44-live-proof-evidence.md`.
-
-No-Observability-Change: the reorder changes response headers only and
-the proof harness adds no operator surface; per-request relay rows
-(via/status/outcome) already flow through the satellite log.
+The binary reuses the shared `eshu_dp_*` instruments
+(`telemetry.NewInstruments`) and process logger, and emits the startup event
+`runtime.commit_listener.listening` (with `addr`) when the commit listener
+is enabled. The Prometheus handler serves on `/metrics` (public, behind the
+same auth chain).

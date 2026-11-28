@@ -41,19 +41,7 @@ payload, so it carries no `factschema_decode_*` seam.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total` and
-`eshu_dp_projector_run_duration_seconds`; the reducer execution that consumes
-the intent stays covered by `eshu_dp_reducer_executions_total` and
-`eshu_dp_reducer_run_duration_seconds`. That reducer's CloudResource node
-write is **not** covered by `eshu_dp_canonical_writes_total`:
-`AWSResourceMaterializationHandler` returns `Result.CanonicalWrites`, but
-`Service.recordReducerResult` records only run duration, queue wait, and
-execution count and never forwards it, and the handler is not one of the five
-`CanonicalWrites.Add` call sites. The written node count and graph-write
-duration are carried by the `aws resource materialization completed`
-structured log. Moving the pure builder adds no queue,
-storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total` and `eshu_dp_projector_run_duration_seconds`; the reducer execution that consumes the intent stays covered by `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`. That reducer's CloudResource node write is **not** covered by `eshu_dp_canonical_writes_total`: `AWSResourceMaterializationHandler` returns `Result.CanonicalWrites`, but `Service.recordReducerResult` records only run duration, queue wait, and execution count and never forwards it, and the handler is not one of the five `CanonicalWrites.Add` call sites. The written node count and graph-write duration are carried by the `aws resource materialization completed` structured log.
 
 ## Gotchas / invariants
 
@@ -94,19 +82,6 @@ Run the package contract tests, the root ordered fan-out parity and
 probe-count tests, the projector package tree, package-doc and path mirrors,
 dirgate, telemetry coverage, and the golden-corpus gates selected by the
 changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing its
-trigger, value, or fan-out position. The reducer intent domain
-(`DomainAWSResourceMaterialization`), the `aws_resource_materialization:<scope>`
-entity key, the `aws runtime resource facts observed` reason string, the
-`FirstOfKind` anchor selection, and the `projectorintent.SourceSystem`
-derivation are identical to the base commit; only the scope and generation
-identifiers changed from struct-field reads (`scope.IngestionScope`,
-`scope.ScopeGeneration`) to plain string parameters carrying the same values
-from the call site. The dispatcher's ordered fan-out is unchanged at 44 builder
-probes on both sides, with this probe still running immediately after
-`multidrift.BuildReducerIntent` and
-immediately before `gcp.BuildResourceMaterializationReducerIntent`.
 
 Focused proof, run from the `go/` module root:
 `go test ./internal/projector/cloud/aws/resource/ -count=1` and

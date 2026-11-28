@@ -57,19 +57,6 @@ Standard library only (`runtime`). No internal packages — this is a
 deliberate leaf package so any package in the module tree can import it
 without risking an import cycle (see Gotchas below).
 
-## No-Observability-Change:
-
-There is no manual configuration step and no structured log line here —
-`GOMAXPROCS` is set by the Go runtime itself before any Eshu code runs, the
-same way it always has been. `UsableCPUs()` is a pure read with no
-side effect to log. Operators who want to see the effective value can
-already read it from the Go runtime's own metrics/expvar surfaces, or infer
-it from worker-count env vars (`ESHU_SNAPSHOT_WORKERS`, etc.) if explicitly
-set. This intentionally differs from `internal/runtime.ConfigureMemoryLimit`,
-which does log, because `ConfigureMemoryLimit` performs an active
-configuration step (`debug.SetMemoryLimit`) that has no Go-runtime-native
-equivalent; `UsableCPUs` has nothing to configure.
-
 ## Formerly deferred: internal/parser
 
 `internal/parser/go_package_interface_prescan.go` was a deliberate, temporary
@@ -126,25 +113,3 @@ is a standard-library-only package (see its `AGENTS.md`), so importing
   call; CPU does not.
 - #4456 (retired evidence record) — no-regression
   evidence for the cgroup-CPU-sizing change and the full routing table.
-
-## #4759 routing of the parser worker-sizing site
-
-No-Regression Evidence: routing `internal/parser`'s `effectivePackagePrescanWorkers`
-(`go_package_interface_prescan.go`) through `cpubudget.UsableCPUs()` — it
-previously used `runtime.NumCPU()` (host core count, not cgroup-aware) — changes
-the default from the host count to `runtime.GOMAXPROCS(0)` floored at 1
-(cgroup-aware under Go 1.25+), preserving the existing `min(default, 8)` /
-`NumCPU*2` override clamps exactly (verified by direct source diff and by
-`TestEffectivePackagePrescanWorkers*`, which pin the worker count against
-`runtime.GOMAXPROCS(0)`). Under an active cgroup CPU quota the count correctly
-drops to the CPU budget instead of the host core count, preventing worker
-over-subscription; it never becomes a fixed low constant, so this is not a
-serialization workaround. No throughput regression on the parse path — worker
-count is aligned to available CPU, not reduced below it. `interproc/solve.go`
-is left on `runtime.GOMAXPROCS(0)` (already cgroup-aware, and `interproc` is
-standard-library-only) — no change there.
-
-No-Observability-Change: no new metric, span, log field, or runtime knob is
-introduced; the parser worker count is not separately instrumented and
-parse-stage timing remains visible through existing collector snapshot
-telemetry.

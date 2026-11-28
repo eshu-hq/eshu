@@ -40,13 +40,7 @@ through the cross-scope reopen list; the owner chose this bounded gate instead.
 
 ## Telemetry
 
-No-Observability-Change: this package registers no metric. The root handler
-records `eshu_dp_reducer_readiness_waits_total{domain,outcome}` (`deferred`,
-`abandoned`, `settled_missing`); `Wait.LogWait` writes the matching log line
-with `elapsed_since_first_defer` and `max_wait`. Deferrals are durable as the
-`workload_cloud_relationship_instances_not_ready` failure class on
-`fact_work_items`, which the golden-corpus drain breakdown reads as
-readiness-deferred.
+This package registers no metric. The root handler records `eshu_dp_reducer_readiness_waits_total{domain,outcome}` (`deferred`, `abandoned`, `settled_missing`); `Wait.LogWait` writes the matching log line with `elapsed_since_first_defer` and `max_wait`. Deferrals are durable as the `workload_cloud_relationship_instances_not_ready` failure class on `fact_work_items`, which the golden-corpus drain breakdown reads as readiness-deferred.
 
 ## Related
 

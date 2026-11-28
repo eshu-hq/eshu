@@ -43,9 +43,6 @@ transport and dispatch signals, while the HTTP handlers retain
 - Keep routing, catalog data, resolver execution, authorization, and telemetry
   out of this package.
 
-No-Observability-Change: this extraction does not change routing, dispatch,
-authorization, query execution, response shaping, or telemetry.
-
 ## Related docs
 
 - [MCP package](../README.md)

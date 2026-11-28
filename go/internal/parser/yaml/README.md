@@ -171,36 +171,6 @@ collector snapshot path and parent parser engine.
 
 ## Performance
 
-Performance Evidence: issue #5328's original fix decoded every CloudFormation/
-SAM source twice -- `DecodeDocuments` (`language.go`) flattens each document to
-`map[string]any` via `yamlNodeToAny`, discarding every node's real `Line`
-except a single document-root capture, then a second full `gopkg.in/yaml.v3`
-decode pass (`decodeDocumentNodes`) re-parsed the identical source to recover
-the raw node tree the position walk needs. That second decode was measured as
-the dominant added cost (a throwaway microbench isolating `DecodeDocuments`
-alone vs `DecodeDocuments`+`decodeDocumentNodes` on the same representative
-100/500-resource templates showed +87% ns/op and +85% allocs/op from the
-second pass alone, matching the regression below almost exactly), so it has
-been retired: `decodeDocumentsWithNodes` now performs exactly one decode pass
-and returns each document's already-produced raw `*yamlv3.Node` root
-alongside the flattened value, index-aligned; `cloudformationPositionsFromRoot`
-reuses that same root instead of re-decoding. Retaining the root costs only an
-`O(1)` pointer append per document -- non-CFN YAML (Kubernetes, Argo CD,
-Crossplane, Kustomize, Helm, Atlantis, GitLab CI) never triggers a second
-parse and pays no measurable extra cost (a 100-document Kubernetes manifest
-stream microbench showed +0.05% allocs/op, i.e. exactly the one extra pointer
-append per document, no second-order cost).
-`BenchmarkParseCloudFormationTemplateRepresentative`/`...Large` in
-`cloudformation_bench_test.go` drive the stable public `Parse()` entrypoint
-unchanged, so the same benchmark body ran across three points: origin/main
-commit `2395e65c4` (baseline, pre-#5328, single `DecodeDocuments` pass,
-document-root `line_number` only), commit `c5d7247a8` (the double-decode fix
-this recovery replaces), and this branch (`decodeDocumentsWithNodes` reuse) --
-each via a `git worktree add --detach` saved copy so the shared feature
-worktree's tracked files stayed untouched. `go test ./internal/parser/yaml/
--run '^$' -bench BenchmarkParseCloudFormationTemplate -benchmem -benchtime=2s
--count=8` on darwin/arm64 (Apple M4 Pro):
-
 | Shape (resources) | origin/main baseline | Double-decode (old) | Reuse (new) | New vs baseline | New vs old |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Representative (100) ns/op | 1.308ms | 2.681ms | 1.344ms | +2.7% (p=0.021, n=8) | -49.9% (p=0.000, n=8) |
@@ -215,55 +185,10 @@ The reuse recovers essentially the entire #5328 regression: the residual
 itself (`cloudformationPositionsFromRoot`), which is the intended feature, not
 decode overhead.
 
-No-Regression Evidence: the remaining cost is bounded, one-time-per-file, and
-stays inside the async collector snapshot/parse stage (`internal/collector` ->
-`internal/parser`), never a query-serving or graph-write hot path. Even at 500
-resources -- CloudFormation's own hard per-stack resource limit, so this is the
-worst-case partition a single template can ever present, not merely a
-"large" pick -- the absolute added cost over the pre-#5328 baseline is ~65us
-per file (down from ~5.25ms under the retired double-decode path). Non-CFN
-YAML files (the overwhelming majority of a repository's manifests) are
-provably unaffected: `decodeDocumentsWithNodes` performs one decode pass
-regardless of document type, so there is no CFN-detection branch left to keep
-non-CFN files off of a second parse -- there is no second parse to avoid.
-
-Observability Evidence: every degraded per-entity position (an unresolved alias
-target, an unattributable merge key, or a missing raw-node match) is counted
-through `eshu_dp_cloudformation_position_fallback_total`
-(`internal/telemetry/instruments.go`, wired at
-`internal/collector/repo/git/snapshot_parse_partitions.go:451`), documented in
-`docs/public/observability/telemetry-coverage.md`. An operator can use this
-counter to see how often the position walk is not paying for a real
-per-entity line gain.
-
-Performance Evidence (`image_overrides`, issue #5440): this is additive new
-extraction, not a rewrite, so there is no output-equivalence claim to prove --
-only the added cost. `BenchmarkParseHelmValuesRepresentativeImages` (20 nested
-`image:` blocks) and `BenchmarkParseKustomizationRepresentativeImages` (20
-`images[]` entries), both in `image_overrides_bench_test.go`, drive the stable
-public `Parse()` entrypoint unchanged, so the identical benchmark body ran on
-origin/main commit `6f780442a` (before, via a `git worktree add --detach`
-scratch copy, removed after measurement) and on this branch (after). `go test
-./internal/parser/yaml -run '^$' -bench
-'BenchmarkParseHelmValuesRepresentativeImages|BenchmarkParseKustomizationRepresentativeImages'
--benchmem -count=3` on darwin/arm64 (Apple M1 Max), mean of 3 runs:
-
 | Fixture (20 images) | Before ns/op | After ns/op | Δ ns/op | Before B/op | After B/op | Δ B/op | Before allocs/op | After allocs/op | Δ allocs/op |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Helm values.yaml | 367.2us | 360.7us | -1.8% (noise) | 248,979 | 266,682 | +7.1% | 3,689 | 3,944 | +255 (+6.9%) |
 | Kustomize kustomization.yaml | 101.5us | 107.4us | +5.8% | 67,594 | 84,827 | +25.5% | 871 | 1,135 | +264 (+30.3%) |
-
-No-Regression Evidence: the added cost is bounded, proportional to the number
-of declared images in the file (a second small map built per image, no new
-document decode or tree walk beyond the existing `collectHelmImageRepositories`
-walk for Helm and the existing `images[]` list iteration for Kustomize), and
-stays inside the same async collector snapshot/parse stage as the rest of this
-package -- never a query-serving or graph-write hot path. The Helm ns/op delta
-is within run-to-run noise (both directions observed across repeat runs); the
-B/op and allocs/op deltas are the real, expected cost of populating the new
-bucket's per-image rows and are not compounding: they hold on both the modest
-(20-image) representative fixture and the empty/no-image case, which adds zero
-rows (`TestParseHelmValuesImageOverridesEmptyWhenNoImages`).
 
 Accuracy-fix follow-up (same issue, same benchmarks): a review found
 `helmValuesEnvironment` was inventing environments from any
@@ -343,14 +268,6 @@ consistent with the O(n) row-construction/YAML-decode cost that already
 dominates `Parse()`, not the O(n^2) comparison scan, which allocates nothing
 and only matters at file sizes far beyond what a real Helm values file or
 kustomization images[] list declares.
-
-No-Regression Evidence: the shipped dedupe pass's allocation cost is now
-indistinguishable from not deduping at all (+1 alloc/op on both fixtures),
-and its CPU cost stays inside the same async collector snapshot/parse stage
-as the rest of this package -- never a query-serving or graph-write hot
-path. The whole feature (allowlist gate + dedupe) buys a P1 accuracy fix (no
-fabricated `values.schema.yaml`/`values.example.yaml` environments) plus
-phantom-duplicate-row elimination for effectively free allocation cost.
 
 Determinism-fix follow-up (same issue, same benchmarks): a second
 independent review found `image_overrides` row order was nondeterministic

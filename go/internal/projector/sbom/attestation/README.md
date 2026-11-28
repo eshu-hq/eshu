@@ -39,10 +39,7 @@ There is no decode seam: like `package/source`, this builder reads only
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains `eshu_dp_sbom_attestation_attachments_total`. Moving
-the pure builder adds no queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_sbom_attestation_attachments_total`.
 
 ## Gotchas / invariants
 
@@ -75,40 +72,6 @@ the pure builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-the trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason string, and input-order anchor selection across the three
-candidate kinds are identical to the base commit, and the dispatcher's
-ordered fan-out is unchanged at 44 builder probes with this probe still
-running immediately after
-`correlation.BuildReducerIntent` and before
-`catalog.BuildServiceCatalogCorrelationReducerIntent`. The private
-`sbomAttestationAttachmentSourceSystem` helper the root file owned was
-compared body-for-body against `projectorintent.SourceSystem` and found
-identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no third
-tier), so the substitution is behavior-identical by construction and the
-focused test pins the `CollectorKind` fallback; the root `firstAcrossKinds`
-forwarder was a direct delegate to
-`projectorintent.FactLookup.FirstAcrossKinds`, so that substitution is
-behavior-identical the same way, and the forwarder stays at root for the four
-root probes that still call it. Focused proof, run from the `go/` module
-root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildSBOMAttestationAttachmentReducerIntent' -- ./internal/projector/sbom/attestation -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 sbomattestation nesting): base `f316c0593`,
-backend go1.27.1 darwin/arm64; rename-only `sbomattestation` to
-`sbom/attestation` move with no trigger, value, or fan-out change. The
-package clause becomes `attestation`, mirroring
-`coordinator/sbom/attestation`; every exported symbol is unchanged. Scoped
-build exit 0, vet clean, recursive projector tests green, and the moved
-tests green in the new path via the test-run guard above. B-12 replay and
-B-7 golden-corpus gates were not run locally, so CI is the blocking
-authority there. Rename-only, so no benchmark delta exists to measure.
 
 ## Related docs
 

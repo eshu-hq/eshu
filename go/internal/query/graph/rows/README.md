@@ -66,20 +66,10 @@ got the same rename for readability). The exported surface
 none of the three needed a rule-4 rename. No decoding, projection, or
 Cypher-fragment behavior changed.
 
-No-Regression Evidence (#6642 rename): the Cypher fragment
-`GraphSemanticMetadataProjection` returns and the row-decoding helpers are
-byte-identical to the `querygraphrows` originals; the four queryplan rows
-whose recorded text carries the qualifier were re-pinned with class, count
-and disposition unchanged, and `go test ./internal/query/... ./internal/queryplan/`
-is green on the renamed tree. No query changed shape, so no benchmark delta
-is claimed.
-
 ## Telemetry
 
-No-Observability-Change (#6642 rename): the rename touches no span, metric,
-or log name. This package emits no metric, span, or log of its own. It only
-decodes rows and returns query text; the handlers that call it own their own
-spans.
+This package emits no metric, span, or log of its own. It only decodes rows
+and returns query text; calling handlers own their spans.
 
 ## Gotchas / invariants
 

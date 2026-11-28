@@ -71,11 +71,6 @@ path instead of a run of `../` segments.
 `TestFileGraphIDStableThroughSymlinkedCheckoutRoot` snapshots one repository
 through both spellings and requires identical file `graph_id` values.
 
-No-Regression Evidence (#7998): the helper runs once per emitted file fact
-plus a few documentation and commit-index facts per sync. A throwaway
-`go test -bench` (not committed) on linux/amd64 (AMD EPYC 9R14), Go 1.26.9,
-`-count=5`, over a real temp checkout measured:
-
 | Build | ns/op (median) | B/op | allocs/op |
 | --- | --- | --- | --- |
 | Rel only | 106 | 0 | 0 |
@@ -85,9 +80,6 @@ About 9.3 µs per file, so a 10,000-file sync pays about 0.1 s next to
 per-file parse work, and output is byte-identical on plain paths: the
 content-version pin digest did not move. No query, queue, graph-write, or
 worker path changes.
-
-No-Observability-Change: the change alters only the relative-path string
-inside emitted facts. No metric, span, log key, or status field changes.
 
 ## Per-command git deadlines
 
@@ -151,24 +143,6 @@ command for a host falls back unpinned after the lookup deadline
 (`eshu_dp_git_resolve_cache_fallback_total{reason="cache_empty"}`), nothing is
 pinned under a proxy setting (`reason="proxy_set"`) or for SSH remotes, and
 `ESHU_GIT_RESOLVE_CACHE=off` turns the cache off. See `resolve/README.md`.
-
-Performance Evidence (#8092): the pinned path costs one map read per network
-command and one lookup per host per hour in place of one lookup per git
-process; the issue's shim measured a pinned `ls-remote` at 0.45–0.6 s with DNS
-black-holed where the unpinned command failed after about 12 s.
-`TestConcurrentRefreshSingleFlight` (resolve, `-race`) proves 32
-concurrent failure requests start exactly one lookup, and
-`TestNetworkCommandsCarryCurlResolvePin` proves the pin rides clone, fetch,
-pinned-ref fetch, and `ls-remote` argv ahead of the subcommand. Terminal
-counts are unchanged: the pin only skips curl's own lookup, so the same refs
-and packs arrive.
-
-Observability Evidence (#8092): `eshu_dp_git_resolve_cache_lookups_total`,
-`eshu_dp_git_resolve_cache_refresh_requests_total`,
-`eshu_dp_git_resolve_cache_fallback_total`, and
-`eshu_dp_git_resolve_cache_lookup_duration_seconds`, the
-`git.resolve_cache.lookup` span, and the `git resolve cache lookup` log lines,
-asserted from recorded runs in the resolve tests.
 
 ## Directory size
 
@@ -253,14 +227,6 @@ behind the quiet queue. The claim side records
 `eshu_dp_collector_sweep_yields_total` and the INFO `git repository sweep
 yielded to queued webhook trigger` log with the resume point.
 
-Performance Evidence (#7620, per-repository): the read is one sequential scan
-per cycle per shard, about 1 ms per 10,000 rows on PostgreSQL 18. Ordering
-derives a scope ID per repository only when at least one row is active, using
-`gitScopeIDForManagedRepo`, which does path and string work with no disk or
-network I/O. `TestRepositoryReindexTargetedScopeIsNotStarved` fails without
-the reordering (the requested 30th repository is not forced in the first
-cycle with a budget of 10) and passes with it, still forcing exactly 10.
-
 ## Default branch tracking
 
 `git clone` records `refs/remotes/origin/HEAD` once, and the single-branch
@@ -295,25 +261,6 @@ reconciliation counter is spent. One gap remains: when `list_refs` fails on
 the cycle that adopts a same-tree rename, `origin/HEAD` already names the new
 branch, so the next cycle is a no-op and `default_branch` waits for the next
 content change.
-
-Performance Evidence (#7678): the extra refspec rides the existing fetch.
-Scratch remotes measured 2 protocol requests over `file://` with or without
-it on git 2.56 and 2.47.2, and 3 HTTPS requests in steady state against
-GitHub with or without it. The unchanged path adds no process: the tracked
-tip and the probe resolve in one `rev-parse`. Two unusual remotes cost more
-each cycle: a remote `HEAD` that names a missing branch costs a second fetch,
-and a detached remote `HEAD` (a bare commit, no branch) at a commit other than
-the tracked tip costs one `ls-remote`.
-
-Observability Evidence (#7678): before this change the only signal was the
-repeating sync error `couldn't find remote ref refs/heads/<branch>`, and a
-moved default branch with the old branch kept produced no signal at all. A
-detected change now emits the WARN `git repository default branch changed`
-(`previous_branch`, `branch`, `detection`) and, on the incremental path, one
-increment of `eshu_dp_collector_delta_baseline_fallback_total` with
-`skip_reason=default_branch_changed`; `TestUpdateRepositoryFollowsDeletedDefaultBranch`
-and `TestUpdateRepositoryFollowsMovedDefaultBranch` assert both against a real
-git remote. Steady-state syncs emit nothing new.
 
 ## Repository selection observations
 
@@ -422,12 +369,6 @@ matches the clone URL host for each provider, and
 `TestGitCommandEnvTokenAuthUnmanagedPathSendsNoHeader` asserts the fail-closed
 cases.
 
-No-Regression Evidence: #7763 adds one `filepath.Abs`/`filepath.Rel`, a string
-split, and a `repoCheckoutName` validation to `gitCommandEnv`, which runs once
-per git child process. A throwaway `go test -bench` (not committed) of
-`gitCommandEnv` in token mode with `ReposDir=/data/repos`, `-count=5`, on
-darwin/arm64 (Apple M5) measured:
-
 | Build | Checkout path | ns/op (median) | B/op | allocs/op |
 | --- | --- | --- | --- | --- |
 | Baseline `0a65fccd0`, Go 1.26.6 | (no path argument) | 760 | 2273 | 6 |
@@ -443,16 +384,6 @@ the git process it configures. A local `git rev-parse HEAD` spawn took a median
 of 12.3 ms over 50 runs on the same host, and clone and fetch are
 network-bound, so the full cost is under 0.02% of the cheapest git command. No
 query, queue, graph-write, or worker path changes.
-
-No-Observability-Change: the change alters only the environment handed to the
-git child process. No metric, span, log key, or status field changes, and the
-token still appears only in that child environment, never in logs.
-
-No-Regression Evidence (#7764): the configurable host adds one argument and
-one call indirection to `repoRemoteURL`, one empty-check for gitlab IDs, and
-one hostname normalization per process start. A throwaway `go test -bench`
-(not committed) of `repoRemoteURL` with `-benchtime 300000x -count 3`, Go
-1.26.2 linux/amd64, same shared host back to back, measured:
 
 | Build | Case | ns/op (median) | B/op | allocs/op |
 | --- | --- | --- | --- | --- |
@@ -474,11 +405,6 @@ or fetch. No query, queue, graph-write, or worker path changes. A host
 change also alters the pre-parse identity (`Config.GitlabHost`, folded by
 `PreparseConfigFor`), so scopes re-parse instead of reusing a snapshot
 stamped under another host.
-
-No-Observability-Change (#7764): no metric, span, log key, or status field
-is added or renamed. The configured host already surfaces in the clone URLs
-and git error text the collector logs, and an invalid `ESHU_GITLAB_HOST`
-fails startup with an error naming the variable.
 
 ## Two-phase content
 

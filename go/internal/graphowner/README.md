@@ -180,29 +180,3 @@ structured log and error context (`posture_locked_writers.go`) — no scope id,
 uid, or other high-cardinality value is a label. A nil `Instruments` (a
 `LockOnlyGate` wired without telemetry) is a silent no-op for both metrics,
 matching `Gate`'s pass-through convention.
-
-No-Regression Evidence: this change adds two metric-recording calls to
-`writeChunk`'s existing code path only — lock acquisition, the underlying
-graph write, the commit, and the advisory-lock keyspace `LockUIDs` acquires are
-byte-identical to pre-#5101. The `lockOnlySlowWaitThreshold` log gate is
-semantically unchanged rather than byte-identical: the `wait` value is hoisted
-out of the `if` scope so both the histogram and the log read the same
-measurement, and the threshold comparison itself is untouched.
-`go test ./internal/graphowner ./internal/telemetry -count=1` passes; the
-pre-existing `TestLockOnlyGateChunksAtLockChunkSize`,
-`TestLockOnlyGateUnderlyingErrorRollsBackAndPropagates`, and
-`TestLockOnlyGateLockErrorRollsBackAndSkipsWrite` are unmodified and still
-pass, proving chunk bound, rollback-on-failure, and lock-before-write ordering
-are unchanged. `go vet ./internal/graphowner ./internal/telemetry ./cmd/reducer`
-and `gofmt -l` are clean. Observability Evidence:
-`eshu_dp_lock_only_gate_locked_rows_total` (counter) and
-`eshu_dp_lock_only_gate_lock_wait_seconds` (histogram) are new, both labeled
-only by the closed `family` enum documented above; no scope id, uid, or other
-high-cardinality value was added to any label.
-`TestLockOnlyGateWriteChunkRecordsLockedRowsAndWaitMetrics` and
-`TestLockOnlyGateWriteChunkNilInstrumentsSkipsMetrics` in
-`go/internal/graphowner/lock_only_gate_metrics_test.go` prove both instruments
-register and record with the expected `family` attribute, and that a nil
-`Instruments` stays a silent no-op. `cmd/reducer/main.go` wires
-`lockGate.Instruments = instruments` alongside the pre-existing
-`ownerGate.Instruments = instruments`.

@@ -39,38 +39,3 @@ series exports exactly one builder.
   `reducerIntentFactIndex`. Root's index method was a thin delegate to
   `FirstOfKindMatching` on that same lookup, so this is the identical call with
   no behaviour change.
-
-## Evidence
-
-No-Regression Evidence: this is a package move with no algorithmic change. The
-builder's trigger, entity key, and field values are byte-identical to the root
-version; the only signature change swaps root's `*reducerIntentFactIndex` for the
-neutral `projectorintent.FactLookup` it already delegated to, so the same
-`FirstOfKindMatching` call runs over the same index with the same closed
-`observabilityResourceTypes` set. Baseline and after are the same code path on
-the same input shape: `go test ./internal/projector/... -count=1` passes across
-32 packages before and after, and
-`TestReducerIntentProbeCountMatchesDocumentedCount` — an AST parse of
-`scope_generation_intents.go`, mutation-tested here by deleting a probe block to
-confirm it fails and restoring to confirm it passes — shows the probe count
-unchanged. No queue, worker, lease, batch size, concurrency knob, or Cypher
-statement is added, removed, or reordered, so there is no terminal queue or row
-count to move.
-
-No-Observability-Change: this package emits no signal directly. Intent volume stays covered by
-`eshu_dp_reducer_intents_enqueued_total` and
-`eshu_dp_projector_run_duration_seconds`; the reducer execution that consumes the
-intent by `eshu_dp_reducer_executions_total` and
-`eshu_dp_reducer_run_duration_seconds`.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 observability nesting): base `ee0d26b61`,
-backend go1.27.1 darwin/arm64; same build/vet/recursive-test record as the
-parent coverage package above; B-12 replay reported 437/437 PASS in the move
-lane with CI required-gates as the blocking authority. Rename-only
-relocation; no benchmark delta exists to measure.
-
-No-Observability-Change (#6627 observability nesting): this package emits no
-signal directly; intent volume and reducer execution stay covered by the
-instruments named above, unchanged.

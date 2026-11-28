@@ -95,31 +95,11 @@ DescribeUser point read per user, no CreateServer / DeleteServer / StartServer /
 StopServer / ImportSshPublicKey / ImportHostKey calls, no mutations, and no
 graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-Transfer server and user metadata fact emission, server-to-VPC-endpoint,
-server-to-Elastic-IP, server-to-ACM-certificate, server-to-CloudWatch-log-group,
-server-to-logging-IAM-role, user-to-IAM-role, user-home-directory-to-S3-bucket,
-and user-home-directory-to-EFS-file-system relationship emission, the
-partition-aware S3/EFS home-directory ARN derivation
-(commercial / `aws-us-gov` / `aws-cn`), host-key / SSH-key / policy / POSIX
-exclusion, the reflective SDK adapter exclusion guard, runtime registration,
-command configuration, and the SDK adapter's safe metadata mapping. The scanner
-adds new metadata-only read paths and synthesizes only partition-aware target
-ARNs; it performs no graph writes, queue work, leases, or hot-path Cypher, so
-there is no runtime performance regression for the touched path.
-
 Collector Observability Evidence: Transfer uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the scanner introduces no new instrument, span, metric
-label, or `aws_scan_status` row; it reuses the existing AWS collector telemetry
-contract (`aws.service.scan`, `aws.service.pagination.page`, API/throttle
-counters, resource/relationship counters, and `aws_scan_status`) that already
-diagnoses every per-service scan.
 
 Collector Deployment Evidence: Transfer runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

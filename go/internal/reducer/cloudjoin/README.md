@@ -61,22 +61,6 @@ load-bearing: one malformed resource fact is skipped and dead-lettered
 individually, so it never empties the join index for the whole scope, which
 would stall every edge domain gating on the canonical-nodes-committed phase.
 
-No-Regression Evidence: #6061 relocates this code from
-`aws_relationship_join.go` and `aws_resource_materialization.go` without
-changing it. The bodies are unchanged; the diff is the package clause, the four
-index fields becoming exported, and root forwarders replacing the original
-declarations. Behavior is covered by the existing root suites that exercise the
-index (`aws_relationship_join_test.go`, `aws_resource_materialization_test.go`,
-the security-group suite) plus `internal/reducer/iamescalation` and
-`internal/reducer/iamcan`.
-Measured on this branch: `go build ./...` exits 0, `go vet
-./internal/reducer/...` exits 0, and `go test ./internal/reducer/... -count=1`
-passes. Binary output was not compared and no such claim is made here.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span, or
-log field. This package emitted no signal before the move and emits none after.
-
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** This is a leaf; reaching upward

@@ -131,23 +131,6 @@ test double: it drives the actual generic shared-projection worker
 moving here — mirroring `inherits_edge_partition_convergence_test.go`'s
 identical reasoning for the `inheritance` family.
 
-### Evidence
-
-No-Regression Evidence: this move is a pure relocation (issue #6061) --
-function and type bodies are unchanged apart from the package clause,
-import paths, and the export-casing renames this README documents above;
-no algorithm, query, or edge-derivation rule changed. Proven by
-`go test ./internal/reducer/... ./internal/ifa/... ./internal/storage/cypher/...`
-passing unchanged before and after the move, and by
-`internal/ifa/materializededges`'s golden-corpus lockstep/family-count/
-stem-trigger tests (`TestMaterializedEdgeCoverageLockstepAgainstRealSpecs`,
-`TestMaterializedEdgeFamilyCountClaimsMatchTheCode`,
-`TestEveryCoveredFamilyTriggersBothLiveGates`) passing against the moved
-package.
-
-No-Observability-Change: see Telemetry above -- no metric, span, or log
-field was added, removed, or renamed by this move.
-
 ## Related docs
 
 - [Reducer package](../README.md)

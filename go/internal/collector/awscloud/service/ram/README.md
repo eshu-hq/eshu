@@ -114,14 +114,6 @@ ListPrincipals, and ListResourceSharePermissions streams. No mutation API and no
 permission-policy-body read is reachable, and the collector performs no graph
 writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers resource-share and permission fact emission, every relationship's
-non-empty target type and join key, principal classification for account/OU/
-organization forms, permission deduplication across shares, blank-join-key
-skipping, runtime registration, and command configuration. The SDK adapter
-reflection contract test proves the mutation APIs and GetPermission policy-body
-read are unreachable.
-
 Collector Observability Evidence: RAM uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`,
@@ -129,11 +121,6 @@ Collector Observability Evidence: RAM uses the existing AWS collector
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 resource type.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses RAM scans through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`.
-No new instrument or label was added.
 
 Collector Deployment Evidence: RAM runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

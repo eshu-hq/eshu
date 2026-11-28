@@ -91,7 +91,3 @@ stream, one GetPolicyStore point read per store, one paginated ListPolicies
 stream and one paginated ListIdentitySources stream per store, no Cedar body
 reads, no schema reads, no authorization evaluation, and no graph writes in the
 collector.
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/verifiedpermissions/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

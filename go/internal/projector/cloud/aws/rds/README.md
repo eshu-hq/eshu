@@ -37,10 +37,7 @@ no `factschema_decode_aws.go` seam (unlike `ec2`'s `USES_PROFILE` builder or
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution, readiness, and graph-write telemetry. Moving the
-pure builder adds no queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, readiness, and graph-write telemetry.
 
 ## Gotchas / invariants
 
@@ -60,23 +57,6 @@ pure builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, root RDS assembly tests, ordered fan-out
 parity and probe-count tests, the projector package tree, package-doc and path
 mirrors, dirgate, and telemetry coverage.
-
-No-Regression Evidence: this extraction moves one builder without changing its
-trigger, value, or position in the dispatcher's ordered fan-out.
-`reducer.DomainRDSPostureMaterialization` intent emission is identical to the
-base commit, and the dispatcher's ordered fan-out is unchanged at 44 builder
-probes with the RDS probe at its original position: in
-`scope_generation_intents.go` it still runs immediately after
-`BuildExternalPrincipalGrantMaterializationReducerIntent` and immediately
-before `BuildInstanceIdentityMaterializationReducerIntent`. That neighbour
-pair is the property that matters, and it is cited instead of an absolute
-line number because every later family extraction adds an import and shifts
-the line. `projectorintent.SourceSystem` was
-compared body-for-body against the root `awsCloudRuntimeDriftSourceSystem` it
-replaces (both trim `SourceRef.SourceSystem` and fall back to
-`CollectorKind`) rather than by name. Focused proof:
-`go test ./internal/projector/... -count=1` green, whole-module `go build` and
-`go vet` clean.
 
 ## Related docs
 

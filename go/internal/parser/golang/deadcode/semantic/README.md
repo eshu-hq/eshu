@@ -54,26 +54,6 @@ no other package needs it, so it stays unexported.
 None. `CollectRoots` is a pure function; a reducer that drives the ingest
 pipeline owns telemetry for the stage that calls it.
 
-No-Regression Evidence: this is a pure package-move (issue #6774 stage 2,
-`golang/dead_code_semantic_flows.go` -> `golang/deadcode/semantic/flows.go`,
-`golang/dead_code_semantic_helpers.go` ->
-`golang/deadcode/semantic/helpers.go`, `golang/dead_code_semantic_roots.go` ->
-`golang/deadcode/semantic/roots.go`, `package golang` -> `package semantic`).
-No function body changed beyond swapping the root's `nodeText`/`nodeLine`/
-`walkNamed` forwarders for the `internal/parser/shared` calls they forwarded
-to, swapping the root's `GoImportedInterfaceParamMethods` type alias for its
-`internal/parser/shared` original, and renaming the one symbol
-`deadcode.Evidence` still calls (`goCollectSemanticDeadCodeRoots` ->
-`CollectRoots`). Verified by `go test ./internal/parser/golang/... -count=1`
-and the accuracy golden gate (`scripts/verify_accuracy_golden_gate.sh`), both
-green on the moved code. The gather-then-resolve walk-count characterization
-(`TestParseFullTreeWalkCount` in root's `walk_count_test.go`) still passes
-unchanged against the moved code, proving the walk count this package
-produces did not shift.
-
-No-Observability-Change: the move adds no metric, span, log, status field,
-runtime knob, queue, worker, or graph query.
-
 ## Gotchas / invariants
 
 - **Gather in pre-order, resolve in-memory** (`roots.go`): `CollectRoots`'s

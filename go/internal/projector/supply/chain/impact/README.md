@@ -67,15 +67,7 @@ worst case (a generation of non-dependency Variables) is measured by
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains `eshu_dp_reducer_executions_total`,
-`eshu_dp_reducer_run_duration_seconds`, and
-`eshu_dp_supply_chain_impact_findings_total` for its cross-source join.
-Moving the pure builder adds no queue, storage, graph, span, metric, or log
-boundary. The #9874 marker intent is counted by the same enqueue metric; its
-reducer outcome is counted under `cause=manifest_dependency` on
-`eshu_dp_supply_chain_impact_fanout_total`.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, and `eshu_dp_supply_chain_impact_findings_total` for its cross-source join. The #9874 marker intent is counted by the same enqueue metric; its reducer outcome is counted under `cause=manifest_dependency` on `eshu_dp_supply_chain_impact_fanout_total`.
 
 ## Gotchas / invariants
 
@@ -121,38 +113,6 @@ Run the package contract tests, the root dispatcher tests, the ordered
 fan-out parity and probe-count tests, the projector package tree,
 package-doc and path mirrors, dirgate, telemetry coverage, and the
 golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
-key, per-kind reason strings, earliest-across-kinds anchor rule, and
-source-system derivation are identical to the base commit, and the
-dispatcher's ordered fan-out is unchanged at 44 builder probes with this
-probe still running immediately after
-`posture.BuildSecretsIAMTrustChainReducerIntent` and immediately before
-`security.BuildSecurityAlertReconciliationReducerIntent`. The family carried
-a private `supplyChainImpactSourceSystem` helper that was checked
-body-for-body against `projectorintent.SourceSystem` and found identical
-(trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no third tier),
-so the substitution is behavior-identical by construction and the child
-tests pin both tiers with the two set to different values. Focused proof,
-run from the `go/` module root: `go test ./internal/projector/supply/chain/impact
-./internal/projector -count=1` green, whole-module `go build` and `go vet`
-clean.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 supply nesting): base `db5c55e86`,
-backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
-recursive projector tests green, moved tests green in the new path, B-12
-replay reported 437/437 PASS in the move lane with CI required-gates as the
-blocking authority. B-7 golden-corpus gate was not run locally: the Docker
-daemon is unreachable (socket EOF), so CI is the blocking authority there.
-Same code path on the same input shape before and after; rename-only, so no
-benchmark delta exists to measure.
-
-No-Observability-Change (#6627 supply nesting): no stage added and no
-metric, span, or log name changed; the covering instruments named in this
-section are unchanged.
 
 ## Related docs
 

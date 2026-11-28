@@ -48,16 +48,6 @@ the injected `db.ExecQueryer` in their own `InstrumentedDB`
 call-level tracing and metrics are the caller's responsibility, not this
 package's.
 
-No-Observability-Change: this extraction moves only the GCP freshness
-trigger store, its SQL text, and its DDL. The upsert, claim, reap, and
-completion statements are byte-identical, both callers construct the same
-store through their own instrumentation wrapper, and no metric, span, or log
-name changes.
-
-No-Regression Evidence: focused `internal/storage/postgres/...` tests
-(including this package) run green on the moved tree with `-race`; the SQL
-text is unchanged so no plan or lifecycle proof is re-owed.
-
 ## Gotchas / invariants
 
 - `ClaimQueuedTriggers` sets a `claim_expires_at` lease

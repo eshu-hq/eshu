@@ -97,23 +97,10 @@ a new slice or map per request pays the full rebuild on every call.
 
 The index is immutable, so concurrent `Rank` calls are safe.
 
-## Performance
-
-Benchmark Evidence: `BenchmarkRank163Tools` ranks one query over a synthetic
-163-tool registry (3 intents per tool, 30-45 word descriptions) with a prebuilt
-index. On the dev host (aarch64, 16 cores, Go 1.26) it runs about 44 microseconds
-per op with 68 allocations and about 21.5 KB, against a target of under 1 ms.
-`BenchmarkNew163Tools` measures the one-time build at about 5.8 ms. Rerun with
-`go test ./internal/mcp/router/rank/ -run '^$' -bench . -benchmem` from `go/`.
-The CI runner figure is NOT_CHECKED until the benchmark runs there.
-
 ## Telemetry
 
 None here. Find outcomes, target rank, and validation failures are emitted by
 the dispatch lane (#8757).
-
-No-Observability-Change: this package scores and orders in-memory data. It adds
-no I/O, routing, dispatch, authorization, or response shaping of its own.
 
 ## Gotchas
 

@@ -83,11 +83,6 @@ path.
   against the live tool registry, and this package's switch is now where
   their names are claimed.
 
-No-Observability-Change: this extraction moves only pure impact-analysis
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, summaries, and transport
-telemetry, and the same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../README.md)

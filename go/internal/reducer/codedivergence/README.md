@@ -54,25 +54,12 @@ generation.
 | `MaxCandidatesPerEntity` | per-entity verification budget 200 |
 | `MaxBandBucketSize` | band-bucket skip cap 200: overfull buckets nominate no pairs (#7228) |
 
-## Benchmark Evidence: worst-case single-intent drain
+## Telemetry
 
-`BenchmarkCodeDriftedHandlerWorstCaseBacklog`
-(`handler_concurrency_test.go`): one intent carrying a full-budget page of
-200 admitted pairs, with in-memory loader/writer stubs so the number
-isolates verification, assembly, and telemetry — Postgres I/O excluded.
-
-- Scope: one repo generation; limit: 200 pairs; cardinality: 200 admitted.
-- Result (Apple M4 Pro, 2026-09-20): ~338us/op, 405KB/op, 3213 allocs/op
-  (`go test -benchtime=10x -benchmem`).
-- Loader backend shape: the #6834-measured band self-join (4.0ms indexed
-  single-repo; ~10s-order full pairs CTE at 88k functions, one intent per
-  repo generation, worker pool isolates).
-
-## Observability Evidence: per-intent drift counters and logs
-
-Per-intent `code drifted generation evaluated` log (candidates, admitted,
-suppressed, budget_exhausted) plus `eshu_dp_correlation_rule_matches_total`
-and `eshu_dp_correlation_drift_detected_total` on pack=code_drifted
-(`handler_telemetry_test.go`); loader span
-`reducer.code_drifted_evidence_load` with `shingle_decode` WARN on corrupt
-persisted sets.
+Per-intent `code drifted generation evaluated` log records `candidates`,
+`admitted`, `suppressed`, and `budget_exhausted`, alongside
+`eshu_dp_correlation_rule_matches_total` and
+`eshu_dp_correlation_drift_detected_total` on `pack=code_drifted`
+(`handler_telemetry_test.go`). The loader starts span
+`reducer.code_drifted_evidence_load` and logs `shingle_decode` at WARN on
+corrupt persisted sets.

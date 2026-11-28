@@ -104,27 +104,11 @@ covers the bounded Shield metadata path: one `NextToken`-paginated
 `GetSubscriptionState` read for the canonical state, no per-protection detail
 read, no mutations, and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/shield/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers protection and subscription fact emission, the protected-ARN classifier
-across ELBv2, CloudFront, Elastic IP, Route 53 hosted zone, and Global
-Accelerator (each producing the correct `target_type` and `target_resource_id`),
-the unrecognized-ARN skip, the missing-protected-ARN skip, the relguard
-graph-join contract on every emitted edge, the SDK adapter's read-only interface
-(reflection exclusion test) and metadata-only subscription mapping, runtime
-registration, and the derived supported-service guard.
-
 Collector Observability Evidence: Shield uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Shield scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. No new instrument, span, or metric label is
-added.
 
 Collector Deployment Evidence: Shield runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

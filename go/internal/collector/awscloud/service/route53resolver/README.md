@@ -89,17 +89,6 @@ ListFirewallRuleGroupAssociations stream, and one paginated
 ListResolverQueryLogConfigs stream. No mutation, domain-content, or
 query-log-record API is reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers resolver endpoint, rule, rule association, firewall rule group, firewall
-domain list, firewall rule group association, and query log config fact
-emission; every relationship's non-empty target type and join key; domain-list
-count-not-contents and rule-group count-not-rules structural assertions;
-query-log destination-only assertion; resolver-rule forwarded-query-data
-exclusion; endpoint IP-count-not-addresses assertion; runtime registration; and
-command configuration without a redaction key. The SDK adapter reflection
-contract tests prove the mutation APIs, `ListFirewallDomains`, and
-`ListFirewallRules` are unreachable.
-
 Collector Observability Evidence: Route 53 Resolver uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`,
@@ -107,11 +96,6 @@ collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 resource type.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Route 53 Resolver scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. No new instrument or label was added.
 
 Collector Deployment Evidence: Route 53 Resolver runs inside the existing
 hosted `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

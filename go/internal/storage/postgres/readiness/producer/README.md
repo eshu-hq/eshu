@@ -75,29 +75,7 @@ the pending intent or the workload row the runner reopens before it completes
 the intent. A repository with only pending intents appears with
 `RunsOnIntentsPending` set and `Total` zero.
 
-Performance Evidence (#8169): disposable Postgres 18, all 213 migrations,
-875,000 intents (4,973 pending) over 10,000 repositories. The plan is a bitmap
-scan of `shared_projection_intents_repo_run_idx` on `(repository_id,
-projection_domain)`, with `completed_at` and the relationship type filtered on
-the heap rows of the requested repositories. There is no sequential scan.
-`pgbench -M prepared`, 4 clients, 8 s: one repository 0.120 ms mean, fifty
-repositories 0.976 ms.
-
 ## Plan evidence
-
-Performance Evidence: measured on a disposable Postgres 18 with all 196
-numbered migrations applied and `fact_work_items` populated to 1,057,536 rows
-(10,000 git scopes, 3 to 4 generations each, 34 reducer domains per
-generation; status mix succeeded 785,163, dead_letter 170,065, pending
-38,972, retrying 21,202, claimed 21,152, running 20,982). The plan is an index scan on
-`ingestion_scopes_pkey`, then a nested loop into
-`fact_work_items_scope_generation_idx` on `(scope_id, generation_id)` with
-stage and domain filtered on the active generation's 35 rows. There is no
-sequential scan, and the generic and custom plans match. One scope executes in
-0.12 ms, fifty scopes in 2.5 ms. `pgbench` with 4 clients for 15 s ran 283,482
-single-scope lookups: p50 0.189 ms, p95 0.298 ms, p99 0.532 ms. No new index
-is needed. `TestReducerContentionGateRuntimeProducerStatesPlanUsesScopeGenerationIndex` fails
-if the plan stops using the index (seeded by dropping it).
 
 Amendment A3 re-measure, with the four-term last-workable aggregate and
 `max(claim_until)`: disposable Postgres 18.6, all 196 numbered migrations,
@@ -115,10 +93,6 @@ A3 statements on a shared host (load average 6 to 13): one scope mean latency
 0.254 to 0.256 ms for A3 against 0.247 to 0.249 ms for A2; fifty scopes 1.579
 to 1.599 ms against 1.556 to 1.587 ms. The added columns are heap columns of
 rows already fetched.
-
-Observability Evidence: the handler records each decision on
-`eshu_dp_service_catalog_runtime_readiness_total{domain,outcome}` and logs
-each deferral and each bound overrun; this store adds no signal of its own.
 
 ## The impact producer probe (#8827)
 
@@ -144,10 +118,6 @@ rows the plan stays an `Aggregate` over an `Index Scan` on
 `fact_work_items_scope_generation_idx` with the same buffer count (4 for a
 one-row generation, 87 for a 1,201-row generation) before and after.
 
-Observability Evidence: the handler records each decision on
-`eshu_dp_security_alert_reconciliation_impact_wait_total{domain,outcome}`; this
-store adds no signal of its own.
-
 ## The attachment sibling probe (#11105)
 
 `ImpactStore.SBOMAttestationAttachmentState` answers
@@ -162,10 +132,6 @@ domains the plan is an `Aggregate` over an `Index Scan` on
 buffers, one run on a shared host);
 `TestReducerContentionGateSBOMAttachmentProducerStatePlanUsesScopeGenerationIndex`
 is the guard.
-
-Observability Evidence: the handler records each decision on
-`eshu_dp_supply_chain_impact_attachment_wait_total{domain,outcome}`; this store
-adds no signal of its own.
 
 ## Tests
 

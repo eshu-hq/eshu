@@ -129,24 +129,6 @@ still obtain and fence its own reader connection against the original checkpoint
 
 ### Local fleet selection evidence
 
-Performance Evidence: In an isolated PostgreSQL 18.6 primary plus two direct
-standbys (one system ID, `postgres` database, 7,870,143-byte database before
-and after), the same four-connection snapshot-set probe held A's four slots
-and selected B with the same writer checkpoint, eight-slot aggregate cap, and
-unchanged storage state. Seven interleaved runs of committed baseline
-`553fc06c0` and the candidate selection path used a byte-identical probe.
-The baseline second-set selection median was 428,692 microseconds (samples:
-428670, 428692, 428566, 429468, 428141, 428927, 429412); the candidate median
-was 26,525 microseconds (27409, 26788, 25860, 25849, 26525, 26387, 26872).
-Every run ended with four connections on each standby, one exported snapshot
-per set, and zero business rows read; no mixed-member result was accepted.
-The final follow-up edit classified TLS failures as permanent and did not
-change successful selection. Raced integration after that edit passed. This
-is a local saturated-member selection measurement, not a full endpoint test.
-The later [fixed-corpus endpoint runs](../../../../(#7033)#reader-fleet-follow-up-2026-10-03)
-measure the legacy and opt-in fleet paths separately. The deployed QA
-`<1s` budget is still unmet. The fixture, volumes, and network were removed.
-
 Root-Cause Evidence: In an owned PostgreSQL 18.6 primary plus two physical
 standbys, a healthy legacy writer behind a 500 ms connection delay failed
 startup with a 1.2 s ping budget because its bootstrap received only one
@@ -159,32 +141,6 @@ from the healthy member that remains usable after the short attempt ends.
 These are bounded behavior checks, not interleaved latency medians or an
 endpoint speedup claim. The later fixed-corpus endpoint A/B is recorded above;
 it does not establish deployed fleet latency.
-
-Observability Evidence: The `business_query` duration/outcome and closed
-member-attempt outcome signals show timeout and failover. No SQL, host,
-member ID, or credential was added to telemetry labels.
-
-Observability Evidence: Existing closed-cardinality `reader_borrow`,
-`reader_identity`, `reader_replay`, and `business_query` stages report duration
-and outcome without SQL or member identifiers. The new allocator records its
-reservation wait under `reader_borrow`; pool `Stats()` continues to aggregate
-member open/in-use/wait counters. The isolated integration tested cancellation,
-member replacement/loss, replay lag, and writer-saturated readiness. Fleet
-qualification, connection, reservation, waiter, and attempt metrics are new
-closed-cardinality operator signals; no new log key was added.
-Snapshot cursors reject `*sql.RawBytes` before scanning and close the cursor;
-callers can scan copied bytes with `*[]byte`. Ordinary cursor and legacy SQL
-adapter scan contracts remain unchanged.
-Every status snapshot transaction runs `SET LOCAL jit = off` (#7009) as control
-SQL right after it begins: no reader query-start event, no `business_query`
-observation; the `transaction_control` stage times it. `phase=jit` names a
-failed SET; `jit=off` on the span confirms it.
-See the JIT evidence (#7009).
-The semantic extraction status route requests only its semantic status section
-inside this same fenced, read-only repeatable-read transaction. Selection does
-not bypass replay checks, deadlines, transaction cleanup, or reader telemetry.
-Read-only session mode does not replace database permissions; operators
-should give distinct readers a read-only database role where practical.
 
 ## Writer pool errors
 
@@ -346,28 +302,6 @@ cancellation proof. Reader stage spans are children of the active request-contex
 when the observer implements `ContextObserver` (see above), so a slow request
 names the stage that paid for it.
 
-No-Regression Evidence: On an Apple M5 Max, a 200-iteration Go benchmark of a
-recording request and synchronous in-memory trace exporter measured 854.4 ns
-per baseline request and 16,426 ns with 22 synthetic query-start events per
-request. The difference was 15,571.6 ns per request. This isolates trace event
-recording/export into memory; it does not measure the live pgx Raw call, network
-export, or deployed request latency. A separate native reader lease theory probe
-measured the PID getter at 84 ns p95 over four paired 2,000-call rounds with
-zero allocations, but that value is not additive proof of deployed cost.
-Observability Evidence: Focused tests proved recording request-parent events
-with distinct query sequences, an explicit unavailable event for an unsupported
-driver, and ordinary and transaction SQL execution after the start event with
-unchanged statement and argument values. Deployed trace retention and native
-cancellation remain unverified.
-
-No-Regression Evidence: Fleet composition tests verify one business-start
-sequence, no event during snapshot export or failed setup, and release of the
-member reservation and connection. An owned disposable PostgreSQL 18.6 primary
-verified that a fleet-owned transaction's recorded PID matched
-`pg_backend_pid()` on the same lease, with a nonempty TCP peer and no retained
-connection. That primary-only check does not establish standby behavior,
-deployed trace retention, endpoint latency, or cancellation.
-
 ## Local proof and limits
 
 The opt-in `TestReaderQueryIdentityMatchesOneNativeLease` takes only
@@ -428,55 +362,6 @@ The API and MCP public-error wire tests additionally take
 owned, fully migrated disposable database and its physical standby. Each test
 interrupts only its own temporary TCP proxy after a healthy request. The
 PostgreSQL containers remain running and unchanged.
-
-Performance Evidence: On the owned PostgreSQL 18.3 physical primary/standby
-fixture (primary and reader each 4 CPU/8 GiB, 89 MB test corpus), four
-simultaneous fenced queries held four distinct reader connections (`InUse=4`)
-and returned all four (`InUse=0`). The focused suite checked one committed
-marker visible after replay, zero business SQL on a paused reader, a pinned
-repeatable-read snapshot, and an aggregate six-connection cap across two
-reader hosts; this is
-concurrency and exactness proof for the new package. It has no existing
-production-path latency baseline in these primitive tests. The final
-API/MCP status comparison (#7009)
-measures snapshot cost; end-to-end checkpoint cost, 100-engineer saturation
-and deployed benefit remain NOT_CHECKED.
-
-Observability Evidence: The production-path test observer saw writer checkpoint,
-reader borrow, identity, replay, and business query stages with closed role and
-outcome categories. A paused reader emitted replay `deadline` and no business
-query event. The API/MCP wiring attaches `Observer` and pool metrics to OTEL; local emission
-proof does not claim a deployed signal. The tests reported no reader connections left in use
-after Close, exhaustion, scan error, cancellation, or failed identity.
-
-No-Regression Evidence: Writer re-bootstrap (#7586) on an owned PostgreSQL
-18.6 primary (postgres:18-alpine). The unchanged-incarnation dial runs only
-the existing metadata query (proved by the nil-connection fast-path test); in
-a development two-restart run with eight concurrent workers, not part of the
-suite, the server log showed 70 writer/reader dials, 182 checkpoints, and 4
-lineage queries (1 at bootstrap, 3 concurrent first dials after the second
-startup). With pgbench, 5 interleaved rounds of 5,000 statements each on the
-same container, the median checkpoint statement was 0.000070 s before and
-0.000048 s after adding the flushed-LSN column (round-to-round noise was larger
-than the difference). The lineage statement, run only on a changed
-incarnation, had a median of 0.000022 s.
-
-Observability Evidence: The plain, pre-checkpoint, crash, and double restart
-tests log `postgres.writer.lineage outcome=accepted` with the previous and new
-incarnation. In the promotion test the promoted copy logs `outcome=latched
-reason=timeline` (timeline 00000001 to 00000002); the test asserts that the
-copy's flushed LSN is at or past the watermark first, so only the timeline can
-refuse it. The restore test logs `reason=flush_below_watermark`. LSN values vary
-per run, so none are recorded here. The crash test retries up to three times
-until recovery ends below the last checkpoint's insert LSN and then requires the
-same Access to recover; it needed one attempt in one run and three in another.
-Two mutation runs during development (not part of the suite) showed the
-sensitivity: with the watermark taken from the insert LSN the crash test latched
-and never recovered, and with the timeline check removed the promoted copy was
-accepted. The pgbench figures above are likewise development measurements, not
-a test assertion. `TestAccessSameClusterRestartRecoversWithStandbyReader` runs the
-plain restart with the reader pool on a streaming standby and passes. Deployed
-behavior is not checked.
 
 ## Request and admin boundaries
 

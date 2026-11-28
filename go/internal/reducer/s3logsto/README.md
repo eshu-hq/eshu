@@ -62,28 +62,3 @@ handler run's completion log carries `resource_fact_count`,
 `graph_write` / `total_duration_seconds` fields — the same fields the pre-move
 root file logged. The run is also covered by the shared
 `reducer.s3_logs_to_materialization` span.
-
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk in the moved production files is a package clause, an
-import requalification, or an identifier requalification: symbols the reducer
-root exposed as one-line forwarders
-(`loadFactsForKinds`→`factload.LoadFactsForKinds`,
-`partitionDecodeFailures`/`recordQuarantinedFacts`/`inputInvalidSubSignals`→`factdecode.*`,
-`cloudResourceUID`→`cloudjoin.CloudResourceUID`,
-`derefString`/`uniqueSortedStrings`/`formatTally`/`anyToString`→`payloadcore.*`,
-`decodeS3BucketPosture`→`schemadecode.*`) are now called on the leaf package
-directly, and the bucket-name join substrate the s3grant and S3
-internet-exposure slices also resolve against is hoisted verbatim to
-`cloudjoin` (only its package clause and the four cross-consumer symbols
-changed). No handler branch, extraction rule, readiness gate, retract/write
-ordering, trust-boundary rule, first-writer-wins collision rule, quarantine
-isolation, or Cypher-facing row shape changed.
-`go test ./internal/reducer/s3logsto -count=1` passes with the moved test
-suite unchanged in assertion content (17 tests: 9 extraction, 8 handler; only
-import paths, leaf requalification, and unexported symbol duplication for the
-package boundary).
-
-No-Observability-Change: the move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; both
-LOGS_TO counters, the shared span, and the completion log keep the same names,
-labels, and key set at the new import path.

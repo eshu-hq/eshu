@@ -59,11 +59,7 @@ KMS posture, and internet-exposure — trigger on the mere presence of an
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution, reconciliation, and graph-write telemetry. Moving
-the pure builders adds no queue, storage, graph, span, metric, or log
-boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, reconciliation, and graph-write telemetry.
 
 ## Gotchas / invariants
 

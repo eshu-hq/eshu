@@ -79,13 +79,6 @@ for the F-9 auth-mcp E2E stack (`docker-compose.e2e.yaml`) and is
 deliberately kept out of the released production image, mirroring
 `mock-oidc-idp`.
 
-- No-Regression Evidence: it serves a single, fixed synthetic identity from
-  an in-memory, mutex-guarded one-time-code map; there is no graph, queue,
-  reducer, Cypher, or Postgres path. The only consumer is the F-9 E2E gate.
-- No-Observability-Change: it emits only its own request logs to stderr for
-  E2E debugging; it adds no product metrics, spans, or status surfaces, and
-  an operator never runs it. No `eshu_*` instrument or dashboard is affected.
-
 ## Related docs
 
 - [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)

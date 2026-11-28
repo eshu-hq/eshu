@@ -93,27 +93,6 @@ out-of-AST or call-site/initializer EVIDENCE, not primary symbol extraction:
   used to mark functions referenced via pointers. Call-site / initializer
   evidence (owner-confirmation category); not migrated here.
 
-### No-Regression Evidence
-
-- `cd go && gofmt -l internal/parser/c internal/parser/engine_systems_test.go` →
-  empty.
-- `cd go && go test ./internal/parser/... -count=1` → all packages `ok`
-  (parser typedef tests included).
-- Added `TestDefaultEngineParsePathCTypedefAliasMultiDeclaratorAndArray` (pins
-  multi-declarator `Multi, *MultiPtr` → first alias `Multi`, and array typedef
-  `buffer`); confirmed failing-first by disabling the declarator-field path
-  before the regex deletion.
-- `cd go && golangci-lint run ./internal/parser/...` → 0 issues.
-- `scripts/verify-package-docs.sh` → changed Go package docs present.
-- `rg -n 'regexp\.' go/internal/parser/c/` → only the six justified-exception
-  sites in `dead_code_roots.go` remain.
-
-### No-Observability-Change
-
-No telemetry, spans, metrics, or logs were added or changed. This package emits
-no telemetry directly; parser timing stays owned by the parent engine. The
-change is a within-package symbol-extraction refactor at byte-parity.
-
 ## Dead-Code-Roots Walk Merge (issue #4870)
 
 `annotateCDeadCodeRoots` used to run a second full-tree `shared.WalkNamed`
@@ -124,21 +103,3 @@ traversal to resolve `call_expression`/`declaration` nodes against
 re-walking the tree. See
 [docs/public/languages/c.md#dead-code-roots-walk-merge-issue-4870](../../../../docs/public/languages/c.md#dead-code-roots-walk-merge-issue-4870)
 for the full performance evidence.
-
-- No-Regression Evidence: `TestParseFullTreeWalkCount` pins the walk count at
-  7 (down from 8: the eliminated pass was the second full-tree traversal, not
-  a bounded `firstNamedDescendant` subtree scan). `TestGatherResolveCrossKindDeclBeforeCall`
-  and `TestGatherResolveCrossKindCallBeforeDecl` pin `dead_code_root_kinds`
-  ordering for a function tagged by both a declaration-based and a
-  call-expression-based root, in both source orderings.
-  `TestGatherResolveForwardReferenceSignalHandler` pins that a signal handler
-  registered before its own definition still resolves. All pre-existing
-  C dead-code-root Engine tests now owned by
-  `go/internal/parser/c/engine_c_dead_code_roots_test.go` preserve the same
-  seven test cases and assertions. `0/0` symmetric diff (`diff` + `comm -3`
-  both empty) over the
-  24-file C/H fixture corpus via `equivalence_dump_test.go`
-  (`C_PARSE_DUMP`), old worktree vs. new worktree.
-- No-Observability-Change: this package emits no telemetry by design; the
-  gather-then-resolve refactor neither adds nor removes spans, metrics, or
-  logs.

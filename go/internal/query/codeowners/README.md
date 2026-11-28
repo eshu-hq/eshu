@@ -115,29 +115,6 @@ port's promotion to `querycontract` (root keeps aliases; see the lane
 handoff for why a copy was not an option). The two assertions below are
 structural rather than promissory -- each names what a reader can check.
 
-No-Regression Evidence: the move is a package relocation, not a rewrite.
-`git diff -M --find-renames` pairs each file with its root predecessor;
-the only statement-level changes are the `package` clause, the
-`Handler` rename (via the root alias), the `querycontract`/`auth`
-qualification of helpers root forwards to the identical functions, the
-export renames listed in `AGENTS.md`, the family-local tracing copy
-documented above, and the queryplan manifest re-keys (file paths, symbol
-names, and source digests only -- no Cypher text change). Baseline is the
-lane base with green suites; after the move, `go test
-./internal/query/codeowners/ -count=1` passes with 0 failures, the staying
-root suite pins the routes, contract matrix, and packet parity through the
-aliases, and the B-7 golden-corpus gate passes with the B-12 e2e snapshot
-byte-identical. Backend/version is unchanged (same NornicDB-first contract
-over the same driver path B-7 exercises live), input shape is the family
-unit suite plus the golden corpus, and the terminal counts are the
-per-package ok plus the corpus checks. The change is safe because behavior
-is preserved by construction (a path-only move) and proven by the
-unchanged suites and corpus above.
-
-No-Observability-Change: no spans, metrics, structured logs, status
-fields, or pprof surface were added, removed, or renamed; the move adds no
-new query path, so dashboards and 3 AM triage read exactly as before.
-
 ## Naming (#6642 Part D)
 
 Rules 2 and 4 of `docs/internal/naming.md` destutter this leaf: file names
@@ -158,23 +135,6 @@ Cypher text, and telemetry are unchanged -- only spellings moved.
 | `CodeownersOwnershipRow` | `OwnershipRow` |
 | `CodeownersOwnershipCyphers` | `OwnershipCyphers` |
 | `CodeownersLastMatchOwnerCypher` | `LastMatchOwnerCypher` |
-
-No-Regression Evidence: the rename touches three exported identifiers and
-eight file names and nothing else. `git diff -M --find-renames` pairs each
-renamed file with its predecessor; every Cypher literal in this package is
-byte-identical to the pre-rename commit. The two queryplan hot-cypher
-digests bound to `OwnershipCyphers`/`LastMatchOwnerCypher` and the two
-query-source-coverage digests bound to `loadCodeownersOwnershipRows`/
-`resolveEffectiveRepositoryOwner` moved only because those recorded
-declarations spell the renamed identifiers; `go test ./internal/queryplan/...`
-and the legacy production-binding test in root package `query` are green on
-the re-pinned rows. `go test ./internal/query/... ./cmd/api ./cmd/mcp-server
-./internal/mcp -count=1` passes on the renamed tree; no benchmark delta is
-claimed because no query shape changed.
-
-No-Observability-Change: the rename touches no span, metric, capability
-string, or log key; `telemetry.SpanQueryCodeownersOwnership` and the
-`codeowners.ownership.list` capability string are unchanged.
 
 ## Gotchas / invariants
 
@@ -207,19 +167,6 @@ runs `querycontract.WriteGraphReadError` first (fence or graph-availability
 verdicts answer 503/504), then `tracing.WriteServerFailure`: `500` with the
 error on the handler span, or `499` when the caller canceled the request.
 `server_failure_test.go` covers both steps.
-
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No Cypher, query parameter, call count, row bound, or
-success path changed. A failure now costs one span `RecordError`/`SetStatus`
-and a fixed-string write instead of formatting the error into the body.
-`go test ./internal/query/... ./internal/queryplan/... -count=1` and
-`go test -race ./internal/query/codeowners/...` exit 0.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the
-step's fixed message; a client cancel adds `eshu.request.client_canceled`,
-leaves the status Unset, and answers `499`. `server_failure_test.go` asserts
-both span shapes with a recording tracer.
 
 ## Related docs
 

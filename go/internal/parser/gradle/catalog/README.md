@@ -233,22 +233,9 @@ guard in [#8992](https://github.com/eshu-hq/eshu/pull/8992).
 
 ## Telemetry
 
-No-Observability-Change: the package emits no metrics, spans or logs. It runs
-inside the parent engine's per-file parse, which owns parse timing and the
-`parser` counters. An operator finds a catalog the parser could not read in the
-file fact's `gradle_catalog_state`: `state` other than `parsed`, or non-zero
-`unresolved_count`, `unsupported_count`, `dropped_count` or
-`alias_collision_count`.
+The package emits no metrics, spans or logs. It runs inside the parent engine's per-file parse, which owns parse timing and the `parser` counters. An operator finds a catalog the parser could not read in the file fact's `gradle_catalog_state`: `state` other than `parsed`, or non-zero `unresolved_count`, `unsupported_count`, `dropped_count` or `alias_collision_count`.
 
 ## Performance
-
-No-Regression Evidence: the code runs only for `libs.versions.toml` and adds
-no work to build-script parsing. `BenchmarkParseConfig` on a 10,005-line
-catalog (3,335 entries per table), `-benchtime=100x`. The build-script rows
-are from an earlier session; the first three catalog rows are three
-interleaved runs each in one later session, and the last row is six runs
-interleaved with a rebuild of the row above, in a third session on the same
-host under a load average of 7 to 18:
 
 | Case | ns/op | B/op | allocs/op |
 | --- | --- | --- | --- |

@@ -49,10 +49,6 @@ existing logs, spans, and metrics.
   `[]any`. Other input shapes return nil.
 - `Request` describes a route. It does not execute one.
 
-No-Observability-Change: extracted family routes still run through the root MCP
-dispatcher and the same HTTP query handlers, which retain the existing MCP
-transport and API request telemetry.
-
 ## Related docs
 
 - [MCP package](../../README.md)

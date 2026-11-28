@@ -48,11 +48,7 @@ unlike `ec2`'s and `s3`'s decode-bearing builders.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains the `reducer.aws_cloud_image_materialization` span
-and the `eshu_dp_aws_cloud_image_edges_total` counter. Moving the pure
-builder adds no queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.aws_cloud_image_materialization` span and the `eshu_dp_aws_cloud_image_edges_total` counter.
 
 ## Gotchas / invariants
 
@@ -84,29 +80,6 @@ builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason, anchor selection, and source-system derivation are identical to
-the base commit, and the dispatcher's ordered fan-out is unchanged at 44
-builder probes with this probe still running immediately after
-`relationship.BuildMaterializationReducerIntent` and
-immediately before `buildObservabilityCoverageMaterializationReducerIntent`.
-The root `awsCloudRuntimeDriftSourceSystem` helper it called was compared
-body-for-body against its `projectorintent.SourceSystem` replacement (both
-trim `SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`,
-with no third literal fallback in either), so the substitution is
-behavior-identical by construction and the child pins both tiers
-(mutation-tested: a single-tier CollectorKind-only substitute fails the child
-pin, the two-tier body passes). At that extraction checkpoint the root helper
-remained for four other callers; later family extractions removed its final
-callers and definition. The root `firstOfKind` forwarder was a direct
-delegate to `projectorintent.FactLookup.FirstOfKind`, so that substitution is
-behavior-identical by construction too. Focused proof, run from the `go/`
-module root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildMaterializationReducerIntent' -- ./internal/projector/cloud/aws/image -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
 
 ## Related docs
 

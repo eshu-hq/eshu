@@ -67,23 +67,6 @@ future change once no legacy nodes remain) but kept it in this retract
 registry and its lockstep specs (`specs/replay-depth-requirements.v1.yaml`,
 `specs/replay-coverage-manifest.v1.yaml`) for exactly this reason.
 
-No-Regression Evidence: this file's `Statement` shape, batch size, and
-dispatch order are unchanged by #5478 -- `node.RetractInfraEntityLabels`
-is restored to its pre-#5478 membership (`CrossplaneClaim` re-added), so the
-generated retract Cypher text, its UNWIND/DETACH DELETE plan, and the phase
-ordering in `canonical_node_writer_retract.go` are byte-identical to the
-`origin/main` baseline; only dead QUERY-CLASSIFICATION predicates (never
-executed for a Claim under the edge-only model) were removed elsewhere in this
-change. `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriterRetractRetainsCrossplaneClaimForLegacySweep|TestCanonicalNodeWriterRetractCoversStructuralFamiliesFromIssue3987|TestCanonicalNodeWriterRetractCoversProjectableEntityLabels'
--count=1` proves the retract registry still retracts `CrossplaneClaim` and
-stays internally consistent. No before/after benchmark applies: no Cypher
-statement shape changed.
-
-No-Observability-Change: the retract phase emits the same statement summaries
-and operation metadata it always has for the infra entity-label family; no
-metric, span, or log was added, removed, or renamed by this change.
-
 `OrphanSweepStore` is the cleanup seam for disconnected graph nodes that remain
 after owned retractions. It only handles the closed labels
 `Repository`, `Platform`, `EvidenceArtifact`, `File`, `Directory`, and
@@ -156,43 +139,6 @@ no matching nodes at all skips S2 entirely (one read, zero writes). A label
 with unmarked orphans, reconnected markers, or aged markers issues the S1/S2
 reads plus only the clear/mark/sweep writes whose key set is non-empty.
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestDefaultOrphanSweepLabelsIncludesCodeStructureLabels|TestBuildCandidateOrphanNodesQueryUsesStaticLabelNoRelationshipPredicate|TestBuildConnectedKeysQueryUsesConcreteRelationshipVariable|TestBuildClearMarkSweepStatementsAreKeyAnchoredNoRelationshipPredicate|TestOrphanSweepStoreComputesSetDifferenceAndOrdersClearBeforeMark|TestOrphanSweepStoreDeletesAgedOrphansAndPreservesConnected|TestOrphanSweepStoreBoundsMarkAndSweepToBatchLimit|TestOrphanSweepStoreConvergesAcrossBoundedCyclesForAllDefaultLabels|TestOrphanSweepStoreDelaysCodeStructureDeletionDuringProjectionRace|TestOrphanSweepStoreTOCTOUGuardDropsReconnectedKeyBeforeSweep|TestGraphOrphanNodeCountsUsesDefaultCodeStructureLabels'
--count=1` proves the default closed label set includes code structure nodes,
-every builder rejects the relationship-existence forbidden patterns
-(`)--(`, `NOT (`, `COUNT {`, `EXISTS {`), the Go-side anti-join computes the
-correct orphan/connected/clear/mark/sweep key sets against a scripted fixture
-that exercises the real production code, aging and batch bounds hold, the
-TTL clock is injectable for deterministic cleanup, and the TOCTOU guard drops
-a key that reconnects mid-cycle. `go test ./internal/storage/cypher -run
-'TestRepositoryCandidateQueryExcludesSourceLocalCanonicalRepositories' -count=1`
-proves the sweep never targets source-local canonical Repository nodes.
-`go test ./internal/storage/cypher -run
-'TestRepoRelationshipUpsertStamps|TestInfrastructurePlatformUpsert|TestBatchedWriteEdgesParameterFidelity'
--count=1` proves relationship-created repository and platform targets carry
-`evidence_source` / `generation_id` metadata so the sweep can distinguish Eshu
-nodes from backend-local graph objects. `go test ./internal/storage/cypher
--run
-'TestReadConnectedKeysIssuesOneRoundTripAtOrBelowChunkSize|TestReadConnectedKeysChunksAboveChunkSizeAndUnionsResults|TestReadConnectedKeysChunkPropagatesReaderErrorMidway'
--count=1` proves the S2 chunk boundary (one round trip at or below the chunk
-size), the union/dedup of results across chunks above it, and that a reader
-error on a later chunk surfaces rather than being silently swallowed. The
-committed live regression `go test
-./internal/storage/cypher -run
-'TestLiveOrphanAntiJoinReplacesBrokenNotDashDashPredicate' -count=1` (env-gated
-on `ESHU_CYPHER_BOLT_DSN`) first reproduces the historical `NOT (n)--()` no-op
-on a true orphan on the live backend, then proves the anti-join store marks,
-ages, sweeps the orphan, clears a relinked node's marker, and preserves
-connected nodes across two injected-clock cycles; verified on both the pinned
-v1.1.11 and PR261/compose-default NornicDB images (see
-#5147 (retired evidence record)).
-
-Observability Evidence: `OrphanSweepStore` statement summaries and operation
-metadata flow through the existing `InstrumentedExecutor` metrics and spans.
-The reducer-level `eshu_dp_graph_orphan_nodes` observable gauge reports bounded
-per-label counts; the runner logs per-label count, mark, delete, duration, and
-failure class for each cycle.
-
 `CanonicalNodeWriter.Write` executes all canonical writes in named phases:
 `retract`, `repository_cleanup`, `repository`, `directories`, `files`,
 `entities`, `entity_retract`, `entity_containment`, `terraform_state`,
@@ -247,84 +193,6 @@ place, now-empty deleted-file ancestor directories are removed leaf-first, and
 post-upsert entity cleanup is label-scoped plus `n.path IN $file_paths` so
 unchanged files and entities survive a file-scoped resync.
 
-No-Regression Evidence: chunking history — v1.1.9 full-corpus validation
-retried 12 projector items after the delta deleted-file retract hit the 2
-minute write budget; the fix split the positive worklist into 25-path chunks
-(tests `TestChunkPositiveStringSliceRetractStatementSplitsPositiveUnwindList`,
-`TestNornicDBPhaseGroupExecutorChunksDeltaDeletedFileRetractPaths`; negative
-keep-list cleanup stays a single statement). Reshaped by #6715:
-deleted-file/directory statements now seed with positive `IN $file_paths` /
-`IN $directory_paths` instead of the `UNWIND` seed, keeping the same chunks
-(UNWIND-seeded compound: 87–216s/execution on NornicDB v1.3.3; IN: 8.5–9s;
-(#6715)).
-
-No-Observability-Change: chunked delta retracts still flow through the existing
-NornicDB phase-group sequential retract path, statement summaries, retry/error
-wrapping, canonical write spans, phase duration metrics, and `canonical phase
-failed` logs. The change adds no metric name, metric label, worker, queue
-domain, runtime knob, backend branch, or new graph-write route.
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath|TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks|TestCanonicalNodeWriterDeduplicatesRetractFilePaths|TestCanonicalNodeWriterKeepsEmptyDirectoryPathList'
--count=1` proves the positive `IN $file_paths` worklist shape for deleted
-files (converted from the indexed `UNWIND` seed by #6715), protects the current-file
-structural refresh chunk budget, de-duplicates repeated current-file identities,
-keeps empty directory identity lists encoded as Cypher lists, and preserves
-current-file keep-list semantics.
-
-No-Regression Evidence: `go test ./internal/storage/cypher ./cmd/ingester
-./cmd/bootstrap-index ./cmd/projector -count=1` keeps canonical writer, NornicDB
-phase-group executor, bootstrap, and projector wiring covered after adding
-source-local canonical writer tracing and repository-anchored stale-file
-retracts.
-
-Observability Evidence: statement summaries and operation metadata stay on each
-chunked statement, and source-local canonical writes now wrap the writer in
-`canonical.write` plus the retract phase in `canonical.retract`. Phase failures
-also emit a structured `canonical phase failed` log with scope, generation,
-repo, phase, mode, statement count, duration, and error, while existing
-`canonical phase-group write` logs and graph failure details still identify the
-phase and sanitized first statement.
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles|TestDeltaEmptyDirectoryRetractStatementsRunLeafFirst' -count=1`
-proves delta projection skips repository replacement and negative
-full-generation cleanup, deletes only deleted file paths, removes now-empty
-deleted-file ancestor directories leaf-first, and scopes stale entity cleanup to
-touched file paths.
-
-No-Observability-Change: delta cleanup uses existing canonical write phases,
-statement metadata, `canonical.write` spans, phase duration metrics, and phase
-failure logs. It adds no metric name, metric label, worker, retry policy, or
-backend-specific branch.
-
-No-Regression Evidence: GitLab `NEEDS` and `DEFINES_JOB` retracts are bounded
-mixed-phase relationship deletes. The red replay-tier baseline on NornicDB
-v1.1.9 (`timothyswt/nornicdb-cpu-bge:v1.1.9@sha256:9a5126d306a48c01869809da47a869a4521b9328a7ab1c855327f5fd7541e4cd`)
-used the two-generation replaydelta cassette with one `.gitlab-ci.yml`, one
-pipeline, and three surviving jobs. Gen1 wrote `test -> build`; gen2 changed
-only the source job's `needs` metadata to `deploy`. Before Drain-marking the
-GitLab relationship retracts and matching production's mixed-phase autocommit
-path in the live replay executor,
-`ESHU_REPLAY_TIER_HTTP_PORT=7574 ESHU_REPLAY_TIER_BOLT_PORT=7787 bash scripts/verify-replay-tier.sh`
-failed with old `test -> build` `NEEDS` count `1`, wanted `0`. After the change,
-the same command passed against real NornicDB in 4 seconds, and
-`TestDeltaTombstoneGraphTruth` read back old `test -> build` count `0` plus new
-`test -> deploy` count `1`. Focused local proof also passed:
-`go test ./internal/storage/cypher -run 'TestGitlabEdgeStatements|TestStatementDrainFieldsAreZeroValueByDefault' -count=1`,
-`go test ./internal/replay/offlinetier -run 'TestDeltaMaterializationGitlabNeedsChangesBetweenSurvivingJobs|TestDeltaTombstoneGraphTruth' -count=1`,
-`go test ./internal/replaycoverage ./cmd/replay-coverage-gate ./internal/replay/offlinetier ./internal/storage/cypher -count=1`,
-and `make pre-pr`, including the graph-write race lane. Terminal graph row
-counts are bounded by the cassette: one pipeline source, three job source UIDs,
-one stale `NEEDS` edge deleted, and one current `NEEDS` edge merged.
-
-No-Observability-Change: GitLab edge retracts still execute through the
-canonical `structural_edges` phase and retain existing statement metadata,
-`canonical.write` spans, phase duration metrics, NornicDB phase-group logs, and
-reconciliation drift recording for autocommit retracts. The change adds no
-metric name, metric label, queue, worker, retry policy, runtime knob, or new
-backend branch.
-
 Code-call shared projection routes `CALLS`, `REFERENCES`, and `USES_METACLASS`
 through label-scoped batched edge statements when endpoint labels are known.
 Each code-call statement carries a bounded route summary with relationship,
@@ -338,26 +206,6 @@ collapse these back to `MATCH (child)-[rel:...]->() WHERE child.repo_id IN ...`
 or `child.path IN ...`; that relationship-scan-first shape was measured as the
 dominant `inheritance_edges` shared-projection cost on NornicDB.
 
-Performance Evidence: a bounded NornicDB PR #230 run isolated one
-`inheritance_edges` shared projection cycle at `133.410836794s` total, with
-`retract_duration_seconds=133.408286922`, `selection_duration_seconds=0.000874641`,
-`write_duration_seconds=0.00000081`, `mark_completed_duration_seconds=0.001031401`,
-and `indexed_selection=true`. The old retract shape started from an unbound
-relationship expansion and only filtered the child node by `repo_id` afterward.
-The new repo-wide shape `UNWIND`s repo IDs, `MATCH`es
-`Function|Class|Interface|Trait|Struct|Enum|Protocol` children by indexed
-`repo_id`, and then expands the outgoing inheritance relationship; the delta
-file-scoped shape does the same by indexed `path`. NornicDB source evidence for
-the PR #230 checkout shows bound relationship `DELETE` tests using a source-node
-anchor before relationship expansion.
-
-No-Observability-Change: shared projection cycle logs already split selection,
-lease claim, retract, write, and mark-complete durations and identified retract
-as the slow layer. The updated Cypher still executes through
-`EdgeWriter.RetractEdges`, existing statement summaries, retry wrapping, graph
-write spans, and shared-edge logs; no metric name, metric label, queue domain,
-worker, lease, timeout, runtime knob, or backend-specific branch changes.
-
 Repo-dependency retract executes repository relationship edge cleanup,
 `RUNS_ON` cleanup, and evidence-artifact cleanup as separate sequential
 statements because grouped deletes under-apply on NornicDB v1.1.11. The
@@ -368,28 +216,6 @@ source equality owns the omission: prefix lookalikes and every other evidence
 source retain all three roles. A mismatched code-import write fails closed
 before backend execution. Single-repository cycles retain direct `$repo_id`
 anchors, and the repo-dependency runner remains one repo-owned partition.
-
-Performance Evidence: the retained 896-repository run attributed `362.94s` to
-the impossible code-import `RUNS_ON` role, exceeding the `158s` worthwhile-work
-threshold by `204.94s`. On the quiet retained graph, the alternative indexed
-traversal saved only milliseconds, so that rewrite was deferred. The complete
-proof and exactness table are in
-#5208 (retired evidence record).
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestEdgeWriterRetractEdgesRepoDependency|TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn|TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes'
--count=1` proves code-import executes two sequential roles, other and
-prefix-collision sources execute three, malformed code-import `RUNS_ON` writes
-fail closed, and the existing source-capable roles keep their bound delete
-shapes.
-
-Observability Evidence: executed roles retain `shared edge retract statement
-completed`. The source-capability omission emits `shared edge retract role
-omitted` with `domain`, `evidence_source`, `statement_role`, `repo_count`, and
-bounded `reason=source_capability`. The
-`eshu_dp_shared_edge_runs_on_retract_omissions_total` counter increments once
-per omitted role with bounded `domain` and `reason` labels. No worker, lease,
-partition, retry, timeout, or backend branch changes.
 
 Terraform-state rows are written as `TerraformResource`, `TerraformModule`, and
 `TerraformOutput` nodes keyed by `uid`. The rows keep lineage, serial, provider
@@ -502,35 +328,6 @@ version, dependency, and artifact rows (locked by `PackageID`), so
 same-package event observations serialize with other package-registry writes
 for that package.
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriter(SerializesConcurrentDuplicatePackageUIDs|SerializesDependencyTargetPackageUIDs|AllowsConcurrentDistinctPackageUIDs|BuildsPackageRegistryStatements|SeparatesPackageRegistryPhaseGroups|DeduplicatesPackageRegistryDependencyTargets|DeduplicatesPackageRegistryPackages|BuildsPackageRegistryEventStatements|PackageRegistryEventEdgeRunsAfterNodePhases)|TestPackageRegistryIdentityLockKeysCoverPackageSources'
--count=1` proves duplicate primary and dependency-target package UID writes
-serialize before backend execution, distinct package UIDs still execute
-concurrently, package/version/dependency/artifact/event phases stay ordered,
-duplicate package rows are deduplicated before graph-write batches, and the
-registry-event node and deferred edge statements carry the expected Cypher
-shape and phase ordering.
-
-Observability Evidence: `canonical.write` spans now include
-`package_registry_identity_lock_key_count` and
-`package_registry_identity_lock_wait_seconds` when a materialization carries
-package-registry identities. Slow same-UID waits emit a structured
-`canonical package registry identity lock acquired` log with `package_uid_min`,
-scope, repo, generation, key count, and wait seconds. Existing phase spans,
-duration metrics, phase failure logs, phase-group chunk summaries, retry logs,
-and queue failure payloads still expose true backend conflicts and retries.
-
-No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -run 'TestBuildCanonicalMaterializationExtractsPackageRegistry|TestCanonicalNodeWriterBuildsPackageRegistryStatements' -count=1`
-proves package-registry identity fields (`purl`, `bom_ref`,
-`package_manager`, and source-debug fields) survive fact-to-row extraction and
-the ordered Cypher row builders without changing package/version/dependency
-phase ordering.
-
-No-Observability-Change: identity fields are additional node properties on
-existing package-registry phase groups. The existing canonical phase spans,
-duration metrics, statement summaries, row counts, and phase failure logs still
-diagnose stuck, slow, or failed package-registry graph writes.
-
 `EdgeWriter.WriteEdges` maps a `reducercontract.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
 `DefaultBatchSize` = 500). Domain-specific sub-batch sizes are available for
@@ -567,27 +364,6 @@ concurrency regression holds two reducer calls inside auto-commit execution at
 the same time, while the live backend proof repeats each MERGE to lock duplicate
 delivery at one edge.
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestEdgeWriter(WriteEdgesShellExec|RetractEdgesShellExecDeltaUsesFileScope)'
--count=1` covers the static-token MERGE shape and file-scoped retract. The
-writer adds one `UNWIND` + `MATCH Function uid` + `MERGE ShellCommand uid`
-write statement and no per-row graph round trip. Shell-exec retracts run the
-edge delete first, then a same-scope `ShellCommand` orphan cleanup anchored by
-indexed repo or path so removed command-call churn does not grow future retract
-anchors. That cleanup (`EdgeWriter.cleanupOrphanShellCommands`) is the same
-S1/S2 Go-side anti-join shape as `OrphanSweepStore` (see "`OrphanSweepStore`
-is the cleanup seam..." above): it reads candidate uids, reads which of those
-uids currently have any relationship via a concrete relationship variable,
-computes the anti-join in Go, and deletes only the non-connected uids by
-explicit key, through `EdgeWriter.Reader`. It never relies on a
-relationship-existence predicate (#5310; see
-docs/public/reference/nornicdb-pitfalls.md).
-
-No-Observability-Change: shell-exec writes use the existing
-`EdgeWriter.WriteEdges` / `RetractEdges` path, statement summaries,
-retry wrapping, shared-edge write metrics, and domain labels. No new metric
-instrument, runtime knob, or graph backend branch was added.
-
 `DomainRunsIn` writes `Function-[:RUNS_IN]->Workload` edges that bind a proven
 route-handler Function to the deployed runtime it runs in (#2722, under epic
 #2703/#2710). The reducer scopes the source to exactly the entrypoint Functions
@@ -619,18 +395,6 @@ alongside the other drained domains, and retraction removes only edges owned by
 `evidence_source='reducer/runs-in'` for the re-projected repositories, anchored on
 the source `Function.repo_id`.
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
--count=1` proves the runs_in intent scoping (one intent per resolved handler
-Function, skips for unknown/ambiguous/handler-less entries), the conservative
-`ambiguous=true` representation, the readiness phase/keyspace and domain
-enumeration, and the edge-writer UNWIND MATCH-MATCH-MERGE Cypher plus row map
-(rows missing `function_id`/`repo_id` are dropped) and scoped retract.
-
-Observability Evidence: `runs_in` is drained by the shared-projection partition
-worker like every other shared domain, so its statement summaries and operation
-metadata appear in the same `canonical.write`/retract telemetry path; no new
-observability surface is introduced.
-
 `IncidentRoutingEvidenceWriter` is a reducer-owned graph writer for PagerDuty
 incident routing. It writes only `IncidentRoutingEvidence` nodes and static
 `HAS_INTENDED_ROUTING`, `HAS_APPLIED_ROUTING`, or `HAS_LIVE_ROUTING`
@@ -638,11 +402,6 @@ relationships between evidence nodes. The writer rejects out-of-vocabulary or
 unsafe slot values before building Cypher, uses batched `UNWIND` statements,
 and retracts only rows owned by `evidence_source='reducer/incident-routing'`
 for the current scope.
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'IncidentRoutingEvidenceWriter' -count=1` proves static relationship tokens,
-slot validation, scoped retraction, and grouped execution for the
-incident-routing writer.
 
 `SecretsIAMGraphWriter` is the reducer-owned secrets/IAM graph projection writer
 (ADR #1314): four `SecretsIAM*` node families (uid-only `MERGE`) and five
@@ -654,40 +413,6 @@ reducer projection that drives it stays OFF by default behind
 `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`; ADR #1314 §14 sign-off and
 repo-local proofs exist, but #2430 must bind activation to one target deployment
 and record flag-on proof before production enablement.
-
-Benchmark Evidence: `BenchmarkSecretsIAMGraphWriter`
-(`cloud/aws/iam/secrets_graph_writer_bench_test.go`) measures statement construction and
-`UNWIND` batching for all four node families and five edges at 5,000 rows each
-through the no-op group executor (ADR #1314 §12). On an Apple M4 Pro
-(`darwin/arm64`, `-benchtime=50x -count=3`) it runs ~20.8–38.7 µs/op,
-53,728–53,729 B/op, 765 allocs/op — faster than
-`BenchmarkCloudResourceNodeWriter` (~2.87 ms/op),
-`BenchmarkKubernetesCorrelationEdgeWriter` (~1.10 ms/op), and
-`BenchmarkSecurityGroupReachabilityWriter` (~3.98 ms/op) because each surface is
-one homogeneous static template streamed straight into batches with no per-row
-token-grouping and no per-edge graph read. The write side has no N+1 and stays in
-the proven node/edge writer shape class, far under the §12 ~10% regression stop
-threshold. Reproduce with `go test ./internal/storage/cypher -run '^$' -bench
-BenchmarkSecretsIAMGraph -benchmem -benchtime=50x`.
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run SecretsIAMGraph
--count=1` proves node/edge Cypher shape, uid-only MERGE identity, scoped retract
-with no endpoint deletion, and batching. The ADR #1314 §11 TRUE live-backend
-conformance is the BACKEND-GATED `TestSecretsIAMGraphWriterLiveConformance`
-(`cloud/aws/iam/secrets_graph_live_test.go`): it writes all four node families and five
-edges, reads them back, and proves scoped retract leaves the retained
-`KubernetesWorkload` and `CloudResource` endpoints intact. It SKIPs cleanly
-unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are set, so the default run
-never fabricates a live proof. The June 7 proof snapshot in
-`docs/internal/design/1314-secrets-iam-graph-promotion-proof-2026-06-07.md`
-records successful NornicDB and Neo4j live writer conformance plus shared
-backend conformance; production activation remains blocked on #2430's
-target-bound activation record.
-
-Observability Evidence: no new metric name is introduced by the writer; the
-reducer projection domain owns the bounded-enum node/edge/skip counters and the
-per-phase-duration completion log documented in
-(#1347).
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -701,22 +426,6 @@ outcome is unknown. Durable callers may later replay still-pending idempotent
 work after backoff. The same exponential-backoff loop covers `Execute` and
 `ExecuteGroup`. Typed driver transients replay the managed transaction body;
 message-derived conflicts require all statements to be replay-safe, including `MERGE` and bounded retracts.
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict|TestRetryingExecutorV131WriteConflictUsesBoundedMetricReason|TestRetryingExecutor(RetriesDriverConnectivityError|ConnectivityErrorExhaustionRemainsQueueRetryable)|TestWrapRetryableNeo4jError'
--count=1` proves the typed classifier retained by v1.3.2, its bounded metric
-reason, driver connectivity retries, and queue-retryable local-budget exhaustion.
-
-Observability Evidence: no new metric name was needed. Existing
-`neo4j transient error, retrying` structured logs,
-`eshu_dp_neo4j_deadlock_retries_total{write_phase,reason}`, graph query spans,
-and queue `failure_class` rows expose retry attempts, operation labels,
-bounded retry classes, exhausted retry errors, and dead-letter prevention.
-The counter name is legacy and tracks this package's broader transient graph
-write retry class. Its closed `reason` enum is `connectivity_error`,
-`transient_error`, `write_conflict`, `commit_unique_conflict`, or `neo4j_parser_interval_race` (#8190); the exact
-typed snapshot conflict selects the existing `write_conflict` value. Raw errors,
-repository ids, node ids, and statements stay out of metric labels.
 
 ## Exported surface
 
@@ -892,15 +601,6 @@ one label would make the delta path's much higher call volume invisible.
   `(source_uid, target_uid)`, with an evidence-source-scoped
   (`reducer/aws-cloud-image`) retract that never touches either endpoint's node
 
-  Performance Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-  BenchmarkCloudResourceContainerImageEdgeWriter -benchmem -benchtime=100ms
-  -count=6` shaped 5,000 edges at batch 500 in `~1.72 ms/op` (`3.61 MB/op`,
-  `35,071 allocs/op`) on darwin/arm64 (Apple M4 Pro), no-op group executor.
-  No-Regression Evidence: same order of magnitude as, and fewer allocations
-  than, the sibling `BenchmarkCloudResourceEdgeWriter` baseline
-  (`~1.6 ms/op`, `3.89 MB/op`, `40,099 allocs/op`) on the same corpus and batch
-  size — see `docs/internal/aws-relationship-edge-materialization-design.md`
-  §12.
 - `S3InternetExposureNodeWriter` — writes reducer-owned S3 internet-exposure
   properties onto existing S3 `CloudResource` nodes (issue #1232); constructed
   with `NewS3InternetExposureNodeWriter(executor, reader, batchSize)`. Uses
@@ -927,37 +627,6 @@ one label would make the delta path's much higher call volume invisible.
   `ec2_internet_exposure_*` properties scoped by reducer evidence source and
   scope id.
 
-No-Regression Evidence: deployable-unit edge writes use the shared static-token
-`EdgeWriter` path with no per-row graph reads. On Apple M4 Pro (`darwin/arm64`),
-`go test ./internal/storage/cypher -run '^$' -bench 'BenchmarkDeployableUnitCorrelationEdgeWriter|BenchmarkKubernetesCorrelationEdgeWriter' -benchmem -benchtime=20x -count=3`
-writes 5,000 `CORRELATES_DEPLOYABLE_UNIT` rows at `2.94-3.05 ms/op`,
-`7.32 MB/op`, and `80,052-80,053 allocs/op`. The lean dedicated
-`BenchmarkKubernetesCorrelationEdgeWriter` baseline on the same run measured
-`1.16-1.23 ms/op`, `2.16 MB/op`, and `25,098 allocs/op`; the deployable-unit
-path is heavier because it carries the generic shared-intent row map and
-admission metadata, but it remains one batched no-N+1 write surface.
-
-No-Observability-Change: deployable-unit writes flow through
-`EdgeWriter.WriteEdges` / `RetractEdges`, existing retry wrapping, grouped
-execution, shared-edge group metrics, statement summaries, and failure logs. The
-change adds no metric name, metric label, worker, queue domain, runtime knob, or
-backend-specific branch.
-
-  Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-  BenchmarkEC2InternetExposureNodeWriter -benchmem -count=3` writes 5,000 rows
-  at batch 500 in `1.35 ms/op`, `1.33 ms/op`, and `1.33 ms/op` on darwin/arm64
-  Apple M4 Pro, about `1.97 MB/op` and `25,068 allocs/op`.
-  No-Regression Evidence: `go test ./internal/storage/cypher -run
-  EC2InternetExposure -count=1` proves empty-row no-op behavior,
-  MERGE-anchored SET on a confirmed-existing uid, never-create for an
-  unconfirmed uid, scope/evidence annotation, unknown boolean removal, raw
-  public-IP redaction, and property-only retract.
-  Observability Evidence: statement summaries and operation metadata
-  (`phase=ec2_internet_exposure`, `label=CloudResource:EC2InternetExposure`)
-  ride each statement for the existing InstrumentedExecutor
-  `eshu_dp_neo4j_query_duration_seconds` and `eshu_dp_neo4j_batch_size`
-  metrics; the reducer handler owns the EC2 exposure domain counters and
-  completion log.
 - `EC2BlockDeviceKMSPostureNodeWriter` — writes reducer-owned EC2 block-device
   KMS posture properties onto existing EC2 `CloudResource` nodes (issue #1304);
   constructed with `NewEC2BlockDeviceKMSPostureNodeWriter(executor, reader,
@@ -979,19 +648,6 @@ backend-specific branch.
   metadata. Retract deletes only reducer-owned edges scoped by edge `scope_id`
   and `evidence_source`, leaving global `ExternalPrincipal` identities in place.
 
-  Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-  'BenchmarkS3ExternalPrincipalGrantWriter|BenchmarkS3LogsToEdgeWriter|BenchmarkCloudResourceEdgeWriter|BenchmarkCloudResourceNodeWriter'
-  -benchmem -benchtime=100x` shaped 5,000 node+edge rows at batch 500 in
-  `3.28 ms/op` (`6.49 MB/op`, `35,072 allocs/op`) on darwin/arm64 Apple M4 Pro,
-  with no per-row graph round trip.
-  No-Regression Evidence: `go test ./internal/storage/cypher -run
-  S3ExternalPrincipalGrant -count=1` proves the source `MATCH`, bounded
-  `ExternalPrincipal` MERGE, static relationship token, optional-metadata
-  preservation, raw-policy redaction, batching, and scoped retract.
-  Observability Evidence: statement summaries and operation metadata
-  (`phase=s3_external_principal_grant`, `label=ExternalPrincipal`) ride each
-  statement for the InstrumentedExecutor's graph query duration and batch-size
-  metrics; the reducer handler owns the domain span and completion log.
 - `WorkloadNodeWriter` (`k8snodewriter`, `go/internal/storage/cypher/kubernetes`) — writes canonical `KubernetesWorkload` nodes
   for the live-workload materialization reducer domain (issue #388);
   constructed with `NewWorkloadNodeWriter`. Batched `UNWIND` +
@@ -1043,24 +699,6 @@ backend-specific branch.
   interpolation. Idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`, with an
   evidence-source-scoped, edge-`scope_id`-filtered retract
 
-  Performance Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-  BenchmarkKubernetesCorrelationEdgeWriter -benchmem -benchtime=200x` shaped
-  5,000 edges at batch 500 in `1.14 ms/op` (`2.16 MB/op`, `25,098 allocs/op`) on
-  darwin/arm64 (Apple M3 Pro), no-op group executor.
-  No-Regression Evidence: faster and leaner than the proven
-  `BenchmarkCloudResourceEdgeWriter` (`1.81 ms/op`, `3.89 MB/op`) and
-  `BenchmarkObservabilityCoverageEdgeWriter` (`1.71 ms/op`) baselines on the same
-  machine and input shape because the row carries fewer properties and one static
-  relationship type; the write is bounded by `ceil(E/batchSize)` statements with
-  no per-edge graph round trip. `go test ./internal/storage/cypher -run
-  TestKubernetesCorrelationEdgeWriter -count=1` proves the MATCH-MATCH-MERGE
-  shape, the closed-vocabulary source-label hardening, batching, atomic grouping,
-  scope/evidence annotation, and the edge-scoped retract.
-  Observability Evidence: statement summaries and operation metadata
-  (`phase=kubernetes_correlation_edge`, `label=RUNS_IMAGE`) ride each statement
-  for the InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
-  `eshu_dp_neo4j_batch_size`; the reducer handler owns the
-  `eshu_dp_kubernetes_correlation_edges_total` counter and completion log.
 - `IAMEscalationEdgeWriter` — writes canonical `CAN_ESCALATE_TO` privilege-
   escalation edges between an IAM principal `CloudResource` node and the IAM
   target `CloudResource` node it can escalate to, for the IAM escalation
@@ -1077,23 +715,6 @@ backend-specific branch.
   evidence-source-scoped, edge-`scope_id`-filtered retract. Security-sensitive: it
   persists only the conservatively-resolved rows the extractor produced.
 
-  Performance Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-  BenchmarkIAMEscalationEdgeWriter -benchmem` shaped 5,000 edges at batch 500 in
-  `~1.33 ms/op` (`~1.97 MB/op`, `~25,068 allocs/op`) on darwin/arm64 (Apple M4
-  Pro), no-op group executor — same shape class as the proven `RUNS_IMAGE`
-  (`1.14 ms/op`) and reachability writers; bounded by `ceil(E/batchSize)`
-  statements with no per-edge graph round trip.
-  No-Regression Evidence: the edge family adds one static-token MERGE shape over
-  two uid-indexed CloudResource anchors, identical to the already-measured #388 /
-  #1135 writers; `go test ./internal/storage/cypher -run TestIAMEscalation
-  -count=1` proves the static-type MATCH-MATCH-MERGE, the primitive-out-of-MERGE-
-  key contract, batching, scope/evidence annotation, and the edge-scoped retract.
-  Observability Evidence: statement summaries and operation metadata
-  (`phase=iam_escalation_edge`, `label=CAN_ESCALATE_TO`) ride each statement for
-  the InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
-  `eshu_dp_neo4j_batch_size`; the reducer handler owns the
-  `eshu_dp_iam_escalation_edges_total` / `eshu_dp_iam_escalation_skipped_total`
-  counters and completion log.
 - `IAMCanPerformEdgeWriter` — writes canonical `CAN_PERFORM`
   effective-permission edges between an IAM principal `CloudResource` node and the
   resource `CloudResource` node an identity or resource policy grants a catalogued
@@ -1113,26 +734,6 @@ backend-specific branch.
   retract. Security-sensitive: it persists only the conservatively-resolved rows
   the extractor produced.
 
-  Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-  'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem
-  -count=3` shaped 5,000 edges at batch 500 in `1.25 ms/op`, `1.24 ms/op`, and
-  `1.24 ms/op` (`~1.97 MB/op`, `25,068 allocs/op`), no-op group executor,
-  versus the shipped `CAN_ESCALATE_TO` writer baseline at `1.21 ms/op`,
-  `1.21 ms/op`, and `1.20 ms/op` on the identical row shape, under the 10% stop
-  threshold; bounded by `ceil(E/batchSize)` statements with no per-edge graph
-  round trip.
-  No-Regression Evidence: the edge family adds one static-token MERGE shape over
-  two uid-indexed CloudResource anchors, identical to the already-measured #1134
-  PR3 / #388 / #1135 writers; `go test ./internal/storage/cypher -run
-  TestIAMCanPerform -count=1` proves the static-type MATCH-MATCH-MERGE, the
-  actions/grant-sources-out-of-MERGE-key contract, the evaluation-scope honesty
-  label, batching, scope/evidence annotation, and the edge-scoped retract.
-  Observability Evidence: statement summaries and operation metadata
-  (`phase=iam_can_perform_edge`, `label=CAN_PERFORM`) ride each statement for the
-  InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
-  `eshu_dp_neo4j_batch_size`; the reducer handler owns the
-  `eshu_dp_iam_can_perform_edges_total` / `eshu_dp_iam_can_perform_skipped_total`
-  counters and completion log.
 - `RDSPostureNodeWriter` — stamps RDS security and operations posture properties
   onto existing RDS DB instance and Aurora cluster `CloudResource` nodes for the
   RDS posture materialization reducer domain (issue #1233); constructed with
@@ -1147,15 +748,6 @@ backend-specific branch.
   `rds_posture_evidence_source`, then `REMOVE`s only reducer-owned `rds_*`
   posture fields.
 
-  No-Regression Evidence: `go test ./internal/storage/cypher -run
-  RDSPosture -count=1` proves empty-row no-op behavior, MERGE-anchored SET on
-  a confirmed-existing uid, never-create for an unconfirmed uid,
-  scope/evidence annotation, and property-only retract.
-  Observability Evidence: statement summaries and operation metadata
-  (`phase=rds_posture`, `label=CloudResource:RDSPosture`) ride each statement
-  for the existing InstrumentedExecutor `eshu_dp_neo4j_query_duration_seconds`
-  and `eshu_dp_neo4j_batch_size` metrics; no new metric name or label was
-  required.
 - `EC2InstanceIdentityNodeWriter` — stamps the #5448 `ami_id` property (plus
   `ec2_identity_*` provenance) onto existing EC2 instance `CloudResource`
   nodes for the EC2 instance identity materialization reducer domain;
@@ -1172,16 +764,6 @@ backend-specific branch.
   `ec2_identity_evidence_source`, then `REMOVE`s only `ami_id` and the
   `ec2_identity_*` properties.
 
-  No-Regression Evidence: `go test ./internal/storage/cypher -run
-  EC2InstanceIdentity -count=1` proves empty-row no-op behavior,
-  MERGE-anchored SET on a confirmed-existing uid, never-create for an
-  unconfirmed uid, property-only retract, and the cross-writer property
-  disjointness.
-  Observability Evidence: statement summaries and operation metadata
-  (`phase=ec2_instance_identity`, `label=CloudResource:EC2InstanceIdentity`)
-  ride each statement for the existing InstrumentedExecutor
-  `eshu_dp_neo4j_query_duration_seconds` and `eshu_dp_neo4j_batch_size`
-  metrics; no new metric name or label was required.
 - `EC2BlockDeviceKMSPostureNodeWriter` — stamps bounded EC2 block-device KMS
   posture properties (`ec2_block_device_kms_state`, reason, volume counts,
   unresolved count, sorted volume ids, and sorted KMS key ids) onto existing EC2
@@ -1308,56 +890,6 @@ adapter seam.
   projector/reducer queue rows; the `TimeoutHint` field names the env var to
   tune.
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-TestCanonicalNodeWriterSkipsRepositoryRetractForNonRepositoryProjection -count=1`
-proves OCI/package canonical materializations no longer emit repository-scoped
-retract statements. The remote full-corpus Compose gate on 2026-05-19 drained
-`896` git scopes, `1` OCI registry scope, `1` package registry scope, and `1`
-Terraform-state scope with projector `917` succeeded / `58` superseded, reducer
-`7458` succeeded, and no `projection failed`, `graph_write_timeout`, failed,
-retrying, or dead-letter rows.
-
-Observability Evidence: existing `eshu_dp_canonical_phase_duration_seconds`,
-`eshu_dp_projector_stage_duration_seconds`, and structured `projection failed`
-logs expose the phase, source system, generation id, failure class, and timeout
-hint when repository cleanup is slow or mis-scoped.
-
-Performance Evidence: a 2026-05-21 full-corpus remote Compose run against
-NornicDB v1.1.1 plus the transaction-router fix drained `896` accepted
-repositories but dead-lettered one OCI registry `source_local` item after three
-`120s` `graph_write_timeout` attempts in `phase=oci_registry`. Focused probes
-against the populated graph showed 20-row multi-label OCI node-only `MERGE`
-completed in `5ms`, while 20-row `PUBLISHES_DESCRIPTOR` relationship writes
-took about `51s` and relationship `CREATE` variants still timed out at `30s` to
-`65s`. A single-label `MERGE` plus `SET n:ContainerImage` probe completed in
-`6ms` but did not persist the added label in NornicDB, so the canonical OCI
-writer keeps multi-label node identities for query accuracy and skips
-relationship writes until a measured relationship writer exists.
-
-Performance Evidence: after removing OCI registry relationship writes, the
-`oci-relfix-full-20260521T233652Z` remote Compose proof with pprof enabled
-reached queue-zero at `2026-05-21T23:52:03Z`: fact work items were `8389/8389`
-succeeded with `0` failed, retrying, or dead-letter rows. The OCI registry
-collector completed `1` configured scope; the `oci_registry` canonical phase
-wrote `4` statements in about `40ms`, and the source-local OCI projection
-completed `212` facts in about `69ms`. Shared projections also completed
-`344592/344592` code-call rows and `1188/1188` repo-dependency rows. A
-preserved-volume restart then recovered the API, MCP, reducer, ingester,
-workflow, webhook, and collectors, and reached a no-pending queue sample again
-with only succeeded work rows.
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriter(BuildsOCIRegistryStatements|OCIRegistrySkipsRelationshipWrites|OCIRegistryKeepsImageFamilyLabels)' -count=1`
-proves OCI canonical statements retain digest/tag/referrer nodes, keep
-image-family labels used by the read surface, and do not emit `PUBLISHES_*` or
-`OBSERVED_*` relationship writes in the hot path.
-
-Observability Evidence: existing canonical phase duration metrics, projector
-stage duration metrics, and structured `projection failed` logs expose the
-`oci_registry` phase, source system, generation id, and NornicDB error text.
-Workflow and fact work-item rows surface the same failed projection through
-retry, failed, and dead-letter state without adding a new metric label.
-
 ### AWS relationship edge writer (issue #805 PR 2)
 
 `CloudResourceEdgeWriter` projects resolved `aws_relationship` facts into
@@ -1370,42 +902,6 @@ the two `MATCH`es are schema-backed lookups, not label scans; the logical identi
 `(source, relationship_type, target)`, including case. Full design and decision
 record: `docs/internal/aws-relationship-edge-materialization-design.md`
 §5–§11.
-
-Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-BenchmarkCloudResourceEdgeWriter -benchmem -count=1` on darwin/arm64 (Apple M3
-Pro), no-op group executor so the number isolates Eshu-side work: `5,000`
-resolved edge rows shaped into relationship-type-grouped batched
-`MATCH-MATCH-MERGE` statements at the default `500`/UNWIND ran `2.31 ms/op`,
-`3.89 MB/op`, `40,099 allocs/op`. The write side is bounded by distinct
-relationship types times `ceil(E_type/batchSize)` statements, so there is no
-per-edge round trip and no N+1. The bounded in-memory join is proven separately
-by `BenchmarkExtractAWSRelationshipEdgeRows` in `go/internal/reducer`.
-
-Performance Evidence: a remote NornicDB-backed Compose probe against a
-populated graph showed the previous property-map relationship `MERGE` timed out
-at `20s` for 12 rows, while the static relationship-type `MERGE` completed in
-`0-1ms` per 12-row relationship-type batch for the same endpoint and row shape.
-The same probe retracted 24 temporary edges with the evidence-source/scope
-delete in about `2.1s`. A follow-up probe confirmed NornicDB accepts the
-case-preserving lower-case static token shape (`AWS_uses_kms_key`) with a `0ms`
-single-row upsert. `go test ./internal/storage/cypher -run
-TestCloudResourceEdgeWriter -count=1` proves the MATCH-MATCH-MERGE shape,
-batching, atomic group dispatch, evidence-source-scoped retract, unsafe
-relationship-type rejection, case-preserving identity, and no-fabrication
-invariant.
-
-Observability Evidence: every edge statement and group flows through the
-production `InstrumentedExecutor`, recording
-`eshu_dp_neo4j_query_duration_seconds` (operation=write) and
-`eshu_dp_neo4j_batch_size`. The reducer handler adds the
-`eshu_dp_aws_relationship_edges_total` counter dimensioned by
-`relationship_type` and `join_mode`
-(arn / bare_id / correlation_anchor / unresolved), the
-`reducer.aws_relationship_materialization` span, and an `aws relationship
-materialization completed` structured log with per-stage durations and the
-resolved/unresolved tallies, so an operator can tell which AWS relationship
-target types are losing edges and whether it is because the target service was
-not scanned in this scope.
 
 ### Kubernetes live-workload node writer (issue #388)
 
@@ -1424,33 +920,6 @@ not a label scan. The #388 edge slice (PR3) resolves its workload endpoint
 against these nodes exactly as the AWS relationship edge resolves against
 `CloudResource` nodes. Design and decision record:
 `docs/internal/design/388-kubernetes-workload-node.md`.
-
-Benchmark Evidence: `go test ./internal/storage/cypher/kubernetes -run '^$' -bench
-BenchmarkKubernetesWorkloadNodeWriter -benchmem -benchtime=200x` on darwin/arm64
-(Apple M3 Pro), no-op group executor so the number isolates Eshu-side statement
-construction and batching: `5,000` pod-template-backed node rows shaped into
-default `500`/UNWIND batches ran `2.73 ms/op`, `6.33 MB/op`, `25,069
-allocs/op` — within noise of the proven `BenchmarkCloudResourceNodeWriter`
-baseline on the same machine and input shape (`2.76 ms/op`, `6.33 MB/op`,
-`25,068 allocs/op`), because the writer reuses the identical UNWIND-batched
-MERGE-on-uid shape. No-Regression Evidence: the new node-write path adds no new
-per-row cost over the established CloudResource node writer; the write is bounded
-by `ceil(W/batchSize)` statements with no per-node round trip and no N+1.
-`go test ./internal/storage/cypher/kubernetes -run TestKubernetesWorkloadNodeWriter
--count=1` proves the MERGE-on-uid identity, batching, atomic group dispatch,
-evidence-source annotation, and empty-rows no-op.
-
-Observability Evidence: every node statement and group flows through the
-production `InstrumentedExecutor`, recording
-`eshu_dp_neo4j_query_duration_seconds` (operation=canonical_upsert) and
-`eshu_dp_neo4j_batch_size`; each statement carries `phase=kubernetes_workload`
-and `label=KubernetesWorkload` statement metadata. The reducer handler adds the
-`eshu_dp_kubernetes_workload_nodes_total` counter (dimension: `domain`), a
-`kubernetes workload materialization completed` structured log with per-stage
-durations (fact load, extract, graph write, phase publish) and the node count,
-so an operator can see how many live-workload nodes one generation committed —
-the substrate the later edge slice resolves against — and spot a generation that
-committed zero nodes.
 
 ## Extension points
 
@@ -1508,22 +977,6 @@ committed zero nodes.
   sweep delete, re-verify connectivity for exactly the keys about to be
   deleted (TOCTOU guard) rather than trusting the top-of-cycle read.
 
-  No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -count=1`
-  on 2026-05-22 covered package-registry phase ordering with 1 package, 1
-  version, and 1 dependency row. `go test ./internal/storage/cypher -run
-  'TestCanonicalNodeWriterBuildsPackageRegistryStatements|TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups|TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets'
-  -count=1` covers the dependency-target package split and duplicate target
-  rows. The change preserves the same Cypher templates and only splits NornicDB
-  phase-group commits so dependent `MATCH` statements see prior identities.
-  Remote full-corpus run `vulnerability-targets-20260524T050624Z` proved the
-  split plus projector retry wrapper survived repeated NornicDB package
-  unique-conflict retries without a dead-letter.
-
-  Observability Evidence: `CanonicalNodeWriter` phase logs now expose
-  `phase=package_registry_packages`, `phase=package_registry_versions`, and
-  `phase=package_registry_dependencies`; projector canonical-write logs expose
-  `package_registry_package_count`, `package_registry_version_count`, and
-  `package_registry_dependency_count`.
 - Repository-root `File` rows are the exception to the Directory parent rule:
   they must attach directly to `Repository` through `REPO_CONTAINS` because
   `buildDirectoryChain` intentionally does not create a synthetic Directory for
@@ -1609,11 +1062,6 @@ committed zero nodes.
   `UNIQUE on`, `already exists`, and MERGE-shaped Cypher. Its no-contention path
   is unchanged; only a losing concurrent MERGE pays the existing bounded retry
   backoff, with no worker, batch, query, or conflict-key setting change.
-- Observability Evidence (#6003 follow-up): the compatibility path reuses
-  `eshu_dp_neo4j_deadlock_retries_total` with
-  `reason=commit_unique_conflict` and `write_phase=canonical_upsert`. The metric
-  proof requires those bounded attributes and rejects raw graph identifiers;
-  no metric, span, log field, or status contract is added or renamed.
 - Backend dialect differences (Cypher syntax, transaction shape, constraint
   behavior) belong in documented seams here or in `cmd/` wiring. Do not add
   product-specific branches in callers, and do not create a separate writer
@@ -1634,24 +1082,6 @@ for that row. Retract matches only
 `(:WorkloadInstance)-[rel:USES]->(:CloudResource)` with the reducer evidence
 source and scope filter.
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run
-'WorkloadCloudRelationshipWriter' -count=1` proves static relationship-token
-interpolation, MATCH-only endpoint anchoring, relationship-property-free MERGE,
-and evidence-scoped retract. The writer follows the same one batched statement
-per chunk pattern as the existing CloudResource edge writers. `go test
-./internal/storage/cypher -run '^$' -bench
-'Benchmark(CloudResourceEdgeWriter|WorkloadCloudRelationshipWriter)$' -benchmem
--count=1` on Apple M4 Pro measured the existing CloudResource edge writer at
-1.803331 ms/op and the workload-cloud writer at 3.121138 ms/op for the same
-5000-row, batch-500, no-op group-executor shape, preserving bounded batched
-dispatch with no N+1 graph calls.
-
-Observability Evidence: each statement carries phase
-`workload_cloud_relationship_edge`, entity label
-`WORKLOAD_USES_CLOUD_RESOURCE`, and a bounded summary with row count. Existing
-Cypher instrumentation records graph query duration, batch size, retries, and
-statement summary; no new metric labels or backend-specific branches are added.
-
 ## Code-edge resolution provenance (#2224)
 
 The batched `CALLS`, `REFERENCES`, and `USES_METACLASS` templates
@@ -1663,21 +1093,6 @@ tiered confidence and reason from the reducer-emitted `resolution_method` (ADR
 via `go/internal/codeprovenance`. Rows without a method read as `unspecified`
 and keep the legacy `0.95`, so freshly reprojected edges carry an explicit
 method while un-reprojected legacy edges keep prior behavior.
-
-No-Regression Evidence: `go test ./internal/storage/cypher -run 'CodeCall|Provenance|Parameterized|Confidence' -count=1`
-plus the full `go test ./internal/storage/cypher -count=1` pass; the new tests
-fail against the previous literal `0.95`. The `MATCH`/`MERGE`/`UNWIND` batch
-shape, endpoint label families, and batch sizes are unchanged — only the `SET`
-clause changes from two literals to three row-sourced scalar properties, adding
-no new `MATCH`, traversal, index lookup, or statement. Marginal cost is three
-bounded scalars per row in the already-batched `$rows` parameter, so per-batch
-write cost is invariant in plan shape.
-
-Observability Evidence: the existing `CodeCallEdgeDuration` histogram and
-`CodeCallEdgeBatches` counter (`telemetry.go`) plus the per-statement
-`domain=code_calls relationship=… rows=…` summary expose any edge-write
-regression without new metric labels or backend branches; provenance is carried
-as edge properties, not as new instrumentation.
 
 ## INVOKES_CLOUD_ACTION cloud-action edges (#2723)
 
@@ -1699,27 +1114,6 @@ retract deletes only the `INVOKES_CLOUD_ACTION` edges whose source
 `Function.repo_id IN $repo_ids` and `rel.evidence_source = $evidence_source`,
 leaving the shared id-keyed `CloudAction` node in place.
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
-./internal/graph -count=1` plus the focused
-`go test ./internal/storage/cypher -run 'InvokesCloudAction' -count=1` and
-`go test ./internal/reducer/code/call/materialization -run 'InvokesCloudAction' -count=1` passes; the
-edge-writer and reducer tests fail before the new dispatch/producer exist.
-Cardinality is bounded at most one edge per `(Function, catalog-action)` that is
-provably invoked: the reducer deduplicates by `(function uid, action)` and the
-mapping table is closed to ~19 catalog actions, so a file with many SDK calls
-collapses to a small constant set of edges. The write adds one `UNWIND`
-statement that does one `Function` `uid` `MATCH`, one `id`-keyed `CloudAction`
-`MERGE`, and one relationship `MERGE` per row — all index-backed, no traversal or
-label scan — so the plan shape matches the existing `HANDLES_ROUTE`/`CALLS`
-batched edge writes.
-
-Observability Evidence: the edge write rides the existing per-statement
-`domain=invokes_cloud_action` shared-projection route summary and the shared
-edge-write duration/batch telemetry in `telemetry.go`, so a slow or oversized
-cloud-action batch is attributable to the domain at 3 AM without new metric
-names or labels. Provenance (`confidence`, `resolution_method`,
-`evidence_source`) is carried as edge properties, not as new instrumentation.
-
 ## Statement-parameter sanitization (`phase/group/sanitize.go`)
 
 `SanitizeStatement`/`SanitizeStatements`/`SanitizeStatementParameters` strip the
@@ -1734,30 +1128,6 @@ transaction. These are the single source of truth for the backend executors in
 `cmd/ingester` (`nornicDBPhaseGroupExecutor`) and `cmd/bootstrap-index`, and for
 the offline replay tier's `livePhaseGroupExecutor`; see issue #4186.
 
-No-Regression Evidence: #4186 (PR #4192) extracts the strip-`_`-prefixed-keys
-logic that `cmd/ingester` and `cmd/bootstrap-index` already ran inline into the
-shared `Sanitize*`/`StatementsAllUseOperation` helpers and routes both callers
-through them. Baseline = `origin/main` `cb5a79a28`; after = this change. The
-production NornicDB graph-write path is byte-for-byte unchanged: the same keys
-are stripped at the same call sites, and the empty/non-empty/all-retract
-semantics are identical (verified by `go test ./cmd/ingester ./cmd/bootstrap-index
-./internal/storage/cypher -count=1`, all green, plus the live tier on the pinned
-NornicDB image `timothyswt/nornicdb-cpu-bge:v1.1.6`). The only behavioral change
-is in the test-only `livePhaseGroupExecutor` (an `_test.go` mirror, not a
-production hot path), which now matches production. Input shape: the R-17 delta
-cassette (repo + 3 directories, one tombstone); terminal graph truth is the gen2
-read-back (tombstoned directory count 0, survivors count 1) asserted by
-`scripts/verify-replay-tier.sh`, which passes after the change and failed before.
-The sanitizer adds no graph round-trip and only allocates a replacement map when
-a diagnostic key is present (the no-diagnostics path returns the input map), so
-there is no added hot-path cost over the prior inline implementations.
-
-No-Observability-Change: the change adds no graph query, graph write, queue
-domain, worker, runtime knob, metric, span, log field, or status field.
-Per-phase canonical-write logging (`canonical phase group completed`) and the
-existing write-duration/atomic-write telemetry are untouched; operators continue
-to attribute a slow or failed retract phase exactly as before.
-
 ## Ifá P3 determinism-matrix teeth: `ifadeterminismteeth` build tag (#4396)
 
 `canonicalCloudResourceUpsertCypher` (cloud_resource_node_writer.go) is now
@@ -1770,14 +1140,6 @@ production build (build tag `!ifadeterminismteeth`,
 package executed before this change — see
 `TestCanonicalCloudResourceUpsertCypherExcludesTeethClauseByDefault`, which
 fails the default build if that ever stops being true.
-
-No-Regression Evidence: confirmed with
-`go test ./internal/storage/cypher -run TestCloudResourceNodeWriter -count=1`
-and the exclusion test above; `WriteCloudResourceNodes`'s executed Cypher,
-batching, and transaction shape are unchanged in every normal build.
-
-No-Observability-Change: no metric, span, log, or status field is added or
-changed by the default (`!ifadeterminismteeth`) build.
 
 Only `go build -tags ifadeterminismteeth` (never a normal/CI/production
 build) links `cloud/resource/node_writer_teeth.go`'s two extra SET clauses,
@@ -1821,28 +1183,6 @@ drifting apart; `TestCloudResourceNodeWriterLiveHeterogeneousBatchNeverPersistsL
 is the live-backend, non-vacuous regression proof (skips without
 `ESHU_CLOUDRESOURCE_NODE_WRITER_LIVE=1`).
 
-Performance Evidence: `cloudResourceRowKeyDefaults` is a fixed-order slice,
-not a map — ranging a Go map costs measurably more per entry than a slice
-(hashing plus randomized iteration order), and `defaultFillCloudResourceRow`
-runs once per row in every batch. `BenchmarkCloudResourceNodeWriter` (5,000
-fully-populated rows, where every key is already present so the loop is a
-pure no-write presence-check pass) reports **allocs/op and B/op unchanged**
-at exactly `25,068` allocs / `6.035 MiB` across 18 combined runs both before
-and after this change (`benchstat` `p=1.000`/`p=0.593`-`0.869` — no
-detectable allocation cost from the added pass in the common all-keys-present
-case). The wall-clock (`ns/op`) delta measured on this shared, heavily
-contended development host was NOT statistically significant per `benchstat`
-(baseline `3.571ms ± 104%` vs after `4.724ms ± 11%`, `p=0.442`, n=8; a second
-run pair gave `p=0.075`) — host contention (concurrent unrelated builds on
-the same machine) dominates the signal at this scale, so this is reported
-honestly as inconclusive on wall-clock rather than claimed as a proven
-speedup or regression; allocs/op is the noise-immune metric here and shows no
-regression.
-
-No-Observability-Change: no metric, span, log, or status field is added or
-changed; the default-fill only affects graph-node property values (correct
-empty defaults instead of a corrupted literal), never telemetry.
-
 ## GitHub Actions @ref pin signal (#5372)
 
 `batchCanonicalRepoEvidenceArtifactUpsertCypher` (`canonical_relationships.go`)
@@ -1856,15 +1196,6 @@ sole place `ref_pinned` is classified (via `go/internal/ghactionsref`'s
 `Pinned`), scoped to `GITHUB_ACTIONS_*` evidence kinds. Both fields are
 omitted together when the row carries no `ref_value`.
 
-No-Regression Evidence: additive `SET` properties on the existing
-`EvidenceArtifact` upsert template -- no new `MATCH`/`MERGE` anchor, no
-additional graph round trip, no plan change (same shape as the #3636
-citation-field precedent). `go test ./internal/storage/cypher -count=1`
-stays green.
-
-No-Observability-Change: no metric, span, or log is added or changed; the two
-new properties flow as graph-node data only.
-
 ## Retract helper split (#5528)
 
 `edge/writer/retract.go` was split along a move-only seam to keep headroom under
@@ -1876,15 +1207,6 @@ the 500-line source cap: the `RetractEdges` dispatch, its
 `buildDocumentationDeltaRetractStatements`) moved verbatim to
 `edge/writer/retract_scope.go`.
 
-No-Regression Evidence: pure code motion -- the moved region is byte-identical to
-the pre-split source, and no retract Cypher statement, `MATCH`/`DETACH DELETE`
-shape, batch size, or dispatch path changed, so there is no plan change and no
-runtime delta. `go test ./internal/storage/cypher -count=1` stays green.
-
-No-Observability-Change: no metric, span, or log is added, moved, or changed;
-statement summaries and operation metadata still flow through the unchanged
-`RetractEdges` path.
-
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table
@@ -1892,58 +1214,6 @@ statement summaries and operation metadata still flow through the unchanged
 - `docs/public/reference/backend-conformance.md`
 - `docs/public/reference/cypher-performance.md`
 - `go/internal/projector/README.md` — how `CanonicalNodeWriter` is wired
-
-## Materialized-edge family registries: performance and observability (#5543)
-
-No-Regression Evidence: no measurement was taken because no measurable path
-changed, and the reason is checkable rather than asserted. Baseline and after
-are the same code on every runtime path: `git diff 0384469e8c...HEAD --
-internal/storage/cypher/` touches no Cypher template text — every `MERGE`,
-`MATCH`, `UNWIND` and `DELETE` string in this package is byte-identical, and the
-only occurrences of those words in the diff are inside comments. What the change
-adds is four package-level `map[string]string` literals and their copy
-accessors. Their sole callers are `internal/ifa/materializededges/assert.go`
-and `cmd/ifa/assert_edges.go`; `rg` finds no consumer in the ingester, reducer,
-projector, API, or MCP binaries. `cmd/ifa` is the Ifá gate tool
-(`graph-dump`, `assert-edges`, `mutate-cassette`, `dead-letters`), so the one
-runtime that executes this code is a CI gate reading a graph dump, not a request
-or write path. Input shape, terminal queue depth, and row counts are therefore
-unchanged by construction: no fact is emitted, no work item enqueued, no edge
-written or retracted. Backend and version are untouched — no graph statement
-reaches NornicDB that did not before. The change is safe because a map lookup
-added to a gate tool's read path cannot alter what the writers produce; the
-guards in this package assert the registries against the production retract
-alternations precisely so the two can never diverge without a red test.
-
-No-Observability-Change: no span, metric, log, or status field is added,
-removed, or renamed. The registries carry no instrumentation and their callers
-emit none; `assert-edges` reports through its exit code and stderr exactly as
-before. An operator's dashboards and alerts see no new series and lose none, so
-there is nothing to add to the telemetry contract or the operator dashboard.
-
-No-Regression Evidence (#6003): merged-main baseline
-`c74e196c69162cc649f47f739e95a733558ab302` filtered
-`workload_dependency` edges by type and endpoint labels. Code head
-`5d70778e33df20d69e514f293f948d0392e6ece9` adds the writer's existing
-`reducer.EvidenceSourceWorkloads` value to that in-memory gate constraint. The
-Bolt graph dump, statement count, and backend row set are unchanged on both
-supported backends: `assert-edges` still streams the same edges, then performs
-one property lookup and string comparison for each already-matched
-Workload-to-Workload `DEPENDS_ON` candidate. The committed six-scope, 20-fact
-cassette expects exactly two workload-owned edges and three repository
-prerequisite edges. Focused `cmd/ifa`, `ifa/materializededges`, and
-`storage/cypher` tests prove both workload pairs remain visible while an
-identical edge carrying another writer's provenance is rejected. A
-backend/version measurement does not apply to this post-read filter because it
-changes no backend query, round trip, or production write path. Terminal queue
-depth and graph-write row counts are also unchanged: the registry is read only
-by `eshu-ifa assert-edges` and tests, and neither enqueues a work item nor writes
-an edge.
-
-No-Observability-Change (#6003): no production metric, span, structured log,
-status field, or label changes. The gate continues to report success or an
-exact-set mismatch through the existing `assert-edges` stdout, stderr, and exit
-status; the narrower ownership check adds no new operator-facing signal.
 
 ## Materialized-edge identity registry: performance and observability
 
@@ -1961,11 +1231,6 @@ two-property case takes 107.0 ns/op and 3 allocations. The one-property
 `repo_dependency.RUNS_ON` and `submodule_pin_edges` cases are not separately
 measured; all run only in the CI gate, never a request or write path.
 
-No-Observability-Change: no span, metric, log, or status field is added,
-removed, or renamed by the identity registry or its `assertMaterializedEdges`
-consumer; a live-gate identity mismatch surfaces through the same
-`assert-edges` exit code and stderr report as every other exact-set defect.
-
 ## Backend-restart begin failures: second message spelling (#5995-#6003 precursor)
 
 `isNornicDBRestartTransactionStartFailure` (`retryable_error.go`) recognises the
@@ -1980,19 +1245,6 @@ Neo.ClientError.Transaction.TransactionStartFailed
 (failed to start transaction: engine is closed)
 ```
 
-No-Regression Evidence: baseline `bash scripts/verify-ifa-fault-injection.sh`
-on this branch before the change, NornicDB pinned build + Postgres via the gate's
-own compose stack, 21 cells, fresh stack per cell. The
-`restart-backend-between-phase-groups` cell dead-lettered one
-`gcp_relationship_materialization` write as `failure_class=projection_bug`, and the
-drain never reached its residual bound: terminal counts
-`residual=1 dead_letter=1 failed=0`, gate exit 1 after 4m of polling. After the
-change, same command and same stack: 21/21 cells, 53 exact edge-set matches,
-terminal counts `residual=0 dead_letter=0`, gate exit 0. The graph digest is
-unchanged (`dd3a9f8c…` across N=1/2/4 on the determinism gate), so this moves a
-misclassified failure from terminal to retryable without altering projected
-truth.
-
 The change is safe because both messages describe the same state: no transaction
 body has run, so both immediate and durable queue replay are valid. The match
 stays scoped to the two known teardown bodies under
@@ -2000,13 +1252,6 @@ stays scoped to the two known teardown bodies under
 the same code remains terminal, which
 `TestBackendRestartEngineClosedTransactionStartIsRetryable` pins directly so the
 fix cannot widen into swallowing genuine begin-time faults.
-
-No-Observability-Change: no metric, span, or log surface changes. The
-condition was already visible: it surfaced as a durable dead-letter row with
-`failure_class=projection_bug` and the full driver message, which is how it was
-diagnosed. After the change the same write is retried and the operator-facing
-evidence is the existing retry/attempt counters the restart cell already asserts
-against (`ifa_fault_assert_retried_above`).
 
 ## Backend-restart commit failures: the closed-store spellings (#6162)
 
@@ -2085,14 +1330,6 @@ Retry stays bounded. `GraphWriteTimeoutFailureClass` is not enrolled in
 that never returns still dead-letters once `maxAttempts` is spent. A
 misclassification here is delayed-terminal, not an infinite retry.
 
-No-Regression Evidence: unit-level only, and deliberately scoped that way — the
-change alters the Go error *type* returned on an already-failing path, adding no
-query, round trip, or statement. `cd go && go test ./internal/storage/cypher
-./internal/reducer ./cmd/reducer ./internal/projector ./internal/storage/postgres
--count=1`. Each added body is proven load-bearing by its own mutation, both run
-on this branch against `./internal/storage/cypher`. Each mutation leaves the
-tree compiling (`go vet` exit 0), which is what makes the red mean anything:
-
 | Mutation (`subs=1` each) | `go vet` | `go test` | Went red |
 |---|---|---|---|
 | drop `nornicDBStoreClosedCommitMsg` from the predicate | 0 | 1 | `TestBackendRestartCommitStoreClosedClassifies`, `TestBackendRestartCommitStoreClosedRemainsQueueRetryable` |
@@ -2114,10 +1351,3 @@ before/after cell evidence here. The restart cell also cannot go green on this
 change alone — #6162's second variant (a `dead_letter=0` canonical-digest
 divergence, unrelated to error classification) keeps it intermittently red — so
 a green cell would not have proven this fix either.
-
-No-Observability-Change: no metric, span, or log surface changes. The condition
-was already visible as a durable dead-letter row carrying
-`failure_class=projection_bug` and the full driver message, which is how it was
-identified. After the change the same write is retried and surfaces through the
-existing retry/attempt counters the restart cell already asserts against
-(`ifa_fault_assert_retried_above`).

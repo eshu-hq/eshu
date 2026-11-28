@@ -69,15 +69,6 @@ observability for the domain.
   exercises `ListAppliedPagerDutyServiceRoutingQuery` through this exported
   path from the root package.
 
-No-Observability-Change: this extraction moves only the applied-routing
-loader, its query text, and the backend-resolver adapter. The query,
-predicates, and resolver error mapping are byte-identical; no metric, span,
-or log name changes.
-
-No-Regression Evidence: focused package tests plus the reducer's compile-time
-port assertions run green on the moved tree; the SQL text and resolver logic
-are unchanged so no plan or correlation-outcome proof is re-owed.
-
 ## Related docs
 
 - [Postgres storage](../README.md)

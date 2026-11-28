@@ -129,11 +129,6 @@ handler span lives in `tracing` rather than here for exactly that reason.
 This package emits no metrics, spans, or logs. Handlers and storage adapters
 retain their existing telemetry.
 
-No-Observability-Change: moving these contracts does not change the handler or
-adapter call paths that emit telemetry. The row-value decoders this package now
-forwards to are pure functions with no instrumentation, in their old home and
-in their new one.
-
 ## Performance
 
 The row-value decoders no longer live here. #6597 moved them down into the
@@ -162,14 +157,6 @@ The question that raises is whether the *extra* call frame costs anything on a
 hot row-decode loop. For four of the five it does not. For `StringVal` the
 answer is more specific than the old two-hop text claimed, and it is written out
 below rather than smoothed over.
-
-No-Regression Evidence: `cd go && go build -gcflags='-m'
-./internal/query/querycontract/... ./internal/query/` at this head, re-run with
-`-gcflags='-m=2'` for the costs. Every *forwarder* hop inlines, and each adds
-exactly 5 to the inlined cost against the inliner's budget of 80 -- that holds
-for all four hops of the collapsing helpers and for `StringVal`'s two forwarder
-hops (62 -> 67). The leaf `StringVal` itself is the exception, the first row
-below, and is explained after the table:
 
 | helper | `rowvalue` leaf | `querycontract` forwarder | root forwarder |
 | --- | --- | --- | --- |
@@ -231,13 +218,6 @@ No benchmark is cited because there is no runtime delta to measure: the two
 forwarder hops that #6597 and #6060 added disappear at compile time, and the
 one frame that survives survived before them.
 
-No-Observability-Change: the five decoders emit no metric, span, or log, in this
-package's forwarders or in the `rowvalue` leaf they call -- they are pure
-functions over a map. The handlers that call them keep their existing
-`eshu_dp_api_request_duration_seconds` timing and their `query.*` spans, and
-because every wrapper hop inlines away, no span boundary, attribute, or log line
-moves. An operator sees exactly the signals they saw before.
-
 ## Collector-list readiness
 
 `CollectorListReadinessStore` is a consumer-owned port, the same category as
@@ -264,25 +244,6 @@ failing probe must never downgrade a page that already carries evidence.
 The scoped-token access filter and its predicate builders moved here, and every
 repository-shaped read path calls them, so the question is whether the move cost
 anything on those paths.
-
-No-Regression Evidence: it did not, because the emitted query is unchanged.
-String literals extracted per function with `go/parser` before and after the move
-are byte-identical across all 13 manifest-pinned symbols (356 literals), the 25
-coverage-tracked symbols, and the 6 filter methods that RETURN Cypher fragments
-compared across the package boundary. Only Go identifiers changed
-(`access.graphCondition` became `access.GraphCondition`), which is why 47
-source-text digests moved while no query did. A second method agrees: sweeping
-the diff for changed lines carrying Cypher keywords returns only method-name
-capitalisations, with the surrounding `MATCH`/`WHERE`/`LIMIT` text untouched.
-`go build ./...`, `go vet ./...` and
-`go test ./internal/query/... ./internal/mcp ./internal/queryplan -count=1` all
-exit 0.
-
-No-Observability-Change: the filter emits no metric, span, or log. The graph
-reads it bounds travel through the shared bounded read policy and carry that
-policy's `neo4j.query` span exactly as before; failures render through the
-shared error contract. Moving where the predicate is built changed no operator
-signal.
 
 ## Gotchas / invariants
 
@@ -378,15 +339,6 @@ or timed-out reader fenced. A bare `""` literal fails the sweep.
 Family code must preserve absent, present-empty, and present-nonempty states
 when converting it into matcher input.
 
-No-Regression Evidence: `go test ./internal/query/... -count=1` passed after the
-final boundary edit. During the scratch proof, the complete query-playbook
-family and its four test files moved under `internal/query/playbook`; its route,
-catalog-order, resolver, recursive root-query tests passed, followed by
-`go build ./...` and `go vet ./...`, both at exit 0. The family move was then
-reverted, leaving only this contract boundary. Mutation runs proved the unknown-
-capability panic test fails if the root truth wrapper stops delegating and the
-selector tri-state test fails if candidate presence is dropped.
-
 ## Verification
 
 From `go/`, run `go test ./internal/query/... -count=1`, `go build ./...`, and
@@ -399,20 +351,3 @@ the parent package instructions.
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 - [HTTP API](../../../../docs/public/reference/http-api.md)
 - [Package restructure design](../../../../docs/internal/design/package-restructure.md)
-
-## Performance and observability
-
-No-Regression Evidence: the hot file this change touches is
-`go/internal/query/repository/catalog.go` (moved from `go/internal/query/catalog.go`
-for #6060 lane-B B3), which does issue a real Cypher `MATCH`. The query
-text, its parameters and its decode loop are byte-identical; the only edit turns
-`CatalogWorkloadIdentityEntry` from a struct declaration into a type ALIAS onto
-this package, so `testutil/content`'s `FakePortContentStore` can name it from outside
-root. An alias preserves type identity, so no conversion, copy or extra
-allocation appears on the row-decoding path. The same shape applies to the other
-read models promoted here. Root suite on this branch: 8324 `=== RUN`, 0
-`--- FAIL`, against `origin/main` 460c59481.
-
-No-Observability-Change: no metric, span, log or status surface is added,
-removed or renamed. Moving a type declaration between packages emits nothing,
-and the aliases keep every existing call site on the same code path.

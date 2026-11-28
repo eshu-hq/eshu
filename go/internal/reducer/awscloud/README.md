@@ -75,40 +75,6 @@ increment the shared `eshu_dp_reducer_input_invalid_facts_total` counter
 instead, and both handlers' runs stay covered by
 `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
 
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Every hunk inside the seven moved production files is a
-package clause, an import requalification, or an identifier
-requalification: symbols the reducer root supplied as one-line forwarders are
-now imported from the leaf that already owned them (`payloadcore` for the
-deref/tally/payload helpers, `contract` for the intent, result, ownership and
-domain vocabulary, `factload`/`factdecode`/`schemadecode`/`gpphase`/`factwrite`
-for the rest, `containerimage` for the target-existence lookup). Two symbols
-with a second, still-in-root caller (`resolveCloudResourceSource`,
-`splitAWSFactEnvelopes`, both called from the reducer root's
-`aws_relationship_join.go`/`aws_relationship_materialization.go`, which have
-NOT moved) were hoisted into `cloudjoin` with their bodies unchanged, and the
-root keeps a one-line forwarder at each old call site. The one behavioral
-seam is the readiness gate: `AWSCloudImageMaterializationHandler.sourceNodesReady`
-used to build a full phase *state* and read `.Key` off it, and now calls
-`gpphase.KeyFromScope` directly — the same function the root's own state
-constructor calls, so the key is byte-identical, and the discarded half was
-two timestamps the gate never read. A Go import change adds no indirection at
-runtime. Measured on this branch: `go build ./...` exits 0,
-`go vet ./internal/reducer/...` exits 0, and
-`go test ./internal/reducer/... -count=1` passes, including this package,
-`cmd/reducer`, `internal/storage/postgres`, `internal/query`, and
-`internal/replay/costcounting`. Binary output was not compared and no such
-claim is made here.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span, or
-log field. The counter and failure classes above are the same before and
-after the move.
-
-No-Regression Evidence (#7989): the per-finding `aws cloud runtime drift finding admitted` line moves from INFO to DEBUG with identical fields, and each batch emits one INFO `aws cloud runtime drift batch admitted` summary. Baseline (production capture in the issue): 8,299 INFO finding lines in about 16 minutes, which rotated the engine startup lines out of the retained log. After: 1 INFO line per batch plus N DEBUG lines, asserted with exact keys by `TestAWSCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch` with canonical writes decoupled from admitted count; DEBUG stays suppressed under the production `LevelInfo` logger setting (`go/internal/telemetry/logging.go`). No compute, write, or counter path changes: the DEBUG attribute work is the same construction that already ran at INFO, `RecordEvaluation` still emits the per-admitted-finding counters, and finding facts are untouched. `go test ./internal/reducer/awscloud/ ./internal/reducer/multicloudruntimedrift/ -count=1` passes on this branch.
-
-Observability Evidence (#7989): the batch summary carries domain, scope, generation, pack, evaluated, admitted, canonical_writes, duration, and per-kind counts (orphaned, unmanaged, ambiguous, unknown, image_version_drift, value_comparison_inconclusive); per-finding detail keeps the same redacted fields at DEBUG and stays durable in the finding facts. Admitted volume remains visible without log lines through `eshu_dp_correlation_rule_matches_total` and the orphan/unmanaged counters. Coverage row added in `docs/public/observability/telemetry-coverage.md`.
-
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a

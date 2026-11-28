@@ -91,16 +91,6 @@ with one GetWorkflow point read per name (with `IncludeGraph=false`), one
 paginated GetConnections stream with `HidePassword=true`, no StartCrawler or
 StartJobRun calls, no mutations, and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-Glue database, table, crawler, job, trigger, workflow, and connection metadata
-fact emission, table-in-database and table-to-S3-location relationship
-emission, crawler-to-database and crawler-to-IAM-role relationship emission,
-job-to-IAM-role relationship emission, trigger-to-job relationship emission,
-secret-shaped default-argument and connection-property key redaction, runtime
-registration, command configuration, and the SDK adapter's safe metadata
-mapping.
-
 Collector Observability Evidence: Glue uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -108,47 +98,12 @@ Collector Observability Evidence: Glue uses the existing AWS collector
 labels stay bounded to service, account, region, operation, result, and
 status.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Glue scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
-
 ### Partition-aware S3 location join (#816)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/glue/... -count=1`
-covers the new `TestTableS3LocationRelationshipDerivesPartition` (commercial /
-`aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the existing
-table-to-S3-location commercial assertions. Glue tables carry no ARN, so the
-table->S3-location target ARN now derives its partition from the scan
-boundary's region via `partition(boundary)` instead of hardcoding `aws`,
-letting GovCloud and China joins resolve to the bucket node the S3 scanner
-publishes (`arn:<partition>:s3:::<bucket>`) instead of dangling.
-Commercial-partition output is byte-for-byte unchanged; this is a metadata-only
-correctness fix with no graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized target ARN value; no instrument, span, metric label, or
-`aws_scan_status` row changes.
 
 Collector Deployment Evidence: Glue runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector
 runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/glue/... -count=1`
-keeps `TestTableS3LocationRelationshipDerivesPartition` (commercial /
-`aws-us-gov` / `aws-cn` / blank-region-fallback) green after the table->S3
-bucket-ARN synthesis was switched from the package-local `partition` helper to
-the shared `awscloud.PartitionForBoundary`. The derivation logic is identical;
-commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
-metadata-only consolidation with no graph-write, queue, or hot-path behavior
-change.
-
-No-Observability-Change: the change only swaps a helper; the synthesized ARN
-value is unchanged for every region, and no instrument, span, metric label, or
-`aws_scan_status` row changes.
 
 ## Related docs
 

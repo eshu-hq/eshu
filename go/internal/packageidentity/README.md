@@ -133,17 +133,3 @@ truth; reducers admit user-facing truth.
   non-ASCII letters, so two Unicode spellings of one internationalized host
   give two package IDs (fail-closed, no false join). The proper fold for such
   hosts is IDNA mapping, which is out of scope here.
-
-## Evidence
-
-No-Regression Evidence: `go test ./internal/packageidentity ./internal/coordinator/registry/package ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
-proves the shared identity contract normalizes npm, PyPI, Go, Maven, Composer,
-RubyGems, Cargo, Pub, Swift, Hex, NuGet, OS, and generic package coordinates, carries
-PURL/BOMRef/manager/source fields through package-registry facts, keeps OSV
-and GLAD affected-package facts on the same canonical IDs, and preserves
-bounded package-registry query behavior.
-
-No-Observability-Change: the identity package is pure normalization and emits
-no runtime telemetry. Existing collector fact counters, reducer queue metrics,
-canonical phase spans, graph query spans, and API `count/limit/truncated` truth
-metadata expose the runtime stages that consume these identity fields.

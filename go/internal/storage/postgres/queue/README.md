@@ -99,17 +99,6 @@ them own the retry-surge counters and failure-class attributes.
 - Do not import the parent `postgres` package or `storage/postgres/poison`:
   both import this package, so either import is a cycle.
 
-No-Observability-Change: this move relocates `queueFailureMetadata`,
-`deadLetterTriageMetadata`, `computeRetryDelay`, `defaultRetryMaxDelayFallback`,
-and `defaultJitterSource` (exporting each) plus the `sanitizeFailureText`
-helper they depend on, byte-identical in logic. No metric, span, or log
-name changes; the root queue types keep emitting the same
-`ProjectorRetrySurge`/`ReducerRetrySurge` counters around the calls.
-
-No-Regression Evidence: `go test ./internal/storage/postgres/... -race -count=1`
-passes on the moved tree, exercising the retry-surge, dead-letter, and
-backoff-cap paths through the root queue types that now call this package.
-
 ## Related docs
 
 - [Postgres storage](../README.md)

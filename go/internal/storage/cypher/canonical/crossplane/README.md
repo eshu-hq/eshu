@@ -44,25 +44,6 @@ None. The parent writer executes parts through its existing instrumentation.
   package's `StatementMetadata*Key` values; the root adapter copies
   parameters through untouched.
 
-## No-Regression Evidence
-
-No-Regression Evidence: the move changes no statement text, parameter shape,
-row cloning, batching, or dispatch order — the proof below pins each one.
-
-`go test ./internal/storage/cypher/canonical/crossplane -count=1` and the
-root parity tests
-(`TestCrossplaneSatisfiedByEdgeLeafParityUpsertByteIdentical`,
-`TestCrossplaneSatisfiedByEdgeLeafParityRetractByteIdentical`) prove the
-leaf emits byte-identical Cypher and DeepEqual parameters to the pre-move
-root writer on the same inputs. Backend execution shape is unchanged
-because both Cypher templates are byte-identical to the pre-move root
-versions, pinned against embedded golden literals with `==`.
-
-No-Observability-Change: the root writer retains `Executor` dispatch,
-`GroupExecutor` atomicity, statement metadata, and retry wrapping; this
-package adds no metric name, metric label, worker, queue domain, runtime
-knob, backend branch, or new graph-write route.
-
 ## Related docs
 
 - `docs/public/reference/cypher-performance.md`

@@ -43,9 +43,6 @@ telemetry remain in `internal/mcp`.
   input schemas, and their local order byte-for-byte compatible unless an MCP
   contract change is approved.
 
-No-Observability-Change: this extraction does not change routing, dispatch,
-authorization, query execution, or telemetry.
-
 ## Related docs
 
 - [MCP package](../README.md)

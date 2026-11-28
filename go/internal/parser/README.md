@@ -478,21 +478,12 @@ function-append site.
   `bindings/go` `LanguagePHP` loader. Refresh by running
   `go get github.com/tree-sitter/tree-sitter-php@<version>` from `go/`, then
   `../scripts/go-test-run-guard.sh 57 TestDefaultEngineParsePathPHP -- ./internal/parser/... -count=1` (the `./...` suffix is required since issue #6062 relocated the `php_*_test.go` family into `internal/parser/php`; the guard fails on a partial match, which a bare `go test -run` would not).
-  No-Regression Evidence: the parent PHP parity tests and the
-  `TestDefaultEngineParsePathPHPFixtures` golden gate pass unchanged after the
-  line-scanner-to-AST migration; this adds one lazy grammar loader without
-  changing existing cache keys. No-Observability-Change: no metric, span, log,
-  status, env var, queue, graph query, or runtime knob changes.
 - Kotlin grammar packaging uses
   `github.com/tree-sitter-grammars/tree-sitter-kotlin v1.1.0`, an MIT-licensed
   module with generated `bindings/go` sources and checked-in `src/parser.c` and
   `src/scanner.c`. Refresh by running
   `go get github.com/tree-sitter-grammars/tree-sitter-kotlin@<version>` from
   `go/`, then `go test ./internal/parser -run TestRuntimeParserLoadsKotlinGrammar -count=1`.
-  No-Regression Evidence: `TestRuntimeParserLoadsKotlinGrammar` failed before
-  wiring and passes with the binding package test against module v1.1.0; this
-  adds one lazy loader without changing existing cache keys. No-Observability-Change:
-  no metric, span, log, status, env var, queue, graph query, or runtime knob changes.
 - `internal/parser/java` — typed Java metadata evidence extracted before parent
   payload assembly
 - `internal/parser/javascript` — tsconfig import resolution and package.json
@@ -534,31 +525,6 @@ the identical bytes it would have read itself — just from the cache instead of
 a second `os.ReadFile`. If the priming read fails, nothing is cached and both
 call sites fall back to their normal independent read-and-fail behavior, so
 error handling is unchanged.
-
-Benchmark Evidence: `go test -run '^$' -bench BenchmarkParse -benchmem
-./internal/parser` on the same machine (darwin/arm64, Apple M5 Max), before
-(origin/main) vs after, `-count=5` on `c`, `go`, and `sql` (representative of
-tree-sitter, heaviest-payload, and lexical-adapter parse shapes): `c` B/op
-26.94Mi → 26.73Mi (-0.79%, p=0.008), `go` B/op 587.9Mi → 587.7Mi (-0.03%,
-p=0.008), `sql` B/op 21.49Mi → 21.23Mi (-1.24%, p=0.008); `sec/op` for `c`
-147.9ms → 142.8ms (-3.44%, p=0.016). The B/op reduction is small in percentage
-because tree-sitter parse allocations dominate a ~10K-LOC input, but it is
-statistically significant (`benchstat`, n=5) and consistent with removing one
-duplicate ~200-280KB file read per `ParsePath` call; `allocs/op` did not move
-measurably because `os.ReadFile` contributes a handful of allocations against
-hundreds of thousands from tree-sitter parsing. `raw_text` and `nuget_project`
-(no tree-sitter parse) are the languages where the eliminated read is
-proportionally largest; both dropped from reading the same file's bytes twice
-to once per `ParsePath` call, confirmed by
-`TestParsePathReadsRawTextSourceExactlyOnce` and
-`TestParsePathReadsNuGetProjectSourceExactlyOnce`.
-
-No-Observability-Change: this adds no metric, span, structured log, status
-field, queue, graph write, worker, lease, batch, or runtime knob. Operators
-still diagnose parse behavior through the existing collector
-`telemetry.FileParseDuration` instrument and `collector snapshot stage
-completed` logs; the read-count change is internal to `ParsePath` and does not
-alter what those signals report.
 
 ## Gated content-metadata inference
 
@@ -625,39 +591,6 @@ hostile `eshu-code-review` caught all three live through
 `DefaultEngine().ParsePath` before merge, and this section and the gate code
 were corrected in response.
 
-Performance Evidence: `go test -run '^$' -bench
-'BenchmarkInferContentMetadataUnconditional|BenchmarkContentMetadataGated'
--benchmem -benchtime 2s -count=3 ./internal/parser` on darwin/arm64 (Apple M5
-Max), a synthetic 400-method PHP file with no IaC/template signal in its path
-or content (unaffected by the extension-set/anySuffix fix, since `.php` was
-never a gated extension and carries no multi-dot suffix):
-`BenchmarkInferContentMetadataUnconditional` (before, unconditional
-`content.Infer` call) ranged 3.13ms-3.64ms/op, 117.3-117.7KB/op, 25
-allocs/op across 3 runs; `BenchmarkContentMetadataGated` (after, gate check
-plus skip) ranged 0.163ms-0.181ms/op, 57.7KB/op, 9 allocs/op -- roughly an
-18-20x reduction and ~3ms saved per gated file on this synthetic input,
-consistent with the corpus profile's ~7.5ms figure on bigger real files.
-`BenchmarkContentMetadataGatedRawConfigCorrectlyNotSkipped` measures the
-corrected behavior for the class the review caught: a large synthetic
-`.conf` file (nginx-shaped content, real IaC signal) that the pre-fix gate
-incorrectly skipped now correctly runs the real inference, ranging
-2.58ms-3.01ms/op, 860-947B/op, 18 allocs/op -- this is the expected cost of
-no longer silently corrupting `artifact_type`/`iac_relevant` for that file
-class. `BenchmarkParsePathLargeGatedPHP` proves the same gated PHP file parses
-correctly end to end through the real `ParsePath` entrypoint with the gate
-wired in (81.5ms-91.6ms/op total parse cost, dominated by the tree-sitter PHP
-parse itself, confirming no crash or behavior change on the gated call-site).
-
-No-Observability-Change: this adds no metric, span, structured log, status
-field, queue, graph write, worker, lease, batch, or runtime knob. Operators
-still diagnose parse behavior through the existing collector
-`telemetry.FileParseDuration` instrument; `content.ShouldSkip` is a pure
-function with no side effects and does not change what `artifact_type`,
-`template_dialect`, or `iac_relevant` is persisted for any file that clears
-the gate (proven by the hand-picked equivalence test and the generative
-differential over the cartesian product described above), so no read surface
-can observe a difference beyond wall-clock time.
-
 ### Hoisted marker scan
 
 The gate above only helps files with no IaC/template signal at all. For a file
@@ -712,31 +645,6 @@ filtered `FindAll`-based scans does not reintroduce a second full-content
 scan; the fix removes the *second* full scan that `inferRootFamily` used to
 perform, not the first.
 
-Performance Evidence: `go test -run '^$' -bench
-'BenchmarkInferContentMetadataTFTemplateBeforeHoist|BenchmarkInferRootFamilyAloneTFTemplate'
--benchmem -benchtime 2000x -count=3 ./internal/parser` on darwin/arm64 (Apple
-M5 Max), a synthetic 400-block `.tftpl` file carrying real Terraform
-interpolation (`${...}`) and directive (`%{...}`) markers on every line (large
-enough, and shaped so `inferRootFamily`'s marker-scanning branch actually
-executes, unlike a plain `.tf` file which resolves through the
-`anySuffix(isHCLSuffix)` fast path before ever consulting a marker):
-`inferRootFamily` alone (isolating the eliminated duplicate scan) dropped from
-roughly 85.6us/op (368B/op, 6 allocs/op; measured pre-hoist as a throwaway
-shim, not committed) to 236-243ns/op (344B/op, 6 allocs/op) post-hoist -- about
-a 350x reduction in `inferRootFamily`'s own cost for a marker-consulting path,
-since the only regex work left on that path is the lazy TF-marker check's
-single pass (only suffix/path-segment comparisons plus one memoized
-`lazyTFMarkerCheck.has()` call otherwise). The full `inferContentMetadata`
-call for this file shape dropped from roughly 1.56ms/op (pre-hoist, same shim)
-to 1.29-1.62ms/op post-hoist across repeated runs (188-189KB/op, 1636
-allocs/op in both, unchanged -- the hoist removes CPU-bound regex matching,
-not allocations, since `inferRootFamily`'s removed calls were boolean
-`MatchString` probes that never allocated). Allocation count is a more stable
-signal here than wall time on this machine (visible some-run-to-run variance
-from system noise); allocs/op is identical before and after, and
-`inferRootFamily`'s isolated ns/op collapsed by two orders of magnitude,
-confirming the duplicate scan is gone.
-
 Lazy-fix Performance Evidence:
 `BenchmarkInferContentMetadataPathOnlyTFNoMarkers` in
 `content/infer_hoist_test.go` measures the regression case directly: a
@@ -787,10 +695,6 @@ The full existing `TestInferContentMetadata` and
 `TestShouldSkipContentMetadataGeneratedEquivalence` suites (the latter
 enumerating a cartesian product of extensions, directory signals, and content
 signals) also stay green, unmodified, after both the hoist and the lazy fix.
-
-No-Observability-Change: this adds no metric, span, structured log, status
-field, queue, graph write, worker, lease, batch, or runtime knob; it is a
-pure-function internal refactor with the same inputs/outputs as before.
 
 ## Operational notes
 
@@ -895,7 +799,6 @@ pure-function internal refactor with the same inputs/outputs as before.
   independent of fact, generation, and content entity IDs.
 - Swift grammar uses `github.com/indigo-net/Brf.it` v0.21.0; update by bumping
   the module and rerunning the Swift runtime parser load test.
-  No-Regression Evidence: it builds with `go-tree-sitter` v0.25.0 and parses a Swift struct. No-Observability-Change: existing collector parse timing and parse errors still diagnose this cached grammar loader.
 
 ## Related docs
 - `docs/public/architecture.md`, local testing, telemetry, collector README, and `go/internal/facts/`.

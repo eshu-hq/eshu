@@ -55,12 +55,6 @@ provenance-weighted (#2719) and now prefers reducer-materialized
 `repo_unique_name` path classifies as `ambiguous` rather than confidently
 reachable or `unused`.
 
-No-Regression Evidence: see the #2719 entry in
-retired evidence record; the probe stays a bounded read over
-dead-code candidates with no added round trips or graph writes.
-No-Observability-Change: #2719 reuses the existing dead-code query span and adds
-no route, metric, worker, queue, or graph write.
-
 ## Where this fits in the pipeline
 
 ```mermaid
@@ -226,168 +220,6 @@ modes, and rejects a restricted-scope session. On the allowlist it splits by
 `scopedRouteClass` (#6450): an all-scope session still needs that policy
 unless the route needs no caller grant.
 
-Performance Evidence: the route adds no new query shape -- it composes three
-existing bounded, single-row-or-small-fixed-cardinality reads
-`repositoryCountForEvidenceBundle` and `liveEvidenceSnapshotFromReport` already
-reuse from `getIndexStatus`/`getPipelineStatus`/`listCollectors` (one graph
-count, one Postgres status snapshot, one in-process schema/redaction pass) into
-one HTTP round trip, measured at a median 1.6-1.8 ms above the
-`GET /api/v0/status/index` baseline and materially cheaper than the sum of the
-three source routes it replaces. No-Observability-Change: it emits no new
-span, metric, log line, or runtime knob, reusing the same instrumented
-`statusReader` and `neo4jReader` dependencies the three source routes already
-read through. Full measurements, backend/corpus details, and the raw-sample
-ledger references are recorded in
-(#4045).
-
-No-Regression Evidence: focused relationship context, evidence drilldown, and
-OpenAPI tests cover both Postgres read-model and graph-backed rows:
-`go test ./internal/query -run 'RepositoryRelationship|RelationshipEvidence|ConfidenceBasis|OpenAPIRelationship|RelationshipStory.*Provenance' -count=1`.
-
-No-Observability-Change: confidence basis is derived from row attributes already
-loaded by the repository context and relationship evidence queries. It adds no
-route, graph traversal, Postgres query, metric label, runtime knob, queue work,
-or span; existing repository stage logs, Postgres query spans, graph query
-spans, and truth envelopes still diagnose the read.
-
-No-Regression Evidence: pre-change impact route, normalization, partial
-evidence, truncation, AnswerPacket metadata, and OpenAPI visibility are covered
-by `go test ./internal/query -run 'TestPreChangeImpact|TestOpenAPIPreChange' -count=1`.
-
-No-Regression Evidence: developer change plan route, read-only actions, patch
-guidance, AnswerPacket metadata, and OpenAPI visibility are covered by
-`go test ./internal/query -run 'TestDeveloperChangePlan|TestOpenAPIDeveloperChangePlan' -count=1`.
-
-No-Observability-Change: pre-change impact and developer change plan reuse the
-existing query handler span name, change-surface content lookup, optional graph
-impact traversal, Postgres/graph spans, truth envelope, limits, offsets,
-truncation, and answer metadata. They add no worker, queue claim, graph write,
-metric label, or datastore connection.
-Semantic search reads (`POST /api/v0/search/semantic`, MCP
-`search_semantic_context`) are repository-bounded over active curated search
-documents. After repository authorization, the handler resolves the canonical
-repository id to exactly one active ingestion-scope id for index reads while
-retaining the canonical id as the repository boundary. A caller may address the
-repository by its canonical id or by its ingestion scope id; either way the
-repository scope is rebound to the resolved canonical id before ranking, because
-that is the identity every indexed document stores. A scope id never survives as
-that boundary: a request the resolver cannot map to a canonical repository
-returns an empty bounded result instead. Multiple active mappings fail closed as
-ambiguous. Smaller service/workload/environment anchors remain inside that
-repository corpus, and they still win anchor selection, so `anchor.id` reports
-the canonical repository only when the repository is the selected anchor. The route serves the active generation from the persisted search index,
-requires explicit `limit` and `timeout_ms`, and returns derived retrieval
-evidence rather than canonical graph truth. Scoped-token requests with no grant
-return an empty bounded response without reading the store; out-of-grant
-repository ids return not found before scope resolution or store access.
-Documentation reads follow the same split: target-scoped findings responses can
-include `related_facts`, `coverage`, and `missing_evidence` when raw
-documentation facts reference a repo or service but no admissible finding exists
-for that target. Explicit service or target filters count only target-matching
-findings in `coverage.findings_returned` and bound the raw fact preview to the
-explicit target reference before falling back to repo-scoped facts. A
-`target_kind` value without `target_id` or `service_id` is not treated as a
-target selector, and documentation fact reads name every accepted scope or
-target anchor in invalid-argument responses. Documentation fact list responses
-return bounded page metadata alongside `facts` so HTTP and MCP callers do not
-infer completeness from row count alone.
-Documentation finding aggregate count and inventory reads summarize the same
-durable finding facts. They keep the per-document permission predicates, apply
-scoped-token repository and scope grants before grouping, ordering, limits, and
-offsets, and return zero or empty buckets without touching the store when a
-scoped token has no repository grants.
-Documentation evidence packet and packet-freshness reads apply the same grant
-intersection before returning packet payloads, freshness fields, not-found
-metadata, or permission-denied metadata. Empty scoped grants short-circuit to
-the existing not-found response without a store read, so out-of-grant packet
-identifiers and payload-derived denial reasons do not leak.
-Service catalog correlation reads intersect scoped-token repository and scope
-grants before ordering, limits, cursors, counts, local descriptor summaries, and
-missing-evidence metadata. Empty grants return an empty bounded page without
-reading correlation or descriptor stores, and out-of-grant repository selectors
-fail during selector resolution instead of computing catalog metadata.
-Package registry correlation reads apply the same scoped-token grant
-intersection before ordering, limits, cursors, counts, and truncation.
-Package-only anchors still intersect reducer correlation facts with allowed
-repository or scope grants, empty grants return an empty bounded page without a
-store read, and out-of-grant repository selectors fail during selector
-resolution. Package identity, version, dependency, count, and inventory routes
-remain fail-closed for scoped tokens until each route has its own proof.
-CI/CD run correlation list, count, and inventory reads also intersect
-scoped-token repository and scope grants before ordering, limits, cursors,
-aggregate rollups, grouping, offsets, truncation, and count metadata. Commit,
-provider-run, artifact-digest, image-ref, and environment anchors still require
-an allowed repository or scope match in reducer facts; empty grants return
-zero/empty bounded shapes without store or content reads, and out-of-grant
-repository selectors fail during selector resolution.
-No-Regression Evidence: focused CI/CD scoped-token query and MCP dispatch tests.
-No-Observability-Change: existing CI/CD query spans, truth envelopes, limits,
-cursors, truncation, count, and inventory metadata diagnose the bounded reads.
-Supply-chain vulnerability impact list, count, and inventory reads
-(`GET /api/v0/supply-chain/impact/findings`, `/findings/count`, and
-`/inventory`, plus the matching `list_supply_chain_impact_findings`,
-`count_supply_chain_impact_findings`, and `get_supply_chain_impact_inventory`
-MCP tools) intersect reducer impact facts with scoped-token repository and scope
-grants inside the canonical-facts CTE, before deduplication, ordering, limits,
-truncation, cursors, aggregate grouping, offsets, and count metadata.
-Non-repository anchors (CVE, advisory, package, image digest/ref, service,
-workload, environment, severity, priority, and suppression filters) still
-require an allowed repository or ingestion-scope match. Empty grants return the
-existing zero-findings / zero-count / empty-inventory shapes — list reports
-`readiness_unavailable` so zero findings is never misread as "no
-vulnerabilities" — without reading the impact, readiness, or aggregate stores,
-and out-of-grant repository selectors fail during selector resolution without a
-store read. Adjacent supply-chain routes (impact explain, advisory detail, SBOM
-attestation attachments, container-image identities, and security-alert
-reconciliations) stay fail-closed for scoped tokens until each is separately
-proven tenant-filtered.
-No-Regression Evidence: focused supply-chain impact scoped-token query and MCP
-dispatch tests.
-No-Observability-Change: existing supply-chain impact query spans, truth
-envelopes, readiness envelopes, limits, cursors, truncation, count, and
-inventory metadata diagnose the bounded reads.
-The findings list and impact explain routes run the same finding assembler
-after their bounded cloud-runtime and repository-runtime-context probes. Each
-result therefore reports the current `runtime_context`,
-`deployment_truth_tier`, `version_resolution_tier`, and
-`version_resolution_corroboration` from the same enriched row. The transformed
-investigation packet omits those fields and skips reads that cannot affect its
-response. Current repository correlations contribute environment candidate
-names only. A second set-based read admits `environment_evidence` only when a
-current, authorized correlation matches both the candidate environment and the
-finding's exact subject digest. This mirrors the reducer's strong digest branch
-across builder/deployer repository seams; it is artifact deployment context,
-not repository ownership. Repository or baked evidence values are never copied,
-and an unconfirmed candidate gets no evidence entry. Admitted values reuse the
-`deploy_event`/`declared` producer vocabulary: a missing or unknown value on a
-matching row normalizes to `declared`, and `deploy_event` wins when more than
-one matching fact names the same environment. Read-time evidence never
-overwrites the finding's reducer-baked top-level environment fields.
-
-Performance Evidence: `BenchmarkFoldSupplyChainRuntimeContext200Repositories`
-folded the same 800 facts for 200 repositories before and after the response
-change. Across five normal-build samples on the same machine and input shape,
-the `origin/main` median was 69.716 microseconds per fold
-(68.920-71.099 microseconds, 48,168 bytes and 1,003 allocations); the final
-branch median was 65.839 microseconds (65.285-66.574 microseconds, 48,168 bytes
-and 1,003 allocations). Repository folding therefore adds no evidence map or
-allocation; exact-digest response evidence is owned by the separate bounded
-lookup. The exact production SQL was also measured on
-PostgreSQL 18.4 with 100,000 active rows for one hot digest, 199 cold candidate
-rows, and 900,000 unrelated rows. The original flattenable join performed
-roughly 200 million candidate comparisons, spilled its sort, and took 66,458.413
-milliseconds. The candidate-driven LATERAL aggregate used the existing
-artifact-digest partial index once per candidate and took 128.029 milliseconds
-under `EXPLAIN (ANALYZE, BUFFERS)`; the production store call returned all 200
-confirmations in 68.545 milliseconds.
-
-Observability Evidence: `environment_evidence_probe` exposes each finding's
-allocated candidate count and whether its visible candidate names were
-truncated. The existing supply-chain list and explain request spans,
-runtime-context result counts, error envelopes, and request duration/error
-metrics diagnose the set-based read without adding a new high-cardinality
-label.
-
 Version resolution selects the strongest eligible concrete claim in
 deployment-truth
 order: runtime-observed evidence, CI-declared provenance, then config evidence.
@@ -407,75 +239,6 @@ more resources than its share reports only the first slice of them, but no
 digest is left with no runtime evidence at all (#5789). The matching migration
 086 partial index excludes blank and whitespace-only digest or ARN values, so
 empty cloud inventory rows do not amplify storage or writes.
-Performance Evidence: on a skewed corpus — one digest on 30,000 resources,
-twenty others on 100 each, 21 digests requested — the earlier single global
-`LIMIT 200` took 0.142 ms and returned rows for 1 of 21 digests, while the
-per-digest lateral takes 0.286 ms and returns rows for 21 of 21. Running
-eligibility before the bound costs at most one full index-range scan of a single
-digest: 93.193 ms on 50,000 rows where only the last 50 are authorized, inside
-the 2-second `cloudResourceListInteractiveSLO`. The 20,000-row live route proof
-still returns the bounded 200 resources for a single-digest page, at a 636.833
-microsecond median across 15 runs. Exact commands and index build/write
-measurements live in
-(#5789)
-and
-(#5469).
-The Kubernetes runtime probe partitions its 200 serialized-reference slots
-over at most 200 finding rows. Every non-empty digest occurrence receives at
-least one slot; remaining slots are assigned deterministically across sorted
-digests, with another slot for a digest costing one slot per matching finding.
-The resulting digest quotas therefore bound repeated refs across the whole
-page, not only distinct backend candidates. The probe runs one single-digest
-graph read per distinct digest through a 32-worker pool. `GraphQuery.Run` is safe to
-invoke concurrently: Neo4jReader
-uses the concurrent-safe driver pool and opens a separate read session for each
-attempt; sessions are never shared. Every graph call must succeed before the
-handler makes one Postgres current-authorization read. Worker results occupy
-fixed digest-index slots and are flattened in digest order, so scheduling cannot
-change the response. All-scopes reads use one extra candidate per digest to
-classify truncation and remain bounded at 400 candidates; scoped reads stay at
-200 and never disclose truncation. A one-finding page retains the full
-200-reference quota, while 50 findings sharing a digest receive four refs each
-and remain below the MCP response budget. The implementation, failure model, and
-pinned-backend latency evidence are recorded in
-(#5834).
-The administrative `POST /api/v0/supply-chain/impact/suppressions` route is
-deliberately outside the scoped-token allowlist. It requires an all-scopes
-authenticated subject, derives source and author server-side, validates a
-non-empty bounded suppression scope, and delegates to the Postgres immutable
-generation store. Its endpoint-specific decoder rejects unknown top-level or
-scope keys and rejects a second JSON value, keeping the runtime request
-contract aligned with OpenAPI's `additionalProperties: false`. Its
-`query.vulnerability_suppression_mutation` span records
-only the closed `created`, `unchanged`, `rejected`, or `store_error` outcome;
-operator reason text and suppression anchors never become telemetry labels.
-`evidence_path`, `environment`, `workload_id`, and `service_id` can only narrow
-a suppression that also carries a discoverable CVE, advisory, package, PURL,
-repository, or digest anchor. Environment values are canonicalized through the
-shared alias contract before persistence. Query stores bind
-one UTC expiry clock per call; list, aggregate facets, and explain patch an
-expired operator row to `state=expired` without changing its immutable fact.
-The materialized winners path uses the same clock and denormalized expiry so it
-stays byte-equivalent to the direct read.
-
-Performance Evidence: the accepted baseline was measured at `origin/main`
-`76931f4d89`. The final review base is
-`a2a5340a9e4bd975a8d4ccd97be547bb5b9e84b3`. This exact check produced no
-diff, so the current base and measured baseline use byte-identical
-implementations for all five paths:
-
-```bash
-git diff --exit-code \
-  76931f4d89 a2a5340a9e4bd975a8d4ccd97be547bb5b9e84b3 -- \
-  go/internal/query/supply_chain_impact_findings.go \
-  go/internal/query/supply_chain_impact_findings_queries.go \
-  go/internal/query/supply_chain_impact_findings_split_queries.go \
-  go/internal/query/supply_chain_impact_aggregates.go \
-  go/internal/query/supply_chain_impact_aggregates_queries.go \
-  go/internal/query/supply_chain_impact_explain_postgres.go \
-  go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go \
-  go/internal/storage/postgres/schema_fact_records.go
-```
 
 On Postgres 18 with 100,000 synthetic source rows, 50,000 canonical keys, and
 500 operator suppressions, 20 warm executions on the same machine measured the
@@ -553,223 +316,6 @@ identical retries had a 0.003336-second handler median without adding a
 generation or work item. Active, hidden, audit, and expired finding reads had
 medians of 0.021644, 0.004942, 0.010544, and 0.014689 seconds.
 
-Observability Evidence: `query.vulnerability_suppression_mutation` records
-`eshu.mutation.outcome` from the closed `created`, `unchanged`, `rejected`, and
-`store_error` vocabulary. At 3 AM, operators correlate that result with
-projector/reducer queue depth, work-item status, and
-`eshu_dp_supply_chain_suppression_decisions_total`; request anchors, reasons,
-and author values are never labels.
-Container image identity list, count, and inventory reads
-(`GET /api/v0/supply-chain/container-images/identities`, `/identities/count`,
-and `/identities/inventory`, plus the matching `list_container_image_identities`,
-`count_container_image_identities`, and `get_container_image_identity_inventory`
-MCP tools) require a different scoped-token predicate than the other families:
-identity facts key on the OCI `repository_id` and an OCI registry ingestion
-scope, neither of which is a durable join to a git-repository grant. The only
-correct attribution is the fact's `source_repository_ids`, so scoped reads keep
-only identities whose `source_repository_ids` overlap the union of granted
-repository and scope ids, before counts, grouping, ordering, limits, offsets,
-truncation, and the source bridge. Images with no source correlation are
-invisible to scoped tokens. Empty grants return the existing zero/empty shapes
-without store reads, and out-of-grant `source_repository_id` selectors fail
-during selector resolution without a store read. Shared-token, all-scope admin,
-and local behavior are unchanged.
-No-Regression Evidence: focused container image identity scoped-token query and
-MCP dispatch tests.
-No-Observability-Change: existing container image identity query spans, truth
-envelopes, limits, cursors, truncation, count, and inventory metadata diagnose
-the bounded reads.
-SBOM/attestation attachment list, count, and inventory reads
-(`GET /api/v0/supply-chain/sbom-attestations/attachments`, `/attachments/count`,
-and `/attachments/inventory`, plus the matching `list_sbom_attestation_attachments`,
-`count_sbom_attestation_attachments`, and `get_sbom_attestation_attachment_inventory`
-MCP tools) use the same `source_repository_ids`-style attribution as container
-image identities: attachment facts key on an image `subject_digest` but carry
-git `repository_ids`, so scoped reads keep only attachments whose
-`repository_ids` overlap the union of granted repository and scope ids before
-counts, grouping, ordering, limits, offsets, and truncation. The
-`missing_evidence` probe is grant-bounded in both its `active_images`
-(`source_repository_ids`) and `active_attachments` (`repository_ids`) CTEs so a
-scoped token cannot detect an out-of-grant image or attachment digest.
-Attachments with no granted-repo correlation are invisible to scoped tokens.
-Empty grants return the existing zero/empty shapes without store reads, and
-out-of-grant repository selectors fail during selector resolution without a
-store read. Shared-token, all-scope admin, and local behavior are unchanged.
-No-Regression Evidence: focused SBOM attachment scoped-token query and MCP
-dispatch tests.
-No-Observability-Change: existing SBOM attachment query spans, truth envelopes,
-limits, cursors, truncation, count, and inventory metadata diagnose the bounded
-reads.
-Provider security-alert reconciliation list, count, and inventory reads
-(`GET /api/v0/supply-chain/security-alerts/reconciliations`,
-`/reconciliations/count`, and `/reconciliations/inventory`, plus the matching
-`list_security_alert_reconciliations`, `count_security_alert_reconciliations`,
-and `get_security_alert_reconciliation_inventory` MCP tools) intersect
-reconciliation facts with the scoped-token grant set (matching `repository_id`,
-`provider_repository_id`, or `scope_id`) inside the `security_alert_current`
-ranking CTE, before deduplication, ordering, limits, offsets, cursors, grouping,
-and count metadata. The existing provider-scope selector resolution is preserved;
-out-of-grant repository selectors fail with a not-found response before the
-reconciliation store read, and empty grants return the existing zero/empty
-shapes without store reads. Non-repository anchors (provider, CVE, GHSA,
-package) still require a granted-repository match. Shared-token, all-scope
-admin, and local behavior are unchanged.
-No-Regression Evidence: focused security-alert reconciliation scoped-token query
-and MCP dispatch tests.
-No-Observability-Change: existing security-alert reconciliation query spans,
-truth envelopes, coverage, limits, cursors, truncation, count, and inventory
-metadata diagnose the bounded reads.
-Advisory-evidence reads (`GET /api/v0/supply-chain/advisories/evidence`, MCP
-`list_advisory_evidence`) follow a different scoped-token contract because the
-facts are global CVE/advisory data with no repository of their own. The bare
-`cve_id`/`advisory_id`/`package_id` path returns public advisory data to any
-authenticated caller regardless of grants. The
-repository/service/workload-anchored path derives advisory anchors from
-reducer impact findings, so scoped reads intersect those impact findings with
-the granted repository/scope set (`fact.payload->>'repository_id'` or
-`fact.scope_id`) inside the `impact_candidates` CTE before advisory facts are
-seeded, and an out-of-grant repository selector fails as not-found before any
-store read. A scoped caller therefore learns only which advisories affect its
-own repositories while still being able to look up public advisory detail by
-id. Shared-token, all-scope admin, and local behavior are unchanged.
-No-Regression Evidence: focused advisory-evidence scoped-token query and MCP
-dispatch tests.
-No-Observability-Change: existing advisory-evidence query span, truth envelope,
-limits, and source-only freshness metadata diagnose the bounded reads.
-Infra resource aggregate reads (`GET /api/v0/infra/resources/count` and
-`/inventory`, plus the matching `count_infra_resources` and
-`get_infra_resource_inventory` MCP tools) are graph-backed whole-graph `MATCH (n)` scans
-over the closed infrastructure label set. Scoped tokens bind a
-repository-anchored predicate so totals, per-provider / per-environment /
-per-label rollups, and inventory buckets are computed over only the resources
-attributable to granted repositories. The predicate is fail-closed with two
-durable joins: canonical IaC entity nodes (TerraformResource, K8sResource,
-CloudFormationResource, ArgoCDApplication, HelmChart, ...) carry a durable
-`repo_id` property, so the direct property compare against the grant arrays is
-the join; CloudResource nodes carry no `repo_id` and anchor to a repository only
-through the canonical
-`(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(n)`
-chain, matched by an `EXISTS` subquery anchored on the indexed `Repository.id`
-grant filter (the production `workloadScopePredicate` shape).
-`TerraformStateResource` (state-observed, #5443) similarly carries no `repo_id`
-and anchors to a repository only through the `MATCHES_STATE` edge a
-config-declared `TerraformResource` writes to it (#5623); an inline-map
-disjunct admits it when that `TerraformResource`'s `repo_id` is granted. Nodes
-with no granted `repo_id` and no USES/MATCHES_STATE path from a granted
-repository (for example tfstate-only TerraformBackend / TerraformLockProvider
-nodes that carry no durable repository signal, or a TerraformStateResource with
-no MATCHES_STATE edge) match nothing and stay invisible to scoped tokens. Empty
-grants return the bounded zero/empty shapes without a graph read.
-Shared-token, all-scope admin, and local behavior are unchanged: the predicate
-renders only in scoped mode, so the unscoped Cypher is byte-identical.
-No-Regression Evidence: the scoped predicate and grant parameters render only
-when the filter carries a grant set; focused tests assert the unscoped where
-clause is unchanged (no `$allowed_repository_ids` / `scopeRepo` traversal) and
-the scoped query binds the repository-anchored predicate, alongside the gate,
-empty-grant no-store-read, and grant-propagation tests.
-No-Observability-Change: existing infra resource aggregate query span
-(`SpanQueryInfraResourceAggregate`), truth envelope, per-dimension rollups,
-limits, offsets, truncation, and inventory metadata diagnose the bounded reads.
-Infra search (`POST /api/v0/infra/resources/search`, MCP `find_infra_resources`),
-relationships (`POST /api/v0/infra/relationships`, MCP `analyze_infra_relationships`)
-and the count/inventory aggregates reuse `infraResourceScopePredicate` on NornicDB;
-on Neo4j (`InfraHandler.GraphBackend`) they use the hoisted list-EXISTS dialect
-in `infra_scope.go`, same admission and cap (#7215, aggregates #7231; the flagged Neo4j full-text search read lives in `infra/fulltext`, #7245). Search filters its
-label branches so rows, `count`, `limit`, and `truncated` cover only granted
-resources; an empty-grant scoped token returns the bounded empty page without a
-graph read.
-The category-only Argo CD snapshot avoids NornicDB's broad OR-label scan by
-reading `ArgoCDApplication` and `ArgoCDApplicationSet` separately under the
-grant predicate (list-EXISTS per label on Neo4j, SHAPE-A elsewhere; #7215) and a
-per-label `limit + 1` bound. The second read excludes dual-labeled nodes; Go
-does one deterministic global merge before the response limit and truncation
-flag. Additional query or structured filters retain the general search path.
-Relationships anchor the seed node `n` and every OPTIONAL MATCH neighbor
-(`target` / `source`) to a granted repository: a relationship is visible only
-when both endpoints are attributable to a granted repository, an out-of-grant or
-unanchorable seed returns `not_found` (no existence disclosure, indistinguishable
-from a missing entity), a neighbor that fails the predicate is dropped from the
-edge list (the OPTIONAL MATCH leaves it null), and an empty grant fails closed
-without a graph read. The durable join is the same two-arm shape: canonical IaC
-entity nodes match on `repo_id`, CloudResource nodes match through the
-`(:Repository)-[:DEFINES]->(:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->`
-chain. No fuzzy name or provider-id boundary is used.
-No-Regression Evidence: focused infra search and relationship scoped-token query
-and MCP dispatch tests (`go test ./internal/query ./internal/mcp -run
-'InfraSearch|InfraRelationships|InfraSearchAndRelationships'`) assert the gate
-allows both routes, the unscoped Cypher carries no grant predicate or `scopeRepo`
-traversal (the pinned `MATCH (n) WHERE n.id = $entity_id` anchor is preserved),
-the scoped Cypher binds the anchor + neighbor predicates and grant parameters,
-empty grants short-circuit before the graph, and out-of-grant seeds return
-`not_found`.
-No-Observability-Change: the existing infra search query span
-(`SpanQueryInfraResourceSearch`), relationship handler truth envelope, and
-`results` / `count` / `limit` / `truncated` and `outgoing` / `incoming` response
-metadata diagnose the bounded reads; the scope predicate adds no new spans,
-metrics, or fields.
-IaC resource browse (`GET /api/v0/iac/resources`, HTTP-only; no MCP tool maps to
-it) is a hybrid exact-current read. `PostgresIaCInventoryStore` joins active
-`scope_generations` to non-tombstone `content_entity` facts and performs
-authorization, full-inventory search, typed filters, `(name, id)` keyset
-pagination, totals, and bounded facets there. Only those exact candidate uids
-are hydrated from one canonical graph label (`TerraformResource`,
-`TerraformModule`, or `TerraformDataSource`). The graph query deliberately keeps
-the simple `n.uid IN $candidate_ids` predicate required by NornicDB's property
-index seek; the handler then fails closed unless every candidate's id, name, and
-generation matches its graph row. This excludes retained superseded graph nodes
-without turning generation filtering into a multi-second graph scan. An
-empty-grant token or empty current candidate set returns a bounded empty page
-without a graph read.
-No-Regression Evidence: focused query and Postgres tests (`go test
-./internal/query ./internal/storage/postgres -run
-'IaCInventory|IaCResource|ActiveInventoryIndex|SchemaOrder' -count=1`) cover
-active-generation selection, caller grants, full-inventory search, stable
-pagination, bounded facets, empty inventory, and missing, duplicate, renamed,
-or stale-generation graph hydration.
-Performance Evidence: the retained 8,080,369-fact proof reduced the
-representative current-IaC read from 1,351.841 ms and 851,388 reads to 93.671 ms
-and 24,723 reads with exact old/new set differences of 0/0. Simple indexed
-`n.uid` hydration took 2.838-3.901 ms warm for 51 current candidates; the legacy
-`n.id`-plus-generation shape took 10-11 seconds and was rejected. Generation is
-still compared exactly in the handler before any row is returned.
-No-Observability-Change: the existing IaC resource list query span
-(`SpanQueryIaCResources`), truth envelope, `kind` / `resources` / `count` /
-`limit` / `truncated` / `next_cursor` / `summary` response metadata, and
-per-kind duration/error metrics diagnose the bounded reads. Inventory search,
-summary, graph, and consistency errors use bounded reason values.
-Incident-context reads (`GET /api/v0/incidents/{incident_id}/context`, MCP
-`get_incident_context`) authorize scoped tokens against the reducer-owned durable
-incident→repository correlation edge (`reducer_incident_repository_correlation`,
-exact/derived outcomes only). The handler resolves the incident's PagerDuty
-provider service id (`payload->'service'->>'id'`) and joins it to the durable
-edge on `(provider, provider_service_id)`, keeping only edge-bearing
-correlations (`provenance_only = false` and a non-blank `repository_id`); the
-fuzzy service-name fingerprint never authorizes. A scoped read proceeds only when
-at least one durable owning repository is granted. An out-of-grant owner, an
-incident with no durable edge (ambiguous, unresolved, rejected, or
-name-fingerprint-only routing), and an empty-grant token all return an identical
-not-found envelope with no incident id, service id, or repository id, so a scoped
-caller cannot tell an out-of-grant incident apart from one that does not exist.
-Empty grants fail closed before any read. Shared-token, all-scope admin, and
-local behavior are unchanged: the durable-edge authorizer is consulted only in
-scoped mode.
-No-Regression Evidence: focused incident-context scoped-token query and MCP
-dispatch tests (route gate allow/adjacent-reject, empty-grant no-store-read,
-in-grant served, out-of-grant not-found, no-durable-edge not-found, shared
-unchanged).
-No-Observability-Change: existing incident-context query span
-(`SpanQueryIncidentContext`), truth envelope, limits, truncation, and
-missing-evidence metadata diagnose the bounded reads.
-Semantic evidence reads are opt-in routes over durable semantic facts:
-`GET /api/v0/semantic/documentation-observations` and
-`GET /api/v0/semantic/code-hints`. They require at least one scope or semantic
-filter, page by `limit+1` with deterministic `observed_at DESC, fact_id DESC`
-ordering, and return sanitized rows with `truth_basis`, provider profile,
-prompt version, redaction version, policy state, freshness, and
-admission/corroboration state. They do not call providers, read the graph,
-expose raw prompts, or mix semantic code hints into deterministic code or
-documentation routes.
-
 Documentation findings, documentation evidence packets, and semantic-evidence
 rows surface an optional bounded `source_acl_state` (`allowed`, `denied`,
 `partial`, `missing`, `stale`) the collector observed on the fact's
@@ -803,19 +349,6 @@ Withholding is fail-closed (allowlist, not denylist) and the #2138 truth labels
 never collapsed into the access marker. Per-row dispositions are recorded as
 bounded, content-free span attributes (`eshu.query.source_acl.*_count`); no
 source id, path, title, url, or user identity appears in any label.
-
-No-Regression Evidence: `go test ./internal/query -run
-'SourceACLDisposition|ApplySourceACLDisclosure|EnforcementProofMatrix|EvidencePacketEnforcement|SemanticEvidenceRowEnforcement|ACLDistinctFromFreshness|DisclosesDenied|DisclosesUnknown'
--count=1` proves the full disclosure matrix (allowed/denied/partial/stale/missing),
-content-withheld on denied and partial, the ACL axis independent of freshness
-(fresh+denied, stale+allowed), and the #2138 labels preserved on withheld rows;
-`go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`
-keeps the API and MCP envelope contracts green (MCP proxies the same routes, so
-the disclosure surfaces with parity).
-No-Observability-Change: this slice adds no metric instrument, label, span,
-queue, worker, or runtime knob, and adds no source ids, paths, titles, urls, or
-user identities to any label. The field rides the existing
-`query.semantic_evidence`/documentation readback spans and truth envelopes.
 
 Component extension reads expose runtime component registry state through
 `GET /api/v0/component-extensions` and
@@ -962,11 +495,6 @@ redacted. The process-wide aggregate sections are omitted because they cannot
 be attributed to those grants; `completeness_state=scoped_live_activity_only`,
 `withheld_sections`, and a derived truth level make that boundary explicit.
 
-No-Observability-Change: this is a response-projection and truth-label fix; it
-adds no datastore call, queue stage, retry path, or concurrency boundary. The
-existing `eshu-api` request span and `eshu_dp_postgres_query_duration_seconds`
-status/live-activity query measurements continue to diagnose the route.
-
 Hosted readiness follows the same aggregate rule for scoped tokens. `GET
 /api/v0/status/hosted-readiness` keeps hosted readiness checks, queue counters,
 collector-generation replay blockers, repository counts, diagnostic route
@@ -1090,27 +618,10 @@ live in retired evidence record.
   duplicate `function_name` returns `409` with `error.code=ambiguous` and
   bounded `error.details.candidates`; clients should retry with one returned
   `entity_id` rather than accepting the first name match.
-  No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
-  'TestHandleComplexityRejectsAmbiguousFunctionNameInEnvelope|TestResolveRouteMapsCalculateCyclomaticComplexityEntityID' -count=1`
-  failed before the name lookup stopped using `LIMIT 1`, then passed after the
-  graph read became a deterministic bounded candidate probe and MCP forwarded
-  exact `entity_id` retries.
-  No-Observability-Change: the route still performs one `GraphQuery.Run` call
-  through the existing graph query abstraction, so it remains covered by the
-  shared `neo4j.query` span and `eshu_dp_neo4j_query_duration_seconds`
-  histogram; the change only bounds the candidate list before refusing
-  ambiguity.
 - `/api/v0/code/relationships` returns `target_resolution.status=ambiguous`
   with bounded entity candidates when a repo-scoped name matches multiple
   non-test entities. It does not query the graph or fall back to a first match
   until the caller supplies an exact `entity_id`.
-  No-Regression Evidence: `go test ./internal/query -run
-  'TestHandleRelationshipsReturnsAmbiguousCandidatesWithoutGuessing|TestHandleRelationshipsResolvesRepoScopedNameToNonTestEntityID' -count=1`
-  failed before direct relationships returned structured ambiguity and passed
-  after the name resolver stopped before graph access on multiple candidates.
-  No-Observability-Change: ambiguous name responses are resolved from the
-  content index and intentionally avoid graph reads; resolved entity-id paths
-  keep the existing graph query instrumentation unchanged.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
   a capability string missing from `querycontract/capability.go`'s registry.
   Register missing capability IDs from `go/internal/query/contract/` first.
@@ -1280,15 +791,6 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   `fact_work_items` replay UPDATE is row-level idempotent
   (`WHERE status IN ('dead_letter','failed')`), so it never overwrites in-flight
   or pending work.
-- No-Regression Evidence: additive guarded path over the existing replay store;
-  the dead-letter/skip/backfill SQL is unchanged and the new idempotency claim is
-  one bounded INSERT plus an optional SELECT per request. Verified by
-  `go test ./internal/query ./internal/storage/postgres ./cmd/eshu ./cmd/api`
-  covering the replay/retry matrix (duplicate, in-progress, key-reuse, unsafe
-  class, unauthorized, force) and the store claim/complete logic.
-- Observability Evidence: every decision emits an `admin_recovery_action`
-  governance audit event with actor class, admin scope class, decision, and
-  reason code, carrying no work-item, scope, generation, or payload identifiers.
 
 ## Gotchas / invariants
 
@@ -1307,14 +809,6 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   before it touches `GraphQuery`, rejects mutation/admin tokens before execution,
   appends a bounded probe `LIMIT`, keeps the 30 second graph context deadline,
   and returns structured envelope errors when callers request envelopes.
-  No-Regression Evidence: `go test ./internal/query -run
-  'TestValidateReadOnlyCypher|TestHandleCypherQuery' -count=1` covers
-  whitespace/comment mutation bypasses, unsupported-profile short-circuiting,
-  deadline propagation, limit bounding, truncation, and structured invalid
-  Cypher errors. Observability Evidence: successful reads still use the existing
-  `neo4j.query` span in `Neo4jReader.Run`; rejected mutation/admin queries and
-  unsupported profiles fail before graph execution, so they add no graph,
-  reducer, queue, or worker telemetry cardinality.
 - `/api/v0/code/visualize` and MCP `visualize_graph_query` share that read-only
   Cypher safety path: the handler gates `visualization.graph_query`, rejects
   mutations, bounds the query with `boundedReadOnlyCypher`, executes it under the
@@ -1322,11 +816,7 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   nodes, relationships, and paths into a bounded `VisualizationPacket`
   (`visualization.BuildGraphQueryVisualizationPacket`) instead of returning
   a hardcoded browser URL. Scalar-only results yield an explicit
-  unsupported packet. No-Regression Evidence: `go test
-  ./internal/query/codequery/visualization -count=1`, `TestHandleVisualizeQuery`.
-  Observability
-  Evidence: reads reuse the existing `neo4j.query` span in `Neo4jReader.Run`; the
-  projection is a pure in-memory transform that adds no new telemetry.
+  unsupported packet.
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).
@@ -1351,14 +841,6 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   plain variables the query is meant to surface. `entity_type=module_attribute`
   keeps the graph-first route since it legitimately wants the semantic graph
   node first.
-  No-Regression Evidence: `go test ./internal/query -run
-  'TestHandleLanguageQueryVariableFallsBackToContentStore|TestHandleLanguageQueryVariableIncludesContentVariablesWhenGraphHasSemanticRow|TestHandleLanguageQuery_TSXVariableAssertionUsesContentMetadata|TestHandleLanguageQuery_TSXReactFCWrapperUsesContentBackedPath|TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesContentBackedPath|TestHandleLanguageQuery_ElixirModuleAttributeUsesGraphMetadataWithoutContent'
-  -count=1` proves plain variables are never omitted when a semantic Variable
-  graph row exists for the same language/repo, and that `module_attribute`
-  keeps its graph-first semantic readback. No-Observability-Change: existing
-  graph query spans, content-store Postgres spans, HTTP route attribution,
-  result limits, and response fields diagnose the path; no new telemetry or
-  public field is added.
 - Repository-language inventory reads use the Postgres content index through
   `CountRepositoriesByLanguage`, `ReadRepositoriesByLanguage`, and
   `RepositoryLanguageInventory`. The by-language route uses one statement for
@@ -1379,29 +861,9 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   break this negotiation logic.
 - Repository story and stats handlers use `WriteSuccess` so MCP can preserve
   `ResponseEnvelope` truth metadata while plain HTTP clients keep the legacy
-  JSON body. No-Regression Evidence: `go test ./internal/query -run
-  'TestGetRepository(Story|Stats)ReturnsEnvelopeWhenRequested' -count=1`,
-  `go test ./internal/mcp -run
-  'TestDispatchToolRepo(Story|sitoryStats)ReturnsStructuredEnvelopeData'
-  -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query
-  ./internal/mcp -count=1`, `golangci-lint run ./...`, and `go test ./...`
-  covered the same bounded repository lookup and content coverage input shape;
-  there is no graph query, queue, reducer, or runtime path change.
-  No-Observability-Change: existing repository story/stats timer stages,
-  structured logs, MCP envelope parsing, and HTTP status output remain the
-  diagnostic surface.
+  JSON body.
 - Component extension inventory and diagnostics read only the configured local
-  component registry on explicit API/MCP request. No-Observability-Change: this
-  adds no worker, queue, graph query, Postgres query, or metric label, and path
-  redaction plus inventory bounds are applied before HTTP, MCP, or CLI callers
-  receive the envelope.
-  No-Regression Evidence: `go test ./internal/query -run
-  'TestComponentExtensions|TestOpenAPISpecIncludesComponentExtensionRoutes'
-  -count=1`, `go test ./internal/mcp -run
-  'TestComponentExtension|TestReadOnlyToolsIncludesComponentExtensionDiagnostics'
-  -count=1`, and `go test ./cmd/eshu -run
-  'TestComponentInventoryCommandReadsCanonicalAPIEnvelope|TestComponentDiagnosticsCommandReadsComponentDrilldown'
-  -count=1`.
+  component registry on explicit API/MCP request.
 - The OpenAPI spec is assembled from string fragments in Go source, not from
   runtime reflection. When a handler changes its request or response shape,
   update the matching `openapi/paths/<family>/` fragment in the same PR.

@@ -80,10 +80,6 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/licensemanager/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 Collector Performance Evidence:
 `go test ./internal/collector/awscloud/service/licensemanager/...` covers the
 bounded License Manager metadata path: one paginated ListLicenseConfigurations

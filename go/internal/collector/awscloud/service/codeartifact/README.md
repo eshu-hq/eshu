@@ -94,29 +94,11 @@ with one `DescribeRepository` point read per repository, no `ListPackages`,
 `PublishPackageVersion`, or `CopyPackageVersions` calls, no mutations, and no
 graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/codeartifact/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers CodeArtifact domain and repository metadata fact emission,
-repository-to-domain membership, domain-to-KMS-key,
-repository-to-upstream-repository, and repository-to-external-connection relationship emission with
-each edge's `target_type` and `target_resource_id` asserted, the metadata-only
-reflection guard on the scanner-owned `Client` and the SDK adapter `apiClient`
-interfaces, the relguard runtime graph-join contract over every emitted edge,
-runtime registration, the SDK adapter's safe metadata mapping, and the derived
-supported-service guard. This is a new metadata-only scanner with no change to
-any existing fact, relationship, queue, graph-write, or hot-path behavior.
-
 Collector Observability Evidence: CodeArtifact uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses CodeArtifact scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. This scanner adds no new instrument, span,
-metric label, or status row.
 
 Collector Deployment Evidence: CodeArtifact runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

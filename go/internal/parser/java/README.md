@@ -67,12 +67,6 @@ This package emits no telemetry directly. Parser runtime timing and error
 reporting remain owned by the parent parser engine and the collector surfaces
 that call it.
 
-No-Observability-Change: Java value-flow emission is behind the existing
-`Options.EmitDataflow` parser gate and adds no metric, span, log field, status
-field, queue, graph write, runtime knob, or high-cardinality label. Operators
-continue to diagnose parser cost through the existing collector parse timing
-metric `eshu_dp_file_parse_duration_seconds` and parse-stage logs.
-
 ## Gotchas / invariants
 
 `Parse` expects the caller to provide a parser already configured for the Java
@@ -141,15 +135,6 @@ Durable `dataflow_summaries` and `dataflow_sources` rows are omitted without
 both repository and package identity, matching the stable identity contract.
 The Java CFG lowerer lowers try, catch, and finally bodies enough for sink lines
 inside those blocks to map back to CFG statements.
-
-No-Regression Evidence: `../scripts/go-test-run-guard.sh 6 'TestJava(DataflowOffIsByteIdentical|TaintSpringRequestParamToJDBCSink|TaintWildcardImportsToJDBCSink|TaintTryBlockJDBCSink|TaintIgnoresSameNamedLocalAnnotationAndSink|InterprocSummariesAndSources)' -- ./internal/parser/java -count=1`
-(run from the `go/` module root; the tests live in this package since #6062)
-failed before Java emitted value-flow buckets, before sink matching
-required import evidence, before wildcard import evidence was accepted, before
-try bodies were lowered, and before Java emitted summaries/sources/interproc
-rows, then passed after the Java lowering and catalog were added. The gate-off
-test proves default Java payloads remain byte-identical except for the opt-in
-value-flow buckets when the gate is enabled.
 
 `dogfood_real_repo_test.go` is a standing regression test (#5399), not an
 opt-in dump: `TestDogfoodJavaRealRepoSnapshot` parses the committed, Spring

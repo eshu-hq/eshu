@@ -52,13 +52,7 @@ only envelope fields and never a payload key.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains `eshu_dp_reducer_executions_total`,
-`eshu_dp_reducer_run_duration_seconds`, `eshu_dp_ci_cd_run_correlations_total`,
-and `eshu_dp_postgres_query_duration_seconds` for its historical Postgres
-read. Moving the pure builder adds no queue, storage, graph, span, metric, or
-log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, `eshu_dp_ci_cd_run_correlations_total`, and `eshu_dp_postgres_query_duration_seconds` for its historical Postgres read.
 
 ## Gotchas / invariants
 
@@ -101,22 +95,6 @@ log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason string, run-over-artifact anchor rule, and source-system
-derivation are identical to the base commit, and the dispatcher's ordered
-fan-out is unchanged at 44 builder probes with this probe still running
-immediately after `identity.BuildContainerImageIdentityReducerIntent`
-and immediately before `attestation.BuildSBOMAttestationAttachmentReducerIntent`. The
-family carried a private `cicdRunCorrelationSourceSystem` helper that was
-checked body-for-body against `projectorintent.SourceSystem` and found
-identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no
-third tier), so the substitution is behavior-identical by construction and
-the child tests pin both tiers; the root `firstOfKind` forwarder stays at
-root for its remaining callers. Focused proof, run from the `go/` module
-root: `go test ./internal/projector/cicd/run/correlation ./internal/projector
--count=1` green, whole-module `go build` and `go vet` clean.
 
 ## Related docs
 

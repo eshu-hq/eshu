@@ -68,29 +68,6 @@ reducer's service logger, with `slog.Default` as the fallback), leaves
 `ManifestMarkersSkipped` at zero, and returns the committed result. A gap in the
 counter is therefore not proof of zero markers: look for the WARN.
 
-No-Observability-Change: this extraction moves only the completion queue,
-the producer-readiness store, the quiescence probe, and their SQL
-constants. Lease fencing (`FOR UPDATE SKIP LOCKED`), claim/retry/heartbeat
-transitions, and probe predicates are byte-identical apart from the package
-clause and the necessary export of the fanout query constant (the staying
-root plan tests EXPLAIN it), and no metric, span, or log name changes.
-
-No-Regression Evidence: focused `internal/storage/postgres/...` tests
-(including this package) run green on the moved tree with `-race`,
-including the moved quiescence live proof and the staying concurrency,
-snapshot, and plan proofs against the exported surface; the completion SQL
-text is unchanged so no plan or lifecycle proof is re-owed.
-
-No-Regression Evidence (#10972): the fanout statement's `current_consumers` set
-carries one residual `payload->>'trigger'` predicate, evaluated below the row
-lock, so the manifest markers are never locked, re-pended, or flagged. The
-statement has no second pass over the marker rows and returns four counts; the
-skipped-marker count is a separate statement that runs after the fanout
-committed, so it adds nothing to the lock hold of the fanout or to a producer
-ack waiting on the event row. Measured on the QA replica at 2026-11-23 17:35Z
-with real payloads (read-only; no lock clause, which a replica cannot take),
-on the two statements that now ship:
-
 - Candidate selection of the fanout statement for the `supply_chain_impact`
   consumer domain: the base statement selects 602 rows (claimed, running or
   succeeded at an active generation) in 1,035 ms; with the predicate it selects
@@ -121,28 +98,6 @@ no DML, shared predicate and active-generation text),
 asserts the count through the separate read, and the plan, ACK-overlap and
 lock-order live probes EXPLAIN the shipped fanout constant (see the PR for the
 lab run).
-
-Observability Evidence (#10972): `CrossScopeCompletionResult.ManifestMarkersSkipped`
-is logged per fan-out call as `manifest_markers_skipped` and added to
-`eshu_dp_cross_scope_completion_markers_skipped_total{domain}`; with the
-existing `manifest_trigger` marker signal an operator sees executions per hour
-fall, and the skipped count bounds what the exclusion could have spared per
-event (a census, not a measured saving; divide by the fan-out count). A failed count logs the
-WARN `cross-scope completion manifest marker count failed` (fields `error` and
-`timeout`) and adds nothing to the counter.
-
-No-Regression Evidence (#10972 wording follow-up): the counter's meaning is
-restated as a census, an upper bound on the re-pends avoided; the SQL, the
-runner code path, the instrument name and labels, and the instrument
-registration code are unchanged (comments and the metric description string
-only, plus a stronger unit-test guard on the statement text). No new queue,
-lock, claim or query cost, so the baseline and after measurements of the
-fan-out statement are the ones recorded above.
-
-No-Observability-Change: the signal, its labels and the log field keep their
-names; only the documented meaning changed, in this README, `doc.go`, the
-reducer runner comment, the metric description, `metrics.md` and the telemetry
-coverage row.
 
 ## Gotchas / invariants
 

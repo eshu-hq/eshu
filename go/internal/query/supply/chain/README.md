@@ -282,58 +282,11 @@ no stage timer and no reader fence: a store error answers 500 with the fixed
 `persist vulnerability suppression` body through `tracing.WriteServerFailure`
 (499 for a client cancel), and the 400s echo only the caller's own JSON.
 
-No-Regression Evidence (#7674): only failure branches changed. Success paths,
-Cypher, SQL, parameters, and read counts are untouched, and
-`go test ./internal/queryplan/...` keeps every query-source digest. Request
-validation 400s (`PriorityFilter`, `OptionalMinPriorityScore`, the
-suppression JSON and field checks) still echo only the caller's input.
-
-Observability Evidence (#7674): each converted step emits exactly one
-terminal stage line, `stage_failed` (ERROR) for a fault or `stage_canceled`
-(INFO) for a client cancel, and the handler span carries one `exception`
-event with the step's fixed message as its Error description, or the
-`eshu.request.client_canceled` event and an unset status for a cancel. Pinned
-by `TestImpactFindingsServerFailures`, `TestSiblingRoutesServerFailures`,
-`TestRepositorySelectorServerFailures`, and
-`TestSuppressionMutationServerFailures`.
-
-No-Regression Evidence (#7674 slice 8, runtime probes): the cloud and
-Kubernetes runtime probes changed only which errors their child spans record.
-The probe Cypher, its parameters, the per-digest limits, and the fan-out bound
-(`KubernetesRuntimeProbeMaxConcurrency`) are unchanged from `main` before this
-change, so the backend (Neo4j for candidates, PostgreSQL for the
-ledgers), input shape, query count, and row counts are the same. Measured
-with fakes and no live backend: `go test ./internal/query/supply/chain/`
-passes and `go test ./internal/queryplan/...` keeps every query-source digest.
-
-Observability Evidence (#7674 slice 8): `supply_chain.cloud_runtime_probe`
-and `supply_chain.kubernetes_runtime_probe` keep one `exception` event for a
-backend fault, and for an inner cancel on a live request, and carry none for
-a client cancel (`tracing.ClientCanceled`), matching the request span.
-Pinned by `TestRuntimeProbeChildSpansSkipClientCancel`.
-
 ## Move evidence (#6060)
 
 This package was created by moving twenty-five files out of root package
 `query` (`git mv`, no logic changes). The two assertions below are
 structural rather than promissory — each names what a reader can check.
-
-No-Regression Evidence: the move is a package relocation, not a rewrite.
-`git diff -M --find-renames` pairs each file with its root predecessor;
-the only statement-level changes are the `package` clause, the
-`querycontract`/`auth`/`selector` qualification of helpers
-root forwards to the identical functions, the export renames listed in
-`AGENTS.md`, the family-local copies documented above, and the packet
-responder seam (the route's request parsing, store reads, and response
-bytes are unchanged; composition still runs the same lane-B builder).
-The moved test suite (`go test ./internal/query/supply/chain/`) pins
-handler, scope, probe, and readiness behavior from inside the package,
-and the staying root suite (`go test ./internal/query/...`) pins the
-routes, contract matrix, and packet parity through the aliases.
-
-No-Observability-Change: span names, capability strings, attribute keys,
-and the tracer seed (`tracing.HandlerTracer`) are unchanged; only the
-package qualifier moved.
 
 ## Gotchas / invariants
 

@@ -150,23 +150,12 @@ DescribeAddresses, DescribeCustomerGateways, DescribeVpnGateways,
 DescribeVpnConnections), no mutation calls, and no graph writes in the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers VPC fabric resource emission, route/network-ACL/peering/endpoint
-relationship emission, the EC2/VPC ownership boundary
-(`TestVPCResourceTypesDisjointFromEC2`), runtime registration, command
-configuration, and the SDK adapter's read-only API surface.
-
 Collector Observability Evidence: VPC uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 status.
-
-No-Observability-Change: the existing AWS collector telemetry contract
-already diagnoses VPC scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: VPC runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

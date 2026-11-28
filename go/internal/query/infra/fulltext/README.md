@@ -99,18 +99,6 @@ Covered by `TestBroadClassifier`,
 `TestInfraSearchBroadAtCapIsUncapped`,
 `TestInfraSearchSelectiveHasNoCapEffect`.
 
-No-Regression Evidence (#7245): selective reads emit byte-identical
-statements and rows before and after (the selective and at-cap tests
-above), and the full `go/internal/query/...` suite is green. Corpus-scale
-before/after timing on the broad class stays with the owner lane and is
-NOT_CHECKED here.
-
-Observability Evidence (#7245): a broad page sets the
-`eshu.infra_search_broad_capped=true` span attribute on
-`query.infra_resource_search` and reuses the existing
-`eshu_dp_infra_search_path_total{search_path="fulltext"}` counter. No new
-metric or log is added.
-
 Known limits of the bound:
 
 - Scope-blind probe. `ProbeStatement` counts label matches without the grant

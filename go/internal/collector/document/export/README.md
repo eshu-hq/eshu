@@ -24,9 +24,6 @@ It emits payloads from `go/internal/facts` and marks envelopes with
 `scope.CollectorDocumentation`.
 
 ## Telemetry
-No-Observability-Change: this package has no runtime loop, queue, worker,
-metrics, spans, logs, status rows, provider calls, or graph writes. Existing
-fact emission counters cover any future caller that commits returned envelopes.
 
 Collector Performance Evidence: parser work is bounded by manifest preflight
 limits, explicit file allowlists, and per-section truncation. Local proof uses

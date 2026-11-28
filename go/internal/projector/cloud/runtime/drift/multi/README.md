@@ -58,11 +58,7 @@ This family carries no decode seam: `triggerFact` accepts every envelope
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains its own `reducer_multi_cloud_runtime_drift_finding`
-write telemetry. Moving the pure builder adds no queue, storage, graph,
-span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains its own `reducer_multi_cloud_runtime_drift_finding` write telemetry.
 
 ## Gotchas / invariants
 
@@ -96,17 +92,6 @@ span, metric, or log boundary.
 - [Reducer multi-cloud-runtime-drift architecture](../../../../../reducer/multi-cloud-runtime-drift.md)
 - [Package restructure](../../../../../../../docs/internal/design/package-restructure.md)
 
-No-Regression Evidence: #6627 changes this builder's package path, package
-name, exported symbol, filename, and references without changing its trigger,
-value, or fan-out position. The reducer intent domain
-(`DomainMultiCloudRuntimeDrift`), the `multi_cloud_runtime_drift:<scope>`
-entity key, the `gcp or azure cloud resource facts observed` reason string,
-and the fact-id selection are identical to the base commit. The dispatcher's
-ordered fan-out
-is unchanged at 44 builder probes on both sides, with this probe still
-running immediately after `awsdrift.BuildReducerIntent` and
-immediately before `resource.BuildMaterializationReducerIntent`.
-
 During the earlier #6057 extraction, the family's private
 `multiCloudRuntimeDriftSourceSystem` helper was compared
 body-for-body against `projectorintent.SourceSystem` and found identical --
@@ -128,12 +113,3 @@ fact. Verified by reading
 `../../../../scope_generation_intents_fanout_parity_test.go` and
 `../../../../scope_generation_intents_fanout_test.go` directly rather than assumed
 from a sibling family's finding.
-
-No-Observability-Change: no metric, span, log, or quarantine counter is added,
-moved, or renamed by the #6627 package move. Root assembly and
-`eshu_dp_reducer_intents_enqueued_total` are untouched, the
-`multi_cloud_runtime_drift` domain keeps its existing reducer-side write
-telemetry, and `reducer_intent.go` emits no signal of its own: it is a pure
-trigger-and-value builder with no I/O. The telemetry-coverage row was updated
-in place from the row already covering the pre-move root file and repointed to
-this package's path.

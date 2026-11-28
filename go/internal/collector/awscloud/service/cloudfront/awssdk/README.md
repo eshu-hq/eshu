@@ -50,10 +50,6 @@ Each AWS API call records the shared AWS collector call event and, when
 available, the shared API-call metric, throttle counter, and pagination span
 using the service, account, region, operation, and result labels.
 
-No-Observability-Change: the existing AWS collector API-call metrics,
-throttle counters, `SpanAWSServicePaginationPage` span, and API call event log
-cover CloudFront pagination and tag reads.
-
 ## Gotchas / invariants
 
 - Do not add `GetDistributionConfig` without a separate issue and evidence

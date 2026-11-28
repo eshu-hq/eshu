@@ -30,10 +30,7 @@ projection waits for the corresponding canonical-node readiness publication.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution and graph-write telemetry. Moving the pure builders
-does not add a queue, retry, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution and graph-write telemetry.
 
 ## Gotchas / invariants
 

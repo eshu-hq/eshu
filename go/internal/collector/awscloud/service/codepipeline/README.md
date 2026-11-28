@@ -108,45 +108,15 @@ job-worker reads; no mutations. The scan cost is O(pipelines) GetPipeline and
 ListPipelineExecutions calls plus O(pages) list calls, with no per-action API
 fan-out.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
-covers CodePipeline resource and relationship emission, action-configuration
-value exclusion, webhook secret-token exclusion, source-revision summary
-redaction, runtime registration through the derived service guard, and command
-configuration requiring a redaction key.
-
 Collector Observability Evidence: CodePipeline uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
 
-No-Observability-Change: CodePipeline adds no new telemetry contract. The
-existing AWS collector signals already diagnose CodePipeline scans through the
-`aws.service.scan` and `aws.service.pagination.page` spans,
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total{service="codepipeline"}`,
-`eshu_dp_aws_relationships_emitted_total{service="codepipeline"}`, and
-`aws_scan_status` rows. CodePipeline only adds the bounded
-`service="codepipeline"` label value to those existing instruments.
-
 Collector Deployment Evidence: CodePipeline runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/codepipeline/... -count=1`
-covers the existing partition assertions, now backed by the shared helper. The
-synthesized S3, CodeBuild, CodeDeploy, Lambda, and ECS target ARNs now derive
-the partition from the scan boundary via `awscloud.PartitionForBoundary`
-(replacing the package-local `partition` helper) instead of hardcoding `aws`.
-Commercial output is byte-for-byte unchanged; this is a metadata-only
-correctness fix with no graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

@@ -14,16 +14,3 @@ also live here, because the root package cannot import this leaf.
   `resource.CloudResourceEdgeWriter` directly.
 - Provider leaves anchor their retract dispatch on the shared
   CloudResource edge contract.
-
-## Proof
-
-No-Regression Evidence: pure package move from
-`go/internal/storage/cypher` (issue #6694 cloud slice). Every Cypher
-template is byte-identical to the reviewed base: per-file literal multisets
-match for all renamed files, and the hermetic suites
-(`TestCloudResourceNodeWriter*`, `TestCloudResourceEdgeWriter*`,
-search-key, grouped-dispatch, foreign-edge, retryable) pass in this leaf.
-The executed Cypher, batching, and transaction shape are unchanged.
-
-No-Observability-Change: no metric, span, log, or status field is added or
-changed by this move.

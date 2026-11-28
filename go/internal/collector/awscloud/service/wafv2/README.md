@@ -80,21 +80,11 @@ kind, one detail read per resource, one tag read per resource, and per-web-ACL
 regional association reads. IP set and regex set detail reads count entries and
 discard the bodies.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers WAFv2 resource fact emission, all four relationship kinds, count-only IP
-set and regex set emission, the SDK adapter's read-only interface (reflection
-exclusion test), scope selection, runtime registration, and command
-configuration.
-
 Collector Observability Evidence: WAFv2 uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses WAFv2 scans through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: WAFv2 runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

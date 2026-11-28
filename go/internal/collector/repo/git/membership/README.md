@@ -224,29 +224,6 @@ newly unlisted. Reclaimed rows count on
 evaluated log's `not_listed_reclaimed_count`; a failed marker write is
 `failure_class=selector_cycle_upsert` and changes no outcome.
 
-## Evidence
-
-Performance Evidence (#7625): the work runs once per githubOrg cycle on shard
-0 only, after the paged GitHub listing (one HTTP request per 100 repositories).
-On an Apple M1 Max, `BenchmarkEvaluateQAFixtureSteadyState` (802 known scopes,
-779 listed, full prior projection) measured 181–183 µs/op, 432 KB/op,
-19 allocs/op over three 2 s runs. `BenchmarkGitHubOrgSelectionRequest` in the
-git package (800 listed repositories, one scope ID derivation each, no disk or
-network I/O) measured 3.27–3.36 ms/op. The store adds two reads and one upsert
-per cycle; see `go/internal/storage/postgres/membership/README.md`. Explicit
-mode runs the same two reads and one upsert once per configured owner, over
-only the configured repositories. Other shards and filesystem mode run none of
-it.
-
-Observability Evidence (#7625): every cycle increments
-`eshu_dp_collector_repository_selection_evaluations_total` with its `outcome`
-and logs the INFO `git_repository_selection_evaluated` summary with that
-outcome; the three non-`evaluated` outcomes also log their WARN. A silent
-shard 0 is visible as a missing counter series. `evaluated` cycles also
-set `eshu_dp_collector_repository_selection_scopes` per `state`. Store
-failures carry `failure_class` (`known_scopes_read`, `observations_read`,
-`upsert`, `store_missing`, `expired_sweep`).
-
 ## Verification
 
 ```bash

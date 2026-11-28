@@ -110,19 +110,6 @@ ListVpcConnectors stream, and one paginated ListVpcIngressConnections stream
 with a DescribeVpcIngressConnection enrichment per connection. No mutation or
 lifecycle API is reachable, and the collector performs no graph writes.
 
-Benchmark Evidence: not applicable. This collector slice adds no hot-path
-Cypher, graph write, reducer, queue, or runtime-stage change; it emits reported
-facts the existing reducer admits. The read path is bounded paginated
-List/Describe calls per claimed account and region.
-
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers service, connection, autoscaling, observability, VPC-connector, and
-VPC-ingress fact emission, every relationship's non-empty target type and join
-key, the service-ARN dangling-edge join key, structural exclusion of
-environment-variable values and source credentials, runtime registration, and
-command configuration. The SDK adapter reflection contract test proves the
-mutation and lifecycle APIs are unreachable.
-
 Collector Observability Evidence: App Runner uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`,
@@ -130,11 +117,6 @@ Collector Observability Evidence: App Runner uses the existing AWS collector
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 resource type.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses App Runner scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. No new instrument or label was added.
 
 Collector Deployment Evidence: App Runner runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

@@ -108,17 +108,6 @@ count the fence returns.
 - Measured on Postgres 16 for one 256-candidate page, with 3,000 repositories,
   100,000 other scopes, 1.84M facts, and 820,000 content files: 66 ms cold, 55 ms warm.
 - Single-repository read cost (`singleRepositoryQuery`, eshu-hq/eshu#10032):
-  No-Regression Evidence: the rotation `pageQuery` is byte-unchanged, so every
-  reconcile tick costs what it did; the new read runs once per manual operator
-  fire only, never on the tick, as one `source_key` probe plus the scalar
-  total-candidates count over the page's candidate set that the fencer windows
-  into its slot count. No local EXPLAIN was captured (no live Postgres in this
-  lane); `TestGetGoModuleRepositoryMatchesPageRowLive` pins row and total
-  equivalence in CI, and the QA firing record carries EXPLAIN (ANALYZE,
-  BUFFERS). Observability Evidence: the read reports on the existing
-  `eshu_dp_postgres_query_duration_seconds{store="go_module_repositories"}`
-  series and every attempt logs the operator audit line; no new metric family
-  was added for one bounded operator act.
 
 ## Related docs
 

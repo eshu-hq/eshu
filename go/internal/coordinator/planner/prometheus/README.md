@@ -32,12 +32,6 @@ parent and performs no I/O.
 None. Planning inherits the parent reconcile metrics, workflow and claim
 status, and duplicate-admission logs.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-status field, queue, worker, lease, retry, or runtime setting. Coordinator
-failures remain visible through `eshu_dp_workflow_coordinator_reconcile_total`,
-`eshu_dp_workflow_coordinator_reconcile_duration_seconds`, workflow row and
-claim status, and the existing admission logs.
-
 ## Gotchas / invariants
 
 - Run IDs remain a function of instance, trigger kind, and plan key. Work-item
@@ -52,14 +46,6 @@ claim status, and the existing admission logs.
 - An explicit trigger kind overrides the instance bootstrap flag.
 - An empty selected target set still returns a populated pending run. The
   parent skips durable admission when the returned item slice is empty.
-
-No-Regression Evidence: direct child tests call the production planner and pin
-request rejection, target validation order, deterministic identities,
-configured item order, requested-scope sorting and privacy, trigger precedence,
-target filtering, UTC timestamps, and empty-selection behavior. Planning still
-parses and filters `n` configured targets in O(n), then sorts at most `n`
-requested-scope rows in O(n log n). It opens no network or database connection.
-Root tests pin the exact service request and durable admission path.
 
 No-Concurrency-Change: the planner remains a pure per-call value transform with
 no shared state, goroutine, lock, claim, lease, transaction, or retry. The

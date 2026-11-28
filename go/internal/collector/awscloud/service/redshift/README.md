@@ -104,12 +104,6 @@ bounded Redshift metadata path: paginated `DescribeClusters`,
 resources; no warehouse connections, query results, snapshot reads, table
 reads, mutations, or graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-Redshift metadata fact emission, direct relationship emission, omission of
-master/admin password fields, runtime registration, command configuration, and
-the SDK adapter's safe metadata mapping.
-
 Collector Observability Evidence: Redshift uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -118,31 +112,9 @@ Provisioned and Serverless resource volume is distinguished through the
 `resource_type` attribute on `eshu_dp_aws_resources_emitted_total`; the
 `service` label stays `"redshift"` for both surfaces.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Redshift scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
-
 Collector Deployment Evidence: Redshift runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/redshift/... -count=1`
-covers the new `TestRedshiftSynthesizedARNsDerivePartition` and
-`TestSecurityGroupARNDerivesPartition` (commercial / `aws-us-gov` / `aws-cn` /
-blank-region-fallback) alongside the existing assertions. The provisioned
-Redshift shapes omit these ARNs, so the synthesized cluster, parameter-group,
-subnet-group, and snapshot ARNs plus the EC2 security-group join target now
-derive the partition from the scan boundary via `awscloud.PartitionForBoundary`
-instead of hardcoding `aws`. Commercial output (`us-east-1`) is byte-for-byte
-unchanged; this is a metadata-only correctness fix with no graph-write, queue,
-or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

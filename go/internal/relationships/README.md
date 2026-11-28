@@ -255,31 +255,6 @@ This package does not emit its own metrics, spans, or structured logs.
 Extraction outcomes are surfaced by the reducer when admitted and by
 `internal/storage/postgres` when persisted as evidence rows.
 
-Benchmark Evidence: `BenchmarkMatchCatalogLargeCatalog` on Apple M4 Pro with
-about 10k catalog aliases and mixed URL, image, exact, false-positive, and
-non-match candidates improved from `17628716 ns/op`, `5123080 B/op`, and
-`160030 allocs/op` to `120441-125631 ns/op`, `4400 B/op`, and `101 allocs/op`
-after replacing per-candidate catalog scans with the boundary-aware matcher
-index.
-
-No-Regression Evidence: resolver confidence aggregation is an in-memory
-candidate-bucket calculation. It adds no graph write, queue claim, storage
-schema, worker, lease, batch, or reducer scheduling behavior. `Resolve` still
-returns the same candidate and resolved relationship shapes, with the existing
-`confidence` and `evidence_count` fields carrying the score and support count.
-Centralizing the per-extractor confidence priors into `DefaultConfidenceRegistry`
-(issue #3490) is a pure refactor: every emitted confidence value is byte-identical
-to the prior inline literals (the registry is built once at package init and read
-by O(1) map lookup), so no evidence, candidate, resolved-relationship, or admission
-behavior changes. Proven by `go test ./internal/relationships -count=1` (136 tests
-pass, including the unchanged `resolver_confidence_test.go` and `evidence_test.go`
-expectations) plus the new `confidence_test.go` bound/tier invariants.
-
-No-Observability-Change: operators already inspect admitted relationship
-confidence and evidence count through the reducer/Postgres relationship
-evidence path. This package still emits no telemetry directly; diagnosis uses
-the existing reducer admission and relationship persistence signals.
-
 ### Typed gcp_cloud_relationship decode (issue #4797, W2d)
 
 `gcp_evidence.go` reads the `gcp_cloud_relationship` payload through the Contract
@@ -305,11 +280,6 @@ envelope (empty `SchemaVersion`, or the persist-layer `0.0.0` sentinel) is
 normalized to the family's `1.0.0` before decode, matching the reducer's
 `factschemaEnvelope` normalization and the raw read's prior version-agnostic
 behavior on the corpus, so version-less facts still decode.
-
-No-Regression Evidence: `BenchmarkDiscoverGCPCloudRelationshipEvidence`
-(`gcp_evidence_bench_test.go`, 200 emitter-shaped facts through the reducer-called
-`DiscoverEvidence` path, `-count=6` on Apple M-series) measured raw reads
-(origin/main `1a9eb1505`) versus the typed decode:
 
 | Variant | Path | ns/op | B/op | allocs/op |
 | --- | --- | --- | --- | --- |
@@ -338,10 +308,6 @@ carries — so the added wall-clock is on the order of milliseconds against the
 the corpus carries only `1.0.0` gcp relationship facts, and the only behavior change
 (rejecting an unsupported major) touches no corpus fact.
 
-No-Observability-Change: the conversion reads the same payload values through a
-typed struct instead of raw map lookups; it adds no metric, span, or log, and the
-evidence/candidate/resolved-relationship shapes are unchanged.
-
 ### Deferred backfill self-repo_id scope (issue #3659)
 
 `CatalogRepoIDValues` returns each catalog entry's full lowercase repo_id value
@@ -355,27 +321,6 @@ literal substring matching, so a fact matches only when it references ANOTHER
 repo's repo_id verbatim. This avoids the old blind-replace overlap bug where a
 source repo_id that prefixes a target repo_id could corrupt the target before
 matching.
-
-Performance Evidence: `BenchmarkDeferredBackfillDiscovery{Full,Scoped}Fleet{1k,5k}`
-on Apple M-series (in-memory `DiscoverEvidence` over the representative fleet
-corpus whose payloads now carry `repo_id`): fleet 1k Full `27748503 ns/op`,
-`44039593 B/op`, `399019 allocs/op` -> Scoped `6509206 ns/op`, `5105782 B/op`,
-`55916 allocs/op` (4.3x faster, 8.6x fewer allocs); fleet 5k Full
-`122223287 ns/op`, `218460600 B/op` -> Scoped `31142259 ns/op`, `25836605 B/op`
-(3.9x faster, 8.4x fewer bytes). The prior #3655 benchmark reported 6x/11x only
-because its synthetic payloads omitted `repo_id`, so self-matches never fired;
-the corrected fixture carries `repo_id` and the scoped variant runs through the
-self-exclusion predicate. Both variants emit byte-identical evidence
-(`TestDeferredSelfExclusionTruthEquivalence`,
-`TestDeferredSelfExclusionKeepsCrossRepoRepoIDReference`,
-`TestDeferredSelfExclusionExcludesPureSelfMatch`).
-
-No-Observability-Change: the deferred backfill's operator signal is unchanged —
-the `deferred_backfill_completed evidence_facts=… readiness_rows=… duration_s=…`
-structured log and the `DeferredBackfillDuration` / `DeferredBackfillEvidence`
-instruments in `internal/storage/postgres` still fire with the same shape. The
-fix only narrows which source facts are loaded; it adds no new metric, span, or
-log and changes no emitted evidence.
 
 ## Operational notes
 
@@ -453,16 +398,6 @@ information degrade safely — no citation window is fabricated (the canonical
 `truth.Citation` byte fields are populated only when a real, non-zero window is
 present).
 
-No-Regression Evidence: the change adds citation fields to the existing evidence
-payload and graph-write `SET` clauses; it introduces no new MATCH/MERGE anchor,
-no new index dependency, no additional graph round trip, and no broad scan — the
-canonical relationship write shape and batching are unchanged, so the graph-write
-hot path carries only a few extra scalar properties per already-written edge with
-no plan change. `go test ./internal/relationships ./internal/reducer ./internal/storage/cypher -count=1` stays green.
-
-No-Observability-Change: no metrics, spans, or structured logs are added or
-altered; the citation flows as evidence-fact and edge-property data only.
-
 ## GitHub Actions @ref pin signal (#5372)
 
 `parseGitHubRefParts` (`first_party_refs.go`) delegates to the new leaf
@@ -485,19 +420,6 @@ is `true` only for a full-length (40- or 64-hex) commit SHA, per
 `docs/public/reference/relationship-mapping-evidence.md` for the full
 contract and why branch vs. tag is deliberately not classified.
 
-No-Regression Evidence: `ghactionsref.Parse` is a leaf-package extraction of
-the prior `parseGitHubRefParts` body (byte-identical logic), so this is a
-behavior-preserving delegation, confirmed by the existing
-`go/internal/relationships` test suite staying green with no changes to
-expected values. `go list -deps ./internal/ghactionsref/` shows zero
-`eshu-hq/eshu` imports, confirming the new package introduces no import
-cycle with `go/internal/reducer`, `go/internal/storage/cypher`, or
-`go/internal/query`.
-
-No-Observability-Change: no metrics, spans, or structured logs are added or
-altered; ref_value/ref_pinned flow as evidence-fact and graph-node-property
-data only, following the existing citation-field pattern above.
-
 ## Shared repository-catalog derivation (#4394)
 
 `RepositoryCatalogEntry` (`catalog.go`) is the single source of truth for
@@ -518,15 +440,3 @@ The shared catalog cache's reload-trigger comparison
 `catalogEntriesEqual`) checks `RemoteURL` in addition to `Aliases`, so a
 repository's remote URL changing (a mirror migration) merges a fresh entry
 into the cache instead of leaving Flux resolution pinned to a stale URL.
-
-No-Regression Evidence: this is a behavior-preserving extraction — the parser
-body (`catalogPayloadString` over `repo_id`/`graph_id`/`name`/`repo_name`/
-`repo_slug`) is byte-for-byte the prior Postgres implementation, it is a pure
-in-memory map read with no query, graph round trip, allocation growth, or
-concurrency, and it runs off the streaming hot path only at catalog build. `go
-test ./internal/relationships ./internal/storage/postgres -count=1` stays green
-against the delegated implementation.
-
-No-Observability-Change: no metrics, spans, structured logs, or status surfaces
-are added or altered; the change relocates an existing pure function between
-packages.

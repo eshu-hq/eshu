@@ -38,9 +38,6 @@ Every AWS call flows through `recordAPICall`, which emits the shared AWS
 collector API-call event, a pagination span, and the API-call and throttle
 counters with service, account, region, and operation attributes.
 
-No-Observability-Change: the adapter reuses the existing AWS collector API-call
-metric, pagination span, and throttle counter; no new telemetry names are added.
-
 ## Gotchas / invariants
 
 - The Shield control plane is reachable only in `us-east-1`. `NewClient` pins

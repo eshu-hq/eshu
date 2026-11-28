@@ -167,27 +167,3 @@ which would not be tree-sitter Java either.
 
 Do not remove or weaken the pattern. Weakening it risks emitting dynamic
 strings, comment fragments, or property keys as graph evidence.
-
-### No-Regression Evidence
-
-Verification run after adding characterization tests (6 test functions in
-`metadata_test.go`):
-
-```
-cd go && gofmt -l internal/parser/java   # empty — no formatting drift
-cd go && go test ./internal/parser/... -count=1
-# 1170 passed, 41 packages
-cd go && go test ./internal/parser/java/... -count=1 -run TestMetadata -v
-# 6 passed: TestMetadataClassReferences,
-#           TestMetadataClassReferencesRejectsDynamicOrInvalidNames,
-#           TestMetadataClassReferencesMetaInfServicesProvider,
-#           TestMetadataClassReferencesSpringAutoconfigurationImports,
-#           TestMetadataClassReferencesUnrecognizedPath,
-#           TestMetadataClassReferencesRejectsBareSingleSegment
-```
-
-### No-Observability-Change
-
-No runtime behavior was modified. No telemetry, spans, metrics, or log
-lines were added or removed. This change adds test coverage and
-documentation only.

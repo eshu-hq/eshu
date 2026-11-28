@@ -55,21 +55,6 @@ package keeps transport and dispatch signals, while the HTTP handlers retain
 the shared API request duration and error metrics (`request.go` in
 `internal/query/metrics`).
 
-No-Regression Evidence: this is a pure route-selection move with no new
-graph, storage, queue, or HTTP query work. `count_infra_resources`,
-`get_infra_resource_inventory`, `investigate_resource`, and
-`analyze_infra_relationships` keep the exact method, path, and body/query
-keys (including numeric defaults) the pre-extraction root switch arms sent,
-diffed against `git show origin/main:go/internal/mcp/dispatch.go`.
-`go test ./internal/mcp/infra/inventory ./internal/mcp/... ./cmd/mcp-server -count=1`
-covers per-tool request selection, `resolveRoute` delegation for all four
-tools, and the route-serves-data registry.
-
-No-Observability-Change: this extraction moves only pure infrastructure-
-inventory route selection. The root adapter still feeds the same global
-fanout, dispatch, authorization, budgets, envelopes, and transport telemetry,
-and the same query handlers execute the requests.
-
 ## Gotchas / invariants
 
 - The import path ends in `infrainventory`, while the declared package is

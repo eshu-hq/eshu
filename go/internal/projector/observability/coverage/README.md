@@ -49,11 +49,7 @@ load-bearing and pinned by a package test.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`, and the
-reducer handler retains the observability-coverage correlation span and
-counters. Moving the pure builder adds no queue, storage, graph, span,
-metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`, and the reducer handler retains the observability-coverage correlation span and counters.
 
 ## Gotchas / invariants
 
@@ -84,46 +80,6 @@ Run the package contract tests, ordered fan-out and probe-count tests, the
 projector package tree, package-doc and path mirrors, dirgate, the
 payload-usage manifest gate, and the golden-corpus gates selected by the
 changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
-key, reasons, anchor selection, and source-system derivation are identical to
-the base commit, and the dispatcher's ordered fan-out is unchanged at 44
-builder probes with this probe still running immediately after
-`buildObservabilityCoverageMaterializationReducerIntent` and immediately
-before `routing.BuildReducerIntent`.
-The family's `observabilitySourceSystem` helper was compared body-for-body
-against `projectorintent.SourceSystem` and was NOT identical — it carries a
-literal third `"observability"` fallback where the shared helper returns an
-empty string — so it moved with the family unchanged and is pinned
-(mutation-tested: with the third tier changed to return an empty string,
-`TestObservabilitySourceSystemThirdTierFallback` fails; the restored body
-passes). The root `firstMatchingKindPredicate` forwarder this family was the
-last root caller of was a direct delegate to
-`projectorintent.FactLookup.FirstMatchingKindPredicate`, so dispatching on
-`index.lookup` is behavior-identical by construction; the forwarder was
-removed and its per-distinct-kind evaluation proof relocated to
-`../../intent/fact_lookup_test.go`. The child's `decodeAWSResource` calls the
-same `factschema.DecodeAWSResource` through the same
-`factenvelope.FactSchemaFromInternal` adapter root's wrapper delegates to,
-and the sole caller discards the error, so the decode substitution is
-behavior-identical for this trigger. Focused proof, run from the `go/`
-module root: `go test ./internal/projector/observability/coverage
-./internal/projector ./internal/projector/intent -count=1` green,
-whole-module `go build ./...` and `go vet ./internal/projector/...` clean.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 observability nesting): base `ee0d26b61`,
-backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
-recursive projector tests green (32 packages), moved tests green in the new
-path, B-12 replay reported 437/437 PASS in the move lane with CI
-required-gates as the blocking authority. Same code path on the same input
-shape before and after; rename-only, so no benchmark delta exists to measure.
-
-No-Observability-Change (#6627 observability nesting): no stage added and no
-metric, span, or log name changed; the covering instruments named in this
-section are unchanged.
 
 ## Related docs
 

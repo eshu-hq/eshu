@@ -51,10 +51,6 @@ The scanner itself emits no new metrics. The AWS SDK adapter records API calls
 with the shared AWS collector API-call events, spans, throttle counters, and
 operation labels.
 
-No-Observability-Change: existing AWS collector API-call metrics, pagination
-spans, throttle counters, and per-service operation labels cover Global
-Accelerator accelerator, listener, endpoint group, and tag listing.
-
 ## Gotchas / invariants
 
 - Global Accelerator is a global-endpoint service whose control plane is
@@ -85,14 +81,6 @@ accelerator times endpoint groups per listener; each List level paginates at
 100 per page. No mutation API is reachable, and the collector performs no graph
 writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud
-./internal/collector/awscloud/...` covers accelerator, listener, endpoint-group,
-and endpoint fact emission, every relationship's non-empty target type and
-endpoint-target join-key typing (ELB v2 ARN, Elastic IP allocation id, EC2
-instance id, generic fallback), runtime registration, and command
-configuration. The SDK adapter reflection contract test proves the mutation,
-BYOIP, and custom-routing traffic APIs are unreachable.
-
 Collector Observability Evidence: Global Accelerator uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`,
@@ -100,11 +88,6 @@ collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 resource type.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Global Accelerator scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. No new instrument or label was added.
 
 Collector Deployment Evidence: Global Accelerator runs inside the existing
 hosted `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

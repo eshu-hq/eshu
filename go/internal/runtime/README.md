@@ -322,51 +322,12 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   always reports true current dependency state. See
   [Health And Readiness Probes](../../../docs/public/reference/health-readiness.md).
 
-  No-Regression Evidence: dependency probes run only on `/readyz` hits at the
-  Kubernetes probe cadence (default `periodSeconds: 15`), never on the query or
-  graph-write hot paths. The core schema probe runs one indexed migration
-  receipt lookup with a zero-row column check. The other probes check
-  connections (`PingContext` / `VerifyConnectivity`,
-  default 2s timeout) concurrently. `TestRunReadinessProbeBoundsSlowDependency`
-  confirms a blocked dependency returns in well under one second. Backend:
-  NornicDB (Bolt) and
-  Postgres via the existing shared pools; no new pool, worker, or queue is
-  introduced. Verified by `go test ./internal/runtime ./cmd/api ./cmd/mcp-server
-  -count=1`.
-
-  Observability Evidence: `/readyz` now distinguishes alive-but-broken from
-  ready — the `503` body names the failing dependency and its error, so an
-  operator can tell graph-down from Postgres pool-exhaustion from
-  schema-not-applied (`status_schema`) without shelling into the pod. Liveness
-  (`/healthz`) stays dependency-free. The Helm `readinessProbe.failureThreshold`
-  (3) debounces transient blips before pulling the pod from Service endpoints.
 - Adopted zombie reaping (`StartOrphanReaper`, wired by `cmd/ingester` and
   `cmd/collector-git`) exists because every collector git fetch/clone orphans
   one short-lived helper grandchild that reparents to PID 1; with no init
   process in the image those zombies accumulated (~45/min in the QA environment, pids
   cgroup saturation at 75,412 with pod-wide fork failures) until this fix.
 
-  No-Regression Evidence: the spawn path is behavior-preserving — call-site
-  argv and env are byte-identical, only the constructor changed (one Setpgid
-  syscall per fork), and cancellation previously killed just the direct
-  child. The reaper runs off the hot path (one /proc scan per 30s tick) and
-  only reaps zombies observed for over 2 minutes, which no tracked child
-  can reach given the codebase's synchronous-wait discipline (every spawn in
-  the reaper-hosting collector processes waits via Run/Output). Backend:
-  container Linux (NornicDB Bolt +
-  Postgres via existing pools); no new pool, worker, queue, or metric.
-  Verified by `go test ./internal/runtime ./internal/collector/repo/git
-  -count=1` in a Linux container (reaper reaps exactly the abandoned zombie,
-  age gate and tracked-child safety proven, routing guard green with seeded
-  RED/GREEN). Post-deploy QA `pids.current` observation under fetch
-  churn is the follow-on that proves the incident fixed (issue #6873).
-
-  Observability Evidence: each reap logs pid and zombie age at info level, so
-  an operator can watch reaping keep up with spawn churn without shelling
-  into the pod; spawn-side pressure was already visible as pids cgroup
-  growth. No new OTEL metric — the existing `git repository sync
-  started/completed/failed` logs and `eshu_dp_collector_observe_duration_seconds`
-  still cover the operations themselves.
 - `eshu_runtime_queue_oldest_outstanding_age_seconds` (age of the oldest
   outstanding item from `COALESCE(reopened_at, created_at)`; every
   terminal-to-outstanding transition, including dead-letter replays, the
@@ -417,43 +378,12 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   caller-actionable text with 422, and refinalize claim-fence contention keeps
   its 409 `blocked/claim_fence_busy` verdict, matching `/api/v0/admin/refinalize`.
 
-  No-Regression Evidence: only the domain-error branches of `handleReplay`,
-  `handleReplayCollectorGenerations`, and `handleRefinalize` changed, plus a
-  filter pre-validation that returns the same verdict the domain validation
-  would; the success paths (domain call, response shapes, headers) are
-  untouched, so replay/refinalize latency and the response contracts are
-  unchanged. The error branch adds one `slog` line and span events per failed
-  call. Baseline and after are the same code on the success path;
-  `go test ./internal/runtime ./internal/recovery -count=1` passes including
-  the per-site fixed-message, validation-text, 499, and 409 tests.
-
 - `/metrics` answers a failed status read with the fixed body
   `load runtime metrics failed` (500) and never the reader's error text; a
   canceled scrape answers 499. The error is recorded on the request span and
   logged server-side through `status.WriteReadFailure` (#8287). The composite
   handler already folds any non-200 status answer into
   `eshu_runtime_status_snapshot_available 0`, so Prometheus sees a 200 scrape.
-
-  No-Regression Evidence: only the reader-error branch of `serveStatusMetrics`
-  changed; the success path (reader call, `renderStatusMetrics`, headers) is
-  untouched, so scrape latency, the `metricsSnapshotSelection` statement
-  inventory, and the stored-summary read are unchanged. No new pool, worker,
-  queue, lock, or Cypher. The error branch adds one `slog` line and one span
-  event per failed scrape. Baseline and after are the same code on the success
-  path; `go test ./internal/runtime ./internal/status -count=1` passes
-  including `TestStatusMetricsStatementInventory` and
-  `TestStatusMetricsSkipsTerraformEvidence`. Backend: Postgres status reader
-  via the existing shared pool.
-
-  Observability Evidence: a failed scrape now logs `load runtime metrics failed`
-  with `path` and the error at ERROR level and records the error and an Error
-  status on the request span when one exists (a span exists only where
-  `otelhttp` wraps the handler, the API binary today), so an operator finds the cause
-  server-side instead of in the response body. A caller cancel adds the
-  `eshu.request.client_canceled` span event and no log. Pinned by
-  `TestStatusMetricsHandlerReadFailureHidesBackendText`,
-  `TestStatusMetricsHandlerClientCancelIsNotAServerFault`, and
-  `TestServeHTTPLoadFailureHidesBackendText` (log and span asserted).
 
 - `LoadGraphBackend` with an unrecognized value fails at startup, not at
   first use. `data_stores.go:90` is the only valid switch for the backend

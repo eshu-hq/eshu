@@ -75,27 +75,3 @@ This package emits no metrics, spans, or logs. Parser timing and failures
 remain owned by the collector snapshot path and the parent engine; the
 malformed-state envelope on the payload (`gomod_state.parse_error`) is the
 operator-facing diagnostic for go.mod and go.work input issues.
-
-## Performance
-
-No-Regression Evidence: `go.work` support (#8823) adds one exact file name to
-the registry map, so discovery and `LookupByPath` keep the same O(1) exact-name
-lookup. Parsing runs only for files named `go.work`, reads that one file, and
-does one `modfile.ParseWork` pass linear in the file size, with no shared state
-or locks. Before this change no tracked fixture or golden-corpus repository
-contained a `go.work`, so their facts do not move; the one `go.work` added to
-the git collector's content-version fixture moved its pinned digest (then
-`go/internal/collector/repo/git/testdata/content_version_pin.json`, now the
-per-file ledger `go/internal/collector/repo/git/epoch/ledger.tsv`, #9097) and was
-re-pinned at the same content version: the new output comes
-from a parser registration change, which the folded registry fingerprint
-already covers, so no hand bump is needed. A real repository that has a `go.work` gains a
-file fact plus its `workspace_use` and `dependency_replace` Variable entities.
-The parser registry fingerprint hashes exact file names, and the git
-freshness hint folds it in (#7986), so every repository stores one new
-generation on its next sync. `go test -race ./internal/parser/...
-./internal/collector/repo/...` passes.
-
-No-Observability-Change: this adds no metric, span, or log. The
-`gomod_state.state` and `gomod_state.parse_error` envelope remains the
-operator-facing diagnostic for a malformed `go.work`, as it is for `go.mod`.

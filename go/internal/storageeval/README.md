@@ -127,9 +127,6 @@ artifact fields, not new runtime metrics from this package. Raw repositories,
 hostnames, IPs, paths, DSNs, logs, payloads, principals, and accounts remain
 operator-local.
 
-No-Observability-Change: this package defines the required evidence labels and
-does not alter hosted runtime signals.
-
 ## Gotchas / invariants
 
 - Passing evidence requires `verdict=match`; failure verdicts are useful

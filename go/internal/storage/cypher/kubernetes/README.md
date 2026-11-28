@@ -51,22 +51,6 @@ statement metadata keys are unchanged.
   precedent): unexported helpers cannot cross the package split, and the
   root copy stays for the canonical retract path.
 
-## No-Regression Evidence
-
-No-Regression Evidence: the move changes no statement text, parameter shape,
-row cloning, batching, or dispatch order — (#6694)
-pins each one with the focused suites below.
-
-`go test ./internal/storage/cypher/kubernetes -count=1` (moved writer,
-retract, order, group-dispatch, and graph-truth tests) plus the repointed
-reducer, ifa, queryplan, and replay suites prove the leaf emits identical
-statements to the pre-move root writers on the same inputs.
-
-No-Observability-Change: dispatch, `GroupExecutor` atomicity, statement
-metadata, and retry wrapping are unchanged; this package adds no metric
-name, metric label, worker, queue domain, runtime knob, backend branch, or
-new graph-write route.
-
 ## Related docs
 
 - `docs/public/reference/cypher-performance.md`

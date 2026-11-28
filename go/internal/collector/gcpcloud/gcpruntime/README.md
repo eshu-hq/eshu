@@ -45,15 +45,6 @@ in this slice:
   403 quota-project error from Cloud Asset Inventory. The claimed command
   reads it from `ESHU_GCP_COLLECTOR_QUOTA_PROJECT_ID`.
 
-  No-Regression Evidence: the header set is a single conditional
-  `strings.TrimSpace` plus one `http.Header.Set` per `assets.list` attempt,
-  gated on `QuotaProjectID != ""`; when unset (the default — SA/WIF ADC) this
-  is a no-op branch taken once per page fetch, no allocation or measurable
-  cost added to the existing retry/backoff loop. No-Observability-Change:
-  extraction/paging telemetry is unaffected — the header only changes which
-  billing project Cloud Asset Inventory attributes quota usage to; it does
-  not change request count, page shape, or error/warning classification.
-
 `TagProvider.FetchTagPage` is the opt-in Resource Manager tag API boundary.
 `LiveClient` implements it for `tagBindings.list` and `effectiveTags.list`.
 Scopes call it only when `DirectTagsEnabled` or `EffectiveTagsEnabled` is true;
@@ -95,9 +86,3 @@ promotion proof remains gated per
 admission and API/MCP readback for `gcp_cloud_resource`, tag evidence admission,
 image identity admission, relationship resolution, and IAM trust facts are
 implemented outside this package and remain separate from live promotion.
-
-## Performance and observability evidence
-
-The collector runtime no-regression and observability evidence for this package
-is recorded in `docs/public/reference/gcp-cloud-collector-contract.md` under
-"Runtime Scaffolding Evidence".

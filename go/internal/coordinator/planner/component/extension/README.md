@@ -59,10 +59,6 @@ This pure planner emits no telemetry. The root coordinator records
 `eshu_dp_workflow_coordinator_reconcile_duration_seconds`. Workflow rows and
 claim status expose durable progress.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-status value, queue, worker, lease, retry, or runtime setting. The same root
-signals continue to cover scheduling and egress-audit failures.
-
 ## Gotchas / invariants
 
 - Claim identity prefers the host claim's source system and scope ID;
@@ -83,14 +79,6 @@ signals continue to cover scheduling and egress-audit failures.
 - Every validation error this package returns for a malformed activation
   configuration originates in `activation.ParseConfig`; do not
   duplicate that validation here.
-
-No-Regression Evidence: direct child tests call the production planner and
-pin activation-scoped work-item construction, requested-scope privacy,
-deterministic generation/source-run/fairness identity across repeated
-planning, UTC timestamp normalization, and that an unsupported
-`runtime.sdk_protocol` surfaces as a `PlanComponentExtensionWork` error.
-Root tests pin the schedulability predicate, egress-policy filtering, and
-config-loader activation loading.
 
 No-Concurrency-Change: the planner remains a pure per-call value transform
 with no shared state, goroutine, lock, claim, lease, transaction, or retry.

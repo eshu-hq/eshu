@@ -108,14 +108,6 @@ stream that returns full configuration metadata, no mutation APIs, no
 DescribeUser, no DescribeConfigurationRevision, and no graph writes inside the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Amazon MQ broker and configuration fact emission for both ActiveMQ and
-RabbitMQ engines, customer-managed-key-only KMS relationship emission, subnet,
-security group, configuration, and CloudWatch log group relationship emission,
-omission of broker password and configuration XML material, runtime
-registration, command configuration, and the SDK adapter's safe metadata
-mapping including the forbidden-method exclusion guard.
-
 Collector Observability Evidence: Amazon MQ uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -123,28 +115,9 @@ Collector Observability Evidence: Amazon MQ uses the existing AWS collector
 labels stay bounded to service, account, region, operation, result, and
 resource type.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Amazon MQ scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
-
 Collector Deployment Evidence: Amazon MQ runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/mq/... -count=1`
-covers the existing partition assertions, now backed by the shared helper. The
-synthesized CloudWatch Logs log-group ARN inherits the partition of the broker
-ARN via `awscloud.PartitionFromARN` (replacing the package-local `arnPartition`
-helper) instead of hardcoding `aws`. Commercial output is byte-for-byte
-unchanged; this is a metadata-only correctness fix with no graph-write, queue,
-or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

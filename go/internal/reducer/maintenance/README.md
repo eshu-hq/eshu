@@ -57,41 +57,6 @@ instead.
 Per-leaf signals live in the leaf READMEs. The tree registers no
 parent-level instrument.
 
-No-Regression Evidence: #6061 relocated this family's production logic
-out of the flat `internal/reducer` root without changing it. Every hunk
-in the moved production files was one of three kinds: a package clause;
-(in `accepted_generation_active_gate.go` only) an
-identifier-requalification from the root's
-`SharedProjectionAcceptanceKey`/`SharedProjectionIntentRow` aliases to
-`sharedintent.AcceptanceKey`/`sharedintent.Row` directly; or one of the
-three locally-mirrored root declarations the move added.
-Measured on that branch: `go build ./...` exits 0, `go vet ./...`
-exits 0, `go test ./internal/reducer/... ./cmd/reducer
-./internal/storage/postgres -count=1` passes.
-
-No-Observability-Change: #6061 added no queue domain, worker, lease,
-graph, or storage contract. The signals were the same before and after
-the move.
-
-No-Regression Evidence (#7648): this PR-2 move nests the 9 families
-into leaf packages and strips the family compound prefix from every
-exported identifier. Every hunk in the moved production files is a
-package clause, an identifier rename from the published rename table,
-or a doc-comment leading-name update; struct fields, method names,
-and all string literals (metric, span, and log names included) are
-byte-identical, verified by multiset comparison of methods and string
-literals old vs new across all 28 moved files. Shared test helpers
-hoist to `testutil` (`CounterValue`, `GaugeValue`, `HasAttrs`) with
-identical bodies. Measured: `go build ./...` exits 0, `go vet ./...`
-exits 0, `go test -count=1` over `maintenance/...`,
-`storage/postgres/...`, `cmd/reducer/...`, `internal/reducer` passes
-with the ok-set delta exactly the leaf reshuffle, and `go test -list`
-discovers the same 81 tests before and after.
-
-No-Observability-Change (#7648): this move adds no queue domain,
-worker, lease, graph, or storage contract and renames no signal. All
-metric, span, and log names are byte-identical before and after.
-
 ## Gotchas / invariants
 
 - Test helpers are shared through `testutil`, never by exporting one

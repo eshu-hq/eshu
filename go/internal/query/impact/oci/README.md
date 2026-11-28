@@ -43,9 +43,6 @@ This package emits no metrics, spans, or logs. The `impact` Handler retains
 that telemetry (`eshu_dp_query_oci_registry_truth_truncated_total`,
 reported from `(*Handler).reportOCIRegistryTruthTruncated`).
 
-No-Observability-Change: this package is a pure helper extraction; the
-telemetry call path is unchanged.
-
 ## Performance
 
 `AdvanceBoundedRead`, `KeyBatches`, and the truth builders are pure

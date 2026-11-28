@@ -364,46 +364,6 @@ Run the engine tests from the `go/` module root with
 `../scripts/go-test-run-guard.sh 56 TestDefaultEngineParsePathGo -- ./internal/parser/golang -count=1`,
 which fails on a partial match where a bare `go test -run` would not.
 
-No-Regression Evidence:
-`../scripts/go-test-run-guard.sh 4 'TestGo(FunctionRowsCarryPackageImportPathWhenKnown|FunctionRowsOmitBlankPackageImportPath|MethodRowsCarryReceiverScopedSCIPSymbolWhenPackageKnown|PackageQualifiedCallsCarryStableSymbolKey)' -- ./internal/parser/golang -count=1`
-(run from the `go/` module root; the four tests moved here from the parent in
-#6062, and the guard fails on a partial match where a bare `go test -run` would
-not) failed before native Go function rows emitted `scip_symbol` and
-package-qualified imported calls emitted `stable_symbol_key`, then passed after
-symbol emission was tied only to stable package import paths. `go test
-./internal/reducer/code/call -run
-'TestExtractCodeCallRows(PrefersNativeGoSCIPSymbolForCrossRepoCall|NativeGoSCIPSymbolIdentityStableAcrossGenerations|ResolvesCrossRepoSCIPEdgeBySymbol)'
--count=1` proves the existing reducer symbol index resolves those native Go
-symbols at SCIP provenance and remains generation-stable.
-
-No-Observability-Change: native Go symbol emission adds deterministic string
-fields to existing parser payload rows. It adds no parser stage, queue,
-worker, graph write, metric, span, status field, runtime knob, or external
-SCIP invocation; operators still diagnose parser behavior through existing
-collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`, and
-code-call materialization through existing reducer execution counters and
-code-call completion logs.
-
-Performance Evidence (issue #5219, framework-semantics import gate): `Parse`
-now skips `goHTTPFrameworkSemantics` — a parent-lookup build plus three
-full-tree `WalkNamed` passes — for any Go file importing none of `net/http` or
-a `goRouteFrameworkConstructors` package (gin, echo, chi, fiber), because the
-pass provably returns `(nil, false)` without one of those imports. On the
-kubernetes corpus (17,490 files) 94.7% of files import none of them. Profiling
-`Engine.ParsePath` there attributed 9.1% of parse-stage CPU to that pass; a
-focused benchmark on a dense framework-free file measured the eliminated walk
-at 4.25 ms/op against 48.5 ms/op for the whole parse (8.1% of parse for that
-file), so the corpus-level parse saving is ~8% × 94.7% ≈ 7.6% with no output
-change. Output equivalence is pinned by
-`TestGoHTTPFrameworkSemanticsGateSkipsFilesWithoutFrameworkImports` /
-`...RunsForNetHTTPImport` and the walk count in `TestParseFullTreeWalkCount`
-(58 → 55).
-
-No-Observability-Change: the gate removes redundant per-file work; it adds no
-parser stage, queue, worker, graph write, metric, span, status field, or
-runtime knob. Operators still see parser behavior through the existing
-collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`.
-
 ## Related docs
 
 - `docs/public/languages/support-maturity.md`

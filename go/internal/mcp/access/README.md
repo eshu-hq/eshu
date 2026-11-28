@@ -25,10 +25,6 @@ The `secrets_iam_posture` fact kind is a wire contract in the fact-kind
 registry and is unchanged — only package paths change. Tool names,
 request paths, body keys, and telemetry are identical.
 
-No-Observability-Change: no stage added and no metric, span, or log name
-changed; this namespace declares no function, holds no state, and performs
-no I/O of its own.
-
 ## Related docs
 
 - [MCP architecture](../README.md)

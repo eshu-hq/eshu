@@ -162,21 +162,12 @@ retryable `collect_failure` errors. A newer generation may reclaim a prior
 terminal permission-gap row only when its start timestamp is newer, preserving
 the AWS scan-status conflict domain against stale older starts.
 
-No-Regression Evidence:
-
 - `cd go && go test ./internal/collector/awscloud/awsruntime -run 'TestClaimedSource(ClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps|KeepsTransportFailureRetryable)|TestStartScanStatus(ClassifiesStaleFenceAsTerminal|IncrementsStaleFenceCounter)' -count=1`
 - `cd go && go test ./internal/storage/postgres -run 'TestAWSScanStatusStore(AllowsNewGenerationAfterTerminalPermissionGap|AllowsNewGenerationOverOrphanedRunningRow|ReturnsTypedStaleFenceError)' -count=1`
 
 These cover denied IAM-style, EC2 unauthorized, unsupported-operation,
 transient transport, stale-fence classification, recovery after permissions are
 fixed, orphaned-row handoff, and stale-fence rejection.
-
-Observability Evidence: no new metric name or JSON field was needed. Operators
-see the permission gap through existing AWS scan status fields
-(`status`, `commit_status`, `failure_class`, and `failure_message`), existing
-API pressure counters (`eshu_dp_aws_api_calls_total`,
-`eshu_dp_aws_throttle_total`), and the scan span/latency path
-(`aws.service.scan`, `eshu_dp_aws_scan_duration_seconds{result="error"}`).
 
 ## Refactor Evidence (Scanner Registry Self-Registration)
 
@@ -207,12 +198,6 @@ constructors, so `eshu_dp_aws_api_calls_total`,
 `aws.service.scan`, and `aws.service.pagination.page` retain identical
 labels, cardinality, and span shape.
 
-No-Observability-Change: the awscloud runtime telemetry contract is
-untouched. Init-time registration emits no metrics, spans, or logs of
-its own. Failure modes are programmer errors (duplicate registration,
-empty service_kind, nil builder) and surface as process-start panics, which
-operators already see in `runtime.startup.failed` log records.
-
 Collector Deployment Evidence: the refactor changes no Docker Compose
 service, Helm chart, ConfigMap, environment variable, port, or readiness
 gate. The `collector-aws-cloud` binary keeps the same `/healthz`,
@@ -230,25 +215,6 @@ computed at test time from the `services/<svc>/runtimebind/` directories on
 disk and the runtimebind blank imports parsed from `bindings.go` (see
 `internal/guardset`). Adding a scanner now touches zero want-lists; it appends
 one `merge=union` line to `bindings.go` and adds its own files.
-
-No-Regression Evidence: this is a test-only and docs-only change. No
-non-test runtime file changed. The production scanner registry, the
-`DefaultScannerFactory` dispatch path, and the per-claim `LookupBuilder` read
-are byte-for-byte unchanged from the #762 self-registration refactor. The
-guard's value is preserved and proven: `go test
-./internal/collector/awscloud/awsruntime/... -count=1 -race` passes, and the
-`Diff` helper has a unit-tested negative case ("dir present but not imported")
-in `internal/guardset/guardset_test.go`. Manually removing one blank import
-from `bindings.go` makes both guard tests fail with
-`services/<svc>/runtimebind/ exists but bindings.go does not blank-import it`
-and `len(SupportedServiceKinds()) = N-1, want N`, then passes again once the
-import is restored.
-
-No-Observability-Change: the awscloud runtime telemetry contract is untouched.
-The change adds only test-support code and documentation; it emits no metrics,
-spans, or logs and alters no existing signal. The instruments listed under
-Telemetry above keep their identical names, labels, cardinality, and span
-shape.
 
 ## Gotchas / invariants
 

@@ -40,12 +40,7 @@ only envelope metadata and never a payload field.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains the `reducer.secrets_iam_graph_projection` span and
-the `SecretsIAMGraphNodesWritten`/`SecretsIAMGraphEdgesWritten` counters.
-Moving the pure builder adds no queue, storage, graph, span, metric, or log
-boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.secrets_iam_graph_projection` span and the `SecretsIAMGraphNodesWritten`/`SecretsIAMGraphEdgesWritten` counters.
 
 ## Gotchas / invariants
 
@@ -76,47 +71,6 @@ boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-the trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason string, input-order anchor selection across all recognized
-posture kinds, and three-tier source-system derivation are identical to the
-base commit, and the dispatcher's ordered fan-out is unchanged at 44 builder
-probes with this probe still running immediately after
-`catalog.BuildServiceCatalogCorrelationReducerIntent` and before
-`impact.BuildSupplyChainImpactReducerIntent`. The private `sourceSystem`
-helper the root file owned was compared body-for-body against
-`projectorintent.SourceSystem` and found to carry a literal third fallback
-(`secrets_iam_posture`) the shared helper lacks, so it moved with the family
-unchanged rather than being swapped; the root `firstMatchingKindPredicate`
-forwarder was a direct delegate to
-`projectorintent.FactLookup.FirstMatchingKindPredicate`, so that substitution
-is behavior-identical by construction, and the forwarder stays at root for
-the two root probes that still call it. Focused proof, run from the `go/`
-module root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildSecretsIAMTrustChainReducerIntent' -- ./internal/projector/access/posture -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 secretsiam nesting): base `cc3f77c61`,
-backend go1.27.1 darwin/arm64; rename-only `secretsiam` to
-`access/posture` move with no trigger, value, or fan-out change.
-Whole-module build exit 0, vet clean, recursive projector tests green,
-moved tests green in the new path via the test-run guard, and the repoint
-listing is non-empty (1 test: `TestBuildSecretsIAMTrustChainReducerIntent`).
-B-12 replay gate passes locally (437/437 satisfied); B-7 golden-corpus was
-not run locally: the Docker daemon is unreachable (socket EOF), so CI is the
-blocking authority there. Rename-only, so no benchmark delta exists to
-measure.
-
-No-Observability-Change (#6627 secretsiam nesting): no metric, span, log, or
-quarantine counter is added, moved, or renamed by this move. Root assembly
-and `eshu_dp_reducer_intents_enqueued_total` remain unchanged, while the
-`reducer.secrets_iam_graph_projection` span and the
-`SecretsIAMGraphNodesWritten`/`SecretsIAMGraphEdgesWritten` counters retain
-their existing handler ownership.
 
 ## Related docs
 

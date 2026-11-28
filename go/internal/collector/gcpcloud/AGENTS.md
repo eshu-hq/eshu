@@ -126,48 +126,12 @@ the #6696 serverless slice, without behavior change) is a pure refactor of in-pr
 allocation-bounded string helpers on the collector's parse path; it changes no
 query, graph write, worker, lease, batch, or Compose/Helm knob.
 
-- No-Regression Evidence: baseline `go test ./internal/collector/gcpcloud
-  ./internal/correlation/cloudinventory ./internal/relationships -count=1` = all
-  pass before the change; after the change the same command = all pass with every
-  pre-existing extraction/normalization assertion unchanged. Input shape:
-  per-asset CAI `resource.data` blobs (bare relative, leading-slash, and
-  already-`//cloudkms.googleapis.com/`-prefixed CMEK key names). The helpers are
-  O(n) over a single reference string / bounded attribute slice with no added
-  allocation versus the deleted per-file copies, so there is no hot-path cost
-  delta on the git-collector E2E baseline. The only behavior delta is that a
-  wrong-domain absolute CMEK reference — which real Cloud Asset Inventory never
-  emits — is now dropped instead of surfaced, proven by the new
-  `TestExtract*WrongDomainKMSKey*` extraction tests.
-- No-Observability-Change: the shared extractor helpers register no metric; extraction
-  outcomes remain covered by the collector-local
-  `eshu_dp_gcp_cloud_attribute_extractions_total` and
-  `eshu_dp_gcp_cloud_facts_emitted_total` counters (see
-  `docs/public/observability/telemetry-coverage.md`).
-
 ### Mirror re-stamp evidence (#8856)
 
 The #8856 re-stamp assigns one `CollectorKind` field per secrets/IAM mirror
 envelope (`restampMirrorEnvelope`); it changes no parse, extraction,
 generation, fencing, commit, or claim path, and the envelope counts are
 unchanged.
-
-- No-Regression Evidence: baseline `go test
-  ./internal/collector/gcpcloud/... -count=1` at `origin/main` = all pass
-  (gcpcloud 0.024s, catalog 0.003s, serverless 0.006-0.007s, freshness
-  0.003s, gcpruntime 0.011s); after the change the same command = all pass.
-  Re-measured at head `01fe4c61d5` (includes the new `TestGCP8856Mirror*`
-  tests): gcpcloud 0.098s, catalog 0.005s, serverless 0.007s, freshness
-  0.003s, gcpruntime 0.036s — same suite, larger because the mirror tests
-  drain two extra live scans. The assignment copies one string
-  header per mirror envelope with no allocation and no hot-path cost delta.
-  Behavior delta is the intended one only: the 3 mirror kinds stamp
-  `collector_kind "gcp"` (parity pack Attrs-only diff), proven by the
-  RED-then-GREEN `TestGCP8856ParityLiveAgreesWithFixturePack`, the new
-  `TestGCP8856Join*` tests, and the new `TestGCP8856MirrorEnvelopesJoin` /
-  `TestGCP8856MirrorPayloadsStableAcrossScans` tests.
-- No-Observability-Change: the re-stamp registers no metric, span, log, or
-  status; `CollectorKind` is not a metric label (labels stay bounded enums in
-  `metrics.go`), and emission counts per fact kind are unchanged.
 
 ## What Not To Change Without An ADR
 

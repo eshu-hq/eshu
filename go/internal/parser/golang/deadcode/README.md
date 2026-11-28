@@ -63,25 +63,6 @@ See `doc.go` for the full godoc contract. The surface is:
 None. Evidence gathering is a pure function; a reducer that drives the ingest
 pipeline owns telemetry for the stage that calls it.
 
-No-Regression Evidence: this is a pure package-move (issue #6774 stage 2,
-`golang/dead_code_registrations.go` -> `golang/deadcode/registrations.go`,
-`golang/dead_code_roots.go` -> `golang/deadcode/roots.go`, `package golang` ->
-`package deadcode`). No function body changed beyond swapping the root's
-`nodeText`/`walkNamed` forwarders for the `internal/parser/shared` calls they
-forwarded to, swapping the root's `GoImportedInterfaceParamMethods`/
-`GoDirectMethodCallRoots` type aliases for their `internal/parser/shared`
-originals, and renaming the symbols the root and `framework_routes.go` still
-call to their new exported names (`goDeadCodeEvidence` -> `Evidence`,
-`goDeadCodeEvidenceSet` -> `EvidenceSet` with exported fields,
-`goDeadCodeRootKinds` -> `RootKinds`, `goHTTPServeMuxVars` ->
-`HTTPServeMuxVars`, `goHTTPHandlerWrapperTarget` -> `HTTPHandlerWrapperTarget`).
-Verified by `go test ./internal/parser/golang/... -count=1` and the accuracy
-golden gate (`scripts/verify_accuracy_golden_gate.sh`), both green on the
-moved code.
-
-No-Observability-Change: the move adds no metric, span, log, status field,
-runtime knob, queue, worker, or graph query.
-
 ## Gotchas / invariants
 
 - **Registration matching is deliberately conservative and lower-cased**:

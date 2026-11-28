@@ -92,11 +92,6 @@ the shared API request duration and error metrics (`request.go` in
   registry files for `internal/mcp/` path references before this move (none
   found) and by running `TestRouteServesDataRegistry` after it.
 
-No-Observability-Change: this extraction moves only pure IaC-management
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, and transport telemetry, and the
-same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../README.md)

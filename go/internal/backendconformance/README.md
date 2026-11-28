@@ -76,17 +76,6 @@ stray semantic node. Both lanes were observed live
 returning exactly these rows; the reasoning, the commands, and the images are
 in retired evidence record.
 
-No-Regression Evidence: no production Cypher text, index, schema, queue or
-batching changed. `sourcecypher.CanonicalNodeModuleUpsertCypher` is a new
-exported alias of the unchanged `canonicalNodeModuleUpsertCypher` and has no
-production caller. The new cases run only in the backend conformance tests.
-`go test ./internal/backendconformance/... -count=1` and the
-`go/cmd/reducer` wiring test pass with no live backend, so there is no
-hot-path shape to benchmark before and after.
-
-No-Observability-Change: no metrics, spans, or log keys added or changed; the
-live test's existing per-case `read case passed` log lines cover the new cases.
-
 ## Differential capture (issue #6782, slice 2)
 
 `differential.go` records per-statement fingerprints and result digests at the
@@ -94,32 +83,11 @@ live test's existing per-case `read case passed` log lines cover the new cases.
 comparison. The wrappers return the inner seam unchanged unless
 `ESHU_DIFFERENTIAL_CAPTURE=1`, so normal runs never allocate a record.
 
-No-Regression Evidence: baseline has no capture code and no wrapped seam;
-after this change production still runs unwrapped (no Go file references the
-qualified constructors `backendconformance.WrapGraphQuery` or
-`backendconformance.WrapExecutor` — the other `WrapExecutor` hits are the
-unrelated `graphbackpressure.WrapExecutorWithGate`).
-`go test ./internal/backendconformance/ -count=1` passes in 0.016s with no
-live backend (unit statements plus fake seams, no Bolt, no NornicDB or Neo4j
-version involved). No Cypher text, schema, queue, lease, or batching changed,
-so there is no hot-path shape to bench before/after; the passthrough is
-pinned by `TestWrappersPassThroughWhenCaptureDisabled`.
-
-No-Observability-Change: no new metrics, spans, or log keys; the recorder is
-process memory only with no operator surface, and existing telemetry signals
-are untouched.
-
 Follow-up (failure comparison plus capability stripping): `CompareRecordings`
 also compares failed-execution counts per fingerprint, and `WrapExecutor`
 returns an execute-only recorder when inner lacks `GroupExecutor`. Still no
 hot-path change — production still runs unwrapped, and capture mode now
 preserves the sequential fallback exactly.
-
-No-Regression Evidence: `go test ./internal/backendconformance/ -count=1`
-passes, 49 tests in 0.015s, backend-free; the strip is pinned by a test
-asserting all three optional surfaces are absent on a non-grouping inner.
-
-No-Observability-Change: unchanged from above — no new signals.
 
 ## Differential oracle (issue #6782, slice 3)
 
@@ -144,15 +112,3 @@ rows canonicalize backend serialization (graph-object identity, list order,
 wall-clock columns, run-scoped lineage cells) while parameters stay strict.
 See `differential.go`, `differential_unwind.go`, and
 `differential_normalize.go`.
-
-No-Regression Evidence: `go test ./internal/backendconformance/
-./internal/graph/capture/ ./cmd/golden-corpus-gate/ -count=1` passes with no
-live backend. No production Cypher text, schema, index, queue, lease, or
-batching changed — the touched code runs only inside gate comparison and
-opt-in capture; production replays run unwrapped. Capture-mode overhead is
-one fingerprint plus one digest per statement as before, plus small map
-walks; no hot-path shape exists to bench before/after.
-
-No-Observability-Change: no new metrics, spans, or log keys; comparison
-output keeps the existing `Detail` strings with a machine-readable `Kind`
-alongside.

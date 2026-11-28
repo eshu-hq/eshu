@@ -87,23 +87,12 @@ Feature status is an account attribute, not a relationship. The scanner issues
 no per-finding read, so handler cost scales with configuration cardinality, not
 finding volume.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Inspector v2 resource and relationship fact emission, omission of
-finding details, omission of filter criteria, standalone-account member
-suppression, runtime registration, command configuration, and the SDK adapter's
-safe metadata mapping.
-
 Collector Observability Evidence: Inspector v2 uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, resource
 type, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Inspector v2 scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: Inspector v2 runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

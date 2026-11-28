@@ -244,15 +244,6 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.
 
-No-Regression Evidence: `go test ./internal/collector ./internal/collector/repo/git ./internal/collector/terraformstate ./internal/parser ./internal/parser/hcl ./internal/status -run 'Test(BuildStreamingGeneration(EmitsUnresolvedTerraformBackendExpressionWarnings|KeysBackendExpressionWarningsByLine)|ClassifyWarningStablePairs|DefaultEngineParsePathHCLTerraformBackend(AttributeLineNumbers|Metadata|MarksDynamicMetadata)|BuildReportSummarizesUnresolvedBackendExpressionWarnings)' -count=1` plus `go test ./internal/storage/postgres -run 'TestTerraformStateBackendFactReader.*(VariableDefault|LocalTemplate|RejectsUnresolvedExpressions|FiltersResolvedVariableCandidate)|TestPostgresTerraformBackendQuery.*VariableDefault|TestListTerraformStateRecentWarningsIncludesGitBackendExpressionWarnings' -count=1` prove unresolved backend expressions emit warning evidence, exact candidate resolution still accepts only resolved literal/variable/local values, and status readback groups Git-scope warnings by safe source handle.
-
-No-Observability-Change: this slice emits additional source facts through the
-existing Git collector fact stream and surfaces them through the existing
-Terraform-state admin status section. It adds no worker, queue domain, graph
-write, metric name, metric label, runtime knob, or source-open path; operators
-diagnose the path through persisted `terraform_state_warning` facts, generation
-status, existing Postgres query spans, and `/admin/status` warning summary rows.
-
 ## Identity Join Keys Under An Unknown Provider Schema (#5870)
 
 Three scalar attributes are exempt from `SchemaUnknown` fail-closure: **`arn`,
@@ -313,19 +304,6 @@ the set is a fixed three rather than a heuristic.
 
 ### Measured cost (#5870)
 
-Performance Evidence: the exemption and the detector both sit on the per-attribute
-parse path, so they were measured rather than argued. Both arms compiled once with
-`go test -c` and sampled ALTERNATELY — 8 pairs before-first, then 6 pairs with the
-order reversed as a control, because measuring one arm in a block lets drifting
-machine load land entirely on one side. `BenchmarkParseStream_LargeState/1000_instances`,
-Go 1.26 on an Apple M4 Pro, ns/op medians:
-
-```text
-                       before        after       delta
-before-first (8)     25,123,447   22,763,601    -9.4%
-after-first  (6)     25,194,546   22,890,243    -9.1%
-```
-
 **The change is faster, and the mechanism explains it rather than the other way
 round.** `redact.Scalar` computes an HMAC-SHA256 per redacted value
 (`go/internal/redact/redact.go:161`), so preserving `arn`, `id`, and `self_link`
@@ -338,15 +316,6 @@ A same-direction result across both orderings is what makes this citable; the
 absolute figures are not, since the host was running other work throughout. The
 healthy `SchemaKnown` path is untouched — `classificationSchemaTrust` returns on
 its first branch when the resolver already answers known.
-
-Observability Evidence: the uncovered-provider detector emits a new
-`provider_schema_not_covered` terraform_state_warning fact per uncovered resource
-type, carrying `provider`, `resource_type`, and `occurrence_count`, classified
-`severity=warning` / `actionability=provider_schema_support` through
-`tfstatewarning.Classify`. It rides the existing warning path, so it is already
-counted by `eshu_dp_tfstate_warnings_emitted_total` and needs no new instrument.
-An operator whose bundle goes stale now has a named signal instead of a silent
-recovery; `scripts/verify-telemetry-coverage.sh` passes with no new stage.
 
 ### The detector that keeps this honest
 
@@ -401,101 +370,3 @@ state value names PagerDuty. Secret-bearing endpoint values, SSM parameter
 values, IAM policy documents, integration keys, private URLs, and user emails
 are never persisted in these facts. Endpoint, value, and policy presence is
 recorded with redaction flags plus optional fingerprints for correlation.
-
-No-Regression Evidence: the applied incident-routing path reuses the existing
-streaming resource loop, adds one small allowlist check per resource instance,
-and does not change Terraform-state discovery, source opening, generic
-resource/output/module/provider facts, worker counts, graph writes, queue
-behavior, or provider-schema composite capture. Focused proof:
-`go test ./internal/collector/terraformstate -run 'TestParserEmitsAppliedPagerDutyIncidentRoutingFacts|TestParserEmitsAppliedPagerDutyAlertRouteFacts' -count=1`
-and `go test ./internal/collector/terraformstate -run TestParserRedactsAppliedRoutingSensitiveAttributesUnderKnownSchema -count=1`
-plus `go test ./internal/facts -run TestIncidentRoutingFactKindsAndSchemaVersions -count=1`.
-
-No-Observability-Change: this slice emits additional source facts and bounded
-coverage-warning facts from an existing parser stage. Operators still diagnose
-Terraform-state runs through the existing claim status, parser fact counts,
-warning facts, redaction counts, source-open errors, collector logs, and
-workflow terminal state; no new runtime stage, queue, metric label, span, or log
-field is required.
-
-## Composite Skip Summaries
-
-No-Regression Evidence: the unsupported-composite summary path keeps supported
-schema-known composites on the existing streaming capture path and leaves
-unsupported composites absent from resource attributes. Focused proof:
-`go test ./internal/collector/terraformstate -run 'TestParserSummarizesUnsupportedCompositeAttributeWarnings' -count=1`
-passed after first failing against the old generic `attribute_dropped` warning
-behavior. The full parser package gate
-`go test ./internal/collector/terraformstate -count=1` passed with the streaming
-large-state memory test updated to expect one summary warning fact for 20,000
-repeated unsupported composites and an `occurrence_count` of 20,000.
-
-Observability Evidence: every skipped composite still increments
-`eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` through the
-runtime recorder. Parser warning facts now emit
-`warning_kind=unsupported_composite_attribute` once per
-`resource_type`/`attribute_key`/`reason` shape with `occurrence_count`
-(`composite_attribute_skipped` for non-schema-unknown safe drops), while the
-runtime `slog.Warn` companion logs only the first occurrence of each same shape
-and keeps `attribute_key`, source path, reason, and diagnostic error out of
-metric labels.
-
-## Filtered Discovery Evidence
-
-No-Regression Evidence: baseline before this slice was direct Terraform-state
-seeds plus repo-scoped Git backend discovery; backend-filter discovery and the
-remote all-collector Compose entrypoint were not accepted release paths. After
-measurement on 2026-05-21, an isolated remote Compose smoke run built from the
-PR branch against the default NornicDB image resolved one configured S3 state
-object by seed and by backend filter across a 45-repository smoke corpus. The
-Terraform-state collector reached terminal workflow completion with
-`terraform_state_snapshot=1`, `terraform_state_resource=148`,
-`terraform_state_module=148`, `terraform_state_provider_binding=148`,
-`terraform_state_output=33`, `terraform_state_tag_observation=713`, and
-`terraform_state_warning=14`; API and MCP health checks returned healthy. This
-change keeps graph discovery exact-object only, leaves worker counts and graph
-write paths unchanged, and only reduces filtered discovery database round trips
-from two queries per filter to one Terraform query plus one Terragrunt query
-per resolve.
-
-Observability Evidence: the remote proof used workflow work-item terminal
-state, Terraform-state fact row counts, API and MCP health endpoints, collector
-structured logs, and NornicDB error-log checks. Existing collector metrics,
-workflow status fields, fact work-item counters, and parser warning facts still
-identify whether discovery, source opening, parsing, fact commit, reducer
-projection, or graph persistence is stuck or failing; this patch does not add a
-new runtime stage or hide failures behind fallback behavior.
-
-No-Regression Evidence: after classifying S3 `NoSuchKey` as a missing exact
-state object, the focused reader and AWS adapter gate passed with
-`go test ./internal/collector/terraformstate -run 'TestS3StateSourceReports(MissingState|NotModified)' -count=1`
-(the companion cmd-level test retired with the in-tree command on #8868).
-The change does not alter discovery cardinality, parser memory behavior,
-worker counts, graph writes, or retry timing for transient AWS failures.
-
-Observability Evidence: missing S3 objects preserve the typed
-`ErrStateMissing` cause without logging bucket names, object keys, or full
-locators. The claim runtime records the source-open result and emits a bounded
-`terraform_state_warning` with `warning_kind=state_missing`, so operators can
-separate stale backend declarations from permission errors, parser failures,
-and retryable transport failures.
-
-No-Regression Evidence: the Terraform-state provider-schema composite gap fix
-only changes startup resolver coverage. The parser still performs one immutable
-map lookup at each attribute boundary, keeps the streaming nested walker for
-captured composites, and keeps unknown composites on the existing
-`schema_unknown` warning/metric path. Focused local proof covered the #566
-AWS data-source shapes and the unsupported `cloudinit_config.part` path with
-`go test ./internal/collector/terraformstate -run 'TestLoadPackagedSchemaResolverCoversRemoteE2EDataSourceComposites|TestLoadPackagedSchemaResolverLeavesUnsupportedRemoteE2EGapsUnknown|TestLoadPackagedSchemaResolverFallsBackToEmbeddedSchemas|TestParserCapturesPackagedDataSourceCompositeAttribute|TestParserKeepsUnsupportedPackagedCompositeFailClosed' -count=1`.
-Issue #1587 adds a synthetic Terraform-state fixture for the same
-`cloudinit_config.part` provider-schema gap and proves the parser emits one
-`unsupported_composite_attribute` warning summary with `occurrence_count=2`
-while keeping the composite absent from resource evidence:
-`go test ./internal/collector/terraformstate -run TestParserClassifiesCloudinitPartFixtureAsUnsupportedComposite -count=1`.
-
-Observability Evidence: supported AWS data-source composites now stop emitting
-`schema_unknown` skip records because they land as redacted Terraform-state
-evidence. Unsupported providers and shapes still emit
-`eshu_dp_drift_schema_unknown_composite_total{reason="schema_unknown"}` plus
-the structured skip record carrying `resource_type`, `attribute_key`, source
-path, reason, and diagnostic error.

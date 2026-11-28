@@ -40,12 +40,7 @@ The fact reads use `fact_records_scope_generation_idx`.
 
 ## Telemetry
 
-No-Observability-Change: the store registers no metric. The CAN_PERFORM
-handler reports every lookup outcome through
-`eshu_dp_iam_can_perform_cross_scope_targets_total{outcome}` and every defer
-through `eshu_dp_reducer_readiness_waits_total{domain,outcome}`. A store error
-fails the intent as an ordinary error, visible through
-`eshu_dp_reducer_executions_total`, never as a readiness miss.
+The store registers no metric. The CAN_PERFORM handler reports every lookup outcome through `eshu_dp_iam_can_perform_cross_scope_targets_total{outcome}` and every defer through `eshu_dp_reducer_readiness_waits_total{domain,outcome}`. A store error fails the intent as an ordinary error, visible through `eshu_dp_reducer_executions_total`, never as a readiness miss.
 
 ## Related
 

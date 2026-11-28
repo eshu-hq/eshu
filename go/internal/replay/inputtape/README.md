@@ -165,19 +165,3 @@ Collector seams that accept the tripper:
   custom HTTP client. For AWS, set `aws.Config.HTTPClient` (or
   `sts.Options.HTTPClient`) to `&http.Client{Transport: tripper}`; see
   `sdk_demo_test.go`.
-
-## No-Regression Evidence
-
-No-Regression Evidence: the replay path performs no network I/O and acquires no
-credentials — `RoundTrip` in `ModeReplay` resolves the request key and reads a
-map under a briefly-held mutex, returning `ErrUnmatchedRequest` on a miss. The
-record path holds the mutex only across the in-memory map update, never across
-the wrapped network round trip, so concurrent requests proceed in parallel.
-Verified by `go test ./internal/replay/inputtape/... -race -count=1` (includes
-`TestConcurrentRecordIsRaceFree`).
-
-## No-Observability-Change
-
-No-Observability-Change: the package emits no metrics, spans, or log lines.
-Collector-level telemetry records normally because the tripper is wired through
-the collector's existing HTTP client; the tape is transparent to it.

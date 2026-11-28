@@ -122,10 +122,6 @@ shape, or control flow changes. Measured rather than asserted, because the
 gate's hot-file list covers every `supply_chain_impact_*.go` file this diff
 touches.
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/reducer/code/call -run '^$' -bench ... -benchtime=200x -count=5`
-on go1.27.1 darwin/arm64, comparing `origin/main` c52c30560 against this branch
-in two worktrees on the same machine, back to back. Medians of five runs:
-
 | benchmark | base ns/op | head ns/op | B/op | allocs/op |
 | --- | ---: | ---: | --- | --- |
 | `BuildSupplyChainImpactIndexWithQuarantine` | 6,322,679 | 6,034,819 | 7,900,670 -> 7,900,673 | 100,158 -> 100,158 |
@@ -145,14 +141,6 @@ benchmarks are within run-to-run variance on a laptop, and the -22% on
 `rpm_exact_affected` is noise at nanosecond scale: that base sample carried a
 100.6 ns outlier against a 23.95 ns median for the same input. Nothing here
 supports a performance claim in either direction, which is the point.
-
-No-Observability-Change: no metric, span, log field, or failure class is added,
-removed, or renamed. The types carry no instrumentation and never did; every
-finding built from them is still counted by the `projection (supply-chain)` row
-in `docs/public/observability/telemetry-coverage.md` under
-`eshu_dp_supply_chain_impact_findings_total` and
-`eshu_dp_supply_chain_suppression_decisions_total`, and the coverage page's
-required-metric set is unchanged at 395 entries.
 
 ## Related docs
 

@@ -92,30 +92,6 @@ ListAgents stream with one DescribeAgent point read per agent, no
 StartTaskExecution or other transfer-control calls, no mutations, and no graph
 writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/datasync/...
-./internal/collector/awscloud/internal/relguard/...
-./cmd/collector-aws-cloud/... -count=1` covers DataSync task, location, and
-agent metadata fact emission; task-to-source-location,
-task-to-destination-location, and task-to-CloudWatch-log-group relationship
-emission; location-to-S3-bucket, location-to-EFS-file-system,
-location-to-FSx-file-system, and location-to-IAM-role relationship emission;
-the GovCloud / China / commercial / blank-region partition matrix for every
-synthesized backing-storage ARN; the metadata-only exclusion reflection guards
-on both the scanner `Client` interface and the SDK adapter `apiClient`
-interface; the relguard runtime graph-join assertion over every emitted edge;
-runtime registration; and the SDK adapter's safe metadata mapping. This is a
-new metadata-only scanner with no change to any existing scanner's hot path,
-queue behavior, or graph-write path.
-
-No-Observability-Change: DataSync uses the existing AWS collector telemetry
-contract. The `awssdk` adapter records each List/Describe call through the
-shared `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
-`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`, and
-`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. No new
-instrument, span, or metric label is introduced; metric labels stay bounded to
-service, account, region, operation, and result.
-
 Collector Deployment Evidence: DataSync runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

@@ -92,19 +92,10 @@ trail configuration reads, event data store discovery, channel discovery, Lake
 dashboard discovery, and the guard test for forbidden APIs. No event payload
 or query data-plane call appears anywhere in the test surface.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers CloudTrail resource and relationship fact emission, the runtimebind
-registration, command configuration, and the SDK adapter contract.
-
 Collector Observability Evidence: CloudTrail uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses CloudTrail scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: CloudTrail runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

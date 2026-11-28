@@ -95,28 +95,6 @@ upstream fact set, while `entities_with_declared_parent > 0` paired with
 `edge_count = 0` points at declared parents that resolved to no in-corpus
 entity.
 
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Almost every hunk inside the moved production files is
-package-clause and import requalification: symbols the reducer root used to
-supply as one-line forwarders are now imported from the leaf that already owned
-them. The symbols the root still genuinely owned were hoisted to a shared tier
-by moving the body, not copying it, and the root now forwards to that tier, so
-each has exactly one implementation before and after. The only renames are
-`ProjectionContext.acceptanceUnitID` to `ResolveAcceptanceUnitID` (a Go struct
-cannot carry a field and a method under one name) and the family's own exported
-identifiers, which lost their now-redundant `Inheritance` prefix. A Go import
-change and a type alias add no indirection at runtime. Verified on this branch against
-its current merge-base with `origin/main`: `go build ./...` exits 0,
-`go vet ./...` exits 0, and `go test ./internal/reducer/... ./internal/ifa/...
-./internal/storage/cypher/... ./internal/replay/... -count=1` passes, including
-this package. Binary output was not compared and no such claim is made here.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span, or
-log field. This package registers no instrument; the reducer executions that
-wrap it, the span over them, and every structured-log key listed above are the
-same before and after the move.
-
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a symbol

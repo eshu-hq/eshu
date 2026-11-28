@@ -59,10 +59,6 @@ one line per affected field per call, with `field`, `rows`, and `values`
 `internal/governanceauditasync`'s background appender owns the
 queue-depth/drop metrics for the async write path in front of this store.
 
-No-Observability-Change: this extraction moves the store, its DDL, and its
-existing #6574 WARN verbatim; no metric, span, log field, worker, queue,
-lease, retry, or durable write shape changed.
-
 ## Gotchas / invariants
 
 - `Append` validates every event with `governanceaudit.NormalizeEvent` before
@@ -91,13 +87,6 @@ lease, retry, or durable write shape changed.
   root's `BootstrapDefinitions()`/`orderedBootstrapDefinitionNames` bootstrap
   registry; it exercises this package through `auditstore.NewGovernanceAuditStore`
   and `auditstore.GovernanceAuditQuery`.
-
-No-Regression Evidence: `go test ./internal/storage/postgres/governance/audit/... -count=1`
-covers Append/List/Summary/SummaryForTenant/DeleteExpired, the #6574
-unknown-enum tolerance, and the #3717 tenant-isolation regressions;
-`go test ./internal/storage/postgres/... -run TestBootstrapDefinitionsIncludeGovernanceAuditEvents -count=1`
-covers the root-kept bootstrap-registry assertion. The SQL text, validation,
-and event-id derivation are byte-identical to the pre-move code.
 
 ## Related docs
 

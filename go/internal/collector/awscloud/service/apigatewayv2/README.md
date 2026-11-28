@@ -105,38 +105,14 @@ per-API GetStages, GetRoutes, GetIntegrations, and GetAuthorizers, plus
 GetVpcLinks, GetDomainNames, and GetApiMappings, with no export, integration/
 route response, model/template, or mutation calls.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers API Gateway v2 resource and relationship fact emission, the Cognito user
-pool join key parsed from the JWT issuer, omission of mapping template, request
-model, authorizer URI, and credential payloads, runtime registration, and
-command configuration.
-
 Collector Observability Evidence: API Gateway v2 uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses API Gateway v2 scans through the bounded shared instruments.
-
 Collector Deployment Evidence: API Gateway v2 runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/apigatewayv2/... -count=1`
-covers the new `TestAPIARNDerivesPartition` (commercial / `aws-us-gov` /
-`aws-cn` / blank-region-fallback) alongside the existing commercial assertions.
-The v2 API control-plane id carries no ARN, so `apiARN` now derives the
-partition from the region via `awscloud.PartitionForRegion` instead of
-hardcoding `aws`. Commercial output (`us-east-1`) is byte-for-byte unchanged;
-this is a metadata-only correctness fix with no graph-write, queue, or hot-path
-behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

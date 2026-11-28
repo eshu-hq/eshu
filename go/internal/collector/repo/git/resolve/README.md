@@ -49,17 +49,3 @@ retry. The hourly background refresh travels the same path.
 `git.resolve_cache.lookup` span per lookup, an INFO `git resolve cache lookup`
 line per result (WARN on failure), and one WARN per host when a pin is skipped
 (`cache_empty`, `proxy_set`).
-
-Performance Evidence: the steady-state path is one mutex-protected map read
-and one string join per network git command — under a microsecond next to a
-process spawn — and one DNS lookup per host per hour in place of one per git
-process. The first command for a host adds at most the lookup deadline
-(default 5 s) once per process; the shim on #8092 measured a pinned
-`ls-remote` at 0.45–0.6 s with DNS black-holed, where the unpinned command
-failed after about 12 s. `TestConcurrentRefreshSingleFlight` proves 32
-concurrent failure requests cause exactly one lookup under `-race`.
-
-Observability Evidence: the four `eshu_dp_git_resolve_cache_*` series above,
-asserted from a recorded run in `cache_test.go` (lookups by result, refresh
-requests by reason including `suppressed` and `periodic`, fallbacks by
-`cache_empty` and `proxy_set`), plus the lookup span and log lines.

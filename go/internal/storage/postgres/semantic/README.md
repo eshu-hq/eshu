@@ -57,16 +57,6 @@ observability.
 - Do not import the parent `postgres` package: that is an import cycle.
   Root tests exercise this package through its exported constructors.
 
-No-Observability-Change: this extraction moves only the semantic queue
-store, its SQL text, and its DDL. The claim, fence, retry, dead-letter,
-and snapshot statements are byte-identical, the coordinator constructs the
-same store, and no metric, span, or log name changes.
-
-No-Regression Evidence: focused `postgres` package tests plus the lease
-fencing, SKIP LOCKED, stale-lease, dead-letter, and skip-policy tests run
-green on the moved tree; the SQL text is unchanged so no plan or lifecycle
-proof is re-owed.
-
 ## Related docs
 
 - [Postgres storage](../README.md)

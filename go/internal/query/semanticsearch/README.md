@@ -122,10 +122,6 @@ This package was created by moving files out of root package `query`. No
 behavior changed, and the two assertions below are structural rather than
 promissory — each names what a reader can check.
 
-No-Regression Evidence: the move is a package relocation, not a rewrite. The
-performance-evidence gate flags three files, and they do not all differ from
-their pre-move form for the same reason:
-
 - `semantic_search_index_cache.go` differs only in the `package` clause and in
   the rename of `semanticSearchIndexQuery`/`semanticSearchIndexResult` to their
   exported spellings, which the exported `SemanticSearchIndexStore` interface
@@ -150,19 +146,6 @@ gate matches on content, not only on paths, so a pure move trips it — there is
 no measurement to report because there is no changed code path to measure, and
 inventing before/after numbers for an unchanged code path would be worse than
 this note.
-
-No-Observability-Change: `eshu_dp_search_hybrid_degraded_total` is still
-registered on meter `eshu/go/internal/query`
-(`semantic_search_telemetry.go`), the same meter name as before the move, so
-existing dashboards and alerts resolve unchanged. The span is still
-`query.semantic_search` recorded under tracer name `eshu/go/internal/query`:
-both root and this package obtain it from `tracing.HandlerTracer()`, which
-returns `otel.Tracer(tracerName)` for a `tracerName` const that
-`tracing/handler.go` deliberately pins to the old path, with a comment
-saying why. The attributes are set in one place, `StartHandlerSpanWith`, and
-are still exactly `http.route`, `eshu.capability`, and `service.namespace`.
-This package's local `semanticSearchTracer` var changes only which tracer
-value a test can swap in, never the name production records under.
 
 ## Gotchas / invariants
 

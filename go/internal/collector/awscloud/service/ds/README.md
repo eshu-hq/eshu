@@ -92,25 +92,11 @@ count per claim; trusts, shares, and LDAPS reads are bounded by that count and
 their own page sizes. No mutation calls and no graph writes exist in the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Directory Service metadata fact emission across all three directory types,
-VPC/subnet/trust/shared-directory/owner-account relationship emission with
-non-empty target_type and join keys, the bare-directory-id resource_id that the
-FSx AD edge joins, omission of directory admin passwords and the RADIUS shared
-secret, SDK pagination, the per-directory error propagation path, runtime
-self-registration, the derived supported-service guard, and command
-configuration.
-
 Collector Observability Evidence: Directory Service uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Directory Service scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: Directory Service runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

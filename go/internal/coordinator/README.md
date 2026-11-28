@@ -349,31 +349,6 @@ already prove the allowed scheduling path.
   marked failed with `unauthorized_target`; the webhook payload is never used to
   create facts, root-cause claims, deployment links, or Jira/PagerDuty coupling.
 
-No-Regression Evidence: `go test ./internal/coordinator/egress ./internal/coordinator -run 'Test(ParseExtensionEgressPolicyJSON|ExtensionEgressPolicy|LoadConfigParsesExtensionEgressPolicy|ServiceRun.*ComponentExtension|ServiceComponentExtension)' -count=1` proves extension egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, allowed broad opt-in scheduling, and governance audit event emission for missing or denied extension egress. The change filters component-extension scheduling before workflow rows are planned; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
-
-Observability Evidence: extension egress skips reuse coordinator reconcile
-metrics, workflow rows, claim status, and `/api/v0/index-status`; denied
-extension work creates no claimable row. The coordinator also emits a bounded
-structured log with `collector_kind`, `component_id`, `instance_id`, and
-low-cardinality `reason` so operators can distinguish `egress_policy_missing`
-from `egress_extension_denied` without exposing provider URLs, credential
-handles, source payloads, or token values. When wired to
-`GovernanceAuditAppender`, the same skipped decisions are also visible through
-aggregate governance audit counts by event type, decision, scope class, actor
-class, and reason code.
-
-No-Regression Evidence: `go test ./internal/coordinator/planner/gcp -count=1`
-proves live-mode rejection, sorted planning, privacy-safe `EnabledScopes`,
-deterministic IDs, and empty-selection freshness filtering; `go test
-./internal/coordinator -run 'TestLoadConfig.*GCP|TestServiceRunActiveMode(SchedulesGCPWork|SkipsGCPWorkWhenPriorTargetIsOpen|FiltersDeniedGCPTenantScopes)' -count=1`
-proves root startup rejection and tenant-scope admission filtering. Planning
-only: no provider call, graph write, worker-count, or ServiceMonitor change.
-
-No-Observability-Change: GCP planning reuses coordinator reconcile metrics,
-workflow rows, claim status rows, duplicate-skip logs, and `/api/v0/index-status`.
-Provider request, page, warning, and fact-emission telemetry remains gated to
-the GCP collector runtime and the explicit live Cloud Asset Inventory transport.
-
 ## Semantic-provider execution worker
 
 The worker moved to `semantic/` under #6781. Its runtime contract, the
@@ -381,38 +356,6 @@ default-OFF flags, the egress gate and its benchmark and regression evidence
 are in [semantic/README.md](semantic/README.md).
 
 ## Extension points
-
-No-Regression Evidence: incident freshness, owned package target derivation, and
-budget-exhaustion coverage live in focused coordinator tests for PagerDuty/Jira
-handoff, package-registry planning, and vulnerability-intelligence planning.
-Those paths remain planning-only: they authorize configured scopes, create
-bounded workflow rows, and do not alter claim leases, worker counts, queue
-ordering, reducer graph writes, fact emission, or provider API calls.
-
-Observability Evidence: existing coordinator reconcile counters and duration
-histograms, workflow runs, work items, claim status/failure rows,
-`requested_scope_set`, `/api/v0/index-status`, Postgres trigger-store
-telemetry, and webhook listener request/store signals show planned, claimed,
-completed, retried, failed, stale, unauthorized, budget-exhausted, and
-partial-evidence states without adding incident IDs, issue keys, package
-coordinates, URLs, payload fields, or credential handles to metric labels.
-
-No-Regression Evidence: `go test ./internal/coordinator/... ./cmd/workflow-coordinator -run 'TestServiceRunActiveModeSchedulesCICDRunWork|TestWorkPlanner' -count=1` proves active-mode reconciliation schedules CI/CD run work through `CICDRunPlanner`, derives the reconcile-bucket plan key from the collector mode and interval, and persists work through the existing open-target admission guard. This is planning only: it creates workflow rows for configured GitHub Actions targets and does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
-No-Observability-Change: CI/CD run scheduling reuses the existing coordinator reconcile counters and duration histogram, `workflow_runs`, `workflow_work_items`, claim status rows, `requested_scope_set`, and `/api/v0/index-status`. The planner keeps credential environment names out of `requested_scope_set`; provider request, rate-limit, and fact-emission telemetry remains gated to the deployable CI/CD collector runtime slice.
-
-No-Regression Evidence: `go test ./internal/coordinator/... ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps package-registry and vulnerability-intelligence derived work inside one stable plan key across reconcile buckets while preserving rotating mode as the default.
-
-Observability Evidence: no new metrics were required. Existing collector instance configuration, workflow run IDs, `workflow_work_items`, `requested_scope_set`, coordinator reconcile metrics, and `/api/v0/index-status` show whether a proof used rotating or single-pass planning and whether the remote representative guard rejected queue growth beyond the derived-target budget.
-
-Performance Evidence: `go test ./internal/coordinator/... -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
-
-No-Regression Evidence: `go test ./internal/coordinator/... -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|BatchesInstalled|BatchesSBOM' -count=1` proves vulnerability-intelligence installed-evidence planning admits exact OS package and SBOM component targets, rejects conflicting SBOM PURL/component versions, batches exact OSV queries where supported, keeps bounded single-pass reader state, and reports partial-evidence skips without leaking package coordinates.
-
-No-Observability-Change: installed-evidence advisory target planning uses the
-existing workflow and collector status surfaces. It adds `target_class` and
-`source_family` values inside `requested_scope_set`, but no metrics labels or
-logs include package names, versions, PURLs, image digests, repository paths, or
-advisory payloads.
 
 - `Store` — substitute any implementation satisfying the four-method interface
   for testing or future backends.
@@ -462,33 +405,6 @@ advisory payloads.
 
 The #6781 package-split evidence lives in [package-split.md](package-split.md).
 
-No-Regression Evidence: `go test ./internal/coordinator/planner/aws/scheduled ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
-covers scheduled AWS target planning, invalid `aws-global` pair filtering, and
-the audit-only run recorded when all configured tuples are invalid.
-
-No-Regression Evidence: `go test ./internal/coordinator/... -run 'TestLoadConfigParsesActiveRuntimeControls|TestServiceRunActiveModeReconcilesRunsOnDedicatedInterval' -count=1`
-proves workflow-run status reconciliation can tick faster than scheduled-work
-planning, which keeps remote all-collector Compose from waiting up to the
-scheduled scan interval after all claims complete.
-
-No-Regression Evidence: `go test ./internal/workflow ./internal/coordinator ./internal/storage/postgres ./internal/runtime -run 'DisabledHosted|HostedRegistration|HostedCollectors|RemoteE2EComposeDefaultsAllowDisabledHostedCoordinatorStartup|PagerDutyMissing|JiraMissing|PagerDutyClaimsEnabled|JiraClaimsEnabled' -count=1`
-proves disabled PagerDuty and Jira registrations can preserve blank private
-target fields through config load and reconciliation while enabled hosted
-instances still fail strict target validation.
-
-No-Observability-Change: hosted registration validation changes startup gating
-only. Existing coordinator reconcile counters, collector-instance drift gauges,
-and startup errors still expose invalid enabled configuration and durable
-reconciliation failures.
-
-No-Regression Evidence: `go test ./internal/coordinator/... ./internal/storage/postgres -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1`
-covers the open-target admission guard, AWS freshness handoff on the reap
-cadence, and workflow-run reconciliation during active maintenance.
-No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRun(SkipsSameRunTargetReplay|SkipsTerminalSameRunReplay)' -count=1`
-first reproduced same-run target replay and terminal-run append on
-preserved-volume restart, then proved deterministic scheduled run ids do not
-append duplicate or newly discovered target work after the run is terminal.
-
 ### GCP freshness handoff fan-out (#4338)
 
 `scheduleGCPFreshnessWork`/`groupGCPFreshnessAssignments`/
@@ -515,29 +431,6 @@ AWS freshness. Two GCP-specific differences from AWS:
    same instance in one batch compute the identical `PlanKey`/`RunID` and
    race each other through `workflowRunIsTerminal`/
    `workItemsWithoutOpenTargets`, silently dropping one trigger's scope ids.
-
-Performance Evidence: this adds no new hot path shape. `ClaimQueuedTriggers`
-reuses the exact `FOR UPDATE SKIP LOCKED` claim pattern already proven by AWS
-freshness at the same default 100-row claim limit; the fan-out join
-(`matchingGCPFreshnessScopeIDs`) and the per-batch instance grouping
-(`groupGCPFreshnessAssignments`) are in-memory linear scans over one claimed
-batch (default 100 triggers) and one collector instance's already-loaded
-scope list (typically single digits to low hundreds of scopes), not a new
-query or graph write.
-
-No-Regression Evidence: `go test ./internal/coordinator/... -run 'GCPFreshness' -race -count=1`
-covers claim-and-handoff, the fan-out-to-multiple-content-families case, the
-fan-out-across-multiple-instances case, the same-batch-same-instance
-coalescing case, idempotent-skip on an already-open target,
-unauthorized-target handling, and best-effort failure-marking. Full package
-run: `go test -race -count=1 ./internal/coordinator ./internal/telemetry
-./cmd/workflow-coordinator`.
-
-Observability Evidence: `eshu_dp_gcp_freshness_events_total` (kind/action,
-mirrors `AWSFreshnessEvents`) and the new `eshu_dp_gcp_freshness_fanout_scope_count`
-histogram (bounded buckets 1/2/4/8/16/32/64) give an operator the per-trigger
-fan-out cardinality distribution — a trigger resolving to an unexpectedly wide
-scope set is visible without a DB query.
 
 ### AWS/GCP freshness claim lease + reclaim (#4576)
 
@@ -607,77 +500,6 @@ stranded. `EnsureSchema` on both stores also runs the equivalent
 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for `claim_expires_at` and
 `claim_fencing_token`, so a store created before #4576 gets the columns even
 if migration 041 has not been run against it directly.
-
-Performance Evidence: this adds one extra indexed column write to the existing
-`ClaimQueuedTriggers` UPDATE (no new query) and one new reap query per store
-per active-maintenance tick, gated by a partial index scoped to `status =
-'claimed'` rows only — the working set is bounded by in-flight claims (at most
-one claim-batch limit's worth outstanding at a time), not full table size.
-`ReapExpiredTriggerClaims`'s `LIMIT $2 FOR UPDATE SKIP LOCKED` bounds one pass
-to the configured reap limit (default 100 rows), matching the existing
-`ClaimQueuedTriggers` claim-limit shape, so the reap adds no unbounded scan.
-
-No-Regression Evidence: `go test ./internal/coordinator/... ./internal/storage/postgres -race -count=1`
-passes, covering (a) `TestScheduleAWSFreshnessWorkContinuesPastOneAssignmentFailure`/
-`TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure` proving a
-mid-batch assignment failure no longer strands its batch-mates (the other
-instance's trigger is still planned, enqueued, and handed off, while the
-failing instance's trigger is marked `failed` rather than left `claimed`),
-(b) `TestRunReapExpiredAWSFreshnessClaimsRecordsMetricsAndReclaims`/
-`TestRunReapExpiredGCPFreshnessClaimsRecordsMetricsAndReclaims` and
-`TestRunActiveMaintenanceReapsFreshnessClaimsBeforeHandoff` proving the reap
-runs before handoff each tick and records the reclaimed count as the
-stuck-claimed telemetry signal, and (c) `TestRunReapExpiredAWSFreshnessClaimsRecordsErrorOutcome`
-proving a reap failure is recorded with the error outcome rather than dropped.
-`go test ./internal/storage/postgres/... -run 'Freshness' -race -count=1`
-against a real disposable Postgres 18 instance
-(`ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN`) additionally proves, against the
-database rather than SQL text alone: a claim with an already-expired lease is
-reclaimed to `queued` while a claim whose lease has not yet expired is left
-untouched (no race against a live claim-holder), reap is idempotent (a second
-immediate pass reclaims nothing further), and 5 concurrent reap passes racing
-20 expired claims each reclaim a disjoint set — every row is reclaimed by
-exactly one caller, proving `FOR UPDATE SKIP LOCKED` prevents double-reclaim
-under concurrency (both AWS and GCP stores).
-`TestAWSFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration`/
-`TestGCPFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration` prove
-the fencing design end-to-end: after a claim is reaped and re-claimed by a
-different owner, the original stale holder's `MarkTriggersHandedOff` and
-`MarkTriggersFailed` calls (presenting its now-superseded fencing token) leave
-the row's status unchanged at `claimed`, while the new owner's call
-(presenting the current token) successfully transitions it to `handed_off`.
-`TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration`
-seeds both tables in their pre-#4576 shape, inserts a row already stuck at
-`claimed` with no lease columns, applies migration 041 verbatim, and proves
-`ReapExpiredTriggerClaims` reclaims that pre-existing stuck row on the very
-next pass — proving the backfill, not just the column addition.
-
-Observability Evidence: `eshu_dp_workflow_coordinator_aws_freshness_reap_total`/
-`..._gcp_freshness_reap_total` (outcome-dimensioned counters),
-`..._aws_freshness_reap_duration_seconds`/`..._gcp_freshness_reap_duration_seconds`
-histograms, and the `..._aws_freshness_stuck_claimed`/`..._gcp_freshness_stuck_claimed`
-observable gauges (updated from the most recent successful reap pass's
-reclaimed count) give an operator the stuck-claimed rate directly — a healthy
-deployment reclaims ~0 triggers per pass because handoffs normally complete
-before the 5-minute lease expires, so a sustained non-zero gauge is the
-3-AM signal that something is crashing mid-batch or a plan/handoff step is
-running long. `awsFreshnessActionReclaimed`/`gcpFreshnessActionReclaimed`
-values on the existing `eshu_dp_{aws,gcp}_freshness_events_total` counters
-additionally break the reclaim volume out per trigger kind.
-
-Observability Evidence: AWS scheduled runs persist valid planned targets and
-skipped invalid configured tuples in `workflow_runs.requested_scope_set`; the
-existing workflow coordinator reconcile metrics and run rows show whether the
-planner generated work or intentionally skipped invalid pairings. Workflow-run
-freshness remains visible through `eshu_dp_workflow_coordinator_run_reconcile_*`
-metrics, `workflow_runs`, `workflow_run_completeness`, and
-`/api/v0/index-status`. Duplicate target suppression emits
-`reason=target_already_planned`, `planned_work_items`, `enqueued_work_items`,
-`skipped_work_items`, and `trigger_kind` in structured coordinator logs. A row
-the admission guard let through and the store then refused is a different event
-and gets its own warning, `reason=insert_conflict_dropped_row` with
-`admitted_work_items` and `dropped_work_items`: that work is in no queue, so it
-must not be read as a duplicate that was safely skipped (#4586).
 
 ## Related docs
 

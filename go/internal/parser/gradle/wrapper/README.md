@@ -69,25 +69,12 @@ The row carries `name` (`gradle`), `value` (the version), `line_number`,
 (`gradle_wrapper`) and `distribution_type` (`bin` or `all`). The payload also carries
 a `gradle_wrapper_state` envelope with `state` and `unsupported_count`.
 
-## Telemetry
-
-No-Observability-Change: the package emits no metrics, spans or logs. It runs
-inside the parent engine's per-file parse. `gradle_wrapper_state` shows an
-operator a file that held a `distributionUrl` the grammar could not read.
-
-## Performance
-
-No-Regression Evidence: registering the name adds one exact-name lookup entry
-and no per-file work for other files (the default registry was already governed
-by the `.npmrc` binding, so the policy lookup is not new). Work for a wrapper
-file is one linear pass over at most 64 KiB; the tests assert that a 10 MB line
-allocates nothing and that 60 KiB inputs of continuations, escapes and
-backslash runs allocate under 16 KiB. `BenchmarkParseConfig/gradle_wrapper`
-parses a 10,000-line file (about 35 KB) in 0.17 to 0.66 ms across runs on a
-shared arm64 host, at about 126 KB and 41 allocations per parse.
-
 ## Verification
 
 `go test -race -count=1 ./internal/parser/gradle/wrapper` runs the grammar
 fixtures, the allocation ceilings, a random-byte no-panic pass, and a seeded
 generator that checks the row and the absence of every planted marker.
+
+## Telemetry
+
+The package emits no metrics, spans or logs. It runs inside the parent engine's per-file parse. `gradle_wrapper_state` shows an operator a file that held a `distributionUrl` the grammar could not read.

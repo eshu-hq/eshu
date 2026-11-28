@@ -45,28 +45,6 @@ comes from the host: `extensionhost.StatusTelemetry` records the unchanged
 status row per claim, and the claim-plane selection counter records the
 backend. A silent stderr on success is intentional.
 
-## Performance Evidence
-
-Benchmark Evidence: `BenchmarkServeUnchanged` answers a representative
-526-byte host request in ~10 microseconds per claim with 38 allocations
-(~4.8 KiB) on linux/arm64 under go1.26.10 (10,000-op sample). The per-claim
-cost is one bounded JSON decode plus one small result encode; the 4 MiB stdin
-cap bounds the worst case. Input shape is fixed by the host contract, so no
-claim can grow the work.
-
-No-Regression Evidence: this package touches no existing path — the worker
-claim loop, host source, planner, stores, and committer are unmodified, and
-the disposable end-to-end leaves `fact_records`, `scope_generations`, and
-`fact_work_items` at delta 0 with the item `completed`. The only added
-per-claim cost in the window is the host's process spawn, the same price every
-satellite already pays.
-
-No-Observability-Change: the emitter emits no metric, span, or log of its
-own; its per-claim unchanged status row is recorded by the host's
-`eshu_dp_component_extension_status_records_total` and
-`eshu_dp_component_extension_results_total`, and claim timing stays on
-`eshu_dp_workflow_claim_run_duration_seconds`.
-
 ## Gotchas / invariants
 
 - Facts are always empty. Any emitted fact would flow to the committer and

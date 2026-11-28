@@ -42,11 +42,7 @@ consumer of `SourceHint`.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains the `eshu_dp_package_source_correlations_total` and
-`eshu_dp_package_consumption_repo_edges_total` counters. Moving the pure
-builder adds no queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `eshu_dp_package_source_correlations_total` and `eshu_dp_package_consumption_repo_edges_total` counters.
 
 ## Gotchas / invariants
 
@@ -78,27 +74,6 @@ builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-the trigger, value, or fan-out position. The reducer intent domain, entity
-key, both reason strings, kind-priority anchor selection, and source-system
-derivation are identical to the base commit, and the dispatcher's ordered
-fan-out is unchanged at 44 builder probes with this probe still running first,
-immediately before `awsdrift.BuildReducerIntent`. The private
-`packageSourceCorrelationSourceSystem` helper the root file owned was compared
-body-for-body against its `projectorintent.SourceSystem` replacement (both
-trim `SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`) and
-had no other caller, so it was dropped rather than moved; the root
-`firstOfKind` forwarder was a direct delegate to
-`projectorintent.FactLookup.FirstOfKind`, so both substitutions are
-behavior-identical by construction. That compatibility forwarder has no
-production caller now and remains unchanged outside this path-only move. The
-`packageIdentityEnvelope` test fixture stays at root because the fan-out and
-supply-chain-impact tests still build on it. Focused proof, run from the `go/`
-module root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildReducerIntent' -- ./internal/projector/package/source -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
 
 ## Related docs
 

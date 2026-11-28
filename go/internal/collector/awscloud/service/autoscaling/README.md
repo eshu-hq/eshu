@@ -104,15 +104,6 @@ DescribeScheduledActions stream, and a per-group DescribeLifecycleHooks call
 (DescribeLifecycleHooks is not paginated by AWS). No mutation or
 capacity-control API is reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Auto Scaling group, launch-configuration, scaling-policy,
-lifecycle-hook, and scheduled-action fact emission, every relationship's
-non-empty target type and grepped join key, the bare-group-name resource_id
-that closes the CodeDeploy dangling edge, structural absence of launch
-configuration UserData and lifecycle-hook notification metadata, runtime
-registration, and command configuration. The SDK adapter reflection contract
-test proves the mutation and capacity-control APIs are unreachable.
-
 Collector Observability Evidence: Auto Scaling uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`,
@@ -120,11 +111,6 @@ Collector Observability Evidence: Auto Scaling uses the existing AWS collector
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 resource type.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Auto Scaling scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. No new instrument or label was added.
 
 Collector Deployment Evidence: Auto Scaling runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

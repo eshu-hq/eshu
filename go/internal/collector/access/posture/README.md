@@ -88,12 +88,6 @@ unsupported, rate-limited, or stale source coverage. Runtime adapters remain
 responsible for request spans, API-call counters, retry counters, scan duration,
 and status reporting.
 
-No-Observability-Change: this package is not a hosted runtime and adds no
-metric instruments, span names, log fields, ServiceMonitor labels, or admin
-status endpoints. The Vault source-envelope slice introduces no live Vault
-client path; future adapters must add their own runtime telemetry before
-claim-driven collection lands.
-
 Collector Deployment Evidence: no Docker Compose service, Helm Deployment,
 Service, ServiceMonitor, port, environment variable, or runtime flag changes are
 introduced by this package. The Vault slice is source-fact construction only.

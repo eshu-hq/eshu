@@ -24,14 +24,6 @@ scheduled-scan rule for pairing global services with `aws-global` and regional
 services with regional targets. Freshness-trigger authorization remains in
 `freshness.TargetAuthorized` and the root freshness routing path.
 
-## No-Observability-Change
-
-This package emits no signal directly. The reconcile loop that calls it stays
-covered by `eshu_dp_workflow_coordinator_reconcile_total` and
-`eshu_dp_workflow_coordinator_reconcile_duration_seconds`, and the scheduled-AWS
-run remains visible through workflow row and claim status. Moving the planner
-adds no queue, worker, lease, retry, metric, span, or log boundary.
-
 ## Gotchas / invariants
 
 - **No registry setup needed.** `ParseTargetScopes` validates

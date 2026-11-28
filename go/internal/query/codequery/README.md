@@ -96,27 +96,6 @@ or graph failure during that lookup is a 500
 `server_failure*_test.go` covers each route family with a canary fault, a
 client cancel, a stale reader, and the wrapped sentinels.
 
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No Cypher, SQL, query parameter, call count, row bound, or
-success path changed. The queryplan `source_sha256` pins for
-`handleCallChain`, `handleCypherQuery`, `handleVisualizeQuery`, and
-`handleSearchBundles` were re-pinned from the gate's mismatch report because
-only their error branches changed; no `cypher_sha256` moved. A failure now
-costs one span `RecordError`/`SetStatus` and a fixed-string write instead of
-formatting the error into the body. `go test ./internal/query/...
-./internal/queryplan/... -count=1` and `go test -race
-./internal/query/codequery/...` exit 0. No benchmark is claimed because the
-success path has no runtime delta to measure.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the step's
-fixed message; a client cancel adds `eshu.request.client_canceled`, leaves the
-status Unset, and answers `499`. A sentinel 503 records the error and sets
-status Error with the sentinel text. The call-graph metrics and import routes
-still record exactly one exception on their 422 scope and graph-verdict
-branches. `server_failure*_test.go` asserts these span shapes with a
-recording tracer.
-
 ## Verification
 
 ```bash

@@ -21,38 +21,6 @@ only: one file would approach the 500-line Go cap (451 lines summed across
 the three files, ~441 merged),
 so the lane ships as three files (all under the cap).
 
-No-Regression Evidence (gcp-hk slice): the consolidation moves declarations
-only — every value is pinned byte-identical by
-`TestHKConstantsMatchGCPCloudValues` (146 identifiers covering 147 source
-declarations; the function-local `versionsMarker` folds into the identical
-`SecretVersionVersionsMarker`) in `catalog/gcp_hk_test.go`, and `go test`
-across the gcpcloud tree plus `go build ./...` are green after the repoint
-(referencing files change only the qualifier to `catalog.`, plus the leaf
-import). Baseline: the pre-move values read from the base tree for each of
-the 34 root files via Go's own parser. Backend/version: none — pure
-compile-time constant relocations with no query, graph write, queue, lease,
-worker, batching, or Compose/Helm change, so there are no row counts to
-regress.
-
-No-Observability-Change (gcp-hk slice): the leaf declares no instrument and
-runs no stage; extractor emission stays covered by
-`eshu_dp_gcp_cloud_attribute_extractions_total` and
-`eshu_dp_gcp_cloud_facts_emitted_total` (gcp extractor rows in
-`docs/public/observability/telemetry-coverage.md`). Safe because the Go
-compiler resolves every moved reference, the value-pinning test fails on any
-drift, and the per-extractor `TestExtract*` suites keep asserting the same
-emitted strings.
-
-No-Regression Evidence (gcp-hk comment corrections, #6696): prose-only
-follow-up to #8747; four comment sites reworded to state verified
-declaration locations, zero identifiers changed. Baseline: merged #8747
-tree; after: this head with `go build ./...` and the catalog pin suite
-green. Backend/version: none; input shape: three files, four sites;
-no row counts to regress. No-Observability-Change: no instrument, stage,
-telemetry row, or emission path touched. Safe because the compiler
-resolves every reference identically before and after — comments carry
-no runtime meaning.
-
 L opener: this note records the lane L move of the shared/root/runtime
 constant families (83 string, numeric, and duration constants across 17
 families in 23 files: the gcpcloud root shared files, the extractor shared
@@ -61,26 +29,6 @@ leaf, `gcpruntime/*`, and `freshness/types.go`) into this leaf as
 (unexported names are capitalized at the new home). The `ParentScopeKind`,
 `EventKind`, and `TriggerStatus` types move with their constants; the
 extractor and freshness leaves keep type aliases.
-
-No-Regression Evidence (gcp-l slice): the consolidation moves declarations
-only — every value is pinned byte-identical by
-`TestLConstantsMatchGCPCloudValues` (83/83) in `catalog/gcp_l_test.go`, and
-`go test` across the gcpcloud tree plus `go build ./...` are green after the
-repoint (referencing files change only the qualifier to `catalog.`, plus the
-leaf import). Baseline: the pre-move values read from the base tree for each
-of the 23 files. Backend/version: none — a pure compile-time constant
-relocation with no query, graph write, queue, lease, worker, batching, or
-Compose/Helm change, so there are no row counts to regress; the input shape
-is the fixed 83-symbol set. Safe because the Go compiler resolves every
-moved reference, the value-pinning test fails on any drift, and the retired
-compat aliases are compiler-verified at zero references.
-
-No-Observability-Change (gcp-l slice): the leaf declares no instrument and
-runs no stage; collector emission stays covered by
-`eshu_dp_gcp_cloud_attribute_extractions_total`,
-`eshu_dp_gcp_cloud_facts_emitted_total`, and the freshness
-`eshu_dp_gcp_freshness_events_total` rows
-(`docs/public/observability/telemetry-coverage.md`).
 
 ## Ownership boundary
 
@@ -191,30 +139,6 @@ string, int, or duration literal).
 - Cross-group constants already owned by `gcpcloud/extractor` (KMS,
   Compute, Storage, Pub/Sub topic, GKE cluster asset types and their
   prefixes) stay there; this leaf does not redeclare them.
-
-## No-Regression Evidence (gcp-ij slice): the IJ data+platform consolidation
-moves the data-family and platform-family string constants from the 33 flat
-`extractor_*.go` root files into `catalog/gcp_data.go` and
-`catalog/gcp_platform.go` verbatim (only the package clause and identifier
-case change) — the split is a size measure only: one file would exceed the
-500-line Go cap, so the slice ships as two family leaves, both under the
-cap. Baseline: the pre-move values read from the base tree
-(`git show origin/main:go/internal/collector/gcpcloud/extractor_*.go`) are
-pinned in `gcp_ij_test.go`
-(`TestIJConstantsMatchGCPCloudValues`,
-`go test ./internal/collector/gcpcloud/catalog/ -count=1` green) and the
-full affected suite (`gcpcloud` tree plus the reducer compat retirement
-test) is green after the move; `go build ./...` is clean. Backend/version
-for both: none — pure compile-time constant relocations with no query,
-graph write, queue, lease, worker, batching, or Compose/Helm change, so
-there are no row counts to regress.
-No-Observability-Change (gcp-ij slice): the leaf declares no instrument and
-runs no stage; extraction and emission stay covered by
-`eshu_dp_gcp_cloud_attribute_extractions_total` and
-`eshu_dp_gcp_cloud_facts_emitted_total` (collector gcp rows in
-`docs/public/observability/telemetry-coverage.md`). Safe because the Go
-compiler resolves every moved reference, the value-pinning test fails on
-any drift, and the catalog leaf holds only string constants.
 
 ## Related docs
 

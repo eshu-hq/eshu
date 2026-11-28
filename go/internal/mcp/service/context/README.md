@@ -109,11 +109,6 @@ the shared API request duration and error metrics (`request.go` in
   files for these tool names and handler paths before this move (none found),
   so this extraction does not require repointing any registry entry.
 
-No-Observability-Change: this extraction moves only pure service-context
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, and transport telemetry, and the
-same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../README.md)

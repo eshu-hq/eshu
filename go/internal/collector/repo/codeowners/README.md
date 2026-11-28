@@ -106,25 +106,3 @@ instead of duplicating.
   partially interpreted.
 - Location precedence is `.github/CODEOWNERS` > `CODEOWNERS` >
   `docs/CODEOWNERS`; only the first-present file's rules are ever emitted.
-
-## No-Regression Evidence
-
-`go test ./internal/collector/codeowners -count=1` covers: parser behavior
-(comments, blank lines, inline whitespace, multiple owners, `@user` /
-`@org/team` / email owner tokens, pattern-only lines dropped, section headers
-skipped, CRLF line endings), location precedence (every present/absent
-combination of the three candidates), and envelope emission (schema version,
-collector kind, source ref, stable-key differentiation across repo/source
-path/pattern/order index, optional `collector_instance_id`).
-
-Collector Performance Evidence: this package introduces no runtime, worker, or
-queue. `Parse`, `ResolveWinner`, and `Emit` are pure library functions that run
-in a single linear pass over one small file's lines; cost is linear in file
-size with no hot-path Cypher and no new query.
-
-Collector Observability Evidence: not applicable — this package mounts no
-runtime and exposes no health/readiness/metrics surface. Facts flow through
-the Git collector's existing observe/stream/fact-emission telemetry.
-
-No-Observability-Change: this package adds no metrics, spans, or logs of its
-own.

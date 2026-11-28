@@ -204,38 +204,6 @@ are byte-identical strings (see the Capability registration paragraph below),
 but the test now asserts against the package's own declaration rather than
 the root one.
 
-No-Regression Evidence: the `go test ./internal/query/...` test-name union
-(`-list '.*'` filtered to `^Test`) against a base test list captured from an ephemeral detached
-worktree at `origin/main` `5ed665821` equals that base's 4836 names across
-`./internal/query/...` (root plus every leaf, not root alone) plus exactly
-`TestQueryPlaybookCapabilityLockstep` (the capability-lockstep test this
-move's registration gap required), nothing else dropped or duplicated (4837
-total). Scoped to just the root package on this head, `go test
-./internal/query -list '.*' | rg '^Test' | sort -u | wc -l` gives 2601 Test
-names, and the same command against `./internal/query/playbook` gives 21;
-their union is the base root list's 2621 Test names plus exactly
-`TestQueryPlaybookCapabilityLockstep` (2622). A proof log that also counts
-`Benchmark*` names reports nine `Benchmark*` entries as "added"; they all
-exist at base root and are absent only from a Test-only baseline file, so
-they are not new tests. The `internal/query` dirgate ledger row
-(`scripts/lib/dirgate-grandfather.tsv`) moved from 282 non-test files
-(digest `6192a683314447e9ee2b419858a07ab357fac5f95102e6208218528cc44a808a`) to
-276 (digest
-`31a76beb6dfd8b14189ef4091c092fca641e0d380d892eb2fc485783e40face7`; seven
-files left root, one alias file and one lockstep test file arrived -- the
-lockstep test does not count toward the non-test ledger); `bash
-scripts/verify-dirgate.sh --all` passes with no exemption row for this new
-leaf directory.
-
-No-Observability-Change: this family emits no request span, unlike the
-`tracing.HandlerTracer`-seamed leaves (`freshness`, `language`, `incident`)
--- neither the pre-move root files nor this leaf call
-`tracing.HandlerTracer`, `startQueryHandlerSpan`, or any tracer. The truth
-envelope's `capability`/`basis`/`level` metadata (`querycontract.BuildTruthEnvelope`)
-is the only per-request signal this family emits, and it is unchanged by the
-move: same capability string, same `TruthBasisRuntimeState` basis, same
-`ProfileProduction` default.
-
 ## Related docs
 
 - [docs/public/reference/query-playbooks.md](../../../../docs/public/reference/query-playbooks.md)

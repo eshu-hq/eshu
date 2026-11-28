@@ -94,28 +94,6 @@ constants out of lane-A-owned `code_dead_code.go`. The two assertions
 below are structural rather than promissory -- each names what a reader
 can check.
 
-No-Regression Evidence: the move is a package relocation, not a
-rewrite. `git diff -M --find-renames` pairs each file with its root
-predecessor; the only statement-level changes are the `package` clause,
-the export renames listed in `AGENTS.md`, the `querycontract`/`codemodel`
-qualification of helpers root calls through identical functions, the
-root `family_code_shim_shaping.go` aliases/forwarders, and the nine
-schedule method-call qualifications in the three staying dead-code
-readers. Baseline is the lane base with green suites; after the move,
-`go test ./internal/query/... -count=1` passes with 0 failures and the
-B-7 golden-corpus gate passes with the B-12 e2e snapshot byte-identical.
-Backend/version is unchanged (same NornicDB-first contract over the same
-driver path B-7 exercises live), input shape is the staying query suite
-plus the golden corpus, and the terminal counts are the per-package ok
-plus the corpus checks. The change is safe because behavior is preserved
-by construction (a path-only move) and proven by the unchanged suites
-and corpus above. A follow-up inline spot-check (the PR1/L2 pattern)
-confirms the forwarder/method-export calls land on the moved code.
-
-No-Observability-Change: no spans, metrics, structured logs, status
-fields, or pprof surface were added, removed, or renamed; the move adds
-no new query path, so dashboards and 3 AM triage read exactly as before.
-
 ## Gotchas / invariants
 
 - Do not import root package `query`. Root's

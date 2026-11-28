@@ -70,19 +70,6 @@ This scanner emits no metrics, spans, or logs directly. The runtime adapter that
 implements `Client` must record IAM API call counts, throttles, page latency,
 scan duration, and warnings/failures.
 
-No-Regression Evidence: The #1310 IAM source-fact expansion is covered by
-`go test ./internal/collector/awscloud/service/iam ./internal/collector/awscloud/service/iam/awssdk ./internal/collector/secretsiam ./internal/facts -count=1`. The test fixture includes one role, one user, one managed policy, one instance profile, one OIDC provider, permissions boundaries, inline and attached managed policy statements, trust statements, and one coverage warning. No queue, graph, Compose, Helm, or worker-concurrency settings changed.
-
-Observability Evidence: The scanner remains inside the existing
-`collector-aws-cloud` runtime boundary. The SDK adapter records the new
-`GetRole`, `GetUser`, permission-boundary `GetPolicy`/`GetPolicyVersion`,
-`ListOpenIDConnectProviders`, and `GetOpenIDConnectProvider` reads through
-`recordAPICall`, so operators can use
-scanner status, commit status, `eshu_dp_aws_scan_duration_seconds`,
-`eshu_dp_aws_api_calls_total`, and `eshu_dp_aws_throttle_total` without adding
-high-cardinality IAM ARN, policy JSON, OIDC URL, client ID, thumbprint,
-credential, or token labels.
-
 ## Gotchas / invariants
 
 - IAM is global, but scans still carry the claim region from the AWS collector

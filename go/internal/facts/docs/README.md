@@ -96,13 +96,6 @@ the collector and reducer packages that call it.
 
 ## Evidence
 
-No-Regression Evidence: #6950 batch 3 moves the 48-entry documentation
-compat family onto this package and deletes `compat_docs.go`. All 48
-entries were aliases or thin forwarders to the identical values, types,
-and bytes, so callers are value-identical by construction; no fact kind
-string, payload shape, or registry output changes (contract classification:
-patch — no contract surface touched).
-
 - Baseline: `c88c3806ad`, `go test -count=1` on the 23 affected-package
   targets (every Go directory the diff touches): 22 ok, 1 fail
   (`TestFetchChurnZombiesDrainedByReaper`, which fails identically on
@@ -131,6 +124,3 @@ patch — no contract surface touched).
   failing on the undefined `Documentation*` names with the compat file
   deleted) proves the surface is gone, and the GREEN run proves every
   former caller resolves to the same value.
-
-No-Observability-Change: this batch adds, removes, and renames no operator
-signal.

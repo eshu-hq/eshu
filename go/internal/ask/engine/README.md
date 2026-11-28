@@ -192,26 +192,6 @@ Every non-error exit records a low-cardinality `Answer.TerminationReason`
 answer-substance guardrail in the query handler (shared by the JSON, SSE, and
 MCP surfaces); the engine logs the usefulness verdict for operators.
 
-No-Regression Evidence (#5266 bounded useful answers): the failing-first
-retained-shape regression `engine.TestAsk_RetainedEntityOverview_BoundedUsefulAnswer`
-reproduces the reported run — the scripted model resolves the entity then issues
-an unbounded list-all, an oversized service story, a broad timed-out search, and
-redundant status calls, never emitting a final turn. Before the fix it ran the
-full 6/6 iterations, dispatched all 8 calls (including the unbounded 256KB
-inventory read), collapsed the oversized results into opaque unsupported
-packets, and published the first-supported generic packet
-(`{"indexed_repositories":42,...}`) with no `TerminationReason`. After the fix
-the same script stops at 4 iterations (`TerminationReason == evidence_sufficient`),
-refuses the unbounded `list_indexed_repositories` before dispatch (never spending
-the response budget), converts the oversized service story and the timed-out
-search into bounded continuation packets, and publishes the relevant
-payments-service overview. Focused proof:
-
-```bash
-cd go && go test ./internal/ask/engine ./internal/answerguardrail \
-  ./internal/answerquality ./internal/query -count=1
-```
-
 New regression tests: `engine.TestAsk_RetainedEntityOverview_BoundedUsefulAnswer`,
 `engine.TestBoundToolCall`, `engine.TestOversizedContinuationPacket`,
 `engine.TestEvidenceProgress`, `engine.TestSelectPrimaryPacketIndex`,
@@ -219,41 +199,6 @@ New regression tests: `engine.TestAsk_RetainedEntityOverview_BoundedUsefulAnswer
 `answerguardrail.TestValidateResultRejectsCircularAnswer`,
 `query.TestApplyAskSubstanceGuardrailWithholdsCircularAnswer`, and
 `answerquality.TestScoreRejectsCircularAnswer`.
-
-Performance Evidence (#5266): measured on the deterministic representative
-harness above (LLM and backend abstracted through the `provider.Adapter` and
-`Runner` seams, so iterations and dispatched tool calls are exact). Before →
-after on the reproduced entity-overview scope: reasoning iterations 6 → 4,
-dispatched tool calls 8 → 5 (the unbounded full-inventory read is no longer
-dispatched), oversized/timeout results converted from 3 opaque unsupported
-outcomes to 2 bounded continuations, termination reason none → `evidence_sufficient`,
-and published answer generic-first-supported → relevant entity overview. The
-change adds no timeout, response-budget, or iteration-count increase. The
-remaining cost of a genuinely global (unscoped) search is inherent and now
-yields a bounded continuation with a narrowing next action rather than an opaque
-dead end; a live cold/warm wall-time rerun is the operator-local Ask proof
-(`scripts/verify-ask-eshu-local-proof.sh --deepseek`).
-
-Observability Evidence (#5266): the engine emits operator-facing structured logs
-(no new metric labels, no hot path) through the injected `*slog.Logger`:
-`ask: refused unbounded list/search call before dispatch` (field `tool`),
-`ask: tool result runaway; bounded continuation offered` (fields `tool`,
-`code`), `ask: evidence sufficiency stop` (fields `iteration`, `max_iterations`,
-`packets`), `ask: primary packet selected` (fields `index`, `reason`,
-`termination`), and `ask: usefulness verdict` (fields `circular`, `termination`).
-These let an operator see the planner's bounding choice, budget rejections, the
-packet-selection reason, the termination reason, and the answer usefulness
-verdict without re-running the session. The change touches no Cypher, graph
-write, worker, queue, lease, batch, Postgres write, or runtime stage.
-
-No-Regression Evidence: #5246 exact-count routing, streaming parity, bounded
-failures, hostile qualified questions, packet evidence, and rejection of an
-unrelated provider-authored count pass with:
-
-```bash
-cd go && GOCACHE=/tmp/eshu-5246-gocache go test ./internal/ask/engine \
-  -run 'Test(Ask.*IndexedRepository|IndexedRepositoryCount)' -count=1
-```
 
 Retained-stack proof on 2026-07-14 returned the same current authorized total,
 `887`, through the HTTP API in `4.438 s` and the MCP server's shared Ask route
@@ -264,43 +209,3 @@ trace. The canonical evidence-citation contract currently hydrates file/entity
 handles only, so this aggregate result deliberately uses its addressable
 canonical result plus packet truth provenance rather than fabricating an
 unresolvable citation handle.
-
-No-Observability-Change: #5246 keeps the existing Ask trace, packet limitations,
-query trace events, HTTP/SSE events, and provider adapter logs. The trace names
-the routed `list_indexed_repositories` tool. No metric, span name, log field,
-runtime knob, queue, graph write, or Postgres write was added.
-
-No-Regression Evidence: `go test ./internal/ask/engine -run '^TestAskStream'
--count=1` covers default-closed streams, rejected narration, validated
-narration emission, tool-call events, and the no-streaming fallback. The
-regression fixture proves an unsafe raw provider delta is not emitted before the
-validated narration.
-
-No-Observability-Change: the streaming safety change adds no worker, queue,
-graph write, Postgres read, metric label, runtime knob, provider request, or
-new span. Operators still diagnose Ask failures through the existing Ask engine
-error path, query trace events, HTTP SSE events, and provider adapter logs.
-
-No-Regression Evidence (#3356 budget + partial narration):
-`go test ./internal/ask/engine ./internal/askwiring ./internal/answernarration
--count=1` (84 tests). New regression tests:
-`engine.TestBuildNarrationSystemPromptPartialAware`,
-`engine.TestNarratePartialPacketAccepted`, and
-`askwiring.TestResolveEngineOptions*`. The two engine tests fail before the fix
-with `narration rejected by validator` and pass after; the askwiring tests
-prove default / override / invalid-fallback / ceiling-clamp behavior of the
-budget knobs.
-
-Observability Evidence (#3356): the engine now emits operator-facing structured
-logs (no new metric labels, no hot path) through the injected `*slog.Logger`:
-`ask: reached max reasoning iterations` (fields `max_iterations`,
-`max_tool_calls_per_turn`, `packets`, `has_supported_evidence`),
-`ask: tool calls truncated` (fields `requested`, `max_tool_calls_per_turn`,
-`iteration`), `ask: narration rejected` (fields `reason`, `finding_reasons`,
-`partial`, `truth_class`), and `ask: narration accepted` (fields `partial`,
-`truth_class`). The wiring layer logs the resolved budget at startup
-(`ask: engine budget resolved`) and clamps/invalid overrides at `WARN`. These
-let an operator distinguish a too-tight budget from a narration format/binding
-rejection without provider bodies leaking into logs. This change touches no
-Cypher, graph write, worker, queue, lease, batch, or runtime stage, so
-`scripts/verify-performance-evidence.sh` reports no hot files changed.

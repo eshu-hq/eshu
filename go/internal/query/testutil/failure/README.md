@@ -143,52 +143,6 @@ sentinel-503 test on the local serve/assert helpers, and `selector` keeps its
 typed-answer test: `Run` asserts one fixed message with 500/499/503
 statuses, which cannot express per-class 404/400 answers.
 
-No-Regression Evidence (#8172 slice 2): test-only change. `Route.PlainDetail`
-adds one body-shape check to `Check`, off unless a route sets it. The three
-converted families change no production code, so their read paths, bounds, and
-costs are unchanged. Their `go test` packages run in under 2 s each.
-
-No-Observability-Change (#8172 slice 2): the new assertion reads the response
-body only. It emits no signal and adds no span, metric, or log.
-
-No-Regression Evidence (#8172 slice 4): test-only change. No helper change:
-every converted route fits the existing `Route` fields (`Method`, `Body`,
-`Message`, `Handler`) and the existing span split (a `HandlerTracer` suite
-for routes that open a handler span, a tracer-less suite checking the request
-span for routes that record there, as the old harnesses did by falling back
-to it). The two converted families change no production code, so their read
-paths, bounds, and costs are unchanged. Their `go test` packages run in under
-1 s each (codequery 0.08 s, contentread 0.04 s, failure 0.14 s).
-
-No-Observability-Change (#8172 slice 4): the conversion reads responses and
-the existing handler/request spans only. It emits no signal and adds no span,
-metric, or log.
-
-No-Regression Evidence (#8172 slice 3): test-only change. `FaultStatus`,
-`CancelMessage`, `NoFence`, `Stage`, and `HandlerSpanName` add five opt-in
-route checks to the helper, each off unless a route sets it, each pinned by a
-seeded wrong-route sample. The three converted families change no production
-code, so their read paths, bounds, and costs are unchanged. Their `go test`
-packages run in under 1 s each (supply/chain 0.05 s, impact 0.15 s,
-entity 0.32 s, failure 0.30 s).
-
-No-Observability-Change (#8172 slice 3): the new options assert response
-status, body, handler span name, and the handler's existing stage-log lines
-only. They emit no signal and add no span, metric, or log.
-
-No-Regression Evidence: test-only package with no production importer
-(`internal/queryplan`'s production-import guard rejects one). The `MATCH (n)`
-in `harness.go` is canary text inside the `Canary` string, standing in for a
-Cypher fragment a backend error might quote; no query runs here, and the
-queryplan callsite inventory (`TestHotCypherManifestCoversEveryProductionQueryCall`)
-passes with this package in the tree. The retrofitted families' production
-code is unchanged, so their read paths, bounds, and costs are unchanged.
-
-No-Observability-Change: test-only package; it emits nothing at runtime. It
-asserts the existing handler-span signals (`exception` event, Error status,
-`eshu.request.client_canceled`) that `tracing.WriteServerFailure` already
-emits.
-
 ## Related docs
 
 - `../README.md` and `../AGENTS.md` — the `testutil` contract.

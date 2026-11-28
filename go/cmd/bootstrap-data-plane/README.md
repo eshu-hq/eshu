@@ -48,10 +48,6 @@ database state, or deployment configuration. Compare it with migration
 receipts before running the Job; the inventory itself does not certify that a
 database is ready or apply any schema.
 
-No-Observability-Change: Offline inventory exits before telemetry. JSON stdout
-and a nonzero exit with stderr report command outcomes. Normal bootstrap
-telemetry is unchanged.
-
 ## Configuration
 
 Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
@@ -272,56 +268,6 @@ failure class, and a bounded schema statement summary.
   The graph marker is written only after every graph DDL statement succeeds.
 - `neo4jSchemaExecutor` runs DDL in a write session against the configured
   database name; do not point it at a read replica
-
-No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -run
-'TestRun(SkipsGraphSchemaWhenLatestFingerprintAlreadyApplied|SkipsGraphSchemaWhenLatestMarkerListsFingerprintCompatible|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure|AdoptsExistingNornicDBGraphSchemaByDefaultWhenMarkerMissing|CanDisableDefaultNornicDBGraphSchemaAdoption|DoesNotDefaultAdoptNeo4jGraphSchema|AdoptsExistingGraphSchemaWhenMarkerMissing|AppliesGraphSchemaWhenAdoptionFindsMissingObjects|FailsWhenAdoptionInspectionFails)'`
-proves same-fingerprint restarts skip graph DDL, missing markers still apply and
-record graph schema completion with compatibility metadata, and failed graph DDL
-never records a successful marker. The adoption cases prove complete existing
-NornicDB graph schema marks and skips by default, operators can disable that
-default, Neo4j keeps its existing default DDL path, incomplete NornicDB schema
-forwards only missing objects to DDL, and failed schema inspection does not
-blindly run DDL against a live graph. `go test ./internal/graphschemacompat -count=1` proves writer
-startup rejects missing or incompatible latest markers and accepts exact or
-explicitly compatible fingerprints. `go test ./internal/graph -run
-TestEnsureSchemaWithBackendStrictReturnsStatementFailures` proves the strict
-data-plane path returns a non-context schema failure instead of warning and
-continuing to the marker write. Existing focused unit coverage proves generic
-DDL errors still log as warnings for non-strict callers, while context
-deadline/cancellation stops schema bootstrap after the failing statement instead
-of burning the whole schema list.
-Remote Compose preserved-volume restart evidence on 2026-05-19 logged
-`bootstrap.graph.skipped` with `statement_count=209`, restarted the stack in
-about 2m38s, and left projector/reducer queues terminal with no failed,
-retrying, or dead-letter rows.
-
-Performance Evidence: on 2026-05-23, a hosted EKS schema bootstrap against a
-retained NornicDB graph without a matching Postgres marker completed
-successfully but took 3h52m because repeated `CREATE CONSTRAINT ... IF NOT
-EXISTS` statements spent roughly 77s-102s each refreshing existing constraint
-state. Default NornicDB adoption changes that marker-missing retained-graph path
-to two bounded schema metadata reads plus one marker write when all expected
-objects already exist.
-
-Observability Evidence: `bootstrap.graph.skipped` tells operators that a
-preserved-volume restart reused the recorded graph schema fingerprint.
-`bootstrap.graph.adopted` and `bootstrap.graph.adoption_incomplete` expose the
-backend, schema fingerprint, expected object count, actual object count, and a
-bounded missing-object sample before any adoption decision is made.
-Graph-writing startup refusals surface through the existing
-`runtime.startup.failed` log with the backend, expected fingerprint, latest
-applied fingerprint, and operator guidance. Focused schema-progress and
-statement-timeout tests cover the structured per-statement logs and the
-bootstrap-level timeout wrapper that operators use to see which graph schema
-statement is slow or blocked.
-
-No-Regression Evidence: the adoption-only focused cases use the production
-`run` path and fake Neo4j catalog to check that missing and retired objects,
-inspection errors, absent inspection support, and conflicting flags never
-reach graph DDL or write a marker. The existing Neo4j retired-object test
-still checks that the legacy `ADOPT_EXISTING=true` path runs the required drop.
-This is a correctness-only control-flow guard: it adds no Cypher statement or
-catalog probe to the legacy path and does not claim a graph latency gain.
 
 ## Related docs
 

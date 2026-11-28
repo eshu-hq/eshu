@@ -58,9 +58,6 @@ Handlers keep their existing `query.*` spans and `eshu_dp_api_request_duration_s
 timing; the move changes no operator signal. New runtime behavior must add
 spans an operator can use at 3 AM.
 
-No-Observability-Change: relocating handler methods between packages emits
-nothing and moves no span boundary, attribute, or log line.
-
 Failed reads (#7674): every route answers a failed read with a fixed message
 per step (for example `blast radius query failed` or `deployment trace k8s
 resource query failed`), never the backend error text. A server fault records
@@ -75,62 +72,12 @@ selector. `server_failure*_test.go` covers each route and step. The
 operator contract is in
 [Selector And Read Failures](../../../../docs/public/reference/http-api/selector-and-read-failures.md#platform-impact-read-failures).
 
-No-Regression Evidence (#7674): the change runs only after a read has
-already returned an error. No Cypher text, SQL, query parameter, call count,
-row bound, or success path changed. The two `impact/handler.go` digests in
-`queryplan/testdata/query-source-coverage.yaml` were re-pinned with the same
-call count, key bound, and result bound. A failure now costs one span
-`RecordError`/`SetStatus` and a fixed-string write instead of formatting the
-error into the body. `go test ./internal/query/... -count=1` (74 packages),
-`go test ./internal/queryplan/... -count=1`, and
-`go test -race ./internal/query/impact/... ./internal/query/tracing/...` exit
-0. No benchmark is claimed because the success path has no runtime delta to
-measure.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the request span as an `exception` event and sets status Error with the
-step's fixed message as the description; a client cancel adds
-`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
-`server_failure*_test.go` asserts both span shapes with a recording tracer for
-every route and step.
-
-No-Regression Evidence (#8881): the only runtime delta in
-`resource_investigation_selector.go` is two `ctx.Err()` checks in
-`runResourceInvestigationSelectorFanout`: one before the fanout starts, and
-one in each goroutine after it takes a semaphore slot. Each is one context
-read, which is not measurable against the graph read it guards. No Cypher
-text, SQL, parameter, or row bound changed. The semaphore width stays 4, the
-fanout stays one query per default label (11), result order is unchanged, and
-a canceled request returns `ctx.Err()`, the error the goroutines already
-stored when `Done` won the `select`. Proof: an uncommitted resolver probe of
-20,000 pre-canceled runs on CI's fake graph returned 5 successes at `-cpu 1`
-and 13 at `-cpu 16` before the change and 0 and 0 after. A
-`go test -race -count=2000 -cpu 1,4` run on the fixed handler had 0 of 4,000
-failures. `TestResourceInvestigationSelectorFanoutNeverReadsOnCanceledContext`
-fails on the old code and passes now.
-`TestResourceInvestigationSelectorFanoutRechecksContextAfterTakingSlot` fails
-when either check is deleted. No benchmark is claimed, because the success
-path adds no work beyond those two reads.
-
-Observability Evidence (#8881): no instrument, label, span attribute, or log
-key was added. A canceled request now returns the existing cancel error
-before any graph read starts. It is the same error the `select` path already
-stored, and an abandoned request no longer starts reads that the graph read
-signals would count.
-
 ## Performance
 
 Handler methods are request-orchestration, not a hot decode loop; the move
 adds no call indirection to row paths (shared helpers are called directly,
 and the small `querycontract` row decoders inline away). No benchmark delta
 is claimed because there is no runtime delta to measure.
-
-No-Regression Evidence: `go test ./internal/query/... ./internal/mcp/... -count=1`,
-`go test ./internal/queryplan/ -count=1`, the golden-corpus, replay-coverage,
-and ci gates, plus `go build ./...` and `go vet ./...`, all exit 0. The B-7
-cassettes and B-12 snapshot are byte-identical: the diff moves definitions,
-import blocks, and manifest digests, and touches no Cypher text, queue,
-lease, or projection path.
 
 ## Naming (#6642 Part D)
 
@@ -241,22 +188,6 @@ and the ~260 `query.ImpactHandler`/`ImpactHandler` call sites across
 their direct qualified callers moved. `deployment.ImpactRepoIDAllowed` is a
 different package's own export (its own rule-2/4 debt, out of scope here) and
 keeps its name; this package's `RepoIDAllowed` seam still forwards to it.
-
-No-Regression Evidence (#6642 rule 2/4): `go test ./internal/query/... -count=1`,
-`go test ./cmd/api ./cmd/mcp-server ./internal/mcp ./internal/queryplan/...
-./cmd/golden-corpus-gate/... -count=1`, `go build ./...`, and `go vet ./...`
-all exit 0 on the renamed tree; `go test ./internal/query/impact -list '.*'`
-lists the identical sorted test-function set before and after. The 15
-`query-source-coverage.yaml` and 2 `hot-cypher.yaml` digests that moved did so
-only because the recorded function text names the renamed `Handler` receiver
-or `RunChangeSurface*` symbols, not because any Cypher, row shape, or bound
-changed; `go test ./internal/queryplan/... -count=1` is green on the re-pinned
-rows. The B-7 cassettes and B-12 golden snapshot are byte-identical
-(`git diff origin/main --stat -- testdata/golden testdata/cassettes` is empty).
-
-No-Observability-Change (#6642 rule 2/4): the rename touches no span, metric,
-or log name; `query.*` spans and `eshu_dp_api_request_duration_seconds`
-timing are unchanged.
 
 ## Gotchas / invariants
 

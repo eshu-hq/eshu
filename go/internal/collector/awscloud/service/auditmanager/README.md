@@ -70,9 +70,6 @@ call in the shared AWS pagination span and the AWS API-call/throttle counters:
 - `eshu_dp_aws_api_calls_total`
 - `eshu_dp_aws_throttle_total`
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/auditmanager/...` green.
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Gotchas / invariants
 
 - An account that has not enabled Audit Manager (account status not `ACTIVE`)

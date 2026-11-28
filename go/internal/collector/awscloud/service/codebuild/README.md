@@ -94,46 +94,15 @@ listings; one batch resolve per ≤100-item group; recent builds bounded to one
 ListBuilds page and the `BatchGetBuilds` cap; no buildspec-body reads; no log
 reads; no source-credential reads; no mutations.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
-covers CodeBuild resource and relationship emission, PLAINTEXT env-value
-redaction, buildspec-body exclusion, runtime registration through the derived
-service guard, and command configuration requiring a redaction key.
-
 Collector Observability Evidence: CodeBuild uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
 
-No-Observability-Change: CodeBuild adds no new telemetry contract. The existing
-AWS collector signals already diagnose CodeBuild scans through the
-`aws.service.scan` and `aws.service.pagination.page` spans,
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total{service="codebuild"}`,
-`eshu_dp_aws_relationships_emitted_total{service="codebuild"}`, and
-`aws_scan_status` rows. CodeBuild only adds the bounded `service="codebuild"`
-label value to those existing instruments.
-
 Collector Deployment Evidence: CodeBuild runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/codebuild/... -count=1`
-covers the new `TestS3BucketARNFromLocationDerivesPartition` and
-`TestS3BucketARNFromLocationPreservesObjectARNPartition` (commercial /
-`aws-us-gov` / `aws-cn`) alongside the existing assertions. A bare S3
-source/artifact location now derives its bucket-ARN partition from the scan
-boundary via `awscloud.PartitionForBoundary`, and an already-ARN location
-preserves any partition's `:s3:::` segment, instead of hardcoding `aws`.
-Commercial output is byte-for-byte unchanged; this is a metadata-only
-correctness fix with no graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

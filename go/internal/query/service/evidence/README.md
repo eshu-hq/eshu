@@ -37,20 +37,3 @@ stutter), the destuttered exports (`ServiceSliceValue` → `SliceValue`,
 `ServiceMapValue` → `MapValue`, `ServiceStringValue` → `StringValue`), and
 the four importers' import paths and qualifiers differ. No extractor
 behavior, Cypher text, or queue/projection behavior changed.
-
-## No-Regression Evidence
-
-Baseline `origin/main` at the move vs this branch: `go test
-./internal/query/...` passes with 0 failures; the extractor behavior is
-pinned by the root `query` and `repository` service-evidence, docs-routes,
-and narrative-enrichment suites, all exercising this leaf through its four
-importers (`service/query_evidence.go`, `service/docs_routes.go`,
-`service/query_evidence_types.go`,
-`repository/narrative_enrichment.go`) unchanged. The `#5720`
-round-10 resolver error semantics (read failure is an error, absent file is
-empty-with-nil-error) are covered by those suites and preserved verbatim.
-
-## No-Observability-Change
-
-This package emits no metric, span, or log of its own; it is a pure
-in-process parsing leaf. No new runtime behavior, so no new telemetry.

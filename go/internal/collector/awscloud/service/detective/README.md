@@ -95,26 +95,6 @@ paginated `ListMembers` stream per graph, one `ListTagsForResource` point read
 per graph, no investigation/indicator reads, no mutations, and no graph writes
 in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/detective/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers behavior graph and member-account metadata fact emission, the
-graph-to-member-account edge (targets `aws_organizations_account` by bare
-account id), the graph-to-GuardDuty-detector edge (targets
-`aws_guardduty_detector` by bare detector id, emitted only when resolvable and
-omitted otherwise), metadata-only attribute assertions, stable member
-`resource_id` across list order, the scanner-port and SDK-adapter reflection
-exclusion gates, the `relguard` runtime graph-join contract, the live-tree
-`relguard` static guard, runtime registration, and command configuration.
-
-No-Observability-Change: this scanner reuses the existing AWS collector
-telemetry contract (`aws.service.scan`, `aws.service.pagination.page`,
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total`, `eshu_dp_aws_relationships_emitted_total`,
-and `aws_scan_status` rows). It adds no new instrument, span, metric label, or
-status row. Metric labels stay bounded to service, account, region, operation,
-result, and status; graph ARNs, detector ids, account ids, and tags never enter
-metric labels.
-
 Collector Deployment Evidence: Detective runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

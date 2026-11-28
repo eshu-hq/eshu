@@ -242,20 +242,3 @@ a defect to fix, not a fact to document.
 ## Related docs
 
 `go/internal/query/README.md` for the family-split contract.
-
-## Performance and observability
-
-No-Regression Evidence: for the governance-audit and scoped-token fakes
-promoted alongside them, this package is a test double and runs only inside test
-binaries, so nothing here sits on a production query, graph, queue or HTTP path.
-`FakeGovernanceAuditAppender` and `FakeScopedTokenResolver` trip the
-perf-evidence gate on their doc comments, which name the governance-audit and
-scoped-token surfaces they stand in for rather than any work this code performs.
-The promotion is a move: the append and resolve bodies came across from
-`auth_test.go` unchanged and the root package keeps an unexported adapter that
-delegates rather than reimplements, so the work per call is identical to before
-and every consumer call site is untouched.
-
-No-Observability-Change: no metric, span, log, or status surface is touched. A
-test double deliberately emits no telemetry -- one that produced spans would
-pollute the traces of whatever it stands in for.

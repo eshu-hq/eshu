@@ -65,14 +65,7 @@ decode seam.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains the `reducer.iam_can_perform_materialization` span,
-the `eshu_dp_iam_can_perform_edges_total` / `eshu_dp_iam_can_perform_skipped_total`
-/ `eshu_dp_iam_can_perform_conditioned_total` counters, and its structured
-completion log. A permission fact that fails decode is skipped as a candidate
-with no operator-visible dead-letter. This package adds no queue, storage,
-graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.iam_can_perform_materialization` span, the `eshu_dp_iam_can_perform_edges_total` / `eshu_dp_iam_can_perform_skipped_total` / `eshu_dp_iam_can_perform_conditioned_total` counters, and its structured completion log. A permission fact that fails decode is skipped as a candidate with no operator-visible dead-letter.
 
 ## Gotchas / invariants
 

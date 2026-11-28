@@ -104,18 +104,6 @@ config type, one paginated ListVpcEndpoints stream batched through
 BatchGetVpcEndpoint, no mutation calls, no OpenSearch HTTP API calls, and no
 graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-OpenSearch resource fact emission for all five resource types, relationship
-emission for domain-to-VPC, domain-to-subnet, domain-to-security-group,
-domain-to-KMS-key, domain-to-IAM-role, package-to-domain, and
-collection-to-KMS-key edges, the absence of any collection-to-VPC-endpoint
-cross-product edge, the SDK adapter's
-metadata-only interface shape (no mutation, inbound-connection, or index APIs
-reachable), the absence of any master-password-shaped field on `Domain`,
-runtime registration, command configuration, and access-policy role-ARN
-extraction without persisting the policy body.
-
 Collector Observability Evidence: OpenSearch uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -123,11 +111,6 @@ Collector Observability Evidence: OpenSearch uses the existing AWS collector
 labels stay bounded to service, account, region, operation, result, and
 status. OpenSearch ARNs, domain names, package IDs, collection IDs, and tags
 stay out of metric labels.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses OpenSearch scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: OpenSearch runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

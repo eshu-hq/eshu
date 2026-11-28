@@ -49,16 +49,6 @@ Sampling or a full exporter queue can omit a child from exported traces.
 
 ## Measured scope
 
-Performance Evidence: A read-only SQL assembly shim on an isolated PostgreSQL
-18.6 corpus of 984 repositories compared the captured 16-term single statement
-with four snapshot-sharing probes and PostgreSQL final assembly. The isolated
-corpus had unchanged storage state across samples: 155,826 `content_files`
-rows and 2,808,209 `content_entities` rows. Interleaved baseline/candidate
-medians were 0.810743 and 0.568569 seconds from dispatch through consumption
-of the 26-row ordered page. All measured ordered pages, including cap status,
-matched. This proves the query-shape theory on that corpus, not the endpoint
-target.
-
 A built API at source commit `147971b860e0fd1e6df3e39697be715f52bd865e`
 then ran the same unscoped 16-term request on a dedicated Neo4j/PostgreSQL test
 instance with the same preserved corpus and storage state for both variants.
@@ -80,33 +70,6 @@ ABBA comparison against baseline `575ef287bfe13785639a8e4548593ccb92cf3c27`:
 seconds, with matching complete JSON and unchanged content/index fingerprints.
 Deployed QA readiness and the `<1 s` endpoint budget are also not yet
 validated and are tracked in #7516.
-
-Observability Evidence: The `postgres.query` span records the selected route,
-reservation wait and cancellation, connection count, probe row count, JSON
-bytes, probe and assembly duration, pool-cap status, and errors. A pool below
-four open connections uses the single statement and marks the fallback reason
-on the same span.
-
-## Measured scope: scoped hidden binds (#8370)
-
-Performance Evidence: Partition 0 of a 16-term repo-scoped probe with common
-trigram terms ran on the shared QA read replica (PostgreSQL 18.3, read-only;
-`content_files` 137,419 rows, `content_entities` 2,392,524 rows, largest repo
-12,403 files — the same corpus as the #8356 serial measurement).
-`EXPLAIN (ANALYZE, BUFFERS)` through server-side `PREPARE`, warmed, interleaved
-A/B/A/B, fully cache-resident, identical repo scope, terms, cap 250, and arg
-order both shapes. Before (visible content binds): 3.71s and 3.73s server
-execution at 43,460 shared-hit buffers. After (hidden binds, the shape this
-package now emits for repo-scoped trigram terms): 0.73s and 0.74s at 18,989
-buffers. Identical 1,487 rows all four runs. This proves the partition-0
-query-shape theory on that corpus, not the endpoint target: partitions 1-3,
-full 4-partition concurrent execution with assembly, end-to-end `Investigate`
-latency, cold-cache and p95 behavior, and generic-plan behavior are not
-measured here.
-
-No-Observability-Change: branch selection mirrors the serial path and the
-caller already records the chosen path as `code_topic.execution_mode`; no new
-span, metric, or log was added for this shape change.
 
 ## Gotchas / invariants
 

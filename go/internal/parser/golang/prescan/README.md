@@ -67,26 +67,6 @@ See `doc.go` for the full godoc contract. The surface is:
 None. Every function here is a pure per-file read+parse+walk; a collector
 stage that drives the prescan pass owns telemetry.
 
-No-Regression Evidence: this is a pure package-move (issue #6774 stage 2,
-`golang/prescan.go` -> `golang/prescan/prescan.go`,
-`golang/package_interface_prescan.go` -> `golang/prescan/package_interface.go`,
-`golang/package_prescan_evidence.go` -> `golang/prescan/package_evidence.go`,
-`package golang` -> `package prescan`). No function body changed beyond
-swapping the root's `nodeText`/`walkNamed` forwarders for the
-`internal/parser/shared` calls they forwarded to — every exported symbol here
-already used `shared.GoImportedInterfaceParamMethods`/
-`shared.GoDirectMethodCallRoots` directly before the move, so no type-alias
-substitution was needed. `internal/parser/golang/compat_prescan.go` keeps
-`golang.PreScan`, `golang.PreScanFileEvidence`, `golang.PrescanFileEvidence`,
-and `golang.ImportedDirectMethodCallRootsWithInterfaceReturns` compiling
-unchanged for their external callers in `internal/parser/*.go`. Verified by
-`go build ./internal/parser/...` (covers the compat-forwarder callers),
-`go test ./internal/parser/golang/... -count=1`, and the accuracy golden gate
-(`scripts/verify_accuracy_golden_gate.sh`), all green on the moved code.
-
-No-Observability-Change: the move adds no metric, span, log, status field,
-runtime knob, queue, worker, or graph query.
-
 ## Gotchas / invariants
 
 - **`PreScan` must stay cheap** (`prescan.go`): it collects only function,

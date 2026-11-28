@@ -131,18 +131,6 @@ that owns the handler code moved.
   `internal/reducer`: the root imports it for `IncidentRoutingHandlers`
   wiring and handler construction, never the reverse.
 
-No-Regression Evidence: #6061 relocates
-`repository_correlation.go`, `repository_correlation_build.go`,
-`repository_correlation_writer.go`, `routing_evidence_decode.go`,
-`routing_evidence_rows.go`, `routing_materialization.go`, and
-`routing_types.go` (plus their four existing test files) from the
-reducer root into this package with no logic change: every function body is
-byte-identical except for qualifying the now-external `payloadcore`,
-`reducercontract`, `factdecode`, `schemadecode`, and `factwrite` symbols the
-root previously exposed as unqualified forwarders or aliases. A pure
-package-boundary move with unchanged bodies cannot regress runtime behavior.
-All of the following exited 0 against the moved code:
-
 - `go build ./...`
 - `go vet ./...`
 - `go test ./internal/reducer/... -count=1`
@@ -154,13 +142,6 @@ The existing handler, builder, and writer test suites
 `TestPostgresIncidentRepositoryCorrelationWriterPersistsBatchedFacts`, and
 the input-invalid quarantine regressions) moved with the code unmodified and
 still pass.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span,
-log field, or status surface. `eshu_dp_incident_routing_evidence_total` and
-`eshu_dp_incident_repository_correlations_total` keep their names, labels,
-and emission sites on the unchanged `telemetry.Instruments` struct; only the
-Go package that owns the emitting code moved.
 
 ## Related docs
 

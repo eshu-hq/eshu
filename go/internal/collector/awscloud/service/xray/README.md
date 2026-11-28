@@ -96,26 +96,6 @@ trace, service-graph, insight, telemetry, or mutation calls and no graph writes
 in the collector. The slice is account-region bounded and adds no pagination
 fan-out beyond the two config list reads.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-X-Ray group, sampling-rule, and encryption-config fact emission, the
-encryption-config-to-KMS-key relationship (ARN-keyed and bare-id keyed),
-the sampling-rule-to-service correlation anchor, the wildcard-rule no-edge case,
-the configuration-only exclusion reflection tests on both the scanner-owned
-`Client` interface and the SDK adapter `apiClient` interface, the graph-join
-contract via `relguard.AssertObservations`, runtime registration, and the
-command configuration that requires no redaction key for an X-Ray-only target.
-
-No-Observability-Change: this scanner adds no new instrument, span, metric
-label, or `aws_scan_status` row. It uses the existing AWS collector telemetry
-contract — the `aws.service.pagination.page` span plus
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total`, and `eshu_dp_aws_relationships_emitted_total`
-counters — diagnosing X-Ray scans through `aws.service.scan`, the pagination
-span, API/throttle counters, resource/relationship counters, and
-`aws_scan_status`. Metric labels stay bounded to service, account, region,
-operation, result, and status.
-
 Collector Deployment Evidence: X-Ray runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

@@ -165,29 +165,6 @@ it, but the submodule facts read it from the copy
 `TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails when the derived
 set drifts from what the copy keeps, in either direction.
 
-No-Regression Evidence (#8904): copy path. The derived probe (lowercase,
-basename, `.gitignore` check, one `LookupByPath`) replaces one map lookup per
-dot entry: ~270 ns/op over ten mixed dot paths (three 100k runs), invisible
-next to per-file copy/discovery. Full package suite green; pin re-recorded
-with no bucket movement (epoch unchanged). Behavior moves toward the registry
-only: extension-admitted names outside the old hand list are kept, while
-`.npmrc`/`.yarnrc.yml` leave the copy. `fingerprintTree` walks the same
-filter, so affected manifests move on the next poll and re-sync with no epoch
-advance.
-
-No-Observability-Change: same skip/admit counters; a pruned dotfile stays
-silently pruned. No metric, span, log, status field, queue, worker, lease,
-batch, or runtime knob is added or removed.
-
-No-Regression Evidence (#8814): discovery path. `LookupByPath` over 29,083
-repository paths averaged 14.94 ms before and 15.29 ms after the new names and
-the `.mvn/extensions.xml` rule (six alternating single-CPU runs of a throwaway
-benchmark, +12 ns per path), and `resolveNativeSnapshotFileSet` over the staged
-35-repository golden corpus (192 files, none of the admitted names) averaged
-3.22 ms before and 3.20 ms after. Every lookup pays one base-name compare for
-the new rule. The copy path gains one base-name lowercase per dot-prefixed
-entry and now copies the `.mvn` directory whole, which is not measured here.
-
 Indexing cost, measured as proxies on synthetic corpora. The code touches no
 Postgres, graph, queue or lease path, but each newly admitted file adds a file
 fact and a content fact, a `fact_records` insert, a `content_files` upsert and a
@@ -211,13 +188,6 @@ host with loadavg 5-21), and the 20-repository corpus gate, which is CI-only.
 A separate pre-existing bimodal slowdown of the migration-138 update trigger is
 tracked in #8915 and is not caused by this change. Input shape: the
 golden-corpus fixtures, synthetic corpora and the repo's own path list.
-
-No-Observability-Change: discovery reports the same skip and admit counters. A
-newly admitted file is counted as an ordinary admitted file, and an unadmitted
-dotfile is still pruned silently by the copy, as before. When a PR adds dotfile
-names to the registry, the derived keep rule follows with no second edit;
-`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails only when the
-derived set drifts from what the copy keeps.
 
 ## Content-store policy (#8812)
 
@@ -289,100 +259,6 @@ Local identifiers here (`recordingSCIPIndexer`, `concurrentSCIPIndexer`,
 `scipLanguageSubtrees`) belong to package `git`, not to `scip`, and keep
 their names.
 
-No-Regression Evidence: #6772 changed these two files by import and type
-repoint only — no logic, control flow, signatures, or error wrapping.
-Baseline origin/main 788edd169, same tree and toolchain. Normalizing all seven
-moved files through the rename map leaves four residual hunks, every one
-semantically null. Two are in production: locals renamed to avoid shadowing the
-functions that took their names -- `occurrenceLine` -> `defLine` in parser.go,
-and inside `filesByLanguage` the local became `byLanguage` (the `grouped` locals
-in that function's two callers are pre-existing and untouched). The other two
-are in moved tests: `parser_test.go` inlines two unexported parent-package
-helpers that could not move, and `regex_hoist_bench_test.go` de-stutters a
-benchmark helper whose body is byte-identical. So there is no measurable path
-to regress.
-`go test ./internal/collector/repo/git/... -count=1` passes (ok 4.684s,
-unchanged set), and `go test -list` shows the SCIP test inventory moved
-intact at 10 of 10 with the parent package retaining 127 tests and none
-matching SCIP. No benchmark is quoted because no hot-path statement
-changed; a timing comparison here would measure host noise, not the diff.
-
-Performance Evidence (#8038 item 2): `skipParse` reports its clean-tree
-observation and `snapshotIdentity` reuses it (`selection_cli.go`), so a
-parse after the clean-tree check runs `git status --porcelain` once per
-cycle instead of twice. Baseline origin/main 13bd606525:
-`TestSkipParseParseAfterCleanCheckRunsStatusOnce` counts 2 runs on both
-the dirty_tree and reprojection_superseded paths before the fix and 1
-after, with identical stamped identities. Input shape: one managed
-checkout behind the fake git. Wall-time anchor: one status run costs
-0.02 s warm (5 runs, git 2.43.0) on a synthetic 26,000-file tree, so an
-affected cycle saves one such run against a minutes-long parse. Terminal
-counts unchanged: same selected paths, same skip decisions, and
-`go test ./internal/collector/...` green.
-
-No-Observability-Change (#8038 item 2): no metric instrument, label,
-span, log key, or status field is added, removed, or renamed. The same
-`eshu_dp_collector_reconcile_parse_skip_decisions_total` outcomes are
-recorded on the same paths.
-
-No-Observability-Change: no metric instrument, metric label, span, status
-field, log key, queue table, worker, lease, or runtime knob is added,
-removed, or renamed. The SCIP snapshot path keeps emitting
-`eshu_dp_scip_snapshot_attempts_total` and `eshu_dp_scip_process_wait_seconds`
-through the same `recordSCIPSnapshotAttempt` call sites with the same
-`telemetry.FailureClassAttr("scip_"+reason)` values, so existing dashboards
-and the telemetry-coverage row for this path stay valid.
-
-Performance Evidence (#8123): a scheduled sweep now yields to a queued
-webhook trigger at a repository boundary (`selection_sweep_yield.go`,
-probe every 16 visited repositories, at most 8 yields per logical sweep,
-both env-tunable). Before, on the QA fleet (issue #8123, 784 repos):
-`claimed_at - received_at` median 155.9 s, p90 311.6 s — one sweep period.
-After, locally: `TestPrioritySelectorClaimsTriggerQueuedMidSweepBeforeSweepEnds`
-claims with 2 of 5 repositories visited (before: the control
-`TestNativeSelectorWithoutYieldProbeWalksEveryRepository` visits all 5
-before any claim is possible), and
-`TestSweepYieldReturnsPartialSelectionAndResumeCoversTail` visits each of
-5 repositories exactly once across the yielded+resumed walks, so fetch
-work per logical sweep is unchanged. With a repository reindex pinned
-(#8512 P2), `TestNativeSelectorSweepYieldResumeSkipsVisitedPinnedRepos`
-fetches each of 5 repositories exactly once across three cycles: resumed
-walks skip visited pins (carried on the selector, thread through
-`SweepVisitedPinned`/`SweepVisitedPinnedRepos` into `limitWalk`) while
-unvisited pins keep the head, and the fetch count reads
-`fullScopeIDs` because a forced pinned visit skips the baseline-SHA
-lookup. Fleet arithmetic at the measured
-~0.28 s/repository: detection within ~4.5 s plus the in-flight
-repository, then the partial batch's drain (usually empty) and one 1 s
-poll; probe cost is at most 49 `EXISTS` reads per 784-repository sweep on
-the existing `(status, received_at)` index. Stated target: p90 wait
-bounded by probe cadence plus partial-batch drain instead of the sweep
-period. Fleet p90 and sweep-period regression are NOT_CHECKED (no fleet
-in this lane; the new histogram is the instrument that proves them).
-Conflict domain: `webhook_refresh_triggers` claims. The probe is
-read-only and claiming stays solely in
-`WebhookTriggerRepositorySelector` under the #7661 lease and fencing
-token, so no double-claim or lost-trigger path is added; selector yield
-state is single-goroutine like `reconcileWalkOffset`.
-`TestNativeSelectorSweepYieldBoundCompletesSweepUnderTriggerStorm`
-proves the sweep still completes under a permanent trigger queue, and
-the existing claim-lease tests pass unchanged.
-
-Observability Evidence (#8123): new `eshu_dp_webhook_trigger_claim_wait_seconds`
-histogram (accepted rows, `claimed_at - received_at` at claim time), new
-`eshu_dp_collector_sweep_yields_total` counter, the INFO
-`git repository sweep yielded to queued webhook trigger` log
-(`visited_repositories`, `selected_repositories`, `resume_offset`,
-`remaining_repositories`), and the WARN
-`git sweep webhook trigger probe failed; completing sweep` degradation
-log. A probe failure also counts `eshu_dp_webhook_store_operations_total`
-with outcome `failed` (provider and status `unknown`, #8512 P2), so
-yield-disabled-by-outage alerts instead of hiding behind the quiet queue;
-`TestSweepYieldProbeErrorIsCounted` pins the stream and its labels. An
-operator reads the wait histogram for the #8123 outcome, the yield
-counter and log for where sweeps stopped, the failed-probe stream for
-silent yield loss, and the existing sweep logs for the sweep period.
-
 ## Symlink admission evidence (#8809)
 
 `symlinkAdmission` is the one symlink rule both sync modes apply. Full
@@ -410,32 +286,6 @@ the returned `RepoRoot` all use one root
 (`TestResolveNativeSnapshotFileSetSymlinkedRepoRootKeepsSameCategoryLinks`
 covers both modes).
 
-Performance Evidence: `BenchmarkSymlinkTargetAdmitted` (committed in
-`snapshot_native_symlink_cost_test.go`) measures the matcher, not an end-to-end
-discovery before/after. `go test -run '^$' -bench BenchmarkSymlinkTargetAdmitted
--benchtime=20000x -count=5 ./internal/collector/repo/git/`, run twice on a
-shared 16-thread arm64 Linux host, gave 0.68 to 1.40 µs per regular file (one
-`Lstat`) and 10.6 to 16.4 µs per symlink (`EvalSymlinks`, the location rules,
-and `Stat`), against zero before. The spread is host load. Both are far below
-the parse and read cost of the file they guard, and no queue, graph, or SQL
-path changes. A repository-scale discovery comparison is NOT_CHECKED.
-
-Observability Evidence: each dropped link adds one to
-`DiscoveryStats.FilesSkippedByContent["symlink_target"]`. That map already
-feeds `eshu_dp_discovery_files_skipped_total` as
-`skip_reason=content:symlink_target`, the `discovery stats` log key
-`files_skipped.content.symlink_target`, and the discovery advisory report's
-content breakdown. The delta path counts into its own stats value, which the
-production caller discards because full discovery already counted the same
-link. No instrument, label set, span, or status field is added. The matcher
-runs once per file on one goroutine, so the counter needs no lock. The walk
-asks the matcher before it checks path globs, so a rejected link whose own path
-matches an operator glob counts as `content:symlink_target`, not `user:`.
-`.gitignore` and `.eshuignore` run after the walk, so a dropped link those
-files would also skip counts as `content:symlink_target`, not
-`gitignore` or `eshuignore` (before #8809 it counted under those).
-`TestResolveNativeSnapshotFileSetCountsDroppedSymlinks` pins the count.
-
 Known limits: the target check re-applies ignored directory names, hidden
 paths and preserved hidden prefixes, ignored extensions, and ignored and
 preserved path globs (including `.eshu/discovery.json`, vendor roots, and
@@ -445,27 +295,6 @@ an in-root link whose own name is admitted. The delta path checks only the
 target's leaf. Git refuses a path beyond a symbolic link, so a git-diff target
 never reaches a file through a directory link; an explicit operator
 `--file-targets` path can, and is then judged as the regular file it reaches.
-
-No-Regression Evidence (#8939): discovery path. `.swift-version` joins the
-`raw_text` exact names, and the derived copy rule picks it up with no second
-edit; both the registry lookup and the copy probe are map lookups, so the added
-entry changes no lookup's complexity. A throwaway
-benchmark of `LookupByPath` over eight mixed paths (none of them `.swift-version`),
-run on the Go version pinned in `go/go.mod` with three alternating base/HEAD
-rounds of three runs each, gave per-eight-lookup times of 2.10-4.25 us before and
-2.03-4.87 us after. The host was loaded, so the runs are noisy; the fastest run
-of each side was 2.10 us before and 2.03 us after, and no difference is
-distinguishable. Each newly admitted `.swift-version` is one small file (a
-version string), so indexing cost per file is the 1-5 KB figure recorded for #8814
-above. Not measured: end-to-end collector wall time, because this repository has
-no `.swift-version` and the golden corpus has none.
-
-No-Observability-Change: discovery reports the same skip and admit counters, and
-a `.swift-version` is counted as an ordinary admitted file. No metric, span, log,
-status field, queue, worker, lease, batch, or runtime knob is added. When a PR adds
-a dot-prefixed registry name, the derived keep rule follows with no second edit;
-`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails only when the
-derived set drifts from what the copy keeps.
 
 ## Per-file read cap (#8986)
 

@@ -137,15 +137,6 @@ and `eshu_dp_mcp_router_target_rank`, plus the `mcp.router.find` and
 
 ## Performance and concurrency evidence
 
-No-Regression Evidence (#8757): measured on a 16-core arm64 host (Linux
-7.0.0-1006-aws, Go 1.26.10) against the in-process echo handler, so the numbers
-isolate MCP overhead from any graph or Postgres backend. The baseline is `main`
-at `de1e830767` (before this change), and the after measurement is this branch
-with the same harness. The benchmark file was applied through
-`go test -overlay` and is not committed. It builds a `Server` over a handler
-that answers every route with a canonical envelope, then loops `handleMessage`
-on a fixed `tools/call`.
-
 - Direct `tools/call` (the path every non-router call takes, now through
   `callTool` and its shared `run` closure).
   `go test -run '^$' -bench BenchmarkDirectToolsCall -benchtime=20000x -count=6 ./internal/mcp/`,
@@ -187,20 +178,6 @@ on a fixed `tools/call`.
   2,000 caller keys of 4 to 6 KB under `resolve_query_playbook.inputs` (about
   10 MB) return 15,029 B. Every error result is capped at 20 field errors and
   256 echoed bytes per path.
-
-Observability Evidence (#8757): an operator answers "does routing work" from
-`eshu_dp_mcp_router_find_total{outcome}` (`candidates`, `empty`, `error`),
-`eshu_dp_mcp_router_call_total{tool,outcome}` (`dispatched`,
-`invalid_arguments`, `unknown_tool`, `refused`), and
-`eshu_dp_mcp_router_target_rank` (dispatched calls only; 0 = the agent ran a
-tool `find_tool` did not offer). Both spans carry `outcome`; `mcp.router.call` also carries
-`mcp.router.target`, and a dispatched call's own spans nest inside
-`mcp.router.call`. Error results carry typed codes:
-`mcp_router_invalid_arguments` (with `field_errors` and
-`field_errors_truncated`), `mcp_router_unknown_tool`, `mcp_router_refused`,
-`mcp_router_ranker_unavailable`, `mcp_router_rank_failed`, and
-`mcp_router_dispatch_failed`. A ranker failure logs `mcp router: ranker
-failed` at WARN. See [MCP Router Telemetry](../../../../docs/public/reference/telemetry/mcp-router.md).
 
 ## Known divergence from a direct call
 

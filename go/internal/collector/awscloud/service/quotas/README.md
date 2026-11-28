@@ -69,10 +69,6 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/quotas/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 Collector Performance Evidence:
 `go test ./internal/collector/awscloud/service/quotas/...` covers the
 bounded Service Quotas metadata path: one paginated ListServices stream, one

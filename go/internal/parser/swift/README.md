@@ -81,17 +81,6 @@ concrete types, overrides, UIKit application delegate callbacks, Vapor route
 handlers, XCTest methods, and Swift Testing `@Test` functions. Helpers should stay
 package-local unless another language-owned package has a real caller.
 
-No-Regression Evidence: the comprehensive-fixture golden gate
-`TestSwiftComprehensiveSymbolExtractionGate` and the parity tests
-`TestDefaultEngineParsePathSwift*` pin imports, bases, class context, args, end
-lines, variable types, constructor roots, protocol roots, Vapor route entries,
-dead-code roots, and pre-scan names; `go test ./internal/parser/... -count=1`
-passes (1269 tests).
-`engine_swift_ast_migration_test.go` red-proves the regex-false-positive removal
-and full-body source span against pre-migration `main`. No-Observability-Change:
-this parser-local extraction change adds no metric, span, log, status field,
-queue behavior, graph query, environment variable, or runtime knob.
-
 `dogfood_real_repo_test.go` is a standing regression test (#5399), not an
 opt-in dump: `TestDogfoodSwiftRealRepoSnapshot` parses the committed,
 Vapor-shaped corpus at `tests/fixtures/dogfood/swift_real_repo` and diffs

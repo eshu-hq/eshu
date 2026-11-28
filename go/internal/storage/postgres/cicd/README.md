@@ -72,10 +72,6 @@ adds the `claimed_generation_commit_observer_failed` span event. A dedicated loa
 `eshu_dp_aws_pagination_checkpoint_events_total` was scoped out of #5429;
 wire one if per-store-operation telemetry becomes necessary.
 
-No-Observability-Change (#6693): this is a package-path move only; no new
-metric, span, log field, status field, worker, queue, lease, or retry was
-added, and none of the above was removed.
-
 ## Gotchas / invariants
 
 - Inside one generation, `Save` must keep the

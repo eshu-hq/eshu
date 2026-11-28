@@ -46,10 +46,9 @@ single-quoted strings, hex/octal numbers, and comments in its slow-query
 
 ## Telemetry
 
-No-Observability-Change (#7035): this package emits no metric, span, or log.
-It is a pure function whose output feeds the `eshu.graph_read.statement_fingerprint`
-span attribute and the `graph_read.statement_head` log field owned by
-`internal/query`.
+This package emits no metric, span, or log directly. Its output feeds the
+`eshu.graph_read.statement_fingerprint` span attribute and
+`graph_read.statement_head` log field owned by `internal/query`.
 
 ## Gotchas
 

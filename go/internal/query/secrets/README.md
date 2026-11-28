@@ -95,23 +95,6 @@ for Part C): it asserts root's `capabilityMatrix` rows through the alias
 consts, with its own local recording-store stubs since the four family test
 files that used to define them moved out.
 
-No-Regression Evidence: baseline `origin/main` vs this branch -- `go build
-./...`, `go vet ./internal/query/... ./cmd/api ./cmd/mcp-server ./internal/mcp`,
-and `go test ./internal/query/...` and `go test ./internal/query/secrets/`
-pass, and their combined test-name union equals the pre-move `go test
-./internal/query/ -list '.*'` list exactly; the queryplan `source_sha256`
-pins for `(GraphIAMGrantPostureStore).grantFlagCount` and
-`(GraphIAMGrantPostureStore).groupedGrantCounts` are re-pinned in
-`internal/queryplan/testdata/query-source-coverage.yaml` under the new
-`secrets/grant_posture.go` path.
-
-No-Observability-Change: every route keeps its span name
-(`telemetry.SpanQuerySecretsIAM*`) and `http.route`/`eshu.capability`
-attributes unchanged. `secretsHandlerTracer` is this package's own
-package-local tracer var (mirroring `packageregTracer` in
-`go/internal/query/package/registry/handler_tracing.go`), seeded from
-`tracing.HandlerTracer()`.
-
 ## Failed reads (#7674)
 
 Every route answers a failed read-model or grant-graph read with a fixed
@@ -126,22 +109,6 @@ on the handler span, or `499` with an `eshu.request.client_canceled` event and
 no span error when the caller canceled the request. `server_failure_test.go`
 covers each route and step with a canary fault, a client cancel, and a stale
 reader.
-
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No SQL, Cypher, query parameter, call count, row bound,
-scope check, or success path changed. A failure now costs one span
-`RecordError`/`SetStatus` and a fixed-string write instead of formatting the
-error into the body. `go test ./internal/query/... ./internal/queryplan/...
--count=1` and `go test -race ./internal/query/secrets/...` exit 0. No
-benchmark is claimed because the success path has no runtime delta to
-measure.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the step's
-fixed message as the description; a client cancel adds
-`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
-`server_failure_test.go` asserts both span shapes with a recording tracer for
-every route and step.
 
 ## Related docs
 

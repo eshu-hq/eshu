@@ -58,16 +58,6 @@ that write or read through it own request-scoped telemetry.
   `storage/postgres` family package: that is an import cycle this leaf
   exists to avoid.
 
-No-Observability-Change: this extraction moves only the payload JSON codec
-and the empty-string helpers. The encode/decode logic and every call site's
-behavior are byte-identical; no metric, span, or log name changes.
-
-No-Regression Evidence: the moved package's own tests
-(`TestMarshalPayloadSanitizesForPostgresJSONB`,
-`BenchmarkMarshalPayloadSourceText`) plus the full
-`storage/postgres` package test suite run green against the repointed
-callers with no logic change.
-
 ## Related docs
 
 - [Postgres storage](../../README.md)

@@ -48,10 +48,6 @@ This pure planner emits no telemetry. The root coordinator records
 claim status, incident-freshness failure classes, and admission logs expose
 durable progress.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-status value, queue, worker, lease, retry, or runtime setting. The same root
-signals continue to cover scheduling and handoff failures.
-
 ## Gotchas / invariants
 
 - Validate every configured target before requested-scope filtering. Invalid or
@@ -70,15 +66,6 @@ signals continue to cover scheduling and handoff failures.
 - Run, generation, and work-item IDs are deterministic for a fixed request.
 - `HasConfiguredScope` does not match blank or unconfigured scopes or malformed
   configuration.
-
-No-Regression Evidence: direct child tests call the production planner and pin
-request errors, all-target validation, scheduled/bootstrap/webhook trigger
-precedence, configured item order, exact identity fields, site fairness
-partitions, UTC timestamps, sorted privacy-safe metadata, membership, and empty
-selections. Root tests pin all five request fields and scheduled and freshness
-admission behavior. Planning still scans `n` configured targets in O(n) and
-sorts at most `n` requested-scope rows in O(n log n). It opens no network or
-database connection.
 
 No-Concurrency-Change: the planner remains a pure per-call value transform with
 no shared state, goroutine, lock, claim, lease, transaction, or retry. The root

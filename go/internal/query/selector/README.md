@@ -105,32 +105,6 @@ halves and the two `RETURN` halves around the access splice) hash to
 `0a3aacc4546065a32f872400c7f9e268c4d886f5a8f617840fda72e82eeaed54` before and
 after.
 
-No-Regression Evidence (#7626): the wrap touches only the failure returns, and
-the Cypher bytes are identical, so no backend plan can change. A throwaway
-in-package benchmark of `ResolveExactForAccess` against in-memory fakes
-(`go test -bench -benchmem -count=8`, darwin/arm64 Apple M5 Max, `benchstat`
-of the f93338478 source versus this change) measured: catalog hit 295.7ns to
-308.1ns (p=0.083, not significant), 3 allocs and 1.375KiB unchanged; graph hit
-306.6ns to 308.5ns (p=0.442), 8 allocs and 1.016KiB unchanged; graph failure
-298.3ns to 300.5ns (p=0.328), 8 to 9 allocs and 809B to 825B, the one
-`LookupError` value on the error path only.
-
-Observability Evidence (#7626): a lookup failure through
-`ResolveForRequestWithAccess` now sets the request span to Error with the fixed
-description `repository selector lookup failed` (replaced by `otelhttp`'s empty
-5xx description on the server span, see Telemetry) and an `exception` event,
-where it previously left no signal at all; the supply-chain security-alert selector
-adds a `supply_chain_query.stage_failed` record for stage
-`repository_selector_resolve`. Pinned by
-`TestResolveForRequestWithAccessMapsLookupFailureTo500` and
-`TestRepositorySelectorResolveLookupFailureAnswers500`.
-
-No-Regression Evidence: the move was proven query-invariant before the digest
-was re-pinned. Extracting every string literal per function with `go/parser`
-before and after gives identical multisets — `ResolveExactForAccess` 25 literals,
-hash unchanged; `CatalogMatches` 2, unchanged; `LooksCanonicalRepositoryID` 3,
-unchanged. Only identifiers changed.
-
 **`HydrateResolvedEntityRepoIdentity` scrubs a leaked backend projection
 placeholder before doing anything else (#6408).** A backend bug can return its
 own unresolved expression text (e.g. `"coalesce(repo.id, repoViaInstance.id)"`)
@@ -167,19 +141,6 @@ candidate body through `WriteAmbiguousError`, #10655). Any other error
 used to answer 400 with its own text, which could carry backend detail; it
 now answers the same fixed `LookupFailureMessage` 500 with the error on the
 request span. The exported API is unchanged.
-
-No-Regression Evidence (#7674): the change runs only after resolve has
-already returned an error. No Cypher, query parameter, call count, or
-success path changed, and `ResolveExactForAccess` (the pinned queryplan
-function) is untouched. `go test ./internal/query/... ./internal/queryplan/...
--count=1` covers every importer and exits 0, as does
-`go test -race ./internal/query/selector/...`.
-
-Observability Evidence (#7674): an unclassified error now records the
-backend error on the request span as an `exception` event and sets status
-Error with `LookupFailureMessage`, the same signal a `LookupError` already
-gives. `server_failure_test.go` asserts the 404, 409, and 500 answers and the
-span.
 
 ## Related docs
 

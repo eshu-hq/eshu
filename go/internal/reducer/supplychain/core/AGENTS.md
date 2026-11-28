@@ -178,26 +178,6 @@ changing anything here.
   `Reachability.MissingEvidence` to every read surface (#10029 R2, #10043).
   A reachable fact verdict (`symbol_reachable`,
   `package_import_reachable`) wins untouched and takes no warning entry.
-  No-Regression Evidence (#10043): throwaway `ClassifyGoVulnerabilityReachability`
-  bench, 200 findings + 1 joined warning, same host (linux/arm64, go1.26.6),
-  base 86b2adcfa7 vs head — finished leg 760us/894KB/10671 allocs vs
-  747us/888KB/10271 allocs (reachable wins, warning no longer appended);
-  failed leg 480us/559KB/6859 allocs vs 505us/581KB/7259 allocs (~125ns and
-  ~110B per flipped finding for one extra append plus the reason string).
-  O(1) extra work per joined finding; the classifier runs once per reducer
-  pass. No-Observability-Change: no new metric, span, log key, queue, lane,
-  or knob; the signal rides the existing `Reachability.State` /
-  `RuntimeReachability` fields end to end.
-  The join is scoped by the warning's
-  `relative_path` (#11002): blank or whitespace-only keeps repository
-  scope, while a non-blank path byte-matches (no trimming, no case or
-  separator folding) the `go_module_evidence` rows behind each finding and
-  joins only the findings with a matching row, rendered as
-  `govulncheck scan <reason> at <relative_path>`.
-  Scan provenance (`scan_level`, `scan_mode`, `scanner_version`,
-  `trace_count`) rides the typed decode to the explain payload, one key
-  each and only when the fact reports it; pre-provenance facts emit none
-  of the keys (#10028).
 - The OS advisory grouping pass (#9914, `groupOSAdvisoriesByUpstream`) is the
   only place a distro record is filed under a CVE id. Keep it in the index
   build: never in verdict code, never by changing the producer's `cve_id`, and
@@ -235,69 +215,6 @@ changing anything here.
   `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
   second typed decode sees the producer's `cve_id` and misses every grouped
   finding.
-
-No-Regression Evidence (#11002 module-scope join): `go test
-./internal/reducer/supplychain/core/ ./internal/query/supply/chain/impact/
--race -count=1` green on the rebased head (core 8.6s, impact 1.1s with
-race; 0.8s/0.1s without). The hot-path delta is an in-memory byte-equal
-filter over already-materialized module rows plus one readiness CTE `AND`
-equality over rare warning rows: no new query, index, lock, or allocator
-shape, so no measurement beyond the suite timings is owed.
-
-No-Observability-Change (#11002): the join narrowing adds no metrics,
-spans, or logs; failure classes and quarantine behavior are unchanged.
-
-No-Regression Evidence (#11247 audit tick budget clock): `runAuditOnce` reads
-its deadline from `budgetNow()`, which is the injected `Now` when set and
-`time.Now` otherwise, so the default path is the same clock reads as before:
-one at tick start plus one per pass (monotonic reading kept; `now()` is
-not used because `UTC()` strips it). No query, lease, claim, or lock call is added, moved, or
-reordered. `go test -race -count=1 ./internal/reducer/supplychain/core` is
-green (about 10 s), and the budget test is exact on a fake clock: 4 passes in
-a 70 ms budget, 3 when a pass ends on the deadline, 1 when the budget is
-shorter than a pass. Before: the wall-clock test failed 3 of 20 runs under
-a 128-process CPU hog; after: 0 of 20.
-
-No-Observability-Change (#11247): no metric, span, log key, or setting is
-added or changed.
-
-No-Regression Evidence (#11111 cut-load deny sweep, #11177 guarded-full count):
-the deny sweep on a cut-load pass is the existing sweep body (`dropAliasDeniedRecords`)
-run over the records already in memory, so it adds one linear pass and no
-query, lease, claim, or lock call; with no deny list a cut pass still returns
-at once (`TestAliasCutLoadWithoutDenyKeepsIndexUntouched`). `runContractTick`
-reads the `rebuilt` flag `runTick` already returns, so the tick itself is
-unchanged. `go test -race -count=3 ./internal/reducer/supplychain/core` is
-green (about 49 s at load 28). Before: the three new regression tests failed
-on the base sources; after: they pass and five mutants fail them.
-
-Observability Evidence (#11177): the existing winners full-resweep counter and
-its log line now fire only when this tick committed the full resweep, not when
-the lease was not claimed or the tick stood down; the meaning is stated in
-docs/public/reference/telemetry/supply-chain-impact-winners.md. #11111 reuses
-the existing closed `result="denied"` label on the alias-group counter. No new
-metric, label, span, or setting.
-
-No-Regression Evidence (#10972 markers out of the CVE fan-out; the findings
-fan-out has since moved to the D4b claim reads below, and the manifest marker
-path keeps this statement): the findings
-fan-out's in-flight read now runs `findInFlightNonMarkerScopesQuery`, the
-shipped in-flight statement plus one residual `payload->>'trigger'` predicate on
-the rows the same `(stage, domain, status)` index scan already returns; the
-set is bounded by the passes in flight, and it is one read per fan-out as before.
-Fewer in-flight scopes reach the reopen loop, so a marker costs no reopen
-statement and sets no replay bit. No lock, lease, claim, or ordering change.
-`TestFanOutNeverReopensAnInFlightManifestMarker` was red on the base sources
-(reopened an in-flight marker) and is green now; the live twins
-(`TestFindInFlightScopesExcludesManifestMarkersLive`,
-`TestManifestMarkerFlagsNeverComeFromACVEFanOutLive`) run in the
-coordinator's slot.
-
-Observability Evidence (#10972): no new signal on this path. The existing
-fan-out holder counters and `fanout_holders` log field now exclude in-flight
-markers; marker executions per hour stay on the `manifest_trigger` signal. The
-completion fan-out's skipped-marker counter is described in
-`go/internal/storage/postgres/scope/completion/README.md`.
 
 ## Holder reads answer from supports (#11197)
 
@@ -340,30 +257,6 @@ the reads after set A, and the one-primary precondition are in
 `HOLDER_FANOUT_INFLIGHT.md`; the precondition is pinned by
 `TestSupplyChainImpactLoadsClaimsAndFanOutShareOneHandle` in `cmd/reducer`.
 Do not narrow the row read the same way here: that arm is unchanged by D4b.
-
-No-Regression Evidence (#10972 D4b): the fan-out's in-flight statement is now
-`findInFlightNonMarkerClaimsQuery`, the shipped marker-free statement with
-`last_attempt_at` added to the select list and ORDER BY, so it scans the same
-`(stage, domain, status)` index rows and returns the same row count. The new set A
-statement is the same text without the active-generation join arm, one read per
-genuine pass over the passes in flight at once; a one-hop rerun takes none. No
-lock, lease, claim, ordering, or schema change; the intersection is an in-memory
-map lookup per claim. Fewer in-flight scopes reach the reopen loop, so the
-fan-out runs fewer reopen statements. Core tests in
-`fanout_inflight_narrow_test.go` were red on the base sources and are green now;
-the live proofs in `storage/postgres` run in the coordinator's slot. A plan
-measurement of set A on QA-sized data is not taken here (NOT_CHECKED in this
-change; the coordinator owns the live slot).
-
-Observability Evidence (#10972 D4b): `eshu_dp_supply_chain_impact_fanout_total`
-gains the closed outcomes `in_flight_kept`, `in_flight_narrowed`,
-`in_flight_early_read_failed`, and `in_flight_early_read_skipped` (one point per
-claim in set B); a failed set A read counts `read_error` or `read_timeout` with
-`site=in_flight_early` and writes the warn log
-`supply chain impact in-flight load-end read failed`; the read-duration histogram
-gains `kind=in_flight_early`; the fan-out span and summary log line carry
-`in_flight_early_read`, `in_flight_kept`, and `in_flight_narrowed`, and the log
-line `in_flight_early_read_seconds`.
 
 The pass-outcome signals (`repend_cause.go`, #10972) are observation only. A
 `repend_cause` value comes from the intent the claim already loaded

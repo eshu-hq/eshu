@@ -48,21 +48,3 @@ review reads need was forked verbatim into `decode_workitem.go` with source
 citations (shared with the work-item lane, which owned it then); #6623
 then deleted that fork and repointed this package at the shared
 `internal/query/decode/workitem` leaf with no logic change.
-
-No-Regression Evidence: baseline `459b83f4c` vs this branch —
-`go test ./internal/query/...` passes with 0 failures (counts in the lane
-handoff); the store behavior is pinned by the companion tests
-(`context_test.go` with the fake-driver harness, `anchor_selection_test.go`,
-`truncation_test.go`, `authorizer_test.go`, the `*_evidence_test.go` files),
-all moved with their subjects. The normalized old-vs-new SQL diff over the
-store query consts is empty (same text, new homes); the route-serves-data
-registry entry for the incident route points at the new files with
-unchanged evidence markers, and its gate passes.
-
-Observability Evidence: the store records `query.incident_context.stage`
-events on a recording handler span for each completed sequential read:
-`anchor`, `timeline`, `changes`, `routing`, `runtime`, and `review`. Each event
-has a duration and error flag; request data and SQL are omitted. The route
-keeps `eshu_dp_api_request_duration_seconds` and
-`eshu_dp_api_request_errors_total` via the unchanged query-surface middleware.
-The handler span name is unchanged.

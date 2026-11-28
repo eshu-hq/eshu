@@ -28,9 +28,7 @@ It uses only the Go standard library otherwise.
 
 ## Telemetry
 
-No-Observability-Change: validation is a pure function. It emits no metrics,
-spans, logs, status rows, audit events, network calls, graph queries, content
-reads, or provider requests.
+Validation is a pure function. It emits no metrics, spans, logs, status rows, audit events, network calls, graph queries, content reads, or provider requests.
 
 ## Gotchas / invariants
 

@@ -72,8 +72,6 @@ metric labels.
 - The job mapper copies only the distinct S3 output bucket NAMES, the assumed
   IAM role ARN, the encryption mode, and the dataset/recipe references. It never
   copies output object data or profile sample rows.
-- `No-Observability-Change`: reuses shared AWS pagination span +
-  API-call/throttle counters; no telemetry contract change.
 - SDK adapters translate AWS records into scanner-owned types; scanner tests
   should not mock AWS SDK pagination.
 

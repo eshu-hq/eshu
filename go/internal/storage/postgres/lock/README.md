@@ -46,19 +46,6 @@ See `doc.go` for the godoc contract.
 None of its own. Lock acquisition runs inside the caller's transaction, so
 tracing and metrics are the caller's responsibility, not this package's.
 
-No-Observability-Change: this extraction moves only the locker types, the
-deferred-maintenance lock helpers, and their key/SQL constants. Lock
-predicates, ordering, and key derivation are byte-identical apart from the
-package clause and the necessary export of the deferred helpers (root
-ingestion callers stay in root until the ingestion steps), and no metric,
-span, or log name changes.
-
-No-Regression Evidence: focused `internal/storage/postgres/...` tests
-(including this package) run green on the moved tree with `-race`,
-including the staying deferred concurrency and split-lock proofs against
-the exported helpers; the lock SQL text is unchanged so no plan or
-lifecycle proof is re-owed.
-
 ## Gotchas / invariants
 
 - Lock ordering is always ascending by ID inside both `With*` wrappers: two

@@ -68,8 +68,3 @@ construction, proven by a reflection guard test. Step-scaling and
 target-tracking configuration bodies are never persisted; only the bound
 CloudWatch alarm ARNs are kept. Synthesized ARNs derive their partition from the
 scan boundary, never a hardcoded `arn:aws:`.
-
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/applicationautoscaling/...` green.
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

@@ -37,10 +37,6 @@ None. Planning runs inline during the parent coordinator's reconcile pass and
 inherits its reconcile metrics, workflow rows, claim status, duplicate-skip
 logs, and `/api/v0/index-status` surface.
 
-No-Observability-Change: this move adds or renames no metric, span, log field,
-status field, queue, worker, lease, or runtime setting. Provider request and
-fact-emission signals remain in the CI/CD run collector runtime.
-
 ## Gotchas / invariants
 
 - The planner never resolves `token_env` or copies it into
@@ -55,11 +51,6 @@ fact-emission signals remain in the CI/CD run collector runtime.
 - `ConfiguredGitHubScopes` maps an exact allowlisted repository to every
   matching configured scope; `ConfiguredGitHubTargetRepositories` supports
   pending-event priority in scheduled fallback.
-
-No-Regression Evidence: focused child and parent coordinator tests exercise
-the same planner and service paths after the import move. Whole-module build
-and vet verify the production binary wires `run.WorkPlanner` through the
-root `CICDRunPlanner` interface.
 
 ## Related docs
 

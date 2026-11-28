@@ -89,22 +89,11 @@ SDK pagination; there is no per-file-system fanout. No file-content reads, no
 mutation calls, and no graph writes exist in the collector. Cardinality is
 bounded by the file system, backup, SVM, volume, and snapshot count per claim.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers FSx metadata fact emission across all four flavors, VPC/subnet/KMS/AD/
-backup/SVM/volume relationship emission with non-empty target_type and join
-keys, omission of AD self-managed credentials and SVM/fsxadmin passwords, SDK
-pagination, runtime self-registration, the derived supported-service guard, and
-command configuration.
-
 Collector Observability Evidence: FSx uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses FSx scans through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: FSx runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

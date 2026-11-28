@@ -84,11 +84,6 @@ degraded-read metrics on `EntityHandler.Instruments`.
     shares with `search_file_content`, and that pair moved together into the
     `content` child, which now owns both the helper and the routes.
 
-No-Observability-Change: this extraction moves only pure entity-resolution
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, summaries, and transport
-telemetry, and the same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../README.md)

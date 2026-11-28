@@ -100,33 +100,12 @@ UpdateEnvironment, DeleteEnvironment, CreateCliToken, CreateWebLoginToken,
 InvokeRestApi, PublishMetrics, TagResource, or UntagResource calls, no
 mutations, and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/mwaa/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers MWAA environment metadata fact emission, the environment-to-S3-bucket,
-environment-to-subnet, environment-to-security-group, environment-to-IAM-role,
-environment-to-KMS-key, and environment-to-CloudWatch-log-group relationship
-emission with their `target_type` and `target_resource_id` join shapes, the
-no-Airflow-configuration-value and no-secret assertions, the partition-aware
-S3 bucket ARN synthesis (commercial / `aws-us-gov` / `aws-cn` / blank-region
-fallback), the log-group wildcard-suffix trim, the SDK adapter mutation/token
-exclusion reflection test, runtime registration, and the derived
-supported-service guard. The change adds one new scanner package, one new
-direct SDK dependency (`service/mwaa v1.40.2`, pinned to match the existing
-core SDK versions with zero incidental core upgrades), and one append-only
-binding import; no existing scanner path changes.
-
 Collector Observability Evidence: MWAA uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses MWAA scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`; this scanner adds no new instrument, span, or
-metric label.
 
 Collector Deployment Evidence: MWAA runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

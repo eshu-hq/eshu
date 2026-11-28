@@ -37,10 +37,6 @@ Rename-only `codeflow` to `code/flow`, `codeintel` to `code/intel`,
 `deadcode` to `code/dead` moves. Every exported Go symbol is identical;
 only import paths change.
 
-No-Observability-Change: no stage added and no metric, span, or log name
-changed; this namespace declares no function, holds no state, and performs
-no I/O of its own.
-
 ## Related docs
 
 - [MCP architecture](../README.md)

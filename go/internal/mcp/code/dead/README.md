@@ -85,11 +85,6 @@ API request duration and error metrics (`request.go` in
   `find_dead_iac` shares the `find_dead_` spelling but belongs to the IaC
   family that stays in the root switch.
 
-No-Observability-Change: this extraction moves only pure dead-code route
-selection. The root adapter still feeds the same global fanout, dispatch,
-authorization, budgets, envelopes, summaries, and transport telemetry, and the
-same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../README.md)

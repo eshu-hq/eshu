@@ -83,9 +83,7 @@ transitive dependency on the root query package or `querycontract`.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no metric, span, or log. It stores
-and returns a value. Authentication decisions and their audit events stay in the
-root package's middleware, which is unchanged.
+This package emits no metric, span, or log. It stores and returns a value. Authentication decisions and their audit events stay in the root package's middleware, which is unchanged.
 
 ## Gotchas / invariants
 
@@ -124,29 +122,6 @@ caller granted one would be denied by the other.
 `CleanedStrings` preserves order while trimming, dropping empties, and
 de-duplicating. Allow-list comparisons depend on it, so a change to its
 semantics is an authorization change.
-
-## Performance and observability of the session seam (#6642)
-
-No-Regression Evidence (#6642 seam, baseline 11c6ab9b8): the hot file this change touches is
-root's `auth_audit.go`, where `actorClassForAuth` became a one-line forwarder
-to `ActorClassForAuth` in `audit_actor.go`; the function body moved
-verbatim, so the audit actor-class decision runs the same branches on the
-same `AuthContext` fields. Baseline `origin/main` vs this branch:
-`go build ./...`, `go vet ./internal/query/...`, `go test
-./internal/query/... -count=1` and the root, `auth` and `querycontract`
-test-name union are unchanged (nothing dropped, added, or duplicated); no
-Cypher, SQL, queue, lease, or worker path is involved, so there is no
-throughput or latency surface to measure beyond one extra call frame per
-audit record, which the compiler inlines.
-
-No-Observability-Change (#6642 seam): no metric, span, log, or status
-surface is added, removed, or renamed. `ActorClassForAuth` still returns
-the same `governanceaudit.ActorClass` values for the same inputs, so audit
-records keep their actor-class labels, and the 401 and 403 envelopes written
-by `querycontract.WriteUnauthorized` and `WritePermissionDenied` keep their
-exact status codes, error codes and `WWW-Authenticate` values, and derive
-their correlation identifiers the same way (request header first, then a
-fresh random hex value).
 
 ## Related docs
 

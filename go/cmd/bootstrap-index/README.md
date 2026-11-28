@@ -304,99 +304,10 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 
 ### Evidence (#3678 per-stage timing + per-file-kind content volume)
 
-- Observability Evidence: Added `eshu_dp_content_entity_emitted_total`
-  (`source_file_kind` × `collector_kind`) and
-  `eshu_dp_bootstrap_pipeline_phase_seconds` (`bootstrap_phase` ×
-  `collector_kind`) instruments, plus per-repo `content_entity_count` /
-  `entity_kind_<kind>` log attributes, a `bootstrap collection progress` log
-  every 10 repos, and a `bootstrap phase complete` log per post-collection
-  phase (recorded on the error path too). Coverage, by layer:
-  - Classification correctness against REAL fixtures:
-    `TestDiscoveryAdvisoryClassifiesRealManifestAndConfigFixtures`
-    (`internal/collector`) writes a real `go.mod` and runs it through the actual
-    `gomod` parser + `entityBucketsFromParsed` + `snapshotEntityMetadata` path,
-    then `buildDiscoveryAdvisoryReport`, and asserts the dependencies classify as
-    `package_manifest` (≥2) and a `terraform_hcl` file as `config`. This guards
-    the #3678 P1 regression: a real dependency manifest carries an empty
-    `artifact_type`, so the prior `artifact_type`-only classifier returned `code`
-    and `package_manifest` was permanently 0. The metadata-based classifier
-    returns `package_manifest`; the old behavior was confirmed failing for the
-    same input before the fix.
-  - Classifier unit coverage:
-    `TestContentEntitySourceFileKindClassifier` (`internal/telemetry`) covers the
-    `Variable`+`config_kind=dependency` manifest signal, the real config
-    `artifact_type` tokens, and that dead tokens (`terraform`, `helm_chart`,
-    `argocd`, `kustomize`, `cloudformation`) the parser never emits fall through
-    to `other` rather than masquerading as `config`.
-  - Advisory→metric wiring:
-    `TestDrainCollectorEmitsContentEntityCounterByFileKind` drives the real
-    `drainCollector` loop against an in-memory OTEL `ManualReader` and asserts the
-    counter emits per bounded `source_file_kind` faithfully to the advisory it is
-    handed (it does not re-derive classification — that is covered above).
-  - Phase timing: `TestRunPipelinedEmitsBootstrapPhaseTimings` drives the real
-    `runPipelined` and asserts each of the six `bootstrap_phase` values records
-    its histogram point.
-  - Phase-timing accuracy:
-    `TestRunPipelinedProjectionPhaseExcludesBackfillWait` injects a slow backfill
-    and asserts the `projection` duration reflects only projector wall time, not
-    the backfill wait (confirmed failing under the prior `time.Since`-after-
-    backfill code, which recorded ~4s instead of ~2.5s).
-    `TestRunPipelinedRecordsDeploymentReopenPhaseOnError` asserts the new
-    `deployment_reopen` phase records even when reopen fails, and that the later
-    `config_state_drift` phase does not record on that error path.
-
   Full gate: `go test ./internal/telemetry ./internal/collector ./internal/parser
   ./cmd/bootstrap-index -count=1`.
   The `collector_kind=bootstrap-index` label is shared with the per-collector
   layer so the two telemetry layers join without relabeling.
-- No-Regression Evidence: The new counter adds, per repo, four bounded map reads
-  over the already-built `DiscoveryAdvisory.EntityCounts.BySourceFileKind` plus a
-  single-map-read `config_kind` lookup per entity during advisory construction;
-  the histogram adds five `Record` calls per run. No new graph reads, Cypher,
-  locks, queue claims, or per-fact scans are introduced; the package-manifest
-  signal reuses the `config_kind` metadata the advisory already iterates. Both
-  the metric label space and the `entity_kind_<kind>` log fields iterate the
-  bounded `telemetry.SourceFileKinds()` set, so dimension cardinality is static.
-  Collection, projection, and commit paths are unchanged except for the added
-  emission; the progress log is rate-limited to one line per 10 repos. Baseline
-  behavior (facts emitted, projections completed, queue drain) is unchanged and
-  covered by the existing `cmd/bootstrap-index` pipeline tests, which continue to
-  pass.
-
-### Evidence (#4271 relationship_backfill phase-start signal)
-
-- Observability Evidence: `runPipelined` now logs a `bootstrap phase start`
-  line (with `bootstrap_phase=relationship_backfill`) immediately before
-  calling `BackfillAllRelationshipEvidence`, closing the previously silent gap
-  between `bootstrap projection succeeded` and the phase's own completion log.
-  This is a log-only signal; no new metric is added because
-  `eshu_dp_bootstrap_pipeline_phase_seconds` already covers the phase's
-  duration once it completes (`No-Observability-Change` for the metric layer).
-  - Regression coverage:
-    `TestRunPipelinedLogsRelationshipBackfillPhaseStartBeforeCompletion`
-    (`bootstrap_telemetry_test.go`) drives the real `runPipelined` in a
-    goroutine against a fake committer whose `BackfillAllRelationshipEvidence`
-    blocks on a channel the instant it is entered. The test waits for that
-    channel, then — while the call is still blocked and has not returned —
-    asserts the `relationship_backfill` phase's `bootstrap phase start` log
-    line is already present in the captured logs, and that its `bootstrap
-    phase complete` line is NOT yet present (that line can only be written
-    after the call returns). Only then does the test release the block and
-    let `runPipelined` finish. This proves the start signal is emitted
-    before/during the blocked call, not merely before a later log line — an
-    earlier version of this test asserted only that the start line's byte
-    offset preceded the complete line's offset, which does not rule out a
-    regression that logs "start" immediately after the (still-blocking) call
-    returns but before the completion log (review finding on PR #4521;
-    confirmed as a genuine guard by temporarily moving the production
-    `recordPhaseStart` call to after `BackfillAllRelationshipEvidence`, which
-    made this test fail, then reverting, which made it pass again).
-  - Full gate: `go test ./cmd/bootstrap-index -count=1`.
-- No-Regression Evidence: The added call is a single conditional `logger`
-  call with no I/O, no lock, and no new goroutine; it cannot change phase
-  ordering, the one-shot exit contract, or the pipelined collector/projector
-  concurrency model. `TestPipelinedBootstrapRunsDeferredBackfillWorkflow` and
-  the other 70 tests in `cmd/bootstrap-index` continue to pass unchanged.
 
 ## Configuration
 
@@ -426,33 +337,6 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `ESHU_CHANGED_SINCE_LINK_ENABLED` | `false` | Dark (#7127 PR-3b): the projector Ack journals each activation it commits into `changed_since_activations` (`source = 'ack'`), as the ingester's does, gated so it never waits on the reducer's journal pass; off, Ack sends no ledger SQL. Same parse as the reducer (`linksfreshnessstore.Enabled`). |
 
 Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
-
-### Evidence (#4454 bootstrap canonical entity dispatch)
-
-Performance Evidence: bounded current-main diagnostics for the #3586/#3624
-performance epic showed pre-reducer bootstrap source-local `canonical_write`
-dominating the sampled run: 531.535s aggregate canonical-write time, with slow
-entity-phase NornicDB grouped executions reaching 20.933s across 1,960 entity
-statements in a single large scope. The steady-state ingester already honored
-`ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`, but bootstrap-index did not read that
-env var, so setting it in bootstrap performance runs left canonical entity
-chunks serial. This fix wires the same `NumCPU` clamped-to-16 default and env
-override into bootstrap-index and dispatches canonical `entities` /
-`entity_containment` phase chunks in parallel per entity label. Focused proof:
-`go test ./cmd/bootstrap-index -run
-'TestBootstrapNornicDB(DefaultEntityPhaseConcurrencyTracksNumCPU|EntityPhaseConcurrencyRejectsInvalidEnv|PhaseGroupExecutorDispatchesEntityChunksConcurrently)|TestBootstrapCanonicalExecutorUsesConfiguredEntityPhaseConcurrency'
--count=1` proves the default, env override, invalid-env failure, and concurrent
-chunk dispatch.
-
-Observability Evidence: existing canonical writer telemetry still records
-`eshu_dp_canonical_write_duration_seconds`,
-`eshu_dp_canonical_phase_duration_seconds`, `eshu_dp_neo4j_query_duration_seconds`,
-and retry/backpressure counters for the graph-write path. The concurrent
-bootstrap dispatcher adds structured `bootstrap nornicdb phase-group chunk
-completed` logs with phase, entity label, chunk index/count, statement count,
-duration, configured concurrency, and sanitized first-statement summary, so a
-bounded run can split bootstrap canonical-write cost by phase and label without
-exposing repository paths or raw parameters.
 
 ## Operational notes
 

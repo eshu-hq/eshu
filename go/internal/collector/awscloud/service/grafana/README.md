@@ -77,10 +77,6 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/grafana/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 Collector Performance Evidence:
 `go test ./internal/collector/awscloud/service/grafana/...` covers the bounded
 Grafana metadata path: one paginated ListWorkspaces stream, one

@@ -107,14 +107,7 @@ partial report, and one fixture per failure mode. It backs the CI and local
 dogfood gate so a regression that hides truncation, drops citations, or lets a
 confident unsupported claim through fails the build.
 
-No-Observability-Change: scorecard evaluation is an offline pure function over
-captured evidence or a composed report. It starts no Eshu runtime, opens no
-API/MCP transport, reads no graph/Postgres driver, and emits no OTEL signal.
-
 Optional narration evidence is scored as a comparison against the deterministic
 fallback row. Accepted narration must pass `answernarration.Validate`, and every
 captured narrated row must preserve fallback truth class, freshness, support,
 partial/truncated state, citations, limitations, and next calls.
-
-No-Regression Evidence: scorecard evaluation is covered by
-`go test ./internal/answerquality -count=1`.

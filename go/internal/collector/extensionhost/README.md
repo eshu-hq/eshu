@@ -83,82 +83,11 @@ or reordered list fails with `identity_mismatch`.
 `extensionhost/vulnerability.SlotScopeQueryResolver`; the generic host stays
 kind-agnostic.
 
-No-Observability-Change: transport adds no metric, label, span, or log key.
-Resolver failures reuse the existing `invalid_claim` class and its
-instruments; the echo reuses `identity_mismatch`. Fail-closed transports
-record `last_failure_class invalid_claim` (satellite path, terminal) or a
-`non_retryable` source state (in-tree path, fail-closed); transient store
-faults retry through the normal plane retry, consuming attempt budget as usual.
-
-No-Regression Evidence: claim building with transport adds ~40 ns/op and one
-primary-key run-row read per claim. Baseline
-`BenchmarkRequestForWorkItemWithoutResolver`: 228-231 ns/op, 336 B/op,
-2 allocs/op. After `BenchmarkRequestForWorkItemWithScopeQueries` (2 queries
-delivered): 260-278 ns/op, 432 B/op, 3 allocs/op. Transport JSON parse
-`BenchmarkResolveSlotScopeQueries` (4 targets, 25-query slot entry):
-20.4 µs/op, 9144 B/op, 110 allocs/op (linux/arm64, go1.26.6, 3 runs each on
-a shared host, so run-to-run noise applies). Store read
-`GetRunRequestedScopeSet`: `EXPLAIN (ANALYZE, BUFFERS)` on Postgres 16
-shows `Index Scan using workflow_runs_pkey`, 1 row, 0.041 ms execution,
-2 shared buffers; a one-off live read of a persisted run row passed in
-0.13s on Postgres 16 (JSONB document round-trips; output spacing differs,
-so the transport parses rather than string-compares). Terminal counts:
-one row read per slot claim; no queue, batch, or lease change. Safe because ~21 µs plus one indexed read
-sits beside the satellite subprocess launch (milliseconds to seconds) and
-the heartbeats and completion writes the claim path already issues, and
-unconfigured claims skip the resolver and stay byte-identical.
-
 The in-tree SDK's [validation contract](../../../../sdk/go/collector/README.md#validation)
 admits only the documented Kubernetes posture values in their exact fact
 contexts. `ProcessRunner` preserves those values through JSON transport. That
 key check does not grant producer authority: optional payload-schema validation
 and the live producer-grant check still run before fact mapping.
-
-Performance Evidence: `BenchmarkCollectPagesReassembly` (linux/arm64,
-go1.26.6) admits one 30-fact scorecard generation one-shot versus split
-10/10/10 across three resumed calls through the same v1alpha3 source.
-Baseline one-shot: 343,000-461,000 ns/op, ~240,000 B/op, ~1,677 allocs/op.
-After (three pages): 303,000-445,000 ns/op, ~251,000 B/op, ~1,696 allocs/op.
-Terminal counts: 3 satellite calls, 30 facts committed, 1 ResultRecord per
-claim either way. The page loop adds ~11 KB/op (+5%) and ~19 allocs/op (+1%)
-with timing overlapping run-to-run noise; per-page validation is the same O
-(facts) validator the one-shot path already runs, and in production each
-continuation call is a satellite subprocess launch (milliseconds), so the
-microsecond-scale loop never decides claim latency. Safe because the legacy
-Runner path is untouched (exact single-call flow, covered by
-`TestLegacyRunnerPathStaysSingleCall`) and the page bound trims nothing (a
-breach fails the claim terminal naming the bound).
-
-No-Regression Evidence: `BenchmarkCollectPagesReassembly` (linux/arm64,
-go1.26.10, six runs each, in-process `scriptRunner`, no backend) admits one
-30-fact generation one-shot (1 call) and split 10/10/10 (3 calls). Baseline is
-merge base `fb4fef62ab` on collector `v0.2.0-rc.2`; after is this branch's
-pin-and-guard commits (measured before they were rebased onto main) on
-`v0.2.0-rc.3`. One-shot mean went from 289,976 to 293,841 ns/op (+1.3%), with
-1,677 allocs/op both. Three pages mean went from 294,732 to 297,901 ns/op
-(+1.1%), with 1,695 allocs/op both and one after run at 1,696. B/op moved under
-0.2%. The benchmark measures `collectPages` reassembly on valid pages. It does
-not isolate the rc.3 dependency bump, which sits inside both deltas, and it does
-not run the rejection path. Safe because the guard adds one nil check per
-satellite call, and each call is a subprocess launch in production.
-
-No-Observability-Change: the page-envelope guards add no metric, label, span,
-or log key. A rejected claim reports through the existing
-`eshu_dp_component_extension_results_total{failure_class="invalid_result"}`
-path.
-
-No-Observability-Change: pagination adds no metric, label, span, or log key.
-`StatusTelemetry` instruments and the `ResultRecord` shape are unchanged;
-paged page counts surface only through the existing summed `FactCount` and
-`StatusCount`, and `TestNextClaimedReportsOneResultForEveryFinalState` still
-proves exactly one result record per claim on every exit path.
-
-No-Regression Evidence: `go test ./internal/collector/extensionhost -count=1`
-proves the host passes only a bounded JSON claim/config/contract document,
-validates SDK output and declared payload schemas before fact mapping,
-deduplicates exact SDK facts, maps partial and unchanged states without direct
-graph writes, and returns retryable/terminal classified errors for existing
-workflow claim mutations.
 
 Collector Performance Evidence: `go test ./internal/collector/extensionhost
 -count=1` exercises the local host path without live network, database, graph,
@@ -168,15 +97,6 @@ source performs one SDK validation pass per claimed result plus one payload
 schema validation pass when `payloadSchemaRef` is declared, and exact duplicate
 facts are collapsed before commit handoff so retry delivery does not amplify
 same-generation fact streams.
-
-Benchmark Evidence: `GOCACHE=/tmp/eshu-4801-bench go test
-./internal/collector/extensionhost -run '^$' -bench
-'^BenchmarkSourcePayloadSchemaValidation$' -benchmem -count=5` measured the
-schema-ref validation pass for one accepted extension fact at 30,597-36,479
-ns/op, 25,550-25,553 B/op, and 407 allocs/op on darwin/arm64 Apple M5 Max.
-This path runs only for extension results whose manifest declares
-`payloadSchemaRef`; provenance-only namespaced facts keep the prior validation
-path.
 
 Collector Observability Evidence: the same focused test proves SDK status
 records are copied into bounded `StatusRecord` values and every final state
@@ -321,33 +241,6 @@ request. A fenced write that loses its lease applies nothing either.
 `results_total{state}` is the extension's result state, not the durable claim
 outcome. `TestResultRecordRetryAfterIsTheRequestNotTheAppliedDelay` pins this.
 
-Performance Evidence: `go test ./internal/collector/extensionhost -run '^$'
--bench 'NextClaimed' -benchmem -count=5` on darwin/arm64 (shared host, load
-about 20). Before the result hook (commit `42f9f530da`, no recorder), the
-retryable claim path measured 1264-1620 ns/op and 9 allocs/op and the unchanged
-path 1309-1595 ns/op and 10 allocs/op. In one run after the change, the
-retryable path measured 1487-1584 ns/op and 9 allocs/op with no recorder and
-3687-4174 ns/op and 15 allocs/op with `StatusTelemetry`. The unchanged path
-measured 1354-1468 ns/op and 10 allocs/op with no recorder, 3781-4099 ns/op
-and 15 allocs/op with the recorder and its INFO line, and 2065-2294 ns/op and
-14 allocs/op with INFO filtered. The nil-recorder path keeps its allocation
-count. The recorder alone (`go test ./internal/telemetry -bench
-ComponentExtensionStatusRecorder`) is 697-840 ns/op, 96 B/op, and 6 allocs/op
-for six instrument calls. A real claim launches a process or container
-(milliseconds), so the added microseconds are not a measurable share.
-
-Observability Evidence: `go test ./internal/collector/extensionhost -run
-'TestNextClaimedReportsOneResultForEveryFinalState|TestStatusTelemetryRecordsStatusFixture|RetryAfter'`
-proves one result record per final state, the instruments and log line for a
-status fixture, bounded labels with no identity values, and the 120-second
-retry delay with the throttle counter under a fixed clock.
-
-No-Observability-Change: beyond the producer-grant decision and extension
-status signals above, the package relies on existing `collector.ClaimedService`
-claim failure classes, workflow claim rows, collector fact evidence, and
-`/admin/status` collector runtime derivation. It adds no graph writes, queue
-domains, API routes, or MCP tools.
-
 Host Token Provider No-Regression Evidence (#9182 lane A, gate per #10483):
 `go test ./internal/collector/extensionhost -count=1` and the same package
 with `-race` both pass at this HEAD, covering opted-in mint injection, the
@@ -359,13 +252,6 @@ without a provider the gate adds one nil check per claim; with a provider it add
 one short targets scan (first scope match decides) and mints only for opted-in
 claims. A real claim launches a process or container (milliseconds), so the scan
 plus one bounded mint call are not a measurable share.
-Benchmark Evidence (#10483): `go test ./internal/collector/extensionhost -run
-'^$' -bench '^BenchmarkHostMintOptedIn' -benchmem -count=6` measured the gate
-predicate at 19.78-19.81 ns/op opted-in and 21.35-23.84 ns/op non-opted-in with
-0 allocs/op on linux/arm64; both shapes cost the same single scan.
-No-Observability-Change (#10483): the gate adds no metric, span, or log line;
-outcomes surface only through the existing host-verdict `ResultRecord` and
-`ClaimedService` failure-class path, with the token in no record or error string.
 
 Number Fidelity No-Regression Evidence: `go test
 ./internal/collector/extensionhost -run
@@ -469,32 +355,6 @@ only for the `vulnerability_intelligence` kind
   error and never changes its class or terminality; a post-commit error is
   non-fatal.
 
-No-Regression Evidence (#9635): the stdout byte counter adds one int64 add
-per `Write` with no branch and no allocation. Microbenchmark of the old
-`Write` logic versus the new one (32 KiB chunks, 100k writes, count 3,
-linux/arm64, this tree's toolchain): old 325.3-331.1 ns/op, new 325.3-330.9
-ns/op (~100 GB/s both) — the delta is below run-to-run noise, so the hot
-stdout path is unmoved. Baseline: pre-change `Write`; after: this tree.
-`TestLimitedBufferCountsTotalBytesWritten`,
-`TestProcessRunnerStdoutLimitFailsTerminal`,
-`TestProcessRunnerPagedStdoutLimitFailsTerminal`, and
-`TestOCIRunnerStdoutLimitFailsTerminal` pin the terminal verdict and the byte
-counts on both runners and both call paths.
-
-Observability Evidence (#9635): oversize now surfaces as a terminal
-`launch_failure` naming `observed_bytes` and `limit_bytes` with remediation
-names (v1alpha3 paged satellite, `stdout_limit_bytes` under `process` or
-`oci`, narrower claim scope) instead of a retryable `launch_failure` naming
-only the limit. No
-payload bytes ever reach the message. An operator greps one deterministic
-failure instead of ten burned attempts; the paged assembler preserves
-runner-classified verdicts instead of re-wrapping them.
-
 ## Core commit handler (#8877)
 
 `CommitHandler` serves the core side of `POST /workflow.v1/CommitClaimFacts`: admission first, then `collector.CommitClaimFacts` with a per-kind scope builder mirroring `mapping.go`; `{"ok":true}` only after COMMIT.
-
-No-Regression Evidence: stub-harness replay of the lane contract (baseline: no core endpoint, forwarded commits land nowhere; after: 21 handler tests green with -race plus untouched lane and package suites).
-Fence refusals commit zero facts; retries return identical FactIDs; caps refuse pre-commit.
-Bounded 4 MiB decode, no new goroutines, locks, or metrics, 60s bound under the 120s proxy; every refusal precedes the fence probe and the shared carrier check keeps handler and lane identical.
-No-Observability-Change: no new metrics, spans, or logs; outcomes surface as HTTP status plus the existing claim-plane client metrics, as with the lane.

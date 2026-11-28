@@ -39,9 +39,3 @@ Every list API is paged to exhaustion through its `NextToken`. An empty account
 returns an empty snapshot cleanly. Throttle errors are classified by
 `isThrottleError` and surfaced on the shared throttle counter; the adapter does
 not retry internally (the SDK's standard retryer owns that).
-
-## Performance and observability
-
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/proton/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

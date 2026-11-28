@@ -107,43 +107,15 @@ no graph write, queue, lease, or worker change: the scanner returns a fact slice
 for the existing claim runtime to commit, so this slice adds no new concurrency
 surface.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/bedrock/... ./internal/collector/awscloud/awsruntime/... ./cmd/collector-aws-cloud/... -count=1`
-covers resource fact emission for all eight types, the twelve required
-relationships, sensitive-payload omission, the struct-reflection redaction gate
-proving no scanner type can carry agent prompts / guardrail policies / KB
-content / action-group schemas / hyperparameters, the SDK exclusion gate proving
-InvokeModel / InvokeAgent / Retrieve / RetrieveAndGenerate and every mutation
-are unreachable, runtime self-registration through the derived guard, and
-command-side Bedrock target validation.
-
 Collector Observability Evidence: Bedrock uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total{service="bedrock"}`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Bedrock scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. This scanner adds no new instrument.
-
 Collector Deployment Evidence: Bedrock runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/bedrock/... -count=1`
-covers the existing partition assertions, now backed by the shared helper. The
-synthesized S3 bucket and knowledge-base-source ARNs inherit the partition of
-the referencing model/knowledge-base ARN via `awscloud.PartitionFromARN`
-(replacing the package-local `arnPartition` helper) instead of hardcoding `aws`.
-Commercial output is byte-for-byte unchanged; this is a metadata-only
-correctness fix with no graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

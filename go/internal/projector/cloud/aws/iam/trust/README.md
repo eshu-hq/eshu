@@ -51,14 +51,7 @@ decode seam at its new path.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains the `reducer.iam_can_assume_materialization` span,
-the `eshu_dp_iam_can_assume_edges_total` counter, and the
-`iam_can_assume_nodes_not_ready` failure class. A permission fact that fails
-decode is skipped as a candidate with no operator-visible dead-letter, exactly
-as before the move. Moving the pure builder and its decode wrapper adds no
-queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.iam_can_assume_materialization` span, the `eshu_dp_iam_can_assume_edges_total` counter, and the `iam_can_assume_nodes_not_ready` failure class. A permission fact that fails decode is skipped as a candidate with no operator-visible dead-letter.
 
 ## Gotchas / invariants
 
@@ -91,53 +84,9 @@ the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, the payload-usage manifest gate, and the golden-corpus gates
 selected by the changed paths.
 
-No-Regression Evidence: this extraction moves one builder and its decode
-wrapper without changing the trigger, value, or fan-out position. The reducer
-intent domain, entity key, reason, anchor selection, decode-skip behavior, and
-source-system derivation are identical to the base commit, and the
-dispatcher's ordered fan-out is unchanged at 44 builder probes with this probe
-still running immediately after `summary.BuildReducerIntent` and
-immediately before `s3.BuildLogsToMaterializationReducerIntent`. The root
-`awsCloudRuntimeDriftSourceSystem` helper it called was compared body-for-body
-against its `projectorintent.SourceSystem` replacement (both trim
-`SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`), and the
-root `firstOfKindMatching` forwarder was a direct delegate to
-`projectorintent.FactLookup.FirstOfKindMatching`, so both substitutions are
-behavior-identical by construction; the root helper stays at root because
-five other root builders still call it. The root `decodeAWSIAMPermission`
-wrapper had this builder as its only caller, so it moved along and root keeps
-no copy. Focused proof:
-`../scripts/go-test-run-guard.sh 1 'TestBuildIAMCanAssumeMaterializationReducerIntent' -- ./internal/projector/cloud/aws/iam/trust -count=1`
-(run from the `go/` module root, which is what both the `../scripts/` prefix
-and the `./internal/...` package path assume; the guard is used rather than a
-bare `go test -run` because a pattern matching nothing exits 0)
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
-
 ## Related docs
 
 - [Projector architecture](../../../../README.md)
 - [Intent contract](../../../../intent/README.md)
 - [IAM CAN_ASSUME trust graph design](../../../../../../../docs/internal/design/1134-iam-can-assume-trust-graph.md)
 - [Package restructure](../../../../../../../docs/internal/design/package-restructure.md)
-
-### Move record (#6627)
-
-No-Regression Evidence: this move relocates this builder and its decode seam
-from `internal/projector/iamcanassume` to
-`internal/projector/cloud/aws/iam/trust` without changing the trigger, the
-intent value, or the root fan-out position. Base: `6abf61fe4`. Backend: not
-applicable; proof is in-process (`go build ./...`, `go vet`,
-`go test ./internal/projector/... ./internal/mcp/... -count=1`, plus the
-focused guard
-`../scripts/go-test-run-guard.sh 1 'TestBuildIAMCanAssumeMaterializationReducerIntent' -- ./internal/projector/cloud/aws/iam/trust -count=1`
-run from the `go/` module root). Census: both builders consume AWS-only fact
-kinds (`AWSIAMPermissionFactKind`, and `AWSResourceFactKind` filtered to
-`resource_type aws_iam_instance_profile`), zero GCP/Azure references.
-
-No-Observability-Change: this move adds no queue, storage, graph, span,
-metric, or log boundary. Root intent enqueue remains covered by
-`eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the
-`reducer.iam_can_assume_materialization` span, the
-`eshu_dp_iam_can_assume_edges_total` counter, and the
-`iam_can_assume_nodes_not_ready` failure class.

@@ -47,26 +47,6 @@ caller with no `GraphProjectionPhaseRepairQueue` enqueue for this handler (only
 `publishIntentGraphPhaseWithRepair` paths enqueue repairs); the durable write
 already stands and recovery is a caller-driven intent retry, not a repair entry.
 
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk in the moved production files is a package clause, an
-import requalification, or an identifier requalification: symbols the reducer
-root supplied as one-line forwarders or aliases (`Intent`/`Result`/
-`ResultStatusSucceeded`/`DomainCloudAssetResolution`,
-`GraphProjectionPhasePublisher`/`GraphProjectionKeyspaceCloudResourceUID`/
-`GraphProjectionPhaseCanonicalNodesCommitted`/`publishIntentGraphPhase`,
-`uniqueSortedStrings`, `workloadIdentityExecer`/`canonicalReducerFactInsertQuery`/
-`reducerWriterNow`/`reducerFactCollectorKind`) are now called directly against
-the leaf package that already owned them (`reducer/contract`, `reducer/gpphase`,
-`reducer/payloadcore`, `reducer/factwrite`). Measured on this branch:
-`go build ./...` exits 0, `go vet ./...` exits 0,
-`go test ./internal/reducer/cloudasset -count=1` passes, and
-`go test ./internal/reducer/... ./cmd/reducer ./internal/storage/postgres
-./internal/replay/costcounting -count=1` passes.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph
-query shape, metric instrument, or metric label. The graph-phase publication
-is the same before and after the move.
-
 ## Gotchas / invariants
 
 - `DomainCloudAssetResolution` and its `DomainDefinition` entry stay in the

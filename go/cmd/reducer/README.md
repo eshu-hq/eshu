@@ -111,32 +111,6 @@ and on Neo4j the id-anchor census (runner in `internal/reducer/maintenance`). Th
 ownership, retry, and shutdown contracts are in
 [Background maintenance](background-maintenance.md).
 
-## Default handler wiring evidence
-
-No-Regression Evidence: #2983 splits `reducer.DefaultHandlers` into embedded
-adapter groups and moves those group definitions into
-`internal/reducer/defaults_handlers.go`; it does not add a reducer domain,
-queue claim path, graph writer, worker, lease, runtime flag, batch setting, or
-Cypher statement. Baseline and after shape are the same production wiring from
-`buildReducerService`: one `DefaultHandlers` value is passed to
-`reducer.NewDefaultRuntime`, and the promoted embedded fields still feed the
-same registry checks and handler constructors. Backend/version: local Go tests
-with no live graph or Postgres backend because the changed path is struct
-wiring only. Input shape: the production reducer default handler literal plus
-the existing focused default-wiring tests for Kubernetes, incident routing,
-secrets/IAM, code evidence, and function-summary materialization. Terminal
-queue or row counts: unchanged and not exercised, because the refactor creates
-no queue rows and changes no store or graph write path. Verification:
-`go test ./internal/reducer ./cmd/reducer -count=1`.
-
-No-Observability-Change: #2983 adds no metric instrument, metric label, span
-name, structured log field, status field, route, runtime knob, worker, lease,
-queue domain, graph write route, or Cypher. Operators continue to diagnose
-reducer startup and execution through the existing hosted runtime
-`/healthz`, `/readyz`, `/metrics`, `/admin/status`, reducer execution
-spans/counters, graph/Postgres instrumentation, and the existing handler-specific
-completion logs listed in `internal/reducer`.
-
 ## Configuration reference
 
 All env vars parsed in `config.go` and `neo4j_wiring.go`.
@@ -276,14 +250,6 @@ The canonical handler edge writer is also wired into the direct-emitted
 CODEOWNERS ownership domain, so `codeowners.ownership` facts can materialize
 `Repository-[:DECLARES_CODEOWNER]->CodeownerTeam` without a nil adapter.
 
-No-Regression Evidence: on the same fresh 24-repository corpus and pinned
-NornicDB topology, `scripts/verify-golden-corpus-gate.sh` previously waited its
-10-minute drain timeout with 24 `codeowners_ownership` dead letters carrying
-`codeowners ownership materialization edge writer is required`. With this
-wiring, all three drain passes reported residual=0 and dead_letter=0, and the
-graph/API/MCP gate passed with phase timings bootstrap=3s, collect=20s,
-first_drain=6s, maintenance_drains=7s, and graph_query=2s (38s total).
-
 ### Graph write backpressure (#3560, #3652, #4448)
 
 | Variable | Default | Purpose |
@@ -395,35 +361,6 @@ them silently. It currently covers graph orphan sweep labels from
 `storage/cypher.DefaultOrphanSweepLabels()` and generation retention policy from
 `postgres.DefaultGenerationRetentionPolicy()`. Intentional divergence must use
 an explicit tested override case with a reason.
-
-No-Regression Evidence: `go test ./cmd/reducer -run
-'TestProductionWiringConsumesCapabilityDefaults|TestLoadGraphOrphanSweepConfigDefaults|TestGraphOrphanSweepRunnerForConfig'
--count=1` failed before the graph orphan sweep config hardcoded only
-`Repository`, `Platform`, and `EvidenceArtifact`, then passed after the reducer
-default consumed the storage/cypher closed label set, including `File`,
-`Directory`, and `Module`.
-
-Observability Evidence: the wiring change adds no metric, span, log key,
-worker, lease, or graph query shape. It routes the already documented `File`,
-`Directory`, and `Module` label values through the existing
-`eshu_dp_graph_orphan_nodes{node_label=...}` observer and runner completion
-logs, whose `node_label` value space is the bounded closed sweep label set.
-
-No-Regression Evidence: `go test ./cmd/reducer -run
-'TestHandlesRouteEndpointPresenceGateEnabledDefaultsOn|TestEndpointPresenceWiringNilWhenDisabled|TestNewEndpointPresenceWiringsGatesIndependently'
--count=1` failed before the handles_route (`repo_id`, `path`) presence wiring
-(#2809) was split from the secrets/IAM uid presence wiring (#1380), then passed.
-`newEndpointPresenceWirings` now gates each pair from its own flag, so the
-secrets/IAM uid writer is never handed to the workload materialization handler
-and the handles_route kill switch never widens uid writes onto the cloud
-materializers; with secrets/IAM off and the default gate on, only the
-handles_route pair is non-nil.
-
-No-Observability-Change: the wiring split adds no metric, span, log key, worker,
-lease, runtime knob, or graph query shape in `cmd/reducer`. The handles_route gate
-the wiring feeds emits its operator-facing `terminal_no_endpoint` log key in
-`internal/reducer` (documented in that package's `AGENTS.md`); this binary only
-chooses which presence store each consumer receives.
 
 ### Terraform drift
 

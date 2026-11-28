@@ -35,12 +35,7 @@ builders.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`. Reducer
-execution remains visible through the shared per-domain run signals, malformed
-inputs through the input-invalid signals and result summary, and graph writes
-through the existing storage instrumentation. Moving the pure builder adds no
-queue, storage, graph, span, metric, or log boundary.
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`. Reducer execution remains visible through the shared per-domain run signals, malformed inputs through the input-invalid signals and result summary, and graph writes through the existing storage instrumentation.
 
 ## Gotchas / invariants
 
@@ -61,14 +56,6 @@ queue, storage, graph, span, metric, or log boundary.
 Run the package contract test, root ordered fan-out parity and probe-count
 tests, the projector package tree, package-doc and path mirrors, dirgate,
 telemetry coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: the #6627 move changes the package path, filename, and
-exported builder name without changing the production body, trigger, intent
-value, or fan-out position. The dispatcher remains at 44 builder probes, with
-this probe immediately after cloud inventory and before EC2 instance-node
-materialization. The focused package test and root fan-out/probe guards pin
-those contracts; the issue evidence record contains the exact commands and
-results.
 
 The nested namespace makes the ownership boundary legible for a future service
 split, but it does not make this package independently extractable. It still

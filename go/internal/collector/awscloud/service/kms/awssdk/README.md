@@ -87,24 +87,6 @@ error payloads stay out of metric labels.
 - SDK adapters translate AWS records into scanner-owned types; scanner
   tests should not mock AWS SDK pagination.
 
-## Performance Evidence
-
-- No-Regression Evidence: the rotation-gate change strictly removes
-  `GetKeyRotationStatus` calls (disabled and pending-import keys skip the
-  API entirely; the race-window tolerance only reclassifies errors AWS
-  would otherwise raise). No new calls, pages, retries, goroutines,
-  locks, or batching on any path. Measured by
-  `go test ./internal/collector/awscloud/service/kms/...`: pre-fix, all
-  pre-existing tests pass and exactly the two new regression tests fail
-  for the intended reason; post-fix, all three packages ok, including
-  the gate/tolerance tests and the pre-existing outage-propagation test.
-  Input shape is the fixture/fake-driven unit suite, no live backend;
-  rotation-call counters assert zero calls for skipped states
-  (`TestClientListKeysSkipsRotationCallForDisabledKeys` fails on any
-  `GetKeyRotationStatus` call for a disabled key).
-- No-Observability-Change: no new spans, metrics, logs, or status
-  fields; error returns keep their existing types and callers.
-
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

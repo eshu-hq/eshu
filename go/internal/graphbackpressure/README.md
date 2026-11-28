@@ -111,34 +111,6 @@ fan-out). The bound is applied at the outermost `GroupExecutor`-capable
 executor position for each binary, so one permit covers a whole write attempt
 including retries and the deadline.
 
-No-Regression Evidence: the bound is opt-in and defaults to disabled. With the
-effective ceiling unset/non-positive, `Wrap`/`WrapExecutorWithGate` return the
-inner executor unchanged (identity), so the wrapper adds no allocation, no
-indirection, and no behavior change on the hot path — proven by
-`TestWrapDisabledIsPassthrough` (returns the same executor pointer) and the
-reducer/projector wiring tests that still observe the unwrapped
-`TimeoutExecutor`/`GroupExecutor` types when the knob is unset. When enabled,
-the inner write is invoked exactly as before, just gated by a permit; the
-permit is released on success and on error
-(`TestBackpressureExecutorReleasesPermitOnError`), so a backend stuck timing
-out cannot leak permits or starve the path. `go test ./internal/storage/cypher
-./internal/graphbackpressure ./cmd/bootstrap-index ./cmd/reducer -race
--count=1` (930 tests, 4 packages) proves the reducer's and projector's
-existing `GroupExecutor`-based wiring is unchanged while bootstrap-index's new
-inner-layer wiring correctly bounds writes.
-
-Performance Evidence (bounded-concurrency proof, not a corpus timing run):
-`TestBackpressureExecutorBoundsConcurrentWrites` drives 24 racing callers at a
-ceiling of 3 and asserts peak concurrent inner writes reaches exactly the
-ceiling (not less — a lower observed peak than the ceiling under a blocking
-inner executor would indicate an accidental serialization regression) and
-in-flight returns to 0 after drain; `TestWrapBoundsConcurrency` proves the
-same through this package's `Wrap`. The grouped-write path shares the same
-permit pool (`TestBackpressureExecutorGroupRespectsBound`) so `ExecuteGroup`
-cannot bypass the ceiling. A blocked caller observes context cancellation
-rather than hanging and does not consume a permit
-(`TestBackpressureExecutorContextCancelWhileWaiting`).
-
 For bootstrap-index specifically,
 `TestBootstrapCanonicalGateBoundsConcurrentEntityFanOut`
 (`cmd/bootstrap-index/nornicdb_canonical_gate_fanout_test.go`) drives
@@ -164,17 +136,6 @@ gate disabled by default because the #4515 895-repo full-corpus proof showed 0
 graph-write-timeout pressure on bootstrap's canonical write path, so there is
 no evidence yet that bootstrap needs this bound enabled. It exists as
 insurance for a future run that does show graph-write-timeout pressure.
-
-Observability Evidence: backpressure engagement and wait time are exported as
-`eshu_dp_graph_write_backpressure_engaged_total` (counter, labeled by
-operation and `gate`) and `eshu_dp_graph_write_backpressure_wait_seconds`
-(histogram, labeled the same way), recorded together so their counts stay
-equal. An operator reads a non-zero engaged rate as "backpressure is active"
-and rising wait p95 as the precursor to write timeouts. The in-flight gauge is
-observable via `BackpressureExecutor.InFlight()`. bootstrap-index's gate
-reuses these existing instruments under `gate="canonical"` — the same label
-the reducer and projector already emit under, so an operator distinguishes
-bootstrap-index's engagement only by which binary is running.
 
 ## Why this package exists separately
 

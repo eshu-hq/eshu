@@ -111,20 +111,3 @@ policy for this package.  Any future addition of a Jenkins-convention evidence
 field should follow the same pattern: regex over source text, with a
 characterization test in `metadata_test.go` that pins the output before the
 pattern is merged.
-
-### No-Regression Evidence
-
-```
-cd go && gofmt -l internal/parser/groovy   # empty — no formatting violations
-cd go && go test ./internal/parser/... -count=1
-# 1171 passed in 41 packages (1170 before this issue; +1 is TestPipelineMetadataCharacterization)
-cd go && golangci-lint run ./internal/parser/...
-```
-
-Run and verified locally.  All gates passed.
-
-### No-Observability-Change
-
-This issue adds documentation and a characterization test only.  No runtime
-code paths, spans, metrics, or log lines were added or removed.  No
-observability change.

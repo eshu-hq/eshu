@@ -23,6 +23,4 @@ a `Queryer`.
 
 ## Performance And Observability
 
-No runtime path: the read runs once per gate run against a disposable database. No-Observability-Change:
-`eshu_dp_supply_chain_impact_fact_write_stop_armed` and the work-item counters already cover the runtime the
-family drives; the digest is a test artifact.
+No runtime path: the read runs once per gate run against a disposable database.

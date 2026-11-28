@@ -89,15 +89,6 @@ paginated DescribeUserGroups stream, one paginated DescribeSnapshots stream,
 one ListTagsForResource read per ARN-shaped resource, no mutation calls, and
 no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-ElastiCache resource fact emission for all seven resource types, relationship
-emission for cluster-to-VPC, cluster-to-subnet, cluster-to-KMS,
-replication-group-to-cluster, and user-group-to-user edges, redaction of the
-User Passwords/AccessString fields and snapshot non-metadata fields, runtime
-registration, command configuration, and the SDK adapter's safe metadata
-mapping.
-
 Collector Observability Evidence: ElastiCache uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -105,11 +96,6 @@ Collector Observability Evidence: ElastiCache uses the existing AWS collector
 labels stay bounded to service, account, region, operation, result, and
 status. ElastiCache ARNs, cluster IDs, replication group IDs, user IDs,
 parameter group families, and tags stay out of metric labels.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses ElastiCache scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: ElastiCache runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

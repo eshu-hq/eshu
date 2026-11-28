@@ -73,23 +73,6 @@ The engine tests prove bounded recognition, cap rejection, cancellation,
 determinism, template-free input handling, and end-to-end PII redaction
 before facts.
 
-Benchmark Evidence: `go test -run=NONE
--bench=BenchmarkLocalEngineRecognize -benchmem
-./internal/collector/document/ocr -count=1` on backend `eshu-local-ocr`
-0.1.0 recognizes a two-word 232x44 fixture as 2 regions in ~0.12 ms/op at
-~106 KB/op and 90 allocs/op (down from ~10298 allocs/op via packed Pix
-sampling), bounded by the 8 MiB input, 8M pixel, 10s, and 512-region caps.
-
-No-Regression Evidence: `go test ./internal/collector/document/ocr
--count=1` and `go test -race ./internal/collector/document/ocr
-./internal/collector/preflight/picture -count=1` pass, including the
-pre-existing extraction, skip, GIF first-frame, and redaction suites.
-
-No-Observability-Change: this backend emits no metric, span, log, or status
-row of its own; extraction throughput stays covered by the git-source
-collector metrics that cover documentation export throughput (see the
-collector documentation row in `docs/public/observability/telemetry-coverage.md`).
-
 ## Label and value redaction
 
 A region is judged on its own text, so a bare value such as `Hunter2` matches no
@@ -299,27 +282,6 @@ Proof: `TestContainsMarkerWordMatchesEveryLabelForm`,
 `form-stacked.png`, `form-columns.png`, and `key-body.png` fixtures in
 `TestSandboxRealTesseract`.
 
-Performance Evidence: `BenchmarkBuildSectionsNoLabels` and
-`BenchmarkBuildSectionsLabelHeavy` on 500 regions, the tesseract default cap,
-with before and after test binaries run in turn at `-benchtime=2000x`, six runs
-each. Medians on a shared host: ordinary text went from 3.06 ms/op to 3.14 ms/op
-(13,405 to 13,906 allocs/op, one lowercase per region). The worst case for the
-row clause, 250 regions followed by 250 labels, went from 1.88 ms/op to 2.06
-ms/op. The row clause is regions times marker regions. The default cap of 500
-bounds it, but `Config.MaxRegions` has no upper limit, so a caller that raises
-the cap raises this cost. Either figure is small next to about 200 ms for one
-tesseract run.
-
-No-Regression Evidence: `go test -race ./internal/collector/document/ocr/...
--count=1` passes, including the pre-existing extraction, skip, GIF, redaction,
-and local-engine PII suites.
-
-
-Performance Evidence (#9799) and No-Regression Evidence (#9799) are in
-[SECRET_RUNS.md](SECRET_RUNS.md#proof-and-cost). No-Observability-Change (#9799):
-the run scan adds no metric, span, or log, and a region it withholds is a
-redacted section that `eshu_dp_ocr_redacted_regions_total` already counts.
-
 Marker-list Performance Evidence (#9793): the same two benchmarks on 500 regions,
 before (origin/main) and after test binaries run in turn at `-benchtime=2000x`,
 seven runs each, medians, on a shared 16-core host at load average 9.6.
@@ -335,11 +297,6 @@ digits, and glued words. A run of `@` or `$` outside a word was once measured
 again from every position; review measured 1.67 s for one 64 KiB region
 through `Extract` against 5.4 ms on the old rule, and 17.6 s for 256 KiB. The
 run is now measured once.
-
-No-Observability-Change (#9793): the label matcher adds no metric, span, or log.
-A region it flags is a redacted section, so `eshu_dp_ocr_redacted_regions_total`,
-the `ocr.redacted_region_count` span attribute, and the `redacted_region_count`
-log field count it with no change.
 
 Marker-list False-positive Evidence (#9793): the rule is a superset of the old
 one on every corpus below, and costs more only where the text holds a new word.
@@ -399,16 +356,6 @@ does bounds arithmetic only: regions times marker regions, the same order as
 the row clause. Either figure is small next to about 200 ms for one
 tesseract run.
 
-No-Observability-Change: the rule adds no metric, span, or log. A withheld value
-is a redacted section, so `eshu_dp_ocr_redacted_regions_total`, the
-`ocr.redacted_region_count` span attribute, and the `redacted_region_count` log
-field count it with no change. `TestExtractRedactsValueOnLineBelowLabel` asserts
-the count and that no canary reaches logs, spans, or envelopes.
-
-No-Observability-Change (column rule): a cell the column withholds is a
-redacted section, so the existing redaction counters cover it with no new
-signal.
-
 ## Dependencies
 
 The package depends on `internal/collector/preflight/picture` for metadata-only
@@ -438,11 +385,6 @@ Collector Deployment Evidence: no Docker Compose, Helm, Service,
 ServiceMonitor, collector binary, runtime flag, environment-variable path, or
 hosted collector route changes in this slice. OCR remains callable only through
 an injected engine in tests or future reviewed code.
-
-No-Observability-Change: this package adds no worker, queue consumer, database
-query, graph write, HTTP handler, MCP tool, runtime flag, hosted collector path,
-metric, span, log, or status row. Existing collector, fact-store, HTTP, and MCP
-readback surfaces already carry the emitted documentation facts.
 
 ## Gotchas / invariants
 

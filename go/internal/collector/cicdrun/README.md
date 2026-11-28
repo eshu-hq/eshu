@@ -94,23 +94,7 @@ duration, rate limits, fact emission, partial generations, and source spans.
 The normalizer proof is bounded by the number of runs, jobs, steps, artifacts,
 triggers, and warnings in one payload.
 
-No-Regression Evidence: fixture normalization is covered by
-`go test ./internal/collector/cicdrun -run TestGitHubActionsFixture -count=1`,
-which exercises one successful run, retry-attempt identity, missing artifact
-digest warnings, and partial job metadata warnings without graph writes or
-queue work.
-
-No-Observability-Change: this package is a deterministic normalizer and does
-not mount a runtime. `ghactionsruntime` owns the hosted provider API request,
-rate-limit, fact-emission, partial-generation, redaction, and status signals
-for live collection.
-
 ### Canonical repository_id (#5418)
-
-Benchmark Evidence: canonicalizing `repository_id` from a raw host/Org/Repo
-string to `repository:r_<hex>` via `repositoryidentity.CanonicalRepositoryID`
-adds one `NormalizeRemoteURL` + SHA1 per CI fact at emission. Measured on
-Apple M5 Max (darwin/arm64, `-count=5`):
 
 | Benchmark | ns/op | B/op | allocs/op |
 |-----------|-------|------|-----------|
@@ -123,48 +107,7 @@ The canonicalization cost (~480 ns) is ~1.2% of total envelope-build time
 ~115 ns/op / 168 B/op / 2 allocs/op; the new path buys a stable
 cross-collector join key at a bounded, measured per-fact cost.
 
-No-Regression Evidence: the existing fixture normalization tests
-(`TestGitHubActionsFixtureBuildsReducerConsumableFacts`,
-`TestGitHubActionsFixturePreservesAttemptsInFactIdentity`,
-`TestGitHubActionsFixtureEmitsPartialWarnings`,
-`TestGitHubActionsFixturePreservesLargeNumericIDs`,
-`TestGitHubActionsFixtureWarnsAndSkipsMalformedChildRecords`,
-`TestGitHubActionsFixtureDeduplicatesDuplicateRecords`,
-`TestGitHubActionsFixtureRedactsCredentialBearingURLsAndWarningText`,
-`TestGitHubActionsFixtureWarnsWhenRunAnchorsMissing`,
-`TestGitHubActionsFixtureEmitsWorkflowDefinitionFromProviderIDOnly`) stay
-green with only their `repository_id`→`provider_repository_id` assertion
-changes. Six new regression tests lock the canonical-id contract:
-`TestGitHubActionsFixtureEmitsCanonicalRepositoryID`,
-`TestGitHubActionsFixtureCanonicalRepositoryIDMatchesGitCollector`,
-`TestGitHubActionsFixtureCanonicalIDHandlesGHESHost`,
-`TestGitHubActionsFixtureCanonicalIDFallsBackWhenNoHTMLURL` (exact-equality
-strengthened from prefix check),
-`TestGitHubActionsFixtureCanonicalIDStableAcrossRunURLs` (two runs, same
-repo → identical id), and
-`TestGitHubActionsFixtureCanonicalIDHandlesGHESAPIPath`. Three integrity
-tests guard edge cases:
-`TestRepositoryCanonicalURLRejectsHostlessHTMLURL` (garbage URL → empty),
-`TestBuildCICDRunCorrelationDecisionsPassesThroughCanonicalRepositoryID`
-(reducer end-to-end), and
-`TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID`
-(query readback with namespace isolation). Queue behavior is unchanged (no
-new enqueue shape).
-
-No-Observability-Change: the change adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label. The
-existing `eshu_dp_reducer_executions_total` and
-`eshu_dp_reducer_run_duration_seconds` counters, plus the CI/CD run
-correlation query handler spans (`query.ci_cd_run_correlations`), diagnose
-the end-to-end path unchanged.
-
 ### GitLab CI provider (#5427)
-
-Benchmark Evidence: `GitLabCIFixtureEnvelopes` end-to-end on a realistic
-success fixture (1 run + 2 jobs + 1 artifact), measured on Apple M1 Max
-(darwin/arm64, `-count=5 -benchmem`), against
-`BenchmarkGitHubActionsEnvelopesEndToEnd` (1 run + 1 job + 1 step + 1
-artifact + 1 trigger) on the same machine and run:
 
 | Benchmark | ns/op | B/op | allocs/op |
 |-----------|-------|------|-----------|
@@ -177,17 +120,6 @@ so the lower absolute numbers reflect fewer envelopes built per call, not a
 per-envelope speedup; both normalizers share the same envelope-construction
 helpers (`newEnvelope`, `mergeContractPayload`, `facts.StableID`) so per-fact
 cost is the same code path on both providers.
-
-No-Regression Evidence: `go test ./internal/collector/cicdrun/ -run GitLab
--count=1 -race` covers one successful run+2 jobs+1 artifact fixture, partial
-job-metadata warnings, missing run anchors, a blank pipeline ID rejection, a
-job missing its provider ID, and the cross-provider fact-kind/join-key parity
-check against GitHub Actions, with zero graph writes or queue work.
-
-No-Observability-Change: same as the GitHub Actions path above — GitLab CI
-adds no route, graph query shape, queue table, worker, lease, runtime knob,
-metric instrument, or metric label; there is no hosted GitLab client yet, so
-there is no new runtime request/rate-limit/status signal surface to add.
 
 ### GitHub Deployments API events (#5425 STEP 3)
 
@@ -227,19 +159,3 @@ existing `ghactionsruntime` GitHub Actions claim-source `Deployment`/
 `ServiceMonitor` already wired for `ci.run` collection (see that package's
 own Collector Deployment Evidence entry); there is no separate deployment
 polling workload to deploy.
-
-No-Regression Evidence: `go test ./internal/collector/cicdrun/ -run
-TestGitHubActionsDeploymentEnvelopes -count=1` covers stable-key identity
-across repeated polls of the same deployment+status, distinct keys per
-status transition on the same deployment, a zero-status deployment emitting
-exactly one envelope with an empty `status_id`, provider-neutral key
-uniqueness across two scopes sharing a numeric deployment id, and parent
-field (`sha`/`ref`/`task`/`environment`/`original_environment`/the two
-boolean flags) denormalization onto every status row, with zero graph writes
-or queue work.
-
-No-Observability-Change: `types_deployments.go` is a pure decode-struct file
-with no I/O of its own, and `github_actions_deployments.go` is a pure
-in-process normalizer -- every fact it builds is counted through the
-existing `eshu_dp_ci_cd_run_facts_emitted_total` counter described above.
-Neither file emits a metric, span, or log of its own.

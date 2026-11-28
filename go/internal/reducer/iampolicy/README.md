@@ -79,28 +79,6 @@ counted by the caller against that caller's own skip counter
 counting at the caller is what lets one shared matcher serve two domains with
 different skip taxonomies.
 
-No-Regression Evidence: #6061 relocates this code from `iam_escalation.go`,
-`iam_escalation_grant.go` and `iam_escalation_target.go` without changing it.
-The bodies are unchanged; the diff is the package clause, the identifiers and
-struct fields becoming exported, and root const aliases replacing the
-original declarations (those aliases were later deleted in later #6061
-changes; every caller now names `ResourceType*` here directly). The one added
-declaration is `Classify`, which lifts an
-extraction both grant folds performed inline and identically -- same fields,
-same nil-pointer default, same `Allow`/`Deny` comparison -- so each fold now
-reads a `StatementShape` instead of six selector expressions. The reducer suites
-that cover both folds pass unchanged, and the payloadusage manifest again
-attributes `actions` and `not_actions` to a wrapper-mediated read. Behavior stays covered by the existing iamescalation
-suites (`iam_escalation_test.go`, `iam_escalation_skips_test.go`,
-`iam_escalation_materialization_test.go`) and by `internal/reducer/iamcan`.
-Measured on this branch: `go build ./...` exits 0, `go vet
-./internal/reducer/...` exits 0, and `go test ./internal/reducer/... -count=1`
-passes. Binary output was not compared and no such claim is made here.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span, or
-log field. This package emitted no signal before the move and emits none after.
-
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** This is the bottom of the IAM

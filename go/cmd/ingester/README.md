@@ -114,16 +114,6 @@ the invalid `ref:` branch. When a managed shallow checkout reports an old
 `.git/shallow.lock` created by an interrupted fetch, the ingester removes only
 that stale lock under the managed repo and retries the fetch once.
 
-No-Regression Evidence: `go test ./internal/collector -run
-'TestUpdateRepositoryParsesSymrefHeadBranchFromLsRemote|TestUpdateRepositoryRecoversOldShallowLockAndRetriesFetch'
--count=1` covers hosted HEAD parsing and stale shallow-lock recovery without
-changing clone/fetch progress logging semantics.
-
-Observability Evidence: existing `git repository sync failed` and `git
-repository sync completed` logs still surface operation, repository ordinal,
-branch, elapsed time, and failure class; the retry path keeps the original fetch
-progress writer so a repeated failure remains visible.
-
 After each full collector batch drain, `AfterBatchDrained` records the shard's
 arrival in `deferred_maintenance_barriers` /
 `deferred_maintenance_barrier_arrivals`. Multi-shard ingesters wait until every
@@ -301,67 +291,6 @@ arrival lookup itself fails). Naming the missing shard indexes directly, not
 just a count, is what lets an operator find which process is silent from this
 one log line instead of correlating silence across every shard's own logs.
 
-No-Regression Evidence (#5852, #10084): `go test ./internal/collector -run
-'TestServiceRun(CallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard|EmptyBatchEscapeAddsJoinOnlyDrainsPerIdlePoll)|TestServiceCommittedThenRefusedKeepsArrivingJoinOnly'
--count=1` proves a shard with nothing to account for — never committed,
-committed then idle, or committed then refused — keeps arriving join-only at
-the barrier on every idle poll (the escape recurring for its whole process
-lifetime), with only the process-first call reporting `true` without a real
-commit behind it. `go test
-./internal/storage/postgres
--run TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionLogsStallBeforeCompleting
--count=1` proves the stall-watchdog log fires before the barrier completes.
-
-No-Regression Evidence (#5852 follow-up, join-only barrier arrivals plus the
-P1 startup-escape once-latch): `go test ./internal/storage/postgres -run
-'TestIngestionStoreShardDrainBarrier(QuietRestartOpensExactlyOneEpochAcrossManyIdlePolls|SingleShardNeverCommittedSkipsMaintenance|SingleShardHasCommittedRunsMaintenance|NeverCommittedShardJoinsAlreadyOpenEpochAndBecomesLeader)|TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShard(DoesNotOpenNewEpoch|JoinsAlreadyOpenEpoch)'
--count=1` proves a quiet fleet — driven by real `collector.Service.Run`
-instances, one per shard — opens exactly one epoch across many idle polls,
-not zero and not once per poll, while a never-committed shard can still
-join, and even lead, an epoch a committing shard already opened. `go test
-./internal/storage/postgres -run
-TestIngestionStoreWaitDeferredMaintenanceBarrierCompletionStallLogNamesMissingShards
--count=1` proves the stall warning names the specific missing shard indexes,
-not just a count. `go test ./internal/storage/postgres -run
-TestIngestionStoreRunDeferredRelationshipMaintenanceAfterShardDrainRateLimitsIdleLog
--count=1` proves the idle "no epoch to join" INFO log is rate-limited to at
-most one line per `deferredMaintenanceBarrierStallLogInterval`.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestIngestionStore(CommitScopeGenerationTakesSharedMaintenanceBarrier|RunDeferredRelationshipMaintenanceTakesExclusiveBarrier|ShardDrainBarrier)'
--count=1` covers the shared commit barrier, exclusive deferred-maintenance
-barrier, and multi-shard drain rendezvous. `go test ./cmd/ingester -run
-'TestBuildIngesterCollectorService(DefersRelationshipBackfillToBatchDrain|RunsDrainHookForEmptyShardedBatches)|TestBuildIngesterServiceProducesCompositeRunner'
--count=1` covers the batch-drain hook wiring and empty-shard participation.
-
-No-Regression Evidence: #3073 keeps the barrier transaction order but closes the
-latest-epoch `Rows` before inserting a new barrier epoch, preventing a Postgres
-driver from executing the insert while the transaction still has an active
-cursor. `go test ./internal/storage/postgres -run
-'Test(IngestionStoreShardDrainBarrier|EnsureDeferredMaintenanceBarrierEpoch|BootstrapDefinitionsIncludeDeferredMaintenanceBarrier)'
--count=1` failed before the cursor was closed and passes after the fix.
-
-No-Observability-Change: #3073 adds no metric, label, span, log field, worker,
-queue, lease, runtime knob, or graph write. Operators still diagnose this path
-through existing barrier wait/completion logs, `deferred_relationship_maintenance_failure`
-errors, and Postgres query instrumentation.
-
-Observability Evidence: source commits log a
-`deferred_maintenance_shared_barrier` commit stage, and the existing Postgres
-instrumentation emits query duration for the advisory-lock statements. Deferred
-maintenance barrier wait/completion logs report epoch, shard count, arrived
-shard count, and leader shard index. Failures continue to exit the ingester with
-a structured `deferred_relationship_maintenance_failure` failure class.
-
-Observability Evidence (#5852): adds the stall-watchdog WARN log described
-above, on the existing `deferred_maintenance_barrier` phase, at a 30s minimum
-interval while a shard waits. No new metric, span, or runtime knob — a
-`waitDeferredMaintenanceBarrierCompletion` retrofit did not warrant a new OTEL
-instrument (with its own contract/verifier/dashboard obligations under
-`telemetry-coverage-discipline`) when a bounded, searchable log line already
-gives an operator the epoch, arrival count, and elapsed wait needed to
-recognize and act on a genuine stall.
-
 The collector service also wires the shared collector generation dead-letter
 store. Commit failures before projector work exists are surfaced through
 `/admin/status` and can be marked for source-level replay through
@@ -394,15 +323,6 @@ Positive list-seeded canonical retract statements are split into 25-key chunks
 inside the NornicDB phase-group executor before execution. Negative `NOT IN`
 cleanup statements stay intact because splitting a keep-list would make each
 chunk delete valid current files from other chunks.
-
-No-Regression Evidence: `go test ./cmd/ingester -run
-'TestNornicDBPhaseGroupExecutor.*RetractFilePaths' -count=1` proves positive
-retract file-path chunks split while negative keep-list cleanup remains one
-statement.
-
-Observability Evidence: phase-group retract errors now include the original
-statement ordinal and chunk part (`part x/y`) while preserving the sanitized
-statement summary used in queue failure details.
 
 ## Exported surface
 
@@ -538,59 +458,6 @@ The ingester inherits collector and projector telemetry. Key signals:
   `retry_exhausted` — it is bounded admission, not worker serialization. See
   `docs/public/reference/nornicdb-tuning.md` for the root-cause writeup.
 
-No-Regression Evidence: the default changes admission from disabled to an
-enabled 10000-row backlog threshold without changing reducer worker counts,
-claim batch size, queue schema, graph writes, or transaction scope. Below the
-threshold, each source-local reducer enqueue performs one bounded queue-depth
-read through `QueueObserverStore` and then calls the same `ReducerQueue.Enqueue`
-path. At or above the threshold, it waits outside SQL transactions and rechecks
-before enqueueing. Verified by
-`go test ./cmd/ingester -run 'TestLoadReducerAdmissionConfigDefaultsToEnabledHighWaterMark|TestReducerIntentWriterWithAdmissionUsesDefaultHighWaterMark|TestReducerAdmissionDefaultConfigDefersAtDefaultHighWaterAndResumesBelow' -count=1`
-and `go test ./cmd/ingester -run 'TestReducerAdmission|TestLoadReducerAdmissionConfig|TestReducerIntentWriterWithAdmission' -count=1`.
-Focused benchmark on Apple M4 Pro with one source-local reducer intent and
-synthetic queue depth below the threshold:
-`go test ./cmd/ingester -run '^$' -bench 'BenchmarkReducerAdmission(Disabled|BelowHighWater|DefaultBelowHighWater|OneDeferral)$' -benchtime=1000x -count=1`
-reported disabled 3.417 ns/op, manually enabled below high-water 49.25 ns/op,
-default-active below high-water 39.29 ns/op, and one no-op deferral 87.96
-ns/op; all four paths reported 0 allocs/op.
-
-No-Regression Evidence (graph-write backpressure, #3560): the gate is failure-class
-scoped and adds a second admission condition without changing reducer worker
-counts, claim batch size, queue schema, graph writes, or transaction scope. When
-the gate is disabled (retrying high-water mark 0) or the graph-write-timeout depth
-is below the marks, the loop performs one bounded depth read and calls the
-unchanged `ReducerQueue.Enqueue`. Verified by `go test ./cmd/ingester
-./internal/storage/cypher ./internal/storage/postgres -count=1 -race`: a readiness
-backlog of 800 `*_not_ready` retrying rows with zero graph-write-timeout depth
-does NOT throttle (`TestReducerAdmissionReadinessBacklogDoesNotThrottle`), while a
-graph-write-timeout backlog above the high-water mark does
-(`TestReducerAdmissionGraphWriteTimeoutBacklogThrottles`), holds through the
-high/low hysteresis gap, resumes on recovery, records the `graph_write_timeout`
-failure class on the deferral
-(`TestReducerAdmissionGraphWritePressureRecordsFailureClass`), and loses no intents
-under 16 concurrent producers
-(`TestReducerAdmissionGraphWritePressureConcurrentEnqueueShareState`). The reducer
-queue preserves `graph_write_timeout` on the retrying row
-(`TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget`) while a
-readiness miss keeps its own class
-(`TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass`), and the scoped
-depth query excludes `reducer_retryable` and readiness classes
-(`TestReducerGraphWriteTimeoutDepthFiltersFailureClass`). The existing benchmarks
-still cover the disabled and below-high-water fast paths.
-
-Observability Evidence (graph-write backpressure, #3560): producer deferrals reuse
-the existing `eshu_dp_reducer_admission_deferrals_total` counter and now carry a
-`reason` attribute value (`graph_write_pressure` when the scoped graph-write-timeout
-depth tripped the gate, `high_water` when total outstanding depth tripped the
-original gate) plus a `failure_class` attribute naming the class that drove a
-graph-write-pressure deferral (`graph_write_timeout`). This lets an operator
-confirm at 3 AM that graph writes are timing out rather than a readiness backlog
-piling up. The deferral log was moved from debug level to `Warn` and names
-`reason`, `failure_class`, `queue_depth`, `high_water_mark`,
-`retrying_high_water_mark`, `retrying_low_water_mark`, and `poll_interval`. The
-graph-write-timeout retrying depth is exposed by
-`QueueObserverStore.ReducerGraphWriteTimeoutDepth`; no counter or span name,
-worker, queue domain, or runtime surface is removed.
 - The `local_lightweight` profile (ESHU_QUERY_PROFILE=local_lightweight or
   ESHU_DISABLE_NEO4J=true) skips canonical graph writes entirely; useful for
   laptop code-search workflows where the graph backend is not running.
@@ -669,15 +536,6 @@ worker, queue domain, or runtime surface is removed.
   live in `wiring_canonical_writer_open.go`, split out of `wiring.go` once the
   latter regressed past the repo's 500-line cap. The move is line-for-line:
   no logic, ordering, or defaults changed.
-  No-Regression Evidence: same function body relocated verbatim (`git diff`
-  shows a pure move, confirmed by diffing pre/post function text); full
-  `go/cmd/ingester` package test suite passes unchanged before and after the
-  split (`go test ./cmd/ingester/... -count=1` — before: all pass; after: all
-  pass, same test count). `go build ./...` and `golangci-lint run ./...`
-  clean on the whole module post-split.
-  No-Observability-Change: telemetry, span, and log call sites are untouched
-  — only their containing file changed, not their behavior or instrument
-  wiring.
 
 ## Related docs
 

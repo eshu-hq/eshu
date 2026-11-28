@@ -93,10 +93,6 @@ ListEnvironments and ListDataSources stream per project, one GetDataSource point
 read per data source, no asset/glossary/listing/subscription reads, and no graph
 writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/datazone/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 Collector Deployment Evidence: DataZone runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

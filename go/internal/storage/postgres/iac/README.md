@@ -48,10 +48,6 @@ handle; the reducer materializer that calls `Upsert`
 (`iac_reachability_materializer.go`, parent `postgres` package) records the
 materialization duration and row-count metrics.
 
-No-Observability-Change: this extraction moves only the durable store; no
-metric, span, log field, worker, queue, lease, retry, or durable write
-shape changed.
-
 ## Gotchas / invariants
 
 - `Upsert` writes in bounded batches of 500 rows; `ON CONFLICT` updates
@@ -65,8 +61,3 @@ shape changed.
   superseded generation's rows never appear in the "latest" surface.
 - Do not import the parent `postgres` package: that is an import cycle.
   Root's `iac_reachability_materializer.go` imports this package instead.
-
-No-Regression Evidence: `go test ./internal/storage/postgres/iac/... -count=1`
-covers the store's upsert/list/count/has-rows behavior;
-`go test ./internal/storage/postgres/... -run TestIngestionStoreMaterializeIaCReachability -count=1`
-covers the reducer-side materializer that writes through this store.

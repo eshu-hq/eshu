@@ -149,29 +149,6 @@ Every impact-producing pass pays that one probe even when nothing waits on
 impact; only a pass whose intent cannot produce impact evidence skips it
 (`TestSecurityAlertReconciliationProbesOncePerImpactProducingPass`).
 
-No-Regression Evidence (#9053): no SQL, index, or queue state machine
-changed — the lane reuses the shipped claim/fail/ack statements and the
-existing indexed `ImpactStore` aggregate, adding one read-only probe per
-impact-producing pass and removing up to two queue cycles (claim, counting
-fail, backoff) for settled producers. Baseline: a settled producer spent
-attempts 1-2 on counting defers and wrote at the cap of 3. After: the
-real-queue convergence proof on disposable PostgreSQL 18 (full 255-migration
-bootstrap, one scope generation with one reconciliation and one impact row)
-shows both directions — a succeeded impact row finishes the reconciliation in
-one claim, terminal `succeeded` at `attempt_count=1` with one `unmatched`
-write carrying no `impact_wait_outcome`; a pending producer holds the
-reconciliation at `attempt_count=1` across repeated non-counting defers and
-the next claim after the producer acks matches at attempt 1
-(`TestReducerContentionGateSecurityAlertReconciliationSettledSkipsTheWait`,
-`TestReducerContentionGateSecurityAlertReconciliationLateProducerKeepsItsWait`).
-
-Observability Evidence (#9053): no new metric or log key — the first-run
-settled write records the existing
-`eshu_dp_security_alert_reconciliation_impact_wait_total{outcome="producer_settled"}`
-at INFO with `attempt_count`, and the counting path below the cap still
-records nothing. The coverage row and the impact-wait reference name the
-first-run behavior.
-
 The non-counting class freezes `attempt_count`, so the in-flight wait is
 bounded by ELAPSED TIME only; never compare the attempt count to bound it. A
 probe error is returned as a counting error and is never turned into the
@@ -207,19 +184,6 @@ simulated refused base (stubbed delta-only rows), and
 `FactStore` refusal (counted `union_base_missing`, WARN, delta-only rows)
 into the same handler. If refused
 bases stop being rare, reopen #10193 and take the expected-wait option.
-
-No-Regression Evidence: #10193 changes no production Go code, SQL, queue
-behavior, or payload bytes. It adds the two reducer-root stub tests above
-(refused base commits one upserted `provider_only` row; healed base
-re-derives `matched`), the store-driven refusal test, and operator docs.
-The existing reconciliation suites stay the regression proof for every
-other status.
-
-No-Observability-Change: eshu_dp_package_manifest_dependency_read_delta_union_total, eshu_dp_security_alert_reconciliation_impact_wait_total, eshu_dp_reducer_executions_total
-The read's refusal counter and WARN, the handler success line's
-`provider_only=<n>` summary, and the committed reconciliation payload are
-the joining signals; #10193 registers no new instrument and adds no label,
-span, or log key.
 
 ### The manifest-consumption seam
 
@@ -321,17 +285,6 @@ than an import (Go test files never export across packages regardless).
 
 ### Evidence
 
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing its behavior. Most hunks inside the moved production files
-are package-clause and import requalification: symbols the reducer root
-used to supply as one-line forwarders or aliases -- the reducer-contract
-types, the fact-load and quarantine helpers, the batch-insert family, and the
-payload accessors -- are now imported from the leaf package that already owned
-them. The rule holds for every such symbol rather than for a list of them:
-where root declared a forwarder, the call now names the forwarder's target
-directly, so the same function runs. `git diff` against the base file is the
-authority, not an enumeration here.
-
 The decode seam is the one exception and did not survive as an
 import. The root's unexported `decodeSecurityAlertRepositoryAlert` was
 deleted outright rather than requalified; call sites now use the exported
@@ -370,12 +323,6 @@ across the whole module -- including this package, the reducer root,
 and `internal/query`. The full-module run is taken at whichever head last
 changed a `.go` file; the PR body's evidence table names that commit and shows
 the command that proves every Go change since it is comment-only.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span,
-or log field. The counter and executions pair above are the same before and
-after the move; only the file paths the telemetry-coverage rows point at
-changed.
 
 ## Related docs
 

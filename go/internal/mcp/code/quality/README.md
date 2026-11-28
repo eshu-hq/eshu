@@ -84,11 +84,6 @@ API request duration and error metrics (`request.go` in
   `inspect_code_inventory` shares the `inspect_code_` spelling but belongs to
   the structural-inventory family that stays in the root switch.
 
-No-Observability-Change: this extraction moves only pure complexity/quality
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, summaries, and transport
-telemetry, and the same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../README.md)

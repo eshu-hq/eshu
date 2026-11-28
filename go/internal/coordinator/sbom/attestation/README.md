@@ -28,23 +28,12 @@ parent.
 None. Planning inherits the parent reconcile metrics, workflow and claim
 status, and duplicate-admission logs.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-queue, worker, lease, or runtime setting.
-
 ## Gotchas / invariants
 
 - Stable IDs remain a function of instance, plan key, and target scope.
 - Duplicate scope IDs fail before any row is returned.
 - Durable requested-scope metadata excludes document URLs and credentials.
 - Fairness remains partitioned by collector instance and artifact kind.
-
-No-Regression Evidence: focused child tests call the production planner. The
-recursive coordinator and workflow-coordinator tests compile the root
-interface, service call, and concrete child wiring. Scoped race, build, and vet
-checks cover the same boundary without changing the planner's runtime path.
-This leaf is an ownership seam, not an independently deployable or extractable
-service; it still depends on repository-local workflow, fact, and scope
-contracts.
 
 ## Related docs
 

@@ -81,58 +81,10 @@ This family moved here verbatim from the query root (`admin.go`,
 move because `store/idempotency.go` keeps the `INSERT ... ON CONFLICT DO
 NOTHING` replay-claim statement.
 
-No-Regression Evidence: baseline `d215fb2c5` vs this branch —
-`go test ./internal/query/...` passes 25 packages with 0 failures, and a
-normalized old-vs-new diff of the idempotency file shows the SQL text, call
-order, and error wraps are byte-identical (only package and type qualifiers
-changed). Input shape and row counts are unchanged because no statement
-changed; the existing `admin/store` tests cover the claim and complete
-paths.
-
-No-Observability-Change: no instrument was added, removed, or renamed — the
-admin routes keep `eshu_dp_api_request_duration_seconds` and
-`eshu_dp_api_request_errors_total`, and the telemetry-coverage row for this
-family now points at `handler.go` where the moved `DeadLetterFilter` model
-lives.
-
 `Handler.ReadStore` supplies query-only inspection separately from the
 writer-backed `Handler.Store`. A nil read port preserves legacy construction;
 a configured read port never falls back to the writer after an error. The
 three list-only MCP handlers accept `ReadStore` and expose no mutation routes.
-
-## Fixed failure answers (#7674)
-
-No-Regression Evidence: baseline `origin/main` at `7be0f4ce7` versus this
-branch. No SQL, Cypher, transaction, or lock path changed: backend
-(PostgreSQL), input shape, statement count, and row counts are the same as
-the baseline. The handlers change their error branches, and the idempotency
-finalize path DID change: for replay, reopen, and recover-generations, the
-post-commit `CompleteReplayIdempotency` (one autocommit `UPDATE` by primary
-key) and the accepted audit append now run on a context detached from the
-request's cancel and bounded at 2s (`finalize.go`), so a client cancel no
-longer strands the ledger row in_progress; a finalize failure is always a
-500. Measured with stub stores, no live backend: `go test
-./internal/query/... -count=1` passes 77 packages (137 top-level tests
-skip without a live backend or an opt-in environment variable).
-`server_failure_routes_test.go` has 60 route subtests (24 inspection, 20
-mutation, 16 idempotent mutation) and `finalize_test.go` 15. The route
-subtests all failed first on the baseline handlers. Three finalize cancel
-variants later moved to `finalize_test.go`, and eight synthetic
-graph-deadline variants were dropped because no admin step can meet that
-sentinel. The finalize cancel and bound subtests (6) failed
-before the finalize was detached.
-
-No-Observability-Change: no instrument was added or renamed, and the routes
-keep `eshu_dp_api_request_duration_seconds` and
-`eshu_dp_api_request_errors_total`. Observability Evidence: a failed step
-marks the request span through `tracing.WriteServerFailure` (Error status
-with the fixed message and one `exception` event, or only the
-`eshu.request.client_canceled` event on a client cancel), pinned by
-`assertAdminFailureSpan`. The changed-since child span no longer records a
-client cancel as an exception (`TestPoisonedLinkChildSpanSkipsClientCancel`).
-A finalize that recorded the outcome after the client left logs one INFO
-`admin_recovery.finalize_after_client_cancel` event (`operation`, `route`,
-`correlation_id`), pinned by `TestAdminMutationFinalizeOutlivesClientCancel`.
 
 ## W1 apilib delegation (eshu-hq/eshu-api#456)
 

@@ -76,11 +76,6 @@ the shared API request duration and error metrics (`request.go` in
   `get_entity_content` shares the `content` stem but belongs to
   `entityresolution`, which shares no helper with this package.
 
-No-Observability-Change: this extraction moves only pure content route
-selection. The root adapter still feeds the same global fanout, dispatch,
-authorization, budgets, envelopes, summaries, and transport telemetry, and
-the same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../README.md)

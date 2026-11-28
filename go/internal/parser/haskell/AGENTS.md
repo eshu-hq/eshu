@@ -66,18 +66,3 @@
 
 - Do not change Haskell extension ownership or registry behavior from this
   package.
-
-## No-regression and observability evidence
-
-No-Regression Evidence (issue #3588, Haskell AST migration): `go test
-./internal/parser/haskell -count=1` (byte-parity characterization goldens plus
-behavior tests, including the failing-first
-`TestParseCapturesMultiLineTypeSignatureClassMethod`) and the downstream gates
-`go test ./internal/parser/... ./internal/reducer ./internal/query -count=1`.
-The AST walk replaces a per-line regex scan with one recursive parse-tree walk,
-bounded by AST node count; no goroutine, channel, lock, queue, or graph-write
-behavior is added.
-
-No-Observability-Change (issue #3588): the migration is parser-local. It adds no
-metric, span, log, or status; operator-facing signals are identical before and
-after.
