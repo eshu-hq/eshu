@@ -49,10 +49,9 @@ This package imports `internal/parser/shared`, `go-tree-sitter`, the Elixir
 tree-sitter grammar binding, and the Go standard library. No production file
 here may import the parent parser package; the external `elixir_test` files
 may, which is how the relocated black-box coverage drives the engine. The root
-parser module replaces
-`github.com/tree-sitter/tree-sitter-elixir` with the official
-`github.com/elixir-lang/tree-sitter-elixir v0.3.5` repository because that
-repository declares the canonical tree-sitter module path.
+parser module requires
+`github.com/eshu-hq/tree-sitter-elixir v0.3.5-eshu.1`, a fork carrying the
+v0.3.5 grammar bytes with the corrected module path.
 
 ## Telemetry
 
