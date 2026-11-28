@@ -343,8 +343,9 @@ func wakeWaitingByKey(
 		outcome = telemetry.WaitingWakeOutcomeReopened
 	}
 	recordWaitingWake(ctx, instruments, site, outcome)
-	// #11615: every woken row advanced its cycle (reopened_at) without
-	// changing status, so the reopened count is the transitioned count. This
+	// #11615: every woken row exited the set-aside (wait row deleted,
+	// visible_at advanced) and became claimable without a status change, so
+	// the reopened count is the transitioned count. This
 	// emits at the same level as the sibling waiting-wake outcome counter
 	// above: a caller-owned transaction that rolls back after the wake
 	// overcounts both counters equally, and the two stay comparable.

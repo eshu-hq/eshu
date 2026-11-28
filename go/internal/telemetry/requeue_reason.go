@@ -18,12 +18,21 @@ import (
 // not cause shaped: the fine detail stays in failure_class and the payload,
 // while the reason answers "which part of the system keeps re-pending work".
 //
-// Lifecycle: the reason is set on every transition into pending or retrying
-// from a non-initial state (including cycle-advancing re-pends that stamp
-// reopened_at without a status change) and on replay-debt scheduling for
-// claimed or running rows. Claim, heartbeat, ack-success, dead_letter, and
-// supersede never clear it, so dead-letter triage can read why the row last
-// ran. A row that was never requeued keeps NULL, which readers display as
+// Lifecycle: the reason is set on every transition that returns a row to an
+// outstanding, claimable state from a non-outstanding one — into pending or
+// retrying from a finished or in-flight state, on replay-debt scheduling for
+// claimed or running rows (counted once, at schedule time), and on a waiting
+// wake, where a parked retrying row leaves the waiting set-aside (wait row
+// deleted, visible_at advanced) without a status change. A touch on a row
+// already outstanding and already scheduled to run — a retouch or schedule
+// attempt on a pending or retrying row, or on a claimed/running row already
+// carrying replay debt — is not a requeue: it creates no execution, changes
+// neither claimability nor queue position, and coalesces into the scheduled
+// run, so the row keeps that run's reason and the touch is not counted, even
+// where it advances reopened_at to move that run's cycle bound. Claim,
+// heartbeat, ack-success, dead_letter, and supersede never clear it, so
+// dead-letter triage can read why the row last ran. A row that was never
+// requeued keeps NULL, which readers display as
 // RequeueReasonLegacyUnclassified. That display label and "unknown" are
 // forbidden writer values: an unknown bucket written by design would recreate
 // the unattributed remainder this issue exists to eliminate.
@@ -63,8 +72,9 @@ const (
 	// new impact evidence re-pended a holder's supply_chain_impact item.
 	RequeueReasonFanoutHolder RequeueReason = "fanout_holder"
 	// RequeueReasonRetouchNewEvidence marks a retouch and the service-catalog
-	// re-trigger: a same-generation touch landed on the row and it reopened
-	// (or advanced its cycle) on new evidence.
+	// re-trigger: a same-generation touch reopened a finished row or newly
+	// flagged an in-flight row for one rerun. Touches on already-outstanding
+	// rows coalesce into the scheduled run without stamping.
 	RequeueReasonRetouchNewEvidence RequeueReason = "retouch_new_evidence"
 	// RequeueReasonAdminReplay marks an operator replay of a dead-lettered or
 	// failed row back to pending.

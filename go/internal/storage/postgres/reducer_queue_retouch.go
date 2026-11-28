@@ -42,7 +42,10 @@ import (
 // and replay flag, so RetouchWorkItem counts exactly the touches that
 // transitioned (a finished row reopened to pending, or a claimed or running
 // row newly flagged for replay debt). Rows already pending or retrying keep
-// their prior reason and are not counted. The CTE takes the same FOR NO KEY
+// their prior reason and are not counted. Unlike a waiting wake, that touch
+// exits no parked sub-state and advances neither visible_at nor updated_at,
+// so the unconditional reopened_at = $1 only moves the already-scheduled
+// run's cycle bound. The CTE takes the same FOR NO KEY
 // UPDATE row lock the single-table UPDATE took (#11615).
 var retouchReducerWorkItemQuery = `
 WITH target AS (

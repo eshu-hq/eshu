@@ -185,6 +185,10 @@ func TestRequeueReasonWritersStampReasonLive(t *testing.T) {
 		seedRequeueScope(t, f, "scope-retouch", "gen-retouch", now)
 		f.row(t, reopenStampRow{id: "retouch-terminal", scopeID: "scope-retouch", generationID: "gen-retouch", stage: "reducer", domain: "deployment_mapping", status: "failed"})
 		f.row(t, reopenStampRow{id: "retouch-pending", scopeID: "scope-retouch", generationID: "gen-retouch", stage: "reducer", domain: "deployment_mapping", status: "pending"})
+		f.row(t, reopenStampRow{id: "retouch-retrying", scopeID: "scope-retouch", generationID: "gen-retouch", stage: "reducer", domain: "deployment_mapping", status: "retrying", reopenedAt: &f.old})
+		if _, err := database.ExecContext(ctx, `UPDATE fact_work_items SET last_requeue_reason = 'retry_backoff' WHERE work_item_id = 'retouch-retrying'`); err != nil {
+			t.Fatalf("seed prior reason on retouch-retrying: %v", err)
+		}
 
 		queue := newQueue()
 		ok, err := queue.RetouchWorkItem(ctx, "retouch-terminal")
@@ -200,6 +204,18 @@ func TestRequeueReasonWritersStampReasonLive(t *testing.T) {
 		// A pending row that sees no transition keeps its prior reason:
 		// never requeued, so NULL.
 		assertRequeueReason(t, database, ctx, "retouch-pending", nil)
+
+		ok, err = queue.RetouchWorkItem(ctx, "retouch-retrying")
+		if err != nil || !ok {
+			t.Fatalf("RetouchWorkItem() retrying = (%v, %v), want (true, nil)", ok, err)
+		}
+		// A retrying row that sees no transition keeps its prior reason, but
+		// the coalesced touch still moves the scheduled run's cycle bound.
+		assertRequeueReason(t, database, ctx, "retouch-retrying", strptr("retry_backoff"))
+		if got := f.state(t, "retouch-retrying", now); !got.reopenedAt.Valid || !got.reopenedAt.Time.Equal(now) {
+			t.Fatalf("reopened_at for retouch-retrying = %s, want %v: a coalesced touch on an already-outstanding row moves the scheduled run's cycle bound\n%s",
+				reopenStampNullTime(got.reopenedAt), now.UTC(), f.failureContext(t, "retouch-retrying"))
+		}
 	})
 
 	t.Run("cross-scope schedule and ack-trigger conversion", func(t *testing.T) {
