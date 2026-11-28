@@ -109,6 +109,30 @@ CVE-2026-124317 / CVE-2026-128086 / CVE-2026-128241 / CVE-2026-134703
 resweep, and they alone separate payload (99.619%) from fact-join
 (99.761%).
 
+Raw Q3b output (16:11:57Z rerun corpus; stale 126 vs the stamped 109; header padding stripped):
+
+```text
+       query        |     cve_id      | rows_cnt |      class
+--------------------+-----------------+----------+-----------------
+ Q3b_missing_by_cve | CVE-2026-93753  |      101 | no_fact_catalog
+ Q3b_missing_by_cve | CVE-2026-73646  |       85 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2023-54404  |       72 | no_fact_catalog
+ Q3b_missing_by_cve | CVE-2026-64641  |       13 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2021-3533   |       10 | no_fact_catalog
+ Q3b_missing_by_cve | CVE-2026-42037  |        6 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-42036  |        5 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-42039  |        4 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-49981  |        4 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-42038  |        2 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-63402  |        2 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-124317 |        1 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-128086 |        1 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-128241 |        1 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-134703 |        1 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-64643  |        1 | has_fact_stale
+ Q3b_missing_by_cve | CVE-2026-9229   |        1 | no_fact_catalog
+```
+
 ## GHSA-only / no-alias rows (excluded by construction)
 
 4,151 GHSA rows (80 distinct) and 5 GO rows (GO-2026-5932 ×4,
@@ -118,6 +142,14 @@ findings-derived EPSS planner admits CVE-shaped ids only and counts
 the rest `ExcludedNonCVE`; alias-aware GHSA coverage is Phase 3 work
 (3.1/3.2). This exclusion is the ruled denominator, not post-hoc
 gaming; all-active 94.512% stays published beside the C3 number.
+
+Raw Q3c output (16:11:57Z rerun corpus; header padding stripped):
+
+```text
+   query    | ghsa_rows | ghsa_distinct | go_rows | go_distinct | other_noncve_rows | ghsa_payload_present | go_payload_present
+------------+-----------+---------------+---------+-------------+-------------------+----------------------+--------------------
+ Q3c_noncve |      4151 |            80 |       5 |           2 |                 0 |                    0 |                  0
+```
 
 ## Ceiling arithmetic
 
@@ -134,6 +166,21 @@ enrichment as shipped. Under the CVE-keyed denominator the bar needs
 npm 274/68,347, pypi 10/6,721, composer 4/545, gomod 1/169, os 3/62,
 go 1/3, maven 0/892, rubygems 0/184. No other ecosystem has a
 payload-missing write-up owed beyond Q3a.
+
+Raw Q3a output (16:11:57Z rerun corpus; figures differ from the pin-stamped prose above because the corpus moved; header padding stripped):
+
+```text
+  query  | ecosystem | cvekeyed_rows | cvekeyed_missing_payload | total_rows
+---------+-----------+---------------+--------------------------+------------
+ Q3a_eco | npm       |         68347 |                      291 |      72242
+ Q3a_eco | pypi      |          6721 |                       10 |       6922
+ Q3a_eco | maven     |           892 |                        0 |        896
+ Q3a_eco | composer  |           545 |                        4 |        594
+ Q3a_eco | rubygems  |           184 |                        0 |        184
+ Q3a_eco | gomod     |           169 |                        1 |        176
+ Q3a_eco | os        |            62 |                        3 |         62
+ Q3a_eco | go        |             3 |                        1 |          3
+```
 
 ## Rerun note (QA read replica, 2026-11-28 16:11:57Z)
 
