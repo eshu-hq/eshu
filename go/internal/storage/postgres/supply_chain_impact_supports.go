@@ -74,9 +74,19 @@ var supplyChainImpactSupportColumns = []supplyChainImpactSupportColumn{
 // read can leave fact_records; it is outside the write-on-change guard, so a
 // replay does not rewrite a row only to fill it, and a row written before the
 // column existed keeps NULL until a real change rewrites it (the stored read
-// falls back to the fact's own key for those).
+// falls back to the fact's own key for those). key_presence rides the same
+// mechanism (#9975 round 6): it derives from the payload the guard already
+// compares, so any payload change that moves the bits rewrites the row and
+// recomputes them, while a replay whose triple presence is unchanged rewrites
+// nothing only to fill them. Rows predating the column keep 0 (fail-closed)
+// until the key-presence fill reaches them.
 var supplyChainImpactSupportFillOnlyColumns = []supplyChainImpactSupportColumn{
 	{"stable_fact_key", "fact.stable_fact_key"},
+	// The bitmask derives from supplyChainImpactKeyPresenceFillExpr (alias
+	// "fact"), the same expression the key-presence fill's chunk, update and
+	// verification render, so the writer and the backfill cannot disagree on
+	// a bit. Bits 1/2/4 only; advisory keys carry no bits.
+	{"key_presence", supplyChainImpactKeyPresenceFillExpr("fact")},
 }
 
 // supplyChainImpactSupportsSelectSQL renders the SELECT that derives support
@@ -214,7 +224,15 @@ RETURNING (xmax = 0) AS inserted`
 // as the versioned fact insert casts it, so the stored bytes match what the
 // fact-derived statement reads back from a fact row.
 func supplyChainImpactSupportRowsSelectSQL() string {
-	return supplyChainImpactSupportsProjectionSQL(supplyChainImpactSupportFillOnlyColumns) + `
+	return supplyChainImpactSupportRowsSelectSQLWith(supplyChainImpactSupportFillOnlyColumns)
+}
+
+// supplyChainImpactSupportRowsSelectSQLWith is supplyChainImpactSupportRowsSelectSQL
+// over an explicit fill-only column list. The differential test renders it with
+// the pre-key-presence list to prove the shipped statements differ from the
+// previous pin only by the key-presence column.
+func supplyChainImpactSupportRowsSelectSQLWith(fillOnly []supplyChainImpactSupportColumn) string {
+	return supplyChainImpactSupportsProjectionSQL(fillOnly) + `
 FROM (
     SELECT t.fact_id, t.scope_id, t.generation_id, t.source_confidence, t.stable_fact_key,
            t.payload::jsonb AS payload

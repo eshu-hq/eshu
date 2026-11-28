@@ -38,11 +38,12 @@ func TestWinnersMaintainerStatementsReadNoFactRecords(t *testing.T) {
 		}
 	}
 	for name, stmt := range map[string]string{
-		"rebuild":        rebuildSupplyChainImpactWinnersSQL,
-		"scope idents":   buildWinnersKeyedScopeIdentsFromSupportsSQL,
-		"keyed active":   buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
-		"keyed operator": addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
-		"keyed narrow":   buildWinnersKeyedNarrowFromSupportsSQL,
+		"rebuild":                   rebuildSupplyChainImpactWinnersSQL,
+		"scope idents":              buildWinnersKeyedScopeIdentsFromSupportsSQL,
+		"keyed active":              buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
+		"keyed operator":            addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
+		"keyed narrow":              buildWinnersKeyedNarrowFromSupportsSQL,
+		"keyed narrow key-presence": buildWinnersKeyedNarrowKeyPresenceSQL,
 	} {
 		if !strings.Contains(stmt, "supply_chain_impact_finding_supports AS ") {
 			t.Errorf("%s statement does not read the supports table", name)
@@ -186,9 +187,17 @@ func TestWinnersContractRepinnedForSupportsInputs(t *testing.T) {
 	t.Parallel()
 
 	shipped := supplyChainImpactWinnersContractStatements()
-	reversed := make([]string, len(shipped))
-	for i, stmt := range shipped {
-		reversed[i] = reverseWinnersDetoast(reverseWinnersSupportsInput(reverseWinnersKeyedStreamLayer(reverseWinnersEPSSDateStrip(stmt))))
+	// The triple-guarded probe (#9975 round 6) is authored on the plain
+	// supports columns, not derived by swaps: it has no legacy twin to
+	// reverse to, so the reversal below skips it. Its row agreement with the
+	// shipped twin is proven live by
+	// TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive instead.
+	var reversed []string
+	for _, stmt := range shipped {
+		if stmt == buildWinnersKeyedNarrowKeyPresenceSQL {
+			continue
+		}
+		reversed = append(reversed, reverseWinnersDetoast(reverseWinnersSupportsInput(reverseWinnersKeyedStreamLayer(reverseWinnersEPSSDateStrip(stmt)))))
 	}
 	if got := supplyChainImpactWinnersContractHashOf(reversed); got != winnersLegacyContractPin {
 		t.Fatalf("the contract statements with the supports swaps reversed hash to %s, want the previous version-2 pin %s", got, winnersLegacyContractPin)

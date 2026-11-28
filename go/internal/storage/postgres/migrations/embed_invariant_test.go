@@ -413,9 +413,14 @@ import (
 // 361_supply_chain_impact_scope_pass_state_watermark.sql (#11613 PR1) adds
 // the holder freshness watermark columns (token, generation, evidence-
 // complete) to the per-scope pass state. Count 387 is 386 plus 361.
+// 362_supply_chain_impact_supports_key_presence.sql (#9975 round 6) adds the
+// key_presence bitmask column on the supports table. Count 388 is 387 plus 362.
+// 363_supply_chain_impact_supports_keyed_triple_guard_idx.sql (#9975 round 6)
+// adds the covering btree for the triple-guarded keyed probe, built
+// CONCURRENTLY. Count 389 is 388 plus 363.
 const (
-	goldenBootstrapDefinitionsDigest = "96d1e5d16f4328279b34c66bceae824192a781b80468bb4269735a2ca5e66b52"
-	goldenBootstrapDefinitionsCount  = 387
+	goldenBootstrapDefinitionsDigest = "dde908892c1f7abe5d88f974642a3f856a0988fc72fbf2f7b5abd4bd23e8252d"
+	goldenBootstrapDefinitionsCount  = 389
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

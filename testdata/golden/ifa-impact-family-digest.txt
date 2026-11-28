@@ -5,4 +5,7 @@
 # fault-free in-process run at the PR-C2 head; a change to the cassettes or the digest columns changes it on purpose.
 # Re-pinned for #11598: content digests no longer cover selected_epss_score_date, so fixtures carrying EPSS score
 # dates hash date-blind. Fault-free local run (1/2/4 workers agree): 6a612f14.
-6a612f144466b5a8e198955a06ecfe2ae30e5da82f2faa0b11974e36b4cb13c7
+# Re-pinned for #9975 round 6: the digest covers whole support rows (to_jsonb(s)), so the new key_presence
+# bitmask column moves it. Fault-free local run on scratch PG18 (1/2/4 workers agree at
+# 0380619c9676b2fa19ccce34fc9298c47ba44fa5bd04e4fe775593213c6dc211): 0380619c.
+0380619c9676b2fa19ccce34fc9298c47ba44fa5bd04e4fe775593213c6dc211

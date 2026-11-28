@@ -54,6 +54,12 @@ const WinnersKeyedNarrowTableForTest = winnersKeyedNarrowTable
 // proof must explain this twin, never the legacy fact_records statement.
 var WinnersKeyedNarrowBuildFromSupportsSQLForTest = buildWinnersKeyedNarrowFromSupportsSQL
 
+// WinnersKeyedNarrowKeyPresenceBuildSQLForTest exposes the triple-guarded
+// whole-chunk probe (#9975 round 6): the statement the tick runs once the
+// key-presence fill marker completes. Row agreement with the twin above is
+// proven live by TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive.
+var WinnersKeyedNarrowKeyPresenceBuildSQLForTest = buildWinnersKeyedNarrowKeyPresenceSQL
+
 // WinnersDetoastFactLateralForTest exposes the shipped once-extracted record
 // lateral, so the live field-equivalence proof exercises the exact text the
 // tick runs, over a seed table aliased AS fact.

@@ -484,7 +484,7 @@ FROM generate_series(1, 5) AS i`,
 			t.Fatalf("write the plan: %v", err)
 		}
 	}
-	if problems := keyedProbePlanProblems(plan); len(problems) != 0 {
+	if problems := keyedProbePlanProblems(plan, keyedProbeIndexName, keyedProbeEqualities); len(problems) != 0 {
 		t.Fatalf("the keyed probe plan is wrong: %v\n%s", problems, plan)
 	}
 }

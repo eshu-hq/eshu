@@ -59,7 +59,15 @@ var supplyChainImpactSupportsContractPins = map[int]string{
 	// appended statement differs from the fact-derived upsert only in the row
 	// source. Re-derived on the lane-E rebase onto main (which carries B3a's
 	// guard strip): the covered upserts are the guarded ones.
-	1: "562247bd8c5b9f2d4a22083b7d9a707818df86611ee8be2f87a96945a5cb45f3",
+	//
+	// Re-pinned again, not bumped, when #9975 round 6 added the fill-only
+	// key_presence column: both upserts additionally fill key_presence from
+	// the payload-derived bitmask, and TestRowsUpsertOnlyAppendsToTheVersion1Contract
+	// proves the stripped statements still hash to the previous pin, so no
+	// existing statement changed beyond that column. No supports backfill is
+	// owed: existing rows keep their derived columns, and the key-presence
+	// fill backfills the new bits under its own marker.
+	1: "92e4491996ad9bb6ade8fe83b2049ece3c6ddfd9d208c37bbff927563d5394a6",
 }
 
 // supplyChainImpactSupportsContractStatements returns, in a fixed order, the

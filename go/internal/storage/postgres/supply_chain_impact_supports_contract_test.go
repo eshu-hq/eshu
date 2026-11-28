@@ -22,6 +22,11 @@ func TestSupplyChainImpactSupportsContractHashPinnedToVersion(t *testing.T) {
 		supplyChainImpactSupportsContractStatements(), supplyChainImpactSupportsContractPins); err != nil {
 		t.Fatal(err)
 	}
+	// Differential for the #9975 round-6 fill-only re-pin: without key_presence
+	// the same statements hash to the pre-key-presence full-list pin.
+	if got := supplyChainImpactSupportsContractHashOf(strippedOfKeyPresence()); got != supportsContractFullBeforeKeyPresencePin {
+		t.Fatalf("the stripped statements hash to %s, want the pre-key-presence pin %s", got, supportsContractFullBeforeKeyPresencePin)
+	}
 }
 
 // TestSupplyChainImpactSupportsContractPinRejectsAChangedStatement is the seeded

@@ -558,6 +558,10 @@ var migrationShippedChecksums = map[string]string{
 	// #11613 PR1: the holder freshness watermark columns on the per-scope
 	// pass state (watermark token, generation, evidence-complete flag).
 	"361_supply_chain_impact_scope_pass_state_watermark.sql": "6db4c87496892550ae5befe11c9757df3a826d91d6900b52550c3638675e45fe",
+	// #9975 round 6: the key_presence bitmask column on the supports table.
+	"362_supply_chain_impact_supports_key_presence.sql": "401269fc49a983b3837dc5f7b0af63771596b888254bf9902babc9d441793da3",
+	// #9975 round 6: the covering btree for the triple-guarded keyed probe.
+	"363_supply_chain_impact_supports_keyed_triple_guard_idx.sql": "87dbb73e86d06329adf40b922c24cec02bf610b0ea246ce0c4e501dd4347fd15",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
