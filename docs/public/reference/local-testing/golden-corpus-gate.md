@@ -136,15 +136,18 @@ bash scripts/verify-golden-corpus-gate.sh
 #               (also retains the cross-run lock - see below)
 ```
 
-### Running it on Neo4j
+### Backend selection
 
-The same gate runs against Neo4j, the supported backend. Set
-`ESHU_GRAPH_BACKEND=neo4j` and the orchestrator switches to
-`docker-compose.neo4j.yml`, the `neo4j` service, and the `neo4j` database; every
-other step, and every snapshot assertion, is unchanged:
+The gate runs against Neo4j, the supported backend (#7331), by default: the
+orchestrator uses `docker-compose.neo4j.yml`, the `neo4j` service, and the
+`neo4j` database, and every snapshot assertion is the blocking parity signal
+for #10880 AC3. To run the watch-only NornicDB leg instead, opt in explicitly
+(`ESHU_GRAPH_BACKEND=nornicdb` switches to `docker-compose.yaml`); it stays
+below the #11535 1.5 schema floor, so its result is NOT_CHECKED:
 
 ```bash
-ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh
+bash scripts/verify-golden-corpus-gate.sh
+# ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh  # opt-in, watch-only
 ```
 
 The snapshot is one contract for both backends. A Neo4j-only failure is a

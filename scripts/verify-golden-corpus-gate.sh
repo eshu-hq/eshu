@@ -80,7 +80,7 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 # flake. Concurrent runs MUST pick a genuinely private port set and verify
 # each port is free before starting.
 # ----------------------------------------------------------------------------
-: "${ESHU_GRAPH_BACKEND:=nornicdb}"
+: "${ESHU_GRAPH_BACKEND:=neo4j}" # Neo4j is the supported backend (#7331); nornicdb is explicit opt-in, watch-only below the #11535 1.5 floor (#11645).
 : "${ESHU_POSTGRES_PORT:=15432}"
 : "${NEO4J_BOLT_PORT:=7687}"
 : "${NEO4J_HTTP_PORT:=7474}"
@@ -109,14 +109,14 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 : "${GATE_COLLECTOR_SETTLE_SECONDS:=90}"
 : "${GATE_COLLECTOR_SETTLE_POLL_SECONDS:=2}"
 
-# Deploy lanes moved to eshu-deploy (#8871): Compose files come from the checkout (extraction pin in the gate workflow).
-compose_file="${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout}/compose/docker-compose.yaml"
-graph_service="nornicdb"
-database="nornic"
-if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
-	compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.neo4j.yml"
-	graph_service="neo4j"
-	database="neo4j"
+# Deploy lanes moved to eshu-deploy (#8871): Compose files come from the checkout (extraction pin in the gate workflow). Neo4j is the default (#7362 blocking leg); nornicdb is explicit opt-in only.
+compose_file="${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout}/compose/docker-compose.neo4j.yml"
+graph_service="neo4j"
+database="neo4j"
+if [[ "${ESHU_GRAPH_BACKEND}" == "nornicdb" ]]; then
+	compose_file="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.yaml"
+	graph_service="nornicdb"
+	database="nornic"
 fi
 compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")
 
