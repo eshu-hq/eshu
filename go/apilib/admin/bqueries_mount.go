@@ -60,3 +60,26 @@ func MountReplayEventsQuery(mux *http.ServeMux, store ReplayEventStore, onStoreE
 		ServeReplayEventsQuery(w, r, store, onStoreError)
 	})
 }
+
+// MountReindexProgress mounts the fleet reindex-progress read
+// (GET /api/v0/admin/reindex/progress) over store. onStoreError is the
+// optional reader-verdict hook (nil skips it); see ServeReindexProgress.
+// It stays out of MountProofReads until the core OmitProofReads surface
+// covers it, so one mux never answers a route twice.
+func MountReindexProgress(mux *http.ServeMux, store MaintenanceStore, onStoreError StoreErrorHandler) {
+	mux.HandleFunc("GET /api/v0/admin/reindex/progress", func(w http.ResponseWriter, r *http.Request) {
+		ServeReindexProgress(w, r, store, onStoreError)
+	})
+}
+
+// MountDeltaUnionCompleteness mounts the read-only delta-union
+// completeness check (GET /api/v0/admin/delta-union/completeness) over
+// store. onStoreError is the optional reader-verdict hook (nil skips it);
+// see ServeDeltaUnionCompleteness. It stays out of MountProofReads until
+// the core OmitProofReads surface covers it, so one mux never answers a
+// route twice.
+func MountDeltaUnionCompleteness(mux *http.ServeMux, store DeltaUnionStore, onStoreError StoreErrorHandler) {
+	mux.HandleFunc("GET /api/v0/admin/delta-union/completeness", func(w http.ResponseWriter, r *http.Request) {
+		ServeDeltaUnionCompleteness(w, r, store, onStoreError)
+	})
+}

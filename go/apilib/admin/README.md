@@ -34,3 +34,17 @@ Layout:
 - `bqueries_mount.go` — one `Mount*` per B-query family. These stay out
   of `MountProofReads` until the core `OmitProofReads` surface covers
   them, so one mux never answers a route twice.
+- `maintenance.go` — the reindex-progress read
+  (`ServeReindexProgress` over the read-only `MaintenanceStore` port):
+  fleet watermark plus per-scope effective watermarks with core
+  classification/rendering parity (`complete` only when nothing is
+  pending or never-seen, unfinished scopes first, at most 10 samples).
+- `deltaunion.go` — the read-only delta-union completeness check
+  (`ServeDeltaUnionCompleteness` over the synchronous
+  `DeltaUnionStore` port): explicit scope filter required, 500-scope
+  cap with the narrow-the-filter text, graph outages answered as a
+  fixed local 500 (never a partial `complete`), never repairs.
+- `MountReindexProgress` / `MountDeltaUnionCompleteness` (in
+  `bqueries_mount.go`) — one `Mount*` per maintenance/graph family.
+  These stay out of `MountProofReads` like the B-query mounts, so one
+  mux never answers a route twice.
