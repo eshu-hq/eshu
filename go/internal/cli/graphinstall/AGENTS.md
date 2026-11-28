@@ -53,7 +53,7 @@
   (`readLocalGraphVersion`) stays in
   `go/internal/cli/localsupervisor/graph_process.go`
   because it is part of the local_graph process-supervision cluster, which
-  `docs/internal/design/package-restructure.md` documents as a real
+  the #6053 package restructure documented as a real
   bidirectional cycle that must move as one unit or not at all. If you find
   yourself wanting to add `os/exec` here for anything other than
   `expandPackage`'s `pkgutil --expand-full` call (source.go, darwin `.pkg`
@@ -127,7 +127,7 @@
   wires `localGraphReadVersion` against it structurally; changing the
   signature breaks that wiring silently until the next build.
 - Moving `readLocalGraphVersion`/the local_graph process-supervision cluster
-  into this package. `docs/internal/design/package-restructure.md` documents
+  into this package. Epic #6053 documented
   it as a real bidirectional cycle (31 files) that has to move as one unit
   or not at all — see the cmd/eshu section and the acyclic-boundary
   discussion there before attempting it.

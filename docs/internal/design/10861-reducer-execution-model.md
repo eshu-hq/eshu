@@ -197,7 +197,7 @@ The work queue is **not** split by this decision.
 | Independent ruling on each decision | Done, 2026-11-18 — see the [ruling](../arbiter/10861-reducer-execution-model-ruling-2026-11-18.md); rewritten decisions above use its replacement text |
 | Targets checked against the measured baseline (#10862) | Done, 2026-11-18 — Decision 1's target replaced, Decision 4's confirmed, the rest honestly marked "not yet measured" and assigned to their follow-up items |
 | Proof and "abandon if" condition per decision | Recorded above |
-| Earlier performance review marked replaced | Done — pointer at the top of Part E of [the July 2026 review](../architecture-review-2026-07-performance-scale.md#part-e--performance-ha-failure-modes-scale) |
+| Earlier performance review marked replaced | Done — July 2026 review retired in #11679 |
 | Later work items cite the decision they depend on | Done — #10875–#10883 all cite #10861 and their decision |
 
 This record respects earlier decisions on data ownership, on keeping the

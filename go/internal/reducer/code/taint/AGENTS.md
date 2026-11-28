@@ -17,7 +17,6 @@ need splitting before the families could separate.
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/taint/README.md`
-- `docs/internal/design/package-restructure.md`
 
 ## Invariants
 

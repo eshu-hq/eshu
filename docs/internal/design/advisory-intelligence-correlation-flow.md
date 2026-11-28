@@ -8,7 +8,7 @@ Every behavior is marked:
 
 - **Today**: on `main` now.
 - **Planned (item N)**: an item in
-  [Advisory Intelligence Phases](advisory-intelligence-phases.md), tracked by
+  the advisory intelligence roadmap, tracked by
   epic #9209.
 
 Do not read a planned behavior as shipped.

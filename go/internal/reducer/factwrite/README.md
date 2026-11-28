@@ -100,8 +100,6 @@ covered by `eshu_dp_reducer_executions_total` and
   one's shape mirrors.
 - `docs/public/observability/telemetry-coverage.md` — the rows covering the
   execer port and forwarders this package's compatibility shim exposes.
-- `docs/internal/design/package-restructure.md` — the split this package is
-  part of (#6061).
 
 ## Compatibility
 

@@ -10,8 +10,6 @@
    exported surface.
 4. `go/internal/storage/postgres/README.md` -- root pipeline position and
    store inventory.
-5. `docs/internal/design/storage-collector-tree.md` -- the #6692 target tree
-   and the recorded SQLDB lock-ownership trap.
 
 ## Invariants
 

@@ -134,6 +134,5 @@ identical reasoning for the `inheritance` family.
 ## Related docs
 
 - [Reducer package](../README.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - #5346 SQL MIGRATES edge performance evidence
 - #5410 SQL FK/write relationships evidence

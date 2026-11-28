@@ -1,7 +1,7 @@
 # code/function
 
 Documentation namespace for the reducer's function-level code analysis
-families (issue #6061, step 3 of `docs/internal/design/reducer-target-tree.md`).
+families (issue #6061).
 This directory owns no runtime behavior. Its only child is its own Go
 package:
 

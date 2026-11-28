@@ -141,7 +141,6 @@ names, same emission sites, only the package that owns the code moved.
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `docs/internal/design/package-restructure.md` — the #6061 restructure
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for these two domains
 
 **Exported-stutter drop addendum (issue #6061, PR #6645):** the package clause

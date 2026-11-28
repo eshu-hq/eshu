@@ -91,7 +91,6 @@ This package emits no signal directly. Root intent enqueue remains covered by `e
 
 - [Projector architecture](../../README.md)
 - [Intent contract](../../intent/README.md)
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
 
 The family's private `crossplaneSatisfiedBySourceSystem` helper was compared
 body-for-body against `projectorintent.SourceSystem` and found identical -- two

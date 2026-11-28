@@ -9,7 +9,6 @@ security_doc="${repo_root}/docs/public/reference/security-intelligence.md"
 boundary_doc="${repo_root}/docs/public/reference/standalone-vulnerability-scanner-boundary.md"
 source_doc="${repo_root}/docs/public/reference/security-intelligence-source-coverage.md"
 release_doc="${repo_root}/docs/public/reference/security-intelligence-release-gate.md"
-plan_doc="${repo_root}/docs/internal/security-intelligence-implementation-plan.md"
 
 require_fixed() {
     local file="$1"
@@ -51,7 +50,5 @@ require_fixed "${release_doc}" "Standalone local proof"
 require_fixed "${release_doc}" "Hosted E2E proof"
 require_fixed "${release_doc}" "does not fork a second vulnerability engine"
 
-require_fixed "${plan_doc}" "Chunk 5A: Standalone Scanner Service Boundary"
-require_fixed "${plan_doc}" "one truth model across local CLI, hosted API, MCP, and future service use"
 
 printf 'security-intelligence standalone boundary docs verified\n'

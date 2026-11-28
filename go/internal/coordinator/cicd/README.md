@@ -39,4 +39,3 @@ contract.
 
 - `go/internal/coordinator/cicd/run/README.md`
 - `go/internal/coordinator/README.md`
-- `docs/internal/design/package-restructure.md`

@@ -64,5 +64,4 @@ and telemetry coverage checks, and the six-run same-shape benchmark.
 
 - [Projector architecture](../README.md)
 - [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
 - [Cypher performance](../../../../docs/public/reference/cypher-performance.md)

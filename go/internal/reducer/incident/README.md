@@ -146,5 +146,4 @@ still pass.
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `docs/internal/design/package-restructure.md` — the #6061 restructure
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for these domains

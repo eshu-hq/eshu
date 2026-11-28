@@ -88,4 +88,3 @@ return value cannot fail closed on an unrecognized value.
 ## Related docs
 
 - [Cypher performance](../../../../../docs/public/reference/cypher-performance.md)
-- [Package restructure design](../../../../../docs/internal/design/package-restructure.md)

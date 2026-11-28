@@ -16,9 +16,7 @@ runtime code to `doc.go`; add it to the child package that owns it.
   sibling leaf `value/` (for `FixpointProjectionResult`); `semantic/` imports
   the shared tier (`contract`, `factload`, `gpphase`, `payloadcore`).
   Everything else they import is outside `internal/reducer`.
-- A new child here is a named destination in
-  `docs/internal/design/reducer-target-tree.md`, never a new top-level
-  reducer sibling. Amend the tree doc in the same PR.
+- Add new code-analysis families as child packages here rather than new top-level reducer siblings.
 - Moves into this tree are behavior-preserving: prove them with the
   recursive reducer suite, B-7 golden corpus, and B-12 replay coverage, all
   byte-identical, before claiming done.

@@ -86,11 +86,8 @@ docs/internal/aws-relationship-edge-materialization-design.md	689
 docs/internal/design/391-observability-coverage-correlation.md	624
 docs/internal/design/4389-ifa-conformance-platform.md	990
 docs/internal/design/4588-collector-claim-pacing.md	1114
-docs/internal/design/4595-wrong-answer-report-capture-plan.md	523
 docs/internal/design/5007-cross-scope-node-ownership.md	914
 docs/internal/design/5385-workload-identity-key.md	1488
-docs/internal/design/package-restructure.md	2462
-docs/internal/design/restructure-research.md	506
 docs/public/contributing-language-support.md	503
 docs/public/operate/hosted-governance.md	671
 docs/public/reference/cypher-performance.md	1821

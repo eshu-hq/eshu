@@ -74,5 +74,4 @@ the changed paths.
 
 - [Projector architecture](../README.md)
 - [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
 - [Workload instance runtime admission](../../../../docs/internal/design/5435-workload-instance-runtime-admission.md)

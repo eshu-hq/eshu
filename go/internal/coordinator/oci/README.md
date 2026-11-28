@@ -41,4 +41,3 @@ contract.
 
 - `go/internal/coordinator/oci/registry/README.md`
 - `go/internal/coordinator/README.md`
-- `docs/internal/design/package-restructure.md`

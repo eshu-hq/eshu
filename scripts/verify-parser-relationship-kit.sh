@@ -439,7 +439,7 @@ validate_language_pages() {
 
 validate_diff_contracts() {
   local issues=0
-  if has_changed_file is_parser_source; then
+  if has_non_comment_parser_change; then
     if ! has_changed_file is_parser_test; then
       printf 'verify-parser-relationship-kit: parser source changed without parser *_test.go coverage\n' >&2
       issues=1

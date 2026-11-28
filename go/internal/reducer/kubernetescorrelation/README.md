@@ -152,6 +152,5 @@ names, same emission sites, only the package that owns the code moved.
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `docs/internal/design/package-restructure.md` — the #6061 restructure
 - `docs/internal/design/388-kubernetes-correlation-readmodel.md` — the #388 design (six-outcome contract, PR1/PR3 split)
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for these two domains

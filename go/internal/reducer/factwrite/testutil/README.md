@@ -106,4 +106,3 @@ behavior and the positional-decode invariant it depends on.
 
 - `go/internal/reducer/factwrite/README.md` — the production batched-insert path this package's decoder mirrors
 - `go/internal/reducer/cicdrun/README.md` — the first caller of this package, and the root-side test doubles its move needed for fixtures this package could not cover
-- `docs/internal/design/package-restructure.md` — the #6061 restructure

@@ -5,5 +5,5 @@
 // function-level code analysis families. It owns no runtime behavior; its
 // only child today is summary, the durable value-flow function-summary
 // persistence family (issue #6061, tree step 3 in
-// docs/internal/design/reducer-target-tree.md).
+// see #6061).
 package function

@@ -86,4 +86,3 @@ its log line and its status cannot disagree about what was a cancel.
 
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)
 - [Traces reference](../../../../docs/public/reference/telemetry/traces.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)

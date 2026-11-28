@@ -93,7 +93,7 @@
   in this series exports exactly one builder and no types.
 - Do not "deduplicate" the `observabilityResourceTypes` copy into a shared
   package in passing; the three-way mirror is a deliberate design decision
-  recorded in `docs/internal/design/package-restructure.md`.
+  recorded in #6053.
 
 ## Changes needing ADR review
 

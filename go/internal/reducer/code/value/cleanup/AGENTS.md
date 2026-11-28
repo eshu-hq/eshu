@@ -14,7 +14,6 @@ what this package owns and reuses from `code/taint` and `sharedintent`.
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/value/cleanup/README.md`
-- `docs/internal/design/reducer-target-tree.md`
 
 ## Invariants
 

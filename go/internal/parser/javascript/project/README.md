@@ -101,7 +101,5 @@ covers the file parse this resolution is part of.
 
 ## Related docs
 
-- `docs/internal/design/reducer-target-tree.md` ("Restack rule (the dirgate
-  ledger trap)") — why package moves like this one exist.
 - Sibling package `internal/parser/javascript/jsdataflow` — another leaf
   package extracted from the same root for the same file-count reason.

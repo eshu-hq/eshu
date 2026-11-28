@@ -2,7 +2,7 @@
 
 This page is for the engineers and agents who will build epic #9209. It maps
 the advisory pipeline onto real packages and symbols, shows where each work
-item in [Advisory Intelligence Phases](advisory-intelligence-phases.md) lands,
+item in the advisory intelligence roadmap lands,
 and groups the items into waves so that parallel work never edits the same
 files.
 

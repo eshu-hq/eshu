@@ -46,4 +46,3 @@ contract.
 
 - `go/internal/coordinator/registry/package/README.md`
 - `go/internal/coordinator/README.md`
-- `docs/internal/design/package-restructure.md`

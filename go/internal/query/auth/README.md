@@ -124,5 +124,3 @@ de-duplicating. Allow-list comparisons depend on it, so a change to its
 semantics is an authorization change.
 
 ## Related docs
-
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)

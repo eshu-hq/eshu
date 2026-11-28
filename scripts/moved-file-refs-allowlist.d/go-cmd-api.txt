@@ -25,7 +25,6 @@ go/internal/storage/postgres/evidence-notes.md:go/cmd/api/seed_initial_admin.go
 
 # Dated design records. Each rules on the tree as it stood; supersede,
 # never edit.
-docs/internal/design/6642-query-move-cost.md:go/cmd/api/wiring_router.go
 docs/internal/design/7766-repository-retirement-phase1-locking.md:go/cmd/api/main.go
 docs/internal/design/7766-repository-retirement.md:go/cmd/api/main.go
 
@@ -110,7 +109,6 @@ scripts/test-agent-hooks.sh:go/cmd/api/main.go
 # Frozen removal inventory: the G2 snapshot records the map byte-identical
 # at its final revision (parent of the #10890 removal); the relay tree the
 # comment names is gone by that record's own statement.
-scripts/lib/g2_snapshot_data.py:go/cmd/api/CUTOVER_OWNERSHIP.md
 # #11514 session-half move (go/cmd/api -> go/cmd/eshu-local-api): the
 # vacated paths below keep their historical or synthetic-fixture meaning,
 # so repointing them would falsify the record or change what the test

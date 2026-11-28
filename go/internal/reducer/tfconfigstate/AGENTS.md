@@ -15,7 +15,6 @@ reducer root in issue #6061 after hoisting its one blocking symbol
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/tfconfigstate/README.md`
-- `docs/internal/design/package-restructure.md`
 
 ## Invariants
 

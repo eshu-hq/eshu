@@ -267,3 +267,25 @@ printf '%s' "$w2_comment_only" >"${w2_repo}/go/internal/query/language_dsl_base.
 git -C "${w2_repo}" add . && git -C "${w2_repo}" commit -q -m 'committed comment-only change'
 printf '%s\nfunc languageQueryEntityType() {}\n' "$w2_comment_only" >"${w2_repo}/go/internal/query/language_dsl_base.go" # uncommitted extra edit
 expect_pass "${w2_repo}"
+
+# P1/P2: parser source comment-only edit (token-equal) is exempt from the
+# paired test+doc rule, while a real parser code edit without test+doc fails.
+parser_comment_repo="$(init_repo parser-comment-only)"
+mkdir -p "${parser_comment_repo}/go/internal/parser/golang"
+printf 'package golang\n\n// Old doc pointer.\nfunc Prescan() {}\n' \
+  >"${parser_comment_repo}/go/internal/parser/golang/compat.go"
+fixture_add_commit "${parser_comment_repo}" 'parser source baseline'
+printf 'package golang\n\n// Updated doc pointer.\nfunc Prescan() {}\n' \
+  >"${parser_comment_repo}/go/internal/parser/golang/compat.go"
+fixture_add_commit "${parser_comment_repo}" 'parser comment-only correction'
+expect_pass "${parser_comment_repo}"
+
+parser_code_repo="$(init_repo parser-code-only)"
+mkdir -p "${parser_code_repo}/go/internal/parser/golang"
+printf 'package golang\n\nfunc Prescan() {}\n' \
+  >"${parser_code_repo}/go/internal/parser/golang/compat.go"
+fixture_add_commit "${parser_code_repo}" 'parser source baseline'
+printf 'package golang\n\nfunc Prescan() { println("changed") }\n' \
+  >"${parser_code_repo}/go/internal/parser/golang/compat.go"
+fixture_add_commit "${parser_code_repo}" 'parser code change without test or doc'
+expect_fail "${parser_code_repo}"

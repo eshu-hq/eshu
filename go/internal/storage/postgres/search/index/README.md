@@ -72,8 +72,7 @@ returning a database error.
   needs to build the identical BM25 query to run it under `EXPLAIN`. That live
   test also needs root's own live-DB partition-proof helpers, which are
   private to root's `_test.go` files and cannot cross a package boundary, so
-  the test stays in root rather than moving here; see
-  `docs/internal/design/6693-postgres-target-tree/root.md`'s entry for it.
+  the test stays in root rather than moving here (#6693).
 - Do not import the parent `postgres` package from `store.go`. Leaves under
   `storage/postgres` must not depend on root (#6693), and root's in-package
   test `eshu_search_index_bm25_partition_live_test.go` imports this package,
@@ -82,7 +81,6 @@ returning a database error.
 ## Related docs
 
 - [Postgres storage](../../README.md)
-- [storage/postgres target tree](../../../../../../docs/internal/design/6693-postgres-target-tree.md)
 
 ## Verification
 

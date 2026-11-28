@@ -8,8 +8,6 @@
    exported surface.
 3. `go/internal/storage/postgres/db/contracts.go` -- the interfaces
    `ExecQueryer` satisfies.
-4. `docs/internal/design/6693-postgres-target-tree.md`, decision D6 -- why
-   the shared fake became a real package instead of staying test-file code.
 
 ## Invariants
 

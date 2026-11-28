@@ -82,6 +82,3 @@ stderr, which `Execute` streams straight through to the writers it was handed.
 ## Related docs
 
 - `go/cmd/eshu/scan.go` — the cobra wrapper and `defaultScanRuntime`
-- `docs/internal/design/package-restructure.md` — why `cmd/eshu` extracts to
-  `internal/cli/<family>` at all, and the `package main` constraint that shapes
-  `Runtime`

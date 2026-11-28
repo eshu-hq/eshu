@@ -27,7 +27,7 @@ series exports exactly one builder.
   `observabilityResourceSignals`. Adding a resource type to one copy without the
   other two silently changes which generations enqueue an intent. Do not
   "deduplicate" the mirror into a shared package — it is a recorded design
-  decision in `docs/internal/design/package-restructure.md`.
+  decision from #6053.
 - **This package keeps its own AWS decode.** `factschema_decode_aws.go` exists
   rather than importing root's `decodeAWSResource` wrapper, the same way
   `internal/projector/cloud/aws/ec2` and the sibling do: root already imports this package

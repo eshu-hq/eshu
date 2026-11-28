@@ -17,7 +17,6 @@ ownership boundary and exported surface.
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/cicdrun/README.md`
 - `go/internal/reducer/crossscope/README.md` (the cross-scope readiness floor `Handle` calls)
-- `docs/internal/design/package-restructure.md`
 - (#5709)
 
 ## Invariants

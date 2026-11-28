@@ -66,5 +66,5 @@
 // applyBootstrapDefinitions, so moving SQLDB without the lock implementation
 // would silently degrade bootstrap to unlocked DDL; the lock implementation
 // in turn shares unexported helpers and ledger types with root tests. See
-// docs/internal/design/storage-collector-tree.md for the recorded trap.
+// epic #6692 for the recorded trap.
 package db

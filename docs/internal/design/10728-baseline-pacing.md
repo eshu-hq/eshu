@@ -484,4 +484,4 @@ cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
   section "NOT_CHECKED", fifth bullet).
 
 Merge order lives in
-[10728-baseline-implementation-lanes.md](10728-baseline-implementation-lanes.md).
+#10728.

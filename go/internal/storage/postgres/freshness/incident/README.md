@@ -70,7 +70,6 @@ package's.
 ## Related docs
 
 - [Postgres storage](../../README.md)
-- [storage/postgres target tree](../../../../../../docs/internal/design/6693-postgres-target-tree.md)
 
 ## Verification
 

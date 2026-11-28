@@ -1,8 +1,7 @@
 # correlation
 
 The package correlation family: package-source (ownership), package-consumption,
-and package-publication correlation (issue #6061, step 1 of
-`docs/internal/design/reducer-target-tree.md`).
+and package-publication correlation (issue #6061).
 
 ## Ownership
 

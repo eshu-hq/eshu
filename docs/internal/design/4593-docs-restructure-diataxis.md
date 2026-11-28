@@ -13,7 +13,7 @@ product documentation system for humans, not a repository index or proof
 ledger.
 
 The approved direction is captured as a durable repo design asset:
-[4593-geteshu-docs-home-mockup.png](assets/4593-geteshu-docs-home-mockup.png).
+the initial #4593 homepage mockup (retired).
 The mockup defines the first-screen hierarchy, palette, navigation model, and
 audience focus for the #5012 implementation slice. Implementation PRs may adapt
 spacing and components to `mkdocs-material`, but should preserve this reader

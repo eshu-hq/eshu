@@ -45,7 +45,6 @@ read durable fact records itself — callers supply an already-resolved
   `Validate` over its own output, refuses to emit any bundle it ever redacted.
   `TestRedactReporterNote` asserts that fixed point per case.
 - `reporter_note` was NOT an overlooked field. The plan
-  (`docs/internal/design/4595-wrong-answer-report-capture-plan.md:203`)
   annotates it "key-name walked like everything else", which a bare string
   cannot be — it has no key names, and `reporter_note` matches nothing in the
   sensitive pattern. Treat any "covered by the general rule" annotation on a

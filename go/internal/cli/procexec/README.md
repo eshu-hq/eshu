@@ -95,7 +95,5 @@ replacement.
 ## Related
 
 - `go/cmd/eshu/AGENTS.md` — the wrapper-stays-thin rule this package serves
-- `docs/internal/design/package-restructure.md` — the `cmd/eshu` section, and
-  the `local_host`/`local_graph` supervisor cluster this extraction unblocks
 - `go/internal/cli/graphinstall`, `go/internal/cli/opdigest` — sibling
   extractions out of the same binary

@@ -16,7 +16,6 @@ without re-proving the cycle is gone.
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/codeintel/README.md`
-- `docs/internal/design/package-restructure.md`
 - `../evidence-5376-code-root-verdicts.md`, `../evidence-5494-route-liveness.md`,
   `../evidence-5500-lexical-scope-restriction.md`
 

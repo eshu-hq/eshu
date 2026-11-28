@@ -63,5 +63,3 @@ leading `Decode`/`Query` word, so nothing needed destuttering there. No
 decode behavior, error classification, or wrapped-error semantics changed.
 
 ## Related docs
-
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)

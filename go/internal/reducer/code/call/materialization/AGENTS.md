@@ -17,7 +17,6 @@ Ownership boundary sections for what this package owns and reuses from
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/call/materialization/README.md`
 - `go/internal/reducer/code/call/README.md` (the `codecall` sibling this package extracts through)
-- `docs/internal/design/reducer-target-tree.md`
 
 ## Invariants
 

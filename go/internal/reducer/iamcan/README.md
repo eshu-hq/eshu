@@ -156,5 +156,4 @@ executions that run these handlers stay covered by
 ## Related docs
 
 - [Reducer package](../README.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)

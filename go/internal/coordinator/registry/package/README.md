@@ -96,5 +96,4 @@ inherits its reconcile metrics, workflow rows, claim status, and
 - `go/internal/coordinator/planner/contract/README.md`
 - `go/internal/projector/package/README.md` (the directory-name-vs-package-name
   precedent)
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

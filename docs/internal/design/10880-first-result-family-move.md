@@ -334,7 +334,7 @@ binary still trying the old path.
   rewrites the winner row (proof:
   `TestSupplyChainImpactWinnersResweepPayloadCarriedLive`). The staged
   audit cannot see an evidence-only rewrite under one fact id; only
-  the writer capture guards it ([limits](10880-pr-a-review-limits.md)).
+  the writer capture guards it (see #10880).
   The stored payload bakes in the operator suppression object; readers
   rewrite only the effective state. Telemetry: no new instrument (resweep
   counts now include payload rewrites;

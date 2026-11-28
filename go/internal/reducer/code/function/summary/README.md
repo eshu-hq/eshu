@@ -122,7 +122,6 @@ the graph gate; this handler never emits it.
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/code/function/README.md` — the `function/` namespace parent
 - `go/internal/reducer/code/value/README.md` — the value-flow fixpoint sibling this package's projector calls into
-- `docs/internal/design/reducer-target-tree.md` — the #6061 restructure
 
 Issue #6923 changed this package's runtime behavior again after the move
 above: the inline fixpoint solve was removed and the handler's ACK became a

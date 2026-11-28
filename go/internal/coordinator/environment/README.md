@@ -55,5 +55,4 @@ runtime telemetry exists.
 - `go/internal/coordinator/README.md`
 - `go/internal/coordinator/config.go`
 - `go/internal/coordinator/semantic/provider_config.go`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

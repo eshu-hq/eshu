@@ -108,6 +108,5 @@ metric names, same emission sites, only the package that owns the code moved.
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `docs/internal/design/package-restructure.md` — the #6061 restructure and this move's no-regression evidence
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for this domain
 - `go/internal/correlation/drift/tfconfigstate/doc.go` — the candidate-building package this handler calls through (shares this package's name; do not confuse the two)

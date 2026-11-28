@@ -77,4 +77,3 @@ contracts, while root projector assembly remains its only production caller.
 - [Projector architecture](../../README.md)
 - [Intent contract](../../intent/README.md)
 - [PagerDuty evidence](../../../../../docs/public/reference/pagerduty-evidence.md)
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

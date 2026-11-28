@@ -41,4 +41,3 @@ contract.
 
 - `go/internal/coordinator/security/alert/README.md`
 - `go/internal/coordinator/README.md`
-- `docs/internal/design/package-restructure.md`

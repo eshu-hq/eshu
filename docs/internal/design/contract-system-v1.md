@@ -5,8 +5,6 @@ Status: proposed design, epic tracked on GitHub (`type:epic`,
 Audience: maintainers and implementing agents.
 Companion contributor summary:
 [Contract System Contributor Summary](../contract-system-contributor-summary.md).
-Background analysis: [Architecture Review 2026-07](../architecture-review-2026-07.md).
-
 ## 1. Problem
 
 Eshu's collector ↔ reducer boundary is versioned down to the fact envelope and

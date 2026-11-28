@@ -62,6 +62,5 @@ claim status, and duplicate-admission logs expose durable progress.
 
 ## Related docs
 
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`
 - `docs/public/observability/telemetry-coverage.md`

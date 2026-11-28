@@ -42,7 +42,7 @@ The advisory lock (`SQLDB.withSchemaBootstrapLock`, the session `Locker`),
 the migration ledger, and `applyTrackedDefinitions` remain in
 `go/internal/storage/postgres`: the root asserts a package-private locker
 contract on `SQLDB`, and moving the lock implementation out would silently
-degrade bootstrap to unlocked DDL (see `docs/internal/design/storage-collector-tree.md`).
+degrade bootstrap to unlocked DDL (see #6692).
 This package imports only the standard library, pgx's `pgconn` error type,
 and `internal/telemetry`, so the dependency runs root -> coordination only.
 

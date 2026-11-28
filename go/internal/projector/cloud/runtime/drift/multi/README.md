@@ -90,7 +90,6 @@ This package emits no signal directly. Root intent enqueue remains covered by `e
 - [Projector architecture](../../../../README.md)
 - [Intent contract](../../../../intent/README.md)
 - [Reducer multi-cloud-runtime-drift architecture](../../../../../reducer/multi-cloud-runtime-drift.md)
-- [Package restructure](../../../../../../../docs/internal/design/package-restructure.md)
 
 During the earlier #6057 extraction, the family's private
 `multiCloudRuntimeDriftSourceSystem` helper was compared

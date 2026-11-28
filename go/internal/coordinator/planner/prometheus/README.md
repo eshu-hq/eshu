@@ -56,5 +56,4 @@ partition.
 ## Related docs
 
 - `go/internal/coordinator/README.md`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

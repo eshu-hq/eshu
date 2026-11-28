@@ -57,5 +57,4 @@ logs, and `/api/v0/index-status` surface.
 - `go/internal/coordinator/README.md`
 - `go/internal/coordinator/cicd/README.md`
 - `go/internal/coordinator/planner/contract/README.md`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`
