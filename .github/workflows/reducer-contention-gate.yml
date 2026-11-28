@@ -365,7 +365,7 @@ jobs:
         # WinnersDetoast adds the #11120 single-detoast field-equivalence proof;
         # WinnersFullChunked adds the #9805 chunked-full vs legacy differential;
         # WinnersStoredOnly adds the #9805 stored-arm overlap convergence proof;
-        # WinnersUnlessCurrent adds the #9805 v4 healing-full proof;
+        # WinnersUnlessCurrent adds the #9805 v4-run/v5-skip healing-full proof;
         # WinnersDeadKey adds the #9805 dead-key by residual-mark proof;
         # WinnersDeadOnly adds the #9805 dead-only chunk timing proof;
         # WinnersFullEnumeration adds the #9805 old-vs-new enumeration EXPLAIN;

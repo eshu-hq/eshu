@@ -214,7 +214,7 @@ var winnersFullChunkSelectSQL = `WITH active_facts AS (SELECT * FROM ` + winners
 // applyWinnersFullChunkBodySQL recomputes one chunk's winners and writes only
 // the rows that are new or changed, and deletes stored winners of the chunk's
 // identifier set that the chunk no longer produces. It is the keyed apply
-// body with the select swapped to the chunk's fact_records select; the
+// body with the select swapped to the chunk's supports select; the
 // changed/upserted/deleted shape and the row comparison are untouched, so one
 // edit cannot move the chunk apply off the keyed contract.
 var applyWinnersFullChunkBodySQL = func() string {
