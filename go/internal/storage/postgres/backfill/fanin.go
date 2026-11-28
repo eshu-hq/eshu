@@ -373,7 +373,8 @@ func (s Store) publishDeferredBackfillPartition(
 	if s.NewPhaseStore == nil {
 		return deferredFanInOutcome{}, fmt.Errorf("phase store constructor is required for deferred backfill readiness publication")
 	}
-	if err := s.NewPhaseStore(tx).PublishGraphProjectionPhases(
+	phaseStore := s.NewPhaseStore(tx)
+	if err := phaseStore.PublishGraphProjectionPhases(
 		ctx, []gpphase.PhaseState{phaseRow},
 	); err != nil {
 		return deferredFanInOutcome{}, fmt.Errorf("publish backward evidence readiness: %w", err)
@@ -410,6 +411,11 @@ func (s Store) publishDeferredBackfillPartition(
 		return deferredFanInOutcome{}, fmt.Errorf("commit deferred backfill readiness transaction: %w", err)
 	}
 	committed = true
+	// #11624: the publish's in-tx wakes held their requeue counts until this
+	// commit; a rollback above never reaches here, so it counts nothing.
+	if hook, ok := phaseStore.(PostCommitHook); ok {
+		hook.AfterCommit(ctx)
+	}
 	// #11104: re-wake after the commit. The in-tx wake ran before a waiter
 	// that parked inside this transaction's window had a wait row, and that
 	// waiter's park-time check could not see the uncommitted phase.

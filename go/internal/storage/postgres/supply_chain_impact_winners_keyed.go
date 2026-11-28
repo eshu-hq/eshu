@@ -227,12 +227,14 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	// the coarse range scan stays inside the provider transaction. A tick that
 	// lost the claim consumed and stamped nothing and returns before this
 	// point, so there is never a wake without its stamp.
-	if err := s.wakeWinnersWaits(ctx, tx, result.Watermark); err != nil {
+	wakeCtx, deferredRequeues := deferWakeRequeues(ctx) // #11624: count at commit.
+	if err := s.wakeWinnersWaits(wakeCtx, tx, result.Watermark); err != nil {
 		return none, err
 	}
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseCommit, tx.Commit); err != nil {
 		return none, fmt.Errorf("commit supply chain impact winners keyed resweep: %w", err)
 	}
+	deferredRequeues.flush(ctx, s.Instruments)
 	return result, nil
 }
 

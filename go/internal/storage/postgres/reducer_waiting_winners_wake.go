@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -132,10 +133,9 @@ func wakeWinnersWatermark(
 		outcome = telemetry.WaitingWakeOutcomeReopened
 	}
 	recordWaitingWake(ctx, instruments, site, outcome)
-	// #11615: same writer-level emission as wakeWaitingByKey (see its
-	// comment): the reopened count is the transitioned count, and the two
-	// sibling counters stay comparable.
-	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonWaitingWake, reopenedCount)
+	// #11615, #11624: same deferral as wakeWaitingByKey: the reopened count is
+	// the transitioned count, emitted at the owning transaction's commit.
+	recordWaitingWakeRequeue(ctx, instruments, reopenedCount)
 	return reopenedCount, nil
 }
 
@@ -150,4 +150,63 @@ func recordWaitingWake(ctx context.Context, instruments *telemetry.Instruments, 
 		telemetry.AttrWaitingWakeSite(site),
 		telemetry.AttrOutcome(outcome),
 	))
+}
+
+// The waiting-wake requeue counter (#11615, #11624) counts rows that left the
+// waiting set-aside, and its contract says a rolled-back transaction must not
+// count. A wake runs inside several caller-owned transactions (the projector
+// Ack, the relationship activation, the winners watermark tick, the backfill
+// readiness publish), so the wake itself cannot know when its transaction
+// commits. The transaction owner opens a deferral with deferWakeRequeues,
+// runs its wakes on the returned context, and calls flush only after Commit
+// succeeds; a rollback drops the deferral and the counter never moves.
+//
+// A wake on a context with no deferral is an autocommit statement and emits
+// at once. The sibling outcome counter (eshu_dp_reducer_waiting_wake_total)
+// is deliberately not deferred: it counts statements, so it still records a
+// wake whose transaction later rolled back, and the two counters diverge by
+// exactly the rolled-back wakes.
+
+// deferredWakeRequeuesKey is the context key of one transaction's deferral.
+type deferredWakeRequeuesKey struct{}
+
+// deferredWakeRequeues accumulates the reopened-row count of one transaction's
+// wakes until its owner reports the commit. It is safe for concurrent use.
+type deferredWakeRequeues struct {
+	pending atomic.Int64
+}
+
+// deferWakeRequeues opens a deferral for one transaction and returns the
+// context its wakes must run on.
+func deferWakeRequeues(ctx context.Context) (context.Context, *deferredWakeRequeues) {
+	deferred := &deferredWakeRequeues{}
+	return withDeferredWakeRequeues(ctx, deferred), deferred
+}
+
+// withDeferredWakeRequeues attaches an existing deferral to ctx.
+func withDeferredWakeRequeues(ctx context.Context, deferred *deferredWakeRequeues) context.Context {
+	return context.WithValue(ctx, deferredWakeRequeuesKey{}, deferred)
+}
+
+// flush emits the accumulated count and resets it, so a second flush is a
+// no-op. Call it only after the owning transaction committed.
+func (d *deferredWakeRequeues) flush(ctx context.Context, instruments *telemetry.Instruments) {
+	if d == nil {
+		return
+	}
+	emitWaitingWakeRequeue(ctx, instruments, d.pending.Swap(0))
+}
+
+// recordWaitingWakeRequeue counts the rows one wake statement reopened: it
+// joins the transaction's deferral when ctx carries one and emits at once
+// otherwise (the statement was its own commit).
+func recordWaitingWakeRequeue(ctx context.Context, instruments *telemetry.Instruments, reopened int64) {
+	if reopened <= 0 {
+		return
+	}
+	if deferred, ok := ctx.Value(deferredWakeRequeuesKey{}).(*deferredWakeRequeues); ok && deferred != nil {
+		deferred.pending.Add(reopened)
+		return
+	}
+	emitWaitingWakeRequeue(ctx, instruments, reopened)
 }

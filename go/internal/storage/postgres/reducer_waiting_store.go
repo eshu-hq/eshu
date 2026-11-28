@@ -343,14 +343,23 @@ func wakeWaitingByKey(
 		outcome = telemetry.WaitingWakeOutcomeReopened
 	}
 	recordWaitingWake(ctx, instruments, site, outcome)
-	// #11615: every woken row exited the set-aside (wait row deleted,
+	// #11615, #11624: every woken row exited the set-aside (wait row deleted,
 	// visible_at advanced) and became claimable without a status change, so
-	// the reopened count is the transitioned count. This
-	// emits at the same level as the sibling waiting-wake outcome counter
-	// above: a caller-owned transaction that rolls back after the wake
-	// overcounts both counters equally, and the two stay comparable.
-	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonWaitingWake, reopenedCount)
+	// the reopened count is the transitioned count. A caller-owned
+	// transaction defers the count to its commit (see deferWakeRequeues); an
+	// autocommit wake emits here. The outcome counter above stays
+	// statement-level.
+	recordWaitingWakeRequeue(ctx, instruments, reopenedCount)
 	return reopenedCount, clearedCount, nil
+}
+
+// emitWaitingWakeRequeue records reopened rows on the requeue counter under
+// the waiting_wake reason. It is the single writer of that counter for the
+// waiting wakes and must run only for committed rows: autocommit wakes call
+// it through recordWaitingWakeRequeue, transaction owners through
+// deferredWakeRequeues.flush after Commit.
+func emitWaitingWakeRequeue(ctx context.Context, instruments *telemetry.Instruments, reopened int64) {
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonWaitingWake, reopened)
 }
 
 // producerTerminalParkDomains resolves the producer domains a cross-scope

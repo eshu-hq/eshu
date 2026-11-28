@@ -130,7 +130,10 @@ func (q ProjectorQueue) Ack(
 	// for terminal waits in the same transaction so the maintenance victims
 	// reopen here instead of waiting out the audit. In-tx, so a failure
 	// still rolls back and returns: nothing committed yet.
-	if err := wakeTerminalGenerationActiveWaits(ctx, tx, q.Instruments, WaitingWakeSiteInTx, now); err != nil {
+	// #11624: the waiting-wake requeue counts of both in-tx wakes wait for
+	// the commit below (wakeCtx carries the deferral).
+	wakeCtx, deferredRequeues := deferWakeRequeues(ctx)
+	if err := wakeTerminalGenerationActiveWaits(wakeCtx, tx, q.Instruments, WaitingWakeSiteInTx, now); err != nil {
 		return fmt.Errorf("ack projector work: superseded generation waits: %w", err)
 	}
 	var activated bool
@@ -159,13 +162,14 @@ func (q ProjectorQueue) Ack(
 	// generation_active waits for this scope generation and the
 	// producer-terminal waits for the producer domains this scope kind
 	// publishes, in the same transaction (see wakeAckActivationWaits).
-	if err := wakeAckActivationWaits(ctx, tx, q.Instruments, WaitingWakeSiteInTx, work, now); err != nil {
+	if err := wakeAckActivationWaits(wakeCtx, tx, q.Instruments, WaitingWakeSiteInTx, work, now); err != nil {
 		return fmt.Errorf("ack projector work: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("ack projector work: commit: %w", err)
 	}
 	txDone = true
+	deferredRequeues.flush(ctx, q.Instruments)
 	// #11228: a waiter that parked inside this transaction's open window
 	// (its park re-check could not see the uncommitted activation, and the
 	// in-tx wakes above ran before its wait row committed) is reopened here.

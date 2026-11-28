@@ -416,7 +416,9 @@ func (s *RelationshipStore) activateWithConsumerWake(
 		fmt.Sprintf("%dms", timeout.Milliseconds())); err != nil {
 		return 0, fmt.Errorf("activation wake: set lock timeout: %w", err)
 	}
-	woken, err := s.lockAndWake(ctx, tx, scopeID, generationID, now)
+	// #11624: the waiting-wake requeue count waits for the commit below.
+	wakeCtx, deferredRequeues := deferWakeRequeues(ctx)
+	woken, err := s.lockAndWake(wakeCtx, tx, scopeID, generationID, now)
 	if err != nil {
 		recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, telemetry.OwnGateWakeOutcomeError)
 		return 0, classifyActivationError(err)
@@ -426,6 +428,7 @@ func (s *RelationshipStore) activateWithConsumerWake(
 		return 0, classifyActivationError(err)
 	}
 	committed = true
+	deferredRequeues.flush(ctx, s.instruments)
 	recordOwnGateWake(ctx, s.instruments, telemetry.OwnGateWakeSiteActivation, wakeOutcome(woken))
 	if n := woken; n > 0 {
 		slog.Default().InfoContext(ctx, "relationship generation activation reopened own-gate consumers",

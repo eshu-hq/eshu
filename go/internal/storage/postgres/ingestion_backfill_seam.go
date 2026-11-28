@@ -32,6 +32,9 @@ import (
 // backfillStore, and the commit-path orchestration the engine was extracted
 // from lives here. It holds no engine logic itself.
 
+// The root phase store must satisfy the engine's post-commit hook (#11624).
+var _ backfill.PostCommitHook = (*GraphProjectionPhaseStateStore)(nil)
+
 // backfillStore builds the deferred-backfill engine's Store from this store's
 // shared handles, supplying the two seams the engine must not import from the
 // parent package: the catalog loader and the evidence-store constructor. Every
@@ -54,6 +57,9 @@ func (s IngestionStore) backfillStore() backfill.Store {
 		NewPhaseStore: func(tx db.Transaction) backfill.PhaseStore {
 			store := NewGraphProjectionPhaseStateStore(tx)
 			store.Instruments = s.Instruments
+			// #11624: the store runs over the engine's transaction, so its
+			// waiting-wake requeue counts wait for the engine's AfterCommit.
+			store.DeferWakeRequeues()
 			return store
 		},
 		WakePhaseWaitsAfterCommit: func(ctx context.Context, rows []gpphase.PhaseState) {

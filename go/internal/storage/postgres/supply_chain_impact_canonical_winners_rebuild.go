@@ -283,13 +283,15 @@ func (s SupplyChainImpactWinnersStore) resweepFull(
 	// carries the committed watermark, not the stamp ceiling; the waiting set
 	// is narrow (advisory only) and the maintainer commits on a 30-second
 	// cadence, inside the measured coarse-wake budget.
-	if _, err := wakeWinnersWatermark(ctx, tx, s.Instruments, WaitingWakeSiteInTx,
+	wakeCtx, deferredRequeues := deferWakeRequeues(ctx) // #11624: count at commit.
+	if _, err := wakeWinnersWatermark(wakeCtx, tx, s.Instruments, WaitingWakeSiteInTx,
 		result.Watermark, time.Now().UTC()); err != nil {
 		return none, fmt.Errorf("wake winners waiting items: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return none, fmt.Errorf("commit supply chain impact winners resweep: %w", err)
 	}
+	deferredRequeues.flush(ctx, s.Instruments)
 	return result, nil
 }
 

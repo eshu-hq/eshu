@@ -31,6 +31,11 @@
   committed. Do not move the re-wake into the transaction: the in-tx exact
   wake already runs there, and a waiter that parks inside the open window is
   reopened only by the post-commit call.
+- **Post-commit hook (#11624)** — a `PhaseStore` that also implements
+  `PostCommitHook` gets `AfterCommit` once, after the partition's commit
+  succeeded (`TestFanInPostCommitHookRunsAfterCommitOnly`). The root phase
+  store holds its waiting-wake requeue counts until then, so a rolled-back
+  partition never counts. Call it only after `Commit`.
 - **Partition-keyed publication** — one readiness row and one memo row per
   distinct (scope, generation) partition, never per repository or per
   batch. The hermetic dupkey tests pin this without a database; the live

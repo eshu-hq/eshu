@@ -98,6 +98,26 @@ type GraphProjectionPhaseStateStore struct {
 	// transaction when the caller passes one (the backfill seam does), as a
 	// following statement otherwise.
 	Instruments *telemetry.Instruments
+	// deferred, when set by DeferWakeRequeues, holds the waiting-wake requeue
+	// count of this store's wakes until the transaction owner calls
+	// AfterCommit (#11624). Nil means the store wakes on autocommit and the
+	// count is emitted at statement time.
+	deferred *deferredWakeRequeues
+}
+
+// DeferWakeRequeues marks the store as running over a caller-owned
+// transaction: its waiting-wake requeue counts wait for AfterCommit, so a
+// rolled-back transaction counts nothing (#11624). Call it once, before
+// Upsert, on a store built over a transaction.
+func (s *GraphProjectionPhaseStateStore) DeferWakeRequeues() {
+	s.deferred = &deferredWakeRequeues{}
+}
+
+// AfterCommit emits the requeue counts Upsert deferred. The transaction owner
+// calls it after Commit succeeded; an owner that rolled back must not. It is
+// a no-op for a store that never deferred and when called twice.
+func (s *GraphProjectionPhaseStateStore) AfterCommit(ctx context.Context) {
+	s.deferred.flush(ctx, s.Instruments)
 }
 
 // NewGraphProjectionPhaseStateStore constructs a store backed by the provided
@@ -121,6 +141,9 @@ func (s *GraphProjectionPhaseStateStore) EnsureSchema(ctx context.Context) error
 func (s *GraphProjectionPhaseStateStore) Upsert(ctx context.Context, rows []gpphase.PhaseState) error {
 	if len(rows) == 0 {
 		return nil
+	}
+	if s.deferred != nil {
+		ctx = withDeferredWakeRequeues(ctx, s.deferred)
 	}
 
 	for i := 0; i < len(rows); i += graphProjectionPhaseStateBatchSize {

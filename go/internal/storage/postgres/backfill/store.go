@@ -35,6 +35,16 @@ type PhaseStore interface {
 	PublishGraphProjectionPhases(ctx context.Context, rows []gpphase.PhaseState) error
 }
 
+// PostCommitHook is an optional PhaseStore extension (#11624): a store that
+// held side effects until its transaction committed implements it, and the
+// engine calls AfterCommit exactly once after a successful Commit. It is never
+// called for a rolled-back transaction, which is how the store's deferred
+// requeue counts are dropped. *postgres.GraphProjectionPhaseStateStore
+// satisfies it.
+type PostCommitHook interface {
+	AfterCommit(ctx context.Context)
+}
+
 // CatalogLoader loads the deduplicated repository identity catalog plus each
 // kept entry's observed_at. It is the seam through which the engine reaches
 // the root catalog loader without importing the parent postgres package: the
