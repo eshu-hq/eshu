@@ -84,6 +84,102 @@ collect_dirs() {
 	done < <(go_dirs "$@")
 }
 
+# nested_module_roots prints the repo-relative roots of nested Go modules under
+# go/ (every directory holding a go.mod except go/ itself). Modules at or under
+# a testdata/ component are intentionally-uncompilable fixtures and keep
+# today's main-module behavior (the parent tool cannot resolve nested packages
+# anyway, so routing fixtures into their own module would newly lint them).
+nested_module_roots() {
+	local mod d
+	while IFS= read -r mod; do
+		d="${mod%/go.mod}"
+		d="${d#./}"
+		case "${d}" in
+			""|".") continue ;;
+			testdata|testdata/*|*/testdata|*/testdata/*) continue ;;
+		esac
+		printf 'go/%s\n' "${d}"
+	done < <(cd "${go_dir}" && find . -path '*/testdata/*' -prune -o -name go.mod -print | sort)
+}
+
+# ensure_nested_roots fills the global nested_roots array once per process. It
+# is also the shared source for the gosec arms in
+# scripts/lib/precommit-go-gosec.sh (see that file's caller-provides list).
+ensure_nested_roots() {
+	if [[ -n "${nested_roots_init:-}" ]]; then
+		return 0
+	fi
+	nested_roots=()
+	local r
+	while IFS= read -r r; do
+		[[ -n "${r}" ]] && nested_roots+=("${r}")
+	done < <(nested_module_roots)
+	nested_roots_init=1
+}
+
+# run_lint_packages runs one golangci-lint `run` over main_dirs from go/ and
+# each nested_runs entry from its own root. Both lint entrypoints share it, so
+# the runner flags stay in one place (count pinned by
+# scripts/test-pre-pr-whole-module-gates.sh). Non-zero when any run fails.
+run_lint_packages() {
+	local spec status=0
+	if [[ ${#main_dirs[@]} -gt 0 ]]; then
+		( cd "${go_dir}" && run_golangci "${bin}" run --allow-parallel-runners --config "${cfg}" "${main_dirs[@]}" ) || status=1
+	fi
+	for spec in ${nested_runs[@]+"${nested_runs[@]}"}; do
+		( cd "${repo_root}/${spec%%|*}" && run_golangci "${bin}" run --allow-parallel-runners --config "${cfg}" "${spec#*|}" ) || status=1
+	done
+	return "${status}"
+}
+
+# partition_dirs splits collect_dirs' `dirs` into main_dirs (served from go/ as
+# before) and nested_runs ("<modroot>|<subpkg>" per nested-module package;
+# subpkg "." when the changed package IS the module root). The parent tool
+# cannot resolve nested packages — golangci typechecks them as missing yet
+# exits 0, and `go list` resolves them to zero files — so each nested entry
+# runs as ( cd <modroot> && <tool> <subpkg> ). Longest-prefix match wins;
+# entries dedupe so two files in one package lint it once.
+partition_dirs() {
+	ensure_nested_roots
+	main_dirs=()
+	nested_runs=()
+	local d gorel r rest root sub entry e seen
+	for d in ${dirs[@]+"${dirs[@]}"}; do
+		gorel="${d#./}"
+		root=""
+		for r in ${nested_roots[@]+"${nested_roots[@]}"}; do
+			rest="${r#go/}"
+			if [[ "${gorel}" == "${rest}" || "${gorel}" == "${rest}/"* ]]; then
+				if [[ "${#r}" -gt "${#root}" ]]; then
+					root="${r}"
+				fi
+			fi
+		done
+		if [[ -z "${root}" ]]; then
+			main_dirs+=("${d}")
+			continue
+		fi
+		sub="${gorel#"${root#go/}"}"
+		sub="${sub#/}"
+		if [[ -z "${sub}" ]]; then
+			sub="."
+		else
+			sub="./${sub}"
+		fi
+		entry="${root}|${sub}"
+		seen=0
+		for e in ${nested_runs[@]+"${nested_runs[@]}"}; do
+			if [[ "${e}" == "${entry}" ]]; then
+				seen=1
+				break
+			fi
+		done
+		if [[ "${seen}" -eq 0 ]]; then
+			nested_runs+=("${entry}")
+		fi
+	done
+}
+
 # go_install_tool installs one pinned tool binary into the shared tool cache.
 #
 # The `env -u GOROOT` is load-bearing, not defensive noise. When go.mod's `go`
@@ -184,8 +280,15 @@ case "${cmd}" in
 		[[ ${#dirs[@]} -gt 0 ]] || exit 0
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && run_golangci "${bin}" fmt --diff --config "${cfg}" "${dirs[@]}" ) \
-			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
+		partition_dirs
+		if [[ ${#main_dirs[@]} -gt 0 ]]; then
+			( cd "${go_dir}" && run_golangci "${bin}" fmt --diff --config "${cfg}" "${main_dirs[@]}" ) \
+				|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
+		fi
+		for spec in ${nested_runs[@]+"${nested_runs[@]}"}; do
+			( cd "${repo_root}/${spec%%|*}" && run_golangci "${bin}" fmt --diff --config "${cfg}" "${spec#*|}" ) \
+				|| die "gofumpt formatting differences — run: cd ${spec%%|*} && golangci-lint fmt"
+		done
 		;;
 	lint)
 		# Report how many packages were linted before doing it. `lint` with no
@@ -198,8 +301,8 @@ case "${cmd}" in
 		[[ ${#dirs[@]} -gt 0 ]] || exit 0
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && run_golangci "${bin}" run \
-			--allow-parallel-runners --config "${cfg}" "${dirs[@]}" )
+		partition_dirs
+		run_lint_packages
 		;;
 	filecap)
 		# 500-line cap (the filelength plugin's job), changed-files variant: the
@@ -266,20 +369,32 @@ case "${cmd}" in
 		ESHU_TELEMETRY_COVERAGE_BASE="${base}" "${repo_root}/scripts/verify-telemetry-coverage.sh"
 		;;
 	lint-all)
-		# Whole-module golangci-lint (./...), not just changed packages. Catches
-		# cross-package consequences a changed-package run misses — e.g. code that
-		# becomes unused when a sibling package stops referencing it. Used by the
-		# pre-pr gate to mirror CI's "Lint Go" step.
+		# Whole-module golangci-lint (./...), not just changed packages (catches
+		# cross-package consequences a changed-package run misses). Each nested
+		# module root gets its own ./... pass from inside that root: the parent
+		# ./... cannot see nested modules.
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && run_golangci "${bin}" run \
-			--allow-parallel-runners --config "${cfg}" ./... )
+		main_dirs=("./...")
+		nested_runs=()
+		ensure_nested_roots
+		for nroot in ${nested_roots[@]+"${nested_roots[@]}"}; do
+			nested_runs+=("${nroot}|./...")
+		done
+		run_lint_packages
 		;;
 	fmt-all)
 		bin="$(ensure_golangci)"
 		cfg="$(stripped_config)"
-		( cd "${go_dir}" && run_golangci "${bin}" fmt --diff --config "${cfg}" ./... ) \
-			|| die "gofumpt formatting differences — run: cd go && golangci-lint fmt"
+		fmt_all_status=0
+		( cd "${go_dir}" && run_golangci "${bin}" fmt --diff --config "${cfg}" ./... ) || fmt_all_status=1
+		ensure_nested_roots
+		for nroot in ${nested_roots[@]+"${nested_roots[@]}"}; do
+			( cd "${repo_root}/${nroot}" && run_golangci "${bin}" fmt --diff --config "${cfg}" ./... ) || fmt_all_status=1
+		done
+		if [[ "${fmt_all_status}" -ne 0 ]]; then
+			die "gofumpt formatting differences — run: cd go && golangci-lint fmt (nested modules: cd <modroot> && golangci-lint fmt)"
+		fi
 		;;
 	filecap-skip)
 		# Answers one question and nothing else: does the bash side skip this
@@ -308,9 +423,11 @@ case "${cmd}" in
 	gosec-all)
 		# Whole-module gosec (./...), the same scope as security-scan.yml's
 		# authoritative scan. Kept as a manual command; the registry row runs gosec-changed.
+		# Each nested module root gets its own ./... pass from inside that root.
 		# shellcheck source=../lib/precommit-go-gosec.sh
 		source "${script_root}/scripts/lib/precommit-go-gosec.sh"
-		run_gosec gosec-all ./...
+		ensure_nested_roots
+		run_gosec_all gosec-all
 		;;
 	govulncheck)
 		# Whole-module govulncheck against the Go vulnerability database,

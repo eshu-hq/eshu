@@ -39,7 +39,8 @@
 # both commits when one ships (#11243).
 #
 # The caller (precommit-go.sh) provides: repo_root, go_dir, worktree_cache_dir,
-# ensure_gosec, collect_dirs (fills the global `dirs`), note and die.
+# ensure_gosec, collect_dirs (fills the global `dirs`), ensure_nested_roots
+# (fills the global nested_roots), note and die.
 
 # gosec_log is read by gosec_fail to print the tail of the scan log.
 gosec_log=""
@@ -55,8 +56,8 @@ gosec_fail() {
 	exit "${code}"
 }
 
-# run_gosec <label> <pattern...> runs the pinned gosec from go/ and exits
-# non-zero unless it produced a complete, parsable, error-free result that
+# run_gosec <label> <pattern...> runs the pinned gosec from the module root and
+# exits non-zero unless it produced a complete, parsable, error-free result that
 # scanned exactly the files `go list` reports, with no findings. The repo's gosec
 # runs with tests excluded (gosec's default), so the expected files are the
 # package GoFiles and CgoFiles, never _test.go files.
@@ -64,27 +65,32 @@ gosec_fail() {
 # Patterns are expanded with `go list` and every package is passed to gosec as an
 # explicit ./<dir>/, never ./...: that keeps gosec's file set equal to go list's
 # (gosec's own ./... walk also enters testdata dirs, which Go ignores).
+#
+# The module root is ${gosec_mod_dir:-${go_dir}}: the main go/ module by
+# default, or one nested module root (see run_gosec_all) when the caller scans
+# packages the parent module cannot resolve.
 run_gosec() {
 	local label="$1" bin out status=0 files expected=0 n_pkgs=0 n_err n_find n_dirs p
 	local listing dir files_str rel nf pat final=() whole=0
+	local mod_dir="${gosec_mod_dir:-${go_dir}}"
 	shift
 	for p in "$@"; do
 		case "${p}" in
-			/*) gosec_fail 1 "gosec: absolute pattern ${p} refused; patterns are relative to go/" ;;
+			/*) gosec_fail 1 "gosec: absolute pattern ${p} refused; patterns are relative to the module root" ;;
 			./...) whole=1 ;;
 		esac
 	done
 	command -v jq >/dev/null 2>&1 || die "gosec: jq is required to read gosec results"
-	[[ -f "${go_dir}/go.mod" ]] || gosec_fail 1 "gosec: must run from the module root go/ (gosec resolves patterns from the CWD but lists from the module root)"
-	listing="$(cd "${go_dir}" && go list -e -find -f '{{.Dir}}|{{join .GoFiles " "}} {{join .CgoFiles " "}}' "$@")" \
+	[[ -f "${mod_dir}/go.mod" ]] || gosec_fail 1 "gosec: must run from the module root ${mod_dir} (gosec resolves patterns from the CWD but lists from the module root)"
+	listing="$(cd "${mod_dir}" && go list -e -find -f '{{.Dir}}|{{join .GoFiles " "}} {{join .CgoFiles " "}}' "$@")" \
 		|| gosec_fail 1 "gosec: go list failed for: $*"
 	while IFS='|' read -r dir files_str; do
 		[[ -n "${dir}" ]] || continue
 		local farr=(${files_str})
 		nf=${#farr[@]}
 		[[ ${nf} -gt 0 ]] || continue
-		rel="${dir#"${go_dir}"/}"
-		[[ "${dir}" == "${go_dir}" ]] && rel="."
+		rel="${dir#"${mod_dir}"/}"
+		[[ "${dir}" == "${mod_dir}" ]] && rel="."
 		expected=$((expected + nf))
 		n_pkgs=$((n_pkgs + 1))
 		pat="./${rel}/"
@@ -106,11 +112,11 @@ run_gosec() {
 	fi
 	rm -f "${out}" "${gosec_log}" ${sarif_out:+"${sarif_out}"}
 	# -fmt=json carries `Golang errors` and `Stats`; SARIF carries neither.
-	( cd "${go_dir}" || exit 97
-	  [[ -f go.mod && "$(pwd -P)" == "$(cd "${go_dir}" && pwd -P)" ]] || exit 97
+	( cd "${mod_dir}" || exit 97
+	  [[ -f go.mod && "$(pwd -P)" == "$(cd "${mod_dir}" && pwd -P)" ]] || exit 97
 	  "${bin}" -severity=low -confidence=low -no-fail -fmt=json -out "${out}" "${final[@]}" >"${gosec_log}" 2>&1 ) || status=$?
 	if [[ "${status}" -eq 97 ]]; then
-		gosec_fail 1 "gosec: must run from the module root go/ (gosec resolves patterns from the CWD but lists from the module root)"
+		gosec_fail 1 "gosec: must run from the module root ${mod_dir} (gosec resolves patterns from the CWD but lists from the module root)"
 	elif [[ "${status}" -eq 143 ]]; then
 		gosec_fail 143 "gosec exited 143 (SIGTERM) before writing results; rerun make pre-push"
 	elif [[ "${status}" -ne 0 ]]; then
@@ -143,6 +149,35 @@ run_gosec() {
 	printf 'gosec (%s): %s file(s) scanned in %s package(s), no findings\n' "${label}" "${files}" "${n_pkgs}"
 }
 
+# run_gosec_all <label> runs run_gosec over the main go/ module (./...) and then
+# over every nested module root (./... from inside that root). A nested run uses
+# a "<label>-<basename>" label so its JSON/log files do not clobber the
+# main-module result; any module's failure fails the arm.
+run_gosec_all() {
+	local label="$1" nroot base
+	run_gosec "${label}" ./...
+	for nroot in ${nested_roots[@]+"${nested_roots[@]}"}; do
+		base="${nroot##*/}"
+		gosec_mod_dir="${repo_root}/${nroot}"
+		run_gosec "${label}-${base}" ./...
+		unset gosec_mod_dir
+	done
+}
+
+# is_nested_modfile succeeds when the repo-relative path is a go.mod or go.sum
+# directly inside a nested module root: such a change alters that module's
+# build list, so gosec-changed widens to the whole-module scan.
+is_nested_modfile() {
+	local p="$1" r
+	ensure_nested_roots
+	for r in ${nested_roots[@]+"${nested_roots[@]}"}; do
+		if [[ "${p}" == "${r}/go.mod" || "${p}" == "${r}/go.sum" ]]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
 # gosec_keep_existing_dirs drops entries of the global `dirs` whose directory no
 # longer exists (a commit that deletes a whole package leaves nothing to scan).
 gosec_keep_existing_dirs() {
@@ -155,14 +190,32 @@ gosec_keep_existing_dirs() {
 
 # gosec_scan_dirs runs run_gosec over the global `dirs`, or reports nothing to
 # scan. Zero packages is the only case where gosec is deliberately not invoked.
+# Nested-module packages run from inside their own module root with a
+# "<label>-<basename>" label: the parent module's `go list` resolves them to
+# zero files, which used to read as a clean scan.
 gosec_scan_dirs() {
-	local label="$1" empty_msg="$2" pkgs=() d
+	local label="$1" empty_msg="$2" spec mod pat base
+	local main_pkgs=() d
 	if [[ ${#dirs[@]} -eq 0 ]]; then
 		printf '%s\n' "${empty_msg}"
 		return 0
 	fi
-	for d in "${dirs[@]}"; do pkgs+=("${d}/..."); done
-	run_gosec "${label}" "${pkgs[@]}"
+	partition_dirs
+	for d in ${main_dirs[@]+"${main_dirs[@]}"}; do main_pkgs+=("${d}/..."); done
+	if [[ ${#main_pkgs[@]} -gt 0 ]]; then
+		run_gosec "${label}" "${main_pkgs[@]}"
+	fi
+	for spec in ${nested_runs[@]+"${nested_runs[@]}"}; do
+		mod="${spec%%|*}"
+		pat="${spec#*|}"
+		if [[ "${pat}" != "." ]]; then
+			pat="${pat}/..."
+		fi
+		base="${mod##*/}"
+		gosec_mod_dir="${repo_root}/${mod}"
+		run_gosec "${label}-${base}" "${pat}"
+		unset gosec_mod_dir
+	done
 }
 
 # gosec_arm_files implements `gosec <files...>`: the pre-push hook passes the
@@ -193,12 +246,17 @@ gosec_arm_changed() {
 		|| { printf 'gosec-changed: git diff failed\n' >&2; exit 2; }
 	while IFS= read -r p; do
 		[[ -n "${p}" ]] || continue
+		if is_nested_modfile "${p}"; then
+			printf 'gosec-changed: whole-module scan, %s changed\n' "${p}"
+			run_gosec_all gosec-changed
+			return 0
+		fi
 		case "${p}" in
 			go/go.mod | go/go.sum | scripts/dev/precommit-go.sh | scripts/lib/precommit-go-gosec.sh \
 				| scripts/lib/gosec-json-to-sarif.py | scripts/ci/go-install-retry.sh \
 				| scripts/ci/go-mod-download-retry.sh | .github/workflows/security-scan.yml)
 				printf 'gosec-changed: whole-module scan, %s changed\n' "${p}"
-				run_gosec gosec-changed ./...
+				run_gosec_all gosec-changed
 				return 0
 				;;
 			go/*.go) gofiles+=("${p}") ;;

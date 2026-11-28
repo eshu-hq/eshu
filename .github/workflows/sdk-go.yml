@@ -1,11 +1,14 @@
 name: SDK Go Modules
 
-# Coverage gate for github.com/eshu-hq/eshu/sdk/go/* — the collector and
-# factschema SDK modules external collectors import. `test.yml` runs with
+# Coverage gate for the out-of-tree Go modules: github.com/eshu-hq/eshu/sdk/go/*
+# (the collector and factschema SDK modules external collectors import) and the
+# nested go/apilib module (its own go.mod under go/). `test.yml` runs with
 # `working-directory: go`, so these modules (each its own go.mod, resolved
 # independently of the go/ app module) had zero CI coverage: a PR could go
 # all-green while an SDK module failed to build, failed its own tests, or
-# quietly started importing go/internal (issue #4602).
+# quietly started importing go/internal (issue #4602). go/apilib is the same
+# shape one level down: `go list ./...` from go/ cannot see a nested module,
+# so without its own job a nested-only breakage stayed green.
 #
 # For each module this proves, from inside the module's own directory:
 #   * `go build ./...` and `go test ./... -count=1` — it compiles and its own
@@ -21,10 +24,11 @@ name: SDK Go Modules
 # working tree clean, so an edit to a schema source without regenerating the
 # derived artifacts is caught here instead of shipping a stale generated file.
 #
-# Adding a third sdk/go/<module> requires a new job below (mirroring one of
-# the two here) plus a matching gate entry in specs/ci-gates.v1.yaml, or the
-# ci-gate-registry drift gate (verify-ci-gate-registry.yml) will fail on the
-# unregistered workflow/job.
+# Adding another module (a third sdk/go/<module>, or a nested go/<module> like
+# go/apilib) requires a new job below (mirroring one of the jobs here) plus a
+# matching gate entry in specs/ci-gates.v1.yaml, or the ci-gate-registry drift
+# gate (verify-ci-gate-registry.yml) will fail on the unregistered
+# workflow/job.
 
 on:
   workflow_call:
@@ -43,6 +47,7 @@ on:
       - main
     paths:
       - sdk/go/**
+      - go/apilib/**
       - .github/workflows/sdk-go.yml
       - scripts/ci/install-apt-packages.sh
       - scripts/ci/go-mod-download-retry.sh
@@ -272,3 +277,63 @@ jobs:
             exit 1
           fi
           echo "go generate produced no drift"
+
+  go-apilib:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'go-apilib') }}
+    name: "Go: apilib"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Go 1.26.11 and ripgrep come from the pinned image: no setup-go or
+    # apt install (see sdk-go-collector). The seed covers the go/ module,
+    # not this one, so the retry script below stays the live download path.
+    container: ghcr.io/eshu-hq/ci-tools@sha256:5bd016995aa47cb5c292b99e2354b235fc5f5883882f14fadf31535579beda50
+    env:
+      GOTOOLCHAIN: local
+      GOCACHE: /tmp/eshu-ci/go-build
+      GOMODCACHE: /tmp/eshu-ci/go-mod
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # The recipe's seed covers the go/ app module only, not this nested
+      # module (its own go.mod, own dependency graph); the seed does not
+      # cover it, so the retry script stays the live download path here,
+      # not a fallback (see sdk-go-collector).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh go/apilib
+
+      - name: Build
+        working-directory: go/apilib
+        run: go build ./...
+
+      - name: Test
+        working-directory: go/apilib
+        run: go test ./... -count=1
+
+      - name: Vet
+        working-directory: go/apilib
+        run: go vet ./...
+
+      - name: Check gofmt formatting
+        working-directory: go/apilib
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "${unformatted}" ]; then
+            echo "::error::gofmt found unformatted files in go/apilib:"
+            printf '%s\n' "${unformatted}"
+            exit 1
+          fi
+          echo "gofmt clean"
+
+      - name: Verify no dependency on go/internal
+        working-directory: go/apilib
+        run: |
+          set -euo pipefail
+          deps="$(go list -deps ./...)"
+          if printf '%s\n' "${deps}" | rg 'eshu-hq/eshu/go/internal'; then
+            echo "::error::go/apilib must not import eshu-hq/eshu/go/internal packages"
+            exit 1
+          fi
+          echo "no eshu-hq/eshu/go/internal dependency"
