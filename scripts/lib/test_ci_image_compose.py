@@ -141,6 +141,17 @@ class CiImageComposeTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
 
+class CommittedLedgerTest(unittest.TestCase):
+    """Pin the committed ledger to the NornicDB image the tests name."""
+
+    def test_committed_ledger_allowlists_only_the_pinned_nornicdb_image(self) -> None:
+        """The runtime allowlist must carry exactly the reviewed NornicDB pin."""
+        ledger = json.loads(
+            (SCRIPT.parents[2] / "specs/ci-images.v1.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(ledger["runtime_allowlist"], [NORNICDB_IMAGE])
+
+
 class RealComposeParityTest(unittest.TestCase):
     """Prove the final overlay changes only approved image/build arguments."""
 
