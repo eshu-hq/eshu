@@ -143,153 +143,27 @@ the ingester's form of the collection → backfill → reopen ordering
 `go/cmd/bootstrap-index/README.md` describes as Phase 1 → Phase 3. A failure
 exits the ingester to prevent partial maintenance state.
 
-The reopen pass replays `deployment_mapping`, `code_import_repo_edge`, and the
-cross-scope correlation domains in `CrossScopeCorrelationReopenDomains`, all in
-one transaction. Before #5846 the correlation domains were replayed only by
-`eshu-bootstrap-index`, so under normal ingestion a `container_image_identity`,
-`ci_cd_run_correlation`, or `supply_chain_impact` decision that lost the
-cross-scope activation race kept its empty-join output indefinitely. Because
-this runs on every drain rather than once, the correlation listing is bounded by
-a per-scope replay floor: only work items on the scope's active generation or
-newer, falling back to its latest generation when there is no usable active one,
-and never a work item whose own generation terminally failed — when that failed
-generation is the scope's latest the fallback picks it, yet nothing it re-decides
-can be read while the scope's active pointer is `NULL`; and in the mixed shape,
-where a newer generation fails while an older one stays active and the pointer is
-not `NULL`, the same predicate keeps the scope's active floor and replays it while
-the failed newer generation drops out.
-That keeps the pass O(active scopes) rather than O(active scopes x generations),
-and it is not free — the correlation half had no pre-change baseline at all. See
-the cross-scope correlation reopen section in
-`go/internal/storage/postgres/README.md` for the bound, its measured per-drain
-cost, and what that measurement does not cover.
+The `AfterEmptyBatchDrained` escape (enabled when `ESHU_REPO_SHARD_COUNT > 1`
+or scheduled sync is disabled) fires on every idle poll so quiet or
+all-refused shards keep arriving join-only (`hasCommitted=false`) at open
+deferred-maintenance epochs without opening redundant epochs on an idle fleet.
+Only a shard's first drain per process (`startupMaintenanceEscapeUsed`) reports
+`hasCommitted=true` without a real commit, ensuring each restarted fleet runs at
+most one startup pass while later idle polls stay join-only.
 
-Those drains are paced by ingestion, not by a timer. `collector.Service` runs
-`AfterBatchDrained` when the source batch exhausts after at least one
-committed generation, and on every idle poll via the `AfterEmptyBatchDrained`
-escape described below (the `AfterEmptyBatchDrained` read in `Service.Run`,
-`go/internal/collector/service.go`).
-`committedSinceDrain` is cleared on every drain (`:262`) and set again on
-every commit (`:306`), so a shard that keeps committing drains once per
-commit-to-idle cycle whether or not the escape is enabled.
+`waitDeferredMaintenanceBarrierCompletion` has no arrival deadline or partial
+quorum so maintenance never runs while an active shard is mid-ingest. Changing
+shard count while an epoch is open fails closed; let the active epoch complete
+before scaling replicas. A shard waiting on a silent peer logs a WARN
+(`deferred maintenance barrier still waiting for completion`) every 30s with
+`arrived_shard_indexes` and `missing_shard_indexes`.
 
-The `AfterEmptyBatchDrained` escape set here from `ESHU_REPO_SHARD_COUNT > 1`
-or scheduled sync off (`wiring.go`) fires on every idle poll while the flag
-is set: it is level-gated on the flag, not on commit history. A shard that
-has never committed — because it owns no repositories under the current shard
-assignment — keeps the escape live indefinitely, re-checking the
-deferred-maintenance barrier every idle poll for as long as the process runs,
-joining whatever epoch is open at the time without ever opening one itself.
-A shard that committed and then goes idle, or whose later generations are all
-refused (#10084), keeps the same recurrence: every idle poll drains
-join-only (`hasCommitted=false`) instead of falling silent, so a peer in an
-open epoch is never stranded. Only the FIRST-EVER `AfterBatchDrained` call
-in this shard's process lifetime passes `hasCommitted=true` (the
-`startupMaintenanceEscapeUsed` once-latch — see below); every later call
-passes the shard's real commit status, so only that first call may open a
-new barrier epoch without a real commit behind it. Every call becomes a full
-barrier round-trip — and, if it is the epoch's last arriver, a corpus-wide
-`RunDeferredRelationshipMaintenance` pass — when it finds an epoch another
-shard already opened to join, or when it is the one call allowed to open a
-new one itself. When no epoch is open and this call may not open one, it is a
-single read-only check that returns immediately. In practice the
-pre-first-commit window is one poll, because the ingester queues repositories
-from startup — but a shard that starts with an empty queue and gains work
-later pays one check per poll until it does.
-`TestServiceRunEmptyBatchEscapeAddsJoinOnlyDrainsPerIdlePoll`
-pins the recurring behavior for a shard that commits and then goes idle (one
-join-only drain per idle poll plus one drain per commit, with only the
-process-first call reporting `true`), and
-`TestServiceRunCallsEmptyBatchDrainHookOnEveryIdlePollForANeverCommittingShard`
-pins the same recurrence for a shard that never commits at all — both also
-assert `hasCommitted` is reported correctly on every call
-(`go/internal/collector/service_empty_batch_test.go`, plus the
-committed-then-refused arrival in
-`go/internal/collector/service_join_only_test.go`).
-
-The reopen replays every domain in a single unordered
-transaction, so a `container_image_identity` -> `ci_cd_run_correlation` ->
-`supply_chain_impact` chain advances by at most one link per drain: a corpus
-that goes quiet right after the head decision commits keeps the tail's
-empty-join output until the next committed generation or an
-`eshu-bootstrap-index` run. Those are the two levers; #5709 ends the dependence
-on drain count.
-
-For `ESHU_REPO_SHARD_COUNT > 1`, an empty selected batch still drains, so a
-shard that owns no repositories keeps CHECKING the barrier every epoch, not
-just its first — #5852 fixed the collector-level latch so this recurs for the
-life of the process, matching the deferred-maintenance barrier's requirement
-that every shard arrive at every epoch that is actually open
-(`go/internal/storage/postgres/deferred_maintenance_barrier.go`). "Checking"
-and "arriving" are deliberately different verbs here: the #5852 fix alone made
-every one of those checks capable of *opening* a new epoch too, which is
-correct only when the checking shard has real work to report. On a quiet
-restart where no shard anywhere has anything to commit, that meant every idle
-poll opened an epoch, the completing shard ran the corpus-wide
-`RunDeferredRelationshipMaintenance` pass against an unchanged corpus, the
-epoch completed, and the very next idle poll opened another one — forever. The
-follow-up fix makes a never-committed shard's check join-only:
-`AfterBatchDrained`'s `hasCommitted` argument (true for a drain that follows a
-real commit) flows into `DeferredMaintenanceBarrierConfig.HasCommitted`, and
-`ensureDeferredMaintenanceBarrierEpoch` lets any shard join an epoch that is
-already open regardless of that flag — preserving the original #5852 stall
-fix — but only opens a new epoch when it is true. Gated on nothing but a real
-commit, that traded the storm for a different regression: a shard that owns
-no repositories would then never be allowed to open an epoch either, ever —
-silently dropping the one startup maintenance pass origin/main always runs
-(gated there on `emptyDrainObserved`, which latches on the FIRST drain of any
-kind, not on commit status). `startupMaintenanceEscapeUsed` in
-`collector.Service.Run` closes that gap: it makes the never-committed
-escape's own first-ever call per process report `hasCommitted=true`, letting
-that one call open or join an epoch and get the one startup maintenance
-pass, while every later call on the same shard reports `false` and stays
-join-only. A fleet where nothing ever commits anywhere therefore has each
-shard open the barrier epoch at most once per process per shard — not zero,
-and not once per idle poll. A process restart (pod eviction, rolling
-deploy, crash-loop) re-arms the once-latch, so a restarting shard opens
-another epoch by design — a restarted fleet warrants its own startup pass,
-not a leak. The same once-per-process bound holds for
-`ESHU_REPO_SHARD_COUNT == 1`, whose
-`RunDeferredRelationshipMaintenanceAfterShardDrain` short-circuit applies the
-identical rule directly: it runs maintenance when `HasCommitted` is true and
-skips it outright otherwise, so "at most once" is literally true there too.
-`wiring.go` sets `AfterEmptyBatchDrained` for `RepoShardCount > 1` or when
-scheduled sync is off (#7665), so a single-shard ingester enables the escape
-exactly in the collector-off configuration, where only an arriving webhook
-trigger can ever commit: the first idle poll runs the one startup pass and
-every later poll skips outright
-(`TestIngestionStoreShardDrainBarrierSingleShardQuietRestartRunsExactlyOnePass`
-pins the composition). A single shard with scheduled sync on keeps the
-pre-#5852 behavior of running maintenance exactly when this shard itself has
-committed — the once-latch stays inert there, since its commits trigger the
-pass and it needs no escape.
-
-What both fixes deliberately leave unbounded is
-`waitDeferredMaintenanceBarrierCompletion` itself: it still has no arrival
-deadline or partial-arrival quorum, because this barrier's whole point is to
-stop deferred maintenance from running while any shard might still be
-mid-ingest, and a timeout or quorum bypass would run maintenance against a
-fleet that has not actually reached a quiescent point — trading correctness
-for liveness. That unbounded wait now covers only a genuinely crashed,
-disconnected, or partitioned shard: a shard that HAS committed at least once
-and then goes idle (its repository partition simply stopped changing), or whose
-later generations are all refused (#10037, #10084), keeps arriving join-only
-(`false`) on every drain and idle poll, so it joins an epoch a peer opened
-instead of stranding it. A shard that never arrives at all is therefore not
-merely quiet — it is down or cut off. That distinction is observable via the
-stall-watchdog log described below. Changing shard count while an epoch is
-open fails closed; operators should let the current epoch complete before
-scaling charted ingester replicas.
-
-A shard genuinely stuck in `waitDeferredMaintenanceBarrierCompletion` — dead,
-partitioned, or otherwise never arriving — logs a WARN
-(`deferred maintenance barrier still waiting for completion`) at least every
-30s while it waits, carrying the epoch, shard count, shard index, elapsed wait
-duration, the current arrival count, the sorted `arrived_shard_indexes`, and
-the sorted `missing_shard_indexes` (or an `arrived_shards_error` field if the
-arrival lookup itself fails). Naming the missing shard indexes directly, not
-just a count, is what lets an operator find which process is silent from this
-one log line instead of correlating silence across every shard's own logs.
+The reopen pass replays `deployment_mapping`, `code_import_repo_edge`, and
+`CrossScopeCorrelationReopenDomains` in one unordered transaction, bounded to
+each scope's active-or-newer non-failed generation so per-drain work stays
+`O(active scopes)`. Multi-hop correlation chains
+(`container_image_identity` -> `ci_cd_run_correlation` -> `supply_chain_impact`)
+advance at most one link per drain.
 
 The collector service also wires the shared collector generation dead-letter
 store. Commit failures before projector work exists are surfaced through

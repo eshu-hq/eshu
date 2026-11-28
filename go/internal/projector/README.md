@@ -10,37 +10,12 @@ those belong to `internal/reducer`.
 
 ## Package layout
 
-The root package is the service: the claim/lease loop, the work-item
-lifecycle, and the two sweepers. Everything the projection itself does lives
-in five subpackages (#6781), which form a DAG with the root at the top and
-`decode` and `failure` as leaves:
-
-```
-decode            -> (leaf)   typed decoders, payload accessors, quarantine
-failure           -> (leaf)   failure classes, retry disposition, triage
-canonical         -> decode   canonical rows and the per-family extractors
-runtime           -> canonical, decode, failure   one projection, end to end
-stage             -> canonical, decode, runtime   per-family projection stages
-root (projector)  -> canonical, runtime, failure  the service loop
-```
-
-No subpackage imports the root. Run `go list -deps` against the tree to
-confirm the shape rather than trusting this block.
-
-Two placements are not what their original file names suggested, and both are
-load-bearing:
-
-- `decode/payload.go` holds the untyped payload accessors. Every caller moved
-  out of the root with the packages that use them, so the accessors followed
-  the callers.
-- `decode/fact_kind.go` holds `NormalizeFactKind` and the `Filter*Facts`
-  selectors, which arrived as `stage_facts.go`. They are fact-kind selection,
-  not a stage: `canonical` uses them as heavily as `stage` does, and leaving
-  them in `stage` made `canonical -> stage -> runtime -> canonical` a cycle.
-
-A test that drives a full projection lives in `runtime/` even when it asserts
-on a canonical or decode behavior, because `runtime` imports both and the test
-would otherwise close an import cycle in the test binary.
+The root package is the service (claim/lease loop, work-item lifecycle, and
+sweepers); projection logic lives in five subpackages forming a strict DAG
+(`decode` and `failure` as leaves; `canonical -> decode`;
+`runtime -> canonical, decode, failure`; `stage -> canonical, decode, runtime`;
+root `projector -> canonical, runtime, failure`). No subpackage imports root;
+full-projection tests live in `runtime/` to avoid import cycles.
 
 ## Where this fits in the pipeline
 
@@ -293,110 +268,38 @@ in `runtime/reducer_intent_fact_index.go` pins it, and
 reducer-intent builder calls and fails if that constant (and, by extension,
 this prose) ever drifts from the source again — this doc count went stale
 silently twice before that guard existed.
-RDS posture facts follow that same reducer-owned handoff, now from the
-`internal/projector/cloud/aws/rds` child package. When a generation contains an
-`rds_instance_posture` fact, `rds.BuildPostureMaterializationReducerIntent`
-emits one `rds_posture_materialization` reducer intent for the scope/generation. The
-projector does not set RDS graph properties, infer exposure, or create RDS
-nodes; the reducer waits for the CloudResource canonical-nodes phase and then
-projects bounded posture metadata onto existing RDS CloudResource nodes.
-EC2 posture observations now use the extracted `internal/projector/cloud/aws/ec2` child
-package. `ec2.BuildInstanceNodeMaterializationReducerIntent` and
-`ec2.BuildInstanceIdentityMaterializationReducerIntent` share the
-`ec2_instance_node_materialization:<scope>` entity key for the EC2 instance
-`CloudResource` node and its `ami_id` projection. `ec2.BuildBlockDeviceKMSPostureMaterializationReducerIntent`
-and `ec2.BuildUsesProfileMaterializationReducerIntent` each carry their own
-entity key, gating on EBS/KMS and instance-profile evidence. The projector
-does not join block devices, KMS keys, Terraform state, or set EC2 graph
-properties; the reducer owns `USES_PROFILE`.
-Container-image identity follows the same handoff rule: when a generation
-contains OCI digest/tag/referrer facts, AWS, Azure, or GCP image-reference facts,
-AWS container-image relationships, Git content-entity image references, or
-static `ci.workflow_image_evidence`,
-`identity.BuildContainerImageIdentityReducerIntent` ([architecture](container/image/identity/README.md)) emits one
-`container_image_identity` reducer intent for that scope/generation. The
-projector still does not join images to workloads or runtime evidence; the
-reducer owns digest-first admission after source-local projection succeeds.
-Workflow evidence uses this existing identity intent because it lives in the
-Git repository scope. The durable identity-completion chain then reopens CI/CD
-run correlation after the workflow generation becomes active. The Git
-collector represents a deleted workflow as a generic `file` tombstone. The
-projector recognizes that tombstone only under `.github/workflows/*.yml|yaml`
-and schedules the same identity refresh so the prior image input can retract.
-CI/CD run correlation also uses a reducer-owned handoff. A generation with a
-`ci.run` or `ci.artifact` fact, `correlation.BuildReducerIntent` ([architecture](cicd/run/correlation/README.md)), emits one `ci_cd_run_correlation` intent. A run
-starts a normal full snapshot. An artifact without a run starts a bounded patch:
-the reducer rebuilds the newest older run-window snapshot from source evidence,
-unions exact current artifact routing keys, applies current-generation live and
-tombstone control rows by typed stable identity, and publishes the complete
-target generation without depending on a prior derived result. The projector
-only selects the trigger fact; it does not perform the cross-generation join.
-SBOM and attestation documents use the same reducer-owned boundary. When a
-generation contains an `sbom.document`, `attestation.statement`, or OCI
-referrer fact,
-`attestation.BuildSBOMAttestationAttachmentReducerIntent` emits one
-`sbom_attestation_attachment` reducer intent for that scope/generation. The
-projector does not attach components to images; the reducer owns subject-digest
-admission after source-local document projection succeeds.
-Service-catalog facts follow the same schema-gated handoff. When a generation
-contains service-catalog entity, ownership, repository-link, dependency, API,
-operational-link, scorecard, or warning facts,
-`catalog.BuildServiceCatalogCorrelationReducerIntent` emits one
-`service_catalog_correlation` reducer intent for that scope/generation. The
-projector rejects unsupported service-catalog schema versions during projection
-so stale collector payloads cannot silently reach the reducer.
-Secrets/IAM posture facts follow the same reducer-owned boundary. When a
-generation contains any `aws_iam_*`, `k8s_*`, `eks_*`, `vault_*`, or
-`secrets_iam_coverage_warning` fact from `factsidentity.SecretsIAMFactKinds`,
-`posture.BuildSecretsIAMTrustChainReducerIntent` emits one `secrets_iam_trust_chain`
-intent for the trigger scope/generation. The projector validates the
-`secrets_iam_posture` source schema version and records the trigger fact only.
-It does not join AWS IAM, Kubernetes ServiceAccount, or Vault policy evidence
-and never derives an access path.
-PagerDuty incident-routing follows the same reducer-owned boundary. When a
-generation contains an `incident.record` fact or a routing source kind from
-`factsincident.IncidentRoutingFactKinds()`; `routing.BuildReducerIntent` ([architecture](incident/routing/README.md)) emits one
-`incident_routing_materialization` reducer intent for the scope/generation. The
-projector does not compare declared, applied, or live routing evidence and does
-not infer service truth from PagerDuty payloads. It does not create incident,
-service, runtime, image, commit, pull-request, Jira, or root-cause graph truth.
+### Reducer-owned domain handoffs
 
-Observability coverage follows the same reducer-owned boundary. When a
-generation contains an AWS observability resource or Grafana-stack source fact,
-`coverage.BuildObservabilityCoverageCorrelationReducerIntent` ([architecture](observability/coverage/README.md)) emits one
-`observability_coverage_correlation` reducer intent for the scope/generation.
-The projector validates observability schema versions and identifies the trigger
-fact only; it does not compare declared, applied, or observed source classes,
-does not infer coverage from telemetry values, and does not project COVERS edges.
+Every cross-source or derived domain follows the same boundary: the projector
+validates source schema versions and selects the earliest trigger fact via the
+shared `reducerIntentFactIndex` (`runtime/reducer_intent_fact_index.go`,
+`documentedReducerIntentProbeCount` pinned by AST test
+`TestReducerIntentProbeCountMatchesDocumentedCount`); the reducer owns all
+cross-scope joins, posture derivation, and canonical edge projection. Key
+extracted builder packages (`internal/projector/...`) cover:
 
-EC2 internet exposure follows the same reducer-owned boundary. When a generation
-contains an `ec2_instance_posture` fact,
-`ec2.BuildInternetExposureMaterializationReducerIntent` emits one
-`ec2_internet_exposure_materialization` reducer intent for the
-scope/generation, keyed to `ec2_instance_node_materialization:<scope>` so the
-reducer waits for the EC2 instance CloudResource canonical-nodes phase. The
-projector does not derive exposure, does not inspect raw public IP addresses,
-and does not read ENI, security-group, or rule evidence beyond selecting the
-trigger fact.
-
-S3 internet exposure follows the same reducer-owned boundary. When a generation
-contains an `s3_bucket_posture` fact,
-`s3.BuildInternetExposureMaterializationReducerIntent` emits one
-`s3_internet_exposure_materialization` reducer intent for the scope/generation,
-keyed to `aws_resource_materialization:<scope>` so the reducer waits for the
-same CloudResource canonical-nodes phase as AWS relationship (`relationship.BuildMaterializationReducerIntent`, [architecture](cloud/aws/relationship/README.md)) and S3 LOGS_TO
-work. The projector does not derive exposed/not_exposed/unknown posture and never reads raw bucket policies or ACL grants.
-
-S3 external-principal grants follow the same reducer-owned boundary. When a
-generation contains an `s3_external_principal_grant` fact,
-`s3.BuildExternalPrincipalGrantMaterializationReducerIntent` emits one
-`s3_external_principal_grant_materialization` reducer intent for the
-scope/generation, keyed to `aws_resource_materialization:<scope>` so the
-reducer waits for the same CloudResource canonical-nodes phase before writing
-`GRANTS_ACCESS_TO` edges. The projector does not create `ExternalPrincipal`
-nodes, does not infer access from posture booleans, and never carries raw bucket
-policy, statement, ACL, condition, action, resource, or object data. S3 LOGS_TO
-projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same boundary; see [S3 architecture](cloud/aws/s3/README.md) for its full contract.
+- **AWS cloud** (`cloud/aws/rds`, `cloud/aws/ec2`, `cloud/aws/s3`,
+  `cloud/aws/relationship`, `cloud/aws/runtime/drift`, `workload/cloud`):
+  RDS/EC2/S3 posture, exposure, external-principal grants, `LOGS_TO`,
+  `USES_PROFILE`, `USES`, and ARN drift. Posture/exposure intents share the
+  relevant CloudResource acceptance key (`aws_resource_materialization:<scope>`
+  or `ec2_instance_node_materialization:<scope>`) so the reducer waits for the
+  canonical-nodes phase.
+- **GCP, Azure, and multi-cloud** (`cloud/gcp`, `cloud/azure`,
+  `cloud/runtime/drift/multi`): resource/relationship materialization and
+  provider-neutral drift (`aws_resource` stays exclusively on the AWS drift
+  domain).
+- **Kubernetes live** (`kubernetes`): correlation, workload nodes, `RUNS_IMAGE`,
+  and complete-snapshot namespace retraction (partial empty snapshots never
+  retract).
+- **Supply chain & CI/CD** (`container/image/identity`, `cicd/run/correlation`,
+  `sbom/attestation`, `package/source`, `supply/chain/impact`): digest-first
+  image identity (including `.github/workflows/*.yml|yaml` file tombstones),
+  run/artifact correlation, SBOM/attestation attachment, and package hints.
+- **Catalog, security, incidents, observability** (`service/catalog`,
+  `security`, `incident/routing`, `observability/coverage`): schema-gated
+  trigger selection only; the projector never derives access paths, incident
+  truth, or telemetry health.
 
 ## Telemetry
 
@@ -552,32 +455,20 @@ backend-specific adapters.
 
 `SearchDocumentProjectionSweeper` is a decoupled background loop (wired in
 `cmd/reducer`) that enqueues `DomainEshuSearchDocument` reducer intents for
-repository generations that have indexed content but no curated search-document
-projection yet. Pending scopes come from
-`postgres.EshuSearchDocumentPendingStore` (active repository scopes with content
-and no `reducer_eshu_search_document` fact for the active generation). It is
-deliberately separate from `buildProjection` so per-generation projection
-behaviour is unchanged.
-
-Concurrency Evidence: the only contested resource is the reducer queue work
-item, keyed by `scope_id+generation_id+domain+entity` and inserted
-`ON CONFLICT (work_item_id) DO NOTHING`. Re-enqueuing a still-pending scope each
-tick is a no-op and an advanced active generation yields a fresh work item, so
-the sweeper holds no lease and concurrent reducers converge on the same
-idempotent inserts; the handler's per-generation retire-not-in-set write is
-idempotent under retry.
+active repository generations that have indexed content but no curated
+search-document projection yet. Enqueues key on
+`scope_id+generation_id+domain+entity` with `ON CONFLICT (work_item_id) DO NOTHING`,
+so concurrent reducers converge idempotently without holding a sweeper lease.
 
 ## Dead-letter triage
 
-Failure classification, retry disposition and dead-letter triage moved to
-`failure/` (#6781). See [failure/README.md](failure/README.md) for the
-triage classes, the operator runbook and the issue history (#3502, #3514).
+Failure classification, retry disposition, and dead-letter triage live in
+`failure/` ([failure/README.md](failure/README.md)).
 
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table
 - `docs/public/deployment/service-runtimes.md` — local verification runtime lanes
 - `docs/public/reference/telemetry/index.md` — metric and span reference
-- ADR: `docs/public/reference/cypher-performance.md`
-- ADR: `docs/public/reference/backend-conformance.md`
-- ADR: `docs/public/reference/cypher-performance.md`
+- `docs/public/reference/cypher-performance.md`
+- `docs/public/reference/backend-conformance.md`

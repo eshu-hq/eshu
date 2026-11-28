@@ -16,46 +16,6 @@ expanding structural `CONTAINS` / `REPO_CONTAINS`, outgoing repository, or
 code-edge `CALLS` / `IMPORTS` families first. Explicit `relationship` filters
 still use the requested relationship type, including structural, outgoing, or
 code-edge families when an operator asks for them.
-No-Regression Evidence: issue #503 characterized the previous hosted positive
-repository-anchor path as `context deadline exceeded` while no-match controls
-returned quickly. The regression coverage
-`go test ./internal/query -run 'TestEntityMap' -count=1` now asserts repository
-anchors use direct typed relationship-family traversal, keep explicit
-`relationship=CONTAINS` support, backfill the requested type when a backend
-omits scalar relationship-type projections, avoid untyped one-hop fanout,
-preserve typed anchors, and keep deterministic `limit`/`truncated` response
-coverage.
-Performance Evidence: NornicDB source review classified the replacement shape
-against `docs/performance/hot-path-query-cookbook.md` section 6.5
-relationship-match start-node pruning. The affected stage is the graph-backed
-entity-map API/MCP read path, expected start cardinality is one resolved entity
-anchor, and the relationship-family fanout is a fixed list of known map
-relationships rather than data-dependent structural expansion. The bounded proof
-ladder is focused query tests, then hosted Compose API/CLI positive
-repository-anchor timing before EKS rollout. The stop threshold is any positive
-repository-anchor call still exceeding the normal CLI timeout or returning a
-different truth envelope from the same graph.
-No-Observability-Change: the route already emits `query.entity_map`, graph
-query spans, truth metadata, `coverage.query_shape`, `coverage.depth`,
-`coverage.limit`, relationship counts, relationship filters, and truncation;
-the new shape keeps those operator-visible fields and updates
-`coverage.query_shape` to identify the direct relationship-family path.
-No-Regression Evidence: `go test ./internal/query -run
-'TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge' -count=1` covers
-the NornicDB-compatible variable-length traversal row shape from issue #1604:
-one resolved workload anchor, one incoming `DEFINES` relationship family, an
-empty backend-derived `relationship_types` list, and a backend-reported
-`length(path)=0`. The read model now emits the relationship verb as the
-relationship-family literal, avoids `RETURN DISTINCT`, deduplicates equivalent
-rows in Go after the bounded per-family graph calls, and reports a minimum
-one-hop depth so the API/MCP entity map does not label the neighboring
-repository as the anchor itself.
-No-Observability-Change: the fix does not add a route, queue, worker, graph
-write, runtime knob, metric instrument, or metric label. Operators continue to
-diagnose entity-map reads through the existing `query.entity_map` handler span,
-graph query spans, HTTP status/error body, truth envelope, `coverage.depth`,
-`coverage.limit`, relationship filters, returned relationship counts, and
-truncation metadata.
 `PackageRegistryHandler` (`package/registry/handler.go`) keeps package-registry
 reads bounded: package and version identity lookups require a package,
 ecosystem, or version anchor, dependency lookup requires `package_id` or
@@ -73,40 +33,7 @@ Package dependency reads start from `PackageDependency.package_id` or
 packages with many versions but no dependency rows return an empty bounded page
 instead of expanding every version first. A route-local read timeout caps the
 graph call for API and MCP callers.
-No-Regression Evidence: remote all-collector Compose proof on NornicDB
-`nornicdb-pr177-search-index-flags:80719f25520e` showed the package-list
-route returning `package_id:""` when the Cypher used `WITH p, count(v)`.
-The diagnostics route proved the same package anchor returned scalar aliases
-correctly when the package-list query used direct `RETURN ... count(v)` without
-the intermediate `WITH`; focused coverage is
-`go test ./internal/query -run TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates -count=1`.
-No-Regression Evidence: PR #549 remote Compose proof returned
-`count=0,truncated=false` for lodash package dependencies through both API and
-MCP after package/version graph projection was fixed. The deterministic sparse
-read regression is
-`go test ./internal/query -run TestPackageRegistryListDependenciesReturnsEmptySparsePackageQuickly -count=1`,
-covering a package anchor with no dependency rows, a server-side graph-read
-deadline, and no package-version expansion before dependency discovery.
-No-Regression Evidence: the follow-up branch proof against the existing
-full-corpus remote Compose stack applied the two `PackageDependency` indexes to
-NornicDB, started branch-built API and MCP processes on isolated host ports, and
-queried lodash dependencies through both surfaces. API returned
-`count=0`, `truncated=false`, `limit=5` in `7ms`; MCP returned
-`Returned 0 result(s).` in `7ms`.
-No-Observability-Change: the package registry handler already wraps the route
-with `query.package_registry_packages`,
-`query.package_registry_dependencies`, GraphQuery spans, HTTP status/errors,
-truth envelope metadata, and response `count/limit/truncated` fields. Empty
-dependency data is distinguishable from a slow or failed graph path by the
-successful HTTP status, exact truth envelope, and `count=0,truncated=false`
-payload.
-No-Regression Evidence: `go test ./internal/query -run 'TestPackageRegistryList(PackagesUsesIndexedPackageScopeAndTruncates|VersionsUsesPackageUIDAnchor|DependenciesUsesPackageOrVersionAnchor)' -count=1`
-proves package-registry reads return the new identity fields from bounded
-package, version, and dependency query shapes.
-No-Observability-Change: the read handlers use the same request spans,
-GraphQuery spans, HTTP status/error path, truth envelope, limit, count, and
-truncated fields; added identity properties do not create new worker lanes,
-queues, or graph traversal paths.
+
 Repository-scoped package-registry, CI/CD, service-catalog, and impact-explain
 routes resolve human source repository selectors through the shared repository
 catalog resolver before they call reducer-owned read models. The resolver
@@ -115,19 +42,6 @@ and remote URLs; unknown selectors return `404`, ambiguous selectors return
 `400`, and container-image repository ids stay in the OCI/image identity domain
 instead of being source-repository resolved.
 
-No-Regression Evidence: `go test ./internal/query -run
-'Test(SupplyChainSecurityAlertReconciliationsResolveNameOnlyCatalogProviderScope|SupplyChainSecurityAlertReconciliationsRejectAmbiguousNameOnlyProviderScope|SupplyChainSecurityAlertAggregateRoutesResolveNameOnlyCatalogProviderScope|PackageRegistryCorrelationsResolveRepositorySelectors|PackageRegistryCorrelationsRejectUnknownRepositorySelector|CICDRunCorrelationsResolveRepositorySelectors|CICDRunCorrelationAggregatesResolveRepositorySelectors|ServiceCatalogCorrelationsResolveRepositorySelectors|SupplyChainImpactExplainResolvesRepositorySelectors)'
--count=1` proves selector resolution for source repository names across
-repository-scoped read models, exact provider-security-alert scope lookup for
-name-only catalog rows, and fail-closed behavior for unknown or ambiguous
-provider alert scopes.
-
-No-Observability-Change: selector resolution runs before the existing bounded
-Postgres read-model calls and content-catalog lookup is the only added common
-path. It adds no graph write, queue, worker, reducer lane, runtime knob, metric
-instrument, or metric label; operators still diagnose these routes through the
-existing query spans, Postgres query duration metrics, truth envelopes, and
-HTTP status/error bodies.
 `cicd.Handler` (`cicd/handler.go`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, image-reference, or environment anchor plus `limit`, and it
@@ -138,11 +52,12 @@ visible when no live reducer run-correlation rows exist; static workflow
 artifacts are explanatory evidence, not synthetic correlation rows. Static
 workflow summaries also count explicit workflow image refs, unresolved templated
 image commands, and ambiguous multi-image commands without returning raw shell
-commands. The
-`run_artifact_evidence` summary is computed only from the returned reducer page:
-exact or derived artifact digests and image references are bridge evidence,
-ambiguous artifact outcomes stay ambiguous, and provider-only runs report the
-artifact/image bridge as missing instead of manufacturing deployment truth.
+commands. The `run_artifact_evidence` summary is computed only from the returned
+reducer page: exact or derived artifact digests and image references are bridge
+evidence, ambiguous artifact outcomes stay ambiguous, and provider-only runs
+report the artifact/image bridge as missing instead of manufacturing deployment
+truth.
+
 `CatalogHandler` (`service/catalog.go:22`) reads reducer-owned service
 catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
@@ -261,23 +176,6 @@ the existing impact read; observability stays on the existing
 `query.supply_chain_impact_explanation` span, and the
 `eshu_dp_postgres_query_duration_seconds` histogram.
 
-No-Regression Evidence: `go test ./internal/query -run
-'TestSupplyChainListAdvisoryEvidence|TestPostgresAdvisoryEvidenceStore|TestBuildAdvisoryEvidenceRows|TestAdvisoryEvidenceQuery' -count=1`
-and `go test ./internal/mcp -run
-'TestResolveRouteMapsAdvisoryEvidenceToBoundedQuery|TestAdvisoryEvidenceToolSchemaAdvertisesRepositoryScope' -count=1`
-prove bounded advisory evidence input, repository selector resolution,
-reducer-impact-only advisory anchoring, active source-fact SQL, MCP
-dispatch/schema parity, canonical CVE/GHSA/OSV/NVD identity grouping, EPSS/KEV
-enrichment, CVSS v3/v4/CWE preservation, affected package/product evidence,
-withdrawn status, fixed-range and severity disagreements, pagination, and
-source-only response shape.
-
-No-Observability-Change: the advisory evidence route reuses the
-`query.advisory_evidence` request span with route and capability attributes. It
-uses the active Postgres fact read model only; it adds no graph query, queue,
-reducer lane, worker, metric instrument, metric label, or runtime deployment
-knob.
-
 The same handler exposes cheap-summary aggregates over the reducer-owned impact
 findings through a separate Postgres aggregate read model
 (`aggregates.go`). `CountSupplyChainImpactFindings` answers
@@ -330,81 +228,6 @@ Objects, arrays, numbers, and booleans fail closed in both SQL membership and
 Go hydration; malformed direct repository and scope anchors fall through to
 the next valid canonical anchor instead of becoming formatted identities.
 
-No-Regression Evidence: `go test ./internal/query -run
-'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression|TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors'
--count=1` proves: 503 envelope when the store is missing, totals envelope shape,
-grouped inventory shape, truncation marker + `next_offset` on overflow,
-rejection of unknown grouping dimensions, oversized limits, and negative offsets,
-and that the dimension-to-SQL-expression map is a closed enum (so SQL
-substitution stays parameter-safe).
-
-Observability Evidence: the aggregate routes add the
-`query.supply_chain_impact_aggregate` request span (registered in
-`go/internal/telemetry/contract/supply_chain.go`) with route and capability
-attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
-histogram and add no new graph query, queue, reducer lane, worker, or metric
-instrument.
-
-Performance Evidence: on 100,000 synthetic workload-identity rows, the
-dimension lookup returned the same single repository before and after indexing;
-`EXPLAIN (ANALYZE, BUFFERS)` improved from a 9.293 ms sequential scan that
-discarded 99,999 rows to a 0.023 ms bitmap lookup. The exact live
-golden-corpus 200-candidate repository join, including related-scope decoding,
-executed in 0.237 ms. On the 300,000-fact partition, the same 200-candidate
-hydration query executed in 72.347 ms before canonical authorization and
-57.991 ms after filter and hydration began sharing one reducer-equivalent
-decoder. A 100,000-row decoder shim showed the selected-scope/related-scope/raw
-fallback shape at 109.091 ms versus 132.598 ms for the incorrect independent
-payload/envelope-scope shape; the corrected decoder returned all three intended
-precedence deltas. Conflicting anchors changed only the intended authorization
-result, while 100,000 non-conflicting mixed anchors had an exact `0/0` set
-difference. A second 100,000-row shim isolated related-scope normalization:
-accepting a scalar string, trimming array entries, and skipping a malformed
-git-repository scope before a later valid repository returned all three
-expected deltas and improved execution from 111.529 ms to 87.185 ms on the
-same mixed input. A third shim isolated reducer-tolerated runtime dimensions:
-padded workload, service, and environment scalars, padded/scalar workload
-`entity_keys`, and boolean/string `provenance_only`. The normalized predicates
-returned every intended delta and rejected both boolean and string true
-provenance. A normalization-only workload predicate scanned 100,000 rows in
-91.456 ms; the selected two-arm shape retained the exact scalar/GIN index arm
-and added a duplicate-safe normalization fallback, completing in 88.448 ms.
-The equivalent service and environment shapes retained their exact indexes and
-completed in 17.385 ms and 17.536 ms, respectively.
-A full-query proof loaded 100,000 facts for each runtime dimension (300,000
-total) and exposed a planner reorder: the first workload query entered through
-the scope/generation index and took 13.947 ms.
-Materializing each dimension-selected match set before the active-generation
-join made every production query enter through its dimension index. On the
-final reducer-equivalent current-only filter shape, the selective proof
-executed in 237.776 ms for scalar workload, 195.322 ms for workload
-`entity_keys`, 17.982 ms for service, 18.545 ms for environment, 248.811 ms
-for the combined legacy list, 256.124 ms for the combined winners list,
-256.528 ms for the combined aggregate, 0.334 ms for the no-runtime-filter
-aggregate, and 234.246 ms for explain. Workload and service identifiers are
-identity-like selectors, so the shared-dimension worst case uses 100,000 facts
-with the same environment. That exact production shape executed in 179.915 ms
-for the legacy list, 179.200 ms for the winners list, 180.834 ms for aggregate
-count, and 182.271 ms for inventory. Each environment plan read 100,000 index
-matches and returned or counted one finding, with 426,569–426,582 shared-buffer
-hits and zero shared reads. Explain does not accept an environment
-selector; its selective workload/service proof remains the representative
-supported shape. Every measured query remains below the enforced 500 ms
-execution ceiling while the exact arms retain their dimension indexes.
-Inserting all 300,000 rows while maintaining the runtime indexes took
-7.038 seconds; hydrating 200 candidate repositories took 87.039 ms.
-`TestSupplyChainImpactRuntimeFilterPlansLive` runs these exact
-`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` shapes and asserts the selected index
-names as well as a bounded execution ceiling. Each concurrent migration also
-completed from an absent index in 0.22 seconds on the retained golden database,
-repeated idempotently in 0.21 seconds, and left `indisvalid=true` and
-`indisready=true`; the shared live migration proof separately exercised lock
-timeout/reset and cleanup/rebuild of an invalid concurrent index.
-
-No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactCanonicalFindingKeySupportsRollingUpgrades|TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregateQueriesCountCanonicalFindings|TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable|TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload' -count=1` proves list, count, inventory, and explain reads collapse active reducer rows to canonical logical findings before paging, grouping, or ambiguity checks. The canonical partition key is always derived from stable payload identity fields so legacy rows without reducer `finding_id` and newer rows with reducer `finding_id` collapse together during rolling upgrades. Public read IDs prefer reducer `finding_id` when present and fall back to the same stable payload key for older rows, so source-scope and generation-specific fact IDs do not inflate user-facing vulnerability counts or cursors.
-
-No-Observability-Change: canonical impact-finding dedupe stays inside the existing bounded Postgres read models. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose list, count, inventory, and explain latency through the existing query spans and Postgres query duration metrics.
-
 The supply-chain impact explain payload includes a semantic hop overlay for
 repository, image, workload, service, and environment evidence. These hop rows
 are shaped from the reducer finding and the already-loaded evidence fact
@@ -413,22 +236,6 @@ referenced evidence fact ids when the preview payload exposes the corresponding
 anchor, while missing hops reuse the reducer-owned missing-evidence reasons so
 callers can distinguish repository-only, image-only, and explicitly deployed
 paths.
-
-No-Regression Evidence: `go test ./internal/query -run
-'TestBuildSupplyChainImpactExplanationReturns(RuntimePathAndMissingHops|SemanticMissingHops)'
--count=1` failed before explain output carried stable repository/image/workload/service/environment
-hop rows, then passed with deployed-image evidence marked present and
-repository-only evidence preserving missing image, workload, service, and
-environment hops.
-
-No-Observability-Change: semantic explain hops are response shaping over the
-existing bounded explanation row and evidence previews. The route, Postgres
-queries, query spans, and `eshu_dp_postgres_query_duration_seconds` metrics are
-unchanged.
-
-No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactAggregateRoutesUseListProfileDefaults|TestSupplyChainImpactAggregateRoutesComprehensiveProfileIncludesPossiblyAffected|TestSupplyChainImpactAggregateRoutesCanonicalAndNameSelectorsShareProfileSemantics|TestSupplyChainImpactAggregateRoutesKeepSuppressionSeparateFromProfile|TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates|TestOpenAPISpecIncludesSupplyChainImpactAggregateProfileFilters' -count=1` proves count and inventory now apply the same default precise detection profile as the list route, include comprehensive-only `possibly_affected` rows when `profile=comprehensive` is requested, resolve repository name and canonical id selectors to the same aggregate scope, and keep suppression filters independent of profile semantics.
-
-No-Observability-Change: aggregate profile and suppression parity only adds predicates to the existing bounded Postgres aggregate read model and echoes the selected profile in the existing HTTP response. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose aggregate latency through the `query.supply_chain_impact_aggregate` span and Postgres query duration metrics.
 
 The same handler exposes cheap-summary aggregates over the reducer-owned
 provider security alert reconciliations through a separate Postgres aggregate
@@ -450,25 +257,6 @@ on `fact_records` for `reducer_security_alert_reconciliation`
 package_id + reconciliation_status; scope_id + package_id +
 reconciliation_status; provider + provider_state + reconciliation_status;
 cve_ids GIN; ghsa_ids GIN); no graph migration is needed.
-
-No-Regression Evidence: `go test ./internal/query ./internal/query/supply/chain/alerts -run
-'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset|TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors|TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias'
--count=1` proves: 503 envelope when the store is missing, totals envelope shape
-with the three rollup maps, grouped inventory shape, truncation marker plus
-`next_offset` on overflow, rejection of unknown grouping dimensions, oversized
-limits, negative offsets, and oversized offsets, null `next_offset` when the
-next page would exceed the documented offset bound, and that the
-dimension-to-SQL-expression map is a closed enum (so SQL substitution stays
-parameter-safe). It also proves the source-freshness rollup uses the current
-fact alias after the CTE and that repository selector filters include provider
-repository scope ids.
-
-Observability Evidence: the aggregate routes add the
-`query.security_alert_reconciliation_aggregate` request span (registered in
-`go/internal/telemetry/contract/supply_chain.go`) with route and capability
-attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
-histogram and add no new graph query, queue, reducer lane, worker, or metric
-instrument.
 
 The same handler exposes cheap-summary aggregates over the reducer-owned
 container image identities through a separate Postgres aggregate read model
@@ -499,26 +287,6 @@ provenance, and runtime fields. Those reducers keep their existing domain
 selection and ambiguity rules; only list, aggregate, authorization, and source
 bridge presentation folds supports to one logical digest identity.
 
-No-Regression Evidence: `go test ./internal/query -run
-'TestContainerImageIdentityAggregate|TestContainerImageIdentityInventoryGroupExpression|TestNextContainerImageIdentityAggregateOffset'
--count=1` proves: 503 envelope when the store is missing, totals envelope shape
-with the two rollup maps, grouped inventory shape, truncation marker plus
-`next_offset` on overflow, rejection of unknown grouping dimensions, oversized
-limits, negative offsets, and oversized offsets, null `next_offset` when the
-next page would exceed the documented offset bound, and that the
-dimension-to-SQL-expression map is a closed enum.
-`go test ./internal/query -run
-'TestContainerImageIdentityAggregateCountReportsSourceBridgeMissingEvidence'
--count=1` proves source-scoped count zeroes keep the named bridge classes
-instead of returning only an aggregate zero.
-
-Observability Evidence: the aggregate routes add the
-`query.container_image_identity_aggregate` request span (registered in
-`go/internal/telemetry/contract/supply_chain.go`) with route and capability
-attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
-histogram and add no new graph query, queue, reducer lane, worker, or metric
-instrument.
-
 `cicd.Handler` (`cicd/handler.go`) also exposes cheap-summary aggregates over the
 reducer-owned CI/CD run correlations through a separate Postgres aggregate
 read model (`cicd/run_correlation_aggregates.go`). `CountRunCorrelations`
@@ -540,22 +308,6 @@ is needed. The aggregate handler validates the
 `rejected`), so typos surface as 400 instead of silently returning zero
 counts.
 
-No-Regression Evidence: `go test ./internal/query -run
-'TestCICDRunCorrelationAggregate|TestCICDRunCorrelationInventoryGroupExpression|TestNextCICDRunCorrelationAggregateOffset'
--count=1` proves: 503 envelope when the store is missing, totals envelope
-shape with three rollup maps, grouped inventory shape, truncation marker
-plus `next_offset` on overflow, rejection of unknown grouping dimensions,
-unknown outcomes, oversized limits, negative offsets, and oversized offsets,
-null `next_offset` at the offset ceiling, and that the
-dimension-to-SQL-expression map is a closed enum.
-
-Observability Evidence: the aggregate routes add the
-`query.ci_cd_run_correlation_aggregate` request span (registered in
-`go/internal/telemetry/contract/cicd.go`) with route and capability
-attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
-histogram and add no new graph query, queue, reducer lane, worker, or metric
-instrument.
-
 The observability coverage read surface (`observability/coverage/handler.go`,
 `observability/coverage/correlations.go`) mirrors this same bounded Postgres
 read model for the issue #391 `reducer_observability_coverage_correlation`
@@ -565,25 +317,6 @@ ASC` keyset paging on `fact_id`, and the active-generation join filtered to
 tombstoned (stale) coverage, and inactive generations never leak into a page.
 The same page can be filtered by `source_class` and `resource_class` without
 making either field a whole-store anchor.
-
-No-Regression Evidence: `go test ./internal/query -run
-'TestObservabilityCoverage|TestOpenAPISpecIncludesObservabilityCoverageCorrelations'
--count=1` proves: anchor-or-400 plus required `limit`, the bounded store call
-with `limit+1` overfetch, `truncated` + `next_cursor.after_correlation_id`
-keyset paging, the active-fact read-model predicates (fact kind, `is_tombstone
-= FALSE`, `generation.status = 'active'`, payload anchors, and `fact_id`
-cursor), source-class/resource-class filters, and OpenAPI wire-contract
-lockstep. This is a read-only query slice over facts already on `main`; it adds
-no graph write, worker, lease, or schema change.
-
-Observability Evidence: the route adds the
-`query.observability_coverage_correlations` request span (registered in
-`go/internal/telemetry/contract/z_observability_coverage.go`) with route and
-capability attributes and re-uses the existing
-`eshu_dp_postgres_query_duration_seconds` histogram. No new metric instrument
-is introduced; the `coverage_signal` metric dimension and
-`eshu_dp_observability_coverage_correlations_total` counter were already added
-by the issue #391 PR1 reducer slice.
 
 `PackageRegistryHandler` (`package/registry/handler.go`) exposes cheap-summary
 aggregates over the graph (:Package) corpus through a separate graph-backed
@@ -609,28 +342,6 @@ exist before the aggregate routes resolve in production; the routes return
 correct counts without the indexes but fall back to a label scan instead of
 the cookbook hot path.
 
-No-Regression Evidence: `go test ./internal/query -run
-'TestPackageRegistryAggregate|TestPackageRegistryInventoryGroupExpression|TestNextPackageRegistryAggregateOffset|TestGraphPackageRegistryAggregateStore'
--count=1` proves: 503 envelope when the store is missing, totals envelope
-shape with the per-ecosystem rollup, grouped inventory shape, truncation
-marker plus `next_offset` on overflow, rejection of unknown grouping
-dimensions, unknown visibility, oversized limits, negative offsets, and
-oversized offsets, null `next_offset` at the offset ceiling, the
-closed-enum dimension map, AND that the production Reader emits Cypher
-with the cookbook hot-path shape (label-property anchor `MATCH (p:Package)`
-plus indexed-property predicate plus `ORDER BY bucket_count DESC` plus
-parameter-bound limit). A `PROFILE` proof against the pinned NornicDB
-binary is the operator gate for this PR: the in-process tests prove the
-Cypher shape stays hot-path-eligible, but the operator running
-`eshu-bootstrap-data-plane` must capture `PROFILE` output for the four new
-indexes before promoting the routes in production.
-
-Observability Evidence: the aggregate routes add the
-`query.package_registry_aggregate` request span (registered in
-`go/internal/telemetry/contract/package_registry.go`) with route and
-capability attributes. They re-use the existing query-handler tracing and
-the `neo4j.query` graph span; no new metric instrument is added.
-
 `SupplyChainHandler` (`handler.go`) also exposes cheap-summary
 aggregates over the reducer-owned SBOM and attestation attachments through a
 separate Postgres aggregate read model
@@ -654,36 +365,6 @@ falling back to global attachment totals. The handler validates the
 `attachment_status` and `artifact_kind` filters against the same closed
 enums the list endpoint advertises in `openapi/paths/supply/chain/sbom_attestations.go`,
 so typos surface as 400 instead of silently returning zero counts.
-
-No-Regression Evidence: `go test ./internal/query -run
-'Test(SupplyChainListSBOMAttestationAttachmentsAcceptsRepositoryScope|SBOMAttestationAttachmentAggregateRoutesForwardSourceScopes|SBOMAttestationAttachmentAggregateQueriesFilterSourceScopes|SBOMAttestationAttachmentAggregateRoutesDoNotDropServiceScope)'
--count=1` proves list/count/inventory source scopes are carried into the
-bounded read model and echoed in response scope. This prevents service,
-workload, or repository scoped aggregate requests from returning unscoped
-global attachment totals.
-
-No-Observability-Change: this read-surface change reuses the existing
-`query.sbom_attestation_attachments` and
-`query.sbom_attestation_attachment_aggregate` request spans plus Postgres query
-duration instrumentation. It adds no worker, queue, graph write, metric
-instrument, metric label, runtime flag, or deployment knob.
-
-No-Regression Evidence: `go test ./internal/query -run
-'TestSBOMAttestationAttachmentAggregate|TestSBOMAttestationAttachmentInventoryGroupExpression|TestNextSBOMAttestationAttachmentAggregateOffset'
--count=1` proves: 503 envelope when the store is missing, totals envelope
-shape with the two rollup maps, grouped inventory shape, truncation marker
-plus `next_offset` on overflow, rejection of out-of-contract
-attachment_status / artifact_kind values, unknown grouping dimensions,
-oversized limits, negative offsets, and oversized offsets, null
-`next_offset` at the offset ceiling, and that the
-dimension-to-SQL-expression map is a closed enum.
-
-Observability Evidence: the aggregate routes add the
-`query.sbom_attestation_attachment_aggregate` request span (registered in
-`go/internal/telemetry/contract/supply_chain.go`) with route and capability
-attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
-histogram and add no new graph query, queue, reducer lane, worker, or
-metric instrument.
 
 `DocumentationHandler` (`documentation.go`) also exposes cheap-summary
 aggregates over durable documentation finding facts through a separate
@@ -713,24 +394,6 @@ The `/documentation/facts` free-text surface was evaluated in this issue. Valid
 GIN candidates improved read latency, but the fastest option more than doubled
 the exact production streaming-write cost. The unchanged 1.6-million-row local
 search finished in 1.504 seconds, so no free-text index ships.
-
-No-Regression Evidence: `go test ./internal/query -run
-'TestDocumentationFindingAggregate|TestDocumentationFindingInventoryGroupExpression|TestNextDocumentationFindingAggregateOffset|TestDocumentationFindingAggregateSQLIncludesPermissionPredicates'
--count=1` proves: 503 envelope when the store is missing, totals envelope
-shape with the three rollup maps, grouped inventory shape, truncation
-marker plus `next_offset` on overflow, rejection of unknown grouping
-dimensions, oversized limits, negative offsets, and oversized offsets,
-null `next_offset` at the offset ceiling, the closed-enum dimension map,
-AND that all three production SQL templates (total, group, inventory)
-contain the three permission predicate substrings so a future refactor
-cannot accidentally drop the access gate.
-
-Observability Evidence: the aggregate routes add the
-`query.documentation_aggregate` request span (registered in
-`go/internal/telemetry/contract.go`) with route and capability
-attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
-histogram and add no new graph query, queue, reducer lane, worker, or
-metric instrument.
 
 ## Runtime and investigation read models
 
