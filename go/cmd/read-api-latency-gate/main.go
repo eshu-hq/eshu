@@ -45,7 +45,7 @@ func main() {
 	winnersRead := flag.Bool("winners-read", false, "mark this sweep as the winners-read leg in the latency report identity block (the core serves findings from the maintained winners table)")
 	backgroundIdle := flag.Duration("background-idle", 5*time.Second, "idle window used to measure background Postgres statements before the sweep")
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
-	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (the core and satellite start after this; the seed already ran the infra read model backfill, see seed_infra_backfill.go)")
+	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (the core and satellite start after this; the seed already ran the infra and supports read model backfills, see seed_infra_backfill.go and seed_supports_backfill.go)")
 	requestTimeout := flag.Duration("request-timeout", 30*time.Second, "per-request timeout for the sweep")
 	concurrentWorkers := flag.Int("concurrent-workers", 0, "optional bounded pilot read concurrency after the metered sequential stage (2..16)")
 	concurrentRequests := flag.Int("concurrent-requests", 20, "requests per pilot operation in the optional concurrent stage")
