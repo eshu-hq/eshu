@@ -393,4 +393,3 @@ Sources used:
 - [NornicDB graph-only mode request](https://github.com/orneryd/NornicDB/issues/175)
 - [NornicDB per-database search flag PR](https://github.com/orneryd/NornicDB/pull/177)
 - [Eshu NornicDB tuning](../../public/reference/nornicdb-tuning.md)
-- [Eshu NornicDB tuning evidence](../../public/reference/nornicdb-tuning-evidence.md)

@@ -141,6 +141,7 @@ nav:
         - Vulnerability Impact Grouped Inventory: reference/http-api/vulnerability-impact-inventory.md
         - Secrets/IAM: reference/http-api/secrets-iam.md
         - Context And Stories: reference/http-api/context-and-stories.md
+        - Context Evidence Budget: reference/http-api/context-evidence-budget.md
         - Story Routes: reference/http-api/story-routes.md
         - Story Read Cost: reference/http-api/story-read-cost.md
         - CLI Support Endpoints: reference/http-api/cli-support-endpoints.md
@@ -151,11 +152,15 @@ nav:
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md
         - PHP Configuration Search: reference/http-api/php-configuration.md
         - Unscoped File Search: reference/http-api/unscoped-file-search.md
+        - Unscoped Entity Search: reference/http-api/unscoped-entity-search.md
         - Relevance Walk: reference/http-api/rank-walk.md
         - Infrastructure Resource Aggregates: reference/http-api/infra-resource-aggregates.md
         - Repositories: reference/http-api/repositories-ingesters-bundles.md
         - Repository Stats And Story Coverage: reference/http-api/repository-coverage.md
         - Images, Ingester, And Bundles: reference/http-api/images-ingesters-bundles.md
+        - Dockerfile Installs: reference/http-api/dockerfile-installs.md
+        - Hosted Readiness Leftovers: reference/http-api/hosted-readiness-leftovers.md
+        - Workflow Coverage: reference/http-api/workflow-coverage.md
       - MCP Reference: reference/mcp-reference.md
       - MCP Tool Contract Matrix: reference/mcp-tool-contract-matrix.md
       - MCP Prompt Surface Audit: reference/mcp-prompt-surface-audit.md
@@ -291,6 +296,9 @@ nav:
         - Cgo C Dialect Flag: reference/local-testing/cgo-cflags.md
         - CI Go Build Cache: reference/local-testing/ci-go-build-cache.md
         - Pre-PR Documentation Fast Path: reference/local-testing/pre-pr-docs-fastpath.md
+        - Pre-PR Execution: reference/local-testing/pre-pr-execution.md
+        - PR Scheduling: reference/local-testing/pr-scheduling.md
+        - Verification Proof Notes: reference/local-testing/proof-notes.md
         - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md
         - Collector Live Smokes: reference/local-testing/collector-live-smokes.md
         - Public Collector Proof: reference/local-testing/public-collector-proof.md
@@ -306,7 +314,6 @@ nav:
     - Local Host & Capabilities:
       - Backend Conformance: reference/backend-conformance.md
       - Capability Conformance Spec: reference/capability-conformance-spec.md
-      - Local Lightweight Capability Audit: reference/local-lightweight-capability-audit.md
       - Capability Catalog: reference/capability-catalog.md
       - Authorization Catalog: reference/authorization-catalog.md
       - Surface Inventory: reference/surface-inventory.md
@@ -332,15 +339,11 @@ nav:
       - Scale And Performance Mechanisms: reference/scale-and-performance-mechanisms.md
       - Local Performance Envelope: reference/local-performance-envelope.md
       - Collector Performance Envelope: reference/collector-performance-envelope.md
-      - Parse Scale Evidence: reference/parse-scale-evidence.md
-      - Supply Chain Impact C5 Loop Evidence: reference/supply-chain-impact-c5-loop-evidence.md
       - Dead Code Reachability Spec: reference/dead-code-reachability-spec.md
       - Dead Code Language Maturity: reference/dead-code-language-maturity.md
-      - Dead Code TypeScript Corpus Evidence: reference/dead-code-typescript-corpus-evidence.md
       - Graph Backend Installation: reference/graph-backend-installation.md
       - Graph Backend Operations: reference/graph-backend-operations.md
       - NornicDB Tuning: reference/nornicdb-tuning.md
-      - NornicDB Tuning Evidence: reference/nornicdb-tuning-evidence.md
       - NornicDB Pitfalls: reference/nornicdb-pitfalls.md
       - NornicDB Upstream Defects: reference/nornicdb-upstream-defects.md
       - NornicDB Query-Shape Pitfalls: reference/nornicdb-query-pitfalls.md
@@ -516,6 +519,7 @@ nav:
       - Collector Services: deployment/service-runtimes-collectors.md
       - Bootstrap Services: deployment/service-runtimes-bootstrap.md
     - Credential File Cleanup: deployment/credential-file-cleanup.md
+    - Postgres Read Routing: deployment/postgres-read-routing.md
   - Project:
     - Extend Eshu:
       - Overview: extend/index.md

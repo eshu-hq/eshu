@@ -87,6 +87,13 @@ seed_repo() {
   write_doc "${root}" "understand/index.md" "concept" "false" "true"
   write_doc "${root}" "reference/index.md" "reference" "false" "true"
   write_doc "${root}" "operate/index.md" "operate" "false" "true"
+
+  {
+    printf 'site_name: Test Docs\ndocs_dir: public\nnav:\n'
+    for page in "${required_pages[@]}"; do
+      printf '  - %s: %s\n' "${page}" "${page}"
+    done
+  } >"${root}/docs/mkdocs.yml"
 }
 
 run_verifier() {
@@ -158,10 +165,40 @@ test_unterminated_metadata_block_fails() {
   assert_contains "start-here.md: docs-catalog block is missing closing -->" "${out}"
 }
 
+test_orphan_public_page_fails_and_wiring_recovers() {
+  local root="${tmp_root}/orphan"
+  local out="${tmp_root}/orphan.out"
+  seed_repo "${root}"
+  write_doc "${root}" "reference/unlinked-page.md" "reference" "false" "false"
+  if run_verifier "${root}" "${out}"; then
+    echo "test-docs-catalog: expected unlinked public page to fail (RED)" >&2
+    exit 1
+  fi
+  assert_contains "reference/unlinked-page.md: orphaned public page not linked in docs/mkdocs.yml nav" "${out}"
+
+  printf '  - "Unlinked Page": "reference/unlinked-page.md"\n' >>"${root}/docs/mkdocs.yml"
+  run_verifier "${root}" "${out}"
+  assert_contains "metadata check passed" "${out}"
+}
+
+test_missing_mkdocs_yml_fails_closed() {
+  local root="${tmp_root}/missing-mkdocs"
+  local out="${tmp_root}/missing-mkdocs.out"
+  seed_repo "${root}"
+  rm "${root}/docs/mkdocs.yml"
+  if run_verifier "${root}" "${out}"; then
+    echo "test-docs-catalog: expected missing docs/mkdocs.yml to fail closed" >&2
+    exit 1
+  fi
+  assert_contains "missing docs/mkdocs.yml" "${out}"
+}
+
 test_valid_catalog_passes
 test_missing_required_file_fails
 test_bad_type_fails
 test_unreachable_entrypoint_fails
 test_unterminated_metadata_block_fails
+test_orphan_public_page_fails_and_wiring_recovers
+test_missing_mkdocs_yml_fails_closed
 
 echo "test-docs-catalog: all tests passed"

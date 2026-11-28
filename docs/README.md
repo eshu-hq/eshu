@@ -1,19 +1,21 @@
 # Documentation Layout
 
-This directory separates public documentation from maintainer notes and support
-artifacts.
+This repository keeps durable documentation in three clear homes:
+
+| Home | Purpose |
+| --- | --- |
+| `docs/public/` | Public MkDocs site. Every `.md` file here must appear in `docs/mkdocs.yml` (`scripts/verify-docs-catalog.sh` blocks orphaned pages). |
+| `docs/internal/` | Maintainer handbooks and active design docs. Never commit PR proof logs, shims, probes, or arbiter rulings (`scripts/verify-no-ephemeral-docs.sh`). |
+| `go/<pkg>/{doc.go,README.md,AGENTS.md}` | Package-local contracts, architecture, telemetry, and contributor rules. |
+
+Supporting directories under `docs/`:
 
 | Path | Purpose |
 | --- | --- |
-| `docs/public/` | Public MkDocs content. Pages in this directory can appear on the published documentation site. |
-| `docs/mkdocs.yml` | MkDocs configuration, navigation, theme, and build settings. |
-| `docs/site/` | Generated MkDocs build output. Do not edit this directory by hand. |
-| `docs/internal/` | Maintainer-only notes that are not part of the public site. |
+| `docs/mkdocs.yml` | MkDocs navigation, theme, and strict build configuration. |
+| `docs/site/` | Generated MkDocs build output. Do not edit by hand. |
 | `docs/openapi/` | OpenAPI contracts and supporting API artifacts. |
 | `docs/dashboards/` | Observability dashboard JSON. |
-
-Public docs should live under `docs/public/` and be linked from
-`docs/mkdocs.yml` when they should appear in the site navigation.
 
 ## Required Documentation Skills
 

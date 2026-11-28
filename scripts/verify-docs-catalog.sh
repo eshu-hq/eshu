@@ -242,6 +242,39 @@ for page in "${required_pages[@]}"; do
   fi
 done
 
+if [[ ! -f "${repo_root}/docs/mkdocs.yml" ]]; then
+  log "missing docs/mkdocs.yml; cannot verify public navigation coverage"
+  failures=$((failures + 1))
+else
+  declare -A nav_pages=()
+  while IFS= read -r nav_path; do
+    [[ -n "${nav_path}" ]] || continue
+    nav_pages["${nav_path}"]=1
+  done < <(
+    awk '
+      /^nav:[[:space:]]*$/ { in_nav = 1; next }
+      in_nav && /^[^[:space:]#]/ { in_nav = 0 }
+      in_nav {
+        line = $0
+        sub(/[[:space:]]+#.*$/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        sub(/['"'"'"]$/, "", line)
+        if (match(line, /[A-Za-z0-9._\/-]+\.md$/)) {
+          val = substr(line, RSTART, RLENGTH)
+          print val
+        }
+      }
+    ' "${repo_root}/docs/mkdocs.yml"
+  )
+
+  while IFS= read -r rel; do
+    if [[ -z "${nav_pages[${rel}]:-}" ]]; then
+      log "${rel}: orphaned public page not linked in docs/mkdocs.yml nav"
+      failures=$((failures + 1))
+    fi
+  done < <(cd "${docs_root}" && rg --files -g '*.md' | sort)
+fi
+
 if [[ "${failures}" -ne 0 ]]; then
   log "metadata check failed with ${failures} issue(s)"
   exit 1

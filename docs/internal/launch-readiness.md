@@ -60,8 +60,6 @@ commit `71fad840a` ("Default eshu mcp start to local_authoritative (#3026)").
 - `docs/public/reference/environment-runtime-storage.md` — `ESHU_QUERY_PROFILE`
   row states the per-command defaults (`eshu mcp start` → `local_authoritative`,
   `eshu index` → `local_lightweight`).
-- `docs/public/reference/local-lightweight-capability-audit.md` — cross-references
-  the default change.
 
 No doc was found claiming the default is `local_lightweight` or
 `local_full_stack`. Public positioning copy (`docs/public/index.md`,
