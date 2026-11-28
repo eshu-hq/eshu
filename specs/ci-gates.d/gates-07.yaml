@@ -185,6 +185,7 @@ gates:
       - "scripts/lib/gosec-json-to-sarif.py"
       - "scripts/test-gosec-json-to-sarif.py"
       - "scripts/test-precommit-go-gosec.sh"
+      - "scripts/test-precommit-go-nested-module.sh"
     self_test_triggers:
       - "scripts/dev/precommit-go.sh"
       - "scripts/lib/go-toolchain.sh"
@@ -193,6 +194,7 @@ gates:
       - "scripts/lib/gosec-json-to-sarif.py"
       - "scripts/test-gosec-json-to-sarif.py"
       - "scripts/test-precommit-go-gosec.sh"
+      - "scripts/test-precommit-go-nested-module.sh"
       - ".github/workflows/security-scan.yml"
     # The gosec-changed mode derives its own package list from the merge-base
     # diff (plus staged and unstaged work), falls back to the whole module when
@@ -206,7 +208,7 @@ gates:
     local:
       command: "bash scripts/dev/precommit-go.sh gosec-changed"
       pre_push: floor
-      test_command: "bash scripts/test-precommit-go-gosec.sh"
+      test_command: "bash scripts/test-precommit-go-gosec.sh && bash scripts/test-precommit-go-nested-module.sh"
     ci:
       workflow: security-scan.yml
       job: "gosec (Go static analysis)"
