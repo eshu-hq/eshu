@@ -58,192 +58,36 @@ language handles; grammars are loaded on first use and reused across calls.
 
 `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form, calls
 `Registry.LookupByPath` to identify the language, then dispatches to the
-registered `LanguageProvider` when present before falling back to legacy
-built-in wrappers. The wrapper keeps the parent parser signature stable while
-language-owned packages hold adapter logic that no longer needs parent
-internals. Language adapters may attach semantic metadata
-such as
-`dead_code_root_kinds` when syntax or bounded config proves an entrypoint,
-framework callback, function-value callback, Python route/task/CLI decorator,
-Python AWS Lambda handler, JavaScript package export, CommonJS default export,
-CommonJS mixin method export, configured Hapi handler or exported route-array
-handler reference, Next.js app or route export,
-Express/Koa/Fastify/NestJS callback root, Fastify route-object handler,
-constructor-passed function-value reference, Node migration export, TypeScript
-module-contract export, TypeScript public method on a class that declares
-`implements`, or TypeScript package public API surface proven through a
-nearest-package `exports` or `types` target and bounded static re-export
-barrels. C adapters mark `main`, functions declared by directly included local
-headers, signal-handler arguments, callback argument targets, and direct
-function-pointer initializer targets without scanning every repository header.
-C++ adapters mark `main`, functions and class methods declared by directly
-included local headers, virtual and override methods, callback argument targets,
-direct function-pointer initializer targets, and Node native-addon entrypoints
-without recursing through include graphs or resolving build targets.
-Java adapters mark `main` methods, constructors, `@Override` methods, public
-Ant `Task` setters, Gradle plugin `apply` methods, Gradle task actions and
-properties, Gradle task setters and task-interface methods, public Gradle DSL
-methods, and same-class method-reference targets as dead-code roots so query
-policy does not report JVM entrypoints, dispatch callbacks, or framework-injected
-task properties as cleanup candidates. Java method and constructor metadata
-captures parameter counts and parameter types. Serialization and
-Externalizable hook signatures are also roots because the JVM can invoke
-methods such as `readObject` and `writeExternal` outside ordinary source calls.
-Java call metadata captures method references such as `this::configureTask`,
-bounded literal reflection calls such as Class.forName class names and
-getDeclaredMethod method names, argument counts,
-and bounded argument types from parameters, fields, inline constructors, and
-class-literal typed lambdas, so the reducer can distinguish overloaded methods
-when local receiver evidence points at a type. Receiver inference builds a local
-index of parameters, variables, enhanced-for loop variables, fields, and typed
-lambda parameters and same-class method return types for each parsed file
-before call extraction, so large classes do not repeat a full tree walk for
-every method invocation. Method-call arguments such as helper calls can then
-carry bounded return-type metadata when resolving overloads. Unqualified Java
-calls inside nested classes carry a nearest-to-outermost
-`enclosing_class_contexts` chain, which lets the reducer match inner-class
-helpers first and then enclosing class methods without broad same-name fallback.
-Explicit outer-this field receivers in Java's named-outer-instance field form
-reuse the field type index for the named enclosing class, so nested callback
-bodies can still produce typed receiver evidence.
-Record declarations use the same class-style context for nested method parsing,
-which keeps Java record helper methods addressable by the reducer.
-Java metadata files under META-INF/services, Spring Boot
-AutoConfiguration.imports, and `spring.factories` parse as `java_metadata`
-payloads. The parent parser keeps the wrapper and payload shape, while the Java
-helper subpackage extracts bounded class-reference evidence for provider and
-auto-configuration classes without scanning the repository from each Java
-source file.
-Python adapters also preserve method `class_context`, constructor call
-metadata, class receiver references, dataclass/property roots, dunder protocol
-roots, inheritance base names, same-module `__all__` public API roots, package
-`__init__.py` reexport roots, public base classes inherited by those
-parser-proven public classes, public methods on those classes, and simple
-local constructor or `self` receiver metadata. The public API helper walks
-bounded package evidence instead of treating every non-underscore symbol as
-live, so reducer call materialization can connect class, constructor, and
-instance method calls without broad guessing.
-Exported TypeScript object registries also mark same-file function values as
-`typescript.static_registry_member`; private registries do not create roots.
-JavaScript-family adapters also preserve import alias metadata, CommonJS
-`module.exports` self-aliases, JSONC tsconfig `baseUrl` and `paths`
-`resolved_source` metadata through the JavaScript helper subpackage even when
-the config uses comments or trailing commas, returned and constructor-argument
-function-value references, static relative re-export metadata, constructor
-calls, and local receiver type metadata from `const value = new Type()` and
-typed parameters so reducer call materialization can resolve bounded cross-file
-calls.
-JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
-the wrapper and dbt SQL lineage callback, while the child package owns
-ordered-object metadata, dependency manifests, npm/Composer/NuGet/SwiftPM
-lockfile rows, `.jsonc` config files, TypeScript config rows,
-CloudFormation/SAM JSON attachment, dbt manifest payload construction, and
-data-intelligence replay documents. NuGet `.csproj` files route through the
-`nuget_project` parser to emit PackageReference dependency rows without mixing
-project XML parsing into the C# syntax adapter.
+registered `LanguageProvider` when present before falling back to built-in
+wrappers. Language adapters live in their own subpackages (`internal/parser/<lang>`)
+and share helper primitives via `internal/parser/shared` so child adapters never
+import the parent dispatcher.
 
-Package-level roots are resolved from the nearest owning `package.json`, so
-nested workspaces can expose
-their own entrypoints, `bin` targets, and package exports without depending on
-the repository root manifest. That nearest-package evidence now lives in the
-JavaScript helper subpackage, while the parent parser decides which parsed
-functions or types receive root metadata. Hapi handler roots search from the owning
-service/package root before falling back to repository-root conventions, and
-route arrays recognize both `config.handler` and `options.handler` as mounted
-handler references. After
-the language adapter returns,
-`inferContentMetadata` sets `artifact_type`, `template_dialect`, and
-`iac_relevant` on the payload. The final payload also carries `repo_path`.
+Each language adapter emits structured symbols, imports, calls, and bounded
+reachability evidence (`dead_code_root_kinds`, receiver types, package-export
+roots, embedded SQL, IaC/template buckets) according to its subpackage contract
+and `docs/public/reference/dead-code-reachability-spec.md`. After the language
+adapter returns, `content.Infer` (gated by `content.ShouldSkip`) sets
+`artifact_type`, `template_dialect`, and `iac_relevant`, and the payload records
+`repo_path`.
 
-Go embedded SQL extraction lives in the Go helper subpackage while the parent
-parser keeps the `embedded_sql_queries` payload contract. The Go helper also
-emits direct-method-call roots, imported-package direct-method-call roots,
-package-level generic and chained receiver roots, qualified same-repo package
-interface roots, and, when module identity is available, stable `scip-go gomod`
-symbols on definitions plus matching imported-call symbol keys. Generic receiver
-type names are normalized to their base type before payload emission so methods
-declared on receivers such as `Map[K, V]` can meet call evidence for `Map`
-instances.
-Go composite literals also emit `function_calls` rows with
-`call_kind=go.composite_literal_type_reference`. The reducer materializes them
-as deduplicated REFERENCES edges, not canonical CALLS edges, so sibling files
-can keep local structs out of dead-code candidate lists without claiming type
-references are invocations.
-Java method-reference, literal-reflection, ServiceLoader provider, and Spring
-auto-configuration rows follow the same rule: they prove reachability roots but
-do not claim an invocation happened.
+Specialized extraction helpers live beside their language packages:
+- `internal/parser/dbtsql` extracts compiled dbt SQL lineage directly (no parent wrapper).
+- `internal/parser/cloudformation` shares CloudFormation/SAM classification across JSON and YAML.
+- `internal/parser/python` extracts executable `.ipynb` code cells into a temporary Python source view parsed through the standard Python path.
+- `internal/parser/golang`, `java`, `javascript`, `json`, `yaml`, `groovy`, `dockerfile`, `ruby`, and `hcl` own their respective manifest, lockfile, metadata, and pre-scan helpers.
 
-Full Go, Java, Python, and JavaScript/TypeScript/TSX adapters now live in their
-language helper subpackages behind thin parent wrappers. Parent-owned runtime
-grammar caching, registry dispatch, raw-text payload construction, SCIP payload
-assembly, and dbt SQL lineage callbacks remain in this package. The
-`shared_bridge.go` wrapper converts parent `Options` into shared adapter
-options so child adapters do not import the dispatcher.
-
-dbt SQL lineage extraction now lives in the dbt SQL helper subpackage
-(`dbtsql.ExtractCompiledModelLineage`). The lineage record types live in
-the JSON helper subpackage (`jsonparser.ColumnLineage`,
-`jsonparser.CompiledModelLineage`), and the parent calls the helper
-directly — no parent-owned compatibility wrapper remains.
-
-`Engine.PreScanRepositoryPathsWithWorkers` runs a pre-scan pass that extracts
-import names, package-level interface references, type references, and
-referenced symbol names from each file. Results are merged across workers and
-sorted by input order to produce a deterministic import map. The Go semantic
-pre-scan also reads `go.mod` when present, qualifies exported local-package
-interface-parameter contracts by import path, routes imported receiver method
-calls back to the package that defines those methods, combines package-local
-generic constraint interfaces with package method declarations, and combines
-local interface return signatures with chained calls in sibling files. The
-pre-scan is a lighter parse used to build cross-file import context before the
-full parse pass. Java
-pre-scan includes records alongside classes, interfaces, annotations, enums,
-methods, and constructors so record helper methods participate in the same
-downstream name map as class methods.
-
-Python `.ipynb` files use the Python helper subpackage to extract executable
-code cells, then the parent parser writes that source view to a temporary
-Python file before tree-sitter parsing. The temporary file is removed after
-parse. The notebook path shares the same payload contract as `.py` files.
-
-Groovy/Jenkins pipeline metadata extraction, lexical class/function/call
-entities, payload assembly, and pre-scan name extraction live in the Groovy
-helper subpackage. The parent parser keeps the
-`ExtractGroovyPipelineMetadata` compatibility wrapper used by query and
-relationship code.
-
-Dockerfile runtime metadata extraction lives in the Dockerfile helper
-subpackage. The parent parser keeps file I/O, registry dispatch, and the
-`ExtractDockerfileRuntimeMetadata` compatibility wrapper used by query and
-relationship code.
-
-CloudFormation and SAM template evidence now lives in the CloudFormation helper
-subpackage so JSON and YAML adapters share the same template classification,
-condition evaluation, and bucket construction contract.
-
-YAML parsing now lives in the YAML helper subpackage. The parent parser keeps
-the wrapper, while the child package owns YAML decoding, Kubernetes and
-Crossplane resource rows, Argo CD rows, Kustomize rows, Helm chart/value rows,
-and YAML-side CloudFormation/SAM attachment.
-
-First-wave language package moves also cover C, C++, Rust, C#, Scala, Elixir,
-Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform adapters. Those
-packages own parse and pre-scan behavior behind thin parent wrappers. Shared
-payload, tree-sitter, and value helpers live in the shared parser helper
-subpackage so child packages do not import the parent dispatcher.
-The Ruby package also owns Bundler `Gemfile` and `Gemfile.lock` dependency
-evidence so RubyGems manifest and lockfile rows use the same parser payload
-path as `.rb` source files.
+`Engine.PreScanRepositoryPathsWithWorkers` runs a lighter pre-scan pass that
+extracts import names, package-level interface/type references, and referenced
+symbol names across workers, then merges results in input order to produce a
+deterministic cross-file import map before full parsing.
 
 **SCIP path**: when `SCIP_INDEXER=1`, `true`, `yes`, or `on`, the collector
-snapshotter groups selected files from the configured SCIP-capable list by
-language and
-package/workspace root, verifies the matching `scip-*` binary is on `PATH`,
-runs it via `scip.Indexer.Run`, and parses the resulting protobuf index via
-`scip.IndexParser.Parse`. The SCIP result supplements the native tree-sitter
-parse for supported languages (Go, Python, TypeScript, JavaScript, Rust, Java,
-C, C++), and files omitted from an index still complete through the native
-parser path.
+snapshotter groups selected files by language and package/workspace root, runs
+the matching `scip-*` binary on `PATH` via `scip.Indexer.Run`, and parses the
+protobuf index via `scip.IndexParser.Parse`. SCIP supplements native tree-sitter
+output for Go, Python, TypeScript, JavaScript, Rust, Java, C, and C++; files
+omitted from an index still complete through the native parser.
 
 ## Exported surface
 
@@ -528,173 +372,17 @@ error handling is unchanged.
 
 ## Gated content-metadata inference
 
-`content.Infer` (`content/infer.go`) runs several regex scans (a
-Go template line-control scan, a Terraform `templatefile()` scan, and the
-marker scans described in [Hoisted marker scan](#hoisted-marker-scan) below)
-to populate `artifact_type`, `template_dialect`, and `iac_relevant` after every
-parse. Profiling a full-corpus run (issue #4768) showed this call costing
-roughly 7.5ms on a large PHP/JS file, about 5% of `ParsePath` wall time across
-the corpus, even though most files carry no IaC/template signal at all and
-always resolve to the zero `content.Metadata{}`.
-
-`content.ShouldSkip` (`content/gate.go`) gates the call in
-`Engine.ParsePath`: it returns `true` (skip, use the zero value) only when
-none of `content.Infer`'s own trigger conditions can apply --- derived
-directly from a full line-by-line audit of every branch in
-`content/infer.go`:
-
-- no suffix returned by `content.SplitSuffixes` (i.e. every dot-segment in the
-  basename, not just the last one) is in `{.yaml, .yml, .hcl, .tf, .tfvars,
-  .tpl, .tftpl, .jinja, .jinja2, .j2, .conf, .cfg, .cnf, .kcl}`
-  (`isYAMLSuffix`, `isHCLSuffix`, `isJinjaSuffix`, `isTerraformTemplateSuffix`,
-  `isRawConfigSuffix`, and the `.kcl` special case). Checking every suffix
-  (mirroring `anySuffix`'s semantics in `inferArtifactType`/`inferRootFamily`),
-  not only the last one, matters for multi-dot names like `vars.tf.json`
-  (suffixes `.tf`, `.json`), which is real `terraform_hcl` via its `.tf`
-  suffix even though `.json` is last.
-- no path segment in `{roles, playbooks, handlers, tasks, group_vars,
-  host_vars, inventory, inventories, dagster, assets, data_quality,
-  data_lakehouse, chart, templates, argocd, iac}` (`inferRootFamily`,
-  `ansibleArtifactType`, and `isIACRelevant`'s bare-`iac` fallback)
-- no `.github` + `workflows` path pair (`github_actions_workflow` artifact
-  type)
-- basename is not `chart.yaml`, does not start with `values.`, is not
-  `dockerfile`/`dockerfile.*`, and is not a Docker Compose filename
-- content contains none of the path-independent Ansible-playbook markers
-  (`isAnsiblePlaybookContent`: a line starting with `hosts:`, `roles:`,
-  `vars_files:`, or `import_playbook:`)
-
-This is deliberately conservative: a `.py`, `.js`, or `.php` file under
-`roles/`, `playbooks/`, `dagster/`, `chart/templates/`, or `argocd/` is
-legitimately reclassified by path alone (for example `ansible_role` or
-`iac_relevant=true`) and is never skipped; content-based Ansible-playbook
-detection is checked regardless of extension or path; and a `.conf`/`.cfg`/
-`.cnf`/`.kcl` file, or a multi-dot name carrying a gated suffix anywhere
-(not just last), is never skipped either. See
-`docs/public/contributing-language-support.md#content-metadata-sniffing-is-skipped-for-non-iac-signal-source-files`
-for the full contributor-facing description and
-`content/gate_test.go` for the proof: a hand-picked-case equivalence
-test plus the mandatory generative differential
-(`TestShouldSkipContentMetadataGeneratedEquivalence`), which enumerates a
-cartesian product of extensions (including multi-dot shapes), directory
-contexts, and content signals and asserts the implication `content.ShouldSkip(path, content) == true
-=> content.Infer(path, content) == content.Metadata{}` holds for every
-generated combination -- plus two red-without-the-fix regressions
-(`TestShouldSkipContentMetadataTooWideIsCaught` and
-`TestShouldSkipContentMetadataGeneratedEquivalenceFailsOnUnfixedGate`) proving
-the differential is not a tautology and actually distinguishes a too-narrow
-gate from a correct one. An earlier version of this gate shipped without the
-generative differential and missed three real trigger classes (`.conf`/
-`.cfg`/`.cnf` entirely absent from the extension set, last-suffix-only
-matching instead of `anySuffix` over every suffix, and `.kcl` absent); a
-hostile `eshu-code-review` caught all three live through
-`DefaultEngine().ParsePath` before merge, and this section and the gate code
-were corrected in response.
-
-### Hoisted marker scan
-
-The gate above only helps files with no IaC/template signal at all. For a file
-that legitimately runs the full `inferContentMetadata` inference (real
-Terraform/Helm/Ansible/GitHub-Actions content, or anything else
-`shouldSkipContentMetadata` correctly declines to skip), issue #4805 found that
-`inferContentMetadata` called `inferRootFamily`, which internally re-scanned
-the same five marker regexes (`goExpressionRE`, `jinjaStatementRE`,
-`tfInterpolationRE`, `tfDirectiveRE`, `tfTemplatefileRE`) that
-`inferContentMetadata` itself scans again a few lines later via
-`filteredMatches`/`countUnprefixedMatches`. `inferRootFamily` has exactly one
-call site (`inferContentMetadata`), so this was pure duplicated work on every
-un-gated call.
-
-The fix hoists the marker scans to run once in `inferContentMetadata` and
-passes the results down to `inferRootFamily` through a `contentMarkers`
-struct, instead of `inferRootFamily` re-invoking `MatchString` on the same
-regexes.
-
-A follow-up review caught a second-order regression in that first hoist: it
-made `inferContentMetadata` scan all five marker regexes *eagerly*, even for
-files that `inferRootFamily` resolves through a path-only branch before ever
-consulting a marker (for example `anySuffix(suffixes, isHCLSuffix)`, which
-returns `"terraform"` immediately for any `.tf`/`.hcl`/`.tfvars` file, marker
-signal or not). That reintroduced hot-path regex cost for the common
-large-marker-free-`.tf`-file shape -- the opposite of the intended win. The
-fix makes the three TF-marker probes (`tfInterpolationRE`, `tfDirectiveRE`,
-`tfTemplatefileRE`) lazy: `contentMarkers.hasTFMarkers` is a
-`*lazyTFMarkerCheck` that runs its three `MatchString` probes and caches the
-result on first call to `.has()`, not when the struct is built.
-`inferRootFamily`'s first case never calls `.has()`, so a path-only family
-still triggers zero marker-regex scans; a branch that does need the TF-marker
-signal (`inferRootFamily`'s second case) still triggers exactly one scan per
-regex, preserving the original hoist's single-scan invariant for the
-marker-consulting path. `goExpressionRE`/`jinjaStatementRE` stay eager because
-`inferContentMetadata` needs both unconditionally for its own logic
-(`hasCurlyExpressions`/`explicitJinja`), regardless of which `inferRootFamily`
-branch runs.
-
-`inferRootFamily`'s original five marker checks used *unfiltered*
-`MatchString` (matching, for example, a bare `{{ ... }}` even inside a
-GitHub-Actions-shaped `${{ ... }}`, and an escaped `$${`/`%%{` sequence that
-the filtered `filteredMatches`/`countUnprefixedMatches` variants used
-elsewhere in `inferContentMetadata` intentionally exclude), so the hoist
-preserves that exact unfiltered semantics: `hasAnyGoExpression` and
-`hasAnyJinjaStatement` stay as eager locals in `inferContentMetadata`, and the
-three TF-marker probes run inside `lazyTFMarkerCheck.has()` with the same
-unfiltered `MatchString` calls, rather than reusing the filtered values
-computed for `inferContentMetadata`'s own bucket logic.
-`MatchString` short-circuits at the first match, so keeping it alongside the
-filtered `FindAll`-based scans does not reintroduce a second full-content
-scan; the fix removes the *second* full scan that `inferRootFamily` used to
-perform, not the first.
-
-Lazy-fix Performance Evidence:
-`BenchmarkInferContentMetadataPathOnlyTFNoMarkers` in
-`content/infer_hoist_test.go` measures the regression case directly: a
-synthetic 400-block, marker-free `.tf` file through the full
-`content.Infer` entrypoint. On the same machine, the eager (regressed)
-implementation ran roughly 1.133-1.137ms/op (measured via a throwaway `git
-worktree` checkout of the pre-fix commit, not committed); after making
-`contentMarkers.hasTFMarkers` a lazy, memoized-on-first-call accessor
-(`lazyTFMarkerCheck`) instead of a precomputed bool, the same benchmark runs
-0.867-0.881ms/op -- roughly a 22-24% reduction, consistent with eliminating
-the three now-unneeded `MatchString` scans for this shape.
-`TestLazyTFMarkerCheckNotConsultedForHCLSuffix` is the deterministic companion
-proof: it asserts `lazyTFMarkerCheck.done` is still `false` (the scan never
-ran) after `inferRootFamily` resolves an `isHCLSuffix` path through its first
-case.
-
-Classification: **Handler win** (removes duplicated regex-matching CPU work
-from every un-gated `content.Infer` call, and the follow-up lazy fix
-restores zero-marker-scan behavior for path-only families; the query/graph-
-visible output is unchanged in both steps, so this does not change `ParsePath`
-correctness, only its cost on the subset of files that legitimately run full
-inference).
-
-Equivalence proof (output-preserving, 0/0):
-`TestInferContentMetadataHoistEquivalence` in
-`content/infer_hoist_test.go` asserts `content.Infer` returns a
-byte-identical `content.Metadata{}` across 18 cases spanning every branch that
-reads a marker signal: plain Go/Python source with no markers, Terraform HCL
-with each marker kind (interpolation/directive/`templatefile()`) and with no
-markers, a `.tftpl` terraform-template-suffix file, a raw `.conf` file with and
-without go-template markers, an Ansible playbook path, an Ansible role path
-with jinja markers, a Helm `values.yaml` and a Helm chart template with
-go-template markers, a GitHub Actions workflow (including the `${{ }}` shape
-that specifically exercises the unfiltered-vs-filtered marker distinction), a
-plain YAML file carrying only a `${{ }}`-shaped expression outside a workflows
-directory, a Dagster asset path with jinja markers, a Docker Compose overlay,
-and a `.kcl` file with go-template markers. Every expected value in that table
-was independently verified against the pre-hoist implementation on `origin/main`
-(commit `c2c477f48`) by running the identical input battery through a
-throwaway probe built from that commit, confirming the hoist changed no
-observable output for any case; this same suite stays green, unmodified, after
-the follow-up lazy-marker fix, since laziness only changes when the TF-marker
-regexes run, never the resulting `contentMetadata{}` value. This table --
-plus `TestLazyTFMarkerCheckNotConsultedForHCLSuffix` for the zero-scan
-invariant on path-only families -- is this package's proof for the hoist's
-core invariant, independent of any downstream bucket/artifact-type branching.
-The full existing `TestInferContentMetadata` and
-`TestShouldSkipContentMetadataGeneratedEquivalence` suites (the latter
-enumerating a cartesian product of extensions, directory signals, and content
-signals) also stay green, unmodified, after both the hoist and the lazy fix.
+`content.ShouldSkip` (`content/gate.go`) gates `content.Infer`
+(`content/infer.go`) inside `Engine.ParsePath` so plain source files with no
+IaC, template, or Ansible signal skip the regex scans and resolve to zero
+`content.Metadata{}`. The skip predicate checks every dot-suffix
+(`content.SplitSuffixes`), known IaC/template path segments and basenames, and
+path-independent Ansible playbook markers. `content.Infer` hoists marker scans
+once per call and evaluates Terraform-marker probes lazily via
+`lazyTFMarkerCheck` so path-only families (such as `.tf`/`.hcl`) run zero
+marker regex scans. See `content/gate_test.go` and `content/infer_hoist_test.go`
+for the generative equivalence and zero-scan contracts, and
+`docs/public/contributing-language-support.md` for contributor rules.
 
 ## Operational notes
 
@@ -735,57 +423,12 @@ signals) also stay green, unmodified, after both the hoist and the lazy fix.
   `shape.Materialize` consume keys by string. Adding a new key to a language
   adapter's output requires corresponding updates in `content/shape` and
   downstream fact contracts.
-- `dead_code_root_kinds` is conservative evidence, not a cleanup verdict.
-  Go roots currently cover entrypoints, selected framework registrations,
-  function-valued parameters, local interface references, imported receiver
-  method calls, concrete methods that flow into local or imported
-  interface-typed seams, and struct types referenced by composite literals.
-  JavaScript-family roots cover Node package
-  entrypoints, package `bin` targets, package public exports from the nearest
-  owning package manifest, exported functions under Hapi-style handler
-  directories, Hapi plugin `register` methods, Hapi exported route arrays with
-  direct, `config`, or `options` handlers, Next.js app and route exports,
-  Node migration `up`/`down` exports, methods on CommonJS default-exported
-  classes, TypeScript module-contract exports, and TypeScript public methods on
-  classes that declare `implements` when bounded local evidence proves the root.
-  TypeScript public surface roots also cover
-  package `exports` or `types` targets that statically re-export same-repo
-  declarations through bounded multi-hop barrels, including declaration-only
-  `*.d.ts` barrels and `tsconfig.json` `paths` aliases that resolve to local
-  files. Java dead-code roots cover `main`, constructors, `@Override`,
-  JavaBean-style
-  public Ant `Task` setters, Gradle plugin `apply` methods, Gradle task
-  actions and properties, public Gradle DSL methods, Spring component and
-  configuration-property classes, Spring request/bean/event/scheduled methods,
-  Java lifecycle callbacks, JUnit test and lifecycle methods, Jenkins extension
-  and symbol classes, Jenkins initializer/data-bound setter methods, and Stapler
-  web methods. Rust dead-code roots cover Cargo-shaped `main` functions,
-  `build.rs` build scripts, `#[test]`, `#[tokio::test]`, and `#[tokio::main]`
-  functions, exact `pub` items, benchmark functions, and methods inside direct
-  trait impl blocks. Rust exact-name dispatch also parses `Cargo.toml` and
-  `Cargo.lock` into dependency rows for supply-chain evidence: manifests
-  preserve ranges, scopes, workspace inheritance, target sections, and renamed
-  packages; lockfiles preserve exact crate versions and only emit dependency
-  paths when the lock graph proves reachability. Rust module rows also carry bounded
-  `module_resolution_status` metadata when `Engine.ParsePath` can probe direct
-  current-file candidates inside the repo root; existing files outside that
-  root are not reported as resolved modules. Java call
-  metadata also preserves local receiver types from
-  parameters, variables, fields, inline constructor receivers, typed method
-  references such as `processor::process`, unqualified same-class calls, and
-  call/function arity so the reducer can connect bounded method calls without
-  treating every same-named overload as live.
-  C dead-code roots cover `main`, directly included public headers, signal
-  handlers, callback arguments, and direct function-pointer initializers. C++
-  roots cover `main`, directly included public headers, virtual and override
-  methods, callback arguments, direct function-pointer initializers, and Node
-  native-addon entrypoints.
-  JavaScript-family import metadata preserves namespace aliases, JSONC
-  tsconfig `baseUrl` and `paths` resolved sources with comments and trailing
-  commas accepted, and static relative re-exports used by reducer call
-  materialization. Dynamic reflection, build-tag-specific reachability,
-  package-manager resolution, and computed dispatch still need query-side
-  ambiguity handling.
+- `dead_code_root_kinds` is conservative reachability evidence, not a cleanup
+  verdict. Language-specific root families (Go, JS/TS, Python, Java, Rust,
+  C/C++, and others) are owned by each `internal/parser/<lang>` subpackage and
+  documented in `docs/public/reference/dead-code-reachability-spec.md`. Dynamic
+  reflection, build-tag-specific reachability, and computed dispatch remain
+  query-side ambiguity boundaries.
 - `Engine.ParsePath` resolves both `repoRoot` and `path` to absolute form.
   Passing a relative path produces an absolute resolved path in the payload's
   `repo_path` field; this is correct behavior but callers should pass absolute

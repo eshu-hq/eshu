@@ -3,57 +3,23 @@
 ## Purpose
 
 `internal/query` owns the HTTP read surface, OpenAPI assembly, response envelope
-contract, and all read models that back the public Eshu query API. It defines the
-`GraphQuery` and `ContentStore` ports through which every handler accesses the
-graph and Postgres content store, and it enforces the capability matrix that
-determines which queries are permitted under each runtime profile.
-For a multi-type NornicDB Function relationship story, the content entity ID
-is the canonical graph `uid`. The handler resolves that anchor once per request
-and checks legacy `id` only when no canonical anchor exists; an unrelated
-legacy-ID collision cannot contribute edges to the selected content entity.
-Repository-scoped entity resolution and graph code search start from the indexed
-`Repository.id` anchor, then expand only that repository's files and entities;
-they do not scan the entity universe before applying repository scope. A
-canonical `content-entity:` resolution request is served from the authoritative
-content row first. A missing canonical content row is an explicit empty result,
-not a reason to fall back to a broad graph name scan.
-Global code-name search and typed entity resolution do not use an unanchored
-graph scan. They call the narrow `EntityNameSearcher` extension on
-`ContentReader`, which applies repository grants, normalized language variants,
-entity type, and case-sensitive exact or substring matching before a stable
-limit. Untyped global entity resolution, unknown types, graph-only container
-types, and global substrings shorter than three Unicode characters fail closed.
+contract, and read models backing the public Eshu API. It defines the
+`GraphQuery` and `ContentStore` ports through which handlers access the graph
+and Postgres content store, and enforces the capability matrix for each runtime
+profile.
 
-`GET /api/v0/graph/entities` reads the eight fixed facet counts in one graph
-round trip. Each scalar `CALL` subquery stays anchored on its concrete label and
-returns one named count column, including when the label is empty. The outer
-projection does not aggregate the columns because NornicDB corrupts that shape.
-Go validates every count before restoring the display order. A selected facet
-adds one bounded label-anchored list read; an unfiltered request performs no
-second graph call. Missing, extra, malformed, or negative count columns return
-an error rather than an incomplete inventory.
-
-NornicDB direct-relationship metadata uses the content entity type as its graph
-label. When the content row is absent, the compatibility fallback probes the
-fixed supported label vocabulary by `uid` and then legacy `id`, optionally
-under the selected repository. It never issues an unlabeled property scan.
-The static `/api/v0/capabilities` route serves the embedded capability catalog
-with the built-in role, grant, data-class, and per-capability authorization
-metadata that also backs the MCP capability-catalog tool. Its OpenAPI schema
-documents the catalog's `restricted` and `sensitive` data-class sensitivity
-values so generated clients can model the role catalog accurately.
-The static `/api/v0/surface-inventory` route serves the embedded surface
-inventory with collector `collector_contract` provenance: emitted fact kinds,
-projection/read consumers, proof gates, fixture references, and the truth profile
-that separates deterministic, provider-gated, and optional semantic output.
-Code-quality routes also classify graph-derived findings before they reach
-HTTP, MCP, or CLI callers; `code_quality.dead_code` returns candidate evidence,
-language maturity, exclusions, and truth metadata instead of presenting a raw
-Cypher scan as a cleanup list. The dead-code incoming-edge probe is
-provenance-weighted (#2719) and now prefers reducer-materialized
-`code_reachability_rows` (#2718): a candidate reachable only by a weak
-`repo_unique_name` path classifies as `ambiguous` rather than confidently
-reachable or `unused`.
+Core read-surface invariants:
+- Entity resolution anchors on indexed `Repository.id`, canonical `uid`, or
+  bounded `ContentReader.EntityNameSearcher` lookups — never unlabeled graph
+  scans. Missing canonical content rows return an explicit empty result; short
+  global substrings (< 3 Unicode chars) and untyped global lookups fail closed.
+- `GET /api/v0/graph/entities` reads fixed facet counts in one round trip via
+  concrete label-anchored scalar `CALL` subqueries validated in Go.
+- `/api/v0/capabilities` and `/api/v0/surface-inventory` serve embedded static
+  catalogs with sensitivity classes, collector contracts, and truth profiles.
+- Code-quality routes (`code_quality.dead_code`) return candidate evidence,
+  language maturity, exclusions, and provenance-weighted reachability (`unused`
+  vs `ambiguous`), never raw Cypher cleanup lists.
 
 ## Where this fits in the pipeline
 
@@ -220,154 +186,30 @@ modes, and rejects a restricted-scope session. On the allowlist it splits by
 `scopedRouteClass` (#6450): an all-scope session still needs that policy
 unless the route needs no caller grant.
 
-Version resolution selects the strongest eligible concrete claim in
-deployment-truth
+Version resolution selects the strongest eligible concrete claim in deployment-truth
 order: runtime-observed evidence, CI-declared provenance, then config evidence.
 The unshipped declared-ref tier contributes no claim. A CI-declared digest that
 contradicts the finding's subject digest remains corroboration and cannot win.
 Same-axis claims are labeled `agrees` or `disagrees`; digest, image-reference,
 and package-version claims on different axes are `not_comparable`.
-The cloud-runtime owner-ledger read bounds rows per requested digest. A
-`CROSS JOIN LATERAL` driven by the distinct digest set gives every digest its
-own bounded, ordered `(digest, ARN, uid)` index scan, capped at the 200-row page
-budget divided across the digests on the page with a floor of 10
-(`supplyChainCloudRuntimeProbePerDigestLimit`). Active-generation and
-caller-grant checks run inside that lateral, before its limit, so the bound
-counts eligible rows: a digest whose first rows are stale or outside the
-caller's grants still yields the later row that is neither. A digest running on
-more resources than its share reports only the first slice of them, but no
-digest is left with no runtime evidence at all (#5789). The matching migration
-086 partial index excludes blank and whitespace-only digest or ARN values, so
-empty cloud inventory rows do not amplify storage or writes.
+The cloud-runtime owner-ledger read bounds rows per requested digest via a
+`CROSS JOIN LATERAL` index scan (200-row page budget, floor 10 per digest) with
+active-generation and caller-grant filters inside the lateral so stale or
+unauthorized rows do not starve visible digests.
 
-On Postgres 18 with 100,000 synthetic source rows, 50,000 canonical keys, and
-500 operator suppressions, 20 warm executions on the same machine measured the
-baseline median/p95 at direct list 177.170/184.338 ms, materialized list
-60.163/61.190 ms, aggregate count plus facets 465.099/468.035 ms, explain
-63.906/65.402 ms, and winner rebuild 912.147/943.861 ms.
+Documentation findings, evidence packets, and semantic-evidence rows surface an
+optional bounded `source_acl_state` (`allowed`, `denied`, `partial`, `missing`,
+`stale`) kept separate from freshness and binary permission decisions.
+`source_acl_disclosure.go` (`applySourceACLDisclosure`) enforces fail-closed
+allowlist redaction: `denied` strips protected content (returning `403` on
+single-packet reads), `partial` withholds content, `stale` and `missing` remain
+explicit, and truth labels are never collapsed into access markers.
 
-The final runtime implementation commit
-`63d06f6cc0d06ca9bc97a7ffa24b9eb4a8eb5d88` was measured with:
-
-```bash
-cd go
-GOCACHE=$PWD/../.gocache \
-  ESHU_POSTGRES_TEST_DSN='postgresql://eshu:change-me@127.0.0.1:25432/eshu?sslmode=disable' \
-  go test ./internal/query/supply/chain/impact \
-  -run '^TestSupplyChainSuppressionPathsPerformanceLive$' -count=1 -v
-```
-
-The final branch median/p95 measurements were direct list 136.923/138.221 ms,
-materialized list 14.636/15.762 ms, aggregate count plus facets
-342.687/349.311 ms, public finding-ID explain 2.909/3.074 ms, and winner rebuild
-873.095/918.479 ms. The post-documentation verification rerun on the same
-runtime code measured 141.541/151.742, 15.822/17.058, 352.147/382.474,
-2.895/3.193, and 919.997/1018.404 ms, respectively. All five paths stayed
-within the 10% stop threshold on both runs. Direct, materialized, aggregate,
-and explain improved on both samples. Winner rebuild improved on the first and
-was 0.9% slower at median and 7.9% slower at p95 on the verification sample,
-which remains within the declared no-regression band.
-
-The test applies migration 084 concurrently after seeding the populated fact
-table, proving the upgrade DDL before timing the production query. A
-pre-implementation query shim compared the broad explain shape with the indexed
-public-ID shape on the same data: the exact row differential was zero, while
-median/p95 improved from 68.502/77.519 ms to 15.950/18.338 ms. The permanent
-test asserts direct/materialized output equality and exact total, priority, and
-severity facets across all 50,000 canonical keys. Focused dispatch tests prove
-that public finding IDs use the indexed query, raw fact IDs and canonical keys
-fall back to the compatibility query only after an indexed miss, and ambiguity
-remains fail-closed.
-
-A rejected eager expiry overlay measured 40.950 ms versus 27.959 ms. A rejected
-composite authority sort measured 187.286/193.673 ms. The explain compatibility
-anchor initially regressed to 116.815/122.970 ms; a proven `NOT MATERIALIZED`
-shape preserved the exact explanation and recovered 64.621/69.648 ms before it
-was applied. The 100,000-winner expiry migration measured 11.254 ms on first
-apply and 6.337 ms on repeat, changed only the two intended operator rows, and
-performed 2,331 shared-buffer hits with zero reads. The final warm
-`EXPLAIN (ANALYZE, BUFFERS)` public-ID explain plan executed in 0.549 ms with
-78 shared-buffer hits, zero reads, and zero temporary blocks.
-The advisory-filter compatibility path preserved its exact legacy row set at
-16.114/17.041 ms versus 16.849/18.142 ms before the guard; the new
-advisory-only path returned exactly 250 intended rows at 18.452/23.607 ms.
-
-The same-machine built-binary golden gate ran on fresh volumes at exact runtime
-head `63d06f6cc0d06ca9bc97a7ffa24b9eb4a8eb5d88`, based on
-`a2a5340a9e4bd975a8d4ccd97be547bb5b9e84b3`, with:
-
-```bash
-docker compose -f docker-compose.yaml down -v
-GOCACHE=$PWD/.gocache ESHU_POSTGRES_PORT=25432 \
-  NEO4J_HTTP_PORT=27474 NEO4J_BOLT_PORT=27687 \
-  bash scripts/verify-golden-corpus-gate.sh
-```
-
-It completed in 109 seconds with 511 passes, zero required failures, and one
-advisory timing warning. Bootstrap/collect/first-drain/maintenance/graph-query
-phases were `5/21/66/17/24` seconds. The graph/query advisory is expected
-because the accuracy proof deliberately waits for a future suppression to
-expire; it is not production pipeline work. The exact advisory was
-`phase_graph_query: observed=24.0s, baseline=3.0s, ceiling=8.0s`.
-First-drain and every maintenance/suppression drain ended with zero residual
-and dead-letter work. Scope setup took 0.007944 seconds, the ignored mutation
-took 0.004450 seconds, the ignored drain took 2.095769 seconds, and seven
-identical retries had a 0.003336-second handler median without adding a
-generation or work item. Active, hidden, audit, and expired finding reads had
-medians of 0.021644, 0.004942, 0.010544, and 0.014689 seconds.
-
-Documentation findings, documentation evidence packets, and semantic-evidence
-rows surface an optional bounded `source_acl_state` (`allowed`, `denied`,
-`partial`, `missing`, `stale`) the collector observed on the fact's
-`acl_summary` (#2164, #1901 vertical). It is a DISTINCT access-posture axis kept
-separate from freshness and the binary permission decision: a row can be fresh
-yet denied, or stale yet allowed, and `partial` or `stale` ACL — which the binary
-permission flag cannot express — has its own representation. The reader fails
-closed: only a bounded value from `docs.ValidSourceACLState` is read verbatim (a
-`boundedSourceACLState` helper drops empty, absent, or non-bounded values), so
-absence means "no ACL claim."
-
-On top of that surfacing, `source_acl_disclosure.go` enforces the USER-APPROVED
-disclosure policy (#2164). `applySourceACLDisclosure` maps the bounded posture
-and the per-caller read decision onto a bounded `access_disposition`
-(`visible`/`access_denied`/`partial`/`stale`/`missing`) and, for any posture that
-is not cleanly readable, strips every field outside a bounded identity/state
-allowlist so no protected content/excerpt is returned:
-
-- `denied` (or a binary-denied caller) → `access_denied` with
-  `permission_denied: true`, `content_withheld: true`, content stripped. The
-  findings list discloses the row instead of silently dropping it; the single
-  evidence-packet read returns `403 permission_denied`.
-- `partial` → `partial` marker with `content_withheld: true`.
-- `stale` → surfaced as stale, content intact (permitted-but-stale).
-- `missing` → disclosed as missing.
-- `allowed`/no-claim → `visible`.
-
-Withholding is fail-closed (allowlist, not denylist) and the #2138 truth labels
-(`freshness_state`, `truth_level`, `admission_state`, `corroboration_state`,
-`missing_evidence`, `unsupported_reason`) are preserved on a withheld row and
-never collapsed into the access marker. Per-row dispositions are recorded as
-bounded, content-free span attributes (`eshu.query.source_acl.*_count`); no
-source id, path, title, url, or user identity appears in any label.
-
-Component extension reads expose runtime component registry state through
-`GET /api/v0/component-extensions` and
-`GET /api/v0/component-extensions/{component_id}/diagnostics`. These routes read
-`component.Registry.Readback` only when the API or MCP runtime was configured
-with `ESHU_COMPONENT_HOME`; otherwise they return a canonical unavailable
-envelope. Responses include component ID, version, publisher, manifest digest,
-lifecycle states, activation `config_handle` values, and policy diagnostics.
-Inventory responses are bounded by `limit` and carry `count`, `total_count`,
-and `truncated`; neither inventory nor diagnostics exposes local manifest paths,
-activation config paths, or community-index membership as trust.
-
-CODEOWNERS ownership reads use one indexed graph query for an initial page and
-three mutually exclusive indexed queries for a cursor page. The handler merges
-the cursor branches back into the documented `(order_index, pattern,
-owner_ref)` order and retains only `limit+1` rows. This avoids a pinned
-NornicDB mixed-`OR` failure that silently produced an empty page while keeping
-the maximum in-process merge bounded to 603 rows. The live exactness and timing
-proof is recorded in #5419 (retired evidence record).
+Component extension reads (`GET /api/v0/component-extensions*`) read
+`component.Registry.Readback` when `ESHU_COMPONENT_HOME` is configured (or
+return unavailable) without exposing local manifest paths. CODEOWNERS ownership
+reads use one indexed initial-page query and three mutually exclusive cursor
+queries merged in Go to avoid pinned NornicDB mixed-`OR` empty-page bugs.
 
 ## Exported surface
 
@@ -428,176 +270,33 @@ scoped `AGENTS.md` entry instead of expanding this index.
 
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
-`ContentReader` are the only concrete types that touch drivers, and they are
-wired in `cmd/eshu-local-api/wiring.go`, not here.
+`ContentReader` are wired in `cmd/eshu-local-api/wiring.go`.
 
-Semantic extraction status is a runtime projection.
-`GET /api/v0/status/semantic-extraction` reports no-provider mode as
-`unavailable` with code hints and documentation observations disabled.
-When semantic provider profiles are configured, the route includes redacted
-`provider_profiles[]` rows with profile id, provider kind, model metadata,
-embedding dimensions, credential source kind, source classes, source-policy
-state, and profile health/configuration state. It does not expose credential
-handles or raw keys. Governed `search_documents` profiles may feed the semantic
-search vector read/build lane, while canonical graph truth and documentation
-fact routes remain unaffected. Its fenced reader selects only semantic SQL; semantic and freshness failures still fail the route.
+### Runtime status projections
 
-Answer narration status is a runtime status projection, not a narration
-generator. `GET /api/v0/status/answer-narration` reports the optional governed
-narration posture as disabled by default, with deterministic answer packets
-available as the canonical fallback. The route exposes low-cardinality state,
-reason, retention posture, policy hash, and validator reason-code metadata only;
-it must not emit prompts, provider responses, credential handles, source
-identifiers, local paths, or canonical truth changes. The route uses capability
-`answer_narration.status` and shares its handler with MCP
-`get_answer_narration_status`.
-
-Hosted governance status is also a runtime status projection. `GET
-/api/v0/status/governance` reports only redacted governance mode, policy state,
-source kind, optional policy revision hash, readiness booleans, aggregate
-counts, and low-cardinality reason codes. Its `audit` section reports event,
-denied, unavailable, event-type, actor-class, scope-class, reason, and ACL-state
-counts only. It derives explicit runtime readback from `ESHU_GOVERNANCE_*`
-settings, the private `governance_audit_events` aggregate summary when wired,
-and semantic aggregate status; it must not emit raw policy JSON, tenant or
-workspace identifiers, repository or source identifiers, detailed audit hashes,
-correlation ids, credential handles, provider endpoints, prompts, provider
-responses, local paths, or token values. The route uses capability
-`hosted_governance.status` and shares its handler with MCP
-`get_hosted_governance_status`.
-
-Ingester status is a runtime status projection from `internal/status`.
-`GET /api/v0/status/ingesters` and
-`GET /api/v0/status/ingesters/{ingester}` remain shared-token status routes for
-full operational readback, but scoped-token detail responses expose coordinator
-counts instead of collector instance rows. Scoped responses keep runtime health,
-queue, stage-summary, scope-activity, and domain-backlog counters visible while
-leaving collector instance identifiers, display names, tenant and workspace
-values, queue conflict keys, repository/source identifiers, provider payloads,
-local paths, and credentials out of the payload.
-
-Collector status is the same runtime-status family. `GET
-/api/v0/status/collectors` keeps the shared-token per-instance readback for
-operators, but scoped-token responses collapse collector runtimes into aggregate
-rows keyed by safe operational categories. Scoped responses keep collector kind,
-runtime mode, status category, health, counts, evidence-source summaries, and
-aggregate timestamps while leaving collector instance identifiers, display
-names, source-system detail, queue conflict keys, tenant/workspace values,
-provider payloads, local paths, and credentials out of the payload. The legacy
-`/api/v0/collectors` alias remains unavailable to scoped tokens.
-
-The live operations board at `GET /api/v0/status/operations` is exact and
-complete for all-scopes operators: it combines process-wide health, collector,
-stage, domain-backlog, and queue aggregates with bounded live activity. A
-scoped caller receives only live-activity rows restricted to its granted
-repositories or ingestion scopes, with repository and worker identities
-redacted. The process-wide aggregate sections are omitted because they cannot
-be attributed to those grants; `completeness_state=scoped_live_activity_only`,
-`withheld_sections`, and a derived truth level make that boundary explicit.
-
-Hosted readiness follows the same aggregate rule for scoped tokens. `GET
-/api/v0/status/hosted-readiness` keeps hosted readiness checks, queue counters,
-collector-generation replay blockers, repository counts, diagnostic route
-names, and coordinator aggregate counters visible, but it replaces coordinator
-instance rows with aggregate counts so
-collector instance identifiers, display names, queue conflict keys,
-tenant/workspace values, provider payloads, local paths, and credentials stay
-out of the payload.
-
-`GET /api/v0/status/collector-readiness` (alias `/api/v0/collector-readiness`)
-projects `collector.PromotionProofs` over the full collector fleet into a
-redacted, console-consumable readiness read model: per-family promotion state,
-runtime category, health, claim state, reducer readback status, evidence counts,
-last proof time, blockers, and a recommended next action. The MCP tool
-`get_collector_readiness` maps to the same route so API and MCP return identical
-readiness truth. Scoped tokens drop the per-instance identifier so a scoped
-caller sees family-level readiness only; full per-grant `permission_hidden`
-filtering is tracked as a follow-up.
+Status routes (`/api/v0/status/{semantic-extraction,answer-narration,governance,ingesters,collectors,operations,hosted-readiness,collector-readiness}`)
+project redacted, low-cardinality operational state without exposing raw policy
+JSON, credentials, prompts, or local paths. Shared-token operators see full
+instance detail; scoped-token callers receive aggregate or grant-filtered views
+(`completeness_state=scoped_live_activity_only` on `/status/operations`).
 
 ## Telemetry
 
-- Spans: `telemetry.SpanQueryRelationshipEvidence` (`query.relationship_evidence`)
-  on evidence drilldown and `telemetry.SpanQueryEvidenceCitationPacket`
-  (`query.evidence_citation_packet`) on citation packet hydration. Hydrated
-  citations carry the unified evidence contract (issue #3489): `confidence`, a
-  byte-level citation (`byte_offset`/`byte_length`, `content_hash`,
-  `commit_sha`), and a typed `provenance` object. `citationToCanonical`
-  round-trips one citation into `truth.Evidence`.
-  `telemetry.SpanQueryDocumentationFindings`
-  (`query.documentation_findings`),
-  `telemetry.SpanQueryDocumentationFacts`
-  (`query.documentation_facts`),
-  `telemetry.SpanQueryDocumentationEvidencePacket`
-  (`query.documentation_evidence_packet`), and
-  `telemetry.SpanQueryDocumentationPacketFreshness`
-  (`query.documentation_packet_freshness`) on documentation truth evidence
-  routes (`documentation.go`); `telemetry.SpanQueryDocumentationAggregate`
-  (`query.documentation_aggregate`) on documentation finding count and
-  inventory routes (`documentation_finding_aggregates_handler.go`); the
-  target-fact preview adds a `postgres.query` span with
-  `db.operation=list_documentation_target_facts`;
-  `telemetry.SpanQuerySemanticEvidence` (`query.semantic_evidence`) on opt-in
-  semantic observation and code-hint fact reads;
-  `telemetry.SpanQueryCodeTopicInvestigation`
-  (`query.code_topic_investigation`) on broad code-topic investigation
-  (`code_topic.go`); `telemetry.SpanQueryHardcodedSecretInvestigation`
-  (`query.hardcoded_secret_investigation`) on redacted hardcoded-secret
-  investigation (`code_security_secrets.go`);
-  `telemetry.SpanQueryDeadCodeInvestigation`
-  (`query.dead_code_investigation`) on dead-code investigation
-  (`code_dead_code_investigation.go`); `telemetry.SpanQueryChangeSurfaceInvestigation`
-  (`query.change_surface_investigation`) on change-surface investigation;
-  `telemetry.SpanQueryResourceInvestigation`
-  (`query.resource_investigation`) on resource investigation;
-  `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
-  on IaC dead-code queries (`iac/handler.go`); `telemetry.SpanQueryIaCUnmanagedResources`
-  (`query.iac_unmanaged_resources`) on AWS management finding list queries,
-  `telemetry.SpanQueryIaCManagementStatus` (`query.iac_management_status`) on
-  exact status reads, and `telemetry.SpanQueryIaCManagementExplanation`
-  (`query.iac_management_explanation`) on grouped evidence explanations;
-
-  `telemetry.SpanQueryIaCTerraformImportPlan`
-  (`query.iac_terraform_import_plan`) on read-only Terraform import-plan
-  candidate generation; `telemetry.SpanQueryAWSRuntimeDriftFindings`
-  (`query.aws_runtime_drift_findings`) on active AWS runtime drift finding
-  reads;
-  `telemetry.SpanQuerySupplyChainImpactExplanation`
-  (`query.supply_chain_impact_explanation`) on one-finding vulnerability
-  explanations;
-  `telemetry.SpanQueryInfraResourceSearch`
-  (`query.infra_resource_search`) on infrastructure search (`infra.go`);
-  `telemetry.SpanQueryWorkItemEvidence`
-  (`query.work_item_evidence`) on source-only work-item evidence reads
-  (`internal/query/workitem/handler.go`).
-  Per-query spans `neo4j.query` and `postgres.query` on every graph and content
-  read.
+- Spans: `neo4j.query` and `postgres.query` wrap every graph and content read;
+  domain handlers wrap multi-stage paths with `telemetry.SpanQuery*` constants
+  (relationship evidence, citation packet, documentation findings/packets,
+  semantic evidence, code topic/secrets/dead-code/change-surface/resource
+  investigations, IaC management/import-plan, AWS runtime drift, supply-chain
+  impact, infra search, work-item evidence).
 - Metrics: `eshu_dp_neo4j_query_duration_seconds` and
-  `eshu_dp_postgres_query_duration_seconds` (instruments live in
-  `internal/telemetry/instruments.go`).
-- Graph-read policy: every `Neo4jReader` call, including startup owner-ledger
-  backfill pages, shares one 10-second client/backend budget and at most one
-  fresh-session retry for a typed retryable connectivity failure. The Neo4j
-  duration metric uses `operation="read"` with a closed outcome vocabulary;
-  caller deadlines remain distinct from graph-policy deadlines. See
-  [graph-read-deadlines.md](graph-read-deadlines.md) for the proof record.
-- Log events: `repository_query.stage_started`, `repository_query.stage_completed`
-  (via `repositoryQueryStageTimer`); `service_query.stage_started`,
-  `service_query.stage_completed` (via `serviceQueryStageTimer`). Both emit
+  `eshu_dp_postgres_query_duration_seconds` (`internal/telemetry/instruments.go`).
+- Graph-read policy: every `Neo4jReader` call shares one 10-second budget and
+  at most one fresh-session retry for typed connectivity errors (see
+  [graph-read-deadlines.md](graph-read-deadlines.md)).
+- Log events: `repository_query.stage_*` and `service_query.stage_*` record
   `operation`, `stage`, `repo_id`, and `duration_seconds`.
-
-Answer-facing story and investigation responses attach additive
-`answer_metadata` companions with normalized evidence handles,
-missing-evidence rows, limitations, truncation, coverage, partial reasons, and
-recommended next calls. The companion is derived only from the already-built
-response payload or incident response struct; it performs no graph,
-content-store, provider, reducer, collector, or queue reads and does not add a
-new span. Keep the canonical route fields authoritative and use
-`answer_metadata` only as the prompt-facing adapter for AnswerPacket composition
-or MCP summary text.
-
-Durable no-regression and observability notes for issue-specific query shapes,
-including CloudResource candidate reads and NornicDB predicate compatibility,
-live in retired evidence record.
+- `answer_metadata` companions on story/investigation payloads are pure
+  response shaping over already-built payloads (zero extra DB/graph reads).
 
 ## Operational notes
 
@@ -626,131 +325,28 @@ live in retired evidence record.
   a capability string missing from `querycontract/capability.go`'s registry.
   Register missing capability IDs from `go/internal/query/contract/` first.
 - `code_quality.dead_code` is a derived query unless the language maturity row
-  says otherwise. Handler changes must preserve `classification`,
-  `dead_code_language_maturity`, and `analysis` fields so MCP and CLI callers
-  can distinguish actionable unused symbols from excluded or ambiguous ones.
-  Go root-kind evidence covers function roots and type roots, including
-  `go.dependency_injection_callback`, `go.direct_method_call`,
-  `go.fmt_stringer_method`, `go.function_literal_reachable_call`,
-  `go.function_value_reference`, `go.generic_constraint_method`,
-  `go.imported_direct_method_call`, `go.imported_fmt_stringer_method`,
-  `go.interface_implementation_type`, `go.interface_method_implementation`,
-  `go.interface_type_reference`, `go.method_value_reference`, and
-  `go.type_reference`. JavaScript-family
-  analysis must list Node package, CommonJS default export, CommonJS mixin,
-  Next.js, Node migration, Hapi-style, TypeScript public API, TypeScript
-  module-contract, and TypeScript interface implementation roots, plus Java
-  main, constructor, override, Ant Task setter, Gradle plugin `apply`, task
-  action/property, and public Gradle DSL roots when query policy suppresses
-  those candidates, plus Swift parser-backed roots when query policy suppresses
-  those candidates; the analysis notes name the same Java and C root families.
-  Rust parser-backed root,
-  syntax-evidence, and observed-blocker rows must stay aligned with the
-  `deadCodeLanguageMaturity` table because Rust derived classification depends
-  on that maturity row, the root suppression policy, and ambiguous
-  classification for exactness-blocked candidates.
-  The handler scans raw content-model or graph candidates in bounded
-  label-scoped pages before policy exclusions, pushes any requested language
-  filter into the candidate query, then checks completed reducer code-call
-  intent rows for incoming edges on the remaining candidates and uses a
-  shared 2,500-row scan window for small result limits. Label pages are
-  round-robined inside that ceiling so a saturated early label cannot starve
-  later labels or multiply downstream work. It reports the shared maximum as
-  `candidate_scan_limit`, the maximum share one label may consume as
-  `candidate_scan_limit_per_label`, and
-  `candidate_scan_pages` plus `candidate_scan_rows`.
-  `display_truncated` and `candidate_scan_truncated` must stay separate so
-  performance bounds do not blur result-list pagination with raw scan coverage.
-  Unsupported language metadata and repository-root
-  `test/`, `tests/`, and `__tests__/` paths stay out of default cleanup results.
+  says otherwise. It scans bounded label-scoped pages under a shared 2,500-row
+  window (reporting `display_truncated` separately from
+  `candidate_scan_truncated`) and keeps `classification`,
+  `dead_code_language_maturity`, and language root exclusions aligned with
+  [dead-code-reachability.md](dead-code-reachability.md).
 - Ready-state hardcoded-secret reads scan `content_file_secret_lines`
-  (migration 138, #7125) by primary key to `LIMIT`
-  (`content_reader_security_secrets.go`), applying scope, kind, and suppression
-  before `LIMIT` and `OFFSET`. Until ready, the legacy `content_files` scan
-  preserves results. The Go pattern and `hardcodedSecretSQLSuppressionPredicate()`
-  are bound to migration 138 by `hardcoded_secret_migration_binding_test.go`;
-  changes need a new re-derivation migration. Keep suppression in SQL and
-  `content_files` scans confined to the unready fallback.
-- Content reads return `source_backend=unavailable` when Postgres does not have
-  a cached row for the requested file. This is not a Postgres error; the ingester
-  has not yet written content for that scope.
-- `AuthMiddleware` (`auth.go`) skips auth only when the resolved token is empty
-  (dev mode) or the method/path is accepted by `publicHTTPRoute`. Adding new
-  public routes requires updating that helper. OIDC login and callback are exact
-  public GET routes. Dynamic SAML metadata/login/ACS paths are checked by
-  `auth_public_routes.go` so provider identifiers can vary without opening a
-  wider prefix. All data routes still require bearer or browser-session auth.
-- `OAuthProtectedResourceHandler` and `PostureOAuthChallengePolicy`
-  (`auth_oauth_discovery.go`, issue #5163, F-2) implement the RFC 9728 discovery
-  route and the gated `WWW-Authenticate` challenge. Enablement is derived per
-  request from `DeriveAuthPosture` plus the active bearer issuers, never a
-  static flag. A `401` augments its challenge only for a credential-less or
-  unrecognized-credential denial: `unauthorizedResponse` reads an
-  `OAuthChallengePolicy` from the request context that
-  `authMiddlewareWithRoutePolicy` attaches at exactly those sites, and the
-  resolver-error site keys on `ErrBearerCredentialUnrecognized` (wrapped by the
-  bearer resolver only for pre-match outcomes) so a recognized-but-rejected or
-  infra-error `401` stays byte-identically bare — the `#59467` fail-safe.
-- Browser session routes (`browser_session_handler.go`) exchange an explicit
-  scoped credential for host-scoped HttpOnly session and readable CSRF cookies.
-  Middleware hashes cookie and CSRF secrets before resolver calls, then attaches
-  the same tenant/workspace/scoped grant context handlers already understand.
-  Unsafe cookie-authenticated requests require `X-Eshu-CSRF`, and shared API
-  keys stay on the bearer path because they do not carry tenant/workspace
-  bounds for session creation.
-- `writeBrowserSessionCookies` (`browser_session_handler.go`, a forwarder to
-  `session.WriteBrowserSessionCookies`) decides the Secure cookie attribute
-  per request via `browserSessionCookieSecure` (`auth/session/cookies.go`), gated by each handler's
-  `CookieSecure` field (`CookieSecureMode`, env `ESHU_AUTH_COOKIE_SECURE`,
-  default `auto`). `cmd/api` resolves the env value once at startup with
-  `ValidateCookieSecureMode`, which fails startup closed on an unrecognized
-  value (matching `ParseQueryProfile`/`ParseGraphBackend`); the request-time
-  `ParseCookieSecureMode` only normalizes the Go zero value (an unset struct
-  field) to `auto` and never sees raw operator input. `auto` keeps Secure set
-  for every request except a plain-HTTP loopback origin (`localhost`,
-  `127.0.0.0/8`, `::1`), which relaxes it so local development without TLS
-  keeps a persistent session; any other plain-HTTP origin still gets
-  `Secure=true`, so the browser drops the cookie rather than this server ever
-  issuing a non-Secure cookie outside loopback. `always` restores the
-  pre-#4964 always-Secure behavior. `BrowserSessionHandler`,
-  `LocalIdentityHandler`, and `SAMLHandler` all thread the same
-  `CookieSecure` value through to this decision (#4964).
-- `BrowserSessionCookieName`/`BrowserSessionCSRFCookieName` (`auth.go`) use
-  the `__Host-` prefix (RFC 6265bis), which browsers reject outright unless
-  Secure is set — so a relaxed, non-Secure cookie cannot use that name.
-  `browserSessionCookieNames` (`auth/session/cookies.go`) selects the
-  `__Host-` names when Secure and the bare `BrowserSessionCookieNameInsecure`/
-  `BrowserSessionCSRFCookieNameInsecure` names when relaxed; every read path
-  (`tryBrowserSessionAuth` in `auth.go`, `browserSessionHashFromCookie` in
-  `browser_session_handler.go`) goes through `browserSessionCookieValue`,
-  which checks both names so a session authenticates regardless of which
-  variant issued it. Logout clears both variants unconditionally since the
-  handler has no durable record of which one a given browser holds.
-- SAML routes (`saml_handler.go`) are public only for metadata, login, and ACS.
-  Login stores a RelayState hash with the AuthnRequest ID; ACS requires that
-  RelayState, validates the SAML response through `crewjam/saml` (upstream v0.5.2, the GO-2026-6909 fix; see `docs/public/operate/saml-library-advisory.md`; `CrewjamSAMLVerifier.VerifySAMLResponse` recovers a library panic and counts it), reserves a
-  replay hash before session creation, and then creates the same browser-session
-  cookies as the explicit credential exchange. SAML claims identify an external
-  subject; they do not grant permissions until the store resolves them to an
-  Eshu `AuthContext`.
-- `GitHubLoginHandler.handleCallback`, `OIDCLoginHandler.handleCallback`, and
-  `SAMLHandler.handleACS` each record an `identity_authentication`
-  governance-audit event for every callback outcome through their `Audit`
-  field, mirroring `LocalIdentityHandler.auditLocalIdentity` (issue #5601):
-  `sso_login_authenticated` on success, and a denial classification (e.g.
-  `org_not_allowed`, `no_grants`) on failure. `sso_login_audit.go` carries the
-  classification from `githublogin`/`oidclogin`'s `CompleteXLogin` up through
-  `SSOLoginDeniedError`, since that is where the org/grant checks that produce
-  it actually run. Before this, SSO logins left no durable trace once their
-  `browser_sessions` row expired — the local-login path already audited every
-  outcome, but SSO audited none.
-- `RequestMetricsMiddleware` (`metrics_alias.go`, forwarding to `metrics/request.go`) wraps the application mux and
-  records `eshu_dp_api_request_duration_seconds` and
-  `eshu_dp_api_request_errors_total` per endpoint, labeled by the matched route
-  pattern and `status_class`. It resolves the route via `mux.Handler` without
-  mutating the request, so cardinality stays bounded by registered routes. The
-  API and MCP server wire it around their router mux; the admin surface is
-  intentionally not counted.
+  (migration 138) by primary key before `LIMIT`/`OFFSET`, falling back to
+  `content_files` only until ready. Keep SQL suppression in lockstep with
+  `hardcoded_secret_migration_binding_test.go`.
+- Content reads return `source_backend=unavailable` when Postgres has no cached
+  row for a scope.
+- Auth & sessions: `AuthMiddleware` (`auth.go`) only skips auth when the token
+  is empty (dev mode) or `publicHTTPRoute` matches; RFC 9728 OAuth discovery
+  (`auth_oauth_discovery.go`) augments `401` only for unrecognized/missing
+  credentials; browser sessions (`auth/session/cookies.go`) hash cookie/CSRF
+  secrets, require `X-Eshu-CSRF` on unsafe writes, use `__Host-` names when
+  `Secure=true` (`ESHU_AUTH_COOKIE_SECURE=auto` relaxes only loopback HTTP),
+  and SAML/OIDC/GitHub callbacks all record `identity_authentication`
+  governance audit events.
+- `RequestMetricsMiddleware` (`metrics/request.go`) records
+  `eshu_dp_api_request_duration_seconds` and `eshu_dp_api_request_errors_total`
+  keyed by matched route pattern and `status_class` on API and MCP routers.
 
 ## Extension points
 

@@ -67,18 +67,7 @@
 #
 # Pinned at 5570de3454a942449a339168041fd87c215e7fa1 with
 # `bash scripts/verify-markdown-line-cap.sh --pin <path>`.
-#
-go/cmd/ingester/README.md	548
-go/internal/cigates/AGENTS.md	513
-go/internal/coordinator/README.md	509
-go/internal/parser/README.md	804
-go/internal/projector/README.md	583
-go/internal/query/README.md	880
-go/internal/query/read-models.md	805
-go/internal/reducer/AGENTS.md	865
-go/internal/storage/cypher/README.md	1353
-go/internal/storage/postgres/AGENTS.md	821
-go/internal/storage/postgres/README.md	2839
+# (All go/ rows retired under #11682.)
 
 # Docs scope introduced by #6545. Each pin is measured from origin/main;
 # the gate independently verifies imports against the immutable base.

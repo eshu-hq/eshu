@@ -400,106 +400,15 @@ are in [semantic/README.md](semantic/README.md).
   OCI registry, package registry, and AWS scheduled scans have planners today;
   other collector families remain instance-reconciled only until they define a
   bounded work unit.
-
-## Evidence
-
-The #6781 package-split evidence lives in [package-split.md](package-split.md).
-
-### GCP freshness handoff fan-out (#4338)
-
-`scheduleGCPFreshnessWork`/`groupGCPFreshnessAssignments`/
-`handoffGCPFreshnessAssignment` mirror the AWS freshness handoff shape above
-(claim via `GCPFreshnessTriggerStore`, plan via `GCPPlanner.PlanGCPWork`, hand
-off through the same `createWorkflowWorkIfNoOpenTargets` admission guard),
-wired into both the reconcile tick and active-maintenance tick exactly like
-AWS freshness. Two GCP-specific differences from AWS:
-
-1. A CAI asset-change trigger carries no `content_family` signal, so
-   `resolveGCPFreshnessScopeIDs` resolves to every configured scope sharing
-   `(parent_scope_kind, parent_scope_id, asset_type_family,
-   location_bucket)` — a fan-out, not a single-scope pick — recorded via the
-   `GCPFreshnessFanOut` histogram.
-2. The same target tuple can legitimately be authorized by more than one GCP
-   collector instance (for example two instances each scoped to a disjoint
-   `content_family`), so `resolveGCPFreshnessScopeIDs` returns every matching
-   instance, not only the first. `groupGCPFreshnessAssignments` then groups
-   every claimed trigger in the batch by resolved instance, deduping scope
-   ids across triggers sharing an instance, so `handoffGCPFreshnessAssignment`
-   plans and hands off exactly once per (instance, reconcile interval) —
-   mirroring the AWS `awsFreshnessAssignment` grouping. Planning per-trigger
-   instead (the original #4338 shape) would let two triggers resolving to the
-   same instance in one batch compute the identical `PlanKey`/`RunID` and
-   race each other through `workflowRunIsTerminal`/
-   `workItemsWithoutOpenTargets`, silently dropping one trigger's scope ids.
-
-### AWS/GCP freshness claim lease + reclaim (#4576)
-
-`ClaimQueuedTriggers` on both `AWSFreshnessTriggerStore` and
-`GCPFreshnessTriggerStore` now stamps a `claim_expires_at` lease
-(`claimedAt + leaseDuration`, default 5 minutes via
-`ESHU_WORKFLOW_COORDINATOR_{AWS,GCP}_FRESHNESS_CLAIM_LEASE_DURATION`) on every
-claimed row, and `runActiveMaintenance` reaps expired claims
-(`runReapExpiredAWSFreshnessClaims`/`runReapExpiredGCPFreshnessClaims`, default
-100 rows per pass via `ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT`)
-back to `queued` before that tick's handoff runs, so a trigger reclaimed this
-tick is eligible for re-claim in the same tick. This closes the two ways a
-freshness trigger could be permanently stranded at `claimed`, which previously
-had no reclaim path:
-
-1. **Mid-batch handoff abort.** `scheduleAWSFreshnessWork`/
-   `scheduleGCPFreshnessWork` now continue past one assignment's plan/handoff
-   failure instead of returning on the first error — each failing assignment
-   already durably marks its own triggers `failed` inside
-   `handoffAWSFreshnessAssignment`/`handoffGCPFreshnessAssignment` before
-   returning, so a bad plan request for one collector instance no longer
-   abandons every other claimed batch-mate in the same tick. Errors are
-   aggregated with `errors.Join` and returned once every assignment has been
-   attempted.
-2. **Coordinator crash mid-batch.** The claim lease covers the case (1) does
-   not: a coordinator process that dies between claiming a batch and marking
-   it handed-off/failed leaves rows at `claimed` with no in-process code path
-   left to fix them. `ReapExpiredTriggerClaims` — one `UPDATE ... FROM (SELECT
-   ... FOR UPDATE SKIP LOCKED) candidate WHERE claim_expires_at < $asOf`
-   statement per store, mirroring the reducer's `workflow_claims`
-   expired-lease reclaim pattern (#4464) — reclaims those rows back to
-   `queued` on the next reap pass. The `claim_expires_at < $asOf` predicate
-   and `FOR UPDATE SKIP LOCKED` together guarantee a reap pass can never touch
-   (or race) a still-live claim-holder working within its lease window.
-
-**Fencing completion against a reaped-then-reclaimed row (raised in PR #4682
-review).** The lease alone is not enough: with more than one coordinator
-replica, or a handoff that runs past its own lease while a reap pass reclaims
-it concurrently, a reclaimed trigger could be re-claimed by a different owner
-while the original (now-stale) holder is still mid-flight and later calls
-`MarkTriggersHandedOff`/`MarkTriggersFailed` — completing a claim it no longer
-holds. Every claimed row now also carries a `claim_fencing_token BIGINT`,
-bumped by `ClaimQueuedTriggers` on every claim (fresh or reclaimed). The
-returned `StoredTrigger.ClaimFencingToken` must be presented back to
-`MarkTriggersHandedOff`/`MarkTriggersFailed`, whose `UPDATE` statements now join
-against a `VALUES (trigger_id, fencing_token)` list and require
-`trigger.claim_fencing_token = fenced.fencing_token` in addition to
-`status = 'claimed'`. `ReapExpiredTriggerClaims` deliberately leaves
-`claim_fencing_token` untouched on reclaim (it only resets `status`,
-`claimed_by`, `claimed_at`, and `claim_expires_at`), so the next
-`ClaimQueuedTriggers` call bumps it again — the original holder's token can
-never match again, and its completion call silently affects zero rows instead
-of completing a claim it no longer holds. This mirrors the reducer's
-expired-lease fencing pattern (#4464).
-
-Migration `041_aws_gcp_freshness_claim_lease.sql` adds the nullable
-`claim_expires_at TIMESTAMPTZ` column, the `claim_fencing_token BIGINT NOT
-NULL DEFAULT 0` column, and a partial index (`WHERE status = 'claimed'`) on
-each of `aws_freshness_triggers` and `gcp_freshness_triggers`. It also
-backfills `claim_expires_at` for any row already sitting at `claimed` when the
-migration runs (derived from `claimed_at + 5 minutes`, the coordinator's
-default lease): without this backfill, a pre-existing stuck row would get
-`claim_expires_at = NULL`, and `ReapExpiredTriggerClaims`'s
-`claim_expires_at IS NOT NULL` predicate would skip it forever — leaving
-exactly the already-stuck triggers #4576 exists to rescue permanently
-stranded. `EnsureSchema` on both stores also runs the equivalent
-`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for `claim_expires_at` and
-`claim_fencing_token`, so a store created before #4576 gets the columns even
-if migration 041 has not been run against it directly.
+- GCP freshness handoff fans out across every configured scope matching
+  `(parent_scope_kind, parent_scope_id, asset_type_family, location_bucket)` and
+  groups claimed triggers per resolved collector instance before planning so
+  multiple triggers for one instance do not race on the same `PlanKey`/`RunID`.
+- AWS and GCP freshness trigger claims stamp a `claim_expires_at` lease and a
+  monotonic `claim_fencing_token`. `ReapExpiredTriggerClaims` reclaims expired
+  `claimed` rows back to `queued` with `FOR UPDATE SKIP LOCKED`, and completion
+  updates require matching `claim_fencing_token` so a stale coordinator cannot
+  complete a reclaimed trigger.
 
 ## Related docs
 
