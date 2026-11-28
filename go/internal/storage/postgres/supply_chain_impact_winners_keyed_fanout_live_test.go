@@ -94,10 +94,14 @@ LIMIT 1`)
 		"fanout-op-1": {"action": "suppress", "cve_id": fanoutKeyCVE},
 	})
 	h.exec(`ANALYZE fact_records`)
-	// Live copies: the 30 active generations. Scanned copies add the two
-	// retired gens per scope (60, minus the tombstoned retired copy) plus
-	// the mismatch row.
-	return 30, 90 - 1 + 1
+	// Live copies: the 30 active generations, plus the operator row. Its
+	// NULL-tuple identifier is staged by the operator scope's capture row,
+	// and under the ruled #11691 leniency that identifier matches the row
+	// itself (missing keys read as ''). Scanned copies add the two retired
+	// gens per scope (60, minus the tombstoned retired copy) plus the
+	// mismatch row, plus the operator row. Winner parity is unchanged: the
+	// operator scope stays excluded from source candidates downstream.
+	return 30 + 1, 90 - 1 + 1 + 1
 }
 
 // TestSupplyChainImpactWinnersKeyedFanoutMatchesRecomputeLive runs a keyed tick over the

@@ -15,18 +15,23 @@ import (
 // winnersKeyedProbeVariant once the key-presence fill marker completes. The
 // audit keeps the legacy statement as its oracle.
 
-// winnersKeyedNarrowProbeSelectKeyPresence renders the triple-guarded
-// identifier probe body over an identifier source table (#9975 round 6): one
-// row per pre-filter copy. It reads the plain supports columns instead of the
-// payload: the triple legs carry key-presence guards
-// (ident.k <> ” OR (s.key_presence & BIT) <> 0, bits 1/2/4), while the c0
-// and advisory legs are plain COALESCE equalities with no guards, preserving
-// the shipped leniency for missing, JSON-null, and present-empty advisory
-// keys. The MATERIALIZED marker and OFFSET 0 guard are load-bearing for the
-// same reason as the shipped probe's. The key-presence fill backfills the
-// bits for older rows under its own marker; the tick runs this text only
-// after that marker completes (see winnersKeyedProbeVariant), and the audit
-// keeps the legacy statement as its oracle.
+// winnersKeyedNarrowProbeSelectKeyPresence renders the plain-column twin of
+// the shipped payload-expression narrow probe in
+// supply_chain_impact_winners_keyed_sql.go, selected per tick by
+// winnersKeyedProbeVariant once the key-presence fill marker completes. The
+// audit keeps the legacy statement as its oracle.
+//
+// The triple legs are plain equalities with no key-presence guards
+// (Refs #11691): the supports writer stores a missing key and a JSON null as
+// ”, so the plain equality already reads both as the coalesced identifier,
+// exactly like the shipped probe's lenient OR arms. The guard conjuncts the
+// round-6 probe carried are dropped; the c0 and advisory legs are plain
+// COALESCE equalities with no guards, as before. The MATERIALIZED marker and
+// OFFSET 0 guard are load-bearing for the same reason as the shipped probe's.
+// The key-presence fill still backfills the bits for older rows under its own
+// marker (the column, the fill, and the covering index are unchanged); the
+// tick runs this text only after that marker completes
+// (see winnersKeyedProbeVariant).
 func winnersKeyedNarrowProbeSelectKeyPresence(identsTable string) string {
 	return `WITH narrow AS MATERIALIZED (
     SELECT fact.fact_id, fact.scope_id, fact.generation_id
@@ -35,11 +40,8 @@ func winnersKeyedNarrowProbeSelectKeyPresence(identsTable string) string {
         SELECT s.fact_id, s.scope_id, s.generation_id
         FROM supply_chain_impact_finding_supports AS s
         WHERE s.package_id = ident.package_id
-          AND (ident.package_id <> '' OR (s.key_presence & 1) <> 0)
           AND s.repository_id = ident.repository_id
-          AND (ident.repository_id <> '' OR (s.key_presence & 2) <> 0)
           AND s.subject_digest = ident.subject_digest
-          AND (ident.subject_digest <> '' OR (s.key_presence & 4) <> 0)
           AND COALESCE(NULLIF(s.cve_id, ''), NULLIF(s.advisory_id, ''), '') = ident.c0
           AND s.advisory_id = ident.advisory_id
         OFFSET 0

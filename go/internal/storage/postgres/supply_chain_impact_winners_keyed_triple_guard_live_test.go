@@ -12,11 +12,14 @@ import (
 )
 
 // TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive pins the round-6
-// triple-guard probe rewrite (Refs #9975): the plain-column probe with
-// triple-only key-presence guards and unguarded COALESCE c0/advisory legs
-// must return exactly the shipped supports probe's rows — EXCEPT 0 in both
-// directions — on a fixture co-locating every advisory-absent class
-// (noadv/nulladv/nocveadv) with every triple edge shape.
+// triple-guard probe rewrite (Refs #9975) under the ruled #11691 leniency:
+// the plain-column probe with NO triple guards and unguarded COALESCE
+// c0/advisory legs must return exactly the shipped supports probe's rows —
+// EXCEPT 0 in both directions — on a fixture co-locating every
+// advisory-absent class (noadv/nulladv/nocveadv) with every triple edge
+// shape. Both probes read a missing key and a JSON null as ”, so the
+// missing-key triple rows and the operator-like row match their coalesced
+// identifiers on both.
 //
 // The fixture doubles as the writer-fill proof: each row's stored
 // key_presence must equal the bits its payload's key presence implies
@@ -24,7 +27,8 @@ import (
 // same SQL expression the backfill shares. Advisory keys carry no bits: the
 // c0/advisory legs are plain equalities with no guards, so a missing or
 // JSON-null advisory key still matches a ” identifier component, exactly
-// like the shipped COALESCE legs.
+// like the shipped COALESCE legs. The fill is unchanged (the probe just no
+// longer filters on its bits).
 func TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive(t *testing.T) {
 	h := newKeyedHarness(t, "9975 triple-guard probe agreement")
 
@@ -123,9 +127,10 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
 	shipped := runProbe(shippedProbe)
 	candidate := runProbe(candidateProbe)
 
-	// Exact expected set: the leniency classes match their '' idents, the
-	// missing-key triple rows and the operator-like row match nothing, the
-	// all-empty row matches only the operator ident.
+	// Exact expected set: the leniency classes match their '' idents, and
+	// the missing-key triple rows and the operator-like row match their
+	// coalesced identifiers too (Refs #11691); the all-empty row matches only
+	// the operator ident.
 	want := map[string]bool{
 		"probe-tg-clean/" + generation:     true,
 		"probe-tg-npm/" + generation:       true,
@@ -134,6 +139,9 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
 		"probe-tg-nulladv/" + generation:   true,
 		"probe-tg-nocveadv/" + generation:  true,
 		"probe-tg-bothempty/" + generation: true,
+		"probe-tg-misssubj/" + generation:  true,
+		"probe-tg-nullsubj/" + generation:  true,
+		"probe-tg-opmiss/" + generation:    true,
 		"probe-tg-allempty/" + generation:  true,
 		"probe-tg-scalarpkg/" + generation: true,
 	}
@@ -141,11 +149,6 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
 		for factID := range want {
 			if !arms[factID] {
 				t.Errorf("%s probe misses %s", name, factID)
-			}
-		}
-		for _, id := range []string{"probe-tg-misssubj", "probe-tg-nullsubj", "probe-tg-opmiss"} {
-			if arms[id+"/"+generation] {
-				t.Errorf("%s probe contains %s: missing-key rows must stay out", name, id)
 			}
 		}
 		if len(arms) != len(want) {

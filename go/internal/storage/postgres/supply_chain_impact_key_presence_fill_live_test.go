@@ -18,9 +18,11 @@ import (
 // completion on a fixture with stale bits (Refs #9975 round 6): the fill
 // sets every row's bits from its payload, a disagreement restarts the sweep
 // instead of completing, and the marker flips from incomplete to complete.
-// It also pins the fail-closed direction: on the unfilled table the guarded
-// probe under-matches the shipped probe (explicit-” rows stay out), which is
-// why the tick runs the guarded text only after this marker completes.
+// It also pins the ruled #11691 agreement: on the unfilled table the
+// plain-column probe now matches exactly the shipped probe's rows (the
+// round-6 guards are dropped, so explicit-”, missing, and JSON-null keys
+// all read as ”), and the fill below still backfills the bits the covering
+// index carries.
 func TestSupplyChainImpactSupportsKeyPresenceFillLive(t *testing.T) {
 	h := newKeyedHarness(t, "9975 key-presence fill")
 
@@ -59,8 +61,10 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
 		}
 	}
 
-	// Fail-closed direction on the unfilled table: zero the bits (an old
-	// writer's rows), and the guarded probe must under-match the shipped one.
+	// Agreement on the unfilled table (Refs #11691): zero the bits (an old
+	// writer's rows), and the plain-column probe must match exactly the
+	// shipped probe's rows — the dropped guards no longer under-match the
+	// explicit-'', missing, and JSON-null copies.
 	h.exec(`UPDATE supply_chain_impact_finding_supports SET key_presence = 0`)
 	conn, err := h.db.Conn(h.ctx)
 	if err != nil {
@@ -98,8 +102,8 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
 	if shipped == 0 {
 		t.Fatal("shipped probe matches nothing on the fixture")
 	}
-	if guarded >= shipped {
-		t.Fatalf("guarded probe matches %d rows, want fewer than shipped %d on the unfilled table (fail-closed)", guarded, shipped)
+	if guarded != shipped {
+		t.Fatalf("guarded probe matches %d rows, want exactly shipped %d on the unfilled table (Refs #11691: the guards are dropped)", guarded, shipped)
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("rollback probe transaction: %v", err)

@@ -373,9 +373,9 @@ func TestWinnersScannedCopiesProbeMatchesActiveFactsProbe(t *testing.T) {
 	} {
 		for _, frag := range []string{
 			"FROM " + winnersSupportsTable + " AS f",
-			"(f.payload->>'package_id') = ident.package_id",
-			"(f.payload->>'repository_id') = ident.repository_id",
-			"(f.payload->>'subject_digest') = ident.subject_digest",
+			"(f.payload->>'package_id' = ident.package_id OR (ident.package_id = '' AND (f.payload->>'package_id') IS NULL))",
+			"(f.payload->>'repository_id' = ident.repository_id OR (ident.repository_id = '' AND (f.payload->>'repository_id') IS NULL))",
+			"(f.payload->>'subject_digest' = ident.subject_digest OR (ident.subject_digest = '' AND (f.payload->>'subject_digest') IS NULL))",
 			"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
 			"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
 		} {
@@ -390,11 +390,12 @@ func TestWinnersScannedCopiesProbeMatchesActiveFactsProbe(t *testing.T) {
 	// The budgeted probe derives from the same legacy body as the
 	// whole-chunk build: reversing the supports swaps must restore every
 	// legacy fragment, so a later edit cannot silently split the two shapes.
+	// The triple legs carry the ruled leniency arms (Refs #11691).
 	for _, frag := range []string{
 		"FROM fact_records AS f",
-		"(f.payload->>'package_id') = ident.package_id",
-		"(f.payload->>'repository_id') = ident.repository_id",
-		"(f.payload->>'subject_digest') = ident.subject_digest",
+		"(f.payload->>'package_id' = ident.package_id OR (ident.package_id = '' AND (f.payload->>'package_id') IS NULL))",
+		"(f.payload->>'repository_id' = ident.repository_id OR (ident.repository_id = '' AND (f.payload->>'repository_id') IS NULL))",
+		"(f.payload->>'subject_digest' = ident.subject_digest OR (ident.subject_digest = '' AND (f.payload->>'subject_digest') IS NULL))",
 		"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
 		"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
 		"f.fact_kind = 'reducer_supply_chain_impact_finding'",

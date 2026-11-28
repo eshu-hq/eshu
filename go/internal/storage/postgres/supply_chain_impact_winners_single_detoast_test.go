@@ -249,19 +249,22 @@ func TestWinnersDetoastMappingInverts(t *testing.T) {
 }
 
 // TestWinnersKeyedProbeKeepsIndexExpressions pins the deliberate probe
-// non-conversion: the five WHERE equalities must stay byte-identical `->>`
-// over f.payload, because they are the 291 keyed index expressions. A record
-// Var cannot match an expression index, so converting the probe trades five
-// detoasts for a sequential scan (EXPLAIN in
-// #11120 (retired evidence record)).
+// non-conversion: every WHERE equality arm must stay byte-identical `->>`
+// over f.payload, because the arms are the 291 keyed index expressions. A
+// record Var cannot match an expression index, so converting the probe trades
+// five detoasts for a sequential scan (EXPLAIN in
+// #11120 (retired evidence record)). The triple legs carry exactly the
+// NULL-only leniency arm (Refs #11691): a bare COALESCE would read the same
+// rows but defeat the index, so the arm shape is pinned, not just the
+// equality.
 func TestWinnersKeyedProbeKeepsIndexExpressions(t *testing.T) {
 	t.Parallel()
 
 	probe := winnersKeyedNarrowProbeSelect(winnersKeyedIdentsTable)
 	for _, want := range []string{
-		"(f.payload->>'package_id') = ident.package_id",
-		"(f.payload->>'repository_id') = ident.repository_id",
-		"(f.payload->>'subject_digest') = ident.subject_digest",
+		"(f.payload->>'package_id' = ident.package_id OR (ident.package_id = '' AND (f.payload->>'package_id') IS NULL))",
+		"(f.payload->>'repository_id' = ident.repository_id OR (ident.repository_id = '' AND (f.payload->>'repository_id') IS NULL))",
+		"(f.payload->>'subject_digest' = ident.subject_digest OR (ident.subject_digest = '' AND (f.payload->>'subject_digest') IS NULL))",
 		"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
 		"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
 	} {
@@ -271,6 +274,11 @@ func TestWinnersKeyedProbeKeepsIndexExpressions(t *testing.T) {
 	}
 	if strings.Contains(probe, "jsonb_to_record") {
 		t.Error("keyed probe uses jsonb_to_record: the record Var cannot match the 291 expression index")
+	}
+	if strings.Contains(probe, "COALESCE(f.payload->>'package_id'") ||
+		strings.Contains(probe, "COALESCE(f.payload->>'repository_id'") ||
+		strings.Contains(probe, "COALESCE(f.payload->>'subject_digest'") {
+		t.Error("keyed probe COALESCEs a triple leg: the bare COALESCE defeats the 291/354 bare-expression indexes")
 	}
 }
 

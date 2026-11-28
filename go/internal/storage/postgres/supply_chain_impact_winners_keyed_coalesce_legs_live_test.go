@@ -11,15 +11,17 @@ import (
 )
 
 // TestWinnersKeyedProbeMatchesCoalesceDefaultLegs pins the COALESCE
-// leniency of the shipped keyed probe's c0 and advisory legs (Refs #9975).
+// leniency of the shipped keyed probe's c0 and advisory legs (Refs #9975)
+// and the ruled triple-leg leniency (Refs #11691).
 //
-// Unlike the triple legs (payload->> strict: a missing key never matches,
-// pinned by TestWinnersKeyedProbeExcludesMissingKeySupports), the c0 leg
-// COALESCEs both raw keys to ” and the advisory leg COALESCEs to ”, so a
-// support whose payload lacks the key still matches a staged identifier
-// whose component is ”. Concretely: a CVE-only support with no advisory
-// key matches the (pkg, repo, digest, cve, ”) identifier, and a support
-// with neither key matches the (pkg, repo, digest, ”, ”) identifier.
+// Like the c0 leg (which COALESCEs both raw keys to ”) and the advisory leg
+// (which COALESCEs to ”), every triple leg now reads a missing key and a
+// JSON null as ” (the ruled shape-(b) OR arms), so a support whose payload
+// lacks any of the five keys still matches a staged identifier whose
+// component is ”. Concretely: a CVE-only support with no advisory key
+// matches the (pkg, repo, digest, cve, ”) identifier, a support with neither
+// advisory key matches the (pkg, repo, digest, ”, ”) identifier, and a
+// triple-missing support matches the (”, ”, ”, cve, advisory) identifier.
 //
 // The round-5 key-presence candidate guarded those legs with presence bits
 // and excluded exactly these rows (falsifier: 280 shipped-only rows, classes
@@ -47,9 +49,8 @@ func TestSupplyChainImpactWinnersNarrowProbeMatchesCoalesceLegsLive(t *testing.T
 		{"probe-cl-e4", `{"package_id":"npm://probe-c2","repository_id":"repo-probe-2","subject_digest":"sha256:c2"}`},
 		// Both keys present-empty: matches under any construction.
 		{"probe-cl-e5", `{"package_id":"npm://probe-c2","repository_id":"repo-probe-2","subject_digest":"sha256:c2","cve_id":"","advisory_id":""}`},
-		// Triple missing: the negative control. The triple legs are
-		// strict, so the ''-triple ident must not match even though the
-		// c0/advisory legs default.
+		// Triple missing: the ''-triple ident matches (Refs #11691),
+		// since the lenient triple legs read the absent keys as ''.
 		{"probe-cl-e6", `{"cve_id":"CVE-PROBE-3","advisory_id":"GHSA-PROBE-3"}`},
 	}
 	for _, row := range seed {
@@ -102,14 +103,11 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
 	}
 
 	// The COALESCE legs match missing, JSON-null, and present-empty keys
-	// alike for '' identifier components.
-	for _, id := range []string{"probe-cl-e1", "probe-cl-e2", "probe-cl-e3", "probe-cl-e4", "probe-cl-e5"} {
+	// alike for '' identifier components, and the lenient triple legs
+	// (Refs #11691) do the same for the triple.
+	for _, id := range []string{"probe-cl-e1", "probe-cl-e2", "probe-cl-e3", "probe-cl-e4", "probe-cl-e5", "probe-cl-e6"} {
 		if !got[id+"/"+generation] {
-			t.Errorf("narrow probe output misses %s: the shipped COALESCE legs must match missing/null/empty keys for '' idents", id)
+			t.Errorf("narrow probe output misses %s: the lenient legs must match missing/null/empty keys for '' idents", id)
 		}
-	}
-	// The triple legs stay strict: a triple-missing row matches nothing.
-	if got["probe-cl-e6/"+generation] {
-		t.Errorf("narrow probe output contains probe-cl-e6 (triple missing): the shipped triple legs must not match missing-key rows")
 	}
 }

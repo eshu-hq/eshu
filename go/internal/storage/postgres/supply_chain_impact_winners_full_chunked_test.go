@@ -129,10 +129,11 @@ func TestWinnersFullChunkedReadsPayloadDerivedRanking(t *testing.T) {
 
 // TestWinnersFullChunkNarrowProbeFallsBackToSupportsExpression pins the ruled
 // probe flip: under the supports-ready gate the chunk probes supports for
-// candidate fact_id presence with the triple guard; when the gate is closed
-// the same chunk probes supports with the shipped payload expression. The
-// flip is the probe shape, never the row source: both read supports, since
-// the write stop left no finding facts for a fact_records probe to read.
+// candidate fact_id presence with the plain-column equalities (Refs #11691:
+// the round-6 triple guards are dropped); when the gate is closed the same
+// chunk probes supports with the shipped payload expression. The flip is the
+// probe shape, never the row source: both read supports, since the write
+// stop left no finding facts for a fact_records probe to read.
 func TestWinnersFullChunkNarrowProbeFallsBackToSupportsExpression(t *testing.T) {
 	t.Parallel()
 
@@ -147,15 +148,28 @@ func TestWinnersFullChunkNarrowProbeFallsBackToSupportsExpression(t *testing.T) 
 		t.Error("a chunk probe reads fact_records: both probe shapes read supports")
 	}
 	// The presence probe reads supports for fact_id presence only: the
-	// triple guard plus the copy identity, no stored ranking columns, no
+	// five plain-column equalities (Refs #11691: the round-6 triple guards
+	// are dropped, so missing keys read as '' exactly like the closed-gate
+	// payload probe) plus the copy identity, no stored ranking columns, no
 	// payload text reads.
 	for _, want := range []string{
 		"FROM " + winnersSupportsTable + " AS s",
-		"(s.key_presence & 1) <> 0",
+		"s.package_id = ident.package_id",
+		"s.repository_id = ident.repository_id",
+		"s.subject_digest = ident.subject_digest",
 		"SELECT s.fact_id, s.scope_id, s.generation_id",
 	} {
 		if !strings.Contains(insertWinnersKeyedNarrowPresenceFullChunkSQL, want) {
 			t.Errorf("presence probe lost %q: supports serve candidate fact_id presence only", want)
+		}
+	}
+	for _, dropped := range []string{
+		"(s.key_presence & 1) <> 0",
+		"(s.key_presence & 2) <> 0",
+		"(s.key_presence & 4) <> 0",
+	} {
+		if strings.Contains(insertWinnersKeyedNarrowPresenceFullChunkSQL, dropped) {
+			t.Errorf("presence probe still carries the round-6 guard %q (Refs #11691)", dropped)
 		}
 	}
 	if strings.Contains(insertWinnersKeyedNarrowPresenceFullChunkSQL, "s.payload->>") {

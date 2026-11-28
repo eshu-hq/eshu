@@ -271,9 +271,9 @@ var winnersKeyedBuildIdentsStmts = []string{
 // measured run with that plan took 28 million buffer hits for a 2,000-row
 // result). Single-reference CTEs inline by default on PostgreSQL 12+, so
 // the MATERIALIZED markers are load-bearing. OFFSET 0 keeps the lateral
-// subquery from being flattened into a scan. The writer serializes
-// package_id, repository_id and subject_digest on every finding, so the
-// equality probe cannot miss a row on a NULL key.
+// subquery from being flattened into a scan. The triple legs read a missing
+// key and a JSON null as ” (Refs #11691), so the probe cannot miss a row on
+// a NULL key even where the writer did not serialize the triple.
 //
 // The remaining floor is one index descent plus the kept facts' heap rows per
 // identifier, held in narrow tuplestore until the final fetch, plus the
@@ -325,6 +325,10 @@ const winnersKeyedNarrowColumns = `fact_id, scope_id, generation_id`
 // function, so the tick's budgeted per-identifier probes, the audit's
 // whole-chunk build, and the scanned-copies count attribution cannot
 // silently split (see TestWinnersScannedCopiesProbeMatchesActiveFactsProbe).
+//
+// Triple legs are lenient (Refs #11691): missing/JSON-null read as ”; each
+// leg keeps its bare `->>` equality as the first OR arm, so the probe still
+// descends the 291/354 indexes (a bare COALESCE would defeat them).
 func winnersKeyedNarrowProbeSelect(identsTable string) string {
 	return `WITH narrow AS MATERIALIZED (
     SELECT fact.fact_id, fact.scope_id, fact.generation_id
@@ -332,9 +336,9 @@ func winnersKeyedNarrowProbeSelect(identsTable string) string {
     CROSS JOIN LATERAL (
         SELECT f.fact_id, f.scope_id, f.generation_id
         FROM fact_records AS f
-        WHERE (f.payload->>'package_id') = ident.package_id
-          AND (f.payload->>'repository_id') = ident.repository_id
-          AND (f.payload->>'subject_digest') = ident.subject_digest
+        WHERE (f.payload->>'package_id' = ident.package_id OR (ident.package_id = '' AND (f.payload->>'package_id') IS NULL))
+          AND (f.payload->>'repository_id' = ident.repository_id OR (ident.repository_id = '' AND (f.payload->>'repository_id') IS NULL))
+          AND (f.payload->>'subject_digest' = ident.subject_digest OR (ident.subject_digest = '' AND (f.payload->>'subject_digest') IS NULL))
           AND COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0
           AND COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id
           AND f.fact_kind = 'reducer_supply_chain_impact_finding'

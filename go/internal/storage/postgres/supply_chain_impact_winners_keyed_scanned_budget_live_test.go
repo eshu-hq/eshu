@@ -56,13 +56,17 @@ func seedScannedBudgetBacklog(h *keyedHarness, keys int) (kept, scanned int64) {
 		}
 	}
 	// The operator arm rides the differential: its payload carries no
-	// package keys, so its dirty row expands to the NULL-tuple identifier
-	// whose probe matches zero rows.
+	// package keys, so its dirty row expands to the NULL-tuple identifier.
+	// Under the strict probe that identifier matched zero rows; under the
+	// ruled #11691 leniency the operator row matches its own NULL-tuple
+	// identifier (missing keys read as ''), so the drain keeps and scans
+	// exactly one copy more. The budget itself is unchanged: every tick
+	// still holds at or under it, only the drain totals move by one.
 	h.seedOperator("scanned-budget-op-g0", "", map[string]map[string]any{
 		"scanned-budget-op-1": {"action": "suppress", "cve_id": "CVE-2026-BUDGET-000"},
 	})
 	perKey := int64(scannedBudgetKeptPerIdent)
-	return perKey * int64(keys), 2 * perKey * int64(keys)
+	return perKey*int64(keys) + 1, 2*perKey*int64(keys) + 1
 }
 
 // TestSupplyChainImpactWinnersResweepScannedBudgetBoundsTicksLive is the Dec

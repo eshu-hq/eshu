@@ -852,6 +852,11 @@ tests:
     class: dedicated_ci
     reason: "#9975: reducer-contention covers 1 named Go test via the WinnersNarrow pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_missing_key_lenient_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11691: reducer-contention covers 2 named Go tests via the WinnersNarrow pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_triple_guard_live_test.go
     tag: ~
     class: dedicated_ci

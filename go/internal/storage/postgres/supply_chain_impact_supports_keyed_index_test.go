@@ -131,20 +131,47 @@ func indexKeyExpressions(ddl string) ([]string, error) {
 
 var keyedProbeEquality = regexp.MustCompile(`(?m)^\s+(?:WHERE|AND) (.+?) = ident\.\w+\s*$`)
 
+// keyedProbeLenientTriple matches one lenient triple leg (Refs #11691): the
+// bare `->>` equality first, then exactly the NULL-only leniency arm. The arm
+// shape is pinned, not just the strict equality, so a widening rewrite (for
+// example a bare COALESCE, which defeats the 291/354 indexes) fails here
+// instead of silently passing as index-covered.
+var keyedProbeLenientTriple = regexp.MustCompile(`^\s+(?:WHERE|AND) \((f\.payload->>'(\w+)') = ident\.(\w+) OR \(ident\.(\w+) = '' AND \(f\.payload->>'(\w+)'\) IS NULL\)\)\s*$`)
+
 // keyedProbeSupportsAlias strips the supports-table qualifier from a probe
-// expression: the triple-guarded probe (#9975 round 6) equates plain columns
-// qualified with its table alias, while the index DDL names bare columns.
+// expression: the plain-column probe (#9975 round 6, lenient since #11691)
+// equates plain columns qualified with its table alias, while the index DDL
+// names bare columns.
 var keyedProbeSupportsAlias = regexp.MustCompile(`\bs\.([a-z_]+)`)
 
 // keyedProbeExpressions returns, in order, the left-hand expressions the keyed
 // probe equates to the identifier columns, normalized over the unaliased payload
-// or the de-aliased plain columns.
+// or the de-aliased plain columns. A lenient triple leg contributes its bare
+// `->>` equality; the leniency arm must match exactly or the leg contributes
+// nothing and the cover rule below rejects the probe.
 func keyedProbeExpressions(probe string) []string {
 	var exprs []string
-	for _, match := range keyedProbeEquality.FindAllStringSubmatch(probe, -1) {
-		expr := strings.ReplaceAll(match[1], "f.payload", "payload")
-		expr = keyedProbeSupportsAlias.ReplaceAllString(expr, "$1")
-		exprs = append(exprs, normalizeKeyExpr(expr))
+	for _, line := range strings.Split(probe, "\n") {
+		if match := keyedProbeEquality.FindStringSubmatch(line); match != nil {
+			// A lenient triple leg never ends its line at the strict
+			// equality, so this only matches the strict c0/advisory legs
+			// and the plain-column probe legs.
+			expr := strings.ReplaceAll(match[1], "f.payload", "payload")
+			expr = keyedProbeSupportsAlias.ReplaceAllString(expr, "$1")
+			exprs = append(exprs, normalizeKeyExpr(expr))
+			continue
+		}
+		if match := keyedProbeLenientTriple.FindStringSubmatch(line); match != nil {
+			// match[2] is the payload key, match[3] the identifier column,
+			// match[4] the arm's identifier column, match[5] the arm's
+			// payload key: all four must name the same key or the leg
+			// contributes nothing and the cover rule below rejects the
+			// probe.
+			if match[2] != match[3] || match[2] != match[4] || match[2] != match[5] {
+				continue
+			}
+			exprs = append(exprs, normalizeKeyExpr(strings.ReplaceAll(match[1], "f.payload", "payload")))
+		}
 	}
 	return exprs
 }

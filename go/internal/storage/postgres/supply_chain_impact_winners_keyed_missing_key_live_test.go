@@ -4,38 +4,30 @@
 package postgres_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// TestWinnersKeyedProbeExcludesMissingKeySupports pins the NULL-miss
-// semantics the five keyed probe equalities rely on (Refs #9975).
-//
-// A payload equality `(payload->>'k') = ident.k` is never true when the row's
-// payload lacks the key or carries a JSON null: `->>` yields SQL NULL and the
-// comparison is unknown, so the row is not probed. A plain-column rewrite
-// (`supports.k = ident.k`, with the column populated as
-// `COALESCE(payload->>'k', ”)`) erases that missing-vs-empty distinction:
-// the same row then matches every staged identifier whose component is ”.
-// Staged ” components are the normal case, not the exception -- every
-// language-package finding stages subject_digest ” (live QA: the whole
-// queued backlog) -- so the rewrite silently widens the probe to
-// missing-key rows instead of only trading heap fetches for an index-only
-// scan. The c0 and advisory legs are exactly equivalent and stay out of
-// scope: this guard covers the triple only.
+// TestSupplyChainImpactWinnersNarrowProbeMatchesMissingKeyLive is the inverse
+// of the #9975 missing-key exclusion pin (Refs #11691, ruled shape (b)): the
+// keyed probes read a missing triple key and a JSON-null triple key as ”,
+// matching the staged coalesced identifier, on both the shipped
+// payload-expression probe and the plain-column probe. The exclusion the old
+// pin guarded moved downstream: an operator-scope row still matches its
+// coalesced identifier at the probe, but the winner select's eligibility
+// (scope_id <> operator:vulnerability_suppressions) keeps it out of the
+// winners, which this test proves by running the shipped supports oracle over
+// the same fixture.
 //
 // The fixture mirrors the suppression store's free-form map payloads (see
 // seedOperator): operator-scope finding facts may lack package_id and
-// subject_digest keys. The expected narrow set holds the explicit-” row
-// and the clean control only; the missing-key, JSON-null, and operator-like
-// rows must stay out. A plain-column probe text fails this test by pulling
-// the missing-key rows in (demonstrated against the #9975 round-3
-// construction, then reverted); the hermetic text pin
-// TestWinnersKeyedProbeKeepsIndexExpressions guards the statement shape.
-func TestSupplyChainImpactWinnersNarrowProbeExcludesMissingKeyLive(t *testing.T) {
-	h := newKeyedHarness(t, "9975 missing-key probe guard")
+// subject_digest keys. The c0 and advisory legs were already lenient and stay
+// out of scope.
+func TestSupplyChainImpactWinnersNarrowProbeMatchesMissingKeyLive(t *testing.T) {
+	h := newKeyedHarness(t, "11691 missing-key probe leniency")
 
 	const scope = "scope-probe-mk"
 	const generation = "scope-probe-mk/g1"
@@ -47,15 +39,12 @@ func TestSupplyChainImpactWinnersNarrowProbeExcludesMissingKeyLive(t *testing.T)
 	}{
 		// Explicit '' subject_digest: the npm-normal shape, matched.
 		{"probe-mk-e1", `{"package_id":"npm://probe-p1","repository_id":"repo-probe-1","subject_digest":"","cve_id":"CVE-PROBE-1","advisory_id":"GHSA-PROBE-1"}`},
-		// Missing subject_digest key: must stay out.
+		// Missing subject_digest key: matches the '' component after #11691.
 		{"probe-mk-e2", `{"package_id":"npm://probe-p1","repository_id":"repo-probe-1","cve_id":"CVE-PROBE-1","advisory_id":"GHSA-PROBE-1"}`},
-		// JSON null subject_digest: must stay out (`->>` yields NULL too).
+		// JSON null subject_digest: matches after #11691 (`->>` yields NULL too).
 		{"probe-mk-e3", `{"package_id":"npm://probe-p1","repository_id":"repo-probe-1","subject_digest":null,"cve_id":"CVE-PROBE-1","advisory_id":"GHSA-PROBE-1"}`},
 		// Clean control: no '' anywhere, matched by its own ident.
 		{"probe-mk-e4", `{"package_id":"go://probe-clean","repository_id":"repo-probe-clean","subject_digest":"sha256:clean","cve_id":"CVE-PROBE-CLEAN","advisory_id":"GHSA-PROBE-CLEAN"}`},
-		// Operator-like free-form row: triple keys absent, matched by no
-		// populated ident, and specifically not by the '' operator ident.
-		{"probe-mk-e5", `{"cve_id":"CVE-PROBE-1","advisory_id":"GHSA-PROBE-1"}`},
 	}
 	for _, row := range seed {
 		h.exec(`
@@ -64,11 +53,16 @@ INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fa
 VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, false, $6::jsonb)`,
 			row.id+"/"+generation, scope, generation, facts.ReducerSupplyChainImpactFindingFactKind, keyedNow, row.payload)
 	}
+	// Operator-like free-form row, triple keys absent, in the operator scope:
+	// it matches the '' operator ident at the probe and is excluded
+	// downstream by the winner select's operator-scope eligibility.
+	h.seedOperator(generation+"-op", "", map[string]map[string]any{
+		"probe-mk-e5": {"cve_id": "CVE-PROBE-1", "advisory_id": "GHSA-PROBE-1"},
+	})
 	h.syncSupports()
 
-	// The whole-chunk narrow build over a staged identifier table, exactly
-	// the shipped supports twin the tick runs. One transaction on one
-	// connection: the build creates its temp table ON COMMIT DROP.
+	const operatorScope = "operator:vulnerability_suppressions"
+
 	conn, err := h.db.Conn(h.ctx)
 	if err != nil {
 		t.Fatalf("open probe connection: %v", err)
@@ -90,44 +84,74 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
   ('', '', '', 'CVE-PROBE-1', 'GHSA-PROBE-1')`); err != nil {
 		t.Fatalf("stage identifiers: %v", err)
 	}
-	if _, err := tx.ExecContext(h.ctx, postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest); err != nil {
-		t.Fatalf("run shipped narrow probe build: %v", err)
+
+	stripBuild := func(build string) string {
+		return strings.Replace(build, "CREATE TEMP TABLE winners_keyed_narrow ON COMMIT DROP AS", "", 1)
 	}
-	rows, err := tx.QueryContext(h.ctx, `SELECT fact_id FROM `+postgres.WinnersKeyedNarrowTableForTest)
-	if err != nil {
-		t.Fatalf("read narrow probe output: %v", err)
+	probes := map[string]string{
+		"shipped supports": stripBuild(postgres.WinnersKeyedNarrowBuildFromSupportsSQLForTest),
+		"plain-column":     stripBuild(postgres.WinnersKeyedNarrowKeyPresenceBuildSQLForTest),
 	}
-	defer func() { _ = rows.Close() }()
-	got := map[string]bool{}
-	for rows.Next() {
-		var factID string
-		if err := rows.Scan(&factID); err != nil {
-			t.Fatalf("scan narrow row: %v", err)
+	for name, probe := range probes {
+		rows, err := tx.QueryContext(h.ctx, probe)
+		if err != nil {
+			t.Fatalf("run %s probe: %v", name, err)
 		}
-		got[factID] = true
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate narrow rows: %v", err)
+		got := map[string]bool{}
+		for rows.Next() {
+			var factID, scopeID, generationID string
+			if err := rows.Scan(&factID, &scopeID, &generationID); err != nil {
+				_ = rows.Close()
+				t.Fatalf("scan %s probe row: %v", name, err)
+			}
+			got[factID] = true
+		}
+		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate %s probe rows: %v", name, err)
+		}
+		// Explicit-'', missing-key, JSON-null, and clean copies all match
+		// their coalesced identifiers.
+		for _, id := range []string{"probe-mk-e1", "probe-mk-e2", "probe-mk-e3", "probe-mk-e4"} {
+			if !got[id+"/"+generation] {
+				t.Errorf("%s probe misses %s: the lenient triple legs must match missing and JSON-null keys as '' (Refs #11691)", name, id)
+			}
+		}
+		// The operator-scope row matches its coalesced '' identifier at the
+		// probe: scope is not a probe input, and exclusion happens
+		// downstream.
+		if opID := "probe-mk-e5/" + generation + "-op"; !got[opID] {
+			t.Errorf("%s probe misses %s: the operator-scope row must reach the probe before downstream exclusion (Refs #11691)", name, opID)
+		}
 	}
 
-	want := map[string]bool{
-		"probe-mk-e1/" + generation: true,
-		"probe-mk-e4/" + generation: true,
+	// Downstream: the shipped supports oracle crowns the e1 key (exactly one
+	// winner across its explicit-''/missing/JSON-null copies) and the clean
+	// key, and writes no winner for the operator-scope row.
+	if _, err := h.db.ExecContext(h.ctx, `CREATE TEMP TABLE winners_downstream AS `+postgres.WinnerSelectFromSupportsSQLForTest); err != nil {
+		t.Fatalf("run the supports oracle select: %v", err)
 	}
-	for factID := range want {
-		if !got[factID] {
-			t.Errorf("narrow probe output misses %s: the shipped probe must match explicit-'' and clean rows", factID)
-		}
+	defer func() { _, _ = h.db.ExecContext(h.ctx, `DROP TABLE winners_downstream`) }()
+	var keyed, clean, operator int
+	if err := h.db.QueryRowContext(h.ctx, `SELECT count(*) FROM winners_downstream WHERE winner_fact_id IN ($1, $2, $3)`,
+		"probe-mk-e1/"+generation, "probe-mk-e2/"+generation, "probe-mk-e3/"+generation).Scan(&keyed); err != nil {
+		t.Fatalf("count e1-key winners: %v", err)
 	}
-	for _, tt := range []struct {
-		id, why string
-	}{
-		{"probe-mk-e2/" + generation, "missing subject_digest key"},
-		{"probe-mk-e3/" + generation, "JSON null subject_digest"},
-		{"probe-mk-e5/" + generation, "operator-like row under the '' operator ident"},
-	} {
-		if got[tt.id] {
-			t.Errorf("narrow probe output contains %s (%s): the shipped probe must not match missing-key rows", tt.id, tt.why)
-		}
+	if err := h.db.QueryRowContext(h.ctx, `SELECT count(*) FROM winners_downstream WHERE winner_fact_id = $1`,
+		"probe-mk-e4/"+generation).Scan(&clean); err != nil {
+		t.Fatalf("count clean-key winners: %v", err)
+	}
+	if err := h.db.QueryRowContext(h.ctx, `SELECT count(*) FROM winners_downstream WHERE winner_fact_id = $1`,
+		"probe-mk-e5/"+generation+"-op").Scan(&operator); err != nil {
+		t.Fatalf("count operator-scope winners: %v", err)
+	}
+	if keyed != 1 {
+		t.Errorf("oracle crowns %d winners for the e1 key, want 1: the missing/JSON-null copies must collapse onto the explicit-'' copy", keyed)
+	}
+	if clean != 1 {
+		t.Errorf("oracle crowns %d winners for the clean key, want 1", clean)
+	}
+	if operator != 0 {
+		t.Errorf("oracle crowns %d winners for the operator-scope row, want 0 (scope_id <> '%s' eligibility)", operator, operatorScope)
 	}
 }

@@ -61,23 +61,24 @@ func TestWinnersKeyedProbeTwinsShareOneConstructorPerShape(t *testing.T) {
 	}
 }
 
-// TestWinnersKeyedGuardedProbeCarriesTripleGuardsAndNoFactFilters pins the
-// guarded probe's shape: five plain-column equalities with triple-only
-// presence guards, plain COALESCE c0/advisory legs with no guards, and no
-// fact_records row source or finding-kind filter (a support exists only for a
-// live finding fact).
-func TestWinnersKeyedGuardedProbeCarriesTripleGuardsAndNoFactFilters(t *testing.T) {
+// TestWinnersKeyedGuardedProbeDropsTripleGuardsAndNoFactFilters pins the
+// guarded probe's shape: five plain-column equalities with NO key-presence
+// guards on the triple legs (Refs #11691: the supports writer stores a
+// missing key and a JSON null as ”, so the plain equality already reads both
+// as the coalesced identifier), plain COALESCE c0/advisory legs with no
+// guards, and no fact_records row source or finding-kind filter (a support
+// exists only for a live finding fact). The round-6 guard conjuncts are gone;
+// the key_presence column, fill, and covering index stay (see the forbidden
+// list), the probe just no longer filters on them.
+func TestWinnersKeyedGuardedProbeDropsTripleGuardsAndNoFactFilters(t *testing.T) {
 	t.Parallel()
 
 	probe := winnersKeyedNarrowProbeSelectKeyPresence(winnersKeyedIdentsTable)
 	for _, frag := range []string{
 		"FROM supply_chain_impact_finding_supports AS s",
 		"s.package_id = ident.package_id",
-		"(ident.package_id <> '' OR (s.key_presence & 1) <> 0)",
 		"s.repository_id = ident.repository_id",
-		"(ident.repository_id <> '' OR (s.key_presence & 2) <> 0)",
 		"s.subject_digest = ident.subject_digest",
-		"(ident.subject_digest <> '' OR (s.key_presence & 4) <> 0)",
 		"COALESCE(NULLIF(s.cve_id, ''), NULLIF(s.advisory_id, ''), '') = ident.c0",
 		"s.advisory_id = ident.advisory_id",
 		"MATERIALIZED",
@@ -85,6 +86,15 @@ func TestWinnersKeyedGuardedProbeCarriesTripleGuardsAndNoFactFilters(t *testing.
 	} {
 		if !strings.Contains(probe, frag) {
 			t.Errorf("guarded probe lost the fragment %q", frag)
+		}
+	}
+	for _, dropped := range []string{
+		"(ident.package_id <> '' OR (s.key_presence & 1) <> 0)",
+		"(ident.repository_id <> '' OR (s.key_presence & 2) <> 0)",
+		"(ident.subject_digest <> '' OR (s.key_presence & 4) <> 0)",
+	} {
+		if strings.Contains(probe, dropped) {
+			t.Errorf("guarded probe still carries the round-6 guard %q: the ruled leniency drops all three (Refs #11691)", dropped)
 		}
 	}
 	for _, forbidden := range []string{
