@@ -97,10 +97,10 @@ type winnersChunkOutcome struct {
 	// keyPresenceProbe reports the tick probed with the triple-guarded
 	// plain-column probe (#9975 round 6) instead of the shipped
 	// payload-expression one: the key-presence fill marker was complete when
-	// the chunk was built. It is recorded for tests and future wiring, not
-	// operator telemetry: an operator tells which probe text a tick ran from
-	// the marker row and pg_stat_statements (the two texts are distinct
-	// statements).
+	// the chunk was built. It is recorded for future wiring, not for tests
+	// or operator telemetry: an operator tells which probe text a tick ran
+	// from the marker row and pg_stat_statements (the two texts are
+	// distinct statements).
 	keyPresenceProbe bool
 }
 
