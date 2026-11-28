@@ -37,7 +37,7 @@ import (
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
 // supplyChainImpactWinnerDataColumns byte-parity rule).
-const SupplyChainImpactWinnersContractVersion int64 = 5
+const SupplyChainImpactWinnersContractVersion int64 = 6
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
 // of the statements it names. A version maps to exactly one hash. Version 2
@@ -208,6 +208,28 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// TestWinnersMaintainerStatementsReadNoFactRecords with the v3-full
 	// exemption removed).
 	5: "2a3dc4a2b1c250aca2efa17f4d5489478d7a108f66fcad57b287ec51f91ab736",
+	// Version 6 (ruled #11691 shape-(b) fix): the triple legs of both keyed
+	// narrow probes are lenient — a missing key and a JSON null read as ''
+	// (OR arms in the payload probe, plain equalities over ''-normalized
+	// plain columns with the round-6 guard conjuncts dropped in the
+	// plain-column twin). Winners a resweep produces change for the same
+	// facts exactly where they were wrong before: identifier probes now reach
+	// the missing/JSON-null-keyed copies the coalesced identifier names, so
+	// the keyed and chunked paths converge to the full select instead of
+	// writing zero winners where the legacy rebuild wrote rows. Every
+	// instance runs one full after the roll. Differential justification,
+	// measured on seeded disposable backends (Refs #11691): the shipped and
+	// plain-column probes agree EXCEPT ALL 0 in both directions on the
+	// advisory-absent plus triple-edge fixture
+	// (TestSupplyChainImpactWinnersNarrowTripleGuardProbeMatchesShippedLive),
+	// the lenient probes match pure-missing and mixed outrank fixtures the
+	// strict probes missed
+	// (TestSupplyChainImpactWinnersNarrowProbeMatchesPureMissingIdentLive,
+	// TestSupplyChainImpactWinnersMissingKeyCopyOutranksExplicitLive), and the
+	// supports oracle keeps crowning the same non-operator copies with zero
+	// operator-scope winners
+	// (TestSupplyChainImpactWinnersNarrowProbeMatchesMissingKeyLive).
+	6: "a3bed4fb82c180726f7259f3ef157702ab0eff49b587a57808b62665abf86296",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the

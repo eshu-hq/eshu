@@ -35,7 +35,7 @@ import (
 // full, the full deletes the stored-only key, the stored contract becomes
 // v5, and the next UnlessCurrent skips. The audit then reports zero repairs.
 func TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive(t *testing.T) {
-	_ = supplyChainImpactLiveDSN(t, "#9805 v5 UnlessCurrent healing proof")
+	_ = supplyChainImpactLiveDSN(t, "#11691 v6 UnlessCurrent healing proof")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 	db := openAdvisorySuppressionIsolatedDB(t)
@@ -66,15 +66,15 @@ func TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive(t *testing
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
-	if !contract.Present || contract.StoredVersion != 5 || contract.StoredHash != contract.BinaryHash {
-		t.Errorf("stored contract = %+v, want version 5 with the binary hash", contract)
+	if !contract.Present || contract.StoredVersion != 6 || contract.StoredHash != contract.BinaryHash {
+		t.Errorf("stored contract = %+v, want version 6 with the binary hash", contract)
 	}
 
 	skip, err := store.ResweepWinnersUnlessCurrent(ctx)
 	if err != nil || !skip.Skipped || !skip.ContractCurrent {
-		t.Fatalf("UnlessCurrent over stored v5 = %+v, %v; want Skipped with ContractCurrent", skip, err)
+		t.Fatalf("UnlessCurrent over stored v6 = %+v, %v; want Skipped with ContractCurrent", skip, err)
 	}
-	t.Logf("healing-full: stored v4 ran (deleted=%d), stored v5 skips", heal.Deleted)
+	t.Logf("healing-full: stored v4 ran (deleted=%d), stored v6 skips", heal.Deleted)
 	fullDiffAssertParity(t, ctx, db, "healed")
 
 	audit, err := store.AuditWinners(ctx)

@@ -487,4 +487,12 @@ FROM generate_series(1, 5) AS i`,
 	if problems := keyedProbePlanProblems(plan, keyedProbeIndexName, keyedProbeEqualities); len(problems) != 0 {
 		t.Fatalf("the keyed probe plan is wrong: %v\n%s", problems, plan)
 	}
+	// The leniency OR arms the bitmap does not serve stay applied as a
+	// Filter (Refs #11691): an arm missing from the whole plan widens or
+	// narrows the probe silently.
+	for name, want := range keyedProbeFilterEqualities {
+		if !strings.Contains(plan, want) {
+			t.Fatalf("the keyed probe plan lost the %s filter equality:\n%s", name, plan)
+		}
+	}
 }

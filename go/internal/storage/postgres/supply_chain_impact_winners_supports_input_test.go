@@ -28,7 +28,14 @@ const winnersLegacyContractPin = "25e4d8910be1951ac76980f97de64e5d5f9b483e9151a4
 // the legacy statements byte-for-byte: these members are untouched by the
 // v3-full edit, and the completed-reversal assertions above prove no layer
 // stopped halfway.
-const winnersKeyedLegacyReversedPin = "02700e716da69adf716099f1e2d6d262cc880621ea3370c50a2091d18ef12146"
+// Re-pinned for the ruled #11691 shape-(b) fix: the legacy base itself is
+// lenient now (missing key and JSON-null read as ” in the triple legs of
+// the payload probe, plain lenient equalities in the plain-column twin), so
+// the reversed statements differ from the previous pin exactly by those legs.
+// The reversal still proves the shipped text differs from the legacy base
+// only by the declared transforms; behavior proof rides the live agreement
+// and outrank legs (Refs #11691).
+const winnersKeyedLegacyReversedPin = "45de5ca59a2f59150b60ff444656f145cd0fdfe5239a509841e87feab42734de"
 
 // TestWinnersMaintainerStatementsReadNoFactRecords proves every statement
 // the winners contract names reads the supports table and not fact_records:
@@ -298,9 +305,9 @@ func TestWinnersSupportsNarrowProbeMatchesTheSupportsBuild(t *testing.T) {
 
 	for _, frag := range []string{
 		"FROM supply_chain_impact_finding_supports AS f",
-		"(f.payload->>'package_id') = ident.package_id",
-		"(f.payload->>'repository_id') = ident.repository_id",
-		"(f.payload->>'subject_digest') = ident.subject_digest",
+		"(f.payload->>'package_id' = ident.package_id OR (ident.package_id = '' AND (f.payload->>'package_id') IS NULL))",
+		"(f.payload->>'repository_id' = ident.repository_id OR (ident.repository_id = '' AND (f.payload->>'repository_id') IS NULL))",
+		"(f.payload->>'subject_digest' = ident.subject_digest OR (ident.subject_digest = '' AND (f.payload->>'subject_digest') IS NULL))",
 		"COALESCE(NULLIF(f.payload->>'cve_id', ''), NULLIF(f.payload->>'advisory_id', ''), '') = ident.c0",
 		"COALESCE(f.payload->>'advisory_id', '') = ident.advisory_id",
 	} {
