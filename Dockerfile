@@ -33,6 +33,9 @@ WORKDIR /build
 COPY go/go.mod go/go.sum ./go/
 COPY sdk/go/collector/go.mod ./sdk/go/collector/
 COPY sdk/go/factschema/go.mod ./sdk/go/factschema/
+# Nested module pinned by a replace in go/go.mod: go commands resolve the
+# replacement before any source is present, so its go.mod must be here.
+COPY go/apilib/go.mod ./go/apilib/
 RUN cd go && GONOSUMDB='*' GONOSUMCHECK='*' go mod download
 
 # Copy Go source and local SDK modules referenced by go.mod replacements.
