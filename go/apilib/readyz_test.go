@@ -53,6 +53,9 @@ func TestMountReadinessBothOK(t *testing.T) {
 	if retry := rec.Header().Get("Retry-After"); retry != "" {
 		t.Fatalf("readyz both-ok: want no Retry-After, got %q", retry)
 	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("readyz both-ok: want core-exact Content-Type application/json, got %q", ct)
+	}
 }
 
 func TestMountReadinessOneFailureIsPermanent503(t *testing.T) {

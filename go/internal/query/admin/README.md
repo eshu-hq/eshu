@@ -133,3 +133,24 @@ client cancel as an exception (`TestPoisonedLinkChildSpanSkipsClientCancel`).
 A finalize that recorded the outcome after the client left logs one INFO
 `admin_recovery.finalize_after_client_cancel` event (`operation`, `route`,
 `correlation_id`), pinned by `TestAdminMutationFinalizeOutlivesClientCancel`.
+
+## W1 apilib delegation (eshu-hq/eshu-api#456)
+
+The proof-scope handlers (`tuningReport`, `listWorkItems`) delegate to the
+slim `go/apilib` module; `Handler.OmitProofReads` (wired from
+`CoreServeDeps.AdminProofExternal`, env `ESHU_CORE_ADMIN_PROOF_EXTERNAL=1`,
+default false) unmounts exactly those two routes. The delegation adds no
+store, SQL, Cypher, lock, or goroutine path: same decode/default/trim/encode
+ops, same fixed error texts, same fence-hook ordering.
+
+No-Regression Evidence (W1 apilib): scratch 50-row work-items mux-POST bench,
+same host and boundaries, base `60be6b1` mean 123892ns/op vs after mean
+117629ns/op (no regression; serve.go/main.go deltas are one bool field plus
+one env comparison). Pinned by `TestTuningReportMatchesSatelliteBytes`
+(byte-identical tuning body) and `TestAdminInspectionFailuresAnswerFixedText`
+(work-items backend/cancel shapes).
+
+No-Observability-Change: no instrument added or renamed; the fence hook
+preserves span marking through `tracing.ServerFailureEnvelope` (Error status
+with the fixed message, `exception` event, or only the client-canceled event),
+pinned by `TestAdminInspectionFailuresAnswerFixedText`.

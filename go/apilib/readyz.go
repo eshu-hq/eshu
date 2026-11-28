@@ -55,7 +55,11 @@ func writeReadinessVerdict(w http.ResponseWriter, service string, err error) {
 		body.Status = "error"
 		body.Error = err.Error()
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	// Core-exact header: core writeReadiness serves bare application/json
+	// (serve.go), while tuning bodies use querycontract.WriteJSON with
+	// charset. The /readyz parity target is the readiness writer, not the
+	// JSON helper, so this matches the readiness writer byte for byte.
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
 }
