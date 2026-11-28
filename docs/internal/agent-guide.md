@@ -241,11 +241,10 @@ Where a result could be intermittent, sample until the rate is known and report
 the rate. A feature reported as working on one green run turned out to work in
 one run of four (#5717); the green run was the outlier.
 
-Evidence docs that assert a cause carry a `Root-Cause Evidence:` marker naming
-the observation, checked by `scripts/verify-root-cause-evidence.sh`. That gate
-verifies the evidence was written down, never that it is sound, and it cannot
-see a cause asserted in a PR description or a chat message. The rules above are
-the substance; the gate is the part a script can reach.
+State the cause and the observation behind it in the PR description or GitHub
+issue comment rather than committing an ephemeral evidence file. The rules above
+are the substance: write down the observed failing state so a reviewer can check
+the reasoning directly.
 
 ### Evidence Must Come From The Failing Run
 
@@ -294,12 +293,11 @@ nothing, and "tests pass" was reported on an empty run). Count tests that ran.
 
 ### Diff-Scoped Gates Default To HEAD~1
 
-Gates scoped to "the diff" compute it against `HEAD~1` unless given a base, so
-a multi-commit branch shows only its last commit. Export
-`ESHU_{PARSER_RELATIONSHIP_KIT,PERFORMANCE_EVIDENCE,MEASUREMENT_CITATIONS}_BASE=origin/main` before running those gates.
-
-These fail in different directions: `parser-relationship-kit` false-FAILS
-loudly; the other two false-PASS silently, examining nothing.
+Diff-scoped gates default to `HEAD~1` unless given a base, so a multi-commit
+branch shows only its last commit. Export
+`ESHU_PARSER_RELATIONSHIP_KIT_BASE=origin/main` before running that gate, and
+pass `--pr-body <file>` to check `scripts/verify-performance-evidence.sh`
+locally (`parser-relationship-kit` fails loudly; missing bases can under-scan).
 
 ### Evidence Capture Pitfalls
 

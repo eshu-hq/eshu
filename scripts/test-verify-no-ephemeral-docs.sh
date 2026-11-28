@@ -84,6 +84,23 @@ git -C "${marker_dir}" add . && git -C "${marker_dir}" commit -q -m "append mark
 run_case "PR marker added to go/**/README.md rejected" 1 "${marker_dir}"
 run_case "PR marker added to go/**/README.md rejected in --files mode" 1 "${marker_dir}" --files go/internal/demo/README.md
 
+# 6b. Bolded Markdown PR marker in go/**/README.md also fails (RED).
+bold_dir="$(init_repo go-bold-markers)"
+printf '\n- **Performance Evidence:** 12ms -> 6ms.\n' >>"${bold_dir}/go/internal/demo/README.md"
+git -C "${bold_dir}" add . && git -C "${bold_dir}" commit -q -m "append bold marker"
+run_case "bolded PR marker in go/**/README.md rejected" 1 "${bold_dir}"
+run_case "bolded PR marker in go/**/README.md rejected in --files mode" 1 "${bold_dir}" --files go/internal/demo/README.md
+
+# 6c. Renaming (git mv) into a banned path or moving a marker file into go/**/README.md fails (RED).
+mv_dir="$(init_repo rename-bypass)"
+printf '# Scratch note\n' >"${mv_dir}/docs/public/decisions/tmp-note.md"
+printf '# Demo\n\nNo-Regression Evidence: old note.\n' >"${mv_dir}/docs/public/decisions/tmp-marker.md"
+git -C "${mv_dir}" add . && git -C "${mv_dir}" commit -q -m "seed rename sources"
+git -C "${mv_dir}" mv docs/public/decisions/tmp-note.md docs/internal/evidence/9999-moved.md
+git -C "${mv_dir}" mv -f docs/public/decisions/tmp-marker.md go/internal/demo/README.md
+git -C "${mv_dir}" commit -q -m "rename into banned path and go README"
+run_case "git mv into banned path and go README rejected" 1 "${mv_dir}"
+
 # 7. Deleting legacy evidence files passes cleanly (GREEN).
 del_dir="$(init_repo delete-legacy)"
 git -C "${del_dir}" rm -q docs/internal/evidence/legacy.md

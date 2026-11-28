@@ -52,7 +52,7 @@ done
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/eshu-no-ephemeral-docs.XXXXXX")"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-marker_re='(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence|Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:'
+marker_re='(^|[[:space:]])[*_]*(Performance Evidence|Benchmark Evidence|No-Regression Evidence|Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[*_]*[[:space:]]*:'
 
 failures=0
 fail_msg() {
@@ -155,14 +155,14 @@ else
     fi
 
     added_names="${tmp_dir}/added-names.txt"
-    git -C "$repo_root" diff --name-only --diff-filter=A "$diff_range" >"$added_names"
+    git -C "$repo_root" diff --no-renames --name-only --diff-filter=A "$diff_range" >"$added_names"
     while IFS= read -r rel; do
       [ -n "$rel" ] || continue
       check_banned_new_path "$rel"
     done <"$added_names"
 
     added_go_md="${tmp_dir}/added-go-md.txt"
-    git -C "$repo_root" diff --unified=0 "$diff_range" -- 'go/*.md' 'go/**/*.md' \
+    git -C "$repo_root" diff --no-renames --unified=0 "$diff_range" -- 'go/*.md' 'go/**/*.md' \
       | awk '
           substr($0, 1, 6) == "+++ b/" { cur = substr($0, 7); next }
           $0 == "+++ /dev/null" { cur = ""; next }

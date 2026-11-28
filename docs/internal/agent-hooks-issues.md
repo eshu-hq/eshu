@@ -154,7 +154,8 @@ state` for each record still open:
 
 - **closed** rewrites the record `closed`.
 - **open** refuses the stop with `{"decision":"block","reason":...}` naming the
-  issues and the two exits: work it, or write `DEFER: #N <path>`.
+  issues and the two exits: work it, or write
+  `DEFER: #N <github-issue-comment-url>` (or a local untracked `<path>`).
 - **gh unreachable or over the cap** allows the stop and prints
   `goal-continue: NOT_CHECKED issues: ...` on stderr.
 
@@ -162,16 +163,24 @@ state` for each record still open:
 
 The agent writes the ledger, so a bare `DEFER` would be a self-issued permission
 slip, the same trap `BLOCKED:` fell into before it required a live `WATCH=<pid>`.
-`<path>` must exist, be non-empty, and mention `#N` (`#9101` does not satisfy
-`#91011`). A relative path is tried against the session's cwd, then the directory
-above `.claude/`. The path must also not be the ledger, its `.lock` or `.tmp.*`
-files, the goal file, or any other `.claude/active-goal*` file. Every ledger record
-names its own issue and the goal file can too, so either would pass "names the
-issue" for free. Paths are compared by file identity (device and inode), not
-spelling, so a symlink, a hardlink, `..`, or another letter case on a
-case-insensitive volume does not get around it. A plain copy of the ledger is still
-honoured; the stderr echo of every honoured `DEFER` is the mitigation. A `DEFER` that
-fails the check is refused, and the refusal names the path and the reason.
+Two target forms are accepted, and a `DEFER` that fails validation is refused
+with the target and reason:
+
+- **GitHub issue comment URL (preferred):**
+  `https://github.com/<owner>/<repo>/issues/<N>#issuecomment-<id>`. The hook
+  checks that `<owner>/<repo>` and `<N>` match the deferred issue, then queries
+  `gh api repos/<owner>/<repo>/issues/comments/<id>` to confirm the comment
+  exists, belongs to issue `#N`, and has a non-empty body. Any other
+  `http(s)://` URL (including bare issue links without `#issuecomment-<id>`) is
+  rejected so fabricated or cross-repo URLs cannot pass.
+- **Local untracked `<path>` (fallback):** `<path>` must exist, be non-empty,
+  and mention `#N` (`#9101` does not satisfy `#91011`). A relative path is tried
+  against the session's cwd, then the directory above `.claude/`. The path must
+  not be the ledger, its `.lock` or `.tmp.*` files, the goal file, or any other
+  `.claude/active-goal*` file (compared by device and inode, so symlinks,
+  hardlinks, `..`, or case differences do not bypass the check). Never commit a
+  file under `docs/internal/arbiter/` just to satisfy `DEFER:`. Every honoured
+  `DEFER` is echoed to stderr.
 
 ### Timeouts
 

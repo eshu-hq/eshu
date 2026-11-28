@@ -153,7 +153,7 @@ awk '
 ' "$diff_file" | LC_ALL=C sort -u >"$comment_only_file"
 
 is_comment_only_change() {
-  grep -Fxq "$1" "$comment_only_file"
+  rg --no-config -Fxq -- "$1" "$comment_only_file"
 }
 
 content_hot_file="${tmp_dir}/content-hot.txt"
@@ -171,7 +171,7 @@ if [ "${#go_scan_list[@]}" -gt 0 ]; then
   while [ "$idx" -lt "$total" ]; do
     chunk=("${go_scan_list[@]:idx:200}")
     rg_rc=0
-    rg -l \
+    rg --no-config -l \
       -e '(^|[^A-Za-z])(MATCH|MERGE|UNWIND|DETACH DELETE|CREATE)([^A-Za-z]|$)' \
       -e '\b(ClaimBatch|ClaimLease|LeaseTTL|Heartbeat|MaxConcurrent|Worker|Workers|BatchSize|ExecuteGroup|ExecuteWrite|SKIP LOCKED|ON CONFLICT)\b' \
       -e '\b(errgroup|semaphore|WaitGroup|Mutex|RWMutex|chan|goroutine)\b' \
@@ -186,17 +186,17 @@ if [ "${#go_scan_list[@]}" -gt 0 ]; then
 fi
 
 is_hot_path_by_content() {
-  grep -Fxq "$repo_root/$1" "$content_hot_file"
+  rg --no-config -Fxq -- "$repo_root/$1" "$content_hot_file"
 }
 
 is_runtime_config_by_content() {
   local path="$1"
   local abs="$repo_root/$path"
   local pattern='\b(ESHU_GRAPH_BACKEND|ESHU_[A-Z0-9_]*(WORKER|WORKERS|BATCH|TIMEOUT|PPROF|NORNICDB)[A-Z0-9_]*|NORNICDB_[A-Z0-9_]*(EMBEDDING|PPROF|BATCH|TIMEOUT|WORKER|WORKERS)[A-Z0-9_]*)\b'
-  if [ -f "$abs" ] && rg -q -e "$pattern" "$abs"; then
+  if [ -f "$abs" ] && rg --no-config -q -e "$pattern" "$abs"; then
     return 0
   fi
-  if git -C "$repo_root" diff --unified=0 "$base"...HEAD -- "$path" 2>/dev/null | rg -q -e "$pattern"; then
+  if git -C "$repo_root" diff --unified=0 "$base"...HEAD -- "$path" 2>/dev/null | rg --no-config -q -e "$pattern"; then
     return 0
   fi
   return 1
@@ -236,11 +236,11 @@ if [ -n "$pr_body_file" ]; then
   fi
   cp "$pr_body_file" "$body_check_path"
   has_body_input=1
-elif [ "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY+x}" = "x" ]; then
-  printf '%s\n' "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY}" >"$body_check_path"
+elif [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME:-}" = "pull_request_target" ]; then
+  printf '%s\n' "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY:-}" >"$body_check_path"
   has_body_input=1
-elif [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
-  : >"$body_check_path"
+elif [ -z "${GITHUB_EVENT_NAME:-}" ] && [ -n "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY:-}" ]; then
+  printf '%s\n' "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY}" >"$body_check_path"
   has_body_input=1
 fi
 
@@ -252,8 +252,8 @@ fi
 has_perf=1
 has_obs=1
 if [ -s "$body_check_path" ]; then
-  rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$body_check_path" && has_perf=0 || true
-  rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$body_check_path" && has_obs=0 || true
+  rg --no-config -q -e '(^|[[:space:]])[*_]*(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[*_]*[[:space:]]*:' "$body_check_path" && has_perf=0 || true
+  rg --no-config -q -e '(^|[[:space:]])[*_]*(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[*_]*[[:space:]]*:' "$body_check_path" && has_obs=0 || true
 fi
 
 if [ "$has_perf" -eq 0 ] && [ "$has_obs" -eq 0 ]; then

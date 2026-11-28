@@ -22,3 +22,8 @@ Verify a PR body draft locally before pushing:
 ```bash
 bash scripts/verify-performance-evidence.sh --pr-body <pr-body-file>
 ```
+
+Note: `test.yml` runs on `pull_request` synchronize/reopened events rather than
+`edited`. If `verify-contracts` fails because markers were missing from the PR
+description, add the markers to the PR body and push a fresh commit (GitHub
+Actions "Re-run failed jobs" replays the original event payload).

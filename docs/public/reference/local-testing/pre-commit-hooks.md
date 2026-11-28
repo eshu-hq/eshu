@@ -20,7 +20,7 @@ worktree. Equivalent manual form:
 
 ```bash
 pre-commit install --install-hooks         # commit-stage hooks
-pre-commit install --hook-type pre-push    # gosec / perf / e2e run at push time
+pre-commit install --hook-type pre-push    # gosec / telemetry / e2e run at push time
 pre-commit install --hook-type commit-msg  # AI-attribution check on the message
 ```
 
@@ -64,7 +64,7 @@ the hooks never depend on the plugin's exact-toolchain build.
 ## Notes
 
 - The commit-stage gates are fast — do **not** `git commit --no-verify`. The
-  slow gates (gosec, perf-evidence, telemetry, console-e2e) run at **push**, so
+  slow gates (gosec, telemetry, console-e2e) run at **push**, so
   `git push --no-verify` is the intended bypass. Either way CI re-checks every
   gate and is the non-bypassable source of truth.
 - Versions track CI automatically: the wrapper reads the `golangci-lint` and
@@ -85,10 +85,10 @@ diffs the committed HEAD against the base, while the hook evaluates the pushed
 refs, so a green floor never implies a passing push. Keep both; the
 non-bypassable enforcement stays CI.
 
-Three checks run in both. Changed-package gosec (0.3-8 s wall; 40-85 s when a trigger file forces the whole module), measurement
-citations (0.7 s) and the docs build (0-18 s) are in the floor so a finding
-fails before the review receipt, and they run again here on the push. The
-repeat is the price of keeping no stamp. `gosec-changed` diffs against the
+Two checks run in both. Changed-package gosec (0.3-8 s wall; 40-85 s when a
+trigger file forces the whole module) and the docs build (0-18 s) are in the
+floor so a finding fails before the review receipt, and they run again here on
+the push. The repeat is the price of keeping no stamp. `gosec-changed` diffs against the
 merge-base with `origin/main` (the same base override the floor honors), also scans staged
 and unstaged work, and scans the whole module when `go.mod`, `go.sum`, the
 gosec scripts or `security-scan.yml` change. An unresolvable base exits 2.

@@ -9,6 +9,7 @@ verifier="${repo_root}/scripts/verify-performance-evidence.sh"
 tmp_root="$(mktemp -d)"
 export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+unset ESHU_PERFORMANCE_EVIDENCE_BASE ESHU_PERFORMANCE_EVIDENCE_PR_BODY ESHU_PERFORMANCE_EVIDENCE_PR_BODY_FILE GITHUB_EVENT_NAME GITHUB_BASE_REF
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 init_repo() {
@@ -86,13 +87,31 @@ expect_rc "missing observability marker fails" 1 \
   env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
   bash "${verifier}" --pr-body "${perf_only}"
 
-# 6. Non-PR event (push to main) with no PR body skips cleanly (GREEN).
-expect_rc "non-PR event with no PR body skips cleanly" 0 \
+# 6. Non-PR event (push to main) with empty env PR body skips cleanly (GREEN).
+expect_rc "non-PR event with empty env PR body skips cleanly" 0 \
   env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
-  GITHUB_EVENT_NAME=push \
+  GITHUB_EVENT_NAME=push ESHU_PERFORMANCE_EVIDENCE_PR_BODY="" \
   bash "${verifier}"
 
-# 7. Comment-only change passes even with empty PR body (GREEN).
+# 7. PR event with empty env PR body fails closed (RED).
+expect_rc "PR event with empty env PR body fails closed" 1 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
+  GITHUB_EVENT_NAME=pull_request ESHU_PERFORMANCE_EVIDENCE_PR_BODY="" \
+  bash "${verifier}"
+
+# 8. Bolded Markdown markers in PR body pass (GREEN).
+bold_body="${tmp_root}/bold.md"
+cat >"${bold_body}" <<'MD'
+Refs #1234.
+
+- **Performance Evidence:** 12ms -> 6ms on Postgres 16.
+- **No-Observability-Change**: existing reducer counters cover this path.
+MD
+expect_rc "bolded Markdown markers in PR body pass" 0 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${hot_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~2 \
+  bash "${verifier}" --pr-body "${bold_body}"
+
+# 9. Comment-only change passes even with empty PR body (GREEN).
 comment_dir="$(init_repo comment-only)"
 cat >"${comment_dir}/go/internal/reducer/worker.go" <<'GO'
 // Clarify comment only.
