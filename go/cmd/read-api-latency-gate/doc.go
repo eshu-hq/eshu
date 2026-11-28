@@ -46,10 +46,11 @@
 // stand-in because no reducer runs beside the gate, #11658), starts the core,
 // then the satellite
 // against --core-base-url and the MCP server, runs this binary to sweep the
-// legacy leg, restarts the core with ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ
-// set, proves the winners leg serves the seeded supports truth through the
-// supports-table oracle (-verify-winners-oracle, issue #11644; the legacy
-// findings page is vacuous by contract since the PR-C2 write-stop),
+// legacy leg, restarts the core and the satellite with
+// ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ set, proves the winners leg serves the
+// seeded supports truth through the supports-table oracle
+// (-verify-winners-oracle, issue #11644; the legacy findings page is vacuous by
+// contract since the PR-C2 write-stop),
 // re-sweeps the winners leg into separate reports, and tears the stack down
 // (issue #11170).
 //

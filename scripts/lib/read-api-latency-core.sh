@@ -181,9 +181,12 @@ winners_report_path() {
 # restart must not truncate the legacy satellite's log, which is evidence for
 # the legacy sweep. The satellite serves nothing coreless (it exits 1 without
 # --core-base-url), so a 240s timeout here with a start log showing the
-# missing flag is the RED signature of issue #11170. In status-diagnostic
-# mode the API runs under the diagnostic report wrapper and records the
-# client report arg, mirroring the previous inline block this replaces. The
+# missing flag is the RED signature of issue #11170. Status diagnostics
+# (GATE_STATUS_DIAGNOSTIC_DIR) are scoped to the legacy leg (#11643): only the
+# legacy satellite runs under the diagnostic report wrapper and records the
+# client report arg, and stop_satellite_api shuts it down gracefully so it
+# writes server.json before the winners leg restarts a plain satellite (a
+# second wrapped satellite would overwrite that report on its own shutdown). The
 # satellite honors only -addr (it ignores the in-tree ESHU_API_ADDR and
 # defaults to :8080), so the gate port travels on the flag; without it
 # /readyz is probed on a port nothing listens on.
@@ -194,7 +197,8 @@ start_satellite_api() {
 	local leg="legacy"
 	[[ "${winners}" == "true" ]] && leg="winners"
 	log "start eshu-api (winners-read=${winners})"
-	if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
+	if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" && "${winners}" != "true" ]]; then
+		status_diagnostic_api_active=1
 		start_bg "api-${leg}" api_pid env ESHU_STATUS_DIAGNOSTIC_REPORT="${GATE_STATUS_DIAGNOSTIC_DIR}/server.json" \
 			"ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=${winners}" "${bin_dir}/eshu-api" \
 			-addr=":${GATE_API_PORT}" --core-base-url="http://127.0.0.1:${GATE_CORE_PORT}"
@@ -218,12 +222,25 @@ start_satellite_api() {
 }
 
 # stop_satellite_api terminates the running satellite leg and waits for the
-# port to release before the next leg binds it. A missing process is not an
+# port to release before the next leg binds it. A diagnostic satellite instead
+# stops the resource sampler and then shuts down through the bounded graceful
+# diagnostic stop, so its server report is written. A missing process is not an
 # error (the cleanup trap reaps every bg_pid on all exits); a process that
 # refuses to die fails loudly instead of letting the next leg measure a stale
 # satellite.
 stop_satellite_api() {
 	[[ -n "${api_pid}" ]] || return 0
+	if [[ "${status_diagnostic_api_active:-0}" == 1 ]]; then
+		local sampler_pid="${status_diagnostic_resource_pid:-}"
+		status_diagnostic_api_active=0
+		status_diagnostic_resource_pid=""
+		if [[ -n "${sampler_pid}" ]]; then
+			status_diagnostic_resource_stop "${GATE_STATUS_DIAGNOSTIC_DIR}" "${sampler_pid}" || die "diagnostic resource capture failed"
+		fi
+		status_diagnostic_stop "${api_pid}" "${GATE_API_STOP_TIMEOUT:-30}" || die "diagnostic API shutdown failed"
+		api_pid=""
+		return 0
+	fi
 	kill "${api_pid}" >/dev/null 2>&1 || { api_pid=""; return 0; }
 	local timeout="${GATE_API_STOP_TIMEOUT:-30}" deadline
 	deadline=$((SECONDS + timeout))

@@ -12,7 +12,7 @@
 # Serving order is seed -> core (backend-gated /readyz) -> satellite (proxied
 # /readyz against --core-base-url) -> MCP -> sweep (issue #11170: the
 # satellite serves nothing coreless, so starting it without a core can never
-# pass). A second sweep leg restarts the core with
+# pass). A second sweep leg restarts the core and the satellite with
 # ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true and re-sweeps the same corpus
 # into separate -winners reports after proving the winners leg serves the
 # seeded supports truth through a read-API-independent oracle (issue #11644).
@@ -184,7 +184,7 @@ cleanup() {
     [[ "$status" -ne 0 ]] || status=1
    fi
   fi
-  if [[ -n "${api_pid}" ]]; then
+  if [[ "${status_diagnostic_api_active:-0}" == 1 && -n "${api_pid}" ]]; then
    if ! status_diagnostic_stop "${api_pid}" 30; then
     printf 'verify-read-api-latency-gate: diagnostic API shutdown failed\n' >&2
     [[ "$status" -ne 0 ]] || status=1
@@ -195,7 +195,7 @@ cleanup() {
   fi
  fi
 	for pid in "${bg_pids[@]:-}"; do
-		if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" && "${pid}" == "${api_pid}" ]]; then
+		if [[ "${status_diagnostic_api_active:-0}" == 1 && "${pid}" == "${api_pid}" ]]; then
    continue
   fi
   [[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true

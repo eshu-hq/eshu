@@ -238,13 +238,49 @@ for leg_case in "false:api-legacy" "true:api-winners"; do
 	rg -qF "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=${flag}" "${work}/sat-startbg-args" || fail "start_satellite_api ${flag} must pass the winners flag into the satellite env: $(cat "${work}/sat-startbg-args")"
 	[[ "$(head -n1 "${work}/sat-startbg-args")" == "${want}" ]] || fail "start_satellite_api ${flag} must log to ${want}, got: $(head -n1 "${work}/sat-startbg-args")"
 done
-# The diagnostic branch carries the report env AND the winners flag.
-gate_report_args=()
+# Status diagnostics are scoped to the legacy leg (#11643): the legacy satellite
+# carries the report env, the winners flag, and the client report arg; the
+# winners satellite restarts without the diagnostic wrapper so its shutdown
+# cannot overwrite the legacy server.json and no client report is requested
+# for it. The satellite process is flagged as diagnostic only on the legacy leg.
 GATE_STATUS_DIAGNOSTIC_DIR="${work}/diag"
-STUB_CODE=200 STUB_BODY_FILE="${work}/page-ok.json" lib_call start_satellite_api true >/dev/null 2>&1 || fail "start_satellite_api in diagnostic mode failed against the stubs"
-rg -qF "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true" "${work}/sat-startbg-args" || fail "diagnostic start_satellite_api must still pass the winners flag: $(cat "${work}/sat-startbg-args")"
-rg -qF "ESHU_STATUS_DIAGNOSTIC_REPORT=${work}/diag/server.json" "${work}/sat-startbg-args" || fail "diagnostic start_satellite_api must keep the report env: $(cat "${work}/sat-startbg-args")"
+diag_start() {
+	( bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}"
+		GATE_API_PORT=18097 GATE_API_KEY=k GATE_CORE_PORT=18096
+		gate_report_args=(); log() { :; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+		# shellcheck source=scripts/lib/read-api-latency-core.sh
+		. "${repo_root}/scripts/lib/read-api-latency-core.sh"
+		STUB_CODE=200 STUB_BODY_FILE="${work}/page-ok.json" start_satellite_api "$1"
+		printf 'report_args=%s active=%s\n' "${gate_report_args[*]:-}" "${status_diagnostic_api_active:-0}" ) 2>&1
+}
+legacy_diag="$(diag_start false)" || fail "legacy start_satellite_api in diagnostic mode failed against the stubs"
+rg -qF "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=false" "${work}/sat-startbg-args" || fail "diagnostic legacy start_satellite_api must pass the winners flag: $(cat "${work}/sat-startbg-args")"
+rg -qF "ESHU_STATUS_DIAGNOSTIC_REPORT=${work}/diag/server.json" "${work}/sat-startbg-args" || fail "diagnostic legacy start_satellite_api must keep the report env: $(cat "${work}/sat-startbg-args")"
+[[ "${legacy_diag}" == *"report_args=-diagnostic-client-report ${work}/diag/client.json active=1"* ]] || fail "diagnostic legacy start must record the client report and mark the satellite diagnostic: ${legacy_diag}"
+winners_diag="$(diag_start true)" || fail "winners start_satellite_api in diagnostic mode failed against the stubs"
+rg -qF "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true" "${work}/sat-startbg-args" || fail "winners start_satellite_api must still pass the winners flag: $(cat "${work}/sat-startbg-args")"
+! rg -qF "ESHU_STATUS_DIAGNOSTIC_REPORT" "${work}/sat-startbg-args" || fail "the winners satellite must not run under the diagnostic wrapper (it would overwrite the legacy server.json): $(cat "${work}/sat-startbg-args")"
+[[ "${winners_diag}" == *"report_args= active=0"* ]] || fail "the winners satellite must add no client report arg and stay non-diagnostic: ${winners_diag}"
 GATE_STATUS_DIAGNOSTIC_DIR=""
+
+# stop_satellite_api on a diagnostic satellite: stops the resource sampler,
+# then the satellite through the bounded graceful diagnostic stop (so it writes
+# its server report), clears api_pid and the diagnostic flag; a failed
+# diagnostic stop fails the gate. Stubs record the calls.
+diag_stop() {
+	( bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}"
+		GATE_STATUS_DIAGNOSTIC_DIR="${work}/diag"; log() { :; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+		status_diagnostic_resource_stop() { printf 'resource_stop %s %s\n' "$1" "$2"; }
+		status_diagnostic_stop() { printf 'api_stop %s\n' "$1"; return "${DIAG_STOP_RC:-0}"; }
+		# shellcheck source=scripts/lib/read-api-latency-core.sh
+		. "${repo_root}/scripts/lib/read-api-latency-core.sh"
+		api_pid=4242 status_diagnostic_api_active=1 status_diagnostic_resource_pid=77
+		stop_satellite_api
+		printf 'api_pid=%s active=%s resource_pid=%s\n' "${api_pid}" "${status_diagnostic_api_active}" "${status_diagnostic_resource_pid}" ) 2>&1
+}
+want_stop=$'resource_stop '"${work}"$'/diag 77\napi_stop 4242\napi_pid= active=0 resource_pid='
+[[ "$(diag_stop)" == "${want_stop}" ]] || fail "a diagnostic satellite must stop the sampler then the satellite gracefully and clear its state, got: $(diag_stop)"
+[[ "$(DIAG_STOP_RC=1 rc_of diag_stop)" != 0 ]] || fail "a failed diagnostic satellite shutdown must fail the gate"
 
 # stop_satellite_api: a satellite that ignores SIGTERM must fail the gate
 # instead of letting the next leg measure a stale satellite; one that exits

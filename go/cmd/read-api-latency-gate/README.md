@@ -233,6 +233,14 @@ refuses diagnostic settings exceeding 256 target requests (two warmups plus
 `iterations * runs` plus concurrent requests). Cleanup waits up to 30 seconds
 for the owned API process, validates both reports, and preserves a gate failure.
 
+Diagnostics cover the legacy leg only. The winners leg restarts the core and the
+satellite, so the runner stops the diagnostic satellite (and the resource
+sampler) after the legacy leg, which writes `server.json`, and starts the winners
+satellite without the diagnostic wrapper. A second wrapped satellite would
+overwrite that report at shutdown and break the correlation with `client.json`.
+The runner waits up to `GATE_CORE_STOP_TIMEOUT` and `GATE_API_STOP_TIMEOUT`
+seconds (both default 30) for the core and the satellite to exit between legs.
+
 Resource diagnostics require this runner's Compose stack; `--no-compose` is
 rejected before seeding in this mode. A bounded readiness barrier requires the
 first resource sample before the sweep starts. The sampler pins process start
