@@ -8,8 +8,8 @@ shape hits.
 ## Measured on the current pin
 
 The zero-match row collapse depends on the statement's shape. On the current
-compose pin (`nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b...`, NornicDB
-1.3.3), measured live for #5167:
+compose pin (`nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de...`, NornicDB
+1.5.2-hotfix), measured live for #5167:
 
 - `OPTIONAL MATCH (p)-[:HAS_VERSION]->(v) RETURN p.uid, count(v)` (the direct
   form the package-registry browse route used) **still collapses**: 3 packages,

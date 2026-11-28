@@ -422,8 +422,8 @@ relationship `MERGE` fails: the pattern splitter bleeds the trailing
 the `FOREACH` body. Eshu hit this as dead-lettered projection work
 (eshu-hq/eshu#11161): the advisory-group upsert used exactly the
 `MERGE`/`FOREACH`/`MERGE`/`FOREACH` shape and the gate died at its first
-drain. Measured on the pinned v1.3.3 line (image digest
-`sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`),
+drain. Measured on the pinned v1.5.2-hotfix line (image digest
+`sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5`),
 fresh store, autocommit over Bolt — the one-`FOREACH` form passes, adding
 the trailing `FOREACH` fails with `Neo.ClientError.Statement.SyntaxError
 (UNWIND MATCH failed: end node variable ... not in context (available:
