@@ -168,6 +168,14 @@ func run(parent context.Context) error {
 	waitStableKeyFill := startSupplyChainImpactStableKeyFill(ctx, stableKeyFillConfig, func(runCtx context.Context) error {
 		return runSupplyChainImpactStableKeyFill(runCtx, db, stableKeyFillConfig, instruments, logger)
 	}, logger)
+	// The key-presence fill (#11626) is off unless an operator enables it: it
+	// must not run before old binaries drain, and the marker completes only on
+	// a clean verification, so a lingering old writer holds the probe flip
+	// closed rather than corrupting it.
+	keyPresenceFillConfig := loadKeyPresenceFillConfig(os.Getenv)
+	waitKeyPresenceFill := startSupplyChainImpactKeyPresenceFill(ctx, keyPresenceFillConfig, func(runCtx context.Context) error {
+		return runSupplyChainImpactKeyPresenceFill(runCtx, db, keyPresenceFillConfig, instruments, logger)
+	}, logger)
 	// The id-anchor census (#7212) reads the graph, so it stops before the
 	// deferred graph-driver close like the gauge refreshers above.
 	waitIDAnchorCensus := startIDAnchorCensus(ctx, loadIDAnchorCensusConfig(os.Getenv), graphBackend, idAnchorCensusReader(neo4jReader, graphReader), instruments, logger)
@@ -189,6 +197,7 @@ func run(parent context.Context) error {
 		waitIDAnchorCensus()
 		waitPackageManifestBackfill()
 		waitStableKeyFill()
+		waitKeyPresenceFill()
 		waitSupportsBackfill()
 		waitFactWriteStop()
 		waitGraphRefresher()

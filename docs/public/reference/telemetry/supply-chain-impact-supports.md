@@ -36,6 +36,10 @@ reads probe before each call, and how the reducer-side readers used it.
 | `eshu_dp_supply_chain_impact_stable_key_fill_rows_total` | counter | `outcome` | Supports the fill gave a key (`filled`) or left keyless because their fact twin has no key (`skipped`). |
 | `eshu_dp_supply_chain_impact_stable_key_fill_pauses_total` | counter | `reason` | Passes held back by a pause condition: `replay_lag` (a replica over the limit), `free_disk` (under the limit), `disk_unreadable` (a limit is set and no reading is wired), `index_build` (`pg_stat_progress_create_index` not empty), `probe_error` (a condition could not be read, never taken as clear). |
 | `eshu_dp_supply_chain_impact_stable_key_fill_complete` | gauge | none | 1 once the fill marker is set: a clean verification found no keyless support whose twin has a key. 0 until then, and while the fill is off (the default). |
+| `eshu_dp_supply_chain_impact_key_presence_fill_steps_total` | counter | `outcome` | Key-presence fill steps (#11626): `chunk`, `verify`, `gap` (a verification slice found a support whose stored bits disagree with its payload and restarted the sweep instead of completing the marker), `complete`, `failed`. A chunk updates at most 500 supports of one scope generation under its conflict-domain lock. |
+| `eshu_dp_supply_chain_impact_key_presence_fill_rows_total` | counter | `outcome` | Supports the fill gave correct bits (`filled`) or left alone because a concurrent writer already filled them (`skipped`). |
+| `eshu_dp_supply_chain_impact_key_presence_fill_pauses_total` | counter | `reason` | Passes held back by a pause condition: `replay_lag` (a replica over the limit), `free_disk` (under the limit), `disk_unreadable` (a limit is set and no reading is wired), `index_build` (`pg_stat_progress_create_index` not empty), `probe_error` (a condition could not be read, never taken as clear). |
+| `eshu_dp_supply_chain_impact_key_presence_fill_complete` | gauge | none | 1 once the fill marker is set: a clean verification found no support whose stored bits disagree with its payload. 0 until then, and while the fill is off (the default). |
 | `eshu_dp_supply_chain_impact_supports_backfill_ready` | gauge | none | 1 once the backfill finished and verified at the current contract version and the fence is empty, else 0. A reader of the table refuses a grant-scoped call while it is 0. |
 | `eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total` | counter | `reason` | Impact passes aborted at the end of their write transaction (their writes roll back) because the Go evidence they loaded no longer names its go scope's active generation (`generation_changed`: a Go-modules fence retracted it or a successor activated) or the shared go-evidence lock timed out behind a fence (`lock_timeout`). Each retries without spending an attempt (class `supply_chain_impact_go_evidence_changed`) and the retry reloads the evidence. A sustained rate means fences and passes keep colliding on one repository. |
 | `eshu_dp_go_fence_advisory_lock_timeouts_total` | counter | none | Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight impact pass. Nothing was detached; the coordinator retries the page next tick. Three consecutive ticks timing out on the same scope returns to the owner of #11327. |
@@ -253,3 +257,21 @@ readable through SQL, so with the default limit and no reading wired it pauses w
 `disk_unreadable`; set `..._MIN_FREE_DISK_BYTES=0` only when disk is watched elsewhere.
 The replay-lag read needs the `pg_monitor` role. Read the fill with the `complete` gauge, the
 `rows_total{outcome="filled"}` rate against the WAL budget, and `pauses_total` by reason.
+
+## Key-presence fill
+
+The fill (#11626, follow-up to #9975) sets the `key_presence` bits on the supports no
+rewrite has filled, so the keyed tick can flip to the triple-guarded probe once the
+marker completes. It is off unless
+`ESHU_SUPPLY_CHAIN_IMPACT_KEY_PRESENCE_FILL_ENABLED=true`, because it must not run before
+old binaries drain: a lingering old writer holds the flip closed rather than corrupting
+it, but completion needs writers that fill bits. One elected reducer runs it, in chunks
+of at most 500 supports, paced to
+`ESHU_SUPPLY_CHAIN_IMPACT_KEY_PRESENCE_FILL_WAL_BYTES_PER_HOUR` (default 8 GB) using an
+estimate of `..._WAL_BYTES_PER_ROW` per filled row (the same bound as the stable-key
+fill: it rewrites the same support rows). It pauses on replica replay lag, free disk
+and a running index build (see `pauses_total`), and a verification slice that finds
+disagreeing bits restarts the sweep instead of completing the marker (see the `gap`
+outcome). Read the fill with the `complete` gauge, the
+`rows_total{outcome="filled"}` rate against the WAL budget, and `pauses_total` by
+reason.

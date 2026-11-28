@@ -250,6 +250,9 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	if err = registerSupplyChainImpactStableKeyFillInstruments(meter, inst); err != nil {
 		return err
 	}
+	if err = registerSupplyChainImpactKeyPresenceFillInstruments(meter, inst); err != nil {
+		return err
+	}
 	if err = registerSupplyChainImpactFenceInstruments(meter, inst); err != nil {
 		return err
 	}
