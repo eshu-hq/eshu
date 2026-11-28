@@ -48,7 +48,7 @@ backends:
           shapes, validated at deployed tier on both backends -- see
           specs/remote-validation-proofs.v1.yaml (prod-call-chain-path,
           prod-transitive-callers, prod-transitive-callees, and
-          prod-route-to-caller -- prod-trace-exposure-path is deliberately not
+          prod-route-to-caller) -- prod-trace-exposure-path is deliberately not
           cited here, because its recorded observation is zero paths returned, an honest
           negative that cannot substantiate a traversal returning rows. A multi-hop
           OPTIONAL MATCH after an aggregating WITH returns exact rows on the pinned
