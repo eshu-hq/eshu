@@ -220,9 +220,9 @@ func digestReplayReasonOK(q string) bool {
 	const succeededArm = "WHEN work.status IN ('succeeded') THEN 'cross_scope_replay'"
 	const flagArm = "WHEN work.status IN ('claimed', 'running') AND NOT work.cross_scope_replay_required THEN 'cross_scope_replay'"
 	const elseArm = "ELSE work.last_requeue_reason"
-	if !(strings.Contains(got, squashSQL(succeededArm)) &&
-		strings.Contains(got, squashSQL(flagArm)) &&
-		strings.Contains(got, elseArm)) {
+	if !strings.Contains(got, squashSQL(succeededArm)) ||
+		!strings.Contains(got, squashSQL(flagArm)) ||
+		!strings.Contains(got, elseArm) {
 		return false
 	}
 	// Neither reason arm may carry the digest predicate: the gate filters in
