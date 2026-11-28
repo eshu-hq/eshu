@@ -5,7 +5,6 @@ package postgres //nolint:filelength // 503 lines: the #11515 pre-stamp watermar
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -50,88 +49,44 @@ func supplyChainImpactWinnerConflictSet() string {
 	return strings.Join(sets, ",\n        ")
 }
 
-// rebuildSupplyChainImpactWinnersSQL atomically reconciles the winners table to
-// the current active set and stamps the maintainer watermark, in one statement
-// (one snapshot), so a concurrent reader never sees a torn rebuild.
+// runSupplyChainImpactWinnersRebuild reconciles the winners table to the
+// current active set and stamps the maintainer watermark, chunk by chunk
+// (ruled #9805 v3-full), so a concurrent reader never sees a torn rebuild:
+// every chunk commits inside this same transaction, and the watermark stamps
+// once, after the last chunk.
 //
-// It recomputes every winner (winners_now) but writes only the rows that need
-// it (#9774). The changed CTE keeps a winner that has no stored row or whose
-// data columns differ from the stored row, and the INSERT reads from changed, so
-// an unchanged row never reaches the INSERT and is never locked, versioned or
-// written to WAL. A plain ON CONFLICT DO UPDATE ... WHERE would not do: it still
-// locks every conflicting row, which writes WAL per row.
+// Each chunk recomputes its winners (winners_now) but writes only the rows
+// that need it (#9774). The changed CTE keeps a winner that has no stored row
+// or whose data columns differ from the stored row, and the INSERT reads from
+// changed, so an unchanged row never reaches the INSERT and is never locked,
+// versioned or written to WAL. A plain ON CONFLICT DO UPDATE ... WHERE would
+// not do: it still locks every conflicting row, which writes WAL per row.
 //
 // The change test reads the stored table, so it is only correct against the
-// last committed resweep. ResweepWinners runs this statement after winning
-// tryClaimSupplyChainImpactWinnersResweepSQL, in a later statement of the same
-// transaction, so its snapshot always sees that commit. ON CONFLICT DO UPDATE
-// is not a backstop for a resweep that skips the claim: it only covers rows the
-// statement chose to write, never a row it judged unchanged against a stale read.
+// last committed resweep. ResweepWinners runs the chunks after winning
+// tryClaimSupplyChainImpactWinnersResweepSQL, in later statements of the same
+// transaction, so their snapshots always see that commit. ON CONFLICT DO UPDATE
+// is not a backstop for a resweep that skips the claim: it only covers rows
+// the chunk chose to write, never a row it judged unchanged against a stale
+// read. A mark that commits mid-walk lands in the residual the caller counts
+// after the chunks and caps the stamp below its captured_at, so the next tick
+// applies it; the walk itself never re-reads the drain.
 //
 // materialized_at is left out of the comparison and is set only when a row is
 // written, so on a winner row it means "last content change". Readers do not
 // use it: freshness comes from the singleton watermark below, which every
 // resweep stamps whether or not a row changed.
 //
-// The deleted CTE removes rows whose canonical_key is no longer a winner. The
-// final watermark upsert is unconditional, so it stamps even a resweep that
-// produced zero winners, which lets the read tell "never populated" (no
-// watermark row) from "reswept to zero findings" (watermark present, table
-// empty). Its RETURNING reports the row counts and the post-stamp watermark
-// (scanned for arity only; the replaced value is pre-read, #11515).
-// The data-modifying CTEs always run to completion, whether or not the final
-// statement reads them.
+// Each chunk deletes the stored winners of its identifier set that the chunk
+// no longer produces; the sets tile the enumeration, so the union is the
+// full delete. The final watermark stamp (stampWinnersFullWatermarkSQL) is
+// unconditional, so it stamps even a resweep whose chunks produced zero
+// winners, which lets the read tell "never populated" (no watermark row) from
+// "reswept to zero findings" (watermark present, table empty).
 //
-// $1 is the stamp ceiling S and the materialized_at of every written row. The
-// watermark is GREATEST(previous, LEAST(S, residual min - 1us)) (#11117): the
-// residual is the dirty-log and staged marks the statement's own snapshot
-// still sees, so a mark that committed before the rebuild snapshot but after
-// the caller's drain caps the stamp below its captured_at instead of being
-// covered by S, and the watermark never regresses. With an empty residual the
-// LEAST is S. Run it only through ResweepWinners or the keyed fallback.
-var rebuildSupplyChainImpactWinnersSQL = `
-WITH winners_now AS (` + supplyChainImpactWinnerSelectFromSupportsSQL + `),
-changed AS MATERIALIZED (
-    SELECT n.*, (w.canonical_key IS NULL) AS is_new
-    FROM winners_now AS n
-    LEFT JOIN supply_chain_impact_canonical_winners AS w
-      ON w.canonical_key = n.canonical_key
-    WHERE w.canonical_key IS NULL
-       OR ` + supplyChainImpactWinnerRowExpr("n") + ` IS DISTINCT FROM ` + supplyChainImpactWinnerRowExpr("w") + `
-),
-upserted AS (
-    INSERT INTO supply_chain_impact_canonical_winners (
-        canonical_key, ` + strings.Join(supplyChainImpactWinnerDataColumns, ", ") + `, materialized_at
-    )
-    SELECT
-        canonical_key, ` + strings.Join(supplyChainImpactWinnerDataColumns, ", ") + `, $1
-    FROM changed
-    ON CONFLICT (canonical_key) DO UPDATE SET
-        ` + supplyChainImpactWinnerConflictSet() + `
-),
-deleted AS (
-    DELETE FROM supply_chain_impact_canonical_winners w
-    WHERE NOT EXISTS (SELECT 1 FROM winners_now n WHERE n.canonical_key = w.canonical_key)
-    RETURNING 1
-)
-INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
-VALUES (1, LEAST($1::timestamptz, (
-    SELECT min(r.captured_at) - interval '1 microsecond'
-    FROM (
-        SELECT min(captured_at) AS captured_at FROM supply_chain_impact_winners_dirty_log
-        UNION ALL
-        SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_staging
-    ) AS r
-)))
-ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(
-    supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)
-RETURNING
-    (SELECT count(*) FROM changed WHERE is_new),
-    (SELECT count(*) FROM changed WHERE NOT is_new),
-    (SELECT count(*) FROM deleted),
-    (SELECT count(*) FROM winners_now) - (SELECT count(*) FROM changed),
-    (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
-`
+// stamp is the stamp ceiling S and the materialized_at of every written row.
+// The watermark is GREATEST(previous, LEAST(S, residual min - 1us)) (#11117).
+// Run it only through ResweepWinners or the keyed fallback.
 
 // tryClaimSupplyChainImpactWinnersResweepSQL makes resweeps single-flight across
 // every reducer instance, because the partition lease alone does not: its TTL
@@ -304,7 +259,7 @@ func (s SupplyChainImpactWinnersStore) resweepFull(
 	if err != nil {
 		return none, err
 	}
-	result, err := runSupplyChainImpactWinnersRebuild(ctx, tx, stamp)
+	result, err := s.runSupplyChainImpactWinnersRebuild(ctx, tx, stamp, s.chunkBounds())
 	if err != nil {
 		return none, err
 	}
@@ -408,46 +363,34 @@ func countWinnersFullResidual(ctx context.Context, tx db.Transaction) (int64, bo
 	return logRows + staged.count, staged.upperBound, nil
 }
 
-// runSupplyChainImpactWinnersRebuild runs the rebuild statement and reads its one
-// row of counts. It drains and closes the cursor before returning: a statement
-// error can arrive after the row, and the driver must be done with the cursor
-// before the transaction commits.
-func runSupplyChainImpactWinnersRebuild(
+// runSupplyChainImpactWinnersRebuild walks the full rebuild in bounded chunks
+// and stamps the watermark once, after the last chunk. It closes every cursor
+// before returning: a statement error can arrive after the row, and the driver
+// must be done with the cursor before the transaction commits.
+//
+// The pre-stamp watermark read comes before the first chunk statement, so the
+// reported previous watermark can never observe a chunk's own write (#11515).
+// The final stamp's RETURNING row is read for arity only; the caller re-reads
+// the committed watermark after GREATEST resolves it.
+func (s SupplyChainImpactWinnersStore) runSupplyChainImpactWinnersRebuild(
 	ctx context.Context,
 	tx db.Transaction,
 	stamp time.Time,
+	bounds winnersChunkBounds,
 ) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
 	var result supplychaincore.SupplyChainImpactWinnersResweep
-	// The RETURNING watermark column reads the post-upsert value, so the
-	// replaced value is read before the rebuild runs.
 	previous, err := readWinnersPreStampWatermark(ctx, tx)
 	if err != nil {
 		return result, err
 	}
-	rows, err := tx.QueryContext(ctx, rebuildSupplyChainImpactWinnersSQL, stamp)
+	ready := fullChunkSupportsProbeReady(ctx, tx, s.Instruments)
+	inserted, updated, deleted, unchanged, err := runWinnersFullChunks(ctx, tx, bounds, ready)
 	if err != nil {
-		return result, fmt.Errorf("rebuild supply chain impact canonical winners: %w", err)
+		return result, err
 	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return result, fmt.Errorf("rebuild supply chain impact canonical winners: %w", err)
-		}
-		return result, fmt.Errorf("rebuild supply chain impact canonical winners: statement returned no counts")
-	}
-	// stamped is the post-upsert watermark; it is scanned for arity only.
-	var stamped sql.NullTime
-	if err := rows.Scan(&result.Inserted, &result.Updated, &result.Deleted, &result.Unchanged, &stamped); err != nil {
-		return result, fmt.Errorf("scan supply chain impact canonical winners counts: %w", err)
-	}
-	if rows.Next() {
-		return result, fmt.Errorf("rebuild supply chain impact canonical winners: statement returned more than one row")
-	}
-	if err := rows.Err(); err != nil {
-		return result, fmt.Errorf("rebuild supply chain impact canonical winners: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return result, fmt.Errorf("close supply chain impact canonical winners counts: %w", err)
+	result.Inserted, result.Updated, result.Deleted, result.Unchanged = inserted, updated, deleted, unchanged
+	if err := runWinnersFullStamp(ctx, tx, stamp); err != nil {
+		return result, err
 	}
 	result.PreviousWatermark = previous
 	// #11466: claim the enrichment first-carry stamps for the reconciled

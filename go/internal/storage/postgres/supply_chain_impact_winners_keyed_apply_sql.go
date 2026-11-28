@@ -20,7 +20,7 @@ const winnersStoredIdentMatch = `(w.package_id, w.repository_id, w.subject_diges
 // applyWinnersKeyedSQL recomputes the identifier set's winners and writes only
 // the rows that are new or changed, deletes stored winners of the identifier
 // set that are no longer produced, and stamps the watermark. It is the keyed
-// twin of rebuildSupplyChainImpactWinnersSQL: the same changed/upserted/deleted
+// twin of the chunked full rebuild (applyWinnersFullChunkSQL): the same changed/upserted/deleted
 // shape and the same row comparison, restricted to the identifier set. $1 is
 // the stamp candidate: the DB-clock tick stamp S when the log drained, or
 // the horizon H = min(captured_at) of the remainder minus 1us when rows are

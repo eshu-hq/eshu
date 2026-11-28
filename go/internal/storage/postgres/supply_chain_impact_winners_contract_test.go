@@ -23,8 +23,8 @@ func TestSupplyChainImpactWinnersContractHashPinnedToVersion(t *testing.T) {
 	if len(stmts) < 2 {
 		t.Fatalf("contract statements = %d, want the rebuild plus the keyed build and apply statements", len(stmts))
 	}
-	if !slices.Contains(stmts, rebuildSupplyChainImpactWinnersSQL) || !slices.Contains(stmts, applyWinnersKeyedSQL) {
-		t.Fatal("contract statements omit the rebuild or the keyed apply statement")
+	if !slices.Contains(stmts, applyWinnersFullChunkSQL) || !slices.Contains(stmts, applyWinnersKeyedSQL) {
+		t.Fatal("contract statements omit the full chunk apply or the keyed apply statement")
 	}
 	if !slices.Contains(stmts, convertWinnersKeyedScopeRemainderSQL) {
 		t.Fatal("contract statements omit the scope-remainder convert (#11145)")

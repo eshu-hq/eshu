@@ -167,7 +167,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 					return err
 				}
 			}
-			full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, stamp)
+			full, err := s.runSupplyChainImpactWinnersRebuild(ctx, tx, stamp, bounds)
 			if err != nil {
 				return err
 			}

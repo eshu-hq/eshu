@@ -139,19 +139,42 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// twin returns the same copies, and the audit keeps the legacy statement
 	// as its oracle. Every instance runs one full after the roll, per the
 	// #11117 model, which also heals any winner a pre-marker tick wrote.
-	3: "1469bfaecd6468092ee1e67744057b3998d26b5c2b9e5c359c8349d29715dc04",
+	//
+	// Re-pinned under the same version for the ruled #9805 v3-full fix: the
+	// single-statement supports rebuild becomes bounded keyed chunks over
+	// fact_records. Winner output is byte-identical for the same facts, by
+	// construction and hermetic proof, so no full resweep is triggered by
+	// this re-pin:
+	//   - the enumeration pages the shipped active-facts inner select, the
+	//     exact legacy candidate set the audit runs;
+	//   - the chunk select is the shipped body over the chunk temp
+	//     (TestWinnersFullChunkSelectDerivesFromShippedBody), and the
+	//     streamed body reverses byte-for-byte to the shipped body
+	//     (TestWinnersFullChunkStreamBodyReversesToShipped), so rank and
+	//     final projection match the legacy select row for row;
+	//   - the chunk apply is the keyed apply with only the select swapped
+	//     (the derivation panics on any other drift), keeping the same
+	//     changed/upserted/deleted shape, and the chunk deletes tile the
+	//     enumeration, so the union is the full delete;
+	//   - the chunk narrow builds are narrow() of the shipped wide builds,
+	//     the exact legacy base the pinned supports twins commute with
+	//     (TestWinnersKeyedNarrowingCommutesWithSupportsSwaps).
+	// The shipped-environment live differential of the chunked full against
+	// the legacy select is owed with the live proofs.
+	3: "2bff09ee3c0d3b9e667f9f096dca497ed95d1a75a2835e95323498f6828b56b2",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
 // rendered statements whose text defines what a resweep writes to the
-// winners tables: the full rebuild (which embeds the winner select), every
-// keyed build and apply statement, and the scope-remainder convert (#11145),
-// which decides which keys a later tick recomputes and the capture time the
-// horizon reads. The enrichment first-carry stamps (#11466) are intentionally
-// outside this pin: they land in a side table, not in winner content, and
-// the live carry tests cover them instead.
+// winners tables: the full-chunk enumeration, probe, rank and apply
+// statements (which embed the winner select), every keyed build and apply
+// statement, and the scope-remainder convert (#11145), which decides which
+// keys a later tick recomputes and the capture time the horizon reads. The
+// enrichment first-carry stamps (#11466) are intentionally outside this pin:
+// they land in a side table, not in winner content, and the live carry tests
+// cover them instead.
 func supplyChainImpactWinnersContractStatements() []string {
-	stmts := []string{rebuildSupplyChainImpactWinnersSQL}
+	stmts := winnersFullChunkContractStatements()
 	stmts = append(stmts, winnersKeyedBuildIdentsStmts...)
 	return append(stmts,
 		selectWinnersKeyedChunkIdentsSQL,

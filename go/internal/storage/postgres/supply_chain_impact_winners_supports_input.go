@@ -216,6 +216,17 @@ func narrowWinnersKeyedTempBuild(name, wideSupports, spliceBefore string) string
 // rows flow. Every anchor must match its exact count, so a change to the
 // shipped body fails loudly instead of running half-streamed.
 func streamWinnersKeyedBody(body string) string {
+	return streamWinnersKeyedBodyFrom(body, winnersSupportsTable)
+}
+
+// streamWinnersKeyedBodyFrom derives the CTE-streaming keyed body from the
+// shipped winner body with the payload fetched from payloadTable. The keyed
+// tick streams over the supports table; the ruled #9805 v3-full chunks stream
+// over fact_records, so the winner and override payloads arrive by fact_id
+// point lookup from the facts while the shipped final projection runs
+// verbatim. Every anchor count is independent of the table name, so the two
+// derivations differ only by the declared row source.
+func streamWinnersKeyedBodyFrom(body, payloadTable string) string {
 	if n := strings.Count(body, winnersDetoastFactLateral); n != 2 {
 		panic("winners stream body: lateral occurs " + fmt.Sprintf("%d", n) + " times, want 2")
 	}
@@ -257,10 +268,10 @@ LEFT JOIN operator_overrides AS override
 	}
 	return strings.Replace(out, streamFromAnchor,
 		`FROM source_winners AS source
-JOIN `+winnersSupportsTable+` AS source_payload ON source_payload.fact_id = source.fact_id
+JOIN `+payloadTable+` AS source_payload ON source_payload.fact_id = source.fact_id
 LEFT JOIN operator_overrides AS override
   ON override.canonical_key = source.canonical_key
-LEFT JOIN `+winnersSupportsTable+` AS override_payload ON override_payload.fact_id = override.fact_id`, 1)
+LEFT JOIN `+payloadTable+` AS override_payload ON override_payload.fact_id = override.fact_id`, 1)
 }
 
 // Single-detoast extraction (#11120 criterion 2). Every `payload->>'field'`

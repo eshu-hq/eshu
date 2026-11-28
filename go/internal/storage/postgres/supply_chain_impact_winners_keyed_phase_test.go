@@ -182,8 +182,14 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{phaseFakeCommitted}}, nil
 	case applyWinnersKeyedSQL:
 		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0), int64(1), int64(0)}}, nil
-	case rebuildSupplyChainImpactWinnersSQL:
-		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0), int64(0)}}, nil
+	case applyWinnersFullChunkSQL:
+		return &phaseFakeRows{row: []any{int64(1), int64(0), int64(0), int64(0)}}, nil
+	case supplyChainImpactSupportsReadySQL:
+		return &phaseFakeRows{row: []any{false}}, nil
+	case selectWinnersFullChunkPageSQL:
+		return &phaseFakeRows{}, nil
+	case stampWinnersFullWatermarkSQL:
+		return &phaseFakeRows{row: []any{phaseFakeNow}}, nil
 	}
 	return nil, fmt.Errorf("unscripted query %q", query)
 }
@@ -453,7 +459,7 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 		{"scanned copies count", countWinnersKeyedScannedCopiesSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},
 		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts", "apply"}, false, false},
 		{"stamp", stampWinnersWatermarkSQL, "stamp", []string{"claim", "collapse", "consume", "stamp"}, true, false},
-		{"full_rebuild", rebuildSupplyChainImpactWinnersSQL, "full_rebuild", []string{"claim", "collapse", "consume", "build_idents", "full_rebuild"}, false, true},
+		{"full_rebuild", buildWinnersFullIdentsSQL, "full_rebuild", []string{"claim", "collapse", "consume", "build_idents", "full_rebuild"}, false, true},
 		{"commit", "", "commit", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts", "apply", "commit"}, false, false},
 	}
 	for _, tt := range tests {

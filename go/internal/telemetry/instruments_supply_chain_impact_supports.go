@@ -125,6 +125,11 @@ const (
 	// while it is not, because a supports-only write must never run before the stop it
 	// replaces the fact write with exists.
 	SupplyChainImpactSupportsReaderFactWriteStop = "fact_write_stop"
+	// SupplyChainImpactSupportsReaderWinnersFull is the ruled #9805 v3-full
+	// chunked rebuild's supports-ready gate probe: supports serve candidate
+	// fact_id presence only while the gate is open, and the chunk falls back
+	// to the fact_records probe when it is closed.
+	SupplyChainImpactSupportsReaderWinnersFull = "winners_full"
 )
 
 // Outcomes of a reducer read of the per-support table. They are the closed set

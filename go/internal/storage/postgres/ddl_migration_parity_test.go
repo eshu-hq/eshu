@@ -54,6 +54,14 @@ var ddlParityDynamicDDL = map[string]string{
 		"key-index statement builder; migrations 217-225 carry its output and TestNewIndexStatementsMatchMigrations pins it",
 	"internal/storage/postgres/facts/impact/indexes.go|scanIndex|CREATE INDEX CONCURRENTLY IF NOT EXISTS": "generated #8880 " +
 		"kind-partial anchor builder; migrations 226-227 carry its output and TestNewIndexStatementsMatchMigrations pins it",
+	// #9805 v3-full: the chunked full rebuild derives per-chunk INSERT builds
+	// from the existing CREATE builds by swapping only the head, so the
+	// probe and the live-generation set cannot drift between chunks. The
+	// heads are fragments on purpose; the full table definitions live in the
+	// CREATE builds they derive from, and TestWinnersFullChunkInsertDerivationsRoundTrip
+	// pins the swap byte-for-byte.
+	"internal/storage/postgres/supply_chain_impact_winners_full_chunked.go|winnersFullChunkNarrowCreateHead|CREATE TEMP TABLE":      "head-swap derivation anchor for the chunked-full probe INSERTs",
+	"internal/storage/postgres/supply_chain_impact_winners_full_chunked.go|winnersFullChunkActiveFactsCreateHead|CREATE TEMP TABLE": "head-swap derivation anchor for the chunked-full active-facts INSERT",
 }
 
 // TestDDLMigrationParity checks Go DDL in non-test files under

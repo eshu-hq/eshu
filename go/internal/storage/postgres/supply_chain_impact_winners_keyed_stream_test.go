@@ -22,15 +22,22 @@ import (
 // false-green. TestWinnersKeyedStreamBodyReversesToShipped pins the round
 // trip byte-for-byte.
 func reverseWinnersKeyedStreamBody(streamed string) string {
+	return reverseWinnersKeyedStreamBodyFrom(streamed, winnersSupportsTable)
+}
+
+// reverseWinnersKeyedStreamBodyFrom inverts a streamed body whose payload
+// point lookups read payloadTable: the ruled #9805 v3-full chunks stream
+// over fact_records, the keyed tick over the supports table.
+func reverseWinnersKeyedStreamBodyFrom(streamed, payloadTable string) string {
 	out := streamed
 	const streamFromAnchor = `FROM source_winners AS source
 LEFT JOIN operator_overrides AS override
   ON override.canonical_key = source.canonical_key`
-	const streamedFrom = `FROM source_winners AS source
-JOIN ` + winnersSupportsTable + ` AS source_payload ON source_payload.fact_id = source.fact_id
+	streamedFrom := `FROM source_winners AS source
+JOIN ` + payloadTable + ` AS source_payload ON source_payload.fact_id = source.fact_id
 LEFT JOIN operator_overrides AS override
   ON override.canonical_key = source.canonical_key
-LEFT JOIN ` + winnersSupportsTable + ` AS override_payload ON override_payload.fact_id = override.fact_id`
+LEFT JOIN ` + payloadTable + ` AS override_payload ON override_payload.fact_id = override.fact_id`
 	if n := strings.Count(out, streamedFrom); n != 1 {
 		panic("reverse stream body: streamed FROM occurs != 1")
 	}
