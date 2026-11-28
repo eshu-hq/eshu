@@ -14,10 +14,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Live proofs for the ruled #9805 stored-arm fix (contract v4): the full
-// enumeration unions the live candidate set with the stored winners'
-// identifiers. P3 proves the UnlessCurrent healing path (a stored v3 runs the
-// full and heals, a stored v4 skips). P4 proves a dead-key delete composes
+// Live proofs for the ruled #9805 stored-arm fix (contract v4, re-sourced
+// round 5 under contract v5): the full enumeration unions the live candidate
+// set with the stored winners' identifiers. P3 proves the UnlessCurrent
+// healing path (a stored v4 runs the full and heals, a stored v5 skips).
+// P4 proves a dead-key delete composes
 // with a residual mark (the delete fires, the mark is never lost, the stamp
 // caps under it). P5 proves the old-vs-new enumeration plans and the
 // dead-only chunk timing. P6 proves a stored-only key overlapping a
@@ -30,11 +31,11 @@ import (
 // the stamp, and the audit still runs the legacy statement verbatim.
 
 // TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive proves the
-// v4 healing path: a binary on contract 4 that reads a stored v3 runs the
+// v5 healing path: a binary on contract 5 that reads a stored v4 runs the
 // full, the full deletes the stored-only key, the stored contract becomes
-// v4, and the next UnlessCurrent skips. The audit then reports zero repairs.
+// v5, and the next UnlessCurrent skips. The audit then reports zero repairs.
 func TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive(t *testing.T) {
-	_ = supplyChainImpactLiveDSN(t, "#9805 v4 UnlessCurrent healing proof")
+	_ = supplyChainImpactLiveDSN(t, "#9805 v5 UnlessCurrent healing proof")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 	db := openAdvisorySuppressionIsolatedDB(t)
@@ -46,14 +47,14 @@ func TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive(t *testing
 	if first, err := store.ResweepWinners(ctx); err != nil || first.Skipped || first.Inserted != 2 {
 		t.Fatalf("seed resweep = %+v, %v; want 2 inserted", first, err)
 	}
-	// Roll the stored contract back to v3: the next UnlessCurrent must run.
-	winnersLiveExec(t, ctx, db, `UPDATE supply_chain_impact_winners_materialization SET contract_version = 3, contract_hash = '2bff09ee3c0d3b9e667f9f096dca497ed95d1a75a2835e95323498f6828b56b2'`)
+	// Roll the stored contract back to v4: the next UnlessCurrent must run.
+	winnersLiveExec(t, ctx, db, `UPDATE supply_chain_impact_winners_materialization SET contract_version = 4, contract_hash = '2e8903a9f694893f3caf8bdb1ec8bce8afd705c92974dc12e567cd371a2dfc40'`)
 	// The dead key: tombstoned after the last resweep, still stored.
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = 'f-heal-dead'`)
 
 	heal, err := store.ResweepWinnersUnlessCurrent(ctx)
 	if err != nil || heal.Skipped {
-		t.Fatalf("UnlessCurrent over stored v3 = %+v, %v; want a healing full", heal, err)
+		t.Fatalf("UnlessCurrent over stored v4 = %+v, %v; want a healing full", heal, err)
 	}
 	if heal.Path != telemetry.SupplyChainImpactWinnersPathFull {
 		t.Errorf("healing resweep path = %q, want full (telemetry unchanged)", heal.Path)
@@ -65,15 +66,15 @@ func TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive(t *testing
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
-	if !contract.Present || contract.StoredVersion != 4 || contract.StoredHash != contract.BinaryHash {
-		t.Errorf("stored contract = %+v, want version 4 with the binary hash", contract)
+	if !contract.Present || contract.StoredVersion != 5 || contract.StoredHash != contract.BinaryHash {
+		t.Errorf("stored contract = %+v, want version 5 with the binary hash", contract)
 	}
 
 	skip, err := store.ResweepWinnersUnlessCurrent(ctx)
 	if err != nil || !skip.Skipped || !skip.ContractCurrent {
-		t.Fatalf("UnlessCurrent over stored v4 = %+v, %v; want Skipped with ContractCurrent", skip, err)
+		t.Fatalf("UnlessCurrent over stored v5 = %+v, %v; want Skipped with ContractCurrent", skip, err)
 	}
-	t.Logf("healing-full: stored v3 ran (deleted=%d), stored v4 skips", heal.Deleted)
+	t.Logf("healing-full: stored v4 ran (deleted=%d), stored v5 skips", heal.Deleted)
 	fullDiffAssertParity(t, ctx, db, "healed")
 
 	audit, err := store.AuditWinners(ctx)
@@ -203,9 +204,15 @@ func TestSupplyChainImpactWinnersFullEnumerationExplainOldVsNewLive(t *testing.T
 	}
 	oldCreate := strings.Replace(head+"\n) AS idents", "winners_full_idents", "explain_old_idents", 1)
 	newCreate := strings.Replace(shipped, "winners_full_idents", "explain_new_idents", 1)
+	// Both arms read supports since the round-5 re-source: the live arm
+	// pages the supports candidate set, so a live arm over fact_records
+	// would enumerate nothing on production-shaped data.
 	for name, sql := range map[string]string{"old": oldCreate, "new": newCreate} {
-		if strings.Contains(sql, "supply_chain_impact_finding_supports") {
-			t.Fatalf("%s enumeration reads the supports table", name)
+		if !strings.Contains(sql, "supply_chain_impact_finding_supports") {
+			t.Fatalf("%s enumeration does not read the supports table", name)
+		}
+		if strings.Contains(sql, "fact_records") {
+			t.Fatalf("%s enumeration reads fact_records: the live arm pages supports", name)
 		}
 	}
 	if strings.Contains(oldCreate, "UNION") || strings.Contains(oldCreate, "supply_chain_impact_canonical_winners") {

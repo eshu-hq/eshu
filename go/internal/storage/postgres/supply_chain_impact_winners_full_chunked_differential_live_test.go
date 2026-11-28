@@ -14,16 +14,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// Live differential for the ruled #9805 full fix: the new chunked-full
-// rebuild path (ResweepWinners, bounded keyed chunks over fact_records plus
-// the stored identifiers) agrees with the shipped legacy
-// supplyChainImpactWinnerSelectSQL row for row on the same seeded backend,
-// on a clean scope set, on a dirty/orphan scope that mirrors the replica
-// findings (orphan supports on an active generation, stale stored
-// priority_score vs the fact payload), on the dead-key classes the live-only
-// enumeration dropped (a tombstoned key, a rotation-dropped key), and on a
-// resweep to zero. Every phase asserts byte-equal rows (EXCEPT ALL 0 both
-// directions) AND equal counts. It also records the chunked walk's wall
+// Live differential for the ruled #9805 full fix, re-sourced round 5: the
+// new chunked-full rebuild path (ResweepWinners, bounded keyed chunks over
+// supports plus the stored identifiers) agrees with the winners selects row
+// for row on the same seeded backend. On fact-synced states (clean scopes,
+// dead-key classes, resweep to zero) both the shipped legacy
+// supplyChainImpactWinnerSelectSQL and the supports-swapped twin agree with
+// the stored table. On the dirty/orphan scope that mirrors the replica
+// findings, the supports twin is the oracle: the legacy fact select cannot
+// see an orphan support, a supports-payload rewrite, or a fact rewrite the
+// capture missed, so the phase asserts supports parity plus the dirt's
+// expected winner movement, and logs the legacy divergence instead of
+// asserting on it. Every parity phase asserts byte-equal rows (EXCEPT ALL 0
+// both directions) AND equal counts. It also records the chunked walk's wall
 // time (every sequential chunk is bounded above by the walk total) and the
 // advisory-lock single-flight.
 
@@ -88,17 +91,16 @@ func fullDiffExceptAll(t *testing.T, ctx context.Context, db *sql.DB) (forward, 
 	return forward, reverse
 }
 
-// fullDiffAssertParity asserts the byte-equality half of the differential:
-// the stored winners match the legacy select EXCEPT ALL 0 in both directions
-// over every content column, AND the row counts agree. A delete the resweep
-// missed fails the counts even when the row sets happen to align.
+// fullDiffAssertParity asserts the byte-equality half of the differential on
+// a fact-synced state: the stored winners match the legacy select AND the
+// supports-swapped twin EXCEPT ALL 0 in both directions over every content
+// column, AND the row counts agree. A delete the resweep missed fails the
+// counts even when the row sets happen to align.
 func fullDiffAssertParity(t *testing.T, ctx context.Context, db *sql.DB, phase string) {
 	t.Helper()
 	fwd, rev := fullDiffExceptAll(t, ctx, db)
-	var stored, legacy int64
-	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_canonical_winners`).Scan(&stored); err != nil {
-		t.Fatalf("%s stored count: %v", phase, err)
-	}
+	sfwd, srev, stored, oracle := fullSupportsExceptAll(t, ctx, db, phase)
+	var legacy int64
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM (`+postgres.WinnerSelectSQLForTest+`) AS legacy`).Scan(&legacy); err != nil {
 		t.Fatalf("%s legacy count: %v", phase, err)
 	}
@@ -107,8 +109,11 @@ func fullDiffAssertParity(t *testing.T, ctx context.Context, db *sql.DB, phase s
 	if fwd != 0 || rev != 0 {
 		t.Fatalf("%s chunked-full disagrees with legacy: forward=%d reverse=%d", phase, fwd, rev)
 	}
-	if stored != legacy {
-		t.Fatalf("%s row counts disagree: stored=%d legacy=%d", phase, stored, legacy)
+	if sfwd != 0 || srev != 0 {
+		t.Fatalf("%s chunked-full disagrees with the supports oracle: forward=%d reverse=%d", phase, sfwd, srev)
+	}
+	if stored != legacy || stored != oracle {
+		t.Fatalf("%s row counts disagree: stored=%d legacy=%d supports=%d", phase, stored, legacy, oracle)
 	}
 }
 
@@ -177,12 +182,18 @@ func fullDiffCompleteBackfill(t *testing.T, ctx context.Context, db *sql.DB) {
 
 // fullDiffPlantDirt mirrors the replica findings on the dirty scope after
 // the backfill marker is complete: (a) a stale stored priority_score
-// column, (b) a stale stored payload priority, (c) an orphan supports row
-// on the active generation whose key columns match a live identifier but
-// has no fact_record, (d) a fact payload rewrite the capture misses so the
-// stored supports priority is stale against the fact payload. None of them
-// may move the differential: ranking never reads stored supports columns,
-// and the orphan drops in the active-facts fact_records join.
+// column, (b) a supports payload rewrite to a new priority while the frozen
+// fact payload keeps the seeded value, (c) an orphan supports row on the
+// active generation whose key columns match a live identifier but has no
+// fact_record, (d) a fact payload rewrite the capture misses while the
+// supports payload keeps the seeded value. The supports payload is the
+// authority post-stop, so (b) must move the winner to the supports value,
+// (c) must win its key exactly as the keyed tick ranks it, and (d) must be
+// ignored: a resweep that followed the fact payload would regress to the
+// fact_records row source. (a) must not move anything: ranking never reads
+// stored supports columns. The differential against the supports oracle
+// stays 0/0 through all four; the legacy fact oracle diverges, which the
+// phase logs instead of asserting on.
 func fullDiffPlantDirt(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	plant := func(query string, args ...any) {
@@ -193,21 +204,25 @@ func fullDiffPlantDirt(t *testing.T, ctx context.Context, db *sql.DB) {
 			}
 		})
 	}
-	// (d) comes first so the later supports syncs do not heal it: the fact
-	// payload moves to 999 while supports keep the seeded value.
+	// (d) plants the ignored fact rewrite: the fact payload moves to 999
+	// while the supports payload keeps the seeded priority 13. A chunk
+	// that read fact_records would move the winner to 999.
 	plant(`UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '999')
 WHERE fact_id = 'f-b4' AND scope_id = $1`, fullDiffDirtyScope)
 	// (a) stale stored priority_score column (never read by the probe or the rank).
 	if _, err := db.ExecContext(ctx, `UPDATE supply_chain_impact_finding_supports SET priority_score = 1 WHERE fact_id = 'f-b1'`); err != nil {
 		t.Fatalf("plant stale supports priority: %v", err)
 	}
-	// (b) stale stored payload priority (never read: payloads arrive by fact_id point lookup).
+	// (b) supports payload rewrite to 7 (authoritative: the winner must
+	// follow the supports payload, proving payload-derived ranking).
 	if _, err := db.ExecContext(ctx, `UPDATE supply_chain_impact_finding_supports
 SET payload = jsonb_set(payload, '{priority_score}', '7') WHERE fact_id = 'f-b2'`); err != nil {
-		t.Fatalf("plant stale supports payload: %v", err)
+		t.Fatalf("plant supports payload rewrite: %v", err)
 	}
 	// (c) orphan supports on the active generation: key columns copied from
-	// f-b3's live row, a fact_id with no fact_record, a winning priority.
+	// f-b3's live row, a fact_id with no fact_record, a winning priority in
+	// both the stored column and the payload (ranking reads the payload, so
+	// the payload must carry the win; the column alone would not move it).
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO supply_chain_impact_finding_supports
     (fact_id, canonical_key, scope_id, generation_id, finding_id, has_payload_finding_id,
@@ -217,7 +232,8 @@ INSERT INTO supply_chain_impact_finding_supports
 SELECT 'fact:orphan:9805', canonical_key, scope_id, generation_id, 'finding:orphan',
      1, 9999, source_confidence, suppression_state, impact_status, ecosystem,
      severity_bucket, repository_id, cve_id, advisory_id, package_id, subject_digest,
-     image_ref, priority_bucket, detection_profile, observed_version, match_reason, payload
+     image_ref, priority_bucket, detection_profile, observed_version, match_reason,
+     jsonb_set(payload, '{priority_score}', '9999')
 FROM supply_chain_impact_finding_supports WHERE fact_id = 'f-b3'`); err != nil {
 		t.Fatalf("plant orphan supports: %v", err)
 	}
@@ -226,8 +242,9 @@ FROM supply_chain_impact_finding_supports WHERE fact_id = 'f-b3'`); err != nil {
 	// Clearing it is the test setup, not a heal: every presence-relevant
 	// supports column (the key columns and fact_id presence) is untouched
 	// by construction above, and the orphan (a supports-only insert) fires
-	// no fact trigger. A regression to reading stored ranking columns or to
-	// emitting the orphan still fails the EXCEPT ALL below.
+	// no fact trigger. A regression — reading stored ranking columns, not
+	// following the supports payload, dropping the orphan, or following the
+	// fact rewrite — still fails the supports EXCEPT ALL below.
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports_dirty`); err != nil {
 		t.Fatalf("clear supports fence after planting: %v", err)
 	}
@@ -251,7 +268,8 @@ func TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive(t *testing.T) {
 	fullDiffSeed(t, ctx, db)
 
 	// Phase 1: closed gate (no backfill marker on a fresh bootstrap), so the
-	// chunks run the fact_records payload-expression probe.
+	// chunks run the supports payload-expression probe. Facts and supports
+	// are in sync, so both oracles agree.
 	firstStart := time.Now()
 	first, err := store.ResweepWinners(ctx)
 	if err != nil || first.Skipped {
@@ -267,7 +285,10 @@ func TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive(t *testing.T) {
 	}
 
 	// Phase 2: open gate with planted replica dirt; the chunks run the
-	// triple-guarded supports presence probe over stale/orphan supports.
+	// triple-guarded supports presence probe over the dirtied supports.
+	// The supports twin is the oracle here: (b) and (c) move winners by
+	// design and (d) is invisible to a supports reader, so the legacy fact
+	// oracle diverges and is logged, not asserted on.
 	fullDiffCompleteBackfill(t, ctx, db)
 	fullDiffPlantDirt(t, ctx, db)
 	secondStart := time.Now()
@@ -278,20 +299,75 @@ func TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive(t *testing.T) {
 	secondElapsed := time.Since(secondStart)
 	t.Logf("phase-2 open-gate full resweep over replica dirt: inserted=%d updated=%d deleted=%d unchanged=%d in %v",
 		second.Inserted, second.Updated, second.Deleted, second.Unchanged, secondElapsed)
-	// The (d) rewrite must have healed: the stored winner follows the fact
-	// payload to 999, not the stale supports value.
+	// (a) the stale stored priority_score column must not move f-b1: the
+	// winner keeps the seeded payload priority 10, not the stored 1.
+	var b1 int
+	if err := db.QueryRowContext(ctx, `SELECT priority_score FROM supply_chain_impact_canonical_winners
+WHERE winner_fact_id = 'f-b1'`).Scan(&b1); err != nil {
+		t.Fatalf("read b1 winner: %v", err)
+	}
+	if b1 != 10 {
+		t.Fatalf("b1 stored priority = %d, want 10 (ranking never reads the stored column)", b1)
+	}
+	// (b) the supports payload rewrite is authoritative: f-b2's winner
+	// follows it to 7, not the frozen fact value.
+	var b2 int
+	if err := db.QueryRowContext(ctx, `SELECT priority_score FROM supply_chain_impact_canonical_winners
+WHERE winner_fact_id = 'f-b2'`).Scan(&b2); err != nil {
+		t.Fatalf("read b2 winner: %v", err)
+	}
+	if b2 != 7 {
+		t.Fatalf("b2 stored priority = %d, want 7 (the resweep must follow the supports payload)", b2)
+	}
+	// (c) the orphan wins its key: a supports-authored row with no fact
+	// twin ranks exactly as the keyed tick ranks it.
+	var orphan int
+	if err := db.QueryRowContext(ctx, `SELECT priority_score FROM supply_chain_impact_canonical_winners
+WHERE winner_fact_id = 'fact:orphan:9805'`).Scan(&orphan); err != nil {
+		t.Fatalf("read orphan winner: %v", err)
+	}
+	if orphan != 9999 {
+		t.Fatalf("orphan stored priority = %d, want 9999 (supports-authored rows rank)", orphan)
+	}
+	// (d) the fact rewrite the capture missed must be ignored: f-b4's
+	// winner keeps the supports priority 13, not the fact payload's 999.
+	// A chunk that read fact_records would move it to 999.
 	var b4 int
 	if err := db.QueryRowContext(ctx, `SELECT priority_score FROM supply_chain_impact_canonical_winners
 WHERE winner_fact_id = 'f-b4'`).Scan(&b4); err != nil {
-		t.Fatalf("read healed b4 winner: %v", err)
+		t.Fatalf("read b4 winner: %v", err)
 	}
-	if b4 != 999 {
-		t.Fatalf("b4 stored priority = %d, want 999 (the resweep must follow the fact payload)", b4)
+	if b4 != 13 {
+		t.Fatalf("b4 stored priority = %d, want 13 (the resweep must ignore the fact payload)", b4)
 	}
-	fwd, rev = fullDiffExceptAll(t, ctx, db)
-	t.Logf("phase-2 differential: legacy-minus-stored=%d stored-minus-legacy=%d", fwd, rev)
-	if fwd != 0 || rev != 0 {
-		t.Fatalf("phase-2 chunked-full disagrees with legacy: forward=%d reverse=%d", fwd, rev)
+	sfwd, srev, _, _ := fullSupportsExceptAll(t, ctx, db, "phase-2")
+	if sfwd != 0 || srev != 0 {
+		t.Fatalf("phase-2 chunked-full disagrees with the supports oracle: forward=%d reverse=%d", sfwd, srev)
+	}
+	lfwd, lrev := fullDiffExceptAll(t, ctx, db)
+	t.Logf("phase-2 legacy divergence (informational: the fact oracle cannot see supports dirt): legacy-minus-stored=%d stored-minus-legacy=%d",
+		lfwd, lrev)
+
+	// Heal the phase-2 dirt so the dead-key phases start fact-synced like
+	// every other phase boundary: each dirt's proof already landed above,
+	// and the dead-key deletes below must be judged on synced oracles.
+	// The fact heal plants frozen history (no supports sync follows); the
+	// supports heals restore the writer-derived values the dirt overwrote.
+	winnersLivePlantFact(t, ctx, db, `UPDATE fact_records SET payload = jsonb_set(payload, '{priority_score}', '13')
+WHERE fact_id = 'f-b4' AND scope_id = $1`, fullDiffDirtyScope)
+	if _, err := db.ExecContext(ctx, `UPDATE supply_chain_impact_finding_supports
+SET payload = jsonb_set(payload, '{priority_score}', '11') WHERE fact_id = 'f-b2'`); err != nil {
+		t.Fatalf("heal b2 supports payload: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE supply_chain_impact_finding_supports
+SET priority_score = 10 WHERE fact_id = 'f-b1'`); err != nil {
+		t.Fatalf("heal b1 stored priority: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports WHERE fact_id = 'fact:orphan:9805'`); err != nil {
+		t.Fatalf("remove orphan supports: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports_dirty`); err != nil {
+		t.Fatalf("clear supports fence after healing: %v", err)
 	}
 
 	// Phase 3: dead-key classes the live-only enumeration dropped. Tombstone

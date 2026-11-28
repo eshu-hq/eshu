@@ -160,7 +160,8 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	//     the exact legacy base the pinned supports twins commute with
 	//     (TestWinnersKeyedNarrowingCommutesWithSupportsSwaps).
 	// The shipped-environment live differential of the chunked full against
-	// the legacy select is owed with the live proofs.
+	// the legacy select rides the live proofs
+	// (TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive).
 	3: "2bff09ee3c0d3b9e667f9f096dca497ed95d1a75a2835e95323498f6828b56b2",
 	// Version 4 (ruled #9805 stored-arm fix): the full enumeration unions the
 	// live candidate set with the stored winners' identifiers

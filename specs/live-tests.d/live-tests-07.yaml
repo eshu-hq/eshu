@@ -957,6 +957,11 @@ tests:
     class: dedicated_ci
     reason: "#9805: reducer-contention enrolled 1 named Go test via the WinnersFullChunked alternation in the -run filter of the reducer-contention gate workflow; local -race run against disposable PostgreSQL 18 passed (5.75s)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_full_chunked_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#9805 round 5: 2 named Go tests run under the existing WinnersFullChunked alternation in the -run filter of the reducer-contention gate workflow (production-writer differential and scale proof); local -race run against disposable PostgreSQL 18 passed (8.59s)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_stored_arm_live_test.go
     tag: ~
     class: dedicated_ci
