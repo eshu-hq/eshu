@@ -29,9 +29,18 @@ SELECT min(last_attempt_at), max(last_attempt_at),
        min(next_attempt_at), max(next_attempt_at), min(created_at)
 FROM fact_work_items WHERE status = 'retrying';
 
--- 5. How old is the pending pile?
-SELECT count(*) FILTER (WHERE now() - created_at > interval '1 hour'),
-       min(created_at) FROM fact_work_items WHERE status = 'pending';
+-- 5. How old is the pending pile, and are "pending / attempt=0 / NULL class"
+-- rows truly unclaimed or repeatedly reopened by fan-out?
+-- Both ReopenSucceeded and supply-chain holder fan-out (ReopenHolderDetailed)
+-- reset attempt_count=0 and failure_class=NULL while setting reopened_at and
+-- preserving last_attempt_at.
+SELECT domain, count(*) AS pending_n,
+       count(*) FILTER (WHERE reopened_at IS NOT NULL) AS reopened_n,
+       count(*) FILTER (WHERE last_attempt_at IS NOT NULL) AS had_prior_attempt,
+       min(created_at) AS oldest_created,
+       max(reopened_at) AS newest_reopen
+FROM fact_work_items WHERE status = 'pending'
+GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
 
 -- 6. Who keeps re-pending the rows? Per-reason breakdown (#11615); the
 -- counter and gauges below stay consistent with this query.
@@ -40,6 +49,18 @@ SELECT COALESCE(last_requeue_reason, 'legacy_unclassified') AS reason,
 FROM fact_work_items
 WHERE status IN ('pending', 'claimed', 'running', 'retrying')
 GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- 7. Winners dirty-staging backlog, dirty-log re-mark multiplicity, and watermark lag:
+-- High avg(dirty_version) (>=3) means internal re-mark amplification, not
+-- slow consumers alone; compare materialized_at against now().
+SELECT count(*) AS dirty_staging_rows FROM supply_chain_impact_winners_dirty_staging;
+SELECT kind, source, count(*) AS queued_keys,
+       round(avg(dirty_version)::numeric, 1) AS avg_ver,
+       max(dirty_version) AS max_ver
+FROM supply_chain_impact_winners_dirty_log
+GROUP BY 1, 2 ORDER BY 3 DESC;
+SELECT materialized_at, now() - materialized_at AS lag
+FROM supply_chain_impact_winners_materialization WHERE singleton = 1;
 ```
 
 ## Reading the results
