@@ -3,8 +3,8 @@
 
 // Package admin is the proof-read family of the apilib extraction:
 // the 7-method ReadStore port with row/filter types, the static tuning
-// handler, the work-items query handler, and the per-family mounts
-// (Refs eshu-hq/eshu-api#456).
+// handler, the work-items query handler, the five B-query handlers, and
+// the per-family mounts (Refs eshu-hq/eshu-api#456).
 //
 // This package is the single definition site for the proof-read types:
 // core aliases them (type X = apilibadmin.X), so signatures here are
