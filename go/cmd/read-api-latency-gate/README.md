@@ -59,6 +59,16 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `infra_backfill: gate_stand_in`, and the infra route numbers describe an
   install that holds the marker. That the reducer process records the marker is
   proved by a live test in `go/cmd/reducer`, not by the gate
+- `runSupportsBackfillStandIn`, `backfillSeededSupportsReadModel` — run the
+  product `pgstore.SupplyChainImpactSupportsBackfill` to Complete in the seed
+  phase, after the relational count proofs and before the winners rebuild, and
+  prove the serving readiness predicate reads true before any core starts.
+  This is a permanent stand-in (#11658): the reducer owns the backfill in
+  production, but no reducer runs beside this gate, so the seed drives the
+  same `RunStep` the reducer drives and stamps only through its fenced
+  completion statement — never a hand-written marker. Both legs' reports carry
+  `supports_backfill: gate_stand_in`, and the findings route numbers describe
+  an install that holds the marker
 - `SeedIaCGraphNodes` — bulk-writes uid-bearing graph nodes correlated with
   `BuildIaCFacts`' `entity_id`/`entity_name`/`generation_id`, so
   `/api/v0/iac/resources`' Postgres-then-graph hydration finds a matching row
@@ -100,7 +110,7 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
 - `BuildLatencyReport`, `WriteLatencyReport` — the `-latency-report` JSON
   report (schema version 1): an identity block (backend, best-effort eshu
   commit/api/core binary sha256, the `-winners-read` leg marker, the
-  `infra_backfill` stand-in marker, seed sizing
+  `infra_backfill` and `supports_backfill` stand-in markers, seed sizing
   including winners facts, runs/iterations/warmups) plus every
   route's first/later samples and later distribution stats (n/p50/p95/min/max/
   stddev, and the per-run p95 min..max). Written before budget evaluation, so
@@ -167,8 +177,10 @@ See `doc.go` for the full contract.
   over HTTP against a running `eshu-api`, not imported directly)
 - `internal/storage/postgres` — imported only for the winners resweep port
   (`SupplyChainImpactWinnersStore.ResweepWinners`), the same production call
-  the reducer maintainer and the ifa advisory-group drive use, and for the
-  infra read model backfill (`infra/inventory.Backfiller`); every other
+  the reducer maintainer and the ifa advisory-group drive use, for the
+  infra read model backfill (`infra/inventory.Backfiller`), and for the
+  supports read model backfill (`SupplyChainImpactSupportsBackfill`,
+  `SupplyChainImpactSupportsReady`); every other
   query this gate measures is exercised over HTTP
 
 ## Telemetry

@@ -351,6 +351,15 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)
 	}
 
+	// The findings serving route refuses while the supports-backfill marker is
+	// unset, and no reducer runs beside this gate to record it. The seed drives
+	// the product backfill itself, before the winners rebuild stamps its
+	// watermark: marker completed_at must precede the watermark so the
+	// production order (supports ready, then winners full) holds (#11658).
+	if err := backfillSeededSupportsReadModel(ctx, opts.postgresDSN, os.Stderr); err != nil {
+		return fmt.Errorf("backfill seeded supports read model: %w", err)
+	}
+
 	if inserted, updated, deleted, unchanged, err := rebuildSeededWinners(ctx, opts.postgresDSN, expectedWinnerGroups(opts.winnersFactCount, winnersSourcesPerGroup)); err != nil {
 		return fmt.Errorf("rebuild seeded winners: %w", err)
 	} else {
