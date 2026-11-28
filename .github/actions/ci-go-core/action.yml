@@ -55,6 +55,10 @@ runs:
       working-directory: go
       shell: bash
       run: go vet ./...
+    # go/coreserve is a nested module: parent-scope `go build/test/vet
+    # ./...` and `golangci-lint run ./...` skip it, so it gets its own
+    # unconditional steps (seconds, not minutes). Keep this list in
+    # sync with the module's own gates: build, vet, test.
     - name: Build all Go binaries
       if: ${{ !cancelled() && (inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'go-build')) }}
       working-directory: go
@@ -66,10 +70,6 @@ runs:
         set -euo pipefail
         go build ./...
         python3 ../scripts/ci/smoke_go_build_canary.py
-    # go/coreserve is a nested module: parent-scope `go build/test/vet
-    # ./...` and `golangci-lint run ./...` skip it, so it gets its own
-    # unconditional steps (seconds, not minutes). Keep this list in
-    # sync with the module's own gates: build, vet, test.
     - name: Build nested go/coreserve module
       if: ${{ !cancelled() }}
       working-directory: go/coreserve
