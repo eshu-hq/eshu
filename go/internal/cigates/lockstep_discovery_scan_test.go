@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanResult {
+func dsScanOneFile(root, path string, baseIndex map[string][]string, tracked map[string]bool) dsFileScanResult {
 	res := dsFileScanResult{path: path}
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -143,11 +143,11 @@ func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanR
 						first = args[:ci]
 					}
 					literalFirst := strings.Contains(first, "\"")
-					if rel := dsChainResolve(root, path, chain, literalFirst); rel != "" {
+					if rel := dsChainResolve(root, path, chain, literalFirst, tracked); rel != "" {
 						chainOK = rel
 						break
 					}
-					if dir := dsChainDir(root, path, chain, literalFirst); dir != "" {
+					if dir := dsChainDir(root, path, chain, literalFirst, tracked); dir != "" {
 						chainDir = dir
 					}
 				}
@@ -187,7 +187,7 @@ func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanR
 					if strings.ContainsAny(raw, " #$%!\n`") || strings.Contains(raw, "://") {
 						continue
 					}
-					dsMarkNamed(root, path, raw, mark)
+					dsMarkNamed(root, path, raw, tracked, mark)
 					continue
 				}
 				raw := line[m[2]:m[3]]
@@ -199,7 +199,7 @@ func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanR
 				// Path-named constant definitions feed R3.
 				if dsPathName.MatchString(code) {
 					if before := dsIdentBefore.FindStringSubmatch(code[:m[0]]); before != nil {
-						if rel := dsDefResolve(root, path, raw, baseIndex); rel != "" {
+						if rel := dsDefResolve(root, path, raw, baseIndex, tracked); rel != "" {
 							res.defs = append(res.defs, dsConstDef{name: before[1], rel: rel, file: path, lineIdx: idx})
 						}
 					}
@@ -209,7 +209,7 @@ func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanR
 				}
 				// R4: map tables of path keys in a file that reads files.
 				if !dsCaseLine.MatchString(code) && dsMapKey.MatchString(after) && hasReads {
-					if rel := dsResolve(root, path, raw, true); rel != "" {
+					if rel := dsResolve(root, path, raw, true, tracked); rel != "" {
 						mark(rel, "read")
 					}
 					continue
@@ -220,12 +220,18 @@ func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanR
 				if readPos && !inTempDir {
 					unresolvableBare := bareName && !dsSingleArg.MatchString(code) && chainDir == ""
 					if unresolvableBare {
-						if dsExactRel(root, filepath.Join(root, raw)) != "" || len(baseIndex[raw]) > 0 {
+						// The basename index is the tracked universe (git
+						// index in real checkouts), so a bare name with no
+						// tracked holder names no committable input. An
+						// on-disk-only copy at the root (untracked scratch
+						// or ignored materialization) must not flip the
+						// verdict (#11634).
+						if len(baseIndex[raw]) > 0 {
 							res.r7 = append(res.r7, dsR7Item{fileRel: fileRel, lineIdx: idx, token: raw, why: "bare path on a multi-arg read; resolve the caller-relative target"})
 						}
 						continue
 					}
-					if rel := dsResolve(root, path, raw, true); rel != "" {
+					if rel := dsResolve(root, path, raw, true, tracked); rel != "" {
 						mark(rel, "read")
 						continue
 					}
@@ -236,7 +242,7 @@ func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanR
 				}
 				if hasReads {
 					if before := dsIdentBefore.FindStringSubmatch(code[:m[0]]); before != nil && readNames[before[1]] {
-						if rel := dsResolve(root, path, raw, true); rel != "" {
+						if rel := dsResolve(root, path, raw, true, tracked); rel != "" {
 							mark(rel, "read")
 							continue
 						}
@@ -246,12 +252,12 @@ func dsScanOneFile(root, path string, baseIndex map[string][]string) dsFileScanR
 						continue
 					}
 				}
-				dsMarkNamed(root, path, raw, mark)
+				dsMarkNamed(root, path, raw, tracked, mark)
 			}
 		}
 		if hasEmbed {
 			for _, m := range dsEmbed.FindAllStringSubmatch(line, -1) {
-				if rel := dsResolve(root, path, m[1], true); rel != "" {
+				if rel := dsResolve(root, path, m[1], true, tracked); rel != "" {
 					mark(rel, "read")
 				}
 			}

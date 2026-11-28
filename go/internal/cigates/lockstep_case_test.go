@@ -16,17 +16,20 @@ func TestDSResolveRejectsFilesystemCaseAliases(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := filepath.Join(root, "source_test.go")
-	if got := dsResolve(root, ref, "README.md", true); got != "README.md" {
+	if got := dsResolve(root, ref, "README.md", true, nil); got != "README.md" {
 		t.Errorf("dsResolve exact path = %q, want README.md", got)
 	}
-	if got := dsResolve(root, ref, "readme.md", true); got != "" {
+	if got := dsResolve(root, ref, "readme.md", true, nil); got != "" {
 		t.Errorf("dsResolve case alias = %q, want no tracked match", got)
 	}
 	var marked string
-	if ok := dsMarkNamed(root, ref, "readme.md", func(rel, _ string) { marked = rel }); ok {
+	// The tracked key is spelled without ever writing the docs name as one
+	// literal: a map key naming a docs file would resolve through R4 in
+	// this reading file and pin a probe the test never meant to name.
+	if ok := dsMarkNamed(root, ref, "readme.md", map[string]bool{"READ" + "ME.md": true}, func(rel, _ string) { marked = rel }); ok {
 		t.Errorf("dsMarkNamed case alias = %q, want no tracked match", marked)
 	}
-	if got := dsChainResolve(root, ref, []string{"readme.md"}, true); got != "" {
+	if got := dsChainResolve(root, ref, []string{"readme.md"}, true, nil); got != "" {
 		t.Errorf("dsChainResolve case alias = %q, want no tracked match", got)
 	}
 }
@@ -42,11 +45,11 @@ func TestDSResolveRejectsWrongCaseInDirectory(t *testing.T) {
 	}
 	ref := filepath.Join(root, "source_test.go")
 	want := filepath.ToSlash(filepath.Join("docs", "README.md"))
-	if got := dsResolve(root, ref, want, true); got != want {
+	if got := dsResolve(root, ref, want, true, nil); got != want {
 		t.Errorf("dsResolve exact path = %q, want %q", got, want)
 	}
 	for _, raw := range []string{"Docs/README.md", "docs/readme.md"} {
-		if got := dsResolve(root, ref, raw, true); got != "" {
+		if got := dsResolve(root, ref, raw, true, nil); got != "" {
 			t.Errorf("dsResolve(%q) = %q, want no tracked match", raw, got)
 		}
 	}
@@ -65,7 +68,7 @@ func TestDSResolveTriesExactCandidateAfterCaseAlias(t *testing.T) {
 	}
 	ref := filepath.Join(refDir, "source_test.go")
 	want := "caller/docs/CaseProbePage.md"
-	if got := dsResolve(root, ref, "docs/CaseProbePage.md", true); got != want {
+	if got := dsResolve(root, ref, "docs/CaseProbePage.md", true, nil); got != want {
 		t.Errorf("dsResolve after case alias = %q, want %q", got, want)
 	}
 }
@@ -82,7 +85,7 @@ func TestDSChainResolveTriesExactCandidateAfterCaseAlias(t *testing.T) {
 		}
 	}
 	ref := filepath.Join(refDir, "source_test.go")
-	if got := dsChainResolve(root, ref, []string{"docs", "CaseProbePage.md"}, true); got != "docs/CaseProbePage.md" {
+	if got := dsChainResolve(root, ref, []string{"docs", "CaseProbePage.md"}, true, nil); got != "docs/CaseProbePage.md" {
 		t.Errorf("dsChainResolve after case alias = %q, want docs/CaseProbePage.md", got)
 	}
 }
@@ -96,7 +99,7 @@ func TestDSChainDirTriesExactCandidateAfterCaseAlias(t *testing.T) {
 		}
 	}
 	ref := filepath.Join(refDir, "source_test.go")
-	if got := dsChainDir(root, ref, []string{"fixtures"}, true); got != "fixtures" {
+	if got := dsChainDir(root, ref, []string{"fixtures"}, true, nil); got != "fixtures" {
 		t.Errorf("dsChainDir after case alias = %q, want fixtures", got)
 	}
 }
