@@ -14,8 +14,8 @@
 # satellite serves nothing coreless, so starting it without a core can never
 # pass). A second sweep leg restarts the core with
 # ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true and re-sweeps the same corpus
-# into separate -winners reports after proving the two legs serve
-# byte-identical findings.
+# into separate -winners reports after proving the winners leg serves the
+# seeded supports truth through a read-API-independent oracle (issue #11644).
 #
 # Unlike the golden corpus gate, this gate seeds directly via bulk SQL/Cypher
 # writes (SeedPostgres/SeedGraph) instead of driving the real
@@ -448,10 +448,10 @@ fi
 
 run_sweep_leg legacy "${GATE_BUDGETS}" "${GATE_WORK_BUDGETS}" ${gate_report_args[@]+"${gate_report_args[@]}"}
 
-# The legacy leg is the pre-winners truth the winners leg must reproduce:
-# snapshot it before restarting the core with the flag on.
+# The legacy leg reads fact_records, which holds no finding facts since the
+# PR-C2 write-stop: label its page vacuous instead of comparing against it.
 log "prove the legacy leg's findings truth"
-snapshot_findings_page "${work_dir}/findings-legacy.json"
+snapshot_and_label_findings_page legacy "${work_dir}/findings-legacy.json"
 # Negative control: while the flag is off, the winners-sourced grouped
 # dimensions fail closed (env-registry contract), so a 200 here would mean
 # the leg is not measuring the legacy path it claims.
@@ -469,9 +469,9 @@ wait_for_satellite_readyz
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) did not survive the core restart"
 kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) did not survive the core restart"
 
-log "prove the winners leg serves the same truth"
+log "prove the winners leg serves the seeded truth"
 snapshot_findings_page "${work_dir}/findings-winners.json"
-require_findings_byte_identical "${work_dir}/findings-legacy.json" "${work_dir}/findings-winners.json"
+require_winners_findings_oracle "${work_dir}/findings-winners.json"
 # Positive control: the seeded service/workload/environment dimensions must
 # answer 200 from the rebuilt winners table, proving the leg measured the
 # read model rather than an empty fallback.

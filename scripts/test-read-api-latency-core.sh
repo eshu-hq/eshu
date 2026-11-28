@@ -109,17 +109,59 @@ lib_call() {
 rc_of() { "$@" >/dev/null 2>&1 && echo 0 || echo $?; }
 
 printf '{"count":2,"findings":[{"finding_id":"a"},{"finding_id":"b"}]}' >"${work}/page-ok.json"
-printf '{"count":2,"findings":[{"finding_id":"a"},{"finding_id":"c"}]}' >"${work}/page-other.json"
 printf '{"count":0,"findings":[]}' >"${work}/page-empty.json"
 printf '{"count":0}' >"${work}/page-nofield.json"
 
-# require_findings_byte_identical: identical non-empty pages pass; a differing
-# page fails; two identical EMPTY pages must fail too (cmp alone passes them
-# vacuously), as must a page with no findings field.
-[[ "$(rc_of lib_call require_findings_byte_identical "${work}/page-ok.json" "${work}/page-ok.json")" == 0 ]] || fail "identical non-empty findings pages must pass"
-[[ "$(rc_of lib_call require_findings_byte_identical "${work}/page-ok.json" "${work}/page-other.json")" != 0 ]] || fail "differing findings pages must fail"
-[[ "$(rc_of lib_call require_findings_byte_identical "${work}/page-empty.json" "${work}/page-empty.json")" != 0 ]] || fail "two identical EMPTY findings pages must fail, not pass vacuously"
-[[ "$(rc_of lib_call require_findings_byte_identical "${work}/page-nofield.json" "${work}/page-nofield.json")" != 0 ]] || fail "a findings page with no findings field must fail"
+# findings_page_status: labels one leg's snapshot measured (non-empty) or
+# vacuous (empty) for the gate log (#11644); labelling is measurement, never
+# verdict, so both states exit 0, while a snapshot with no findings array is
+# unreadable and fails. The label text is asserted through a printing log
+# (lib_call's log is a no-op, so it cannot observe the wording).
+status_log() {
+	( bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}";
+		GATE_API_PORT=18097 GATE_API_KEY=k
+		log() { printf 'log: %s\n' "$*"; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+		# shellcheck source=scripts/lib/read-api-latency-core.sh
+		. "${repo_root}/scripts/lib/read-api-latency-core.sh"; "$@" ) 2>&1
+}
+[[ "$(status_log findings_page_status legacy "${work}/page-empty.json")" == *"vacuous"* ]] || fail "an empty legacy page must be labelled vacuous"
+[[ "$(rc_of lib_call findings_page_status legacy "${work}/page-empty.json")" == 0 ]] || fail "labelling a vacuous page must not fail the gate"
+[[ "$(status_log findings_page_status winners "${work}/page-ok.json")" == *"measured"* ]] || fail "a non-empty winners page must be labelled measured"
+[[ "$(rc_of lib_call findings_page_status winners "${work}/page-ok.json")" == 0 ]] || fail "labelling a measured page must not fail the gate"
+[[ "$(rc_of lib_call findings_page_status legacy "${work}/page-nofield.json")" != 0 ]] || fail "a page with no findings field must fail labelling, not pass as vacuous"
+
+# require_winners_findings_oracle: proves the winners snapshot against the
+# supports oracle through the gate binary (#11644 post-C2 truth proof), and
+# fails the gate when the proof fails.
+cat >"${work}/bin/eshu-read-api-latency-gate" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >>"${GATE_STUB_ARGS}"
+exit "${GATE_STUB_EXIT:-0}"
+STUB
+chmod +x "${work}/bin/eshu-read-api-latency-gate"
+: >"${work}/oracle-args.log"
+printf '{"count":1,"findings":[{"finding_id":"a"}],"limit":50,"truncated":true}' >"${work}/winners-snap.json"
+export GATE_STUB_ARGS="${work}/oracle-args.log" GATE_STUB_EXIT=0
+export ESHU_POSTGRES_DSN="postgresql://eshu:change-me@localhost:15537/eshu" GATE_WINNERS_FACT_COUNT=20000
+lib_call require_winners_findings_oracle "${work}/winners-snap.json" >/dev/null 2>&1 || fail "a passing oracle proof must pass the gate"
+rg -qF -- '-verify-winners-oracle' "${work}/oracle-args.log" || fail "the oracle proof must run the gate binary in verify mode: $(cat "${work}/oracle-args.log")"
+rg -qF -- "${work}/winners-snap.json" "${work}/oracle-args.log" || fail "the oracle proof must name the winners snapshot: $(cat "${work}/oracle-args.log")"
+rg -qF -- 'postgresql://eshu:change-me@localhost:15537/eshu' "${work}/oracle-args.log" || fail "the oracle proof must use the gate Postgres DSN: $(cat "${work}/oracle-args.log")"
+export GATE_STUB_EXIT=1
+[[ "$(rc_of lib_call require_winners_findings_oracle "${work}/winners-snap.json")" != 0 ]] || fail "a failing oracle proof must fail the gate"
+
+# snapshot_and_label_findings_page fetches the snapshot and labels it in one
+# call, so the orchestrator names each leg's scope without extra lines.
+: >"${STUB_URL_LOG}"
+STUB_CODE=200 STUB_BODY_FILE="${work}/page-ok.json" status_log snapshot_and_label_findings_page winners "${work}/labelled.json" >/dev/null 2>&1 || fail "snapshot-and-label must pass on a 200 with findings"
+cmp -s "${work}/labelled.json" "${work}/page-ok.json" || fail "snapshot-and-label must write the response body"
+STUB_CODE=200 STUB_BODY_FILE="${work}/page-empty.json"
+[[ "$(status_log snapshot_and_label_findings_page legacy "${work}/labelled-empty.json")" == *"vacuous"* ]] || fail "snapshot-and-label must label an empty legacy page vacuous"
+
+# The oracle proof labels the winners page measured before proving it, so the
+# gate log names the scope even when the proof then fails.
+export GATE_STUB_EXIT=0
+[[ "$(status_log require_winners_findings_oracle "${work}/page-ok.json")" == *"measured"* ]] || fail "the oracle proof must label the winners page measured first"
 
 # snapshot_findings_page: asks the findings route with a selector and a limit
 # (the route answers 400 without both), writes the body, and dies on a failure.

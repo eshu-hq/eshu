@@ -79,9 +79,15 @@ lanes never exercise.
    `docker-compose.read-api-latency-gate.yaml`. The gate
    creates the extension, proves it collects, and refuses a stack that runs more
    than 2 statements per second while idle (a new poller in the API has to be
-   understood, not absorbed into the budgets). It sweeps the legacy leg, then
-   restarts the core with `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true` and —
-   after proving byte-identical findings pages and 503-to-200 grouped
+   understood, not absorbed into the budgets). It sweeps the legacy leg, labels
+   that leg's findings page measured or vacuous in the log (the legacy page is
+   vacuous by contract since the #10880 PR-C2 write-stop: it reads
+   `fact_records`, which holds no finding facts), then restarts the core with
+   `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true` and — after proving the winners
+   leg serves the seeded truth through a supports-table oracle independent of
+   the read API (`-verify-winners-oracle`: supports rows and canonical groups
+   read straight from `supply_chain_impact_finding_supports`, checked against
+   the relayed snapshot) plus the 503-to-200 grouped
    inventory dimensions (the 200 asks `profile=comprehensive`, and the winners
    leg pins one default-profile 503, which holds while the stack's supports
    backfill has not completed and turns red once it does) — sweeps the winners leg into separate `-winners`
