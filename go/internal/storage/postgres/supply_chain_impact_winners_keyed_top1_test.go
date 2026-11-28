@@ -103,8 +103,8 @@ func TestWinnersTop1SharesStreamedFinalSelect(t *testing.T) {
 	}
 }
 
-// TestWinnersTop1OverridesArePerKeyLateral pins the sort-free override step
-// (F3): the winner select carries no DISTINCT ON over the op temp (whose only
+// TestWinnersTop1OverridesArePerKeyLateral pins the per-key lateral override
+// step (F3): the winner select carries no DISTINCT ON over the op temp (whose only
 // whole-set shape would sort), and the overrides resolve per source key with
 // a winner-ordered LIMIT 1 lateral driven from the counts temp, exactly like
 // the winner step. The final LEFT JOIN then sees at most one override row

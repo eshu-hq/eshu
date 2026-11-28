@@ -213,11 +213,12 @@ WHERE s.scope_id = 'operator:vulnerability_suppressions'
 
 // indexWinnersKeyedTop1OpSQL materializes the winner ordering for the
 // per-key override point lookup (F3): the covering winner-index key order on
-// the op temp, so the override step is an index-ordered LIMIT 1 per source
-// key with no Sort node at any scale, exactly like the winner step. The
-// DISTINCT ON it replaces sorted the whole op temp through a Sort node;
-// driving from the counts temp also skips operator-only noise keys the final
-// LEFT JOIN could never match.
+// the op temp, so the winner step is sort-free and the override microsort is
+// planner-correct and bounded per key (seq+sort only at trivial scale where
+// the per-key input is tiny; the winner-ordered index takes over as it
+// grows). The DISTINCT ON it replaces sorted the whole op temp through a
+// Sort node; driving from the counts temp also skips operator-only noise
+// keys the final LEFT JOIN could never match.
 const indexWinnersKeyedTop1OpSQL = `
 CREATE INDEX winners_keyed_top1_op_key_idx ON winners_keyed_top1_op
     (canonical_key, priority_score DESC, has_payload_finding_id DESC, fact_id ASC)
