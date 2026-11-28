@@ -2,7 +2,7 @@ module github.com/eshu-hq/eshu/go/coreserve
 
 go 1.26.11
 
-require github.com/eshu-hq/eshu/go v0.0.0-20261128014233-739dfad5603a
+require github.com/eshu-hq/eshu/go v0.0.0-20261128062449-b49a63fd4569
 
 require (
 	github.com/UserNobody14/tree-sitter-dart v0.0.0-20260520003023-a9bdfa3db2fb // indirect
@@ -18,6 +18,7 @@ require (
 	github.com/dekobon/tree-sitter-groovy v0.2.2 // indirect
 	github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4 // indirect
 	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19.0.20261117021456-ec5cfef48073 // indirect
+	github.com/eshu-hq/tree-sitter-elixir v0.3.5-eshu.1 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
@@ -48,7 +49,6 @@ require (
 	github.com/tree-sitter/tree-sitter-c v0.24.1 // indirect
 	github.com/tree-sitter/tree-sitter-c-sharp v0.23.1 // indirect
 	github.com/tree-sitter/tree-sitter-cpp v0.23.4 // indirect
-	github.com/tree-sitter/tree-sitter-elixir v0.0.0-00010101000000-000000000000 // indirect
 	github.com/tree-sitter/tree-sitter-go v0.25.0 // indirect
 	github.com/tree-sitter/tree-sitter-haskell v0.23.1 // indirect
 	github.com/tree-sitter/tree-sitter-java v0.23.5 // indirect
