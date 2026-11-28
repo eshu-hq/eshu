@@ -145,6 +145,7 @@ SELECT 'Q2b_ceiling_allactive' AS query,
 FROM vis v LEFT JOIN eps_active e ON e.cve = v.cve_id;
 
 -- Q3: breakdowns (one statement each; each is independently re-runnable).
+-- Q3f/Q3g back the doc's lowercase and percentile-equivalence asides.
 WITH eff AS (
   SELECT w.*,
     CASE
@@ -271,5 +272,52 @@ SELECT 'Q3e_pin' AS query,
   (SELECT count(*) FROM supply_chain_impact_canonical_winners) AS winners_rows,
   (SELECT count(*) FROM fact_records WHERE fact_kind = 'vulnerability.epss_score') AS epss_score_facts,
   (SELECT count(DISTINCT payload->>'cve_id') FROM fact_records WHERE fact_kind = 'vulnerability.epss_score') AS epss_distinct_cves;
+
+-- Q3f: lowercase check (backs the ~ vs ~* agreement claim; 0 expected).
+WITH eff AS (
+  SELECT w.*,
+    CASE
+      WHEN w.suppression_state NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+        OR w.suppression_expires_at IS NULL
+      THEN w.suppression_state
+      WHEN w.suppression_expires_at <= NOW()
+      THEN 'expired'
+      ELSE w.suppression_state
+    END AS eff_state
+  FROM supply_chain_impact_canonical_winners w
+),
+vis AS (
+  SELECT * FROM eff
+  WHERE eff_state NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+)
+SELECT 'Q3f_lowercase' AS query,
+  count(*) FILTER (WHERE cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$') AS cvekeyed_denom,
+  count(*) FILTER (WHERE cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$'
+    AND cve_id ~ '[a-z]') AS lowercase_cve_rows
+FROM vis;
+
+-- Q3g: percentile equivalence (backs the identical-split claim).
+WITH eff AS (
+  SELECT w.*,
+    CASE
+      WHEN w.suppression_state NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+        OR w.suppression_expires_at IS NULL
+      THEN w.suppression_state
+      WHEN w.suppression_expires_at <= NOW()
+      THEN 'expired'
+      ELSE w.suppression_state
+    END AS eff_state
+  FROM supply_chain_impact_canonical_winners w
+),
+vis AS (
+  SELECT * FROM eff
+  WHERE eff_state NOT IN ('not_affected','accepted_risk','false_positive','ignored','advisory_retracted')
+)
+SELECT 'Q3g_percentile' AS query,
+  count(*) FILTER (WHERE cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$'
+    AND COALESCE(payload->>'epss_probability','') <> '') AS by_probability,
+  count(*) FILTER (WHERE cve_id ~* '^CVE-[0-9]{4}-[0-9]{4,}$'
+    AND COALESCE(payload->>'epss_percentile','') <> '') AS by_percentile
+FROM vis;
 
 ROLLBACK;

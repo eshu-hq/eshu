@@ -21,8 +21,8 @@ SQL precedent is `docs/internal/design/11075-a2-packet.sql`.
   winners row, no DISTINCT.
 - **Numerator (C3):** denominator rows with EPSS present, as stored on
   the winners payload: `COALESCE(payload->>'epss_probability','') <> ''`
-  (top-level `epss_percentile` gives the identical split, 76,633/76,633
-  on this corpus).
+  (top-level `epss_percentile` gives the identical split, 76,613/76,613
+  on the 16:11Z rerun corpus).
 - **Effective-visible:** expiry-aware suppression state outside
   `not_affected, accepted_risk, false_positive, ignored,
   advisory_retracted` (the `evaluation.go:83-91` hidden set, ported from
@@ -134,3 +134,27 @@ enrichment as shipped. Under the CVE-keyed denominator the bar needs
 npm 274/68,347, pypi 10/6,721, composer 4/545, gomod 1/169, os 3/62,
 go 1/3, maven 0/892, rubygems 0/184. No other ecosystem has a
 payload-missing write-up owed beyond Q3a.
+
+## Rerun note (QA read replica, 2026-11-28 16:11:57Z)
+
+The committed file now runs end to end (`ON_ERROR_STOP`, exit 0,
+`ROLLBACK`, read-only on the caught-up replica). Q3f/Q3g were added after
+the pin-stamped run to back two definition asides; the first full-file
+run exposed a missing `FROM vis` in both (fixed, proof is this rerun).
+Corpus moved slightly since the 15:36:58Z stamp; verdicts are unchanged:
+
+```text
+Q1_c3_payload|76923|76613|99.597|81079|76613|94.492|4466|0
+Q2_c3_factjoin|76923|76739|99.761|126|184|99.761
+Q2b_ceiling_allactive|81079|76739|94.647|77026|287
+Q3d_distinct|1986|1976|1982|99.496|99.799
+Q3e_pin|2026-11-28 16:11:57.82362+00|t|2026-11-28 06:12:19.93594+00|81286|35772|1985
+Q3f_lowercase|76923|0
+Q3g_percentile|76613|76613
+```
+
+Q3f: 0 lowercase rows among 76,923 CVE-keyed winners, so `~` and `~*`
+agree on this corpus. Q3g: probability-keyed and percentile-keyed
+present counts are identical (76,613 = 76,613). Payload drift vs the
+stamp is −20 present rows (−0.022pp); stale grew 109 → 126;
+catalog-miss steady at 184; ceiling shortfall steady at 287.
