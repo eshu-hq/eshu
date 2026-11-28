@@ -20,7 +20,9 @@ import (
 // bound value, the metering loop, and the stop behavior are unchanged from
 // the Dec 6(ii) budget, so this test seeds the same uniform fan-out the
 // legacy budget test pins (240 scanned per identifier) and expects the same
-// stop points — plus the TOP-1 probe variant on every tick.
+// stop points — plus the TOP-1 probe variant on every tick. Kept is one
+// less than the helper total: the post-eligibility active temp excludes the
+// operator row the pre-eligibility legacy build keeps (F6).
 func TestSupplyChainImpactWinnersResweepTop1ScannedBudgetBoundsTicksLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11120 TOP-1 redefined scanned-copies budget")
 	const keys = 2
@@ -29,6 +31,14 @@ func TestSupplyChainImpactWinnersResweepTop1ScannedBudgetBoundsTicksLive(t *test
 		t.Fatalf("test budget = %d, want 240 (one identifier at %d scanned each)", budget, scannedBudgetScannedPerIdent)
 	}
 	wantKept, wantScanned := seedScannedBudgetBacklog(h, keys)
+	// F6: the TOP-1 kept count reads the post-eligibility active temp,
+	// which excludes the operator scope (the overlay rides the op temp),
+	// while the legacy kept count the helper returns reads the
+	// pre-eligibility build and keeps the operator row. The lenient probe
+	// still meters that row, so scanned conserves wantScanned exactly;
+	// kept is one less on the TOP-1 path by construction, not by loss
+	// (the drain parity below proves no winner is dropped).
+	wantKept--
 	completeKeyPresenceFillMarkerForTop1(t, h)
 
 	h.store.ChunkMaxScannedCopies = int(budget)

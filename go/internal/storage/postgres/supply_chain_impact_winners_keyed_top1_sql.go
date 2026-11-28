@@ -44,10 +44,11 @@ const winnersKeyedTop1NarrowColumns = `fact_id, scope_id, generation_id, canonic
 
 // winnersTop1NarrowProbeSelect renders the TOP-1 identifier probe body over
 // an identifier source table: one narrow row per pre-filter copy, carrying
-// the plain ranking columns. The triple-guard legs are the shipped
-// triple-guard equalities verbatim
-// (TestWinnersTop1ProbeKeepsTripleGuardLegs pins each one), extended only by
-// the ranking select list. The probe meters every five-tuple match including
+// the plain ranking columns. The triple legs are the shipped lenient
+// equalities verbatim (Refs #11691, TestWinnersTop1ProbeKeepsTripleGuardLegs
+// pins each one), extended only by the ranking select list. A missing key
+// and a JSON null read as ” in both, so the probe reaches the same copies
+// as the shipped twin. The probe meters every five-tuple match including
 // derived-image copies (F2): the counted set is the legacy pre-filter set,
 // and the bulk active build below drops what the body would drop. Liveness
 // and classification stay in the bulk active build, where hash joins serve
@@ -63,11 +64,8 @@ func winnersTop1NarrowProbeSelect(identsTable string) string {
             s.canonical_key, s.priority_score, s.has_payload_finding_id
         FROM supply_chain_impact_finding_supports AS s
         WHERE s.package_id = ident.package_id
-          AND (ident.package_id <> '' OR (s.key_presence & 1) <> 0)
           AND s.repository_id = ident.repository_id
-          AND (ident.repository_id <> '' OR (s.key_presence & 2) <> 0)
           AND s.subject_digest = ident.subject_digest
-          AND (ident.subject_digest <> '' OR (s.key_presence & 4) <> 0)
           AND COALESCE(NULLIF(s.cve_id, ''), NULLIF(s.advisory_id, ''), '') = ident.c0
           AND s.advisory_id = ident.advisory_id
         OFFSET 0

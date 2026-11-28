@@ -10,42 +10,53 @@ import (
 )
 
 // Hermetic pins for the #11120 lane-A TOP-1-per-key probe rewrite. The
-// marker-gated TOP-1 probe keeps the triple-guard legs verbatim, ranks per
+// marker-gated TOP-1 probe keeps the shipped lenient triple legs verbatim
+// (Refs #11691: plain equalities, no key-presence guards), ranks per
 // canonical key over a new plain covering winner index, and shares the
 // streamed final select byte for byte so the projection cannot drift from
 // what the full path and audit read.
 
-// TestWinnersTop1ContractIsVersionSix pins the mandatory contract bump
+// TestWinnersTop1ContractIsVersionSeven pins the mandatory contract bump
 // (ruling decision 6): the budget redefinition and candidate-set prune change
-// which identifiers a tick visits, so no same-version re-pin is allowed.
-func TestWinnersTop1ContractIsVersionSix(t *testing.T) {
+// which identifiers a tick visits, so no same-version re-pin is allowed. The
+// bump lands on 7 because the #11691 leniency already owns 6 on this base.
+func TestWinnersTop1ContractIsVersionSeven(t *testing.T) {
 	t.Parallel()
 
-	if SupplyChainImpactWinnersContractVersion != 6 {
-		t.Fatalf("winners contract version = %d, want 6 (lane-A TOP-1 bump)", SupplyChainImpactWinnersContractVersion)
+	if SupplyChainImpactWinnersContractVersion != 7 {
+		t.Fatalf("winners contract version = %d, want 7 (lane-A TOP-1 bump over the #11691 leniency)", SupplyChainImpactWinnersContractVersion)
 	}
 }
 
 // TestWinnersTop1ProbeKeepsTripleGuardLegs pins composition with the shipped
-// triple-guard twin: every triple equality and key-presence guard of the
-// marker-gated probe renders byte-identically in the TOP-1 probe, so the
-// prune cannot widen or narrow the probed set.
+// lenient twin: every triple equality of the marker-gated probe renders
+// byte-identically in the TOP-1 probe, and no key-presence guard survives,
+// so the prune cannot widen or narrow the probed set, and missing/JSON-null
+// keyed copies reach the same winners in TOP-1 as in the shipped probe
+// (Refs #11691).
 func TestWinnersTop1ProbeKeepsTripleGuardLegs(t *testing.T) {
 	t.Parallel()
 
 	probe := winnersTop1NarrowProbeSelect(winnersKeyedIdentsTable)
 	for _, leg := range []string{
 		"s.package_id = ident.package_id",
-		"(ident.package_id <> '' OR (s.key_presence & 1) <> 0)",
 		"s.repository_id = ident.repository_id",
-		"(ident.repository_id <> '' OR (s.key_presence & 2) <> 0)",
 		"s.subject_digest = ident.subject_digest",
-		"(ident.subject_digest <> '' OR (s.key_presence & 4) <> 0)",
 		"COALESCE(NULLIF(s.cve_id, ''), NULLIF(s.advisory_id, ''), '') = ident.c0",
 		"s.advisory_id = ident.advisory_id",
 	} {
 		if !strings.Contains(probe, leg) {
-			t.Errorf("TOP-1 probe lacks the triple-guard leg %q", leg)
+			t.Errorf("TOP-1 probe lacks the lenient triple leg %q", leg)
+		}
+	}
+	for _, banned := range []string{
+		"key_presence",
+		"ident.package_id <> ''",
+		"ident.repository_id <> ''",
+		"ident.subject_digest <> ''",
+	} {
+		if strings.Contains(probe, banned) {
+			t.Errorf("TOP-1 probe carries the strict guard %q: the shipped twin is lenient (Refs #11691)", banned)
 		}
 	}
 	if strings.Contains(probe, "fact_records") {

@@ -80,12 +80,14 @@ const selectWinnersKeyPresenceFillReadySQL = `
 SELECT completed_at IS NOT NULL FROM supply_chain_impact_finding_supports_backfill WHERE marker_name = $1`
 
 // winnersKeyedProbeVariant selects the budgeted narrow probe's per-identifier
-// insert for one tick: the plain-column lenient text once the key-presence
-// fill marker is complete, the shipped payload-expression text before that.
-// Both texts agree on unfilled rows (a missing key and a JSON null read as
-// the coalesced identifier in either one); the marker selects the index-only
-// path versus the payload path, not fail-closed exclusion. The default (no
-// marker row) stays on the shipped text.
+// insert for one tick: the TOP-1 text over the covering winner index once the
+// key-presence fill marker is complete, the shipped payload-expression text
+// before that. TOP-1 composes the shipped lenient triple legs verbatim
+// (Refs #11691: plain equalities, no key-presence guards — both probes read
+// a missing key and a JSON null as ”) and only extends the select list with
+// the plain ranking columns the winner step orders by. The default (no
+// marker row) is fail-closed on the shipped text, which is lenient on every
+// leg, so an unfilled row matches exactly as before.
 func winnersKeyedProbeVariant(keyPresenceReady bool) string {
 	if keyPresenceReady {
 		return insertWinnersKeyedTop1NarrowBatchSQL

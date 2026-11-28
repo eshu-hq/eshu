@@ -213,14 +213,15 @@ func buildWinnersKeyedChunk(
 		return outcome, fmt.Errorf("create supply chain impact winners batch identifiers: %w", err)
 	}
 	// The probe flip (#9975 round 6, #11120 lane A): the marker-gated
-	// plain-column probe is correct only once every support carries its
-	// key-presence bits, so it runs only after the fill's disagreement-0
-	// verification completes the marker. Before that — including when the
-	// marker row does not exist yet — the shipped payload-expression probe
-	// runs, which ignores the bits and is correct on unfilled rows. One
-	// indexed row read per tick. The marker-gated text is the TOP-1 probe
-	// over the covering winner index; the empty narrow table it accumulates
-	// into is selected here too, so the create always matches the probe.
+	// TOP-1 probe over the covering winner index runs only after the
+	// fill's disagreement-0 verification completes the marker. Before
+	// that — including when the marker row does not exist yet — the
+	// shipped payload-expression probe runs. Both probes are lenient
+	// (Refs #11691: a missing key and a JSON null read as ''), so the
+	// flip changes the performance path, not the reached set. One
+	// indexed row read per tick. The empty narrow table the gated probe
+	// accumulates into is selected here too, so the create always matches
+	// the probe.
 	outcome.keyPresenceProbe = winnersKeyPresenceFillCompleted(ctx, tx)
 	probeBatchSQL := winnersKeyedProbeVariant(outcome.keyPresenceProbe)
 	if _, err := tx.ExecContext(ctx, winnersKeyedNarrowCreateSQL(outcome.keyPresenceProbe)); err != nil {

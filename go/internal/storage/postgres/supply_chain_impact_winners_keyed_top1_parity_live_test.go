@@ -39,10 +39,12 @@ contract_version = EXCLUDED.contract_version`,
 // derived-image scope) and a dead-generation top-ranked copy must both lose
 // to a live copy; the operator overlay, advisory-only keys, the
 // has_payload_finding_id tiebreak, JSON-null vs missing vs empty-string key
-// components, a non-object payload in a filtered scope, and a mixed-case
-// ecosystem spelling must agree byte for byte. A class the capture misses
-// fails at its own step, and the explicit winner assertions below prove each
-// decisive class beyond the parity equality.
+// components, a non-object payload in a filtered scope, a mixed-case
+// ecosystem spelling, and missing/JSON-null triple-key copies (Refs #11691:
+// the strict probe misses them, the lenient probe must reach the same
+// winners in TOP-1 as the shipped probe) must agree byte for byte. A class
+// the capture misses fails at its own step, and the explicit winner
+// assertions below prove each decisive class beyond the parity equality.
 func TestSupplyChainImpactWinnersKeyedTop1MatchesRecomputeLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11120 lane-A TOP-1 parity proof")
 	const (
@@ -83,6 +85,7 @@ func TestSupplyChainImpactWinnersKeyedTop1MatchesRecomputeLive(t *testing.T) {
 		keyedFinding("CVE-2026-9111", "pkg:npm/top1-tie", 60),
 		keyedFinding("CVE-2026-9112", "pkg:npm/top1-json", 61),
 		top1MixedCaseEcosystem("CVE-2026-9110", "pkg:npm/top1-eco", 60, "NPM"),
+		keyedFinding("CVE-2026-9113", "pkg:npm/top1-lenient", 60),
 	)
 	h.write(scopeB, scopeB+"/g1",
 		keyedFinding("CVE-2026-9101", "pkg:npm/top1-dead", 60),
@@ -96,6 +99,7 @@ func TestSupplyChainImpactWinnersKeyedTop1MatchesRecomputeLive(t *testing.T) {
 	)
 	h.write(scopeC, scopeC+"/g1",
 		keyedFinding("CVE-2026-9112", "pkg:npm/top1-json", 63),
+		keyedFinding("CVE-2026-9114", "pkg:npm/top1-pure", 61),
 	)
 	// Derived-image top rank: the 930 copy is excluded.
 	h.write(derived, derived+"/g1", keyedFinding("CVE-2026-9107", "pkg:npm/top1-derived", 930))
@@ -155,6 +159,27 @@ ON CONFLICT DO NOTHING`,
 	top1InsertRawCopy(t, h, scopeC, scopeC+"/g1",
 		top1FactID(t, h, scopeC, "CVE-2026-9112", 63), "top1-json-raw-c2",
 		`jsonb_set(jsonb_set(s.payload, '{observed_version}', '""'), '{priority_score}', '12')`)
+	// Missing vs JSON-null triple keys (Refs #11691, ported to TOP-1): two
+	// raw copies of the 9113 key drop subject_digest (missing) and spell it
+	// JSON-null at higher priorities. Both coalesce to the writer seed's ''
+	// identifier, so the writer-queued dirty mark covers them with no extra
+	// capture staged. The lenient oracle crowns the priority-80 copy; the
+	// strict probe reaches neither raw copy and keeps the priority-60 one.
+	top1InsertRawCopy(t, h, scopeA, scopeA+"/g1",
+		top1FactID(t, h, scopeA, "CVE-2026-9113", 60), "top1-lenient-raw-missing",
+		`jsonb_set((s.payload - 'subject_digest'), '{priority_score}', '70')`)
+	top1InsertRawCopy(t, h, scopeA, scopeA+"/g1",
+		top1FactID(t, h, scopeA, "CVE-2026-9113", 60), "top1-lenient-raw-json",
+		`jsonb_set(jsonb_set(s.payload, '{subject_digest}', 'null'), '{priority_score}', '80')`)
+	// Pure-missing identifier (9114): the writer seed's support row is
+	// patched into the collector shape and a JSON-null copy is planted
+	// beside it, so every live copy of the key is presence-bit-0. The
+	// strict probe reaches none of them; the lenient oracle crowns the
+	// priority-62 copy.
+	top1InsertRawCopy(t, h, scopeC, scopeC+"/g1",
+		top1FactID(t, h, scopeC, "CVE-2026-9114", 61), "top1-pure-raw-json",
+		`jsonb_set(jsonb_set(s.payload, '{subject_digest}', 'null'), '{priority_score}', '62')`)
+	top1PatchCollectorMissingTop(t, h, scopeC, "CVE-2026-9114", 61)
 	top1PatchScalarDerivedTop(t, h, derived)
 
 	completeKeyPresenceFillMarkerForTop1(t, h)
@@ -179,9 +204,11 @@ ON CONFLICT DO NOTHING`,
 		h.syncSupports()
 		// The generation write replaces the whole scopeB set, but the raw
 		// tie and json copies live in scopeA and scopeC, so they persist;
-		// only the scalar derived top is a supports-only row the sync
-		// restores from the intact fact, so it is re-patched.
+		// only the scalar derived top and the collector-missing pure top
+		// are supports-only rows the sync restores from the intact facts,
+		// so both are re-patched.
 		top1PatchScalarDerivedTop(t, h, derived)
+		top1PatchCollectorMissingTop(t, h, scopeC, "CVE-2026-9114", 61)
 		if got := h.keyed(); got.Updated == 0 {
 			t.Fatalf("keyed tick = %+v, want the flipped winner updated", got)
 		}
@@ -243,13 +270,36 @@ WHERE fact_id = $1 AND payload = '"scalar-payload"'::jsonb`, id); n != 1 {
 	}
 }
 
+// top1PatchCollectorMissingTop rewrites one writer seed's support row into
+// the collector shape for a key-absent fact: the subject_digest key dropped
+// from the payload with its key-presence bit cleared. That is exactly what
+// the writer's own upsert derives for a fact whose payload lacks the key
+// (the #11691 pure-missing leg proves the shape through syncSupports), so
+// the row stays coupled — the payload check and the bit check fail the seed
+// loudly if the patch matched nothing. A later syncSupports restores the
+// verbatim payload from the intact fact, so a rewrite phase re-applies it,
+// exactly like the scalar derived top.
+func top1PatchCollectorMissingTop(t *testing.T, h *keyedHarness, scope, cve string, priority int) {
+	t.Helper()
+	id := top1FactID(t, h, scope, cve, priority)
+	h.exec(`UPDATE supply_chain_impact_finding_supports
+SET payload = payload - 'subject_digest', key_presence = key_presence & ~4
+WHERE fact_id = $1`, id)
+	if n := h.count(`SELECT count(*) FROM supply_chain_impact_finding_supports
+WHERE fact_id = $1 AND (payload->>'subject_digest') IS NULL
+AND (key_presence & 4) = 0 AND subject_digest = ''`, id); n != 1 {
+		t.Fatalf("collector-missing top %s is not a coupled key-absent row: the patch matched nothing", id)
+	}
+}
+
 // top1AssertDecisiveWinners proves each decisive seed class beyond parity:
 // the dead, associated, classified, and derived top copies must all lose,
 // the operator overlay must attach to the assoc key, the tiebreak must elect
 // the finding_id copy at equal priority, the three json-shape copies must
 // collapse to one winner with an empty observed version, the scalar derived
 // top must stay invisible, the mixed-case ecosystem must keep the fact's own
-// spelling, and the multi-version identifier must emit both keys.
+// spelling, the lenient outrank and pure-missing triple-key copies must win
+// their keys, and the multi-version identifier must emit both keys.
 func top1AssertDecisiveWinners(t *testing.T, h *keyedHarness) {
 	t.Helper()
 	winner := func(cve, pkg, observed string) (factID, scopeID, generationID, suppression, ecosystem, findingID string) {
@@ -311,6 +361,18 @@ WHERE canonical_key = $1`, jsonKey).Scan(&n); err != nil {
 	// the lowercased filter column.
 	if _, _, _, _, ecosystem, _ := winner("CVE-2026-9110", "pkg:npm/top1-eco", "1.0.0"); ecosystem != "NPM" {
 		t.Errorf("ecosystem winner = %q, want the fact's own spelling NPM", ecosystem)
+	}
+	// Leniency outrank (Refs #11691): the JSON-null copy at priority 80
+	// must beat the missing copy at 70 and the writer's explicit-'' copy
+	// at 60 — the strict probe reaches neither raw copy and keeps the 60.
+	if factID, _, _, _, _, _ := winner("CVE-2026-9113", "pkg:npm/top1-lenient", "1.0.0"); factID != "top1-lenient-raw-json" {
+		t.Errorf("lenient-top key won by %s, want the priority-80 JSON-null copy", factID)
+	}
+	// Pure-missing identifier: every live copy is presence-bit-0, so only
+	// the lenient probe reaches the key at all; the priority-62 JSON-null
+	// copy must win over the patched priority-61 collector copy.
+	if factID, _, _, _, _, _ := winner("CVE-2026-9114", "pkg:npm/top1-pure", "1.0.0"); factID != "top1-pure-raw-json" {
+		t.Errorf("pure-missing key won by %s, want the priority-62 JSON-null copy", factID)
 	}
 	multi := 0
 	for _, observed := range []string{"1.0.0", "2.0.0"} {

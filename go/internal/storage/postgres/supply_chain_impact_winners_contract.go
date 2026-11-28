@@ -252,7 +252,7 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// justification rides the lane proofs (hermetic reversal plus the
 	// seeded and QA-replica byte-parity differentials, EXCEPT ALL 0/0 both
 	// directions over full winner rows).
-	7: "fd5c45e1ae7d7130f5d7d2ac1e7d37b07b1434af059b585c6af67e4c2cb08a5e",
+	7: "500debcf9537f87e29b37a1e12961f1038f72d0a3ac38bcae5e10b7a00be26bc",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
