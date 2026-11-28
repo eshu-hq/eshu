@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // outOfStampActiveRows reads the (cve_id, package_id) pairs of one
@@ -110,9 +111,16 @@ func TestHasOutOfStampActiveRowsLive(t *testing.T) {
 		t.Fatalf("empty stamp probe = %v err = %v, want false without a read", has, err)
 	}
 
-	if _, err := db.ExecContext(ctx, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = 'row-drift'`); err != nil {
-		t.Fatalf("tombstone drift row: %v", err)
-	}
+	// The drift row is frozen finding history, so its tombstone runs in a
+	// scoped postgresproof.SeedFindingFacts window: the proof database stays
+	// armed and a raw finding-fact update would raise 55000 outside it, while
+	// the old-writer fence still marks the scope and the drain under test runs
+	// armed.
+	postgresproof.SeedFindingFacts(t, db, func() {
+		if _, err := db.ExecContext(ctx, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = 'row-drift'`); err != nil {
+			t.Fatalf("tombstone drift row: %v", err)
+		}
+	})
 	// A tombstone written outside the maintainer marks the old-writer fence; the
 	// backfill drains it and drops the tombstoned fact's support (#11197).
 	settleSupplyChainImpactSupports(t, ctx, db)
