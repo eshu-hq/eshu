@@ -1,7 +1,6 @@
 # #10881 fact_records HASH(scope_id) rehearsal scripts
 
-Reproducible measurement for
-[the #10881 design records](../../../docs/internal/design/10881-fact-records-hash-partition-measurements.md).
+Reproducible measurement scripts for issue #10881 (`fact_records` hash partitioning).
 Nothing here touches a production primary. The replica is read through
 `kubectl port-forward` with `default_transaction_read_only=on`; its DSN comes from
 the `REPLICA_DSN` environment variable and is never stored. Work files (pulled

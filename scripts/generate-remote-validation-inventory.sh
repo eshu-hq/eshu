@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generate the remote-validation slug-to-production-row inventory from the
-# capability matrix. Run measurements stay in the human-authored Markdown
-# artifacts; this generator never creates or backfills evidence.
+# capability matrix. Run measurements stay in specs/remote-validation-proofs.v1.yaml;
+# this generator never creates or backfills evidence.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

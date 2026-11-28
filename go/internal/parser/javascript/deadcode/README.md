@@ -118,4 +118,3 @@ path live in the parent `javascript` package, which owns the parse lifecycle.
 - `go/internal/parser/javascript/README.md` — the parent package and how it
   composes this one
 - `go/internal/parser/javascript/syntax/README.md` — the AST primitives used here
-- `docs/internal/parser-audit/javascript.md` — the dead-code evidence inventory

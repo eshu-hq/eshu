@@ -18,7 +18,7 @@ printf '%s\n' \
 	>"${specs}/capability-matrix.v1.yaml"
 
 "${generator}" --specs "${specs}" --root "${tmp_root}" >/dev/null
-inventory="${tmp_root}/docs/internal/remote-validation/inventory.generated.json"
+inventory="${tmp_root}/specs/remote-validation-inventory.generated.json"
 cp "${inventory}" "${inventory}.first"
 "${generator}" --specs "${specs}" --root "${tmp_root}" >/dev/null
 

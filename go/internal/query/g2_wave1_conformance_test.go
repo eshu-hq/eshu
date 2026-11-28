@@ -33,7 +33,7 @@ import (
 
 // TestG2Wave1Frozen pins the exact surface Wave 1 proves: the 5 G2
 // base legs behind the three v0 pins plus the 4 forwarded-read rider
-// spellings from contracts/step2-frozen-scope.md (R4-R7). A wave
+// spellings (R4-R7). A wave
 // change moves the ownership note in g2_wave1_wave.go, the oracle
 // fragment column, and this mirror together.
 func TestG2Wave1Frozen(t *testing.T) {

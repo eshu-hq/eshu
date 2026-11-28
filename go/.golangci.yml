@@ -14,7 +14,7 @@
 #     (see ../tools/golangci-lint-filelength)
 #   - CI fails on any violation
 #
-# Cross-references: docs/internal/audit/2026-06-09-repo-technical-audit.md § T11
+# Cross-references: 2026-06-09 repository technical audit § T11
 version: "2"
 
 linters:

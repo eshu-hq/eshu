@@ -4,8 +4,7 @@
 -- #11221: reducer fact kinds in a 1% system sample of fact_records (about 954,000 rows), with
 -- their average payload size and how many were written more than an hour after their
 -- generation was created. Read-only, aggregate output only; run on the READ REPLICA in a
--- session with default_transaction_read_only=on. Summary recorded in
--- docs/internal/design/11221-identical-reducer-saves-measurement.md.
+-- session with default_transaction_read_only=on. Summary recorded on issue #11221.
 SELECT f.fact_kind,
        count(*) AS sample_rows,
        round(avg(pg_column_size(f.payload))) AS avg_payload_b,

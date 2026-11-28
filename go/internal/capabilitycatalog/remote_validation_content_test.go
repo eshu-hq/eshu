@@ -10,15 +10,15 @@ import (
 	"testing"
 )
 
-func writeRemoteValidationArtifactBody(t *testing.T, repoRoot, ref, body string) {
+func writeRemoteValidationProofFile(t *testing.T, repoRoot, body string) {
 	t.Helper()
 	writeRemoteValidationTestSnapshot(t, repoRoot, "example_query")
-	dir := filepath.Join(repoRoot, RemoteValidationArtifactDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", dir, err)
+	path := filepath.Join(repoRoot, filepath.FromSlash(RemoteValidationProofsPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ref+".md"), []byte(body), 0o644); err != nil {
-		t.Fatalf("write remote-validation artifact: %v", err)
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("write remote-validation proofs: %v", err)
 	}
 }
 
@@ -52,19 +52,39 @@ func TestCheckRemoteValidationArtifactsRejectsPlaceholderAndLowerTierEvidence(t 
 		name string
 		body string
 	}{
-		{name: "placeholder", body: "# evidence\n"},
+		{
+			name: "placeholder",
+			body: "schema_version: 1\nproofs:\n  - slug: prod-example\n",
+		},
+		{
+			name: "missing exit code",
+			body: `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-example.sh
+    command: "bash scripts/run-remote-e2e-example.sh; echo $?"
+    assertions:
+      - "cap.example returns the expected result."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
+`,
+		},
 		{
 			name: "go test only",
-			body: `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: local_test
-Validation-Date: 2026-08-08
-Evidence-Kind: go_test
-Evidence-Source: go/internal/query/example_test.go
-Validation-Command: cd go && go test ./internal/query; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns the expected result.
+			body: `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: local_test
+    date: "2026-08-08"
+    kind: go_test
+    source: go/internal/query/example_test.go
+    command: "cd go && go test ./internal/query; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns the expected result."
 `,
 		},
 	}
@@ -73,7 +93,8 @@ Capability-Assertion: cap.example returns the expected result.
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			repoRoot := t.TempDir()
-			writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", test.body)
+			writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
+			writeRemoteValidationProofFile(t, repoRoot, test.body)
 			matrix := matrixWithRemoteValidationRefs(matrixRefSpec{
 				capability: "cap.example",
 				ref:        "prod-example",
@@ -91,24 +112,20 @@ func TestCheckRemoteValidationArtifactsAcceptsDeployedEvidence(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	source := filepath.Join(repoRoot, "scripts", "run-remote-e2e-example.sh")
-	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
-		t.Fatalf("mkdir source dir: %v", err)
-	}
-	if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# prod-example production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/run-remote-e2e-example.sh
-Validation-Command: bash scripts/run-remote-e2e-example.sh; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns a non-empty exact result through the deployed API.
-B12-Assertion: cap.example -> mcp:example_query
+	writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-example.sh
+    command: "bash scripts/run-remote-e2e-example.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a non-empty exact result through the deployed API."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
 `)
 	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{
 		capability: "cap.example",
@@ -125,31 +142,31 @@ func TestCheckRemoteValidationArtifactsRequiresResolvableB12Assertion(t *testing
 
 	tests := []struct {
 		name       string
-		b12Line    string
+		b12Block   string
 		wantDetail string
 	}{
 		{name: "missing", wantDetail: "missing B12-Assertion"},
-		{name: "unknown query shape", b12Line: "B12-Assertion: cap.example -> mcp:not_a_committed_shape\n", wantDetail: "not found in the committed B-12 snapshot"},
-		{name: "capability prefix is not exact", b12Line: "B12-Assertion: cap.example.extra -> mcp:example_query\n", wantDetail: "unexpected capability"},
-		{name: "duplicate capability", b12Line: "B12-Assertion: cap.example -> mcp:example_query\nB12-Assertion: cap.example -> mcp:example_query\n", wantDetail: "duplicate B12-Assertion"},
+		{name: "unknown query shape", b12Block: "    b12_assertions:\n      - \"cap.example -> mcp:not_a_committed_shape\"\n", wantDetail: "not found in the committed B-12 snapshot"},
+		{name: "capability prefix is not exact", b12Block: "    b12_assertions:\n      - \"cap.example.extra -> mcp:example_query\"\n", wantDetail: "unexpected capability"},
+		{name: "duplicate capability", b12Block: "    b12_assertions:\n      - \"cap.example -> mcp:example_query\"\n      - \"cap.example -> mcp:example_query\"\n", wantDetail: "duplicate B12-Assertion"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			repoRoot := t.TempDir()
 			writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
-			writeRemoteValidationTestSnapshot(t, repoRoot, "example_query")
-			writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/run-remote-e2e-example.sh
-Validation-Command: bash scripts/run-remote-e2e-example.sh; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns a non-empty exact result.
-`+test.b12Line)
+			writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-example.sh
+    command: "bash scripts/run-remote-e2e-example.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a non-empty exact result."
+`+test.b12Block)
 			matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
 
 			findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil)
@@ -165,17 +182,19 @@ func TestCheckRemoteValidationArtifactsRejectsRefusalOnlyB12Proof(t *testing.T) 
 
 	repoRoot := t.TempDir()
 	writeRemoteValidationTestSource(t, repoRoot, "scripts/verify-golden-corpus-gate.sh")
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/verify-golden-corpus-gate.sh
-Validation-Command: bash scripts/verify-golden-corpus-gate.sh; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns a non-empty deployed result.
-B12-Assertion: cap.example -> mcp:example_query
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "bash scripts/verify-golden-corpus-gate.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a non-empty deployed result."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
 `)
 	snapshotPath := filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
 	refusalOnly := `{"query_shapes":{"mcp":{"example_query":{"required_response_fields":[],"minimum_results":0,"expected_error_contains":"feature is not enabled"}},"http":{},"cli":{}}}`
@@ -195,17 +214,19 @@ func TestCheckRemoteValidationArtifactsAllowsDedicatedDeployedProofWithDefaultSt
 
 	repoRoot := t.TempDir()
 	writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/run-remote-e2e-example.sh
-Validation-Command: bash scripts/run-remote-e2e-example.sh; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returned a non-empty response from its dedicated deployed stack.
-B12-Assertion: cap.example -> mcp:example_query
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-example.sh
+    command: "bash scripts/run-remote-e2e-example.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returned a non-empty response from its dedicated deployed stack."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
 `)
 	snapshotPath := filepath.Join(repoRoot, "testdata", "golden", "e2e-20repo-snapshot.json")
 	defaultStackRefusal := `{"query_shapes":{"mcp":{"example_query":{"required_response_fields":[],"minimum_results":0,"expected_error_contains":"dedicated service is not configured"}},"http":{},"cli":{}}}`
@@ -223,23 +244,18 @@ func TestCheckRemoteValidationArtifactsRequiresEverySharedCapabilityAssertion(t 
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	source := filepath.Join(repoRoot, "scripts", "run-remote-e2e-shared.sh")
-	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
-		t.Fatalf("mkdir source dir: %v", err)
-	}
-	if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-shared", `# shared production validation
-
-Validation-Slug: prod-shared
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/run-remote-e2e-shared.sh
-Validation-Command: bash scripts/run-remote-e2e-shared.sh; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.one returns a deployed result.
+	writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-shared.sh")
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-shared
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-shared.sh
+    command: "bash scripts/run-remote-e2e-shared.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.one returns a deployed result."
 `)
 	matrix := matrixWithRemoteValidationRefs(
 		matrixRefSpec{capability: "cap.one", ref: "prod-shared"},
@@ -256,24 +272,20 @@ func TestCheckRemoteValidationArtifactsRejectsCommandThatDoesNotRunComposeSource
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	source := filepath.Join(repoRoot, "scripts", "run-remote-e2e-example.sh")
-	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
-		t.Fatalf("mkdir source dir: %v", err)
-	}
-	if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/run-remote-e2e-example.sh
-Validation-Command: true; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns a non-empty deployed result.
-B12-Assertion: cap.example -> mcp:example_query
+	writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-example.sh
+    command: "true; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a non-empty deployed result."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
 `)
 	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
 
@@ -301,23 +313,18 @@ func TestCheckRemoteValidationArtifactsRejectsSpoofedOrMaskedDriverExit(t *testi
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			repoRoot := t.TempDir()
-			source := filepath.Join(repoRoot, "scripts", "run-remote-e2e-example.sh")
-			if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
-				t.Fatalf("mkdir source dir: %v", err)
-			}
-			if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
-				t.Fatalf("write source: %v", err)
-			}
-			writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/run-remote-e2e-example.sh
-Validation-Command: `+test.command+`
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns a non-empty deployed result.
+			writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
+			writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-example.sh
+    command: "`+test.command+`"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a non-empty deployed result."
 `)
 			matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
 
@@ -332,24 +339,20 @@ func TestCheckRemoteValidationArtifactsAcceptsDirectDriverExitCapture(t *testing
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	source := filepath.Join(repoRoot, "scripts", "verify-golden-corpus-gate.sh")
-	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
-		t.Fatalf("mkdir source dir: %v", err)
-	}
-	if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/verify-golden-corpus-gate.sh
-Validation-Command: ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=proof bash scripts/verify-golden-corpus-gate.sh --verbose >/tmp/proof.log 2>&1; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns a non-empty deployed result.
-B12-Assertion: cap.example -> mcp:example_query
+	writeRemoteValidationTestSource(t, repoRoot, "scripts/verify-golden-corpus-gate.sh")
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "ESHU_QUERY_PROFILE=local_authoritative GATE_COMPOSE_PROJECT=proof bash scripts/verify-golden-corpus-gate.sh --verbose >/tmp/proof.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a non-empty deployed result."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
 `)
 	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
 
@@ -358,32 +361,29 @@ B12-Assertion: cap.example -> mcp:example_query
 	}
 }
 
-func TestCheckRemoteValidationArtifactsRequiresDirectExitCaptureForLiveEvidence(t *testing.T) {
+func TestCheckRemoteValidationArtifactsRejectsRetiredLiveBackendKind(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	source := filepath.Join(repoRoot, "docs", "internal", "evidence", "live-proof.md")
-	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
-		t.Fatalf("mkdir source dir: %v", err)
-	}
-	if err := os.WriteFile(source, []byte("# live proof\n"), 0o644); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-example", `# production validation
-
-Validation-Slug: prod-example
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: live_backend
-Evidence-Source: docs/internal/evidence/live-proof.md
-Validation-Command: curl --fail http://127.0.0.1:8080/proof
-Validation-Exit-Code: 0
-Capability-Assertion: cap.example returns a non-empty deployed result.
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: live_backend
+    source: docs/internal/evidence/live-proof.md
+    command: "curl --fail http://127.0.0.1:8080/proof; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a non-empty deployed result."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
 `)
 	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
 
-	if findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil); len(findings) != 1 {
-		t.Fatalf("findings = %+v, want missing direct exit capture rejected", findings)
+	findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil)
+	if len(findings) != 1 || !strings.Contains(findings[0].Reason, "compose_e2e or deployed_e2e") {
+		t.Fatalf("findings = %+v, want retired live_backend kind rejected", findings)
 	}
 }
 
@@ -391,28 +391,113 @@ func TestCheckRemoteValidationArtifactsAcceptsDeployedKubernetesDriver(t *testin
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	source := filepath.Join(repoRoot, "scripts", "run-k8s-governance-proof.sh")
-	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
-		t.Fatalf("mkdir source dir: %v", err)
-	}
-	if err := os.WriteFile(source, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
-	writeRemoteValidationArtifactBody(t, repoRoot, "prod-governance", `# deployed validation
-
-Validation-Slug: prod-governance
-Validation-Tier: deployed_services
-Validation-Date: 2026-08-08
-Evidence-Kind: deployed_e2e
-Evidence-Source: scripts/run-k8s-governance-proof.sh
-Validation-Command: bash scripts/run-k8s-governance-proof.sh; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: governance.status returns isolated deployed results.
-B12-Assertion: governance.status -> mcp:example_query
+	writeRemoteValidationTestSource(t, repoRoot, "scripts/run-k8s-governance-proof.sh")
+	writeRemoteValidationProofFile(t, repoRoot, `schema_version: 1
+proofs:
+  - slug: prod-governance
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: deployed_e2e
+    source: scripts/run-k8s-governance-proof.sh
+    command: "bash scripts/run-k8s-governance-proof.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - "governance.status returns isolated deployed results."
+    b12_assertions:
+      - "governance.status -> mcp:example_query"
 `)
 	matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "governance.status", ref: "prod-governance"})
 
 	if findings := CheckRemoteValidationArtifacts(matrix, repoRoot, nil); len(findings) != 0 {
 		t.Fatalf("findings = %+v, want deployed Kubernetes evidence to pass", findings)
+	}
+}
+
+func TestCheckRemoteValidationArtifactsFailsClosedOnMalformedCatalog(t *testing.T) {
+	t.Parallel()
+
+	validEntry := `  - slug: prod-example
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-example.sh
+    command: "bash scripts/run-remote-e2e-example.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - "cap.example returns a deployed result."
+    b12_assertions:
+      - "cap.example -> mcp:example_query"
+`
+	tests := []struct {
+		name       string
+		body       string
+		baseline   map[string]struct{}
+		wantDetail string
+	}{
+		{
+			name:       "unknown YAML key",
+			body:       "schema_version: 1\nproofs:\n" + validEntry + "    unexpected_field: true\n",
+			wantDetail: "unexpected_field",
+		},
+		{
+			name:       "duplicate slug",
+			body:       "schema_version: 1\nproofs:\n" + validEntry + validEntry,
+			wantDetail: "duplicate proof entry",
+		},
+		{
+			name:       "wrong schema_version",
+			body:       "schema_version: 2\nproofs:\n" + validEntry,
+			wantDetail: "schema_version is 2, want 1",
+		},
+		{
+			name:       "missing slug",
+			body:       "schema_version: 1\nproofs:\n  - tier: deployed_services\n",
+			wantDetail: "missing slug",
+		},
+		{
+			name:       "invalid slug pattern",
+			body:       "schema_version: 1\nproofs:\n" + validEntry + "  - slug: Bad_Slug\n",
+			wantDetail: "invalid slug",
+		},
+		{
+			name:       "traversal slug pattern",
+			body:       "schema_version: 1\nproofs:\n" + validEntry + "  - slug: ../evil\n",
+			wantDetail: "invalid slug",
+		},
+		{
+			name:       "trailing second YAML document",
+			body:       "schema_version: 1\nproofs:\n" + validEntry + "---\nschema_version: 1\nproofs: []\n",
+			wantDetail: "multiple YAML documents",
+		},
+		{
+			name:       "non-zero exit_code",
+			body:       strings.Replace(validEntry, "exit_code: 0", "exit_code: 1", 1),
+			wantDetail: "exit_code is 1, want 0",
+		},
+		{
+			name:       "corrupt catalog not excused by baseline",
+			body:       "schema_version: 99\nproofs: []\n",
+			baseline:   map[string]struct{}{"prod-example": {}},
+			wantDetail: "schema_version is 99, want 1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repoRoot := t.TempDir()
+			writeRemoteValidationTestSource(t, repoRoot, "scripts/run-remote-e2e-example.sh")
+			body := test.body
+			if !strings.HasPrefix(body, "schema_version:") {
+				body = "schema_version: 1\nproofs:\n" + body
+			}
+			writeRemoteValidationProofFile(t, repoRoot, body)
+			matrix := matrixWithRemoteValidationRefs(matrixRefSpec{capability: "cap.example", ref: "prod-example"})
+
+			findings := CheckRemoteValidationArtifacts(matrix, repoRoot, test.baseline)
+			if len(findings) != 1 || !strings.Contains(findings[0].Reason, test.wantDetail) {
+				t.Fatalf("findings = %+v, want one containing %q", findings, test.wantDetail)
+			}
+		})
 	}
 }

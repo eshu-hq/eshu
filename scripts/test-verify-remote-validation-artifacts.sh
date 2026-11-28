@@ -49,22 +49,24 @@ YAML
 write_valid_artifact() {
 	local case_root="$1" ref="$2" capability="$3"
 	local source="run-remote-e2e-${ref}.sh"
-	mkdir -p "${case_root}/scripts" "${case_root}/docs/internal/remote-validation" "${case_root}/testdata/golden"
+	mkdir -p "${case_root}/scripts" "${case_root}/specs" "${case_root}/testdata/golden"
 	printf '#!/usr/bin/env bash\n' >"${case_root}/scripts/${source}"
 	printf '%s\n' '{"query_shapes":{"mcp":{"example_query":{}},"http":{},"cli":{}}}' >"${case_root}/testdata/golden/e2e-20repo-snapshot.json"
 	printf '%s\n' \
-		"# ${ref} production validation" \
-		'' \
-		"Validation-Slug: ${ref}" \
-		'Validation-Tier: deployed_services' \
-		'Validation-Date: 2025-01-01' \
-		'Evidence-Kind: compose_e2e' \
-		"Evidence-Source: scripts/${source}" \
-		"Validation-Command: bash scripts/${source}; echo \$?" \
-		'Validation-Exit-Code: 0' \
-		"Capability-Assertion: ${capability} returns a deployed result." \
-		"B12-Assertion: ${capability} -> mcp:example_query" \
-		>"${case_root}/docs/internal/remote-validation/${ref}.md"
+		'schema_version: 1' \
+		'proofs:' \
+		"  - slug: ${ref}" \
+		'    tier: deployed_services' \
+		'    date: "2025-01-01"' \
+		'    kind: compose_e2e' \
+		"    source: scripts/${source}" \
+		"    command: \"bash scripts/${source}; echo \$?\"" \
+		'    exit_code: 0' \
+		'    assertions:' \
+		"      - \"${capability} returns a deployed result.\"" \
+		'    b12_assertions:' \
+		"      - \"${capability} -> mcp:example_query\"" \
+		>"${case_root}/specs/remote-validation-proofs.v1.yaml"
 }
 
 # write_frozen writes the immutable frozen-set file beside the baseline. The
@@ -173,20 +175,23 @@ else
 	record_pass "malformed baseline line fails closed"
 fi
 
-# Case 6: a placeholder file is not evidence.
+# Case 6: a placeholder proof entry is not evidence.
 case6_root="${tmp_root}/case6"
 case6_specs="${case6_root}/specs"
 write_matrix "${case6_specs}" "prod-case6-placeholder"
 write_frozen "${case6_specs}"
-mkdir -p "${case6_root}/docs/internal/remote-validation"
-printf '# evidence\n' >"${case6_root}/docs/internal/remote-validation/prod-case6-placeholder.md"
+printf '%s\n' \
+	'schema_version: 1' \
+	'proofs:' \
+	'  - slug: prod-case6-placeholder' \
+	>"${case6_specs}/remote-validation-proofs.v1.yaml"
 if "${verifier}" --specs "${case6_specs}" --root "${case6_root}" \
 	--baseline "${case6_specs}/remote-validation-baseline.txt" \
 	>"${tmp_root}/case6.out" 2>&1; then
 	record_fail "placeholder artifact fails the content gate"
 	cat "${tmp_root}/case6.out" >&2
 else
-	if rg -q --fixed-strings "missing Validation-Slug field" "${tmp_root}/case6.out"; then
+	if rg -q --fixed-strings "missing tier field" "${tmp_root}/case6.out"; then
 		record_pass "placeholder artifact fails the content gate"
 	else
 		record_fail "placeholder artifact failure explains the missing field"
@@ -283,25 +288,27 @@ case10_root="${tmp_root}/case10"
 case10_specs="${case10_root}/specs"
 write_matrix "${case10_specs}" "prod-case10-go-test"
 write_frozen "${case10_specs}"
-mkdir -p "${case10_root}/go/internal/query" "${case10_root}/docs/internal/remote-validation"
+mkdir -p "${case10_root}/go/internal/query"
 printf 'package query\n' >"${case10_root}/go/internal/query/example_test.go"
 printf '%s\n' \
-	'# lower-tier evidence' \
-	'Validation-Slug: prod-case10-go-test' \
-	'Validation-Tier: local_test' \
-	'Validation-Date: 2025-01-01' \
-	'Evidence-Kind: go_test' \
-	'Evidence-Source: go/internal/query/example_test.go' \
-	'Validation-Command: cd go && go test ./internal/query; echo $?' \
-	'Validation-Exit-Code: 0' \
-	'Capability-Assertion: code_search.exact_symbol returns a local result.' \
-	>"${case10_root}/docs/internal/remote-validation/prod-case10-go-test.md"
+	'schema_version: 1' \
+	'proofs:' \
+	'  - slug: prod-case10-go-test' \
+	'    tier: local_test' \
+	'    date: "2025-01-01"' \
+	'    kind: go_test' \
+	'    source: go/internal/query/example_test.go' \
+	'    command: "cd go && go test ./internal/query; echo $?"' \
+	'    exit_code: 0' \
+	'    assertions:' \
+	'      - "code_search.exact_symbol returns a local result."' \
+	>"${case10_specs}/remote-validation-proofs.v1.yaml"
 if "${verifier}" --specs "${case10_specs}" --root "${case10_root}" \
 	--baseline "${case10_specs}/remote-validation-baseline.txt" \
 	>"${tmp_root}/case10.out" 2>&1; then
 	record_fail "lower-tier go_test artifact fails the production gate"
 else
-	if rg -q --fixed-strings 'Validation-Tier is "local_test"' "${tmp_root}/case10.out"; then
+	if rg -q --fixed-strings 'tier is "local_test"' "${tmp_root}/case10.out"; then
 		record_pass "lower-tier go_test artifact fails the production gate"
 	else
 		record_fail "lower-tier failure explains the tier mismatch"

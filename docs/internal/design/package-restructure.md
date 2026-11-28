@@ -512,8 +512,7 @@ one-line forwarder that IS inlinable, so the compiler inlines it and the
 inlined cross-package call pushes each of the five callers from 77 to 94.
 
 Accepted rather than fixed. That disposition and the #6359 wall-clock benchmark
-that closes it moved to
-[package-restructure-factload-wrapper-benchmarks.md](package-restructure-factload-wrapper-benchmarks.md).
+that closes it is recorded on the restructure PRs.
 
 The probe, so the next reader can reproduce it rather than trust the list. The
 inline LIST (function names) reproduces with plain `-m`, but the COST figures

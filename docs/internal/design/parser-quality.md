@@ -77,43 +77,6 @@ and retained parent-root coverage:
 | csharp | 4 | 1 | Moderate |
 | scala | 0 | 6 | Moderate |
 
-Per-parser audit docs live at `docs/internal/parser-audit/<name>.md`. See the
-[audit index](#audit-index) below.
-
-## Audit Index
-
-Detailed per-parser audit docs record claimed constructs, verified-by-test
-constructs, edge-case coverage, verdicts, and recommended actions:
-
-| Parser | Audit Doc | Verdict |
-|--------|-----------|---------|
-| c | `parser-audit/c.md` | deep |
-| cloudformation | `parser-audit/cloudformation.md` | moderate |
-| cpp | `parser-audit/cpp.md` | moderate |
-| csharp | `parser-audit/csharp.md` | moderate |
-| dart | `parser-audit/dart.md` | shallow |
-| dbtsql | `parser-audit/dbtsql.md` | moderate |
-| dockerfile | `parser-audit/dockerfile.md` | deep |
-| elixir | `parser-audit/elixir.md` | deep |
-| golang | `parser-audit/golang.md` | deep |
-| gomod | `parser-audit/gomod.md` | deep |
-| gradle | `parser-audit/gradle.md` | deep |
-| groovy | `parser-audit/groovy.md` | moderate |
-| haskell | `parser-audit/haskell.md` | moderate |
-| hcl | `parser-audit/hcl.md` | deep |
-| java | `parser-audit/java.md` | deep |
-| javascript | `parser-audit/javascript.md` | deep |
-| json | `parser-audit/json.md` | deep |
-| kotlin | `parser-audit/kotlin.md` | deep |
-| maven | `parser-audit/maven.md` | deep |
-| nodelockfile | `parser-audit/nodelockfile.md` | deep |
-| perl | `parser-audit/perl.md` | moderate |
-| php | `parser-audit/php.md` | deep |
-| python | `parser-audit/python.md` | deep |
-| pythondep | `parser-audit/pythondep.md` | deep |
-| ruby | `parser-audit/ruby.md` | moderate |
-| rust | `parser-audit/rust.md` | deep |
-| scala | `parser-audit/scala.md` | moderate |
-| sql | `parser-audit/sql.md` | moderate |
-| swift | `parser-audit/swift.md` | deep |
-| yaml | `parser-audit/yaml.md` | deep |
+Per-parser backing and language parity live in
+`specs/parser-backing-ledger.v1.yaml` and
+`specs/language-feature-parity-ledger.v1.yaml`.

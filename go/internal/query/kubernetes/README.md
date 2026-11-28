@@ -83,7 +83,7 @@ answers the retryable 503 with `Retry-After`), then
 
 ## Related docs
 
-- [Remote validation](../../../../docs/internal/remote-validation/prod-kubernetes-correlations.md)
+- Remote validation: `specs/remote-validation-proofs.v1.yaml` (`prod-kubernetes-correlations`)
 
 The correlation and runtime-workload stores expose `WithReadStore` constructors
 that accept guarded query-only readers. The existing constructors preserve

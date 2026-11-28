@@ -7,8 +7,7 @@ writer or checkpoint-bounded fenced reader only — never a bare replica.
 Family numbers match the arbiter ruling on
 [eshu-hq/eshu#10416](https://github.com/eshu-hq/eshu/issues/10416). All
 paths below are under `go/`; anchors name the file and symbol, never a
-line number, so they survive edits. The superseded census draft is
-[10416-reader-family-registry-draft](10416-reader-family-registry-draft.md).
+line number, so they survive edits.
 
 ## Safe to move (R)
 

@@ -4,16 +4,19 @@
 package capabilitycatalog
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -27,6 +30,23 @@ var (
 	environmentAssignmentPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=.*$`)
 )
 
+type remoteValidationProofFile struct {
+	SchemaVersion int                          `yaml:"schema_version"`
+	Proofs        []remoteValidationProofEntry `yaml:"proofs"`
+}
+
+type remoteValidationProofEntry struct {
+	Slug          string   `yaml:"slug"`
+	Tier          string   `yaml:"tier"`
+	Date          string   `yaml:"date"`
+	Kind          string   `yaml:"kind"`
+	Source        string   `yaml:"source"`
+	Command       string   `yaml:"command"`
+	ExitCode      *int     `yaml:"exit_code"`
+	Assertions    []string `yaml:"assertions"`
+	B12Assertions []string `yaml:"b12_assertions"`
+}
+
 type remoteValidationArtifact struct {
 	slug          string
 	tier          string
@@ -34,64 +54,115 @@ type remoteValidationArtifact struct {
 	kind          string
 	source        string
 	command       string
-	exitCode      string
+	exitCode      *int
 	assertions    []string
 	b12Assertions []string
 }
 
-// validateRemoteValidationArtifact checks that ref has current-format,
-// deployed-tier evidence for every production capability that cites it.
-func validateRemoteValidationArtifact(repoRoot, ref string, capabilities []string) error {
-	path, ok := remoteValidationArtifactPath(repoRoot, ref)
-	if !ok {
-		return fmt.Errorf("invalid remote-validation slug")
-	}
-	raw, err := os.ReadFile(path) // #nosec G304 -- ref is slug-validated and path is confined below the evidence directory
+func loadRemoteValidationProofCatalog(repoRoot string) (map[string]remoteValidationArtifact, error) {
+	path := filepath.Join(repoRoot, filepath.FromSlash(RemoteValidationProofsPath))
+	raw, err := os.ReadFile(path) // #nosec G304 -- fixed repository-relative proof catalog path
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("artifact is missing")
+			return map[string]remoteValidationArtifact{}, nil
 		}
-		return fmt.Errorf("read artifact: %w", err)
+		return nil, fmt.Errorf("read remote-validation proofs %s: %w", RemoteValidationProofsPath, err)
 	}
-	info, err := os.Stat(path) // #nosec G304 -- same confined path as the read above
-	if err != nil || info.IsDir() {
-		return fmt.Errorf("artifact is not a regular file")
+	var doc remoteValidationProofFile
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true)
+	if err := dec.Decode(&doc); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", RemoteValidationProofsPath, err)
 	}
+	var trailing any
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("parse %s: multiple YAML documents are not allowed", RemoteValidationProofsPath)
+	}
+	if doc.SchemaVersion != 1 {
+		return nil, fmt.Errorf("%s schema_version is %d, want 1", RemoteValidationProofsPath, doc.SchemaVersion)
+	}
+	catalog := make(map[string]remoteValidationArtifact, len(doc.Proofs))
+	for i, entry := range doc.Proofs {
+		slug := strings.TrimSpace(entry.Slug)
+		if slug == "" {
+			return nil, fmt.Errorf("%s proofs[%d] is missing slug", RemoteValidationProofsPath, i)
+		}
+		if !remoteValidationRefValid(slug) {
+			return nil, fmt.Errorf("%s proofs[%d] has invalid slug %q", RemoteValidationProofsPath, i, slug)
+		}
+		if _, exists := catalog[slug]; exists {
+			return nil, fmt.Errorf("%s has duplicate proof entry for slug %q", RemoteValidationProofsPath, slug)
+		}
+		catalog[slug] = remoteValidationArtifact{
+			slug:          slug,
+			tier:          strings.TrimSpace(entry.Tier),
+			date:          strings.TrimSpace(entry.Date),
+			kind:          strings.TrimSpace(entry.Kind),
+			source:        strings.TrimSpace(entry.Source),
+			command:       strings.TrimSpace(entry.Command),
+			exitCode:      entry.ExitCode,
+			assertions:    trimStringsCopy(entry.Assertions),
+			b12Assertions: trimStringsCopy(entry.B12Assertions),
+		}
+	}
+	return catalog, nil
+}
 
-	artifact, err := parseRemoteValidationArtifact(string(raw))
-	if err != nil {
+func trimStringsCopy(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, strings.TrimSpace(value))
+	}
+	return out
+}
+
+// validateRemoteValidationArtifact checks that ref has current-format,
+// deployed-tier evidence for every production capability that cites it.
+func validateRemoteValidationArtifact(
+	repoRoot string,
+	catalog map[string]remoteValidationArtifact,
+	catalogErr error,
+	shapeRefs map[string]b12QueryShapeProof,
+	shapeRefsErr error,
+	ref string,
+	capabilities []string,
+) error {
+	if !remoteValidationRefValid(ref) {
+		return fmt.Errorf("invalid remote-validation slug")
+	}
+	if catalogErr != nil {
+		return catalogErr
+	}
+	artifact, ok := catalog[ref]
+	if !ok {
+		return fmt.Errorf("proof entry is missing")
+	}
+	if err := validateRequiredArtifactFields(artifact); err != nil {
 		return err
 	}
-	if artifact.slug != ref {
-		return fmt.Errorf("Validation-Slug is %q, want %q", artifact.slug, ref)
-	}
 	if artifact.tier != remoteValidationTierDeployed {
-		return fmt.Errorf("Validation-Tier is %q, want %q", artifact.tier, remoteValidationTierDeployed)
+		return fmt.Errorf("tier is %q, want %q", artifact.tier, remoteValidationTierDeployed)
 	}
 	if err := validateRemoteValidationDate(artifact.date); err != nil {
 		return err
 	}
 	if !directExitCapturePattern.MatchString(artifact.command) {
-		return fmt.Errorf("Validation-Command must end with direct '; echo $?' exit capture")
+		return fmt.Errorf("command must end with direct '; echo $?' exit capture")
 	}
-	exitCode, err := strconv.Atoi(artifact.exitCode)
-	if err != nil || exitCode != remoteValidationExitSuccess {
-		return fmt.Errorf("Validation-Exit-Code is %q, want 0", artifact.exitCode)
+	if *artifact.exitCode != remoteValidationExitSuccess {
+		return fmt.Errorf("exit_code is %d, want 0", *artifact.exitCode)
 	}
 	if err := validateRemoteValidationSource(repoRoot, artifact.kind, artifact.source); err != nil {
 		return err
 	}
-	if artifact.kind == "compose_e2e" || artifact.kind == "deployed_e2e" {
-		if err := validateRemoteValidationCommand(artifact.command, artifact.source); err != nil {
-			return err
-		}
+	if err := validateRemoteValidationCommand(artifact.command, artifact.source); err != nil {
+		return err
 	}
 	if missing := missingCapabilityAssertions(capabilities, artifact.assertions); len(missing) > 0 {
-		return fmt.Errorf("missing Capability-Assertion for %s", strings.Join(missing, ", "))
+		return fmt.Errorf("missing assertion for %s", strings.Join(missing, ", "))
 	}
-	shapeRefs, err := loadB12QueryShapeRefs(repoRoot)
-	if err != nil {
-		return err
+	if shapeRefsErr != nil {
+		return shapeRefsErr
 	}
 	if err := validateB12Assertions(
 		capabilities,
@@ -100,6 +171,42 @@ func validateRemoteValidationArtifact(repoRoot, ref string, capabilities []strin
 		artifact.source == goldenCorpusEvidenceSource,
 	); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateRequiredArtifactFields(artifact remoteValidationArtifact) error {
+	required := []struct {
+		name  string
+		value string
+	}{
+		{name: "slug", value: artifact.slug},
+		{name: "tier", value: artifact.tier},
+		{name: "date", value: artifact.date},
+		{name: "kind", value: artifact.kind},
+		{name: "source", value: artifact.source},
+		{name: "command", value: artifact.command},
+	}
+	for _, field := range required {
+		if field.value == "" {
+			return fmt.Errorf("missing %s field", field.name)
+		}
+	}
+	if artifact.exitCode == nil {
+		return fmt.Errorf("missing exit_code field")
+	}
+	if len(artifact.assertions) == 0 {
+		return fmt.Errorf("missing assertions field")
+	}
+	for _, assertion := range artifact.assertions {
+		if assertion == "" {
+			return fmt.Errorf("assertion must not be empty")
+		}
+	}
+	for _, assertion := range artifact.b12Assertions {
+		if assertion == "" {
+			return fmt.Errorf("b12_assertion must not be empty")
+		}
 	}
 	return nil
 }
@@ -292,90 +399,21 @@ func remoteValidationCommandWords(command string) ([]string, error) {
 	return words, nil
 }
 
-func parseRemoteValidationArtifact(body string) (remoteValidationArtifact, error) {
-	var artifact remoteValidationArtifact
-	fields := []struct {
-		name        string
-		destination *string
-	}{
-		{name: "Validation-Slug", destination: &artifact.slug},
-		{name: "Validation-Tier", destination: &artifact.tier},
-		{name: "Validation-Date", destination: &artifact.date},
-		{name: "Evidence-Kind", destination: &artifact.kind},
-		{name: "Evidence-Source", destination: &artifact.source},
-		{name: "Validation-Command", destination: &artifact.command},
-		{name: "Validation-Exit-Code", destination: &artifact.exitCode},
-	}
-	seen := map[string]bool{}
-	scanner := bufio.NewScanner(strings.NewReader(body))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "Capability-Assertion:") {
-			assertion := cleanRemoteValidationField(strings.TrimPrefix(line, "Capability-Assertion:"))
-			if assertion == "" {
-				return remoteValidationArtifact{}, fmt.Errorf("Capability-Assertion must not be empty")
-			}
-			artifact.assertions = append(artifact.assertions, assertion)
-			continue
-		}
-		if strings.HasPrefix(line, "B12-Assertion:") {
-			assertion := cleanRemoteValidationField(strings.TrimPrefix(line, "B12-Assertion:"))
-			if assertion == "" {
-				return remoteValidationArtifact{}, fmt.Errorf("B12-Assertion must not be empty")
-			}
-			artifact.b12Assertions = append(artifact.b12Assertions, assertion)
-			continue
-		}
-		for _, field := range fields {
-			prefix := field.name + ":"
-			if !strings.HasPrefix(line, prefix) {
-				continue
-			}
-			if seen[field.name] {
-				return remoteValidationArtifact{}, fmt.Errorf("duplicate %s field", field.name)
-			}
-			seen[field.name] = true
-			*field.destination = cleanRemoteValidationField(strings.TrimPrefix(line, prefix))
-			break
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return remoteValidationArtifact{}, fmt.Errorf("scan artifact: %w", err)
-	}
-	for _, field := range fields {
-		if *field.destination == "" {
-			return remoteValidationArtifact{}, fmt.Errorf("missing %s field", field.name)
-		}
-	}
-	if len(artifact.assertions) == 0 {
-		return remoteValidationArtifact{}, fmt.Errorf("missing Capability-Assertion field")
-	}
-	return artifact, nil
-}
-
-func cleanRemoteValidationField(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) >= 2 && value[0] == '`' && value[len(value)-1] == '`' {
-		return strings.TrimSpace(value[1 : len(value)-1])
-	}
-	return value
-}
-
 func validateRemoteValidationDate(value string) error {
 	date, err := time.Parse(time.DateOnly, value)
 	if err != nil {
-		return fmt.Errorf("Validation-Date %q must use YYYY-MM-DD", value)
+		return fmt.Errorf("date %q must use YYYY-MM-DD", value)
 	}
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	if date.After(today) {
-		return fmt.Errorf("Validation-Date %q is in the future", value)
+		return fmt.Errorf("date %q is in the future", value)
 	}
 	return nil
 }
 
 func validateRemoteValidationSource(repoRoot, kind, source string) error {
 	if filepath.IsAbs(source) || filepath.Clean(source) != source || strings.HasPrefix(source, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("Evidence-Source %q must be a clean repository-relative path", source)
+		return fmt.Errorf("source %q must be a clean repository-relative path", source)
 	}
 	allowed := false
 	switch kind {
@@ -388,18 +426,16 @@ func validateRemoteValidationSource(repoRoot, kind, source string) error {
 		base := filepath.Base(source)
 		allowed = strings.HasPrefix(source, "scripts/") && strings.HasSuffix(base, ".sh") &&
 			(strings.HasPrefix(base, "run-k8s-") || strings.HasPrefix(base, "verify-hosted-") || strings.Contains(base, "e2e"))
-	case "live_backend":
-		allowed = strings.HasPrefix(source, "docs/internal/evidence/") && strings.HasSuffix(source, ".md")
 	default:
-		return fmt.Errorf("Evidence-Kind is %q, want compose_e2e, deployed_e2e, or live_backend", kind)
+		return fmt.Errorf("kind is %q, want compose_e2e or deployed_e2e", kind)
 	}
 	if !allowed {
-		return fmt.Errorf("Evidence-Source %q is not allowed for Evidence-Kind %q", source, kind)
+		return fmt.Errorf("source %q is not allowed for kind %q", source, kind)
 	}
 	path := filepath.Join(repoRoot, filepath.FromSlash(source))
-	info, err := os.Lstat(path) // #nosec G304 -- source is confined to one of two fixed repository-relative evidence prefixes
+	info, err := os.Lstat(path) // #nosec G304 -- source is confined to repository-relative scripts/*.sh paths
 	if err != nil || !info.Mode().IsRegular() {
-		return fmt.Errorf("Evidence-Source %q does not resolve to a committed file", source)
+		return fmt.Errorf("source %q does not resolve to a committed file", source)
 	}
 	return nil
 }
@@ -420,16 +456,4 @@ func missingCapabilityAssertions(capabilities, assertions []string) []string {
 	}
 	sort.Strings(missing)
 	return missing
-}
-
-func remoteValidationArtifactPath(repoRoot, ref string) (string, bool) {
-	if !remoteValidationRefValid(ref) {
-		return "", false
-	}
-	dir := filepath.Clean(filepath.Join(repoRoot, RemoteValidationArtifactDir))
-	path := filepath.Clean(filepath.Join(dir, ref+".md"))
-	if path != dir && !strings.HasPrefix(path, dir+string(filepath.Separator)) {
-		return "", false
-	}
-	return path, true
 }

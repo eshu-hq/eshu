@@ -164,4 +164,5 @@ var manuallyVerifiedLockstep = map[string]string{
 	"AGENTS.md": "compose_defaults_test.go reads the repo-root AGENTS.md through readRepositoryFile(t, root, ...) (bare literal on a multi-arg call); the caller-relative target cannot resolve statically",
 	"docs/public/reference/searchbench-evidence/issue-1298-semantic-retrieval-proof-v1.json":           "retrieval_proof_test.go reads table-driven evidence names joined under docs/public/reference/searchbench-evidence/; the per-name filename is a loop variable",
 	"docs/public/reference/searchbench-evidence/issue-417-nornicdb-hybrid-retrieval-prototype-v1.json": "retrieval_proof_test.go reads table-driven evidence names joined under docs/public/reference/searchbench-evidence/; the per-name filename is a loop variable",
+	"specs/remote-validation-inventory.generated.json":                                                 "capability-inventory remote_validation_mode_test.go reads the generated inventory through filepath.FromSlash(capabilitycatalog.RemoteValidationInventoryPath)",
 }

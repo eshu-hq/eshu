@@ -6,7 +6,7 @@ package retirement
 // RetireTableEntry is one Postgres table's retirement disposition: which
 // purge step deletes its rows for a retired repository, or why the rows
 // stay. The closed table below is the machine-readable form of the #7766
-// table census (docs/internal/design/7766-repository-retirement-table-census.md):
+// table census:
 // the live census test joins it against information_schema on every
 // migrated schema, so a table added later fails the test until someone
 // records its disposition here.

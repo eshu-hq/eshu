@@ -84,5 +84,5 @@ reader fence today; the fence check keeps the shared order.
 
 ## Related docs
 
-- [Remote validation](../../../../docs/internal/remote-validation/prod-metrics-timeseries.md)
+- Remote validation: `specs/remote-validation-proofs.v1.yaml` (`prod-metrics-timeseries`)
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)

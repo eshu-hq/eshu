@@ -19,8 +19,7 @@
 // additionally fail closed on missing, expired, or revoked grants.
 //
 // Claim-driven collection is deferred for this collector (no ClaimedService
-// wiring in go/cmd/collector-kubernetes-live); the claim seam is mapped, not
-// pinned, in docs/internal/sbom-extraction/SHIM_MAP.md.
+// wiring in go/cmd/collector-kubernetes-live); the claim seam is mapped under #8859.
 package kuberneteslive
 
 import (

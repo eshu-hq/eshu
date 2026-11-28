@@ -17,4 +17,3 @@ go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/a
 go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/sbom/runtime/source.go
 # SHIM_MAP.md is the relocated #10450 extraction record: its targetJSON cell
 # cites the in-tree config the map was drawn against.
-docs/internal/sbom-extraction/SHIM_MAP.md:go/cmd/collector-sbom-attestation/config.go

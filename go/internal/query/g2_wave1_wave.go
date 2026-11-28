@@ -8,7 +8,7 @@ package query
 // rows Wave 1 proves per the step-2 wave plan — the 5 G2 base legs
 // (ExtractionReadiness 2, FactSchemaVersions 2, SurfaceInventory 1,
 // all served through their v0 admission pins since Wave 0) plus the 4
-// forwarded-read rider spellings from contracts/step2-frozen-scope.md
+// forwarded-read rider spellings
 // (R4-R6 freshness keyed POSTs, R7 surface-inventory keyed POST).
 // The behavior lives beside the handlers (per the step-2 scope
 // ruling, decision 6: family ports live in go/internal/query, never a

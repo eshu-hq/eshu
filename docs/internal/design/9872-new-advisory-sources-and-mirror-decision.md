@@ -56,9 +56,8 @@ provisional for any future catalog product, which is not that work.
 - The reducer allows only known source classes
   (`supportedTrustedAdvisorySourceClass`): `ghsa` is there, and `cve_list`,
   `euvd`, and `exploit_db` are not. An unknown class fails the read.
-- Measurements and license findings are in the
-  [evidence file](advisory-intelligence-evidence.md), section 3, measured
-  2026-10-26. The registry holds 12 `vulnerability.*` kinds; the plan and the
+- Measurements and license findings were recorded on #9872 (measured
+  2026-10-26). The registry holds 12 `vulnerability.*` kinds; the plan and the
   issue count 11.
 
 ## Options

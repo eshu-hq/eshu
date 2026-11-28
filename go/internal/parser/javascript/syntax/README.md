@@ -122,6 +122,4 @@ parse lifecycle (`js_parse_bounded`) and the payload it emits.
 
 - `go/internal/parser/javascript/README.md` — the parent package and how it
   composes these primitives
-- `docs/internal/design/regexp-audit.md` — entry 11 covers
-  `syntax/names.go`'s residual regex
 - `docs/internal/naming.md` — the naming rules this split was made under

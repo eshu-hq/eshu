@@ -7,8 +7,6 @@
 - The parent `go/internal/parser/javascript/README.md` before assuming a
   behaviour belongs here. Route detection, framework semantics and the parse
   lifecycle are all the parent's.
-- `docs/internal/parser-audit/javascript.md` for the dead-code evidence
-  inventory this package is measured against.
 
 ## Invariants this package enforces
 
@@ -45,8 +43,7 @@
   (belongs here), a framework registration (parent, reached through
   `FrameworkEvidence`), or repository layout (`javascript/project`). Then add
   the kind string, a case in `RootKinds`, and a fixture test. Root-kind strings
-  are graph truth: `docs/internal/parser-audit/javascript.md` lists them and
-  the B-7 golden corpus gate compares them byte-for-byte.
+  are graph truth: the B-7 golden corpus gate compares them byte-for-byte.
 - **Adding a method to a seam.** Both interfaces are consumer-declared, so
   adding a method means the parent must implement it. Update
   `javascript/framework_evidence.go` in the same commit; its

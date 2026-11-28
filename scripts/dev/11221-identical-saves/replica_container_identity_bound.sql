@@ -5,8 +5,7 @@
 -- READ REPLICA, in a session with default_transaction_read_only=on. The count is NOT run: the plan
 -- below does not use the partial index (scope_id, generation_id, fact_id) WHERE fact_kind = the kind,
 -- so it would read the whole scope_generation index. These statements read the planner and the
--- table statistics only (no table scan). Summary recorded in
--- docs/internal/design/11221-identical-reducer-saves-measurement.md.
+-- table statistics only (no table scan). Summary recorded on issue #11221.
 EXPLAIN SELECT scope_id, generation_id, count(*)
 FROM fact_records WHERE fact_kind = 'reducer_container_image_identity' GROUP BY 1, 2;
 

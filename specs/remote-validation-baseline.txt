@@ -5,10 +5,8 @@
 #
 # Every slug below is a capability-matrix row whose production profile claims
 # {status: supported} and whose SOLE verification evidence is a
-# remote_validation ref that resolves to NO committed artifact. The evidence
-# directory docs/internal/remote-validation/ did not exist when this gate was
-# introduced, so each of these is a top-tier production-support claim resting
-# on zero committed proof.
+# remote_validation ref that resolves to NO committed proof entry in
+# specs/remote-validation-proofs.v1.yaml.
 #
 # This file FREEZES that audited set so the debt cannot grow. It does NOT cure
 # the claims: a slug listed here is tracked, not verified.
@@ -20,11 +18,11 @@
 # alone cannot catch — burning down one baselined ref while adding a NEW
 # unbacked claim keeps the entry count constant, but the new claim is absent
 # from the frozen set and is rejected. A new claim can never be baselined; it
-# clears the gate only with a committed artifact or a real tier downgrade.
+# clears the gate only with a committed proof entry or a real tier downgrade.
 #
 # The only honest way to remove a slug is one of:
-#   1. Run the production validation and commit the reproducible evidence
-#      artifact at docs/internal/remote-validation/<slug>.md, or
+#   1. Run the production validation and commit the reproducible proof entry
+#      under slug <slug> in specs/remote-validation-proofs.v1.yaml, or
 #   2. Downgrade the row's claimed tier in the capability matrix so it no
 #      longer asserts production:supported on unverified evidence.
 # Editing this prose, or any other text, is never an exit — only a committed

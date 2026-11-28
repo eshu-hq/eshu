@@ -26,7 +26,7 @@ import (
 // drifting silently.
 //
 // D-wave consumer: O2 ORDER one shared pin for all 18 tier-C legs;
-// satellite records this pin in api/version.go and contracts/ with
+// satellite records this pin in api/version.go with
 // per-route byte-parity/conformance plus D0 re-review.
 var frozenAuditAppendAdmission = []string{
 	"Append func(context.Context, []governanceaudit.Event) error",

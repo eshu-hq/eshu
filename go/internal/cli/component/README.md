@@ -95,5 +95,5 @@ output itself.
 
 - `docs/internal/design/license-headers.md` (scaffold templates carry
   publisher-owned headers)
-- `docs/internal/remote-validation/prod-component-extension-inventory.md`
-  (deployed proof of the inventory readback)
+- `specs/remote-validation-proofs.v1.yaml` (`prod-component-extension-inventory`,
+  deployed proof of the inventory readback)

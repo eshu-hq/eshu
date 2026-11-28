@@ -72,7 +72,7 @@ Activation may begin only when all of the following are already true and
 recorded. Cite each against its source.
 
 - **ADR §14 principal/security sign-off recorded** — recorded approved
-  2026-06-07 in `docs/internal/design/1314-secrets-iam-graph-promotion-proof-2026-06-07.md`.
+  2026-06-07 on issue #1314.
 - **§11 fixture truth proven** — reducer read-model rows drive node and edge
   rows through `SecretsIAMGraphProjectionHandler`
   (`go/internal/reducer/secretsiam/secrets_iam_graph_projection_fixture_truth_test.go`).

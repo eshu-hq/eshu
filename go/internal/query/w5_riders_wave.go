@@ -8,8 +8,7 @@ package query
 // the frozen wave table: the 3 rider spellings Wave 5 proves per the
 // step-2 wave plan — the R1 wrong-method twin (PATCH
 // /api/v0/code/bundles) and the R2/R3 slash twins (GET
-// /api/v0/auth/sign-in-policy/, GET /api/v0/auth/providers/) from
-// contracts/step2-frozen-scope.md. The behavior lives beside the
+// /api/v0/auth/sign-in-policy/, GET /api/v0/auth/providers/). The behavior lives beside the
 // handlers (per the step-2 scope ruling, decision 6: family ports live
 // in go/internal/query, never a new top tree); the lane rule lives in
 // w5_riders_terminate.go; the proofs live in w5_riders_*_test.go (the
