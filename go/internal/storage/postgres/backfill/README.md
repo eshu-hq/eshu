@@ -23,6 +23,14 @@ commit), the post-commit transaction,
 the skip orchestration, the reproject transaction, and the catalog cache.
 The engine never imports the parent postgres package.
 
+The fan-in also honors an optional `PostCommitHook` on the phase store the
+seam builds. A store that holds side effects until its transaction commits
+(the root phase store holds its waiting-wake requeue counts) implements
+`AfterCommit(ctx)`. The fan-in calls it exactly once, after `Commit` succeeds
+and before the #11104 re-wake, and never for a skipped partition or a failed
+commit, so a rolled-back publish counts nothing. A store without the hook is
+unaffected.
+
 The `targeted` child owns partition-scoped maintenance and its reopen
 transaction. Three shipped whole-pass reopen listings and shared replay-floor
 fragments live in `reopen_sql.go`; root keeps constant aliases for existing

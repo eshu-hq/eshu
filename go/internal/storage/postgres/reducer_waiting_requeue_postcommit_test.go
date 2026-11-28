@@ -174,11 +174,27 @@ func TestPhaseStoreCallerOwnedTxRequeueCounterEmitsAfterCommitHook(t *testing.T)
 	t.Run("rolled back owner counts nothing", func(t *testing.T) {
 		t.Parallel()
 		instruments, reader := newWakeMetrics(t)
-		store := NewGraphProjectionPhaseStateStore(&requeueWakeFake{reopened: 2})
+		// The owner's transaction fails to commit: the upsert ran inside it,
+		// the owner rolls back, and AfterCommit is reached only on a nil
+		// Commit result, exactly as the backfill fan-in does (its production
+		// path is pinned by TestBackfillEngineRequeueCounterFollowsCommit).
+		fake := &requeueWakeFake{reopened: 2, commitErr: errors.New("commit failed")}
+		tx, err := fake.Begin(context.Background())
+		if err != nil {
+			t.Fatalf("Begin: %v", err)
+		}
+		store := NewGraphProjectionPhaseStateStore(tx)
 		store.Instruments = instruments
 		store.DeferWakeRequeues()
 		if err := store.Upsert(context.Background(), rows); err != nil {
 			t.Fatalf("Upsert: %v", err)
+		}
+		if err := tx.Commit(); err == nil {
+			store.AfterCommit(context.Background())
+			t.Fatal("Commit error = nil, want the scripted commit failure")
+		}
+		if err := tx.Rollback(); err != nil {
+			t.Fatalf("Rollback: %v", err)
 		}
 		if got := waitingWakeRequeues(t, reader); got != 0 {
 			t.Fatalf("requeue after rollback = %d, want 0", got)
