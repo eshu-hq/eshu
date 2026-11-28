@@ -251,4 +251,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 365 (#11615) converges the 093 cross-scope ACK trigger to
 	// stamp cross_scope_replay on the conversion it performs.
 	"cross_scope_ack_trigger_requeue_reason",
+	// Migration 366 (#11120 lane A) adds the covering winner btree for the
+	// TOP-1-per-key keyed probe: the identifier prefix plus the complete
+	// ranking order as key columns, built CONCURRENTLY (migrations 354 and
+	// 363 stay for the pre-marker fallback and the chunked-full path).
+	"supply_chain_impact_supports_covering_winner_idx",
 }

@@ -88,7 +88,7 @@ SELECT completed_at IS NOT NULL FROM supply_chain_impact_finding_supports_backfi
 // marker row) stays on the shipped text.
 func winnersKeyedProbeVariant(keyPresenceReady bool) string {
 	if keyPresenceReady {
-		return insertWinnersKeyedNarrowKeyPresenceBatchSQL
+		return insertWinnersKeyedTop1NarrowBatchSQL
 	}
 	return insertWinnersKeyedNarrowBatchSQL
 }

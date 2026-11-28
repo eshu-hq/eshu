@@ -72,9 +72,9 @@ One keyed tick is chunk-bounded (#9805, Dec 6(ii)): it reads the DB-clock tick s
 admits the 5,000 dirty-log rows with the oldest capture times (ordered by
 `captured_at`, then `seq`, #11075) as candidates, then admits the oldest-first
 budgeted prefix of the post-expansion identifiers: at most 200 identifiers
-and at most 10,000 pre-filter scanned copies (the primary bound against
-scope-expanded fan-out; one scanned-copies unit bounds both, since kept facts
-cost a subset of the scanned copies' heap fetches). The tick probes identifiers
+and at most 10,000 pre-filter scanned index tuples (the primary bound against
+scope-expanded fan-out; #11120 redefined the unit from heap copies to index
+tuples consumed, still bounding both heap terms). The tick probes identifiers
 one at a time and stops admitting new ones once the budget is spent (the
 current identifier is always admitted and never split, completing iff its
 probe stays within the 120 s statement guard — see #11442), then deletes
@@ -93,7 +93,7 @@ chunk the tick probed, kept, and scanned pre-filter (#11308): since #10880
 PR-C1 the count reads the narrow temp table persisting the supports probe,
 so the count attributes a tick's build cost to cost-per-copy against
 kept-rows-per-identifier, and a budget trip stays distinguishable from an
-identifier-bound trip in the log.
+identifier-bound trip in the log; since #11120 the span and log line also carry `probe_variant` (`top1` for the marker-gated TOP-1 probe, `fallback` for the pre-marker text).
 
 Every keyed tick transaction pins a statement-timeout guard (Dec 7):
 `statement_timeout` is set to 120 s, so a runaway statement aborts with the

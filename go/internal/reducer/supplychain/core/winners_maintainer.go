@@ -82,6 +82,23 @@ const (
 	WinnersChunkTruncatedByBoth = "identifiers+scanned_copies"
 )
 
+// Probe variants for SupplyChainImpactWinnersResweep.ProbeVariant (#11120):
+// which narrow probe text a keyed tick ran, so an operator can tell
+// "TOP-1 active" from "pre-marker fallback active" at 3 AM without joining
+// the marker row to pg_stat_statements. Empty on the full path and on
+// results from rebuilders that predate the variant.
+const (
+	// WinnersProbeVariantTop1 means the tick probed with the marker-gated
+	// TOP-1 text over the covering winner index: narrow ranking rows,
+	// index-only, no heap fetch per copy.
+	WinnersProbeVariantTop1 = "top1"
+	// WinnersProbeVariantFallback means the tick probed with the shipped
+	// payload-expression text: the key-presence fill marker was incomplete,
+	// so the tick ran the pre-marker fallback that is correct on
+	// unfilled rows.
+	WinnersProbeVariantFallback = "fallback"
+)
+
 // SupplyChainImpactWinnersResweep is what one resweep did. Inserted, Updated and
 // Deleted are the rows it wrote a version for; Unchanged is the count of current
 // winners it compared and skipped.
@@ -134,14 +151,17 @@ type SupplyChainImpactWinnersResweep struct {
 	// on it. Remaining is the dirty-log depth the tick left;
 	// ChunkIdentifiers the post-expansion identifiers this tick probed,
 	// ChunkKeptRows the kept facts the probe built for them, and
-	// ChunkScannedCopies the pre-filter copies the probe scanned before the
-	// active-generation filter discarded the retired and superseded ones
-	// (#11308). ChunkTruncatedBy names which bound stopped admission ("" on
-	// a drained tick). All six are zero on the full path, except Remaining,
-	// which a full resweep sets to the marks that committed after its drain
-	// (#11117). RemainingUpperBound is true when Remaining is an upper
-	// bound: its staging part passed the exact-count cap and is the visible
-	// seq span (#11129). Bounded and the stamp never depend on it.
+	// ChunkScannedCopies the pre-filter index tuples the probe consumed
+	// before the eligibility build kept the live ones (#11308, redefined
+	// unit #11120: no heap fetch per copy under TOP-1, where the count
+	// reaches the tick result from the persisted narrow table exactly as
+	// before). ChunkTruncatedBy names which bound stopped admission (""
+	// on a drained tick). All six are zero on the full path, except
+	// Remaining, which a full resweep sets to the marks that committed
+	// after its drain (#11117). RemainingUpperBound is true when Remaining
+	// is an upper bound: its staging part passed the exact-count cap and
+	// is the visible seq span (#11129). Bounded and the stamp never
+	// depend on it.
 	Bounded             bool
 	Remaining           int64
 	RemainingUpperBound bool
@@ -149,6 +169,12 @@ type SupplyChainImpactWinnersResweep struct {
 	ChunkKeptRows       int64
 	ChunkScannedCopies  int64
 	ChunkTruncatedBy    string
+	// ProbeVariant names which narrow probe the keyed tick ran
+	// (WinnersProbeVariantTop1 or WinnersProbeVariantFallback, #11120), so
+	// the tick's span and log line distinguish TOP-1 active from pre-marker
+	// fallback active. Empty on the full path and on results from
+	// rebuilders that predate the variant.
+	ProbeVariant string
 	// ScopeRemainderConverted is the dirty-log fact rows a keyed tick wrote
 	// when it converted the unapplied remainder of a partly applied scope
 	// row (#11145). Each keeps the scope row's capture time, so the

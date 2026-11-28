@@ -194,6 +194,16 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		if chunk, err = buildWinnersKeyedChunk(ctx, tx, bounds); err != nil {
 			return err
 		}
+		if chunk.keyPresenceProbe {
+			// Marker-gated TOP-1 path (#11120 lane A): the budgeted
+			// admission above probed the admitted prefix one identifier at
+			// a time into the TOP-1 narrow table (plain ranking columns,
+			// index-only), so the probe ran once per admitted identifier
+			// and the scanned-copies count below reads the persisted rows
+			// instead of re-running it.
+			kept, scanned, err = s.buildWinnersKeyedTop1ActiveFacts(ctx, tx)
+			return err
+		}
 		// The budgeted admission above probed the admitted prefix one
 		// identifier at a time into the persisted narrow table (the same
 		// supports-swapped probe body the whole-chunk build runs,
@@ -231,6 +241,16 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	result.ChunkKeptRows = kept
 	result.ChunkScannedCopies = scanned
 	result.ChunkTruncatedBy = winnersChunkTruncatedBy(chunk)
+	// ProbeVariant names which narrow probe the tick ran, so an operator
+	// can tell "TOP-1 active" from "pre-marker fallback active" at 3 AM
+	// (ruling proof 4): the marker row plus pg_stat_statements disambiguate
+	// the texts, and this field carries the tick's choice on its span and
+	// log line.
+	if chunk.keyPresenceProbe {
+		result.ProbeVariant = supplychaincore.WinnersProbeVariantTop1
+	} else {
+		result.ProbeVariant = supplychaincore.WinnersProbeVariantFallback
+	}
 	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
 		tally, remaining, remainingMin, upperBound, skips, err := settleWinnersKeyedDirtyLog(ctx, tx, false, &result.ScopeRemainderConverted)
 		if err != nil {
@@ -262,7 +282,11 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		} else {
 			candidate = tickStamp
 		}
-		if err := applyWinnersKeyed(ctx, tx, candidate, result); err != nil {
+		applySQL := applyWinnersKeyedSQL
+		if chunk.keyPresenceProbe {
+			applySQL = applyWinnersKeyedTop1SQL
+		}
+		if err := applyWinnersKeyedWithSQL(ctx, tx, candidate, result, applySQL); err != nil {
 			return err
 		}
 		// #11466: claim the enrichment first-carry stamps for the

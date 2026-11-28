@@ -143,7 +143,7 @@ func TestWinnerSelectReadsNoDigestExcludedPayloadField(t *testing.T) {
 // alignment: winnersAuditDiffSelect must mask evidence_fact_ids and nested
 // provenance.selected_epss_score_date on both sides of the ROW comparison so
 // AuditWinners does not loop repairs on accepted staleness, while keeping
-// SupplyChainImpactWinnersContractVersion at 6 and leaving semantic fields
+// SupplyChainImpactWinnersContractVersion at 7 and leaving semantic fields
 // compared verbatim.
 func TestWinnersAuditDiffMasksEvidenceAndScoreDate(t *testing.T) {
 	t.Parallel()
@@ -152,9 +152,15 @@ func TestWinnersAuditDiffMasksEvidenceAndScoreDate(t *testing.T) {
 	// the ruled #11691 leniency changes which rows the resweep writes,
 	// never the payload shape the mask strips, and the v6 healing proof
 	// (TestSupplyChainImpactWinnersUnlessCurrentHealsStoredOnlyKeysLive)
-	// runs AuditWinners over the healed table with zero repairs.
-	if postgres.SupplyChainImpactWinnersContractVersion != 6 {
-		t.Fatalf("SupplyChainImpactWinnersContractVersion = %d, want 6 (re-examine the audit mask on every winners contract bump)", postgres.SupplyChainImpactWinnersContractVersion)
+	// runs AuditWinners over the healed table with zero repairs. The v7
+	// lane-A re-rank re-examined here changes which copy per key wins (the
+	// TOP-1 prune) and which identifiers a tick visits (the budget
+	// redefinition), never the payload shape the mask strips: the TOP-1
+	// winner select ends in the shared final projection verbatim
+	// (TestWinnersTop1SharesStreamedFinalSelect pins it), so the masked
+	// keys and the verbatim semantic columns are unchanged.
+	if postgres.SupplyChainImpactWinnersContractVersion != 7 {
+		t.Fatalf("SupplyChainImpactWinnersContractVersion = %d, want 7 (re-examine the audit mask on every winners contract bump)", postgres.SupplyChainImpactWinnersContractVersion)
 	}
 	check := func(sql string) []string {
 		var errs []string

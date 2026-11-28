@@ -20,26 +20,28 @@ import (
 func TestWinnersKeyedProbeVariantSelectsExactlyOneProbeText(t *testing.T) {
 	t.Parallel()
 
-	if got := winnersKeyedProbeVariant(true); got != insertWinnersKeyedNarrowKeyPresenceBatchSQL {
-		t.Fatal("a complete fill marker does not select the triple-guarded probe")
+	if got := winnersKeyedProbeVariant(true); got != insertWinnersKeyedTop1NarrowBatchSQL {
+		t.Fatal("a complete fill marker does not select the TOP-1 probe")
 	}
 	if got := winnersKeyedProbeVariant(false); got != insertWinnersKeyedNarrowBatchSQL {
 		t.Fatal("an incomplete fill marker does not select the shipped probe")
 	}
-	// Both variants accumulate into the same narrow table over the same
-	// output columns, so the flip cannot split what the tick builds from
-	// what it attributes: only the match predicate changes.
-	for name, stmt := range map[string]string{
-		"shipped":             insertWinnersKeyedNarrowBatchSQL,
-		"guarded":             insertWinnersKeyedNarrowKeyPresenceBatchSQL,
-		"fallback":            buildWinnersKeyedNarrowFromSupportsSQL,
-		"guarded whole-chunk": buildWinnersKeyedNarrowKeyPresenceSQL,
+	// Each variant accumulates into its own narrow table over its own
+	// declared output columns, so the flip cannot split what the tick builds
+	// from what it attributes. The 363 whole-chunk build stays for the
+	// chunked-full path, which never takes the TOP-1 branch.
+	for name, triple := range map[string][3]string{
+		"shipped":             {insertWinnersKeyedNarrowBatchSQL, winnersKeyedNarrowTable, winnersKeyedNarrowColumns},
+		"top1":                {insertWinnersKeyedTop1NarrowBatchSQL, winnersKeyedTop1NarrowTable, winnersKeyedTop1NarrowColumns},
+		"fallback":            {buildWinnersKeyedNarrowFromSupportsSQL, winnersKeyedNarrowTable, winnersKeyedNarrowColumns},
+		"guarded whole-chunk": {buildWinnersKeyedNarrowKeyPresenceSQL, winnersKeyedNarrowTable, winnersKeyedNarrowColumns},
 	} {
-		if !strings.Contains(stmt, "INSERT INTO "+winnersKeyedNarrowTable) && !strings.Contains(stmt, "CREATE TEMP TABLE "+winnersKeyedNarrowTable) {
-			t.Errorf("%s probe does not write the narrow table %q", name, winnersKeyedNarrowTable)
+		stmt, table, cols := triple[0], triple[1], triple[2]
+		if !strings.Contains(stmt, "INSERT INTO "+table) && !strings.Contains(stmt, "CREATE TEMP TABLE "+table) {
+			t.Errorf("%s probe does not write the narrow table %q", name, table)
 		}
-		if !strings.Contains(stmt, winnersKeyedNarrowColumns) {
-			t.Errorf("%s probe does not select the probe output columns %q", name, winnersKeyedNarrowColumns)
+		if !strings.Contains(stmt, cols) {
+			t.Errorf("%s probe does not select the probe output columns %q", name, cols)
 		}
 	}
 }
