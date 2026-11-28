@@ -11,25 +11,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // outOfStampActiveRows reads the (cve_id, package_id) pairs of one
-// generation's active finding rows, in stable order.
+// generation's active finding rows, in stable order, from the supports
+// table: since #10880 PR-C2 the writer upserts and retracts supports only
+// and never writes finding fact rows, so the supports table is the
+// active-set truth and fact_records holds no writer output on this path.
 func outOfStampActiveRows(t *testing.T, ctx context.Context, db *sql.DB, scope, generation string) [][2]string {
 	t.Helper()
 	rows, err := db.QueryContext(ctx, `
-SELECT payload->>'cve_id', COALESCE(payload->>'package_id', '')
-FROM fact_records
-WHERE fact_kind = $1
-  AND scope_id = $2
-  AND generation_id = $3
-  AND is_tombstone = FALSE
+SELECT cve_id, COALESCE(package_id, '')
+FROM supply_chain_impact_finding_supports
+WHERE scope_id = $1
+  AND generation_id = $2
 ORDER BY 1, 2`,
-		facts.ReducerSupplyChainImpactFindingFactKind, scope, generation)
+		scope, generation)
 	if err != nil {
 		t.Fatalf("read active rows: %v", err)
 	}
@@ -48,14 +48,18 @@ ORDER BY 1, 2`,
 	return out
 }
 
-// outOfStampRowTombstoned reports whether one finding row is tombstoned.
-func outOfStampRowTombstoned(t *testing.T, ctx context.Context, db *sql.DB, factID string) bool {
+// outOfStampRowReaped reports whether one finding row is gone from the
+// supports table. Since #10880 PR-C2 the pass retraction deletes superseded
+// supports instead of tombstoning finding fact rows, so absence from the
+// supports table is the reap signal; the seeded fact_records row stays as
+// frozen history.
+func outOfStampRowReaped(t *testing.T, ctx context.Context, db *sql.DB, factID string) bool {
 	t.Helper()
-	var tombstoned bool
-	if err := db.QueryRowContext(ctx, `SELECT is_tombstone FROM fact_records WHERE fact_id = $1`, factID).Scan(&tombstoned); err != nil {
+	var present bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM supply_chain_impact_finding_supports WHERE fact_id = $1)`, factID).Scan(&present); err != nil {
 		t.Fatalf("read row %s: %v", factID, err)
 	}
-	return tombstoned
+	return !present
 }
 
 // fallbackFinding builds a minimal valid finding for the convergence proof.
@@ -176,7 +180,7 @@ func TestScopedFallbackConvergesLive(t *testing.T) {
 	if _, err := writer.WriteSupplyChainImpactFindings(ctx, fallbackWrite("intent:10415:scoped", "fb-scope", fbGen, stamp, keep)); err != nil {
 		t.Fatalf("scoped write: %v", err)
 	}
-	if outOfStampRowTombstoned(t, ctx, db, "stale-row") {
+	if outOfStampRowReaped(t, ctx, db, "stale-row") {
 		t.Fatal("scoped write reaped the out-of-stamp row: the pre-fallback behavior is gone")
 	}
 
@@ -185,7 +189,7 @@ func TestScopedFallbackConvergesLive(t *testing.T) {
 	if _, err := writer.WriteSupplyChainImpactFindings(ctx, fallbackWrite("intent:10415:fallback", "fb-scope", fbGen, nil, keep)); err != nil {
 		t.Fatalf("fallback write: %v", err)
 	}
-	if !outOfStampRowTombstoned(t, ctx, db, "stale-row") {
+	if !outOfStampRowReaped(t, ctx, db, "stale-row") {
 		t.Fatal("fallback write left the out-of-stamp row active: no convergence")
 	}
 	if has, err := store.HasOutOfStampActiveSupplyChainImpactRows(ctx, "fb-scope", fbGen, stamp); err != nil || has {
