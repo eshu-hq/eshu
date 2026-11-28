@@ -21,3 +21,16 @@ Layout:
   fence verdicts.
 - `mount.go` — `MountProofReads(mux, store, opts)`: per-family mounts
   only, no credentials taken.
+- `deadletters.go`, `decisions.go`, `inputinvalid.go`,
+  `poisonedlinks.go`, `replayevents.go` — the five B-query handlers
+  (`ServeDeadLettersQuery`, `ServeDecisionsQuery` with the
+  `ListEvidence` join, `ServeInputInvalidFactsQuery`,
+  `ServePoisonedLinksQuery`, `ServeReplayEventsQuery`): same contract
+  as the work-items query (nil store 503, bad JSON 400, limit default
+  100 with trims, fixed 500, 499 client-cancel, fence hook first),
+  with core key/RFC3339 parity. Required-selector 400s
+  (`repository_id`/`source_run_id`, `scope_id`/`generation_id`,
+  `status`) mirror core validation.
+- `bqueries_mount.go` — one `Mount*` per B-query family. These stay out
+  of `MountProofReads` until the core `OmitProofReads` surface covers
+  them, so one mux never answers a route twice.
