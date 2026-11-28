@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const nornicDBPinnedImage = "ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"
+const nornicDBPinnedImage = "ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5"
 
 func TestNornicDBComposeDefaultPinsPublishedImage(t *testing.T) {
 	t.Parallel()
@@ -45,10 +45,10 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 		"NORNICDB_IMAGE",
 		"NORNICDB_PULL_POLICY",
 		"pull policy `missing`",
-		"fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1",
+		"v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5",
 		"fresh graph volume",
 		"Never start an older NornicDB binary on a volume modified by v1.3.3",
-		"reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file",
+		"reports `NornicDB v1.5.2-hotfix`",
 	} {
 		if !strings.Contains(docs, want) {
 			t.Fatalf("docker compose docs missing exact-source override guidance %q", want)
