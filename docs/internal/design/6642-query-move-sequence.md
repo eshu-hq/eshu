@@ -155,7 +155,7 @@ real code. That is a separate change on top of PR 31.
   **fourteen stale references across eleven files** — counted from the two
   repair commits, which touched 7 and 6 files with `README.md` and `AGENTS.md`
   in both. They include the package's own `README.md` and `AGENTS.md`, one
-  *public* doc (`docs/public/reference/local-lightweight-capability-audit.md`),
+  *public* capability audit doc (since retired),
   a comment in another package's test, and a `t.Fatalf` message that named a
   symbol a future failure could no longer point at. The independent review
   caught four of the fourteen; the rest came from sweeping for the bare names.

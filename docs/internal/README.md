@@ -3,7 +3,10 @@
 This directory holds maintainer-only documentation for Eshu.
 
 - Files in `docs/internal/` are not part of the public MkDocs site.
-- Public docs must live under `docs/public/` and be linked from `docs/mkdocs.yml`.
+- Public docs live under `docs/public/` and every public `.md` file must be
+  linked from `docs/mkdocs.yml` (enforced by `scripts/verify-docs-catalog.sh`).
+- Machine-readable validation catalogs live under `specs/` (for example,
+  `specs/remote-validation-proofs.v1.yaml`), not as per-slug Markdown stubs.
 - Source-tree package orientation lives in package-local docs under `go/`; do
   not re-document that layout here.
 - Before adding or editing any page here, load the **`publish`** skill and

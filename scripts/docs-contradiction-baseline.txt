@@ -52,11 +52,6 @@ reference/mcp-tool-contract-matrix.md polarity:fact-schema-version
 reference/mcp-tool-contract-matrix.md polarity:prompt-ready-read
 reference/mcp-tool-contract-matrix.md polarity:scope-account-required
 reference/mcp-tool-contract-matrix.md polarity:scope-limit-max
-reference/parse-scale-evidence.md duplicate-row:1-000-synthetic-repos
-reference/parse-scale-evidence.md duplicate-row:10-000-synthetic-repos
-reference/parse-scale-evidence.md duplicate-row:2-000-synthetic-repos-4-000-python-files
-reference/parse-scale-evidence.md duplicate-row:4-generated-python-scip-subtrees
-reference/parse-scale-evidence.md duplicate-row:96-generated-python-files
 reference/query-playbooks.md duplicate-row:http
 reference/query-playbooks.md duplicate-row:mcp
 reference/reading-answers.md polarity:cannot-answer-correctly

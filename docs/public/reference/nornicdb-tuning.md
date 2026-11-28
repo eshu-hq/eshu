@@ -9,9 +9,7 @@ timeout shape, and queue state before changing the narrowest matching knob. For
 local start/stop/install commands, use
 [Graph Backend Installation](graph-backend-installation.md) and
 [Graph Backend Operations](graph-backend-operations.md). For query-shape rules,
-use [Cypher Performance Discipline](cypher-performance.md). For the proof behind
-current defaults, use
-[NornicDB Tuning Evidence](nornicdb-tuning-evidence.md).
+use [Cypher Performance Discipline](cypher-performance.md).
 
 ## First Decision
 
@@ -427,8 +425,7 @@ The Helm chart owns hosted defaults for NornicDB container flags, probes,
 `ESHU_CANONICAL_WRITE_TIMEOUT=120s`, and
 `ESHU_SHARED_PROJECTION_WORKERS=8`. See
 [Helm Runtime Values](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-runtime-values.md) before
-changing chart values and [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
-before changing their proof trail.
+changing chart values.
 
 ## Add A New Knob
 
@@ -451,7 +448,6 @@ before lowering global workers.
 
 ## Related Docs
 
-- [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
 - [Graph Backend Installation](graph-backend-installation.md)
 - [Graph Backend Operations](graph-backend-operations.md)
