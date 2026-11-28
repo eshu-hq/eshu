@@ -47,13 +47,12 @@ const winnersKeyedTop1NarrowColumns = `fact_id, scope_id, generation_id, canonic
 // the plain ranking columns. The triple-guard legs are the shipped
 // triple-guard equalities verbatim
 // (TestWinnersTop1ProbeKeepsTripleGuardLegs pins each one), extended only by
-// the ranking select list and the index-side scope exclusions, which are
-// pure filters that preserve the covering index order. The derived-image and
-// operator-scope exclusions ride here so the narrow set never carries rows
-// the body would drop; liveness and classification stay in the bulk active
-// build, where hash joins serve them without per-row probes. The MATERIALIZED
-// marker and OFFSET 0 guard are load-bearing for the same reason as the
-// shipped probe's.
+// the ranking select list. The probe meters every five-tuple match including
+// derived-image copies (F2): the counted set is the legacy pre-filter set,
+// and the bulk active build below drops what the body would drop. Liveness
+// and classification stay in the bulk active build, where hash joins serve
+// them without per-row probes. The MATERIALIZED marker and OFFSET 0 guard
+// are load-bearing for the same reason as the shipped probe's.
 func winnersTop1NarrowProbeSelect(identsTable string) string {
 	return `WITH narrow AS MATERIALIZED (
     SELECT fact.fact_id, fact.scope_id, fact.generation_id,
@@ -71,7 +70,6 @@ func winnersTop1NarrowProbeSelect(identsTable string) string {
           AND (ident.subject_digest <> '' OR (s.key_presence & 4) <> 0)
           AND COALESCE(NULLIF(s.cve_id, ''), NULLIF(s.advisory_id, ''), '') = ident.c0
           AND s.advisory_id = ident.advisory_id
-          AND s.scope_id NOT LIKE 'image://derived/%'
         OFFSET 0
     ) AS fact
 )
@@ -130,7 +128,9 @@ const analyzeWinnersKeyedTop1LiveGensSQL = `ANALYZE winners_keyed_top1_live_gens
 // over narrow columns only. No payload is read or detoasted here; the COUNT
 // and the winner step that follow see no heap. The operator scope is
 // excluded from sources (its overlay rides the op temp below); the
-// derived-image scope is already excluded index-side in the probe.
+// derived-image scope is excluded here, in the bulk build (F2): the probe
+// meters derived copies in the pre-filter counted set, and this build drops
+// them before ranking, exactly like the shipped body eligibility.
 const buildWinnersKeyedTop1ActiveSQL = `
 CREATE TEMP TABLE winners_keyed_top1_active ON COMMIT DROP AS
 SELECT n.fact_id, n.scope_id, n.canonical_key, n.priority_score, n.has_payload_finding_id
@@ -139,6 +139,7 @@ JOIN winners_keyed_top1_live_gens AS g
   ON g.scope_id = n.scope_id
  AND g.generation_id = n.generation_id
 WHERE n.scope_id <> 'operator:vulnerability_suppressions'
+  AND n.scope_id NOT LIKE 'image://derived/%'
   AND NOT EXISTS (
     SELECT 1 FROM scanner_image_result_fact_associations AS a
     WHERE a.finding_fact_id = n.fact_id
@@ -210,9 +211,16 @@ WHERE s.scope_id = 'operator:vulnerability_suppressions'
   AND s.suppression_state <> 'active'
 `
 
-// indexWinnersKeyedTop1OpSQL steers the override join to nested loop.
+// indexWinnersKeyedTop1OpSQL materializes the winner ordering for the
+// per-key override point lookup (F3): the covering winner-index key order on
+// the op temp, so the override step is an index-ordered LIMIT 1 per source
+// key with no Sort node at any scale, exactly like the winner step. The
+// DISTINCT ON it replaces sorted the whole op temp through a Sort node;
+// driving from the counts temp also skips operator-only noise keys the final
+// LEFT JOIN could never match.
 const indexWinnersKeyedTop1OpSQL = `
-CREATE INDEX winners_keyed_top1_op_key_idx ON winners_keyed_top1_op (canonical_key)
+CREATE INDEX winners_keyed_top1_op_key_idx ON winners_keyed_top1_op
+    (canonical_key, priority_score DESC, has_payload_finding_id DESC, fact_id ASC)
 `
 
 // analyzeWinnersKeyedTop1OpSQL plans the override join on real input.
@@ -255,9 +263,16 @@ const countWinnersKeyedTop1ScannedCopiesSQL = `
 SELECT count(*) FROM ` + winnersKeyedTop1NarrowTable + `
 `
 
-// countWinnersKeyedTop1KeptFactsSQL counts the kept facts the TOP-1 probe
-// built, before the operator overlay is joined: the per-tick kept-fact
-// volume the chunk bound implies.
+// countWinnersKeyedTop1KeptFactsSQL counts the kept facts the TOP-1 build
+// kept, before the operator overlay is joined: the per-tick kept-fact
+// volume the chunk bound implies. Redefinition (F6): the legacy kept count
+// reads the active_facts temp after the live-generation join but before the
+// body eligibility, while this count reads the post-eligibility active temp
+// (live, classification, and scope guards already applied), so the same field
+// counts a smaller set on the TOP-1 path. No control consumer reads it
+// (emit-only span/log attribute), so this is an observability-contract
+// restatement, not a bound change; the bound test's uniform all-eligible
+// fan-out cannot distinguish the definitions by construction.
 const countWinnersKeyedTop1KeptFactsSQL = `
 SELECT count(*) FROM ` + winnersKeyedTop1ActiveTable + `
 `
@@ -275,11 +290,13 @@ func winnersKeyedNarrowCreateSQL(keyPresenceReady bool) string {
 }
 
 // winnersKeyedTop1Statements lists every TOP-1 statement the keyed tick runs
-// on the marker-gated path: the budgeted probe, the phased temp builds, and
-// the TOP-1 apply. Tests pin shape and row-source properties over this
+// on the marker-gated path: the narrow create the admission loop probes
+// into, the budgeted probe, the phased temp builds, the two phase counts,
+// and the TOP-1 apply. Tests pin shape and row-source properties over this
 // closed set, so a later statement cannot join the path unpinned.
 func winnersKeyedTop1Statements() []string {
 	return []string{
+		createWinnersKeyedTop1NarrowSQL,
 		insertWinnersKeyedTop1NarrowBatchSQL,
 		analyzeWinnersKeyedTop1NarrowSQL,
 		buildWinnersKeyedTop1LiveGensSQL,
@@ -293,6 +310,8 @@ func winnersKeyedTop1Statements() []string {
 		buildWinnersKeyedTop1OpSQL,
 		indexWinnersKeyedTop1OpSQL,
 		analyzeWinnersKeyedTop1OpSQL,
+		countWinnersKeyedTop1ScannedCopiesSQL,
+		countWinnersKeyedTop1KeptFactsSQL,
 		applyWinnersKeyedTop1SQL,
 	}
 }
@@ -344,12 +363,16 @@ func (s SupplyChainImpactWinnersStore) buildWinnersKeyedTop1ActiveFacts(
 // HashAggregate counts, and the ranked operator overlay, ending in the
 // shared final select. source_winners exposes exactly the columns the final
 // reads (narrow ranking rows enriched by one supports point lookup per
-// winner for the carried projection columns); operator_overrides matches the
-// streamed override shape (fact_id for the payload fetch, suppression state
-// for the overlay, rank columns for the per-key DISTINCT ON).
+// winner for the carried projection columns). Ecosystem is read from the
+// winner payload at the point lookup (F1), not from the plain column: the
+// writer lowercases that column for filtering while the oracle body carries
+// the fact's own spelling. operator_overrides matches the streamed override
+// shape (fact_id for the payload fetch, suppression state for the overlay,
+// rank columns for the per-key lateral below, sort-free by construction).
 var winnersKeyedTop1SelectSQL = `WITH source_winners AS (
     SELECT k.canonical_key, w.fact_id, ws.scope_id, ws.finding_id, w.priority_score,
-        k.source_count, ws.impact_status, ws.ecosystem, ws.repository_id, ws.cve_id,
+        k.source_count, ws.impact_status, COALESCE(ws.payload->>'ecosystem', '') AS ecosystem,
+        ws.repository_id, ws.cve_id,
         ws.advisory_id, ws.package_id, ws.subject_digest, ws.image_ref, ws.priority_bucket,
         ws.detection_profile, ws.observed_version, ws.match_reason,
         ws.suppression_state, ws.source_confidence
@@ -364,10 +387,13 @@ var winnersKeyedTop1SelectSQL = `WITH source_winners AS (
     JOIN supply_chain_impact_finding_supports AS ws ON ws.fact_id = w.fact_id
 ),
 operator_overrides AS (
-    SELECT DISTINCT ON (canonical_key) *
-    FROM ` + winnersKeyedTop1OpTable + `
-    ORDER BY canonical_key,
-             priority_score DESC,
-             has_payload_finding_id DESC,
-             fact_id ASC
+    SELECT k.canonical_key, o.fact_id, o.suppression_state
+    FROM ` + winnersKeyedTop1CountsTable + ` AS k
+    LEFT JOIN LATERAL (
+        SELECT a.fact_id, a.suppression_state
+        FROM ` + winnersKeyedTop1OpTable + ` AS a
+        WHERE a.canonical_key = k.canonical_key
+        ORDER BY a.priority_score DESC, a.has_payload_finding_id DESC, a.fact_id ASC
+        LIMIT 1
+    ) AS o ON true
 )` + winnersKeyedStreamedFinalSelectSQL

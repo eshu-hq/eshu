@@ -94,13 +94,13 @@ type winnersChunkOutcome struct {
 	// (as opposed to the identifier bound): the tick maps it to
 	// ChunkTruncatedBy so the log distinguishes the two.
 	budgetTruncated bool
-	// keyPresenceProbe reports the tick probed with the triple-guarded
-	// plain-column probe (#9975 round 6) instead of the shipped
-	// payload-expression one: the key-presence fill marker was complete when
-	// the chunk was built. It is recorded for future wiring, not for tests
-	// or operator telemetry: an operator tells which probe text a tick ran
-	// from the marker row and pg_stat_statements (the two texts are
-	// distinct statements).
+	// keyPresenceProbe reports the tick probed with the marker-gated TOP-1
+	// probe over the covering winner index (#11120 lane A) instead of the
+	// shipped payload-expression one: the key-presence fill marker was
+	// complete when the chunk was built. The tick maps it to ProbeVariant
+	// (ruling proof 4) so an operator can tell "TOP-1 active" from
+	// "pre-marker fallback active" on the span and log line; the marker row
+	// plus pg_stat_statements disambiguate the texts.
 	keyPresenceProbe bool
 }
 

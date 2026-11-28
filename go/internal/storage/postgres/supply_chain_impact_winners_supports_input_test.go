@@ -35,9 +35,10 @@ const winnersLegacyContractPin = "25e4d8910be1951ac76980f97de64e5d5f9b483e9151a4
 // The reversal still proves the shipped text differs from the legacy base
 // only by the declared transforms; behavior proof rides the live agreement
 // and outrank legs (Refs #11691). The lane-A TOP-1 statements are skipped
-// before the reversal (new statements, proven live instead), so the v7
-// re-pin records the smaller reversed set.
-const winnersKeyedLegacyReversedPin = "96e520f403a9ec134aa33753394401a0c6dc61d3c7b24df059b4b81d96b69ada"
+// before the reversal (new statements, proven live instead): the batch
+// probe, the narrow ANALYZE, the live-gens build, the active, counts, and
+// operator builds, and the TOP-1 apply.
+const winnersKeyedLegacyReversedPin = "45de5ca59a2f59150b60ff444656f145cd0fdfe5239a509841e87feab42734de"
 
 // TestWinnersMaintainerStatementsReadNoFactRecords proves every statement
 // the winners contract names reads the supports table and not fact_records:
@@ -225,14 +226,18 @@ func TestWinnersContractRepinnedForSupportsInputs(t *testing.T) {
 			continue
 		}
 		// The lane-A TOP-1 statements are new statements, not swaps: the
-		// marker-gated probe has no whole-chunk twin, and the temp active,
-		// counts, and operator builds exist only on the TOP-1 path. They
-		// cannot reverse to a version-2 member, so the reversal skips them
-		// exactly like the 363 probe and the v3-full chunks; their row
-		// agreement with the shipped body is proven live by the lane-A
-		// byte-parity differential instead
+		// marker-gated probe has no whole-chunk twin; the tick-invariant
+		// live-gens build, the narrow ANALYZE, and the temp active, counts,
+		// and operator builds exist only on the TOP-1 path. They cannot
+		// reverse to a version-2 member (a reversal layer is the identity on
+		// them, so hashing a reversed ANALYZE would pin a vacuous member),
+		// so the reversal skips them exactly like the 363 probe and the
+		// v3-full chunks; their row agreement with the shipped body is
+		// proven live by the lane-A byte-parity differential instead
 		// (TestSupplyChainImpactWinnersKeyedTop1MatchesRecomputeLive).
 		if stmt == insertWinnersKeyedTop1NarrowBatchSQL ||
+			stmt == analyzeWinnersKeyedTop1NarrowSQL ||
+			stmt == buildWinnersKeyedTop1LiveGensSQL ||
 			stmt == buildWinnersKeyedTop1ActiveSQL ||
 			stmt == buildWinnersKeyedTop1CountsSQL ||
 			stmt == buildWinnersKeyedTop1OpSQL ||

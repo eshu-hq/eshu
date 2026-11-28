@@ -252,7 +252,7 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// justification rides the lane proofs (hermetic reversal plus the
 	// seeded and QA-replica byte-parity differentials, EXCEPT ALL 0/0 both
 	// directions over full winner rows).
-	7: "96332239208c4740058ad535f1b691740fa801617f8de714abb1d732e273205e",
+	7: "fd5c45e1ae7d7130f5d7d2ac1e7d37b07b1434af059b585c6af67e4c2cb08a5e",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
@@ -280,12 +280,16 @@ func supplyChainImpactWinnersContractStatements() []string {
 		// whole-chunk twin (the budgeted loop is the only probe on this
 		// path), so the batch probe itself is pinned here — unlike the
 		// legacy batch probes, which ride the pin through their whole-chunk
-		// twins plus the derivation tests. The scaffolding CREATE, INDEX,
-		// VACUUM, and non-narrow ANALYZE statements are not pinned (same
-		// rule as their legacy counterparts); the narrow ANALYZE plans the
-		// final fetch and is pinned like the legacy one.
+		// twins plus the derivation tests. The live-gens build is pinned
+		// too (F4): it carries the eligibility liveness semantics, so a
+		// future edit to it would change winners with no hash change
+		// otherwise. The temp CREATE, INDEX, VACUUM, and remaining ANALYZE
+		// statements are not pinned (same rule as their legacy
+		// counterparts); the narrow ANALYZE plans the final fetch and is
+		// pinned like the legacy one.
 		insertWinnersKeyedTop1NarrowBatchSQL,
 		analyzeWinnersKeyedTop1NarrowSQL,
+		buildWinnersKeyedTop1LiveGensSQL,
 		buildWinnersKeyedTop1ActiveSQL,
 		buildWinnersKeyedTop1CountsSQL,
 		buildWinnersKeyedTop1OpSQL,

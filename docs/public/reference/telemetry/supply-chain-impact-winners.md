@@ -83,17 +83,18 @@ because the horizon is the oldest remaining capture: a converted scope
 remainder keeps its old capture time on a new `seq`, and admitting by `seq`
 left it behind every newer row while the watermark stood still. A tick that
 stopped at either bound leaves the rest queued, stamps the horizon over them,
-and counts `eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, so a
-backlog drains as short spaced ticks and the watermark advances on every
-tick. The span and the commit log
-line carry `bounded`, `remaining`, `remaining_upper_bound`, `chunk_identifiers`,
-`chunk_kept_rows`, `chunk_scanned_copies`, and `chunk_truncated_by`
-(`identifiers`, `scanned_copies`, or both; empty on a drained tick) for the
-chunk the tick probed, kept, and scanned pre-filter (#11308): since #10880
-PR-C1 the count reads the narrow temp table persisting the supports probe,
-so the count attributes a tick's build cost to cost-per-copy against
-kept-rows-per-identifier, and a budget trip stays distinguishable from an
-identifier-bound trip in the log; since #11120 the span and log line also carry `probe_variant` (`top1` for the marker-gated TOP-1 probe, `fallback` for the pre-marker text).
+and counts `eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, draining
+backlogs as short spaced ticks with the watermark advancing on every tick. The
+span and the commit log line carry `bounded`, `remaining`,
+`remaining_upper_bound`, `chunk_identifiers`, `chunk_kept_rows`,
+`chunk_scanned_copies`, and `chunk_truncated_by` (`identifiers`,
+`scanned_copies`, or both; empty on a drained tick) for the chunk the tick
+probed, kept, and scanned pre-filter (#11308): the count reads the narrow temp
+table persisting the supports probe (since #10880 PR-C1), attributing build cost
+to cost-per-copy and keeping budget trips distinguishable from identifier-bound
+trips; since #11120 the lines also carry `probe_variant` (`top1` or `fallback`).
+`chunk_kept_rows` is emit-only: TOP-1 counts post-eligibility rows while legacy
+counts pre-eligibility rows — compare across variants only on all-eligible fan-out.
 
 Every keyed tick transaction pins a statement-timeout guard (Dec 7):
 `statement_timeout` is set to 120 s, so a runaway statement aborts with the
@@ -123,13 +124,12 @@ is unchanged (the phase test pins kept rows while the count varies).
 Observability Evidence: `chunk_scanned_copies` rides the existing resweep
 span attribute and tick log line beside `chunk_kept_rows`; the
 `build_active_facts` phase histogram covers the added read with no new
-metric or stage. No staging
-statement in a tick reads more of the staging queue than one collapse budget
-(#11129): the collapse reads its bound from at most 50,001 seq-index entries
-and folds only the seq range it saw, and the residual read counts the queue
-exactly up to 50,000 rows. Past that, `remaining` is the visible seq span, an
-upper bound, and `remaining_upper_bound` is `true`. The oldest capture time the
-stamp uses is always exact.
+metric or stage. No staging statement in a tick reads more of the staging
+queue than one collapse budget (#11129): the collapse reads its bound from
+at most 50,001 seq-index entries and folds only the seq range it saw, and
+the residual read counts the queue exactly up to 50,000 rows. Past that,
+`remaining` is the visible seq span, an upper bound, and
+`remaining_upper_bound` is `true`. The oldest capture time the stamp uses is always exact.
 
 When the chunk applies only part of an activation's scope row, the tick turns
 the unapplied rest into fact rows and deletes the scope row in the same

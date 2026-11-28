@@ -9,11 +9,11 @@ import (
 	"testing"
 )
 
-// Hermetic pins for the #11120 lane-A TOP-1-per-key probe rewrite (TDD RED:
-// the TOP-1 statements do not exist yet). The marker-gated TOP-1 probe keeps
-// the triple-guard legs verbatim, ranks per canonical key over a new plain
-// covering winner index, and shares the streamed final select byte for byte
-// so the projection cannot drift from what the full path and audit read.
+// Hermetic pins for the #11120 lane-A TOP-1-per-key probe rewrite. The
+// marker-gated TOP-1 probe keeps the triple-guard legs verbatim, ranks per
+// canonical key over a new plain covering winner index, and shares the
+// streamed final select byte for byte so the projection cannot drift from
+// what the full path and audit read.
 
 // TestWinnersTop1ContractIsVersionSix pins the mandatory contract bump
 // (ruling decision 6): the budget redefinition and candidate-set prune change
@@ -100,6 +100,78 @@ func TestWinnersTop1SharesStreamedFinalSelect(t *testing.T) {
 
 	if !strings.Contains(winnersKeyedTop1SelectSQL, winnersKeyedStreamedFinalSelectSQL) {
 		t.Error("TOP-1 winner select does not embed the streamed final select verbatim")
+	}
+}
+
+// TestWinnersTop1OverridesArePerKeyLateral pins the sort-free override step
+// (F3): the winner select carries no DISTINCT ON over the op temp (whose only
+// whole-set shape would sort), and the overrides resolve per source key with
+// a winner-ordered LIMIT 1 lateral driven from the counts temp, exactly like
+// the winner step. The final LEFT JOIN then sees at most one override row
+// per source key, the same row the DISTINCT ON chose.
+func TestWinnersTop1OverridesArePerKeyLateral(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(winnersKeyedTop1SelectSQL, "DISTINCT ON") {
+		t.Error("TOP-1 winner select still ranks overrides with DISTINCT ON: the override step must be a per-key lateral")
+	}
+	for _, frag := range []string{
+		"FROM " + winnersKeyedTop1CountsTable + " AS k",
+		"LEFT JOIN LATERAL (",
+		"FROM " + winnersKeyedTop1OpTable + " AS a",
+		"WHERE a.canonical_key = k.canonical_key",
+		"ORDER BY a.priority_score DESC, a.has_payload_finding_id DESC, a.fact_id ASC",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(winnersKeyedTop1SelectSQL, frag) {
+			t.Errorf("TOP-1 winner select lacks the override lateral fragment %q", frag)
+		}
+	}
+}
+
+// TestWinnersTop1OpIndexServesWinnerOrder pins that the op temp index carries
+// the complete ranking order as key columns (F3): a per-key lateral can only
+// skip the sort when the index provides the order, and an INCLUDE column
+// could not serve the has_payload_finding_id ordering.
+func TestWinnersTop1OpIndexServesWinnerOrder(t *testing.T) {
+	t.Parallel()
+
+	for _, frag := range []string{
+		"(canonical_key, priority_score DESC, has_payload_finding_id DESC, fact_id ASC)",
+	} {
+		if !strings.Contains(indexWinnersKeyedTop1OpSQL, frag) {
+			t.Errorf("TOP-1 op index lacks the winner-order fragment %q", frag)
+		}
+	}
+}
+
+// TestWinnersTop1EcosystemReadsWinnerPayload pins the F1 derivation: the
+// winner ecosystem comes from the winner payload at the point lookup, not
+// from the lowercased plain filter column, so the stored spelling matches
+// the oracle body byte for byte on mixed-case payloads.
+func TestWinnersTop1EcosystemReadsWinnerPayload(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(winnersKeyedTop1SelectSQL, "ws.ecosystem") {
+		t.Error("TOP-1 winner select still reads the lowercased plain ecosystem column")
+	}
+	if !strings.Contains(winnersKeyedTop1SelectSQL, "COALESCE(ws.payload->>'ecosystem', '') AS ecosystem") {
+		t.Error("TOP-1 winner select does not derive the ecosystem from the winner payload")
+	}
+}
+
+// TestWinnersTop1DerivedExcludedInActiveBuild pins the F2 placement: the
+// probe meters every five-tuple match (the legacy pre-filter counted set),
+// and the derived-image exclusion lives in the bulk active build, where the
+// shipped body eligibility also drops those rows before ranking.
+func TestWinnersTop1DerivedExcludedInActiveBuild(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(winnersTop1NarrowProbeSelect(winnersKeyedIdentsTable), "image://derived/") {
+		t.Error("TOP-1 probe excludes derived copies: the meter must count the legacy pre-filter set")
+	}
+	if !strings.Contains(buildWinnersKeyedTop1ActiveSQL, "n.scope_id NOT LIKE 'image://derived/%'") {
+		t.Error("TOP-1 active build does not exclude the derived-image scope before ranking")
 	}
 }
 
