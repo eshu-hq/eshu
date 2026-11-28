@@ -331,57 +331,6 @@ the existing reducer queue claim duration, Postgres queue query duration,
 reducer queue wait, batch claim size, `/admin/status`, and reducer logs as the
 current diagnostic surface.
 
-## Code-Call Refresh Fence Evidence
-
-No-Regression Evidence: #2626 changes only code-call partition selection
-fencing. The regression input shapes are a same-run earlier file partition
-followed by a later whole repo refresh, and a `BatchLimit=1` domain page where a
-same-run covering file refresh sorts outside the current
-`ListPendingDomainIntents` page. `go test ./internal/reducer/code/call/projection -run
-'TestCodeCallProjectionRunner(LaterWholeRefreshDoesNotBlockEarlierFilePartition|ScansAcceptanceUnitForCoveringRefreshBeyondDomainPage)'
--count=1` failed before the fence fix and passed after it. `go test
-./internal/reducer -count=1` proves the unchanged reducer package contract,
-including partition leases, whole-scope fencing, refresh retraction, and
-current-run partition history behavior.
-
-No-Observability-Change: #2626 adds no graph write, queue SQL, worker count,
-runtime knob, route, metric, span, log field, API/MCP response field, or schema
-DDL. Operators keep diagnosing code-call partition progress through existing
-partition lease timing, selection timing, blocked-readiness counters,
-processed/retracted/upserted row counts, shared-intent backlog/status rows, and
-edge writer counters.
-
-## Search-Document Claim Priority Evidence
-
-Benchmark Evidence: #2627 changes only the reducer batch-claim ordering for
-ready `eshu_search_document` work so derived search-document catch-up runs
-after other ready reducer domains. The baseline remote proof shape was a
-NornicDB full-corpus run at commit `127ec4862927981b75ef8b99b73a55cb088a02fa`
-with 896 candidate roots / 896 Git roots, zero failed/dead-letter rows, and a
-tail where four long `eshu_search_document` claims left visible
-`workload_materialization`, `deployment_mapping`, and other graph/materializer
-rows pending. After the query change, reduced local Postgres 18-alpine benchmark
-cases on Darwin arm64 with
-`ESHU_REDUCER_CLAIM_READINESS_BENCH_CASES=1000:1000:1,1000:5000:4` and
-`-benchtime=1x` measured `BenchmarkReducerQueueClaimReadinessGateGrowth` at
-`55525874 ns/op`, `34016 B/op`, `144 allocs/op` for 1,000 queue rows / 1,000
-phase rows / one gated domain and `54074667 ns/op`, `34016 B/op`,
-`144 allocs/op` for 1,000 queue rows / 5,000 phase rows / four gated domains.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run
-'TestClaimBatch|TestReducerQueueClaim.*Domain|TestClaimBatchCanFilterByMultipleDomains|TestReducerQueueClaim.*Readiness|TestReducerQueueBatch'
--count=1`, `go test ./internal/storage/postgres -count=1`, and
-`go test ./internal/reducer -count=1` prove the batch claim keeps readiness
-gates, same-conflict representative selection, domain allowlists, lease
-fencing, and reducer service behavior intact while graph/materialization truth
-work is ordered before derived search-document catch-up.
-
-No-Observability-Change: #2627 adds no table, queue state, runtime knob, route,
-metric, span, log field, API/MCP response field, or graph write. Operators keep
-diagnosing this path through existing reducer execution logs, queue status,
-claim-duration metrics, batch-claim-size metrics, Postgres query spans, and
-`eshu_dp_postgres_query_duration_seconds`.
-
 ## Related Docs
 
 - [Resolution Engine](../services/resolution-engine.md)

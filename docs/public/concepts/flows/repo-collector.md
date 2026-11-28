@@ -70,6 +70,4 @@ source-backpressure deferrals; plain git snapshots do not cross it.
   `RepoSnapshotDuration`, `FactEmitDuration`.
 
 Code: `go/internal/collector/repo/git/`, `go/internal/collector/service.go`.
-Env knobs: `ESHU_SNAPSHOT_WORKERS`, `ESHU_PARSE_WORKERS`,
-`ESHU_LARGE_REPO_FILE_THRESHOLD`, `ESHU_LARGE_REPO_MAX_CONCURRENT`,
-`ESHU_STREAM_BUFFER`, `ESHU_REPO_LIMIT`, `ESHU_CLONE_DEPTH`.
+Configuration: see [Ingestion and Queue Environment Variables](../../reference/environment-ingestion-queues.md) for snapshot/parse worker counts, large-repo semaphore thresholds, stream buffer, repo limit, and clone depth settings.

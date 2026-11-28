@@ -461,13 +461,12 @@ the recorded precedent: five legs saturated at about 1270 s predicted mean
 with no guard-legal contiguous re-cut, so the relief was a sixth shard at
 unchanged prices, cap, and guards.
 
-### Slow-draw HOLD (#9532, 2026-11-08)
+### Slow-draw hold (#9532)
 
-The arbiter ruled HOLD: six shards, the 30-minute cap, no per-shard retry, no timeout
-raise (ruling: #9532 (retired evidence record); shim
-numbers: (#9532)). The 1.5x
-slow-draw premise is dead: October slows were cold-cache runs before the restore step,
-plus fast-draw mispricing since fixed by the pooled-p75 refits.
+The shard plan remains at six shards with the 30-minute cap, no per-shard
+retry, and no timeout raise (#9532). The earlier 1.5x slow-draw premise was
+caused by cold-cache runs before the restore step and fast-draw mispricing
+fixed by pooled-p75 refits.
 
 Warm distribution (n=42, committed pooled-p75 weights): p50 0.960, p90 1.043, p99 1.111,
 max 1.130, none over 1.15. The 1620 s figure (1800 / p99) is a modeled draw bound for

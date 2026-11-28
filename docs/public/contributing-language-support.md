@@ -481,20 +481,11 @@ canonical summaries.
 
 ## Verification
 
-```bash
-cd go
-go test ./internal/parser/... ./internal/collector ./internal/content/shape -count=1
-```
-
-Run the parser and relationship kit verifier:
+Run the focused parser tests, parser/relationship kit verifier, and docs build:
 
 ```bash
+(cd go && go test ./internal/parser/... ./internal/collector ./internal/content/shape -count=1)
 scripts/verify-parser-relationship-kit.sh
-```
-
-Then build docs:
-
-```bash
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
 ```

@@ -53,31 +53,31 @@ that route runs under the same internal time bound as the status routes in
 
 ## Fixed messages
 
-| Route | Failed step | Fixed message |
-| --- | --- | --- |
-| `POST /api/v0/infra/resources/search` | graph read | `infra resource search failed` |
-| `POST /api/v0/infra/relationships` | graph read | `infra relationships read failed` |
-| `GET /api/v0/ecosystem/overview` | graph counts | `ecosystem overview read failed` |
-| `POST /api/v0/ecosystem/graph-summary` | ecosystem packet read (no `repo_id`) | `graph summary ecosystem read failed` |
-| `POST /api/v0/ecosystem/graph-summary` | repository packet read | `graph summary repository read failed` |
-| `GET /api/v0/infra/resources/count` | aggregate read | `infra resource count failed` |
-| `GET /api/v0/infra/resources/inventory` | aggregate read | `infra resource inventory read failed` |
-| `GET /api/v0/cloud/resources` | owner-ledger page selection | `cloud resource page selection failed` |
-| `GET /api/v0/cloud/resources` | graph hydration read | `cloud resource graph hydration failed` |
-| `GET /api/v0/cloud/resources` | ledger and graph parity check | `cloud resource graph projection is inconsistent` |
-| `POST /api/v0/relationships/catalog` | graph counts | `relationships catalog read failed` |
-| `POST /api/v0/relationships/edges` | graph edge slice | `relationship edges read failed` |
-| `GET /api/v0/graph/entities` | kind count read | `graph entity kind count read failed` |
-| `GET /api/v0/graph/entities` | kind count decode | `graph entity kind count decode failed` |
-| `GET /api/v0/graph/entities` | entity list read (`kind` set) | `graph entity list read failed` |
-| `GET /api/v0/images` | graph read | `container image list read failed` |
-| `GET /api/v0/images/tag-history` | graph read (tag read or scoped lookup) | `container image tag history read failed` |
-| `GET /api/v0/images/tag-history` | continuation seal | `query failed: the tag-history continuation could not be sealed` |
-| `GET /api/v0/evidence/admission-decisions` | decision read | `admission decision read failed` |
-| `GET /api/v0/evidence/admission-decisions` | evidence read (`include_evidence`) | `admission decision evidence read failed` |
-| `POST /api/v0/cloud/runtime-drift/findings` | count or page read | `cloud runtime drift readback failed` |
-| `GET /api/v0/status/operator-control-plane` | status snapshot read | `operator control plane status read failed` |
-| `GET /api/v0/surface-inventory` | embedded inventory load | `surface inventory unavailable` |
+| Route and failed step | Fixed message |
+| --- | --- |
+| `POST /api/v0/infra/resources/search` — graph read | `infra resource search failed` |
+| `POST /api/v0/infra/relationships` — graph read | `infra relationships read failed` |
+| `GET /api/v0/ecosystem/overview` — graph counts | `ecosystem overview read failed` |
+| `POST /api/v0/ecosystem/graph-summary` — ecosystem packet read (no `repo_id`) | `graph summary ecosystem read failed` |
+| `POST /api/v0/ecosystem/graph-summary` — repository packet read | `graph summary repository read failed` |
+| `GET /api/v0/infra/resources/count` — aggregate read | `infra resource count failed` |
+| `GET /api/v0/infra/resources/inventory` — aggregate read | `infra resource inventory read failed` |
+| `GET /api/v0/cloud/resources` — owner-ledger page selection | `cloud resource page selection failed` |
+| `GET /api/v0/cloud/resources` — graph hydration read | `cloud resource graph hydration failed` |
+| `GET /api/v0/cloud/resources` — ledger and graph parity check | `cloud resource graph projection is inconsistent` |
+| `POST /api/v0/relationships/catalog` — graph counts | `relationships catalog read failed` |
+| `POST /api/v0/relationships/edges` — graph edge slice | `relationship edges read failed` |
+| `GET /api/v0/graph/entities` — kind count read | `graph entity kind count read failed` |
+| `GET /api/v0/graph/entities` — kind count decode | `graph entity kind count decode failed` |
+| `GET /api/v0/graph/entities` — entity list read (`kind` set) | `graph entity list read failed` |
+| `GET /api/v0/images` — graph read | `container image list read failed` |
+| `GET /api/v0/images/tag-history` — graph read (tag read or scoped lookup) | `container image tag history read failed` |
+| `GET /api/v0/images/tag-history` — continuation seal | `query failed: the tag-history continuation could not be sealed` |
+| `GET /api/v0/evidence/admission-decisions` — decision read | `admission decision read failed` |
+| `GET /api/v0/evidence/admission-decisions` — evidence read (`include_evidence`) | `admission decision evidence read failed` |
+| `POST /api/v0/cloud/runtime-drift/findings` — count or page read | `cloud runtime drift readback failed` |
+| `GET /api/v0/status/operator-control-plane` — status snapshot read | `operator control plane status read failed` |
+| `GET /api/v0/surface-inventory` — embedded inventory load | `surface inventory unavailable` |
 
 The parity check, the count decode, the continuation seal, and the surface
 inventory load read no store. They answer `500` with the fixed message. Their

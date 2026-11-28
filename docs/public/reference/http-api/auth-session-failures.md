@@ -42,40 +42,40 @@ route does.
 
 ## SAML
 
-| Route | Failed step | Fixed message |
-| --- | --- | --- |
-| `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | provider lookup | `failed to load saml provider` |
-| `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | metadata render | `failed to render saml metadata` |
-| `GET /api/v0/auth/saml/providers/{provider_id}/login` | provider lookup | `failed to load saml provider` |
-| `GET /api/v0/auth/saml/providers/{provider_id}/login` | relay state generation, empty request hash | `failed to create saml request` |
-| `GET /api/v0/auth/saml/providers/{provider_id}/login` | AuthnRequest build | `failed to build saml request` |
-| `GET /api/v0/auth/saml/providers/{provider_id}/login` | request store write | `failed to persist saml request` |
-| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | provider lookup | `failed to load saml provider` |
-| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | request consume | `failed to consume saml request` |
-| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | replay key reserve | `failed to reserve saml replay key` |
-| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | principal resolve | `failed to resolve saml principal` |
-| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | principal without tenant or workspace | `saml principal resolved without tenant or workspace` |
-| `POST /api/v0/auth/saml/providers/{provider_id}/acs` | session secret generation, session write | `failed to create browser session` |
+| Route and failed step | Fixed message |
+| --- | --- |
+| `GET /api/v0/auth/saml/providers/{provider_id}/metadata` — provider lookup | `failed to load saml provider` |
+| `GET /api/v0/auth/saml/providers/{provider_id}/metadata` — metadata render | `failed to render saml metadata` |
+| `GET /api/v0/auth/saml/providers/{provider_id}/login` — provider lookup | `failed to load saml provider` |
+| `GET /api/v0/auth/saml/providers/{provider_id}/login` — relay state generation, empty request hash | `failed to create saml request` |
+| `GET /api/v0/auth/saml/providers/{provider_id}/login` — AuthnRequest build | `failed to build saml request` |
+| `GET /api/v0/auth/saml/providers/{provider_id}/login` — request store write | `failed to persist saml request` |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` — provider lookup | `failed to load saml provider` |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` — request consume | `failed to consume saml request` |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` — replay key reserve | `failed to reserve saml replay key` |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` — principal resolve | `failed to resolve saml principal` |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` — principal without tenant or workspace | `saml principal resolved without tenant or workspace` |
+| `POST /api/v0/auth/saml/providers/{provider_id}/acs` — session secret generation, session write | `failed to create browser session` |
 
 A failed assertion check still answers the same `401` for every cause, so the
 fixed `500` messages are no oracle for the assertion.
 
 ## Browser sessions and SSO callbacks
 
-| Route | Failed step | Fixed message |
-| --- | --- | --- |
-| `POST /api/v0/auth/browser-session` | secret generation, empty secret hash, session write | `failed to create browser session` |
-| `DELETE /api/v0/auth/browser-session` | revoke | `failed to revoke browser session` |
-| `PATCH /api/v0/auth/browser-session/context` | workspace switch | `failed to switch browser session workspace` |
-| `GET /api/v0/auth/sessions` | session list | `failed to list browser sessions` |
-| `GET /api/v0/auth/oidc/login` | login service error | `oidc login failed` |
-| `GET /api/v0/auth/oidc/login` | no redirect URL | `oidc login did not return a redirect URL` |
-| `GET /api/v0/auth/oidc/callback` | login service error | `oidc login failed` |
-| `GET /api/v0/auth/oidc/callback` | session issuance | `failed to create browser session` |
-| `GET /api/v0/auth/github/login` | login service error | `github login failed` |
-| `GET /api/v0/auth/github/login` | no redirect URL | `github login did not return a redirect URL` |
-| `GET /api/v0/auth/github/callback` | login service error | `github login failed` |
-| `GET /api/v0/auth/github/callback` | session issuance | `failed to create browser session` |
+| Route and failed step | Fixed message |
+| --- | --- |
+| `POST /api/v0/auth/browser-session` — secret generation, empty secret hash, session write | `failed to create browser session` |
+| `DELETE /api/v0/auth/browser-session` — revoke | `failed to revoke browser session` |
+| `PATCH /api/v0/auth/browser-session/context` — workspace switch | `failed to switch browser session workspace` |
+| `GET /api/v0/auth/sessions` — session list | `failed to list browser sessions` |
+| `GET /api/v0/auth/oidc/login` — login service error | `oidc login failed` |
+| `GET /api/v0/auth/oidc/login` — no redirect URL | `oidc login did not return a redirect URL` |
+| `GET /api/v0/auth/oidc/callback` — login service error | `oidc login failed` |
+| `GET /api/v0/auth/oidc/callback` — session issuance | `failed to create browser session` |
+| `GET /api/v0/auth/github/login` — login service error | `github login failed` |
+| `GET /api/v0/auth/github/login` — no redirect URL | `github login did not return a redirect URL` |
+| `GET /api/v0/auth/github/callback` — login service error | `github login failed` |
+| `GET /api/v0/auth/github/callback` — session issuance | `failed to create browser session` |
 
 The OIDC and GitHub login services classify their own state-store,
 code-exchange, identity, and grant failures as `503`, `400`, or `403` with the
@@ -85,15 +85,15 @@ or `499` when it is a cancel of the request.
 
 ## First-run setup
 
-| Route | Failed step | Fixed message |
-| --- | --- | --- |
-| `GET /api/v0/auth/setup-state` | setup state read | `failed to determine setup state` |
-| `POST /api/v0/auth/setup/claim`, `/admin`, `/mfa` | setup-open check | `failed to determine setup state` |
-| `POST /api/v0/auth/setup/claim`, `/admin`, `/mfa` | bootstrap credential check | `failed to verify bootstrap credential` |
-| `POST /api/v0/auth/setup/admin`, `/mfa` | owner resolve | `failed to resolve setup owner` |
-| `POST /api/v0/auth/setup/admin` | credential id generation, password write | `failed to set administrator password` |
-| `POST /api/v0/auth/setup/mfa` | recovery-code generation | `failed to generate recovery codes` |
-| `POST /api/v0/auth/setup/mfa` | MFA factor id generation, completion | `failed to complete setup` |
+| Route and failed step | Fixed message |
+| --- | --- |
+| `GET /api/v0/auth/setup-state` — setup state read | `failed to determine setup state` |
+| `POST /api/v0/auth/setup/claim`, `/admin`, `/mfa` — setup-open check | `failed to determine setup state` |
+| `POST /api/v0/auth/setup/claim`, `/admin`, `/mfa` — bootstrap credential check | `failed to verify bootstrap credential` |
+| `POST /api/v0/auth/setup/admin`, `/mfa` — owner resolve | `failed to resolve setup owner` |
+| `POST /api/v0/auth/setup/admin` — credential id generation, password write | `failed to set administrator password` |
+| `POST /api/v0/auth/setup/mfa` — recovery-code generation | `failed to generate recovery codes` |
+| `POST /api/v0/auth/setup/mfa` — MFA factor id generation, completion | `failed to complete setup` |
 
 The bootstrap credential check answers `500` only when the check itself
 fails: a store error, or a bootstrap decryption key that is not configured. A

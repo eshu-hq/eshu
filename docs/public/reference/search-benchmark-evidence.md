@@ -429,50 +429,6 @@ count, overflow, build time, p50/p95 latency, recall, precision, nDCG, and
 false-canonical-claim count for each cap. The command refuses to infer recall
 from unlabeled queries.
 
-## Recorded Runs
-
-- Issue #2235 search-lane latency (2026-06-13)
-  — first measured run over a 27,822-document corpus: Postgres baseline vs the
-  in-process `searchhybrid` lane; decision `defer_search_change`. The NornicDB
-  search arm was not measured (no search-enabled curated deployment), and recall
-  needs a labeled query suite.
-- Issue #2237 inverted index (2026-06-13)
-  — before/after for the `searchhybrid` inverted index: in-process hybrid p50
-  ~19.5 ms → ~0.53 ms (~37×) over the same corpus, now faster than the Postgres
-  baseline at the median with a tighter tail.
-- Issue #2355 search cap sweep (2026-06-13)
-  — live 227,196-document cap sweep with a 20-query content-handle suite; the
-  500-document placeholder recorded 0.000 recall, while the full corpus recorded
-  1.000 recall with 24 us p95 in-process BM25 latency.
-
-## Synthetic Package Benchmarks
-
-- Issue #2596 pure-Go vector retrieval (2026-06-14): Benchmark Evidence:
-  `cd go && go test ./internal/searchhybrid -run '^$' -bench 'BenchmarkBackendVectorRetrieval' -benchtime=100ms -count=1`
-  on a deterministic 10,000-document synthetic corpus with 64 one-hot vector
-  buckets and semantic `limit=20`. Exact cosine scored every valid in-scope
-  vector at 9,539,657 ns/op, 2,036,187 B/op, and 282 allocs/op. Approximate
-  retrieval bucketed by dominant vector dimension/sign, filtered by scope, and
-  scored exact cosine for candidates at 4,684,271 ns/op, 1,082,762 B/op, and
-  185 allocs/op. This is package-level scale evidence only; it is not a live
-  corpus search-lane recommendation. No-Observability-Change: the change stays
-  inside the in-process `searchhybrid` backend, emits no new runtime spans,
-  metrics, or logs, and continues to rely on `searchretrieval.Runner`
-  observations for operator-facing request duration, counts, truncation, and
-  failure classes.
-- Issue #3043 in-process angular-LSH vector retrieval (2026-06-18): Benchmark
-  Evidence: `go test ./internal/searchhybrid -run '^$' -bench
-  BenchmarkBackendVectorRetrieval -benchmem -count=3` on Apple M4 Pro over the
-  same deterministic 10,000-document / 64-dimension synthetic corpus. Exact
-  cosine measured 37.54 / 33.70 / 38.02 ms/op, 2,036,176-2,036,184 B/op, and
-  282 allocs/op. The approximate path now uses deterministic multi-table
-  angular LSH with one-bit neighbor probing plus exact cosine rerank over ANN
-  candidates; it measured 16.71 / 17.85 / 19.41 ms/op, 1,092,306-1,092,312
-  B/op, and 197 allocs/op. This remains package-level synthetic evidence only. It
-  supports the explicitly enabled persisted local vector path and does not add a
-  hosted provider, external vector store, canonical graph write, or new runtime
-  telemetry surface.
-
 ## Recommendation
 
 Each completed evidence record must recommend exactly one decision:

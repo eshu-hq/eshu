@@ -140,10 +140,9 @@ topology, including the removed in-tree API's startup backfill, is gone.
 - `GET /api/v0/cloud/ssm-host-inventory` is named with its measured 2,455 blocks
   (legacy and winners alike). With no SSM facts it still probes the fact index
   once per active scope. The measured cost of about 3.0 buffers per active scope
-  (2,455 at 800 scopes) is accepted by the arbiter ruling in
-  #11208 (retired evidence record);
-  [#11208](https://github.com/eshu-hq/eshu/issues/11208) is being closed as not
-  planned.
+  (2,455 at 800 scopes) is accepted as the steady-state baseline
+  ([#11208](https://github.com/eshu-hq/eshu/issues/11208), closed as not
+  planned).
 
 ## Not measured here
 

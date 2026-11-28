@@ -61,13 +61,25 @@ either is above zero, so a pod that is still stopping counts. It does not use
 `kubectl rollout status`, which also reports success at zero replicas. The
 authority line prints `in_tree_direct_running=yes`, `no`, or `unknown`.
 
+### When the in-tree Deployment is running
+
 | External claims of the kind | Deployment | Result |
 | --- | --- | --- |
 | 1 or more | Running | Exit 7. The message names both live producers. |
-| 1 or more | Not running | Exit 4 (refused). The external producer is alone. |
-| 1 or more | Unreadable or missing | Exit 7. It counts as running, and the message says the read failed. |
 | None | Running | Passes. No external claim exists, so there is no overlap. |
+
+### When the in-tree Deployment is not running
+
+| External claims of the kind | Deployment | Result |
+| --- | --- | --- |
+| 1 or more | Not running | Exit 4 (refused). The external producer is alone. |
 | None | Not running | Passes. |
+
+### When the in-tree Deployment is unreadable or missing
+
+| External claims of the kind | Deployment | Result |
+| --- | --- | --- |
+| 1 or more | Unreadable or missing | Exit 7. It counts as running, and the message says the read failed. |
 | None | Unreadable or missing | Passes. The authority line prints `unknown`, and the evidence line names the read error. |
 
 Every step uses this one read, so `run` and `verify` agree. A standalone

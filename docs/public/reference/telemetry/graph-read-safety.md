@@ -173,13 +173,8 @@ deployment/infrastructure overview builder
 (`artifacts.LoadDeploymentArtifactOverview`, whose error both routes discard)
 is neither bounded nor disclosed, and neither route's full call graph
 has an exhaustive audit yet: a graph-read failure there still folds into the
-"no rows" path with no `failure_class` signal. See
-retired evidence record (part 3, linked from
-`go/internal/query/AGENTS.md`) for the full per-site propagate/degrade
-rationale and the reasoning behind the narrower scope, and
-retired evidence record (part 2) for the P1 review
-follow-up that bounded and disclosed the story's workload/platform/language
-row reads.
+"no rows" path with no `failure_class` signal. See `go/internal/query/AGENTS.md`
+for the per-site propagate-vs-degrade rules and story row-read bounds.
 
 Every route in `boundedGraphReadRoutes` follows the table above and advertises
 both statuses in the OpenAPI spec. That list is the enforced set — read it as

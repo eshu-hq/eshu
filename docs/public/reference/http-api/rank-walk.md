@@ -23,11 +23,11 @@ of their ids, and a fingerprint of the basis.
 
 ## Lanes and orders
 
-| Route | Lane | Order |
+| Route and lane | Selection | Order |
 | --- | --- | --- |
-| `find_code` | `graph` when the graph search returns rows. Page 1 picks the lane exactly as a plain request does. | `graph_name`: the graph lane's own order (name, then id). Pages equal the plain `offset` pages. |
-| `find_code` | `content` when the graph search returns no rows, or no graph is configured. | `hybrid` when the hybrid ranker scores the window; `lexical` (the lane's own order) with `exact=true`, with no ranker, or when no row can be scored. |
-| `search_entity_content` | Always `content`. Needs `repo_id` or exactly one `repo_ids` entry. | `hybrid`, or `lexical` when no row can be scored. Needs the hybrid ranker. |
+| `find_code` (`graph` lane) | Selected when graph search returns rows (page 1 matches a plain request). | `graph_name`: the graph lane's own order (name, then id). Pages equal plain `offset` pages. |
+| `find_code` (`content` lane) | Selected when graph search returns no rows or no graph is configured. | `hybrid` when the hybrid ranker scores the window; `lexical` with `exact=true`, no ranker, or no scorable rows. |
+| `search_entity_content` (`content` lane) | Always `content`. Needs `repo_id` or exactly one `repo_ids` entry and the hybrid ranker. | `hybrid`, or `lexical` when no row can be scored. |
 
 `find_code` never refuses a walk for a missing ranker. With the ranker off,
 or with `exact=true`, `rank_cursor` still gives a stable exactly-once walk in
@@ -74,17 +74,17 @@ with `offset` on `search_entity_content` (from `offset=200`, in lexical order).
 The OpenAPI schema `RankCursorError` lists every code and reason below, and
 the 409 is the `RankCursorConflict` response.
 
-| Status | `error.code` | `details.reason` | When |
+| `details.reason` | Status | `error.code` | When |
 | --- | --- | --- | --- |
-| 400 | `rank_cursor_invalid` | `malformed` | The cursor is not one this server returned (garbage, edited, truncated, or repeating a row). |
-| 400 | `rank_cursor_invalid` | `tool_mismatch` | The cursor came from the other route. |
-| 400 | `rank_cursor_invalid` | `invalid_limit` | The page limit is not positive. |
-| 400 | `rank_cursor_unsupported` | `ranker_disabled` | `search_entity_content` and the hybrid ranker is off: semantic search is not enabled (no `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` and no eligible `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` profile). |
-| 400 | `rank_cursor_unsupported` | `scope_not_single_repo` | No single repository was named. |
-| 400 | `rank_cursor_unsupported` | `offset_conflict` / `cursor_conflict` | `rank_cursor` with a positive `offset`, or with the unscoped `cursor`. |
-| 400 | `rank_cursor_unsupported` | `file_search` | `POST /api/v0/content/files/search`, which has no walk. |
-| 409 | `rank_cursor_basis_mismatch` | `basis_changed` | The basis changed: the lane, the window rows or their content, the query scope, the order, or the ranker. |
-| 409 | `rank_cursor_basis_mismatch` | `order_changed` | The basis is the same, but the rows already served are no longer the top of this server's order. |
+| `malformed` | 400 | `rank_cursor_invalid` | The cursor is not one this server returned (garbage, edited, truncated, or repeating a row). |
+| `tool_mismatch` | 400 | `rank_cursor_invalid` | The cursor came from the other route. |
+| `invalid_limit` | 400 | `rank_cursor_invalid` | The page limit is not positive. |
+| `ranker_disabled` | 400 | `rank_cursor_unsupported` | `search_entity_content` and the hybrid ranker is off: semantic search is not enabled (no `ESHU_SEMANTIC_SEARCH_LOCAL_EMBEDDER` and no eligible `ESHU_SEMANTIC_PROVIDER_PROFILES_JSON` profile). |
+| `scope_not_single_repo` | 400 | `rank_cursor_unsupported` | No single repository was named. |
+| `offset_conflict` / `cursor_conflict` | 400 | `rank_cursor_unsupported` | `rank_cursor` with a positive `offset`, or with the unscoped `cursor`. |
+| `file_search` | 400 | `rank_cursor_unsupported` | `POST /api/v0/content/files/search`, which has no walk. |
+| `basis_changed` | 409 | `rank_cursor_basis_mismatch` | The basis changed: the lane, the window rows or their content, the query scope, the order, or the ranker. |
+| `order_changed` | 409 | `rank_cursor_basis_mismatch` | The basis is the same, but the rows already served are no longer the top of this server's order. |
 
 After a 409 or a `rank_cursor_invalid` 400, `details.restart_with` is
 `"start"`: restart the walk. A client that does not ask for the Eshu envelope

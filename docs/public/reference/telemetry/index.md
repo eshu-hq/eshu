@@ -6,7 +6,7 @@ Eshu telemetry exists to answer operator questions quickly:
 - Is work stuck, retrying, dead-lettered, or simply not needed?
 - Which stage owns the cost: collection, parsing, fact commit, projection,
   reducer materialization, graph write, or read query?
-- Can the next engineer prove a runtime change with metrics, traces, and logs?
+- Can an engineer verify a runtime change with metrics, traces, and logs?
 
 The code source of truth is `go/internal/telemetry`. Public docs explain how to
 use that contract without turning this page into a second copy of the code.
@@ -19,10 +19,10 @@ Use this route map instead of reading every telemetry page front to back.
 | --- | --- |
 | Which runtime is unhealthy or behind? | [Runtime Signals](runtime-signals.md) |
 | Which metric names should I graph? | [Metrics](metrics.md) |
-| Which headline panels should I import into Grafana? | The `eshu-operator-overview.json` dashboard under `docs/public/observability/dashboards/` (also linked in the Observability nav, top of this page) |
-| Which collector or ingestion counter changed? | [Ingestion And Collector Metrics](metrics-ingestion-collectors.md); minted versus skipped generations per collector kind: [Generation Outcome Telemetry](generation-outcomes.md) (`eshu_dp_ingestion_generation_outcomes_total{collector_kind,outcome,reason}`) |
+| Which headline panels should I import into Grafana? | The `eshu-operator-overview.json` dashboard under `docs/public/observability/dashboards/` |
+| Which collector or ingestion counter changed? | [Ingestion And Collector Metrics](metrics-ingestion-collectors.md); generation outcomes: [Generation Outcome Telemetry](generation-outcomes.md) |
 | Which reducer, graph, storage, or correlation metric changed? | [Reducer And Storage Metrics](metrics-reducer-storage.md); identity fact cache: [Identity Fact Cache Metrics](metrics-identity-cache.md) |
-| Where did time go for one request, scope, or graph write? | [Traces](traces.md); deferred backfill pass: [Deferred Backfill Block Timing](deferred-backfill-blocks.md) (`eshu_dp_deferred_backfill_block_duration_seconds{block}`); supply-chain impact winners resweep: [Supply-Chain Impact Winners Resweep](supply-chain-impact-winners.md) (`eshu_dp_supply_chain_impact_winners_resweep_duration_seconds{path}`, `eshu_dp_supply_chain_impact_winners_rows_total{action}`, `eshu_dp_supply_chain_impact_winners_resweep_skipped_total`, `eshu_dp_supply_chain_impact_winners_watermark_age_seconds`, `eshu_dp_supply_chain_impact_winners_keys_per_sweep`, `eshu_dp_supply_chain_impact_winners_identifiers_consumed_total`, `eshu_dp_supply_chain_impact_winners_capture_rows_total{source}`, `eshu_dp_supply_chain_impact_winners_backstop_repairs_total`, `eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}`, `eshu_dp_supply_chain_impact_winners_dirty_log_depth`, `eshu_dp_supply_chain_impact_winners_dirty_log_oldest_age_seconds`, `eshu_dp_supply_chain_impact_winners_write_conflicts_total{site,failure_class}`, `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds{phase}`, `eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds{path}`, `eshu_dp_supply_chain_impact_winners_last_commit_timestamp_seconds{path}`, `eshu_dp_supply_chain_impact_winners_contract_version{kind}`, `eshu_dp_supply_chain_impact_winners_full_resweeps_total{reason}`, `eshu_dp_supply_chain_impact_winners_stand_downs_total`, `eshu_dp_supply_chain_impact_winners_audit_last_success_age_seconds`, `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason}`, `eshu_dp_supply_chain_impact_winners_staged_audit_ticks_total`, `eshu_dp_supply_chain_impact_winners_staged_audit_last_batches`, `eshu_dp_supply_chain_impact_winners_staged_audit_last_max_batch_seconds`, `eshu_dp_supply_chain_impact_winners_staged_audit_last_staged_facts`, `eshu_dp_supply_chain_impact_winners_staged_audit_last_distinct_keys`, `eshu_dp_supply_chain_impact_winners_audit_range_duration_seconds{outcome}`, `eshu_dp_supply_chain_impact_winners_audit_sweep_ranges_total`, `eshu_dp_supply_chain_impact_winners_audit_sweep_ranges_done`, `eshu_dp_supply_chain_impact_winners_audit_sweep_last_completed_age_seconds`); per-request handler total: the `Server-Timing: total;dur=<ms>` trailer on every `/api/v0` application response that reaches the handler ([HTTP API Reference](../http-api/request-timing.md)); supply-chain impact supports table: [Supply-Chain Impact Supports](supply-chain-impact-supports.md) (`eshu_dp_supply_chain_impact_supports_*`) |
+| Where did time go for one request, scope, or graph write? | [Traces](traces.md); deferred backfill timing: [Deferred Backfill Block Timing](deferred-backfill-blocks.md); supply-chain impact winners and supports: [Supply-Chain Impact Winners Resweep](supply-chain-impact-winners.md) and [Supply-Chain Impact Supports](supply-chain-impact-supports.md); per-request `Server-Timing` header: [Request Timing](../http-api/request-timing.md) |
 | What exact error, repo, work item, or retry happened? | [Logs](logs.md) |
 | How do I stitch async service work together? | [Cross-Service Correlation](cross-service-correlation.md) |
 | How do I validate shared-write changes safely? | [Shared-Write Operations](shared-write-operations.md) |
@@ -38,12 +38,12 @@ Use this route map instead of reading every telemetry page front to back.
 5. Use `/admin/status` to confirm live queue, generation, and failure state
    before restarting services or forcing a broader re-index.
 
-Metrics should stay bounded and dashboard-safe. Repository paths, file paths,
-state locators, page IDs, package names, delivery IDs, commit SHAs, and
-work-item IDs belong in logs or trace attributes, not metric labels. Cloud and
-infrastructure resource identifiers that can contain sensitive names should use
-safe log fields such as `resource.fingerprint`, `resource.identity_kind`, and
-`resource.type` instead of raw values.
+Metrics stay bounded and dashboard-safe. Repository paths, file paths, state
+locators, page IDs, package names, delivery IDs, commit SHAs, and work-item IDs
+belong in logs or trace attributes, not metric labels. Cloud and infrastructure
+resource identifiers that can contain sensitive names use safe log fields such
+as `resource.fingerprint`, `resource.identity_kind`, and `resource.type`
+instead of raw values.
 
 ## Health Versus Completeness
 
@@ -53,72 +53,19 @@ Do not treat a green pod as proof that the graph is complete.
 | --- | --- | --- |
 | `/healthz` | The process is alive. | Work is current. |
 | `/readyz` | The runtime has enough dependencies to serve. | Queues are empty. |
-| `/metrics` | Prometheus can scrape runtime and data-plane signals; `eshu_runtime_status_snapshot_available=0` means the status snapshot failed for that scrape while OTEL metrics remain available; with `ESHU_STATUS_SUMMARY_READ_ENABLED=true`, `eshu_runtime_status_summary_stale=1` means the scrape served a stale or empty active-work summary and never the live statement. | The graph is correct. |
-| `/admin/status` | Runtime backlog, generation, failure, and domain status; `eshu_dp_status_snapshot_read_duration_seconds` (`read`, `outcome`) times each status read behind it, and each read also stamps its duration on the `postgres.status_snapshot` span as `status.snapshot.read.<read>` seconds, so a slow leg attributes in traces; `eshu_dp_status_summary_read_total` (`source`, `reason`) says whether the active-work part came from the stored summary or the live statement ([Reducer And Storage Metrics](metrics-reducer-storage.md#status-summary-reader)). | The underlying source did not change after the last collection. |
+| `/metrics` | Prometheus can scrape runtime and data-plane signals; `eshu_runtime_status_snapshot_available=0` means the status snapshot failed for that scrape while OTEL metrics remain available; with `ESHU_STATUS_SUMMARY_READ_ENABLED=true`, `eshu_runtime_status_summary_stale=1` means the scrape served a stale or empty active-work summary rather than the live statement. | The graph is correct. |
+| `/admin/status` | Runtime backlog, generation, failure, and domain status; `eshu_dp_status_snapshot_read_duration_seconds` (`read`, `outcome`) times each status read, and `eshu_dp_status_summary_read_total` (`source`, `reason`) shows whether active-work counts came from the stored summary or live SQL ([Reducer And Storage Metrics](metrics-reducer-storage.md#status-summary-reader)). | The underlying source did not change after the last collection. |
 | Query/API result | Current read-path answer. | The whole pipeline is healthy. |
 
 Use `/admin/status` and queue metrics when the user-facing question is
 freshness, convergence, or "why is this repo still not reflected?"
 
-During the provenance-edge identity migration, pair
+During provenance-edge identity upgrades, pair
 `eshu_runtime_provenance_edge_identity_upgrade_applied` with
 `eshu_runtime_provenance_edge_identity_upgrade_required`. An applied value of
-`1` and a required count that remains above zero after apparent reducer ACKs
-means migration 096 is fencing an incompatible old reducer. Roll the reducer
-forward; do not disable the database triggers.
-
-## Container Image Identity Retirement
-
-Use `eshu_dp_container_image_identity_retirements_total` when a replay changes
-the canonical answer for an image reference. Its bounded `outcome` values
-separate attempted retirements and exact legacy-row cleanup from references held
-because the OCI collector declared incomplete evidence:
-
-- `retirement_attempted`
-- `legacy_deleted`
-- `held_config_blob_unavailable`
-- `held_tag_list_truncated`
-- `held_missing_manifest_digest`
-
-An attempted retirement is not proof that a tombstone committed: a fresher
-fact-store row can reject it at the fencing-token conflict guard. Correlate the
-counter with reducer execution failures, PostgreSQL query duration, and the
-current read result before diagnosing a missing row as retired.
-
-During rolling upgrades, `container_image_identity_cutovers` remains durable
-evidence that the scope generation crossed the `image_ref_v2` compatibility
-fence. Digest-v3 authority is then visible per scope in
-`container_image_identity_scope_state`: `activation_epoch` fences lifecycle
-ABA, and non-null `active_set_id` names the only authoritative immutable support
-set. A generation activation clears that pointer immediately. The queue's v2
-and v3 authorization columns remain bound to the exact claim state, so a stale
-worker cannot publish after reclaim.
-
-Completeness holds issue a bounded prior-support query only for exact held
-image references. Existing `eshu_dp_postgres_query_duration_seconds` exposes
-that read and the final atomic publication; reducer execution/run duration and
-failure signals cover the owning pass. Decision, attempted-retirement,
-legacy-cleanup, and bounded hold outcomes remain on the two counters above.
-This adds no new metric or unbounded label.
-
-## Change Gate
-
-Runtime-affecting changes must keep telemetry useful. A PR that touches
-collectors, parsers, reducers, projectors, graph writes, queues, workers,
-runtime settings, NornicDB defaults, or API/MCP graph queries needs one of
-these tracked notes in versioned docs:
-
-- `Performance Evidence:` for before/after runtime proof.
-- `Benchmark Evidence:` for focused benchmark proof.
-- `No-Regression Evidence:` for correctness-only changes with same-shape
-  no-regression proof.
-- `Observability Evidence:` when new or existing signals prove the path is
-  diagnosable.
-- `No-Observability-Change:` only when existing metrics, spans, logs, status
-  fields, or pprof output already diagnose the changed path. Name them.
-
-PR text alone is not enough. Keep the evidence in repo docs so the next
-reviewer and the next agent can verify it without scraping GitHub.
+`1` with a non-zero required count after reducer ACKs means migration 096 is
+fencing an older reducer binary; roll the reducer forward rather than disabling
+database triggers.
 
 ## Local And Kubernetes Collection
 
@@ -132,7 +79,7 @@ reviewer and the next agent can verify it without scraping GitHub.
 - Bootstrap indexing is a local or operator-run one-shot activity. It is not a
   steady-state `ServiceMonitor` target in the public chart.
 
-## Code Contract
+## Code Contract And Change Gate
 
 Telemetry names are frozen in the Go package:
 
@@ -142,1128 +89,194 @@ Telemetry names are frozen in the Go package:
 - pipeline phases and logger helpers: `go/internal/telemetry/logging.go`
 - package-level maintainer contract: `go/internal/telemetry/README.md`
 
-For the machine-enforced enumeration of every reducer / collector / parser /
-queue / graph-write / MCP-API / span / log-key stage and the metric or
-`No-Observability-Change:` marker it must emit, see
+For the machine-enforced enumeration of every pipeline stage and its required
+metric or `No-Observability-Change:` marker, see
 [Telemetry Coverage Contract](../../observability/telemetry-coverage.md).
-That contract is the source of truth that the CI coverage script (X2) diffs
-against when a new pipeline stage lands without a corresponding metric or
-marker.
 
-When adding a signal, update the code contract first, then update the focused
-public telemetry page that operators use for that signal.
-The incident context route uses `query.incident_context` with stable `http.route` and `eshu.capability` span attributes.
-Its `query.incident_context.stage` events name completed `anchor`, `timeline`, `changes`, `routing`, `runtime`, and `review` reads with `eshu.incident_context.duration_ms` and Boolean `eshu.incident_context.error` attributes.
-On recording spans, early exits emit only reached stages; no incident ID, URL, payload, or SQL is recorded. Compare store-read events with route duration; time outside them needs separate diagnosis.
-
-Supply-chain finding list and explain reads open
-`supply_chain.cloud_runtime_probe` and
-`supply_chain.kubernetes_runtime_probe` when they resolve current runtime
-evidence.
-The child span records `eshu.subject_digest_count`,
-`eshu.authorized_current_resource_count`,
-`eshu.runtime_confirmed_digest_count`, and `eshu.runtime_resource_count`. The
-three result counts remain present at zero when the indexed owner-ledger read
-finds no authorized current resource.
-The Kubernetes child span records `eshu.subject_digest_count`,
-`eshu.kubernetes_runtime_query_count`,
-`eshu.kubernetes_runtime_concurrency_limit`,
-`eshu.kubernetes_runtime_max_concurrency`,
-`eshu.kubernetes_runtime_candidate_limit`, `eshu.graph_candidate_count`,
-`eshu.authorized_current_workload_count`,
-`eshu.runtime_confirmed_digest_count`, `eshu.runtime_workload_count`,
-`eshu.kubernetes_runtime_truncated_digest_count`, and
-`eshu.kubernetes_runtime_unknown_digest_count`. Planned query, concurrency,
-and candidate limits are set before graph fanout; result counts initialize to
-zero, so failed, empty, and permission-hidden probes remain distinguishable.
-
-Semantic evidence list routes use `query.semantic_evidence` with stable
-`http.route` and `eshu.capability` span attributes. The underlying Postgres read
-uses `postgres.query` with `db.operation=list_semantic_evidence`, letting
-operators separate opt-in semantic observation or code-hint inspection from
-deterministic documentation, code, and graph-truth reads.
-
-The language-specific entity query route (`POST /api/v0/code/language-query`)
-uses `query.language_query` with the same stable `http.route` and
-`eshu.capability` span attributes, `eshu.capability` carrying
-`symbol_graph.language_entities`. This lets operators distinguish the route's
-graph-backed, graph-first-content, and content-only entity-type reads from the
-other `symbol_graph.*` and `code_search.*` query spans in this package. The
-route's bounded graph-read failures map through the same `503
-backend_unavailable` / `504 backend_timeout` vocabulary as its siblings; a
-non-bounded failure is logged with a `failure_class` key
-(`language_query.guard`, `language_query.graph_backed`,
-`language_query.graph_first_content_backed`, or
-`language_query.content_backed`) identifying which of the route's four
-guarded call sites failed, while the response body stays the static
-`"language query failed"` message.
-
-## Reducer worker-pool gauge
-
-The reducer publishes `eshu_dp_worker_pool_active` (labeled `pool="reducer"`),
-an observable gauge of the number of intents executing concurrently — i.e. the
-active reducer workers. It is sourced by decorating the reducer's executor with
-an atomic in-flight counter, so every execution path (sequential, per-item
-concurrent, and batch concurrent) is counted in one place without touching the
-worker loops. Reading it costs an atomic load per scrape. Compare it against the
-configured `ESHU_REDUCER_WORKERS` to see saturation, and against
-`eshu_dp_queue_depth` to see whether a backlog is caused by too few active
-workers or by upstream starvation.
-
-## Shared-acceptance read-model gauge
-
-The reducer publishes `eshu_dp_shared_acceptance_rows`, an observable gauge of
-the durable shared-projection acceptance row count. It lets an operator see the
-size of the shared-acceptance read model — growth indicates accepted bounded
-units accumulating; a flatline alongside a draining queue indicates projection
-has caught up.
-
-The gauge is sourced from the PostgreSQL planner row estimate
-(`pg_class.reltuples`), not an exact `COUNT(*)`, so it is an approximation that
-tracks the true count within autovacuum/`ANALYZE` freshness. This is deliberate:
-the observable callback runs on every metrics scrape, and a per-scrape full table
-scan would be a real cost on a large acceptance table.
-
-Observability Evidence: `eshu_dp_shared_acceptance_rows` and
-`eshu_dp_worker_pool_active` were defined-but-never-registered instruments; the
-reducer now registers both callbacks, so the read-model size and active worker
-count are visible to operators for the first time. Verified by
-`TestRegisterAcceptanceObservableGauges_WithObserver` /
-`TestRegisterObservableGauges_WithObservers` (emission), `TestAcceptanceRowCount*`
-(the estimate source), and `TestActiveWorkerExecutorTracksConcurrency` (the
-in-flight counter under `-race`).
-
-No-Regression Evidence: the acceptance observer issues a single O(1) catalog
-lookup (`SELECT reltuples FROM pg_class …`) per scrape — no table scan. The
-worker gauge adds two atomic operations per executed intent (one increment, one
-deferred decrement) and an atomic load per scrape — no lock, no contention, and
-no new worker, queue, lease, or graph write. Backend: PostgreSQL via the existing
-reducer pool. Verified by `go test ./internal/storage/postgres ./cmd/reducer
-./internal/telemetry -count=1` (and `-race` on the worker-gauge test).
-
-## Content substring index finalization
-
-Cold Compose bootstrap persists one `content_substring_index_state` row with a
-bounded state: `not_built`, `building`, `ready`, or `failed`. Bootstrap-index
-logs the finalization start and terminal state with `index_state` and
-`duration_seconds`; failures also carry
-`failure_class=content_substring_index_build_failure`. Pair those logs with
-`eshu_dp_bootstrap_pipeline_phase_seconds{bootstrap_phase="content_index_finalization",collector_kind="bootstrap-index"}`
-to identify the total exact-index build, validation, and `ANALYZE` phase as a
-bootstrap long pole. All-repository substring reads fail closed until the
-durable state is `ready` and all four catalog indexes validate; repository-scoped
-reads do not depend on this cold-build lifecycle; the secret-line side table has [finalizer signals](secret-lines.md).
-
-## Cross-repo activation fence counter
-
-The reducer publishes `eshu_dp_cross_repo_activation_fenced_total` (label
-`scope_id`), a counter incremented when a cross-repo resolution generation's
-activation (publish to the repo-dependency surface) is withheld because its
-durable graph-acceptance intents failed to commit. The handler commits the
-graph-acceptance intents before it activates the generation, and the
-repo-dependency projection lane additionally gates graph-projection authority on
-the relationship generation being active. Together these make activation the
-single fence that opens the graph and the Postgres relationship read-model
-surfaces at the same time, so neither surface can run ahead of the other.
-
-A non-zero rate means a partial failure left a generation un-published (no
-stranded denormalized edges were exposed); the reducer retry path converges the
-generation idempotently on a later cycle. Pair it with the `cross-repo
-activation fenced` warn log, which names the scope, generation, withheld intent
-count, and failure class. The #3559/#3616 reconciler
-(`eshu_dp_reconciliation_convergence_total`) remains as defense-in-depth for any
-residual drift.
-
-## Graph orphan-node gauge
-
-The reducer publishes `eshu_dp_graph_orphan_nodes`, an observable gauge of
-zero-relationship graph nodes in the closed orphan-sweep label set. The only
-metric label is `node_label`; repository ids, resource names, generation ids,
-and graph node ids stay out of metrics.
-
-A background refresher runs the bounded count queries through the graph read port ([snapshots](graph-gauge-snapshots.md); the Neo4j id-anchor census gauge is in [Id-Anchor Census](id-anchor-census.md)); the callback serves the last one. Each label is capped by
-`ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`. Treat the gauge as a cleanup
-pressure signal. Use reducer sweep logs for cycle duration, mark/delete counts,
-and `failure_class=graph_orphan_sweep_error` when the count is not draining.
-
-A `node_label="Module"` count that would not drain used to be expected here, and
-is not any more. Import-graph Module nodes are identified by (name, language) —
-a Go `time` and a Python `time` are different modules — and the sweep now
-anchors on both. It used to anchor on the name alone, so two same-named modules
-in different languages shared one sweep key: when one was still imported and the
-other was not, the pair read as connected and the disconnected one was never
-swept, leaving a node that stayed counted for good. That residue accrued one
-node per module name whose projected language had ever changed, so on a corpus
-that shifts languages it grew name by name rather than settling.
-
-Every Module orphan now drains like any other label's. A Module count that does
-not fall across sweep cycles is worth diagnosing from the sweep logs rather than
-explaining away, the same as `node_label="File"` or `node_label="Directory"`.
-
-Observability Evidence: `TestRegisterGraphOrphanObservableGauge_WithObserver`
-proves the gauge emits one datapoint per observed closed label. No-Regression
-Evidence: the count path uses static-label, zero-relationship queries with a
-configured per-label limit and no graph mutation; cleanup mutations run in the
-separate `GraphOrphanSweepRunner`.
-
-## Typed-payload decode quarantine counters
-
-Two counters report facts skipped during Contract System v1 typed-payload
-decode because a required identity field was missing or null (`input_invalid`).
-Each increment is a per-fact dead-letter: the malformed fact is skipped and NOT
-projected while valid facts in the same batch still materialize. A non-zero
-rate means the graph is under-projecting until the collector defect is fixed;
-treat a sustained spike as an accuracy alarm. The paired error log
-(`reducer`/`projector` `input_invalid fact quarantined`) carries `fact_id` and
-`missing_field` so an operator can locate the fact and the dropped field. On
-the code-call path a paired WARN (`code call file quarantined, edges excluded`)
-names the files as `repo_id:relative_path` (up to 32; `quarantined_file_count`
-holds the total); see the #7736 F4 note in (#7165).
-
-- `eshu_dp_reducer_input_invalid_facts_total` — reducer handler decode
-  quarantine. Labels: `domain` (the reducer domain that consumed the fact),
-  `fact_kind`.
-- `eshu_dp_projector_input_invalid_facts_total` — projector canonical-extractor
-  decode quarantine. Labels: `stage` (the projector extractor, for example
-  `oci_registry_canonical`), `fact_kind`. The projector-side counterpart to the
-  reducer counter; the two are separate instruments so an operator can tell
-  which pipeline stage quarantined a fact.
-- `eshu_dp_cross_scope_ownership_contended_rows_total` — owner-ledger node rows
-  (#5007) a graphowner batch lost to a higher-order-key contributor from another
-  scope. Label: `family` (`cloud_resource`, `ec2_instance`, or
-  `kubernetes_workload`). A nonzero rate means two scopes are writing the same
-  canonical node uid and the ledger is deterministically resolving the winner by
-  `max (observed_at, source_fact_id)`; a sustained high rate points at
-  overlapping-identity ingestion worth investigating, not data loss (the losing
-  rows are intentionally skipped so the winning contributor's row stands).
-
-Both label sets are closed and bounded (a domain/stage name and a fact-kind
-string); repository ids, resource names, and generation ids stay out of
-metrics and live on the structured log instead. The operator dashboard's
-"Reducer input_invalid Facts (rate)" and "Projector input_invalid Facts (rate)"
-panels chart both.
-
-## Lock-only gate lock-wait signals (#5101)
-
-`graphowner.LockOnlyGate.writeChunk` (`go/internal/graphowner/lock_only_gate.go`)
-is the #5062 P1 critical section the RDS/EC2/S3 posture and internet-exposure
-property writers, and the EC2 instance identity writer, run their graph write
-inside: acquire the chunk's per-uid Postgres advisory locks (the SAME key the
-#5007 owner-ledger `Gate` uses), run the underlying graph write, commit.
-Before #5101 its only operator signal was the structured `slog` "graph node
-owner lock-only advisory locks acquired slowly" log, emitted only when a
-chunk's lock wait was at or above the 100ms `lockOnlySlowWaitThreshold`. Two
-metrics now cover the same seam, alongside that log (not replacing it):
-
-- `eshu_dp_lock_only_gate_locked_rows_total` — rows written per chunk under
-  the lock-only critical section, recorded only after the chunk's transaction
-  commits (a rolled-back chunk records nothing). The volume signal: how much
-  lock-only gating traffic each writer is doing.
-- `eshu_dp_lock_only_gate_lock_wait_seconds` — the advisory-lock acquisition
-  wait per chunk, recorded on every successful lock acquisition, not only the
-  slow-wait log's >=100ms tail. The distribution signal: whether lock-only
-  contention with a concurrent Gate-resolved base-property write on the same
-  uid is trending up, even before it crosses the log's alert threshold.
-
-Both share the label `family`, a closed enum of the five lock-only writer
-names: `rds_posture`, `ec2_internet_exposure`, `ec2_block_device_kms_posture`,
-`s3_internet_exposure`, `ec2_instance_identity`
-(`go/internal/graphowner/posture_locked_writers.go`).
-No scope id, uid, or other high-cardinality value
-is a label; those stay on the structured log and the returned error. A
-`LockOnlyGate` wired without `Instruments` (nil) skips both metrics silently
-and keeps the log-only signal, matching the sibling owner-ledger `Gate`'s
-`Instruments` field convention.
-
-## Extraction-provenance drift gauges
-
-The reducer publishes two observable gauges that let an operator see how the
-graph's edge-provenance and file-language composition is shifting over time,
-without exposing any repository identifiers or resource names.
-
-`eshu_dp_edges_by_source_tool` is an observable gauge of the current graph
-edge count partitioned by the `source_tool` label. The only metric label is
-`source_tool`; its value is bounded by the closed `sourcetool.Canonical`
-vocabulary (terraform, ansible, helm, …). Any value from the graph that is not
-in that vocabulary is coerced to `"unknown"` before reaching the label so the
-time-series set stays closed even if the graph holds a stale or unrecognised
-token. A `source_tool` series dropping to zero is the signal that a parser or
-ingester stopped writing that edge type.
-
-`eshu_dp_files_by_language` is an observable gauge of the current `File` node
-count partitioned by language. The only metric label is `language`; its value
-is written by the parser registry at ingest time, so the set is bounded by the
-parsers Eshu ships. Empty language values are skipped. A language series
-dropping to zero is the signal that the corresponding parser stopped indexing
-files.
-
-Both gauges serve a background snapshot ([snapshots](graph-gauge-snapshots.md)) of reads through the graph read port (`ProvenanceCountStore`), never a scrape-time query. The
-counts are **exact**, so the drift signal is sound — a series dropping to
-zero is a real "stopped emitting" event, never a sampling artifact. The edge
-gauge runs one aggregate per Tier-2 relationship type that carries
-`source_tool` (`DEPENDS_ON`, `DEPLOYS_FROM`, `USES_MODULE`,
-`READS_CONFIG_FROM`, `PROVISIONS_DEPENDENCY_FOR`, `DISCOVERS_CONFIG_IN`,
-`RUNS_ON`) and sums them; each per-type aggregate is answered by the
-relationship-type index, so there is no unanchored all-edge scan. The file
-gauge is a `File`-label-anchored group. Both filter on the relevant property
-IS NOT NULL, so cost is proportional to the provenance-annotated fraction of
-the graph.
-
-`ESHU_GRAPH_COUNT_LIMIT` (default 10 000) bounds the number of distinct groups
-returned — label cardinality only, **not** the rows counted, so per-group
-counts are always exact. The closed `source_tool` and language vocabularies are
-small, so the cap is a safety valve, not a limit reached in practice.
-
-Observability Evidence: `TestRegisterEdgesBySourceToolObservableGauge_WithObserver`
-proves the gauge emits one datapoint per observed closed label;
-`TestRegisterEdgesBySourceToolObservableGauge_UnknownCoercion` proves
-out-of-vocabulary tokens are coerced to `"unknown"`.
-`TestRegisterFilesByLanguageObservableGauge_WithObserver` proves the files
-gauge emits one datapoint per observed language.
-`TestEdgesBySourceToolCypherIsTypeAnchored` and
-`TestFilesByLanguageCypherIsLabelAnchoredGroupLimited` prove the read queries
-are index-answered and exact (type-anchored edges, label-anchored grouped
-files, no row sampling). No-Regression Evidence: callbacks read through
-`ProvenanceCountStore` using relationship-type-index and File-label-anchored
-aggregates and perform no graph mutations.
-
-## Search hybrid-degradation signal
-
-`eshu_dp_search_hybrid_degraded_total` is a counter the `POST /api/v0/search/semantic`
-handler increments when a request asked for semantic ranking but was served
-without it. Hybrid search degrades to deterministic BM25 (keyword) ranking when
-no embedder/vector ranking is available, and semantic-only requests are refused
-in that mode. The metric makes that degradation visible to operators; the
-response itself already reports the served mode in its `retrieval_state` field
-(`hybrid_active`, `hybrid_degraded`, `semantic_active`, `semantic_unavailable`,
-`keyword_only`).
-
-The two labels are bounded:
-
-- `query_type` — the requested ranking family: `hybrid` or `semantic`. A plain
-  `keyword` request is never counted (it is not a degradation).
-- `reason` — why semantic ranking was unavailable: `no_embedder` (no embedder is
-  configured, so hybrid is served by BM25 and semantic is refused) or
-  `index_unready` (vectors are configured but the persisted vector index is not
-  ready yet, so the request fell back to keyword).
-
-An explicit `keyword` request and a fully active `hybrid_active` /
-`semantic_active` run do **not** increment the counter — only genuine
-degradations do. The handler also stamps `search.retrieval_state`,
-`search.degraded`, and (when degraded) `search.degraded_reason` span attributes on
-every request span, so a single trace shows the served mode.
-
-Persisted semantic/hybrid retrieval stamps `search.index_cache` on the request span: `hit`, `miss`, `coalesced`, `bypass_unready`, or
-`retry_snapshot_changed`. API/MCP snapshot reads use the instrumented `semantic_search_snapshot` store; its child span and DB duration
-show that cost. The existing route-duration histogram covers the full request.
-
-The persisted BM25 read emits `query.semantic_search.persisted_index` with `stats_complete`, `query_returned`, `first_row`,
-`rows_complete`, and `stage_error` events. Their timestamps separate stats, ranking-query return, first-row wait, row drain/decode,
-and the failed stage. Vector-backed modes emit `query.semantic_search.vector_ready` with `search.vector_ready.outcome` set to
-`missing`, `present`, `not_signaled`, or `error`; keyword mode skips that probe. `not_signaled` leaves the truth envelope fresh. These spans record no query text, repository ID, or vector identity.
-
-**Degraded search is expected, not an error, in no-provider mode.** Eshu runs
-deterministic keyword search with no embedder configured by design (the
-no-provider invariant); this counter is how an operator confirms semantic ranking
-is or is not active, not an alarm by itself. A sudden rise after an embedder was
-expected to be configured is the actionable signal.
-
-Degradation rate over a 5-minute window:
-
-```promql
-sum(rate(eshu_dp_search_hybrid_degraded_total[5m])) by (query_type, reason)
-```
-
-Fraction of semantic-search traffic served degraded (the denominator is the
-per-endpoint request-duration histogram count for the route):
-
-```promql
-sum(rate(eshu_dp_search_hybrid_degraded_total[5m]))
-  /
-sum(rate(eshu_dp_api_request_duration_seconds_count{route="POST /api/v0/search/semantic"}[5m]))
-```
-
-Observability Evidence: `TestSemanticSearchHandlerEmitsDegradedCounterOnHybridFallback`
-and `TestSemanticSearchHandlerEmitsDegradedOnSemanticNoEmbedder` prove the counter
-increments on the hybrid-degraded and semantic-no-embedder paths;
-`TestSemanticSearchHandlerDoesNotEmitDegradedOnActiveHybrid` proves an active
-hybrid run does not; `TestSemanticSearchDegradation` proves the bounded
-state-to-label classification. No-Regression Evidence: the counter is recorded at
-the handler chokepoint only; the pure `searchhybrid` and `searchretrieval`
-packages keep their no-telemetry, no-I/O contract.
-
-## Generation-liveness signals
-
-The reducer's generation-liveness sweep publishes one observable gauge and three
-counters so an operator can tell whether active scope generations are converging
-or wedged.
-
-`eshu_dp_active_generations` is an observable gauge of the current active scope
-generation count by closed activation-age bucket. The only metric label is
-`age_bucket`, with the bounded values `fresh`, `aging`, `draining`, and `stuck`.
-The `stuck` bucket is the alarm signal: a non-zero `stuck` count means
-generations have actionable outstanding shared projection work after same-generation reducer
-fact-work has drained, no source-local projector row is already pending or in progress, and no
-outstanding intent sits in a domain queue that completed work inside `ESHU_GENERATION_LIVENESS_PROGRESS_WINDOW`; those are `draining` and never re-driven (see [reducer and storage metrics](metrics-reducer-storage.md#generation-liveness)).
-Scopes still moving through reducer backlog or in-flight liveness recovery stay in `aging`, not `stuck`.
-
-Three counters describe what the sweep did about it:
-
-- `eshu_dp_generation_liveness_recovered_total` — wedged active generations the
-  sweep re-drove through projector re-enqueue.
-- `eshu_dp_generation_liveness_superseded_total` — orphaned older active
-  generations the sweep superseded.
-- `eshu_dp_generation_liveness_failures_total` — recovery sweep failures by
-  bounded reason.
-
-Read `eshu_dp_active_generations{age_bucket="stuck"}` against the recovered and
-superseded counters to separate self-healing (the sweep is re-driving or
-superseding wedged generations) from a stuck backlog the sweep cannot clear. A
-rising `eshu_dp_generation_liveness_failures_total` means the sweep itself is
-failing; use reducer logs keyed on the bounded failure reason to find why.
-
-## Poison dead-letter liveness signals
-
-The generation-liveness sweep above does not reach every wedged scope. `dead_letter`
-is a `fact_work_items` **work-item** status, not a `scope_generations` status
-(the generation table has no `dead_letter` state), and `eshu_dp_active_generations`
-only buckets `active` generations — so a scope whose work is stuck in
-`dead_letter` with no strictly-newer generation never appears there at all. The
-poison-liveness sweep publishes three observable gauges and two counters for
-exactly this class: `fact_work_items` rows that are `dead_letter` and whose
-scope has no strictly-newer `scope_generations` row (regardless of that
-generation's own status), so a permanently-wedged scope still raises an alarm.
-
-`eshu_dp_poison_dead_letter_scopes` and `eshu_dp_poison_dead_letter_items` are
-observable gauges of the current poison-class scope count and row count. Either
-one being non-zero and non-draining is the alarm signal: the scope has
-permanently wedged and cannot self-heal without an operator or the bounded
-recovery arm. `eshu_dp_poison_dead_letter_oldest_age_seconds` reports the age,
-in seconds, of the oldest poison item's `updated_at`; it is zero when the class
-is empty.
-
-These three gauges are always active regardless of whether bounded auto-retry
-is enabled (`ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED`, default `false`). The
-default operational posture is surface-only: an operator sees the class size
-and decides whether to intervene.
-
-Two counters describe what the bounded auto-retry sweep did, when enabled:
-
-- `eshu_dp_poison_liveness_recovered_total` — dead-letter/poison-class rows the
-  sweep re-enqueued to `pending`, bounded by a per-row recovery-attempt budget
-  (`ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS`, default 1) so a genuinely
-  poison item cannot loop forever.
-- `eshu_dp_poison_liveness_failures_total` — poison-recovery sweep failures by
-  bounded reason.
-
-Read `eshu_dp_poison_dead_letter_scopes` and `eshu_dp_poison_dead_letter_items`
-against `eshu_dp_poison_liveness_recovered_total` to separate a poison class an
-operator has not yet acted on from one the bounded arm is actively draining. A
-rising `eshu_dp_poison_liveness_failures_total` means the sweep itself is
-failing; use reducer logs keyed on the bounded failure reason to find why.
-
-## Per-Endpoint Request Metrics
-
-Every query API and MCP read route emits two metrics, recorded once by a shared
-middleware so coverage is uniform across all endpoints rather than only the few
-with bespoke instruments:
-
-- `eshu_dp_api_request_duration_seconds` — handler latency histogram. Its
-  `_count` series doubles as the per-endpoint request rate.
-- `eshu_dp_api_request_errors_total` — server-error (5xx) counter.
-
-Both are labeled by `route` (the matched route pattern, e.g. `GET /api/v0/iac/resources`, which already
-encodes the method) and `status_class` (`2xx`, `4xx`, `5xx`, …). The `route` value space is the fixed set of
-registered routes, so cardinality stays bounded; concrete request paths with identifiers are never used as
-labels. Requests that match no route are labeled `route="unmatched"`. The admin surface (probes, `/metrics`)
-is served by a separate mux and is intentionally not counted. MCP `tools/call` adds
-`eshu_dp_mcp_response_bytes`, `eshu_dp_mcp_response_resource_fallback_total`, `eshu_dp_mcp_response_budget_page_total`, and `eshu_dp_mcp_response_over_budget_total`
-with bounded `tool` and `shape` (`dual`, `structured`) labels; see [MCP Response-Budget Telemetry](mcp-response-budget.md). Every dispatched `tools/call` is also counted at dispatch entry by `eshu_dp_mcp_tool_calls_total{tool,outcome}`, including timeouts, cancellations, unknown names, and refusals that never reach the response-bytes series; see [MCP Tool-Call Telemetry](mcp-tool-calls.md). The router tools `find_tool` and `call_tool` add `eshu_dp_mcp_router_find_total{outcome}`, `eshu_dp_mcp_router_call_total{tool,outcome}`, and `eshu_dp_mcp_router_target_rank`; see [MCP Router Telemetry](mcp-router.md). A `rank_cursor` walk on `find_code` or `search_entity_content` adds `eshu_dp_query_rank_cursor_total{tool,outcome,reason}`; replicas of mixed CPU architectures can answer `reason=order_changed` on every hybrid page, because score bits are stable per architecture only; see [Relevance Walk Telemetry](rank-cursor.md).
-
-Cloud resource paging also emits route-specific, label-safe signals:
-
-- `eshu_dp_cloud_resource_list_duration_seconds` records total page selection
-  plus graph hydration time by bounded outcome.
-- `eshu_dp_cloud_resource_list_scanned_rows` records the owner-ledger candidates
-  returned by the bounded `limit+1` selection.
-- `eshu_dp_cloud_resource_list_page_size` records resources emitted to the
-  caller.
-- `eshu_dp_cloud_resource_list_truncations_total` counts pages with a
-  continuation cursor.
-- `eshu_dp_cloud_resource_list_errors_total` counts bounded store, graph, and
-  ledger/graph parity failures.
-
-These metrics never label resource IDs, account IDs, regions, providers,
-tenant IDs, or cursor values.
-
-`POST /api/v0/code/call-graph/metrics` keeps route latency and failures in the
-same two per-endpoint metrics. Its `query.call_graph.metrics` span adds the
-bounded metric variant plus `edge_scan_limit`, `expanded_edge_count`,
-`scan_overflow`, `expanded_node_count`, `result_count`, and `truncated`.
-`scan_overflow=true` identifies a fail-closed HTTP 422 at the 50,001-edge
-sentinel; successful requests record the exact expanded edge count. These
-attributes show whether time was spent reading a large repository edge set or
-processing a small result page. They do not include repository IDs, function
-IDs, names, or paths.
-
-`GET /api/v0/graph/entities` uses the same per-endpoint metrics and adds the
-`query.graph_entity_inventory` span. Its bounded attributes are
-`eshu.query.graph_entity_inventory.round_trip_count`,
-`eshu.query.graph_entity_inventory.facet_row_count`,
-`eshu.query.graph_entity_inventory.result_count`, and
-`eshu.query.graph_entity_inventory.truncated`. The first two distinguish the one
-fixed facet-count request from the optional list request; the latter two show
-page size and continuation state. No entity, repository, account, tenant, or
-credential value is recorded.
-
-Observability Evidence: before this change, sampled query/API handlers recorded
-few read-path metrics and there was no per-endpoint latency or error signal, so
-an operator could not tell which route was slow or failing from metrics alone.
-The middleware gives uniform per-route p50/p95/p99 latency (via the histogram)
-and per-route 5xx rate, verified by a Prometheus scrape assertion in
-`go/internal/query/metrics/request_test.go` that exercises a success, a server
-error, and an unmatched route and confirms the metric families and `route` /
-`status_class` labels appear in the `/metrics` exposition.
-
-No-Regression Evidence: recording adds one in-memory route match
-(`mux.Handler`) and two metric records per request on the read path; no graph
-write, query, worker, or queue behavior changes. Backend: NornicDB (Bolt) /
-Postgres read path unchanged. Verified by
-`go test ./internal/telemetry ./internal/query ./cmd/api
--count=1`.
-
-### Allowed-read governance-audit async appender (F-9, #5170)
-
-The former in-tree mcp-server MCP transport middleware (`GET /sse`, `POST /mcp/message`,
-retired in #9679; satellite-owned now) recorded an ALLOWED `read_authorization` governance-audit event for every
-scoped-token or OIDC-bearer credential that resolves successfully,
-immediately before dispatch — the allowed counterpart of the DENIED events
-the same middleware already recorded synchronously. A naive synchronous
-append would add a Postgres round trip to every successful MCP read, so
-emission went through `governanceauditasync.AsyncAppender`: a bounded
-(default 1024), single-worker, non-blocking buffered-channel appender that
-drops rather than blocks when full, and flushes batches to the durable
-`governance_audit_events` store from a background worker. See
-`go/internal/governanceauditasync/README.md` for the full design.
-
-Three counters, all label-free, exposed the appender's drop-observability:
-
-- `eshu_dp_governance_audit_allowed_emitted_total` — events accepted into the buffer (the volume dial).
-- `eshu_dp_governance_audit_allowed_dropped_total` — events rejected because
-  the buffer was full or the appender was closed. Non-zero meant governance
-  data loss was happening; this was the signal an operator should alert on.
-- `eshu_dp_governance_audit_allowed_persist_failures_total` — events accepted
-  but a flush to the durable store failed. Non-zero pointed at the durable
-  store itself (bad connection, schema mismatch), not the appender.
-
-Only the former in-tree mcp-server MCP transport middleware wired a non-nil
-allowed-read sink (retired in #9679); the `/api/v0/*` HTTP API surface and
-`cmd/api` do not, since `tools/call` already dispatches internally through the
-same credential chain and wiring both would double-emit one logical MCP read.
-
-Enabling this path added one `governance_audit_events` row per allowed MCP
-transport request, so it assumed the deployment has the hosted retention job
-configured (`GovernanceAuditStore.DeleteExpired`,
-`go/internal/storage/postgres/governance/audit/store.go`); see
-[Hosted Retention And Deletion Policy](../hosted-retention-deletion-policy.md)
-for how to configure the cutoff.
-
-Observability Evidence: `go/internal/governanceauditasync/appender_test.go`
-and `appender_concurrency_test.go` assert exact emitted/dropped/persist-failure
-counter values against a manual OTEL reader for full-buffer drops, a
-deliberately blocked sink under concurrent overflow, and sink persist
-failures; `go/internal/query/auth_allowed_read_audit_test.go` proves the
-emission site records exactly one event per allowed scoped/OIDC-bearer read
-and zero events for shared-key, dev-open, denied, and resolver-error paths.
-`go/internal/telemetry/instruments_test.go` covered counter registration
-against a real meter before the counters were retired with the wiring above.
-
-No-Regression Evidence: `AsyncAppender.Append` costs one struct copy plus one
-non-blocking channel send (~130ns/op serial, ~3.5ns/op amortized under
-64-way concurrent load per `BenchmarkAsyncAppenderEnqueueSerial` /
-`…Parallel64`, `-benchmem -count=5`) and never touches Postgres on the
-request path; the prove-theory-first benchmark
-(`go/internal/storage/postgres/governance/audit/append_bench_test.go`)
-recorded the rejected synchronous alternative at ~10.48ms/op against local
-Postgres, ~427,000x slower than the async enqueue path measured by
-`go/internal/governanceaudit/async_enqueue_prove_bench_test.go` (~24.5ns/op).
-Denial paths, `/api/v0/*`, and `cmd/api` are unchanged (nil allowed-read
-sink). Concurrency proof: `go test -race` on
-`go/internal/governanceauditasync/...` covers 64-goroutine concurrent
-enqueue with zero drops, exact drop accounting under a blocked sink, and a
-bounded `Close()` even against a sink that never returns.
-
-### Relationship catalog breakdown limiter
-
-The relationship catalog issues one grouped `source_tool` aggregate per fixed
-source-owner label (currently Repository and WorkloadInstance). The independent
-owner reads overlap, scan each label once, and return every stamped verb/tool
-bucket. One four-permit limiter shared by all requests in an API or MCP process
-caps concurrent aggregate reads without serializing callers.
-Three label-free metrics distinguish graph-query latency from local admission
-pressure without adding repository, verb, tenant, or request cardinality:
-
-- `eshu_dp_relationship_breakdown_permit_wait_seconds` records every permit
-  wait, including waits that end through request cancellation.
-- `eshu_dp_relationship_breakdown_queued` is the current number of breakdown
-  reads waiting for a permit.
-- `eshu_dp_relationship_breakdown_in_flight` is the current number holding a
-  permit and cannot exceed four while the limiter contract is intact.
-
-An elevated queued value and permit-wait p95 with in-flight pinned at four
-means the local read cap is applying backpressure. Low permit wait with a slow
-`POST /api/v0/relationships/catalog` route instead points to graph query cost,
-not admission delay.
-
-Observability Evidence: the focused semaphore test saturates all four permits,
-observes two concurrent waiters, cancels one waiter, releases and reuses a
-permit, and proves queued/in-flight return to zero. It also proves all three
-instruments emit one label-free datapoint.
-
-No-Regression Evidence: the metric calls wrap the channel send and receive at
-the per-owner aggregate-read semaphore chokepoint. The four-slot capacity,
-cancellation select, and catalog result ordering are unchanged. Five concurrent
-callers prove four owner reads enter and the fifth waits, then every permit is
-reusable. The OTEL histogram and up/down-counter operations are
-concurrency-safe.
-
-## Per-Collector Run Metrics
-
-Every collector — git source, discovery, parser, terraform-state, sbom,
-package-registry, documentation/media/ocr, the live cloud and ticketing
-collectors, and so on — runs under the shared claimed-service worker harness
-(`ClaimedService.processClaimed`). Three metrics are recorded once at that single
-dispatch chokepoint, so one instrumentation point covers all collector families
-without touching individual collector packages:
-
-- `eshu_dp_workflow_claim_run_duration_seconds` — histogram of one claim's
-  wall time from heartbeat to complete/fail. Labels: `collector_kind`,
-  `source_system`, and `outcome` (a bounded enum: `success`, `refused` (the claim completed, but the committer refused its generation), `unchanged`,
-  `released`, `fail_retryable`, `fail_terminal`). Recorded on every return path,
-  so failed and released claims are timed too. To find the per-collector long
-  pole: `sum by (collector_kind)` of the `_sum` series over the `_count` series
-  is the mean run duration per collector family.
-- `eshu_dp_workflow_claim_facts_emitted_total` — counter of facts committed
-  per run, from `CollectedGeneration.FactCount`. Labels: `collector_kind`,
-  `source_system`. Recorded on the success path only.
-- `eshu_dp_workflow_fair_claims_total` — counter of granted claims (#8469),
-  labeled `collector_kind` and `claim_priority` (scheduler target-class rank; pacing ships its own series: [Claim-Pacing Signals](claim-pacing.md)); per-component generation quotas add two more claim signals ([Claim Quotas](claim-quotas.md)). Which claim store a collector selected at startup, and the health of its claim-plane requests, are in [Workflow Claim Store Signals](workflow-claim-store.md). Commits under a claim held by the extracted claim plane are fenced across services and report their refusals separately ([Claim-Plane Commit Fence Signals](claim-plane-commit-fence.md)).
-
-All chokepoint labels stay bounded: fixed `collector_kind`/`source_system` sets
-and the 0-4 `claim_priority` rank — no repo, scope, generation, or instance identifiers (pacing's `domain` family label is scoped separately in [Claim-Pacing Signals](claim-pacing.md)).
-The matching trace span is `collector.claimed_run`, carrying the same
-attributes plus the raw `fairness_key` and `claim_priority` so a trace
-correlates with the duration histogram ([Fair-Claim Rotation Signals](fair-claim-rotation.md)).
-
-These join `eshu_dp_bootstrap_pipeline_phase_seconds` and `eshu_dp_content_entity_emitted_total`
-by `collector_kind`, locating the family and phase that set wall time. For NVD,
-`eshu_dp_vulnerability_intelligence_fetch_duration_seconds` adds numeric
-`page_count` (0-100) for validated modified-window pages, including pages
-later discarded on failure or mirror restart; cache-only runs report zero. OSV affected entries and whole records the converter skips are counted by `eshu_dp_vulnerability_intelligence_affected_entries_skipped_total` and `eshu_dp_vulnerability_intelligence_records_skipped_total` (`source`, `ecosystem`, `reason`; see [Ingestion And Collector Metrics](metrics-ingestion-collectors.md)). The identity edges a CVE fact carries (`aliases`, `related`, and the directed `upstream`) are counted per element by `eshu_dp_vulnerability_intelligence_identity_edges_emitted_total` (`source`, `edge_kind`, `status`=`active`\|`withdrawn`; see [Ingestion And Collector Metrics](metrics-ingestion-collectors.md)).
-
-Observability Evidence: formerly the time spent per collector needed strace and
-DB forensics. With these metrics an operator reads the per-collector long pole
-(`eshu_dp_workflow_claim_run_duration_seconds`) and per-collector fact volume
-(`eshu_dp_workflow_claim_facts_emitted_total`) directly from the metrics port,
-and the `collector.claimed_run` span gives the correlated per-claim trace.
-Verified by metric and span assertions in
-`go/internal/collector/claimed_service_run_metrics_test.go` covering all five
-outcomes and the span attributes.
-
-No-Regression Evidence: the timing wrapper is a `time.Now` diff around work
-`processClaimed` already performs; the fact counter reads an integer
-(`CollectedGeneration.FactCount`) already populated at the seam. No extra IO,
-graph write, query, worker, or queue behavior changes. The OTEL
-`Float64Histogram.Record` and `Int64Counter.Add` calls are concurrency-safe;
-the timing and outcome values are call-local, so the N concurrent claimed-service
-workers share no mutable state through the recording path. Verified by
-`go test ./internal/collector ./internal/telemetry -count=1` and the
-claimed-service `-race` suite.
-
-## Per-File Parse And Pre-Scan Cost
-
-Within the `parse` and `pre_scan` snapshot stages above, two histograms
-attribute cost per file and per bounded `language`:
-
-- `eshu_dp_file_parse_duration_seconds` — per-file parse duration, labeled by
-  `language`.
-- `eshu_dp_file_prescan_duration_seconds` — per-file pre_scan duration, labeled
-  by `language`. Only files that actually dispatch to a language pre-scanner
-  emit a sample; languages that derive their `ImportsMap` contribution from the
-  parse stage instead (php, javascript, typescript, tsx, on a full ingest)
-  contribute no pre_scan sample.
-
-Both pair with a structured-log language summary on their owning stage
-(`language_parse_summary` for `parse`, `language_prescan_summary` for
-`pre_scan`) so an operator can graph or log-pivot per-language cost the same
-way for both stages. Full row detail, including the derive-from-parse caveat
-above, lives in the "Git, Discovery, And Fact Streaming" table of
-[Ingestion And Collector Metrics](metrics-ingestion-collectors.md).
-
-Observability Evidence: `eshu_dp_file_prescan_duration_seconds` was registered
-in `go/internal/telemetry/instruments.go` (#4767/#4811) but this operator
-reference page never gained a row for it or its `eshu_dp_file_parse_duration_seconds`
-sibling — a frozen-inventory gap this section closes. No behavior changed;
-this is a documentation-only addition.
-
-No-Regression Evidence: fixes a `git_snapshot_native.go` pre_scan stage-duration
-measurement bug — `recordSnapshotStage` self-captured its end time inside the
-call, so the caller's `preScanLanguageSummary(...)` argument expression (a
-per-file histogram-record loop) ran before that capture and was silently
-folded into `eshu_dp_collector_snapshot_stage_duration_seconds{stage="pre_scan"}`.
-The fix captures `preScanEndedAt` immediately after
-`PreScanRepositoryPathsWithWorkersStats` returns, builds the summary after that,
-and records the stage via the new `recordSnapshotStageAt(..., preScanEndedAt, ...)`
-overload that takes an already-captured end time instead of self-capturing one.
-The `parse` stage was audited and does not have this bug: its
-`languageParseSummary` is returned from `buildParsedRepositoryFiles` itself (the
-per-file `FileParseDuration.Record` call happens inline during the measured
-parse work), so no equivalent post-processing loop runs between the parse work
-finishing and its `recordSnapshotStage` call. No new Cypher, graph write,
-worker, lease, batch, or queue behavior; this only changes which `time.Now()`
-sample is used as the stage end time. Verified by
-`TestRecordSnapshotStageAtExcludesPostEndTimeWork`,
-`TestRecordSnapshotStageSelfCapturesEndTimeAtCallTime`, and the existing
-`TestSnapshotRepositoryRecordsPerStageTelemetry` in
-`go/internal/collector/repo/git/snapshot_stage_endtime_test.go` and
-`git_snapshot_stage_telemetry_test.go`.
-
-## Per-(Domain, Partition) Shared-Projection Drain Telemetry
-
-The reducer shared-projection runner now publishes two instruments for #3624
-Phase 1 per-domain attribution:
-
-- `eshu_dp_shared_projection_partition_processing_seconds` — a histogram of
-  the full `ProcessPartitionOnce` wall time (lease claim + selection + retract
-  + write + mark_completed) labeled by `domain` and `partition_id`
-  (0-based slot, bounded by `ESHU_SHARED_PROJECTION_PARTITION_COUNT`). This is
-  the primary long-pole signal: read `max by (domain, partition_id)`
-  to identify which (domain, partition) pair dominates the cycle and whether the
-  cost is in graph writes or Postgres.
-- `eshu_dp_shared_projection_intents_completed_total` — a counter of intents
-  marked completed, labeled by `domain` only (bounded domain set).
-  Combine with an intent-emit counter to derive per-domain pending depth and
-  drain rate without a per-scrape table scan.
-- `eshu_dp_shared_projection_lease_quarantines_total` — a counter of
-  fail-closed shard pauses, labeled by `domain` and a bounded `reason` set:
-  `cycle_deadline`, `heartbeat_lost`, or `cycle_error`. Repository identity and
-  lease owner are deliberately excluded.
-
-Performance Evidence: Phase 2 remote measurement pending — these instruments
-exist so the next corpus run can provide the per-domain latency distribution
-that confirms the Phase 2 scaling parameters
-(`ESHU_SHARED_PROJECTION_PARTITION_COUNT`, `ESHU_SHARED_PROJECTION_WORKERS`).
-
-Observability Evidence: `eshu_dp_shared_projection_partition_processing_seconds`
-and `eshu_dp_shared_projection_intents_completed_total` are the missing
-per-domain attribution signals. Before this change an operator could see total
-cycle count and overall processing duration (via the existing instruments) but
-could not attribute latency or throughput to a specific (domain, partition) pair.
-Verified by `TestRecordSharedProjectionPartitionMetrics_HistogramAndCounter`
-(emission and label correctness), `TestRecordSharedProjectionPartitionMetrics_SkipsZeroDuration`
-(no spurious zero-bucket emission), and
-`TestRecordSharedProjectionPartitionMetrics_CardinalityBounded`
-(forbidden label discipline) in `go/internal/reducer/intents/shared/worker/telemetry_test.go`.
-
-No-Regression Evidence: both instruments record via two concurrency-safe OTEL
-calls (`Float64Histogram.Record`, `Int64Counter.Add`) inside the existing
-`processPartitionWithTelemetry` path. No new worker, goroutine, query, lease,
-graph write, or queue behavior is introduced. Verified by
-`go test ./internal/reducer ./cmd/reducer ./internal/telemetry -count=1 -race`
-(2678 tests, all passing).
-
-## Rationale Retract Probe Outcomes
-
-`eshu_dp_rationale_retract_probe_outcomes_total` counts one outcome per
-guarded rationale `EXPLAINS` retract statement. Two guarded paths share this
-counter: the whole-repository retract and the per-target-label delta retract.
-Both run behind a bounded existence probe, because on the pinned NornicDB build
-the `DELETE` costs proportional to store size even when it removes zero rows.
-The counter carries two bounded labels:
-
-- `outcome`, taking four values:
-  - `skipped` — the probe found no matching edges, so the delete did not run;
-  - `deleted` — the probe found edges, so the delete ran;
-  - `unsupported` — the executor chain does not offer a probe;
-  - `probe_error` — the probe failed.
-- `scope`, taking two values:
-  - `whole_scope` — the full-repository retract, firing once per
-    `RetractEdges` batch and binding every repository in that batch (so expect
-    on the order of 9-16 per generation on a ~900-repository corpus, not one
-    per repository);
-  - `delta_by_file_path` — the per-target-label delta retract, firing once per
-    target label (seven per `RetractEdges` batch, binding a union of the
-    batch's delta file paths) on every incremental sync.
-
-`scope` exists because the two paths fire at very different rates. Collapsed
-into one series, a `skipped` count could not show which guard is doing the
-work, and a guard on one path that silently stopped engaging would hide behind
-the other path's counts.
-
-Read `unsupported` and `probe_error` as the signals to watch on either scope:
-both are fail-safe (the delete runs unconditionally, so graph truth is
-correct), but a sustained non-zero value means that scope's guard is inert and
-every retract on it is paying full cost again. In a healthy reducer both read
-zero for both scopes. The usual cause is an executor wrapper that does not
-forward the probe capability.
-
-Be precise about what this metric cannot tell you. It distinguishes an *inert*
-guard from an *active* one; it does not distinguish a correct skip from a wrong
-one, because a repository that genuinely has no rationale edges and a probe that
-wrongly reported none both increment `skipped`. Treat it as a performance signal,
-not a correctness one.
-
-There is no dashboard panel for this counter. To check either scope's guard
-directly:
-
-```promql
-# Is either guard inert? Both series should sit flat at zero.
-sum by (scope) (rate(eshu_dp_rationale_retract_probe_outcomes_total{outcome=~"unsupported|probe_error"}[15m]))
-
-# Is the guard doing work? skipped should dominate on a steady-state corpus,
-# because most repositories have no rationale edges to retract.
-sum by (scope, outcome) (rate(eshu_dp_rationale_retract_probe_outcomes_total[15m]))
-```
-
-The first query is the one worth alerting on. A sustained non-zero value on
-either scope means every retract on that scope is paying the full store-size
-cost again, while graph truth stays correct.
-
-## Unroutable Shared-Edge Rows
-
-`eshu_dp_shared_edge_unroutable_rows_total` counts shared-projection rows a
-canonical edge write could not route to a statement, so no edge was written for
-them. It has two bounded labels:
-
-- `domain` identifies the shared projection domain;
-- `reason` distinguishes `partial_batch` (some rows in the batch still wrote)
-  from `whole_batch` (the batch produced nothing).
-
-Read it alongside the `shared edge rows unroutable` WARN, which carries the
-evidence source and one sample intent id — deliberately kept out of the metric
-labels to bound cardinality.
-
-Two things an operator needs to know before alerting on it:
-
-- **Each rejected row is counted once.** The write reports what it could not
-  route, the reducer records those rows durably and then completes the intent,
-  so a batch is not re-selected and the count does not inflate on repeat
-  cycles. A rising count means new losses, not a stuck partition.
-- **A rejection is not always data loss.** A row missing its required MATCH
-  identifiers can never become an edge. A row whose relationship type has no
-  write statement in the running binary is well formed, and routes normally
-  once a rolling upgrade completes — the durable
-  `shared_projection_unroutable_intents` row carries the distinction in its
-  `reason` column.
-
-## Repo-Dependency RUNS_ON Retract Omissions
-
-`eshu_dp_shared_edge_runs_on_retract_omissions_total` counts impossible
-`RUNS_ON` retract transactions that the shared edge writer omits because the
-exact evidence source cannot emit that relationship type. It has two bounded
-labels:
-
-- `domain` identifies the shared projection domain;
-- `reason` identifies the closed omission reason, currently
-  `source_capability`.
-
-Evidence source and repository identity are intentionally excluded from metric
-labels. Use the accompanying `shared edge retract role omitted` structured log
-for the exact evidence source, statement role, and repository count. A rising
-counter for `domain=repo_dependency` is expected while code-import refreshes
-drain; a missing counter alongside those refreshes means the source-capability
-fast path is not active.
-
-Performance Evidence: the retained 896-repository run spent `362.94s` across
-838 serialized code-import `RUNS_ON` retracts. Omitting that exact-source arm is
-expected to save `300-360s`; the counter confirms how many transactions were
-removed without introducing repository-level metric cardinality.
-
-No-Regression Evidence: ordinary evidence sources and the prefix lookalike
-`projection/code-imports-extra` retain the `RUNS_ON` retract and do not
-increment the counter. The exact source increments once per omitted role. The
-graph writer's worker, partition, lease, retry, ordering, and remaining
-transaction boundaries are unchanged.
-
-## AWS Cloud-Image Edge Counter (#5450)
-
-`eshu_dp_aws_cloud_image_edges_total` counts AWS `CloudResource` ->
-`ContainerImage` edges `DomainAWSCloudImageMaterialization` actually
-materializes per generation (a Lambda function's exact
-`lambda_function_uses_image` relationship, resolved to a digest-addressed
-`:ContainerImage` node). It carries one bounded label, `resolution_mode`
-(currently always `container_image_digest`, kept for forward compatibility
-with a future non-digest resolution mode).
-
-The counter only increments for a row whose target `:ContainerImage` node is
-CONFIRMED to exist in the canonical graph — a `lambda_function_uses_image`
-relationship whose referenced digest the OCI registry has never scanned is
-counted as a `target_not_materialized` skip instead, never as a materialized
-edge. This distinction matters operationally: `ExtractAWSCloudImageEdgeRows`
-alone cannot tell the two cases apart (it has no graph access), so the handler
-runs a bounded existence pre-filter over target uids before this counter (and
-`CanonicalWrites`/the completion log's `edge_count`) is computed, closing an
-over-reporting gap where the metric could claim more edges than the graph
-actually had. `ecs_task_definition_uses_image` relationships never reach this
-counter at all — they are tag-only and stay Postgres-only per the #5472
-EXACT-ONLY graph-projection policy, counted under the completion log's
-`skipped_by_reason=tag_only_postgres_only_policy` instead.
-
-## Deferred backfill per-task fact-load telemetry (#5096)
-
-The deferred relationship backfill's per-scope fact-load fan-out
-(`loadDeferredScopedFactsAcrossPartitions`) splits each `(scope_id,
-generation_id)` partition into one or more bounded query tasks (a partition
-with a large repo-id catalog is chunked). Two metrics on the
-`relationship.backfill_deferred` span's worker goroutine expose one per-task
-data point:
-
-- `eshu_dp_deferred_backfill_partition_load_duration_seconds` — wall time of
-  one query task's fact load.
-- `eshu_dp_deferred_backfill_partition_load_fact_count` — facts that task
-  loaded.
-
-Both are Float64/Int64 histograms with **no attributes** — never a scope_id,
-repo_id, or any other raw catalog identifier — so their cardinality stays
-fixed regardless of catalog size. They are independent aggregate
-distributions: no key joins a point recorded in the duration histogram to the
-point recorded for the same task in the fact-count histogram, so the two
-cannot be read "together" to identify a task that was both slow and big. A
-long tail on the duration histogram says some task ran long; a long tail on
-the fact-count histogram says some task loaded a lot of facts; whether they
-are the same task requires the per-task
-`deferred_backfill_fact_load_task_completed` log (unbounded, see below) or
-the `partition_load_completed` span event (capped at 128 events per pass, see
-below).
-
-**A failed or cancelled task presents as high-duration/low-fact-count too.**
-Both histograms record before the error check, so a task whose query returns
-an error contributes its duration alongside a 0-fact point. When the first
-failure aborts the pass, the in-flight tasks it cancels do the same, which can
-leave up to `workers-1` zero-fact points in one pass. The
-`partition_load_failed` span event does NOT separate these from contention: it
-fires at most once per pass, and both histograms are unattributed, so no key
-joins an event to a data point. Before reading that bucket as contention,
-check whether the pass failed — the pass-level
-`deferred_backfill_fact_load_completed` log and the per-task
-`deferred_backfill_fact_load_task_completed` log tell you which tasks actually
-completed.
-
-For trace-level attribution of a specific slow task, the same worker
-goroutine adds a `partition_load_completed` event to the active
-`relationship.backfill_deferred` span (mirroring the existing
-`partition_load_failed` event on the error path) carrying `task`,
-`query_tasks`, `scope_id`, `repo_terms`, `non_repo_terms`, `loaded_facts`,
-`duration_s`, and `workers`. `scope_id` is a span-event attribute, not a
-metric label, so it never becomes a Prometheus-style cardinality dimension;
-it is safe here for the same reason `partition_load_failed`'s `scope_id`
-attribute already was.
-
-**The span event is capped and lossy — do not read it as a complete
-per-task record.** Every query task emits into the ONE
-`relationship.backfill_deferred` span opened per pass, and Eshu does not
-configure `SpanLimits`, so the OTEL SDK default of 128 events per span
-applies unless `OTEL_SPAN_EVENT_COUNT_LIMIT` overrides it. The SDK's event
-queue evicts FIFO, so a pass with more than 128 query tasks keeps only the last
-128 and drops the rest — and the validated corpus shape is 896 partitions, so a
-cold pass exceeds that bound several times over. (A steady-state pass can stay
-well under 128 tasks: the #3624 partition memo gate
-(`applyDeferredPartitionMemoGate`,
-`go/internal/storage/postgres/backfill/scoped_load.go`) skips
-most partitions on later passes, so eviction is a cold-pass concern, not a
-guarantee on every pass.) The
-dropped events are the earliest to COMPLETE rather than the lowest task index,
-since workers finish out of order. The `partition_load_failed` event this
-mirrors is not affected because it fires at most once per pass.
-
-Use the span event to inspect a specific slow task on a small pass. For a
-complete per-task record on a large one, read the
-`deferred_backfill_fact_load_task_completed` log, which is emitted per task
-with the same fields and is not capped — one of the reasons that log is
-deliberately retained below. The two histograms are also complete: they
-record every task regardless of pass size.
-
-**Compatibility decision:** PR #5094 added the
-`deferred_backfill_fact_load_task_completed` per-task log and the pass-level
-`deferred_backfill_fact_load_completed` log as a bounded, log-only signal
-inside a performance fix. #5096 does **not** replace either log. Both stay as
-documented compatibility signals for operator grep/debugging — carrying the
-same fields as the new span event plus the pass-level aggregate the metrics
-above do not — while the histograms and the span event above are the
-first-class, alertable/dashboardable and trace-attributable surface for the
-same data. `TestLoadDeferredScopedFactsAcrossPartitionsLogsPerTaskCompletion`
-in `go/internal/storage/postgres` pins the per-task log line's continued
-presence so a future cleanup cannot delete it while every other gate stays
-green.
-
-Observability Evidence: both histograms register via the
-`telemetry.Instruments` contract and record once per query task in
-`loadDeferredScopedFactsAcrossPartitions`, verified by
-`TestLoadDeferredScopedFactsAcrossPartitionsRecordsPartitionLoadFactCountMetric`,
-`TestLoadDeferredScopedFactsAcrossPartitionsRecordsPartitionLoadCompletedEvent`,
-and `TestLoadDeferredScopedFactsAcrossPartitionsRecordsZeroFactCountOnFailure`
-(the last of the three pins that both histograms record before the error
-check) in `go/internal/storage/postgres`.
-
-## Deferred backfill partition memo gate (#3624 Track 1)
-
-The corpus-wide deferred relationship pass now skips re-loading a partition whose
-`(scope_id, generation_id)` already committed backward evidence under an unchanged
-catalog fingerprint (the partition memo). Two counters expose the gate's decision:
-
-- `eshu_dp_deferred_backfill_partitions_skipped_total` — partitions skipped this
-  pass, labeled `reason` (currently `catalog_unchanged`). This is the primary
-  steady-state signal: a skip ratio near the partition count means the memo is
-  eliminating redundant re-loads on no-change drains.
-- `eshu_dp_deferred_backfill_partitions_loaded_total` — partitions loaded despite
-  the memo lookup, labeled `reason` (`memo_miss`: no memo row, or the catalog
-  fingerprint changed). ArgoCD-bearing partitions are excluded from the memo on
-  the write side and so surface here as `memo_miss` reloads.
-
-Read `skipped / (skipped + loaded)` for the memo hit rate. A hit rate that
-collapses to zero against a stable corpus points to catalog churn (every repo
-onboard/rename/remove flips the fingerprint and reloads all partitions) or a
-memo-write regression. The gate also logs
-`deferred_backfill_partition_memo_gate_completed` with candidate/skipped/loaded
-counts for a single-line per-pass summary.
-
-Observability Evidence: the two counters register via the `telemetry.Instruments`
-contract; the gate is otherwise a single indexed `deferred_backfill_partition_memo`
-lookup with no payload scan. Verified against a disposable Postgres 18 by the
-`TestDeferredBackfillPartitionMemo*` suite in `go/internal/storage/postgres`.
-
-## Graph-Write Permit Pool Split By Class (#4448)
-
-Before this change every reducer graph write — canonical, handler-edge,
-shared-projection, secrets/IAM, orphan-sweep, materializer, and semantic
-entity writes — drew from ONE shared `cypher.BackpressureGate` permit pool
-sized by `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` (#3652). That coupling meant a slow
-write on one class could exhaust the shared permits and starve every other
-class's writes even when the starved class's own workload never came close to
-saturating its logical share of the pool (head-of-line blocking).
-
-The reducer now bounds canonical-class and semantic-class writes with two
-permit pools that become fully INDEPENDENT once an operator opts in:
-
-- `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` sizes the canonical gate
-  (canonical, handler-edge, shared-projection, secrets/IAM, orphan-sweep, and
-  materializer writes).
-- `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT` sizes the semantic gate (the
-  semantic entity write path).
-- **Legacy-only back-compat (both above unset):** a review of the first
-  version of this change caught a P1 regression here — falling back each
-  class independently to the legacy `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N` would
-  let up to `2N` writes run concurrently (`N` canonical + `N` semantic), an
-  unmeasured doubling of the concurrency budget an existing deployment sized
-  to backend headroom. The fix is a third, outer "aggregate" gate sized to
-  `N` that BOTH classes draw a permit from, in addition to their own class
-  gate, whenever neither per-class env is set. The combined canonical+semantic
-  total therefore stays bounded by `N`, exactly reproducing the pre-#4448
-  shared-pool capacity, while each class still gets its own labeled wait
-  signal. As soon as an operator sets either per-class env, the aggregate gate
-  is disabled and the two class gates become the sole, fully independent
-  bounds — the opt-in head-of-line-blocking fix.
-
-The projector has only one write class, so it is unaffected and keeps using
-`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` as its single knob.
-
-The existing `eshu_dp_graph_write_backpressure_engaged_total` counter and
-`eshu_dp_graph_write_backpressure_wait_seconds` histogram now carry a `gate`
-label (`canonical`, `semantic`, or, only in legacy-only mode, `aggregate`) in
-addition to `operation`, so an operator can read each pool's engagement rate
-and wait-time distribution independently instead of a blended signal that
-could mask one class starving the other. In legacy-only mode a single write
-acquires both the aggregate gate and its class gate, so it can emit a wait
-sample for each layer independently — this is two different measurements for
-the same write ("did the combined legacy-shaped budget saturate" versus "did
-this class's own share saturate"), not double-counting. No new metric name
-was introduced.
-
-Performance Evidence: this is a structural concurrency fix, not a throughput
-change under normal (non-starved) load — with both gates sized generously
-relative to their own class's workload, wall-clock behavior is unchanged from
-before the split. The fix targets the pathological case where one class's
-writes are slow: before the split that pathological case degraded the OTHER
-class's latency too; after the split it does not. No-Regression Evidence:
-verified by the full reducer/graphbackpressure/telemetry/projector suites
-under `-race` (`go test ./cmd/reducer ./internal/graphbackpressure
-./internal/telemetry ./cmd/projector -race -count=1`, all passing) proving no
-new goroutine leaks, deadlocks, or worker-count changes were introduced.
-
-Observability Evidence: `TestGraphWriteGateSplitEliminatesHeadOfLineBlocking`
-in `go/cmd/reducer/graph_write_permit_split_test.go` is the deterministic
-regression: it saturates one class's single-permit gate with a write that
-blocks forever, then proves a write on the OTHER class completes within a
-500ms deadline instead of queuing behind the stuck permit, in both directions
-(slow semantic blocking canonical, and slow canonical blocking semantic). The
-test was verified two-sided by temporarily forcing both gates to share one
-underlying `*cypher.BackpressureGate` (simulating the pre-#4448 behavior) and
-confirming the test fails in both directions against that simulation, then
-reverting to the real independent-gate implementation and confirming it
-passes. The `gate` label on `eshu_dp_graph_write_backpressure_wait_seconds`
-is the runtime signal an operator uses to confirm the same property in
-production: independent per-gate wait distributions rather than one blended
-series.
-
-`TestLegacyOnlyConfigBoundsCombinedTotalToLegacyCeiling` in the same file is
-the deterministic regression for the P1 fix: with only
-`ESHU_GRAPH_WRITE_MAX_IN_FLIGHT=N` set (no per-class envs), it drives
-concurrent writes through both the real canonical and semantic write paths
-against one shared probe and asserts the combined peak concurrency never
-exceeds `N`. It was verified two-sided by temporarily disabling the aggregate
-gate (simulating the regression the review caught) and confirming the test
-fails at exactly `2N` peak concurrency, then restoring the fix and confirming
-it passes. `TestPerClassConfigDisablesAggregateGate`,
-`TestAnyClassMaxInFlightSet`, and `TestAggregateMaxInFlight` in
-`go/internal/graphbackpressure/backpressure_test.go` cover the
-opt-in/opt-out boundary directly.
-
-### Gate-Label Cardinality Guard
-
-A second review (Copilot) flagged that `NewObserver` in
-`go/internal/graphbackpressure/backpressure.go` documented `gateName` as
-required to be one of the closed set (`CanonicalGateName`, `SemanticGateName`,
-`AggregateGateName`) but recorded whatever string was passed with no
-validation, so a future call-site mistake — for example accidentally passing
-an operation or raw Cypher statement string instead of a gate name — could
-explode the `gate` label's cardinality on
-`eshu_dp_graph_write_backpressure_engaged_total` and
-`eshu_dp_graph_write_backpressure_wait_seconds`.
-
-The fix mirrors the existing `source_tool` coercion pattern
-(`sourcetool.IsValid` / `"unknown"` in
-`go/internal/telemetry/instruments.go:4745`): `IsValidGateName` checks
-membership in the closed vocabulary, and `NewObserver` coerces any
-out-of-vocabulary `gateName` to `"unknown"` before storing it, so the `gate`
-label's value space stays bounded to four values
-(`canonical`/`semantic`/`aggregate`/`unknown`) regardless of what a future
-caller passes in. `TestIsValidGateName` and
-`TestNewObserverCoercesUnknownGateName` are the direct regressions, verified
-two-sided by temporarily removing the coercion and confirming
-`TestNewObserverCoercesUnknownGateName` fails (the stored `gateName` was the
-raw unvalidated input instead of `"unknown"`), then restoring the fix and
-confirming it passes.
-
-### Test Goroutine Hygiene
-
-The same Copilot review flagged two goroutine leaks in
-`testHeadOfLineBlockingEliminated`
-(`go/cmd/reducer/graph_write_permit_split_test.go`): the holder and
-"other-class" write goroutines both ran under `context.Background()`, so if
-the test failed before the explicit `close(holder.release)` cleanup — either
-on the holder-entered wait or on the 500ms other-class deadline, the exact
-failure path this regression exists to catch — the blocked goroutine(s) would
-run until the test process exited rather than being released. The fix threads
-one `context.WithCancel(context.Background())` with a `defer cancel()` through
-both goroutines' `Execute` calls, so every exit path (both `t.Fatal` calls and
-normal completion) unblocks both via `ctx.Done()`, which
-`cypher.BackpressureGate.Acquire` and `slowThenSignalExecutor.Execute` both
-already select on.
-
-No-Regression Evidence: verified with a temporary scratch harness
-(deleted before commit) that forced the 500ms deadline path deterministically
-and measured `runtime.NumGoroutine()` before and after. With the cancelable
-context, goroutine count stayed flat (3→3) despite the forced failure; with
-`context.Background()` restored (simulating the pre-fix shape), goroutine
-count grew by exactly 2 (3→5) — the holder and other-class goroutines both
-leaking, reproducing the bug Copilot flagged.
+Runtime-affecting pull requests (collectors, parsers, reducers, projectors,
+graph writes, queues, workers, runtime settings, or API/MCP graph queries) must
+record their performance/no-regression and observability evidence in the **PR
+description**, not in ephemeral markdown files or appended sections of public
+reference pages. When adding or changing a signal, update the Go telemetry
+contract and the focused operator telemetry page that owns that signal.
+
+## API And MCP Request Signals
+
+Every query API and MCP read route emits two shared middleware metrics labeled
+by matched `route` pattern and `status_class`:
+
+- `eshu_dp_api_request_duration_seconds` — handler latency histogram (its
+  `_count` series is the per-route request rate).
+- `eshu_dp_api_request_errors_total` — server-error (`5xx`) counter.
+
+Requests that match no route use `route="unmatched"`; the admin mux (probes and
+`/metrics`) is excluded. Companion pages document specialized read signals:
+
+- MCP response budgets, tool calls, and router calls:
+  [MCP Response-Budget Telemetry](mcp-response-budget.md),
+  [MCP Tool-Call Telemetry](mcp-tool-calls.md), and
+  [MCP Router Telemetry](mcp-router.md).
+- Relevance walks (`find_code`, `search_entity_content`):
+  [Relevance Walk Telemetry](rank-cursor.md).
+- Cloud resource paging: `eshu_dp_cloud_resource_list_duration_seconds`,
+  `eshu_dp_cloud_resource_list_scanned_rows`,
+  `eshu_dp_cloud_resource_list_page_size`,
+  `eshu_dp_cloud_resource_list_truncations_total`, and
+  `eshu_dp_cloud_resource_list_errors_total` (no resource, account, region, or
+  tenant labels).
+- Relationship catalog admission control: a shared four-permit limiter exposes
+  `eshu_dp_relationship_breakdown_permit_wait_seconds`,
+  `eshu_dp_relationship_breakdown_queued`, and
+  `eshu_dp_relationship_breakdown_in_flight`. High wait with in-flight at 4
+  means local admission backpressure rather than slow graph reads.
+- Key route spans: `query.incident_context` (with `query.incident_context.stage`
+  events), `supply_chain.cloud_runtime_probe` and
+  `supply_chain.kubernetes_runtime_probe`, `query.semantic_evidence`,
+  `query.language_query`, `query.call_graph.metrics` (including
+  `scan_overflow=true` at the 50,001-edge guard), and
+  `query.graph_entity_inventory`.
+
+### Search Hybrid-Degradation Signal
+
+`eshu_dp_search_hybrid_degraded_total` (`query_type`=`hybrid`|`semantic`,
+`reason`=`no_embedder`|`index_unready`) increments when a request asked for
+semantic ranking and fell back to BM25 or was refused. Plain `keyword` requests
+and active hybrid/semantic responses do not increment it. Request spans carry
+`search.retrieval_state`, `search.degraded`, `search.degraded_reason`, and
+`search.index_cache` (`hit`, `miss`, `coalesced`, `bypass_unready`,
+`retry_snapshot_changed`); persisted BM25 reads emit
+`query.semantic_search.persisted_index`, and vector-backed modes emit
+`query.semantic_search.vector_ready`.
+
+Degraded search is expected in no-provider deployments where no embedder is
+configured; treat an unexpected spike after enabling an embedder as the
+actionable alarm.
+
+## Collector, Parse, And Ingestion Signals
+
+Every collector running under `ClaimedService.processClaimed` records three
+chokepoint metrics with bounded `collector_kind` and `source_system` labels:
+
+- `eshu_dp_workflow_claim_run_duration_seconds` (`outcome`: `success`,
+  `refused`, `unchanged`, `released`, `fail_retryable`, `fail_terminal`) —
+  wall time per claim.
+- `eshu_dp_workflow_claim_facts_emitted_total` — committed facts per successful
+  claim.
+- `eshu_dp_workflow_fair_claims_total` (`claim_priority` 0–4) — granted claims;
+  see [Claim-Pacing Signals](claim-pacing.md),
+  [Claim Quotas](claim-quotas.md),
+  [Fair-Claim Rotation Signals](fair-claim-rotation.md),
+  [Workflow Claim Store Signals](workflow-claim-store.md), and
+  [Claim-Plane Commit Fence Signals](claim-plane-commit-fence.md).
+
+Additional ingestion signals:
+
+- **Per-file parse and pre-scan cost:** `eshu_dp_file_parse_duration_seconds`
+  and `eshu_dp_file_prescan_duration_seconds` (labeled by `language`), paired
+  with `language_parse_summary` and `language_prescan_summary` logs; see
+  [Ingestion And Collector Metrics](metrics-ingestion-collectors.md).
+- **Content substring index finalization:** cold Compose bootstrap records
+  `content_substring_index_state` (`not_built`, `building`, `ready`, `failed`),
+  logs `failure_class=content_substring_index_build_failure` on failure, and
+  times the phase in
+  `eshu_dp_bootstrap_pipeline_phase_seconds{bootstrap_phase="content_index_finalization"}`.
+  The secret-line side table has [finalizer signals](secret-lines.md).
+- **Vulnerability intelligence:** NVD fetch duration carries `page_count`
+  (0–100); OSV skips and CVE identity edges are documented in
+  [Ingestion And Collector Metrics](metrics-ingestion-collectors.md).
+
+## Reducer, Projection, And Liveness Signals
+
+### Worker Pool, Acceptance, And Generation Liveness
+
+- `eshu_dp_worker_pool_active{pool="reducer"}` — active concurrent reducer
+  intents. Compare against `ESHU_REDUCER_WORKERS` and `eshu_dp_queue_depth`.
+- `eshu_dp_shared_acceptance_rows` — approximate durable shared-projection
+  acceptance row count from `pg_class.reltuples`.
+- `eshu_dp_active_generations{age_bucket}` — active scope generations bucketed
+  as `fresh`, `aging`, `draining`, or `stuck` (see
+  [Reducer And Storage Metrics](metrics-reducer-storage.md#generation-liveness)).
+  Pair `stuck` with `eshu_dp_generation_liveness_recovered_total`,
+  `eshu_dp_generation_liveness_superseded_total`, and
+  `eshu_dp_generation_liveness_failures_total`.
+- `eshu_dp_poison_dead_letter_scopes`, `eshu_dp_poison_dead_letter_items`, and
+  `eshu_dp_poison_dead_letter_oldest_age_seconds` — scopes stuck in
+  `fact_work_items` `dead_letter` with no newer generation. Always active in
+  surface-only mode; optional bounded auto-retry tracks recovery in
+  `eshu_dp_poison_liveness_recovered_total` and
+  `eshu_dp_poison_liveness_failures_total`.
+- `eshu_dp_cross_repo_activation_fenced_total{scope_id}` — cross-repo
+  generations withheld from activation because graph-acceptance intents failed
+  to commit; pair with the `cross-repo activation fenced` warn log.
+
+### Shared Projection, Graph Writes, And Backfill
+
+- **Per-partition shared projection:**
+  `eshu_dp_shared_projection_partition_processing_seconds` (`domain`,
+  `partition_id`), `eshu_dp_shared_projection_intents_completed_total`
+  (`domain`), and `eshu_dp_shared_projection_lease_quarantines_total`
+  (`domain`, `reason`=`cycle_deadline`|`heartbeat_lost`|`cycle_error`).
+- **Unroutable shared edges:** `eshu_dp_shared_edge_unroutable_rows_total`
+  (`domain`, `reason`=`partial_batch`|`whole_batch`), paired with the
+  `shared edge rows unroutable` warn log and durable
+  `shared_projection_unroutable_intents` table.
+- **Repo-dependency `RUNS_ON` retract omissions:**
+  `eshu_dp_shared_edge_runs_on_retract_omissions_total` (`domain`,
+  `reason`=`source_capability`) confirms skipped impossible `RUNS_ON` retracts
+  for exact code-import refreshes.
+- **Rationale retract probe outcomes:**
+  `eshu_dp_rationale_retract_probe_outcomes_total` (`outcome`=`skipped`|`deleted`|`unsupported`|`probe_error`,
+  `scope`=`whole_scope`|`delta_by_file_path`). Alert on sustained `unsupported`
+  or `probe_error`, which means the existence guard is inert while graph truth
+  stays intact.
+- **Graph-write permit pools:** canonical and semantic reducer graph writes
+  have separate permit pools (`ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT`,
+  `ESHU_GRAPH_WRITE_SEMANTIC_MAX_IN_FLIGHT`). When neither per-class variable
+  is set, an outer `aggregate` gate preserves the legacy
+  `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` combined ceiling. Both
+  `eshu_dp_graph_write_backpressure_engaged_total` and
+  `eshu_dp_graph_write_backpressure_wait_seconds` carry bounded `gate`
+  (`canonical`, `semantic`, `aggregate`, `unknown`) and `operation` labels.
+- **Lock-only gate contention:** `eshu_dp_lock_only_gate_locked_rows_total` and
+  `eshu_dp_lock_only_gate_lock_wait_seconds` (label `family`:
+  `rds_posture`, `ec2_internet_exposure`, `ec2_block_device_kms_posture`,
+  `s3_internet_exposure`, `ec2_instance_identity`) track Postgres advisory-lock
+  traffic and wait times alongside the slow-wait structured log.
+- **Deferred backfill:** `eshu_dp_deferred_backfill_partition_load_duration_seconds`
+  and `eshu_dp_deferred_backfill_partition_load_fact_count` (unattributed
+  histograms; failed or canceled tasks record zero facts alongside duration)
+  pair with the capped `partition_load_completed` span event (128-event OTEL
+  default) and uncapped `deferred_backfill_fact_load_task_completed` log. The
+  partition memo gate tracks hit rate via
+  `eshu_dp_deferred_backfill_partitions_skipped_total` and
+  `eshu_dp_deferred_backfill_partitions_loaded_total` (`reason`).
+
+### Graph Integrity, Quarantine, And Identity Signals
+
+- **Graph orphan nodes:** `eshu_dp_graph_orphan_nodes{node_label}` serves a
+  background snapshot ([snapshots](graph-gauge-snapshots.md); id-anchor census
+  in [Id-Anchor Census](id-anchor-census.md)) capped per label by
+  `ESHU_GRAPH_ORPHAN_SWEEP_COUNT_LIMIT`. Every label (including `Module`,
+  anchored by `(name, language)`) should drain across sweep cycles.
+- **Extraction-provenance drift:** `eshu_dp_edges_by_source_tool{source_tool}`
+  (out-of-vocabulary values coerce to `"unknown"`) and
+  `eshu_dp_files_by_language{language}` serve exact background snapshots
+  through `ProvenanceCountStore`. A series dropping to zero signals a parser or
+  ingester stopped emitting that family.
+- **Typed-payload decode quarantine & ownership contention:**
+  `eshu_dp_reducer_input_invalid_facts_total{domain,fact_kind}` and
+  `eshu_dp_projector_input_invalid_facts_total{stage,fact_kind}` count
+  malformed facts skipped on decode (paired with `input_invalid fact
+  quarantined` error logs carrying `fact_id` and `missing_field`).
+  `eshu_dp_cross_scope_ownership_contended_rows_total{family}` counts
+  owner-ledger rows resolved deterministically across overlapping scopes.
+- **Container image identity retirement:**
+  `eshu_dp_container_image_identity_retirements_total{outcome}` separates
+  `retirement_attempted`, `legacy_deleted`, `held_config_blob_unavailable`,
+  `held_tag_list_truncated`, and `held_missing_manifest_digest`. During rolling
+  upgrades, `container_image_identity_cutovers` and
+  `container_image_identity_scope_state` expose active digest-v3 authority.
+- **AWS cloud-image edges:** `eshu_dp_aws_cloud_image_edges_total{resolution_mode}`
+  counts materialized `CloudResource` -> `ContainerImage` edges whose target
+  `:ContainerImage` node exists in the graph (tag-only ECS relationships stay
+  in PostgreSQL).
