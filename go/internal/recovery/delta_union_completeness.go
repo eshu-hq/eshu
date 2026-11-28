@@ -3,8 +3,6 @@
 
 package recovery
 
-import "sort"
-
 // Delta-union completeness report (#7797): per repository, the graph's file
 // set against the ACTIVE set (base-full overlaid with the active delta).
 // Read-only: the check never repairs, it only names what mismatches so an
@@ -66,22 +64,4 @@ type DeltaUnionCompletenessReport struct {
 	Repos []DeltaUnionRepoReport `json:"repos"`
 	// Mismatches counts mismatch outcomes.
 	Mismatches int `json:"mismatches"`
-}
-
-// SummarizeDeltaUnionCompleteness folds per-repo results into a report.
-func SummarizeDeltaUnionCompleteness(repos []DeltaUnionRepoReport) DeltaUnionCompletenessReport {
-	sorted := append([]DeltaUnionRepoReport(nil), repos...)
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].RepoID != sorted[j].RepoID {
-			return sorted[i].RepoID < sorted[j].RepoID
-		}
-		return sorted[i].ScopeID < sorted[j].ScopeID
-	})
-	report := DeltaUnionCompletenessReport{Repos: sorted}
-	for _, repo := range sorted {
-		if repo.Outcome == DeltaUnionRepoMismatch {
-			report.Mismatches++
-		}
-	}
-	return report
 }
