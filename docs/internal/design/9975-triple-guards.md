@@ -1,7 +1,8 @@
 # Triple-Guard Probe Rewrite: Arbiter Round-6 Build Record (#9975)
 
-Status: built on a passing falsifier, 2026-11-27. Worktree
-`drive/9975-triple-guards`, unpushed; handoff SHA to the coordinator.
+Status: built on a passing falsifier, 2026-11-27. Proposed in PR #11628
+against origin/main; this record describes the built tree, not the lane
+process that produced it.
 Prior lanes consumed: covering index KILLED, plain-column probe REJECTED,
 materialize-apply KILLED, key-presence Exit A KILLED (round-5 record:
 `docs/internal/design/9975-key-presence-falsifier.md`).
