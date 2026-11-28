@@ -95,7 +95,7 @@ results are derived from the inputs rather than written by hand. See
 - `frontend-console-checks` (blocking): Typechecks, unit-tests, and builds the admin console, including its JS bundle-size budget checks.
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
-### Contract: Do declared or generated artifacts match the code? (45 gates)
+### Contract: Do declared or generated artifacts match the code? (46 gates)
 
 - `openapi-surface` (blocking): Fails when a registered HTTP route has no matching OpenAPI fragment, or vice versa.
 - `edge-source-tool-coverage` (blocking): Fails when a relationship-edge evidence kind has no covering collector or source tool.
@@ -108,6 +108,7 @@ results are derived from the inputs rather than written by hand. See
 - `sdk-go-collector` (blocking): Builds, tests, vets, and formats the standalone collector SDK module, and blocks it from importing internal-only code.
 - `sdk-go-factschema` (blocking): Builds, tests, and regenerates the factschema SDK module, failing if generated artifacts don't match committed source.
 - `sdk-go-apicontract` (blocking): Builds, tests, vets, and formats the standalone API wire-contract SDK module, and blocks it from importing internal-only code.
+- `go-apilib` (blocking): Builds, tests, vets, and formats the nested apilib Go module, and blocks it from importing internal-only code.
 - `mcp-schema-drift` (blocking): Fails when MCP tool or capability schemas drift from the capability catalog and surface-inventory specs.
 - `mcp-tool-count` (blocking): Fails when the number of read-only MCP tools differs from the count the contract test pins.
 - `mcp-router-eval` (blocking): Fails on a malformed router eval corpus or an unregistered expected tool; prints top-1 and top-5 routing accuracy and misses, report-only (#8756).
@@ -221,6 +222,7 @@ results are derived from the inputs rather than written by hand. See
 | `sdk-go-collector` | "SDK Go: collector build/test/vet/fmt/boundary" | exactness | pre-pr | true | `cd sdk/go/collector && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... \| rg -q 'eshu-hq/eshu/go/internal'` | sdk-go.yml / SDK Go: collector | 4 path(s): sdk/go/collector/**, .github/workflows/sdk-go.yml, scripts/ci/install-apt-packages.sh, … |
 | `sdk-go-factschema` | "SDK Go: factschema build/test/vet/fmt/boundary/generate" | exactness | pre-pr | true | `cd sdk/go/factschema && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... \| rg -q 'eshu-hq/eshu/go/internal' && go generate ./... && test -z \"$(git status --porcelain -- .)\"` | sdk-go.yml / SDK Go: factschema | 4 path(s): sdk/go/factschema/**, .github/workflows/sdk-go.yml, scripts/ci/install-apt-packages.sh, … |
 | `sdk-go-apicontract` | "SDK Go: apicontract build/test/vet/fmt/boundary" | exactness | pre-pr | true | `cd sdk/go/apicontract && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... \| rg -q 'eshu-hq/eshu/go/internal'` | sdk-go.yml / SDK Go: apicontract | 4 path(s): sdk/go/apicontract/**, .github/workflows/sdk-go.yml, scripts/ci/install-apt-packages.sh, … |
+| `go-apilib` | "Go: apilib build/test/vet/fmt/boundary" | exactness | pre-pr | true | `cd go/apilib && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... \| rg -q 'eshu-hq/eshu/go/internal'` | sdk-go.yml / Go: apilib | 4 path(s): go/apilib/**, .github/workflows/sdk-go.yml, scripts/ci/install-apt-packages.sh, … |
 | `mcp-schema-drift` | MCP Schema Drift | exactness | pre-pr | true | `bash scripts/dev/precommit-go.sh surface` | mcp-schema-drift.yml / Verify capability inventory | 13 path(s): go/internal/mcp/**, specs/capability-catalog.v1.yaml, specs/capability-matrix.v1.yaml, … |
 | `mcp-tool-count` | MCP ReadOnlyTools count | exactness | pre-pr | true | `cd go && go test ./internal/mcp/ -run '^TestReadOnlyTools$' -count=1` | mcp-schema-drift.yml / Verify ReadOnlyTools count | 6 path(s): go/**, sdk/go/**, scripts/go-test-run-guard.sh, … |
 | `mcp-test-suite` | Full MCP test suite | exactness | pre-pr | true | `cd go && go test ./internal/mcp/... -count=1 -timeout 120s` | mcp-schema-drift.yml / Full MCP test suite | 4 path(s): go/**, sdk/go/**, scripts/ci/go-mod-download-retry.sh, … |

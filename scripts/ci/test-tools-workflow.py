@@ -35,6 +35,7 @@ NEW_PIN_JOBS = {
     "sdk-go.yml#sdk-go-collector",
     "sdk-go.yml#sdk-go-apicontract",
     "sdk-go.yml#sdk-go-factschema",
+    "sdk-go.yml#go-apilib",
     "tagged-builds.yml#tagged-builds",
     "verify-ci-gate-registry.yml#test-verify",
     "verify-ci-gate-registry.yml#verify",
