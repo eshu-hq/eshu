@@ -144,7 +144,9 @@
 // so an operator can see whether a source retraction reached the scopes
 // that hold stale copies (reopened, replay_flagged, pending_noop,
 // prefiltered_pending and stamp_widened from #10972, enqueued,
-// dead_letter_reopened, dead_letter_skipped, no_active_generation, deferred;
+// dead_letter_reopened, dead_letter_skipped, no_active_generation,
+// shadow_would_skip (#11613: counted when a succeeded reopen met every
+// freshness condition but PR1 still reopened it), deferred;
 // the two dead-letter outcomes also carry failure_class, #11147) and whether a pass fanned out only because a retry showed an earlier
 // attempt may have died first (crash_recovery) or failed to read its holders
 // (read_error, read_timeout), reopen a holder (reopen_error), or record its own

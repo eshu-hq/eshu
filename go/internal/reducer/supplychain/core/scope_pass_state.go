@@ -17,9 +17,19 @@ import (
 // preserving the original stuck time across further partial passes; a full
 // complete pass clears the stuck columns, while a scoped complete leaves
 // the state untouched because it re-derives only its stamped CVE subset
-// (#9779). The fencing-token guard is the admission's <= rule, ordering
-// passes by token. Tokens are per-pass monotonic, not per-generation, so the
-// token guard alone cannot fence across generations: a stale-generation pass
+// (#9779). A full complete pass also moves the holder watermark
+// (migration 361): the watermark token is the pass's fencing token, bound
+// to the generation the token describes, with the evidence-complete flag
+// set. Only full complete passes watermark -- partial passes leave the last
+// proven watermark alone so the shadow predicate keeps comparing against
+// the last complete truth, and scoped-complete passes leave it untouched
+// with the stuck state. The watermark rides the same statement, token guard
+// ($7 gates every watermark column on both paths), and generation fence as
+// the stuck state, so a stale or older pass cannot move it: the row the
+// reopen reads always names the newest admitted full evidence-complete pass.
+// The fencing-token guard is the admission's <= rule, ordering passes by
+// token. Tokens are per-pass monotonic, not per-generation, so the token
+// guard alone cannot fence across generations: a stale-generation pass
 // admitted later draws a higher token. The generation fence (#10422) skips
 // the write, on both the insert and the update path, when a lifecycle-newer
 // (ingested_at, generation_id) retained generation is reader-visible
@@ -41,7 +51,9 @@ import (
 // closed cause set needs no folding here. The $5 cast is load-bearing: CASE
 // branches over unknown-type params resolve to text, which timestamptz
 // rejects (42804); direct $5 uses elsewhere coerce to their columns. $6 is
-// the write's generation id, used only by the fence.
+// the write's generation id, used only by the fence. $7 is true when the
+// write watermarks (a full complete pass: not partial and not scoped), and
+// every watermark column follows it on both paths.
 const supplyChainImpactScopePassStateQuery = `
 WITH stale AS MATERIALIZED (
     SELECT EXISTS (
@@ -57,11 +69,15 @@ WITH stale AS MATERIALIZED (
 ),
 up AS (
     INSERT INTO supply_chain_impact_scope_pass_state (
-        scope_id, fencing_token, partial_evidence, partial_causes, partial_since, last_pass_at, updated_at
+        scope_id, fencing_token, partial_evidence, partial_causes, partial_since, last_pass_at, updated_at,
+        watermark_token, watermark_generation_id, watermark_evidence_complete
     )
     SELECT $1, $2, $3, $4,
         CASE WHEN $3 THEN $5::timestamptz ELSE NULL END,
-        $5, $5
+        $5, $5,
+        CASE WHEN $7 THEN $2::bigint ELSE NULL END,
+        CASE WHEN $7 THEN $6 ELSE NULL END,
+        CASE WHEN $7 THEN TRUE ELSE NULL END
     WHERE (SELECT NOT fenced FROM stale)
     ON CONFLICT (scope_id) DO UPDATE SET
         fencing_token    = EXCLUDED.fencing_token,
@@ -71,7 +87,13 @@ up AS (
                                 THEN COALESCE(supply_chain_impact_scope_pass_state.partial_since, EXCLUDED.partial_since)
                                 ELSE NULL END,
         last_pass_at     = EXCLUDED.last_pass_at,
-        updated_at       = EXCLUDED.updated_at
+        updated_at       = EXCLUDED.updated_at,
+        watermark_token  = CASE WHEN $7 THEN EXCLUDED.watermark_token
+                                ELSE supply_chain_impact_scope_pass_state.watermark_token END,
+        watermark_generation_id = CASE WHEN $7 THEN EXCLUDED.watermark_generation_id
+                                ELSE supply_chain_impact_scope_pass_state.watermark_generation_id END,
+        watermark_evidence_complete = CASE WHEN $7 THEN EXCLUDED.watermark_evidence_complete
+                                ELSE supply_chain_impact_scope_pass_state.watermark_evidence_complete END
     WHERE supply_chain_impact_scope_pass_state.fencing_token <= EXCLUDED.fencing_token
       AND (SELECT NOT fenced FROM stale)
     RETURNING 1
@@ -101,6 +123,12 @@ func recordSupplyChainImpactScopePassState(
 	if !write.PartialEvidence && len(write.ScopedCVEIDs) > 0 {
 		return false, nil
 	}
+	// Only a full complete pass moves the holder watermark (#11613): its
+	// token and generation name the last proven pass the shadow predicate
+	// compares origins against. A partial pass records its stuck state but
+	// leaves the watermark on the last complete truth; its token still gates
+	// the row through the fencing-token guard.
+	watermarking := !write.PartialEvidence
 	// Never record a NULL cause set: the column is NOT NULL and a nil slice
 	// would encode as NULL, failing every complete pass. An empty set
 	// encodes as '{}', the same shape the retraction's empty keep set uses.
@@ -110,7 +138,7 @@ func recordSupplyChainImpactScopePassState(
 	}
 	rows, err := tx.QueryContext(
 		ctx, supplyChainImpactScopePassStateQuery,
-		write.ScopeID, write.FencingToken, write.PartialEvidence, causes, now.UTC(), write.GenerationID,
+		write.ScopeID, write.FencingToken, write.PartialEvidence, causes, now.UTC(), write.GenerationID, watermarking,
 	)
 	if err != nil {
 		return false, fmt.Errorf("record supply chain impact scope pass state: %w", err)

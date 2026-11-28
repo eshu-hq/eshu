@@ -40,7 +40,9 @@ func TestChangedWriteReopensEveryHolderButTheOwnScope(t *testing.T) {
 		t.Fatalf("FindHolderScopes cve ids = %v, want the changed CVE only", port.findCalls)
 	}
 	for _, origin := range port.origins {
-		wantOrigin := FanOutOrigin{SourceScopeID: "vuln-intel://nvd/cve", SourceGenerationID: "generation-fanout", SourceIntentID: "intent-fanout", CVEIDs: []string{"CVE-2026-9001"}}
+		// The origin carries the pass's evidence-read fencing token (#11613):
+		// the test issuer's first value, the same token the writer admitted.
+		wantOrigin := FanOutOrigin{SourceScopeID: "vuln-intel://nvd/cve", SourceGenerationID: "generation-fanout", SourceIntentID: "intent-fanout", CVEIDs: []string{"CVE-2026-9001"}, FencingToken: 1}
 		if !reflect.DeepEqual(origin, wantOrigin) {
 			t.Fatalf("origin = %+v, want %+v", origin, wantOrigin)
 		}

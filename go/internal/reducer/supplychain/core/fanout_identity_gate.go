@@ -146,6 +146,15 @@ func withFanOutOrigin(write SupplyChainImpactWriteResult, scopeFactKinds []strin
 	return write
 }
 
+// withFanOutOriginToken records the pass's own evidence-read fencing token
+// on the write result, for the fan-out origin stamp (#11613). The handler
+// calls it with the token it issued before the evidence load, so the stamp
+// orders real passes rather than wall times.
+func withFanOutOriginToken(write SupplyChainImpactWriteResult, token int64) SupplyChainImpactWriteResult {
+	write.originToken = token
+	return write
+}
+
 // fanOutOriginIDs returns the lookup ids a pass's own changes fan out for and
 // how many ids of the full-digest set the identity gate dropped. An
 // enrichment origin, or a writer that did not report identity sets, fans out

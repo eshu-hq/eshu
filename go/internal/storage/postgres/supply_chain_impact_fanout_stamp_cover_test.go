@@ -58,6 +58,35 @@ func TestFanOutCoverRuleIsSharedByThePrefilterAndTheReopen(t *testing.T) {
 	}
 }
 
+// TestFanOutReopenPinsWatermarkJoinAndShadowSelect is the hermetic guard for
+// the #11613 holder watermark: the reopen must read the scope pass state
+// through the watermark LEFT JOIN and report the shadow predicate, while the
+// row lock stays on the work row only. A future edit that drops the join or
+// the select fails here without needing a live database.
+func TestFanOutReopenPinsWatermarkJoinAndShadowSelect(t *testing.T) {
+	t.Parallel()
+
+	const watermarkJoin = "LEFT JOIN supply_chain_impact_scope_pass_state AS wm"
+	if !strings.Contains(reopenSupplyChainImpactHolderQuery, watermarkJoin) {
+		t.Errorf("the reopen no longer probes the holder watermark: %q missing", watermarkJoin)
+	}
+	if !strings.Contains(reopenSupplyChainImpactHolderQuery, reopenShadowedSQL+" AS shadowed") {
+		t.Error("the reopen no longer reports the shadow predicate: reopenShadowedSQL AS shadowed missing")
+	}
+	if !strings.Contains(reopenSupplyChainImpactHolderQuery, "FOR NO KEY UPDATE OF work") {
+		t.Error("the reopen lost its work-row lock")
+	}
+	if strings.Contains(reopenSupplyChainImpactHolderQuery, "FOR NO KEY UPDATE OF wm") {
+		t.Error("the reopen locks the watermark row: the probe must stay lock-free")
+	}
+	// Seeded violation: a reopen whose watermark join was dropped must fail
+	// the same containment check, so the guard is not inert.
+	drifted := strings.Replace(reopenSupplyChainImpactHolderQuery, watermarkJoin, "", 1)
+	if drifted == reopenSupplyChainImpactHolderQuery || strings.Contains(drifted, watermarkJoin) {
+		t.Error("a reopen without the watermark join still passes the guard: the guard is inert")
+	}
+}
+
 // TestFanOutChangeArgs pins the bind values for a fan-out's stamp set: a
 // bounded set binds as its jsonb array, and an empty or sentinel set binds as
 // unbounded with an empty array, so no cover arm reads NULL.
@@ -106,9 +135,21 @@ func TestClassifyHolderReopenNamesAStampWiden(t *testing.T) {
 		{"succeeded", true, false, supplychaincore.FanOutReopened},
 	}
 	for _, tc := range cases {
-		if got := classifyHolderReopen(tc.prior, tc.rewritten, tc.priorFlag, "").Outcome; got != tc.want {
+		if got := classifyHolderReopen(tc.prior, tc.rewritten, tc.priorFlag, "", false).Outcome; got != tc.want {
 			t.Errorf("classify(%s, rewritten=%v, flag=%v) = %q, want %q", tc.prior, tc.rewritten, tc.priorFlag, got, tc.want)
 		}
+	}
+	if got := classifyHolderReopen("succeeded", true, false, "", true).Outcome; got != supplychaincore.FanOutShadowWouldSkip {
+		t.Errorf("classify(succeeded, rewritten, shadowed) = %q, want shadow_would_skip", got)
+	}
+	if got := classifyHolderReopen("pending", true, false, "", true).Outcome; got != supplychaincore.FanOutStampWidened {
+		t.Errorf("classify(pending, rewritten, shadowed) = %q, want stamp_widened: the shadow flag never fires off the succeeded arm", got)
+	}
+	if reopenRank(supplychaincore.FanOutShadowWouldSkip) <= reopenRank(supplychaincore.FanOutDeadLetterReopened) {
+		t.Error("shadow_would_skip must rank above dead_letter_reopened")
+	}
+	if reopenRank(supplychaincore.FanOutShadowWouldSkip) >= reopenRank(supplychaincore.FanOutReopened) {
+		t.Error("a genuine reopen must outrank a would-skip shadow")
 	}
 	if reopenRank(supplychaincore.FanOutStampWidened) <= reopenRank(supplychaincore.FanOutPendingNoop) {
 		t.Error("stamp_widened must rank above pending_noop")

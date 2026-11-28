@@ -410,9 +410,12 @@ import (
 // 360_fact_records_anchor_payload_trgm_idx.sql (#7584) adds the partial
 // trigram GIN serving the targeted anchor-scoped relationship fact load.
 // Count 386 is 385 plus 360.
+// 361_supply_chain_impact_scope_pass_state_watermark.sql (#11613 PR1) adds
+// the holder freshness watermark columns (token, generation, evidence-
+// complete) to the per-scope pass state. Count 387 is 386 plus 361.
 const (
-	goldenBootstrapDefinitionsDigest = "aa944e18ba64a9d4ee39e9bb8ee1272c5ea6bfff6ea9951042122c56d5c68c7c"
-	goldenBootstrapDefinitionsCount  = 386
+	goldenBootstrapDefinitionsDigest = "96d1e5d16f4328279b34c66bceae824192a781b80468bb4269735a2ca5e66b52"
+	goldenBootstrapDefinitionsCount  = 387
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

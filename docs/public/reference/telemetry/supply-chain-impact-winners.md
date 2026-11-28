@@ -259,7 +259,9 @@ already names every changed id (#10972).
 `eshu_dp_supply_chain_impact_fanout_total{outcome="prefiltered_pending"}`
 counts them. A queued holder stamped for another change is kept, and the reopen
 merges the change into its stamp without moving its place in the queue,
-counted as `outcome="stamp_widened"`. A failing prefilter read counts
+counted as `outcome="stamp_widened"`. A succeeded holder whose watermark
+postdates the origin reports `outcome="shadow_would_skip"` while still going
+pending (#11613 PR1 counts the would-skip for PR2). A failing prefilter read counts
 `read_error` or `read_timeout` with `site="holder_prefilter"`, and the pass
 retries; every read is timed under
 `eshu_dp_supply_chain_impact_fanout_read_duration_seconds{kind="holder_prefilter"}`.

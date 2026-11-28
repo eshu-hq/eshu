@@ -24,6 +24,14 @@ const FanOutStampCVEKey = "cves"
 // itself disjoint from an unbounded change.
 const FanOutStampSentinel = "*"
 
+// FanOutStampFencingTokenKey is the stamp key carrying the origin pass's
+// fencing token (#11613 PR1). The token orders passes by when they began
+// reading evidence, so a holder watermark can compare pass recency without
+// wall times. The key is additive: stamps written before it existed, and
+// token-less origins (manifest markers, the retraction in-transaction
+// reopen), carry no key, and absent reads as unset (never skip).
+const FanOutStampFencingTokenKey = "fencing_token"
+
 // FanOutOriginCVEIDCap bounds the CVE ids one stamp carries, so a widely
 // shared CVE does not bloat every reopened item's payload. It is deliberately
 // wider than one holder-read statement (fanOutHolderReadChunk): the stamp
@@ -44,6 +52,11 @@ type FanOutOrigin struct {
 	// field and wire key keep their CVE names for rolling-upgrade
 	// compatibility; the set has carried advisory and member ids since #10408.
 	CVEIDs []string
+	// FencingToken is the origin pass's evidence-read token (#11613). The
+	// stamp carries it only when positive; zero (manifest markers, the
+	// retraction in-transaction reopen, old binaries) writes no key, and
+	// absent reads as unset so the shadow predicate fails closed.
+	FencingToken int64
 }
 
 // CapFanOutStampCVEIDs sorts and de-duplicates ids for a stamp, replacing an
@@ -106,7 +119,9 @@ func fanOutStampSentinel(cveIDs []string) bool {
 // writer of fanout_origin uses, so the store and the queue-side reader can
 // never disagree about the keys. The cves key is present only when the origin
 // names CVE ids: an enqueued first pass stamps no set and always runs full,
-// and a reopen that names no ids does the same.
+// and a reopen that names no ids does the same. The fencing-token key is
+// present only when the origin names a positive token, so token-less stamps
+// stay byte-identical to before.
 func FanOutStampJSON(origin FanOutOrigin) ([]byte, error) {
 	stamp := map[string]any{
 		"scope_id":      origin.SourceScopeID,
@@ -116,7 +131,33 @@ func FanOutStampJSON(origin FanOutOrigin) ([]byte, error) {
 	if len(origin.CVEIDs) > 0 {
 		stamp[FanOutStampCVEKey] = origin.CVEIDs
 	}
+	if origin.FencingToken > 0 {
+		stamp[FanOutStampFencingTokenKey] = origin.FencingToken
+	}
 	return json.Marshal(stamp)
+}
+
+// fanOutStampFencingToken reads the origin pass's fencing token out of a
+// decoded stamp (the bare map FanOutStampJSON emits). A stamp without the
+// key, or with any other shape, reads as unset (zero), so a corrupt or
+// pre-token stamp fails closed to a full pass and a rerun, never to a
+// coerced skip.
+func fanOutStampFencingToken(stamp map[string]any) int64 {
+	switch token := stamp[FanOutStampFencingTokenKey].(type) {
+	case float64:
+		if token > 0 && token == float64(int64(token)) {
+			return int64(token)
+		}
+	case int64:
+		if token > 0 {
+			return token
+		}
+	case int:
+		if token > 0 {
+			return int64(token)
+		}
+	}
+	return 0
 }
 
 // clearReplayFlag clears the pass's replay flag when it proved its rewrite
