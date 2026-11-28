@@ -178,18 +178,17 @@ printf '{"count":0,"buckets":[]}' >"${work}/groups-empty.json"
 printf '{"error":"unavailable"}' >"${work}/groups-503.json"
 [[ "$(STUB_CODE=503 STUB_BODY_FILE="${work}/groups-503.json" rc_of lib_call require_grouped_inventory 503 service_id)" == 0 ]] || fail "a 503 where 503 is wanted must pass"
 [[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" rc_of lib_call require_grouped_inventory 503 service_id)" != 0 ]] || fail "a 200 where 503 is wanted must fail"
-[[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" rc_of lib_call require_grouped_inventory 200 service_id)" == 0 ]] || fail "a 200 with buckets where 200 is wanted must pass"
-[[ "$(STUB_CODE=503 STUB_BODY_FILE="${work}/groups-503.json" rc_of lib_call require_grouped_inventory 200 service_id)" != 0 ]] || fail "a 503 where 200 is wanted must fail"
-# A 200 call asks for the comprehensive profile; a 503 call sends none (the
-# default precise profile), so it pins the default-profile 503 of a stack whose
-# supports backfill has not completed.
+[[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" rc_of lib_call require_grouped_inventory 200 service_id comprehensive)" == 0 ]] || fail "a 200 with buckets where 200 is wanted must pass"
+[[ "$(STUB_CODE=503 STUB_BODY_FILE="${work}/groups-503.json" rc_of lib_call require_grouped_inventory 200 service_id comprehensive)" != 0 ]] || fail "a 503 where 200 is wanted must fail"
+# A 200 call names its profile explicitly; a 503 call sends none (the
+# default precise profile) and stays the legacy negative control.
 : >"${STUB_URL_LOG}"
-STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" lib_call require_grouped_inventory 200 service_id >/dev/null 2>&1
+STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" lib_call require_grouped_inventory 200 service_id comprehensive >/dev/null 2>&1
 rg -qF 'inventory?group_by=service_id&profile=comprehensive' "${STUB_URL_LOG}" || fail "a 200 grouped call must send profile=comprehensive: $(cat "${STUB_URL_LOG}")"
 : >"${STUB_URL_LOG}"
 STUB_CODE=503 STUB_BODY_FILE="${work}/groups-503.json" lib_call require_grouped_inventory 503 service_id >/dev/null 2>&1
 rg -qF 'inventory?group_by=service_id' "${STUB_URL_LOG}" && ! rg -qF 'profile=' "${STUB_URL_LOG}" || fail "a 503 grouped call must send no profile: $(cat "${STUB_URL_LOG}")"
-[[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-empty.json" rc_of lib_call require_grouped_inventory 200 service_id)" != 0 ]] || fail "a 200 with no buckets must fail the positive control"
+[[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-empty.json" rc_of lib_call require_grouped_inventory 200 service_id comprehensive)" != 0 ]] || fail "a 200 with no buckets must fail the positive control"
 
 # winners_report_path: a leg report never merges into the legacy one.
 [[ "$(lib_call winners_report_path "")" == "" ]] || fail "an empty report path stays empty"
@@ -227,5 +226,93 @@ for leg_case in "false:core-legacy" "true:core-winners"; do
 	STUB_CODE=200 STUB_BODY_FILE="${work}/page-ok.json" lib_call start_core_api "${flag}" >/dev/null 2>&1 || fail "start_core_api ${flag} failed against the stubs"
 	[[ "$(cat "${work}/started-name")" == "${want}" ]] || fail "start_core_api ${flag} must log to ${want}, got: $(cat "${work}/started-name")"
 done
+
+# start_satellite_api: the winners flag travels into the satellite env on both
+# legs, and each leg logs to its own file so the winners-leg restart cannot
+# truncate the legacy satellite's log (recording start_bg stub, stubbed readyz).
+GATE_STATUS_DIAGNOSTIC_DIR=""
+start_bg() { printf '%s\n' "$@" >"${work}/sat-startbg-args"; printf -v "$2" '%s' "$$"; }
+for leg_case in "false:api-legacy" "true:api-winners"; do
+	flag="${leg_case%%:*}"; want="${leg_case##*:}"
+	STUB_CODE=200 STUB_BODY_FILE="${work}/page-ok.json" lib_call start_satellite_api "${flag}" >/dev/null 2>&1 || fail "start_satellite_api ${flag} failed against the stubs"
+	rg -qF "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=${flag}" "${work}/sat-startbg-args" || fail "start_satellite_api ${flag} must pass the winners flag into the satellite env: $(cat "${work}/sat-startbg-args")"
+	[[ "$(head -n1 "${work}/sat-startbg-args")" == "${want}" ]] || fail "start_satellite_api ${flag} must log to ${want}, got: $(head -n1 "${work}/sat-startbg-args")"
+done
+# Status diagnostics are scoped to the legacy leg (#11643): the legacy satellite
+# carries the report env, the winners flag, and the client report arg; the
+# winners satellite restarts without the diagnostic wrapper so its shutdown
+# cannot overwrite the legacy server.json and no client report is requested
+# for it. The satellite process is flagged as diagnostic only on the legacy leg.
+GATE_STATUS_DIAGNOSTIC_DIR="${work}/diag"
+diag_start() {
+	( bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}"
+		GATE_API_PORT=18097 GATE_API_KEY=k GATE_CORE_PORT=18096
+		gate_report_args=(); log() { :; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+		# shellcheck source=scripts/lib/read-api-latency-core.sh
+		. "${repo_root}/scripts/lib/read-api-latency-core.sh"
+		STUB_CODE=200 STUB_BODY_FILE="${work}/page-ok.json" start_satellite_api "$1"
+		printf 'report_args=%s active=%s\n' "${gate_report_args[*]:-}" "${status_diagnostic_api_active:-0}" ) 2>&1
+}
+legacy_diag="$(diag_start false)" || fail "legacy start_satellite_api in diagnostic mode failed against the stubs"
+rg -qF "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=false" "${work}/sat-startbg-args" || fail "diagnostic legacy start_satellite_api must pass the winners flag: $(cat "${work}/sat-startbg-args")"
+rg -qF "ESHU_STATUS_DIAGNOSTIC_REPORT=${work}/diag/server.json" "${work}/sat-startbg-args" || fail "diagnostic legacy start_satellite_api must keep the report env: $(cat "${work}/sat-startbg-args")"
+[[ "${legacy_diag}" == *"report_args=-diagnostic-client-report ${work}/diag/client.json active=1"* ]] || fail "diagnostic legacy start must record the client report and mark the satellite diagnostic: ${legacy_diag}"
+winners_diag="$(diag_start true)" || fail "winners start_satellite_api in diagnostic mode failed against the stubs"
+rg -qF "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true" "${work}/sat-startbg-args" || fail "winners start_satellite_api must still pass the winners flag: $(cat "${work}/sat-startbg-args")"
+! rg -qF "ESHU_STATUS_DIAGNOSTIC_REPORT" "${work}/sat-startbg-args" || fail "the winners satellite must not run under the diagnostic wrapper (it would overwrite the legacy server.json): $(cat "${work}/sat-startbg-args")"
+[[ "${winners_diag}" == *"report_args= active=0"* ]] || fail "the winners satellite must add no client report arg and stay non-diagnostic: ${winners_diag}"
+GATE_STATUS_DIAGNOSTIC_DIR=""
+
+# stop_satellite_api on a diagnostic satellite: stops the resource sampler,
+# then the satellite through the bounded graceful diagnostic stop (so it writes
+# its server report), clears api_pid and the diagnostic flag; a failed
+# diagnostic stop fails the gate. Stubs record the calls.
+diag_stop() {
+	( bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}"
+		GATE_STATUS_DIAGNOSTIC_DIR="${work}/diag"; log() { :; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+		status_diagnostic_resource_stop() { printf 'resource_stop %s %s\n' "$1" "$2"; }
+		status_diagnostic_stop() { printf 'api_stop %s\n' "$1"; return "${DIAG_STOP_RC:-0}"; }
+		# shellcheck source=scripts/lib/read-api-latency-core.sh
+		. "${repo_root}/scripts/lib/read-api-latency-core.sh"
+		api_pid=4242 status_diagnostic_api_active=1 status_diagnostic_resource_pid=77
+		stop_satellite_api
+		printf 'api_pid=%s active=%s resource_pid=%s\n' "${api_pid}" "${status_diagnostic_api_active}" "${status_diagnostic_resource_pid}" ) 2>&1
+}
+want_stop=$'resource_stop '"${work}"$'/diag 77\napi_stop 4242\napi_pid= active=0 resource_pid='
+[[ "$(diag_stop)" == "${want_stop}" ]] || fail "a diagnostic satellite must stop the sampler then the satellite gracefully and clear its state, got: $(diag_stop)"
+[[ "$(DIAG_STOP_RC=1 rc_of diag_stop)" != 0 ]] || fail "a failed diagnostic satellite shutdown must fail the gate"
+
+# stop_satellite_api: a satellite that ignores SIGTERM must fail the gate
+# instead of letting the next leg measure a stale satellite; one that exits
+# must clear api_pid (mirrors the stop_core_api contract).
+bash -c 'trap "" TERM; : >"$1"; while :; do sleep 1; done' _ "${work}/sat-stubborn.ready" &
+sat_stubborn=$!
+for _ in $(seq 1 50); do [[ -e "${work}/sat-stubborn.ready" ]] && break; sleep 0.1; done
+res="$( ( GATE_API_STOP_TIMEOUT=2; bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}"; log() { :; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+  # shellcheck source=scripts/lib/read-api-latency-core.sh
+  . "${repo_root}/scripts/lib/read-api-latency-core.sh"; api_pid="${sat_stubborn}"; stop_satellite_api ) >/dev/null 2>&1 && echo 0 || echo 1)"
+kill -9 "${sat_stubborn}" 2>/dev/null || true
+wait "${sat_stubborn}" 2>/dev/null || true
+[[ "${res}" == 1 ]] || fail "a satellite that ignores SIGTERM must make stop_satellite_api fail"
+sleep 30 &
+sat_obedient=$!
+res="$( ( GATE_API_STOP_TIMEOUT=5; bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}"; log() { :; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
+  # shellcheck source=scripts/lib/read-api-latency-core.sh
+  . "${repo_root}/scripts/lib/read-api-latency-core.sh"; api_pid="${sat_obedient}"; stop_satellite_api; [[ -z "${api_pid}" ]] && echo cleared ) 2>/dev/null || true)"
+kill -9 "${sat_obedient}" 2>/dev/null || true
+wait "${sat_obedient}" 2>/dev/null || true
+[[ "${res}" == cleared ]] || fail "stop_satellite_api must clear api_pid once the satellite exits"
+
+# require_grouped_inventory with an explicit profile: comprehensive 200s prove
+# the rebuilt winners table, the precise (default-profile) 200 proves the
+# backfilled supports path, and profile-less 503s stay the legacy negative
+# control.
+: >"${STUB_URL_LOG}"
+STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" lib_call require_grouped_inventory 200 service_id comprehensive >/dev/null 2>&1 || fail "a comprehensive 200 with buckets must pass"
+rg -qF 'inventory?group_by=service_id&profile=comprehensive' "${STUB_URL_LOG}" || fail "a comprehensive grouped call must send profile=comprehensive: $(cat "${STUB_URL_LOG}")"
+: >"${STUB_URL_LOG}"
+STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" lib_call require_grouped_inventory 200 service_id precise >/dev/null 2>&1 || fail "a precise 200 with buckets must pass"
+rg -qF 'inventory?group_by=service_id&profile=precise' "${STUB_URL_LOG}" || fail "a precise grouped call must send profile=precise: $(cat "${STUB_URL_LOG}")"
+[[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-empty.json" rc_of lib_call require_grouped_inventory 200 service_id precise)" != 0 ]] || fail "a precise 200 with no buckets must fail the positive control"
 
 printf 'test-read-api-latency-core: PASS\n'

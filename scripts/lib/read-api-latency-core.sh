@@ -134,18 +134,18 @@ require_winners_findings_oracle() {
 		|| die "winners findings oracle proof failed (see the reason printed above)"
 }
 
-# require_grouped_inventory <want_code> <dimension> asserts the grouped
-# inventory dimension answers want_code on the current leg: 503 while the
-# winners flag is off (the read model is empty by contract), 200 once the
-# winners leg serves the seeded dimensions. A 200 call asks for
-# profile=comprehensive. A 503 call sends no profile (the API default is precise),
-# so on the winners leg it pins the default-profile 503 that a stack answers while
-# its supports backfill has not completed (the supports read model is not ready).
-# That pin goes red once the backfill completes; it is not a PR-B2 pin anymore.
+# require_grouped_inventory <want_code> <dimension> [profile] asserts the
+# grouped inventory dimension answers want_code on the current leg: 503 while
+# the winners flag is off (the read model is empty by contract), 200 once the
+# winners leg serves the seeded dimensions. A 200 call names its profile
+# explicitly: comprehensive for the seeded dimensions, precise for the
+# default-profile pin (the API default is precise, so an explicit precise
+# names the same path the default takes). A 503 call sends no profile and
+# stays the legacy negative control.
 require_grouped_inventory() {
-	local want_code="$1" dimension="$2" code body="${work_dir}/grouped-${2}.json"
+	local want_code="$1" dimension="$2" profile="${3:-}" code body="${work_dir}/grouped-${2}.json"
 	local query="group_by=${dimension}"
-	[[ "${want_code}" == "200" ]] && query="${query}&profile=comprehensive"
+	[[ -n "${profile}" ]] && query="${query}&profile=${profile}"
 	code="$(curl -sS -o "${body}" -w '%{http_code}' -H "Authorization: Bearer ${GATE_API_KEY}" \
 		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/inventory?${query}")" \
 		|| die "grouped inventory request failed for dimension ${dimension}"
@@ -173,22 +173,38 @@ winners_report_path() {
 	fi
 }
 
-# start_satellite_api launches the frozen satellite eshu-api against the
-# running core and waits for its /readyz to answer 200. The satellite serves
-# nothing coreless (it exits 1 without --core-base-url), so a 240s timeout
-# here with a start log showing the missing flag is the RED signature of
-# issue #11170. In status-diagnostic mode the API runs under the diagnostic
-# report wrapper and records the client report arg, mirroring the previous
-# inline block this replaces. The satellite honors only -addr (it ignores the
-# in-tree ESHU_API_ADDR and defaults to :8080), so the gate port travels on the
-# flag; without it /readyz is probed on a port nothing listens on.
+# start_satellite_api <winners> launches the frozen satellite eshu-api with
+# ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=<winners> and waits for its /readyz
+# to answer 200. The satellite serves the findings list itself from the read
+# model the flag selects at mux build (not via the core), so each leg needs
+# its own satellite process, like the core. One log per leg: the winners-leg
+# restart must not truncate the legacy satellite's log, which is evidence for
+# the legacy sweep. The satellite serves nothing coreless (it exits 1 without
+# --core-base-url), so a 240s timeout here with a start log showing the
+# missing flag is the RED signature of issue #11170. Status diagnostics
+# (GATE_STATUS_DIAGNOSTIC_DIR) are scoped to the legacy leg (#11643): only the
+# legacy satellite runs under the diagnostic report wrapper and records the
+# client report arg, and stop_satellite_api shuts it down gracefully so it
+# writes server.json before the winners leg restarts a plain satellite (a
+# second wrapped satellite would overwrite that report on its own shutdown). The
+# satellite honors only -addr (it ignores the in-tree ESHU_API_ADDR and
+# defaults to :8080), so the gate port travels on the flag; without it
+# /readyz is probed on a port nothing listens on.
 start_satellite_api() {
-	if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
-		start_bg api api_pid env ESHU_STATUS_DIAGNOSTIC_REPORT="${GATE_STATUS_DIAGNOSTIC_DIR}/server.json" "${bin_dir}/eshu-api" \
+	local winners="$1"
+	# One log per leg: the winners-leg restart must not truncate the legacy
+	# satellite's log, which is evidence for the legacy sweep.
+	local leg="legacy"
+	[[ "${winners}" == "true" ]] && leg="winners"
+	log "start eshu-api (winners-read=${winners})"
+	if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" && "${winners}" != "true" ]]; then
+		status_diagnostic_api_active=1
+		start_bg "api-${leg}" api_pid env ESHU_STATUS_DIAGNOSTIC_REPORT="${GATE_STATUS_DIAGNOSTIC_DIR}/server.json" \
+			"ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=${winners}" "${bin_dir}/eshu-api" \
 			-addr=":${GATE_API_PORT}" --core-base-url="http://127.0.0.1:${GATE_CORE_PORT}"
 		gate_report_args+=(-diagnostic-client-report "${GATE_STATUS_DIAGNOSTIC_DIR}/client.json")
 	else
-		start_bg api api_pid "${bin_dir}/eshu-api" \
+		start_bg "api-${leg}" api_pid env "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=${winners}" "${bin_dir}/eshu-api" \
 			-addr=":${GATE_API_PORT}" --core-base-url="http://127.0.0.1:${GATE_CORE_PORT}"
 	fi
 	if command -v lsof >/dev/null 2>&1; then
@@ -196,7 +212,7 @@ start_satellite_api() {
 		log "eshu-api binary provenance (lsof -p ${api_pid})"
 		lsof -p "${api_pid}" 2>/dev/null | rg 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
 	fi
-	wait_for_satellite_readyz
+	wait_for_satellite_readyz "${leg}"
 	# A responder on GATE_API_PORT that is not our spawned process (a stale
 	# service left on a shared/dev port) would pass the curl check above and
 	# then measure something other than this run's eshu-api. Ports are now
@@ -205,12 +221,43 @@ start_satellite_api() {
 	kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
 }
 
-# wait_for_satellite_readyz polls the satellite /readyz until it answers
-# 200. Split from start_satellite_api so the winners-leg core restart can
-# re-verify the same satellite against the new core before the second sweep
-# measures it.
+# stop_satellite_api terminates the running satellite leg and waits for the
+# port to release before the next leg binds it. A diagnostic satellite instead
+# stops the resource sampler and then shuts down through the bounded graceful
+# diagnostic stop, so its server report is written. A missing process is not an
+# error (the cleanup trap reaps every bg_pid on all exits); a process that
+# refuses to die fails loudly instead of letting the next leg measure a stale
+# satellite.
+stop_satellite_api() {
+	[[ -n "${api_pid}" ]] || return 0
+	if [[ "${status_diagnostic_api_active:-0}" == 1 ]]; then
+		local sampler_pid="${status_diagnostic_resource_pid:-}"
+		status_diagnostic_api_active=0
+		status_diagnostic_resource_pid=""
+		if [[ -n "${sampler_pid}" ]]; then
+			status_diagnostic_resource_stop "${GATE_STATUS_DIAGNOSTIC_DIR}" "${sampler_pid}" || die "diagnostic resource capture failed"
+		fi
+		status_diagnostic_stop "${api_pid}" "${GATE_API_STOP_TIMEOUT:-30}" || die "diagnostic API shutdown failed"
+		api_pid=""
+		return 0
+	fi
+	kill "${api_pid}" >/dev/null 2>&1 || { api_pid=""; return 0; }
+	local timeout="${GATE_API_STOP_TIMEOUT:-30}" deadline
+	deadline=$((SECONDS + timeout))
+	while kill -0 "${api_pid}" 2>/dev/null; do
+		if ((SECONDS >= deadline)); then
+			die "eshu-api (pid ${api_pid}) did not stop within ${timeout}s; refusing to start the next leg against a stale satellite"
+		fi
+		sleep 1
+	done
+	api_pid=""
+}
+
+# wait_for_satellite_readyz [leg] polls the satellite /readyz until it
+# answers 200, tailing that leg's satellite log on failure. Split from
+# start_satellite_api so each leg's start waits on its own log.
 wait_for_satellite_readyz() {
-	local ready=false
+	local leg="${1:-legacy}" ready=false
 	for _ in $(seq 1 240); do
 		if curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
 			ready=true
@@ -218,7 +265,7 @@ wait_for_satellite_readyz() {
 		fi
 		sleep 1
 	done
-	[[ "${ready}" == "true" ]] || { tail -40 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
+	[[ "${ready}" == "true" ]] || { tail -40 "${log_dir}/api-${leg}.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
 }
 
 # start_mcp_server launches the satellite eshu-mcp HTTP transport against the
