@@ -311,7 +311,7 @@ in place of the `fact_records` lookup indexes of 283/289/290, which stay until
 the finding facts stop being written. A supports table that
 is not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`, which
 `fanOutReadFailure` returns unwrapped so the queue defers the item without counting
-an attempt. Evidence: `docs/internal/evidence/11197-holder-reads-supports.md`.
+an attempt. Evidence: #11197 (retired evidence record).
 
 ## The full-pass marker bounds the out-of-stamp fallback (#10972 D2)
 

@@ -11,7 +11,7 @@ landing: false
 
 Use this page when you operate the NVD 2.0 JSON feed transport (design:
 `docs/internal/design/10671-nvd-feed-transport-fallback.md`, arbiter ruling
-`docs/internal/arbiter/10671-cvelist-mirror-ruling-2026-11-15.md`, design PR
+#10671 (retired evidence record), design PR
 #10719).
 The feed is a second transport for NVD window claims, not a replacement: the
 API stays primary when healthy, and cutover back is automatic — once the cursor

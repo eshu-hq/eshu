@@ -33,7 +33,7 @@ import "strings"
 //   - the probe has an explicit ORDER BY and LIMIT 1 and never relies on the
 //     index order for the answer. Eligibility is scalar subqueries, not joins: a
 //     join form made the planner drive from the scope tables (measured 137 s
-//     against 0.8 s, docs/internal/evidence/10880-pr-b2a/RESULTS.md).
+//     against 0.8 s, #10880 (retired evidence record)).
 
 // supplementBinds names the positional parameters one route V statement binds.
 // The list uses the list numbering and the aggregates and grouped inventory the

@@ -300,7 +300,7 @@ rules`. The `kubectl` lines are unrun.
 
 ## 7. Proof
 
-Recorded in `go/internal/storage/postgres/evidence-9376-claim-plane-commit-fence.md`:
+Recorded in #9376 (retired evidence record):
 the EXPLAIN and pgbench theory proof, the red/green stale-writer
 regression, the race and lock-order tests, the parity scenario against the
 real satellite, the migration rehearsal, and the telemetry.

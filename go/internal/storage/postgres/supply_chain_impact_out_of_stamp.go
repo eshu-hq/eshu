@@ -82,7 +82,7 @@ func (s FactStore) HasOutOfStampActiveSupplyChainImpactRows(
 // match only: a probe that finds none, the common case for a fresh-marker
 // rerun, reads the holder's supports rows for the generation through that
 // index (about 7 ms at 3.4k rows on the QA replica; evidence note
-// docs/internal/evidence/10972-d2-full-pass-marker.md).
+// #10972 (retired evidence record)).
 // A support with no CVE id
 // counts here: a GHSA-only row is exactly what a late alias re-keys. No new
 // index.

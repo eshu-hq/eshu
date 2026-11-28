@@ -68,7 +68,7 @@ Measured facts and their sources:
    satellite (`eshu-collector-vulnerability-intelligence`, `freshness.go`)
    and the generic skip decision in core
    (`go/internal/storage/postgres/ingestion_backfill_seam.go`); see the
-   closure ruling, `docs/internal/arbiter/9878-closure-waivers-ruling-2026-11-10.md`
+   closure ruling, #9878 (retired evidence record)
    section 4.
 3. Duplicate copies accepted as bounded storage in 2.3: copies per finding
    bounded by matching enrichment scopes (about 5 EPSS target scopes at

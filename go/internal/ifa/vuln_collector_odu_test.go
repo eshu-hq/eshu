@@ -425,7 +425,7 @@ func withDateOnlyStamp(input []facts.Envelope, scopeID, cveID string) ([]facts.E
 // stamp as UTC when it picks the newest copy (eshu-hq/eshu#10741, #10750).
 //
 // The test keeps its pre-reconciliation name for continuity with the #10735
-// handoff (docs/internal/arbiter/10735-ifa-breakage-ruling-2026-11-20.md),
+// handoff (#10735 (retired evidence record)),
 // which transfers this scenario to #10734. The reconciled expectation fails on
 // main (which still returns the retracted finding) and passes only stacked on
 // #10735, so this update cannot land on main first.

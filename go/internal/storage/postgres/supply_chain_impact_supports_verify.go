@@ -19,7 +19,7 @@ import (
 // the live findings one verification slice reads. On QA (11.6M live findings)
 // the shipped statement took 4.6 to 6.0 s cold for a 20,000-row slice starting at
 // a pair boundary, and 20.3 s for one starting inside the largest pair, all on
-// index range scans (docs/internal/evidence/10880-verify-ranged/README.md).
+// index range scans (#10880 (retired evidence record)).
 const supplyChainImpactSupportsBackfillDefaultVerifySlice = 20000
 
 // supplyChainImpactSupportsBackfillVerifySliceSQL checks one bounded key

@@ -65,7 +65,7 @@ generation held 61,368, which it copied under new ids into the same table with
 `INSERT ... ON CONFLICT (fact_id) DO NOTHING` (not the production `DO UPDATE` suffix),
 triggers on, per-backend WAL. No checkpoint preceded the probe, so it differs from the
 removal cells, which follow `VACUUM (FREEZE)` and a checkpoint (raw output
-pruned per `docs/internal/evidence/README.md`).
+pruned per retired evidence record).
 
 | Metric | 153 indexes | Retained 5 indexes |
 | --- | --- | --- |
@@ -134,7 +134,7 @@ deletes outside retention that a snapshot key cannot turn into drops.
 Source: `scripts/dev/11202-census/census_generations.sh` (read-only session, 24 short
 slices by generation hash, one retry loop each) and `aggregate_census.py`, run
 2026-11-22 05:00Z. The raw file carries only a 64-bit hash of each scope id and stays
-out of the repository (raw aggregate text pruned per `docs/internal/evidence/README.md`;
+out of the repository (raw aggregate text pruned per retired evidence record;
 the figures stand in the tables below). Window: the
 generations on the replica span 36.3 days of ingest; the per-day figures use the last
 30 complete days.
@@ -216,7 +216,7 @@ of the scope, a base an active delta generation still needs, rank within the sco
 holds 26,882 generations in 12,876 scopes over 36.4 days (box 2: 26,813 and 36.3 days; the
 difference is ingestion between the two reads). No primary, no new sample, no copy.
 `scripts/dev/11202-census/aggregate_buckets.py` computes everything below
-(raw bucket text pruned per `docs/internal/evidence/README.md`). The bucket key is the
+(raw bucket text pruned per retired evidence record). The bucket key is the
 generation's creation time (`scope_generations.ingested_at`). Non-eligible generations
 (K4) are active, pending, failed, the first generation of its scope, and a base an active
 delta generation still needs. "Held" generations could not be identified and are not
@@ -233,7 +233,7 @@ counted (NOT_CHECKED).
 | 1.4 | 11.00 | 5.54 | 1.91 | 0.33 | 10.44 | 7.26 | 1.08 |
 | -5.6 | 0.79 | 1.39 | 0.18 | 1.75 | 2.44 | 0.22 | 1.44 |
 
-(The full 37-bucket 1-day table was pruned per `docs/internal/evidence/README.md`.) Nothing in the window is older than
+(The full 37-bucket 1-day table was pruned per retired evidence record.) Nothing in the window is older than
 36.4 days, so "aged at least 30 days" has no 7-day bucket and six 1-day buckets.
 
 **Active generations by age, weighted by rows.** 98.8% of active rows are in generations
@@ -268,7 +268,7 @@ output). The table below is a sensitivity on which pins count; it is not binding
 
 The 64.0% to 64.4% figure (active only, all kinds, RANGE) is not script output. The raw
 census file was not kept, so it is derived from the 1-day table (`box3-buckets.txt`,
-pruned per `docs/internal/evidence/README.md`): the three buckets with no active generation hold 14.9% of
+pruned per retired evidence record): the three buckets with no active generation hold 14.9% of
 61,324,138 superseded rows (9.14M); only {35.4, 32.4, 31.4} or {34.4, 32.4, 31.4} days
 old fit that sum, so all three are aged at least 30 days, and they hold 9.11M to 9.17M (from
 the rounded 14.9% share; the table sums give 9.13M to 9.18M; the percentages use the first

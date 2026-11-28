@@ -33,7 +33,7 @@ import (
 // cannot regress them:
 //   - winnersKeyedNarrowProbeSelect keeps its five `->>` equalities: they are
 //     the 291 keyed index expressions, and a record Var cannot match them
-//     (EXPLAIN in docs/internal/evidence/11120-single-detoast.md).
+//     (EXPLAIN in #11120 (retired evidence record)).
 //   - cvss.BucketSQL keeps reading source.payload: it is shared with the
 //     read-time dedup (byte-parity rule in
 //     supply_chain_impact_canonical_winners_store.go), and splitting it would
@@ -253,7 +253,7 @@ func TestWinnersDetoastMappingInverts(t *testing.T) {
 // over f.payload, because they are the 291 keyed index expressions. A record
 // Var cannot match an expression index, so converting the probe trades five
 // detoasts for a sequential scan (EXPLAIN in
-// docs/internal/evidence/11120-single-detoast.md).
+// #11120 (retired evidence record)).
 func TestWinnersKeyedProbeKeepsIndexExpressions(t *testing.T) {
 	t.Parallel()
 

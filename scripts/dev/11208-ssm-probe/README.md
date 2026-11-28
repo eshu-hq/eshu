@@ -4,7 +4,7 @@ Measurement shims for [#11208](https://github.com/eshu-hq/eshu/issues/11208),
 not gates and not migrations. They build a synthetic fixture in a disposable
 `postgres:18` container you start yourself and run `EXPLAIN (ANALYZE, BUFFERS)`
 of the SSM host fact read. The results and their limits are in
-`docs/internal/evidence/11208-ssm-host-read-probe.md`.
+#11208 (retired evidence record).
 
 - `seed.sql`: hand-written tables and the indexes the read can use, plus
   non-SSM facts. Not the production schema.

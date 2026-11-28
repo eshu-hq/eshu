@@ -215,7 +215,7 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   autovacuum does in production; without it an Index Only Scan (the entity search
   walk) read 32 to 512 buffers depending on how far autovacuum had got when the
   sweep started (#11224; the EXPLAIN figures are in
-  `docs/internal/evidence/11170-latency-gate-core-leg.md`). Never run it before a
+  #11170 (retired evidence record)). Never run it before a
   bulk write, never make it `VACUUM FULL`, keep it in the seed phase, and add a
   newly seeded table to `analyzedSeededTables`.
   `TestSeedVacuumsAfterEveryPostgresWriteAndBeforeTheSweep` fails on any later call

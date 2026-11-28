@@ -235,4 +235,4 @@ The generation lag guard (`active_scopes` join) behaves exactly as before.
 Proof: the differential
 `TestCollectorFactEvidenceSummaryReadMatchesLateralLive` (resweep-then-read
 vs derived lateral oracle, empty diff) and the fixture before/after in
-`go/internal/storage/postgres/evidence-10601-leg1-summary-read.md`.
+#10601 (retired evidence record).

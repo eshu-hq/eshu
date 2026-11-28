@@ -308,7 +308,7 @@ func TestCensusRowsRecordTheirPurgeOrder(t *testing.T) {
 // TestCensusDeferredRowsNameTheirBlockingQuestion pins the rows #10820 does not
 // purge because the work they wait on is tracked elsewhere. A deferred row keeps
 // no remove step, so the census-versus-purge guard does not demand a statement
-// for it, but it must say what blocks the delete, cite the evidence note, and
+// for it, but it must say what blocks the delete, cite #10820, and
 // cite the open issue that tracks the blocker, so the row cannot quietly become
 // a permanent exemption. The list is closed: a new deferred row needs an edit
 // here.
@@ -342,8 +342,8 @@ func TestCensusDeferredRowsNameTheirBlockingQuestion(t *testing.T) {
 		if !strings.Contains(entry.Reason, b.issue) {
 			t.Errorf("%s: reason %q does not cite the tracking issue %s", table, entry.Reason, b.issue)
 		}
-		if !strings.Contains(entry.Reason, "10820-census-2e-purge.md") {
-			t.Errorf("%s: reason %q does not cite the evidence note", table, entry.Reason)
+		if !strings.Contains(entry.Reason, "#10820") {
+			t.Errorf("%s: reason %q does not cite #10820", table, entry.Reason)
 		}
 		delete(deferred, table)
 	}

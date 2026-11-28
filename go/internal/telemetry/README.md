@@ -88,7 +88,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 `CrossScopeCompletionSuppressed` (`eshu_dp_cross_scope_completion_suppressed_total`,
 label `domain`) counts producer passes whose ack adds no cross-scope completion
 event because nothing a consumer reads changed (#10972 PR-4, ci_cd today; see
-`docs/internal/evidence/10972-pr4-cicd-completion-gate.md`).
+#10972 (retired evidence record)).
 
 The holder fan-out's in-flight narrowing (#10972 D4b) adds the
 `SupplyChainImpactFanOut` outcomes `in_flight_kept`, `in_flight_narrowed`,

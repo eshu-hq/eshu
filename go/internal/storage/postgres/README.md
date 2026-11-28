@@ -341,7 +341,7 @@ spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
   can be reused across reducer restarts and replicas without re-solving.
 
 No-Regression Evidence: scoped hot-path notes live in
-[`evidence-notes.md`](evidence-notes.md), including #2059 claimed fact commit
+retired evidence record, including #2059 claimed fact commit
 tenant-grant fencing. No-Observability-Change: #2059 adds no new signal shape.
 
 ### Current IaC inventory index (#5262)
@@ -1006,7 +1006,7 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   `ESHU_REDUCER_MAX_ATTEMPTS` without terminally dropping edges.
 
 No-regression and observability proof for this retry class lives in
-[`evidence-notes.md`](evidence-notes.md#reducer-endpoint-readiness-retry-1391).
+retired evidence record.
 
 - The package-consumption sidecar backfill
   (`package_manifest_consumption_backfill.go`) rebuilds each scope through
@@ -1084,13 +1084,13 @@ Evidence: (#7420).
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion
-note current when changing storage behavior that touches those contracts. Producer-terminal wake locality (#11114): an Ack reopens a narrowed same-scope wait (`same_scope_generation`, the #8827 reconciliation and #11105 impact waits) only through the keyed wake for its own scope, generation, and domain; only `cross_scope` classes (the #7816 catalog runtime wait, whose fence reads other repository scopes) ride the cross-scope leg, so a foreign Ack no longer costs every parked waiter a claim, probe, and re-park (8 scopes: 36 deferrals before, 8 after; see `docs/internal/evidence/11114-producer-wake-locality.md`). A commit that refuses or skips a generation still returns nil and says so on the caller's `collector.CommitDisposition` box (#10037): the destructive-successor guard and the retirement gate mark it refused, and the duplicate check and a finalized replay mark it `unchanged_skip`. The ingestion commit's #7926 destructive-successor guard sizes like for like (#8750): collector rows only, and a git delta by its file union against the anchor the projector also overlays on; see the guard bullet there.
+note current when changing storage behavior that touches those contracts. Producer-terminal wake locality (#11114): an Ack reopens a narrowed same-scope wait (`same_scope_generation`, the #8827 reconciliation and #11105 impact waits) only through the keyed wake for its own scope, generation, and domain; only `cross_scope` classes (the #7816 catalog runtime wait, whose fence reads other repository scopes) ride the cross-scope leg, so a foreign Ack no longer costs every parked waiter a claim, probe, and re-park (8 scopes: 36 deferrals before, 8 after; see #11114 (retired evidence record)). A commit that refuses or skips a generation still returns nil and says so on the caller's `collector.CommitDisposition` box (#10037): the destructive-successor guard and the retirement gate mark it refused, and the duplicate check and a finalized replay mark it `unchanged_skip`. The ingestion commit's #7926 destructive-successor guard sizes like for like (#8750): collector rows only, and a git delta by its file union against the anchor the projector also overlays on; see the guard bullet there.
 
 Additional historical no-regression notes for incident freshness, incident
 routing, workflow terminal failure, readiness gating, owned dependency targets,
-and advisory targets live in [`evidence-notes.md`](evidence-notes.md). The collector terminal-failure acknowledgement store and read (#8830) are in [`terminal-failure-acknowledgement.md`](terminal-failure-acknowledgement.md).
+and advisory targets live in retired evidence record. The collector terminal-failure acknowledgement store and read (#8830) are in [`terminal-failure-acknowledgement.md`](terminal-failure-acknowledgement.md).
 
-- A `fact_records` write whose `fact_id` is already held by another scope or another generation never changes that row (#11203): the upsert's conflict WHERE requires the stored `scope_id` and `generation_id` to match, `selectUnchangedFactIDs` classifies the skipped ids as unchanged, owner conflict, or fenced out in one statement, and the streaming save returns `*FactIDOwnerConflictError` at the first conflicting batch. `IngestionStore` answers by refusing the whole generation (rolled back, the prior generation keeps serving) with the closed reason `fact_id_owner_conflict`, `eshu_dp_fact_id_scope_conflicts_total{reason}`, and one ERROR log of ids, never payloads. See [AGENTS.md](AGENTS.md) and [the evidence note](../../../../docs/internal/evidence/11203-fact-id-owner-guard.md).
+- A `fact_records` write whose `fact_id` is already held by another scope or another generation never changes that row (#11203): the upsert's conflict WHERE requires the stored `scope_id` and `generation_id` to match, `selectUnchangedFactIDs` classifies the skipped ids as unchanged, owner conflict, or fenced out in one statement, and the streaming save returns `*FactIDOwnerConflictError` at the first conflicting batch. `IngestionStore` answers by refusing the whole generation (rolled back, the prior generation keeps serving) with the closed reason `fact_id_owner_conflict`, `eshu_dp_fact_id_scope_conflicts_total{reason}`, and one ERROR log of ids, never payloads. See [AGENTS.md](AGENTS.md) and the evidence note.
 
 ## Related docs
 

@@ -12,7 +12,7 @@ import (
 )
 
 // foreignMemberTokensBodySHA256 pins the body of the shipped token function
-// (#10643 PR 2, function v4; docs/internal/evidence/10643-foreign-member-token-index.md). The
+// (#10643 PR 2, function v4; #10643 (retired evidence record)). The
 // body is never altered after release: a change is a new versioned function,
 // a new index, and a new migration, proven again with the F1 shape matrix and
 // a whole-fixture identity scan. Do not update this digest to make a test

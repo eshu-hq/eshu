@@ -147,7 +147,7 @@ expected to reach a deployed fleet.
 Superseded by #11114: the cross-scope leg now runs only for failure classes
 that declare a cross-scope provider (the #7816 catalog runtime wait), so a
 foreign attachment Ack no longer reopens a parked pass, and the test above
-asserts that. See `docs/internal/evidence/11114-producer-wake-locality.md`.
+asserts that. See #11114 (retired evidence record).
 
 ## Evidence
 

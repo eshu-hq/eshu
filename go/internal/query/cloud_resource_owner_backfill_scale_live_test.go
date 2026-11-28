@@ -63,7 +63,7 @@ const (
 // projection) measured ~7.5s cold, ~0.5-1s for later distinct pages, and
 // 5ms on result-cache repeats. The full production 35-property projection
 // measured 8.646s cold (inside the 10s deadline, untuned) and 61ms warm
-// with result cache defeated (see docs/internal/evidence/11535-nornicdb-strict-schema.md).
+// with result cache defeated (see #11535 (retired evidence record)).
 //
 // It is written for a disposable NornicDB container: the seed is reused when
 // the graph already holds exactly the expected prefixed population, so the

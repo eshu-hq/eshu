@@ -111,7 +111,7 @@ Rules that make the readable composite safe:
   directory basenames, so a colon is possible but unobserved.
 - **Environment must be colon-free.** It already is: every producer funnels
   through the allowlisted, canonicalized tokens recorded in
-  `go/internal/workloadid/evidence-notes.md`. The constructor rejects a colon
+  retired evidence record. The constructor rejects a colon
   there too, under the same counter, so the last segment of an instance id is
   unambiguous even though the key is never parsed.
 

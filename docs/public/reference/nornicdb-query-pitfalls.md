@@ -152,7 +152,7 @@ unconditionally for every graph backend including NornicDB
 retracts: each writer gained (or, for `SecurityGroupReachabilityWriter`,
 reused) a `dispatchRetract` helper that always runs `Execute` sequentially,
 never `ExecuteGroup`, live-proven in
-`go/internal/storage/cypher/evidence-4367-cloud-edge-retract.md`. Do not
+#4367 (retired evidence record). Do not
 assume a single-statement group is safe from this class; the safe rule is
 "retract DELETEs run through `Execute`, never `ExecuteGroup`," independent of
 statement count.
@@ -281,7 +281,7 @@ MATCH (n:TerraformVariable) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
 
 That symptom is one face of a wider defect: branch 2 does not contribute rows.
 #6634 measured zero rows on `nornicdb-cpu-bge:v1.3.2` for an empty first
-branch (`go/cmd/reducer/evidence-6634-workload-dependency-incoming-lookup.md`).
+branch (#6634 (retired evidence record)).
 #6794 measured a NON-empty first branch on
 `ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.3.3`: the related-repository read
 returned only its one outgoing row and dropped the three incoming rows

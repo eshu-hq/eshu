@@ -1192,8 +1192,8 @@ one, and the seven probes that guard them cost 0.31s without growing with the
 store (ledger:5998-delta-per-label-retract-seeded-rerun,
 ledger:5998-delta-per-label-retract-empty,
 ledger:5998-delta-per-label-probe-seeded,
-ledger:5998-delta-per-label-probe-empty in the repository's measurement ledger,
-`docs/internal/measurements.jsonl`). Each of those pairs ran on one host against
+ledger:5998-delta-per-label-probe-empty from the retired #5998 measurement
+ledger). Each of those pairs ran on one host against
 one image, so this path is justified by its own same-store pair rather than by
 comparison against the whole-repository figures, which came from a different
 host. The empty-store half of the DELETE pair comes from an earlier session

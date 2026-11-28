@@ -254,4 +254,4 @@ supply_chain_impact reads.
 - **Signal.** `eshu_dp_cross_scope_completion_suppressed_total{domain}` counts
   the unchanged passes.
 
-Evidence: `docs/internal/evidence/10972-pr4-cicd-completion-gate.md`.
+Evidence: #10972 (retired evidence record).

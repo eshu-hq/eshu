@@ -78,7 +78,7 @@ package postgres
 // text verbatim. (#10863's gate shim measured 29,684 buffers on the
 // 8,713-row replay with 4,000 scopes, before QA's scope count made the
 // misestimate drive the plan.) Evidence:
-// docs/internal/evidence/11234-stale-gate-join-order.md.
+// #11234 (retired evidence record).
 //
 // The CTEs must be declared AFTER reducerClaimReadinessRequirementsCTE in
 // the enclosing WITH list, like the sweep they replace: the readiness

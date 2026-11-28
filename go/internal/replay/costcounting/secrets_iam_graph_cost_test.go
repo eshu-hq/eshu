@@ -64,7 +64,7 @@ func secretsIAMServiceAccountFixtureRows() []map[string]any {
 // level, never enabling ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED or
 // touching cmd/reducer's domain registry, is the established precedent for
 // this ADR #1314-governed writer (see
-// go/internal/storage/cypher/evidence-4367-iam-variable-retract.md
+// #4367 (retired evidence record)
 // "Governance decision: secrets/IAM writer-level exercise (ADR #1314)" —
 // TestReducerSecretsIAMEdgeRetractGraphTruth uses the identical
 // writer-level-only pattern). InstrumentedExecutor records

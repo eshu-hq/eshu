@@ -52,4 +52,4 @@ five separately seeded runs) the entity row of the work tables could not hold
 ([#11224](https://github.com/eshu-hq/eshu/issues/11224)). A production database is
 vacuumed in steady state, so the gate measures that state on purpose. The
 `EXPLAIN (ANALYZE, BUFFERS)` figures are in
-`docs/internal/evidence/11170-latency-gate-core-leg.md`.
+#11170 (retired evidence record).

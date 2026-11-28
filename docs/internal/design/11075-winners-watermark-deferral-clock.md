@@ -6,7 +6,7 @@ Phase-1 evidence: comment 7052476882 on #11075 (bounded R(t) + queue-composition
 
 **Routing note:** this answer changes clock semantics (not the bound value, not enrollment, not concurrency). Per Decision 3 it routes to the arbiter as a design ruling on this record before the implementation lands. Nothing here is pushed, PR'd, or deployed by the lane.
 
-**Post-landing arbiter reconciliation (2026-11-23):** `docs/internal/arbiter/11075-design-record-ruling-2026-11-23.md` records the verdict Q1 = DEFECT with candidate (a) adopted as implemented in #11086, rejects (b)/(c), rules the #11151 stamped fast path counts against unchanged T-outcome, and keeps #11075 open on AC3 (one fresh A2-identical QA packet at unchanged bars).
+**Post-landing arbiter reconciliation (2026-11-23):** #11075 (retired evidence record) records the verdict Q1 = DEFECT with candidate (a) adopted as implemented in #11086, rejects (b)/(c), rules the #11151 stamped fast path counts against unchanged T-outcome, and keeps #11075 open on AC3 (one fresh A2-identical QA packet at unchanged bars).
 
 ## Q1 verdict: DEFECT, candidate (a)
 

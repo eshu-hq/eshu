@@ -9,7 +9,7 @@ per-statement bar — a 29,417-row id ran the shipped holder statement in
 set. The gate is the largest comfortably-passing mass halved (6006/2,
 rounded to 3000); ids at or under it keep the cheap shipped statement and
 everything hotter ranges. Full numbers, rejected alternatives, and proof
-limits: `docs/internal/evidence/fanout-holder-read-cost-gate-retune.md`.
+limits: retired evidence record.
 
 Observability Evidence (gate 78435 to 3000): no new metric or span. The
 existing per-pass `fanout_holder_statements` and `fanout_max_id_mass_rows`

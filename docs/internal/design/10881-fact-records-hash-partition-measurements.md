@@ -32,7 +32,7 @@ rows; the 60 GB cap and the shared disk allowed 2.05M and 5.36M.
 
 The removal repair run (A2) reloaded S1 from a fresh pull two hours later, so its S1
 has 2,071,167 rows (live ingestion added rows to the same scopes) and its S0
-960,732 (raw `r1-row-counts.txt` pruned per `docs/internal/evidence/README.md`).
+960,732 (raw `r1-row-counts.txt` pruned per retired evidence record).
 
 **Two shapes, same rows.** Each size is one database holding the undivided table
 (`public.fact_records`) and a `HASH(scope_id)` modulus-32 twin (`d.fact_records`)
@@ -199,7 +199,7 @@ projector loads run on the primary, whose statistics were not read (out of
 bounds), so those are ranked by how often the code path runs: once per projection
 cycle, once per ingestion batch. The plans themselves are measured. `explain_loads.sql` runs the same five on both
 shapes; warm, third run, `EXPLAIN (ANALYZE, BUFFERS)`, retained index profile
-(raw plans pruned per `docs/internal/evidence/README.md`).
+(raw plans pruned per retired evidence record).
 
 | # | Load | Undivided | Divided (32) | Divided plan |
 | --- | --- | --- | --- | --- |
@@ -225,7 +225,7 @@ What this means:
   is the number to watch. NOT_CHECKED at production scale.
 - The `scanner_image_result_*` tables the real L2 joins are empty in the
   rehearsal schema; the scope scan is the part under test (raw 153-index S1 plan
-  pruned per `docs/internal/evidence/README.md`).
+  pruned per retired evidence record).
 
 ## A2: removal, undivided against divided (R1, two sizes)
 
@@ -240,7 +240,7 @@ transaction per page; fact_id-only SQL on the undivided table, the
 `scope_id AND fact_id` form on the divided one), then `VACUUM (VERBOSE)`. WAL is
 per-backend (`pg_stat_get_backend_wal`), so other cluster activity does not count.
 The decision rests on WAL bytes and page counts, not seconds (raw output pruned
-per `docs/internal/evidence/README.md`).
+per retired evidence record).
 
 | Metric | S0 undivided | S0 divided | S1 undivided | S1 divided |
 | --- | --- | --- | --- | --- |
@@ -256,7 +256,7 @@ per `docs/internal/evidence/README.md`).
 | host loadavg (1 min) and I/O pressure avg60 at cell start | 25.5 / 39 | 42.3 / 47 | 23.5 / 60 | 20.9 / 58 |
 
 (Delete and VACUUM seconds moved from 16 s to 498 s with host I/O and are not
-evidence; raw logs were pruned per `docs/internal/evidence/README.md`.) The S0 undivided size was not captured because the
+evidence; raw logs were pruned per retired evidence record.) The S0 undivided size was not captured because the
 size query was fixed between cells (a plain table returns no `pg_partition_tree`
 leaf, so the first version reported NULL); the other three cells carry it.
 

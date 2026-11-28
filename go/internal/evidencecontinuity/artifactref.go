@@ -38,7 +38,7 @@ func proofLike(ref string) bool {
 
 // artifactURLWellformed requires a resolvable run URL: a registry host
 // (a dot in the host) plus /actions/runs/ or a numeric run segment, per
-// docs/internal/measurement-ledger.md. Rejects bare hosts such as http://x.
+// retired measurement-ledger contract. Rejects bare hosts such as http://x.
 func artifactURLWellformed(url string) bool {
 	var hostpath string
 	if rest, ok := strings.CutPrefix(url, "http://"); ok {

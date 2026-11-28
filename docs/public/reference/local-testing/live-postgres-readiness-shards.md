@@ -464,7 +464,7 @@ unchanged prices, cap, and guards.
 ### Slow-draw HOLD (#9532, 2026-11-08)
 
 The arbiter ruled HOLD: six shards, the 30-minute cap, no per-shard retry, no timeout
-raise (ruling: `docs/internal/arbiter/9532-draw-hold-ruling-2026-11-08.md`; shim
+raise (ruling: #9532 (retired evidence record); shim
 numbers: (#9532)). The 1.5x
 slow-draw premise is dead: October slows were cold-cache runs before the restore step,
 plus fast-draw mispricing since fixed by the pooled-p75 refits.
