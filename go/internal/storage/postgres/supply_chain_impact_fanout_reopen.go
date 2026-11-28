@@ -210,9 +210,10 @@ SELECT COALESCE(active_generation_id, '') FROM ingestion_scopes WHERE scope_id =
 // generation, or enqueues one when that generation has none, and names a dead
 // letter's prior failure class. The stamp carries the origin's CVE set (#9740)
 // and, when the origin names one, its fencing token (#11613); the enqueue
-// path stamps none, so a generation that never had an item runs its
-// establishing pass full, and a reopened dead letter carries none (#11147), so
-// it runs a full genuine pass. A succeeded reopen that meets every PR1
+// path stamps the token with no CVE set, so a generation that never had an
+// item still runs its establishing pass full, and a reopened dead letter
+// carries none (#11147), so it runs a full genuine pass. A succeeded reopen
+// that meets every PR1
 // freshness condition reports shadow_would_skip while the row still goes
 // pending. A dead letter in an unsafe-replay class
 // (recovery.UnsafeReplayFailureClasses) is left dead and reported skipped.
