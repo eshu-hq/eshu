@@ -28,10 +28,11 @@ to index one of your own repositories, follow
 | Index repositories and ask questions | [Use Eshu](use/index.md) |
 | Trace a vulnerable dependency to its images and owners | [Use Cases](use-cases.md) |
 | Audit secrets, IAM, and supply-chain posture | [Security Intelligence](reference/security-intelligence.md) |
-| Deploy Eshu for a team | [Deploy to Kubernetes](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
+| Deploy Eshu for a team | [Deploy Eshu](deployment/index.md) |
 | Deploy Eshu on EKS | [Deploy to EKS](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/eks/index.md) |
 | Keep a running service healthy | [Operate Eshu](operate/index.md) |
-| Debug slow indexing, stale answers, or graph timeouts | [Tuning Playbook](operate/tuning-playbook.md) |
+| Troubleshoot stale answers, slow indexing, or auth errors | [Troubleshooting](operate/troubleshooting.md) |
+| See all system, workflow, and deployment diagrams | [Flow Atlas](concepts/flows/index.md) |
 | Understand the architecture and graph model | [Understand Eshu](understand/index.md) |
 | Work on Eshu with an AI agent | [Code with agents](guides/coding-with-agents.md) |
 | Prove a change works before opening a PR | [How Eshu proves itself](concepts/how-eshu-proves-itself.md) |

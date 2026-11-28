@@ -13,7 +13,7 @@ Every box names the code that runs it, so agents and humans can jump
 from the picture to the source. (Refs #10880; storm breaker #11595.)
 The Mermaid chart below renders on GitHub; the plain-text version after
 it carries the same flow for terminal readers. This chart is the single
-copy — do not mirror it elsewhere (see `docs/diagrams/README.md`).
+copy — do not mirror it elsewhere (see `docs/public/concepts/flows/index.md`).
 
 ```mermaid
 flowchart TB

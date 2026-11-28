@@ -25,11 +25,14 @@ Eshu has a facts-first runtime:
 | --- | --- |
 | End-to-end pipeline | [How It Works](../concepts/how-it-works.md) |
 | Runtime and storage boundaries | [Architecture](../architecture.md) |
+| All workflow and system diagrams | [Flow Atlas](../concepts/flows/index.md) |
+| Deployment shapes and runtimes | [Deploy Eshu](../deployment/index.md) |
 | Nodes, edges, and identity rules | [Graph Model](../concepts/graph-model.md) |
 | Interfaces, profiles, and modes | [Modes](../concepts/modes.md) |
 | Service-by-service workflow | [Service Workflows](../reference/service-workflows.md) |
 | Truth levels | [Truth Label Protocol](../reference/truth-label-protocol.md) |
 | Capability support by profile | [Capability Conformance Spec](../reference/capability-conformance-spec.md) |
+| Architecture decisions | [Decisions](../decisions/index.md) |
 
 ## Concepts To Keep Separate
 
@@ -37,6 +40,7 @@ Eshu has a facts-first runtime:
 - **Completeness**: whether indexed state is fresh enough for the question.
 - **Truth level**: whether an answer is exact, derived, partial, fallback, or
   unsupported for the active profile.
-- **Backend**: NornicDB or Neo4j behind the graph ports.
+- **Backend**: Neo4j (primary canonical graph backend) or local NornicDB behind
+  the shared graph ports.
 
 Handlers depend on graph and content ports, not concrete backend code.

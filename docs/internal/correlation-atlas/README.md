@@ -16,8 +16,8 @@ stale and you need to know what should have refreshed it.
   [Shared projections](shared-projections.md) page. No other page was re-read
   against that commit.
 - A statement marked **Observed** was seen in a read-only query against the QA
-  environment. Each one carries its date, and the queries and counts are in
-  [Correlation atlas observations](../evidence/correlation-atlas-observations-2026-11-21.md).
+  environment on the noted date (the retired snapshot log is preserved in git
+  history).
 - A statement marked **None found** means a search did not find it. It is wrong
   if the path lives somewhere the search did not look. Each group page lists
   what was searched.
@@ -39,94 +39,20 @@ stale and you need to know what should have refreshed it.
 | [Runtime and delivery](runtime.md) | The change touches workloads, deployments, Kubernetes, or CI/CD |
 | [Shared projections](shared-projections.md) | The change touches graph projections queued by another correlation |
 
-## The whole picture
+## Diagrams and flow overview
 
-Collectors write records under a scope: one repository, one cluster, one
-advisory window. Each new snapshot of a scope raises runs of the correlations
-that read it. A run writes its answer to the graph, to a Postgres table, or back
-as a record that another correlation reads.
+The user- and operator-facing Mermaid diagrams ("How collectors feed
+correlations" and "How a run starts and re-opens") live in one canonical place:
+[Cross-Source Correlations Flow](../../public/concepts/flows/correlations.md)
+in the public Flow Atlas. Keep diagram edits there (one picture, one home) and
+use this directory for code-level domain tables and re-open symbol pointers.
 
-```mermaid
-flowchart LR
-  subgraph C["Collectors"]
-    GIT["Git repositories"]
-    VULN["Vulnerability sources"]
-    REG["Registries and SBOMs"]
-    ALERT["Security alerts"]
-    CLOUD["AWS, GCP, Azure"]
-    TF["Terraform state"]
-    K8S["Kubernetes clusters"]
-    CI["CI/CD runs"]
-    INC["Incidents, docs, observability"]
-  end
-  FACTS[("Records in Postgres, one snapshot per scope")]
-  subgraph R["Correlation groups"]
-    RC["Code"]
-    RS["Supply chain"]
-    RL["Cloud and state"]
-    RR["Runtime and delivery"]
-  end
-  OUT["Graph, read tables, API and MCP answers"]
-  GIT --> FACTS
-  VULN --> FACTS
-  REG --> FACTS
-  ALERT --> FACTS
-  CLOUD --> FACTS
-  TF --> FACTS
-  K8S --> FACTS
-  CI --> FACTS
-  INC --> FACTS
-  FACTS --> RC
-  FACTS --> RS
-  FACTS --> RL
-  FACTS --> RR
-  RR -. "workload and platform rows" .-> RS
-  RL -. "cloud resources" .-> RC
-  RR -. "workloads" .-> RC
-  RC --> OUT
-  RS --> OUT
-  RL --> OUT
-  RR --> OUT
-```
-
-A dotted line is one correlation reading another's output. Those are the places
-a result can go stale, because the reader is not always told when the writer
-changes.
-
-## How a run starts, and how it starts again
-
-Every correlation takes the same path for its first run.
-
-```mermaid
-flowchart LR
-  A["Collector commits a snapshot of one scope"] --> B["Projector reads the snapshot"]
-  B --> C["One queued run per correlation that reads those record kinds"]
-  C --> D["Reducer claims the run"]
-  D --> E{"Still the newest snapshot?"}
-  E -- "No" --> S["Skipped as superseded"]
-  E -- "Yes" --> F["Handler loads records and writes its answer"]
-  F --> G["Run marked succeeded"]
-  G -. "some correlations announce completion" .-> H["Finished runs of other correlations are re-opened"]
-```
+## Code pointers for run startup and re-open
 
 The projector builds one run per scope snapshot in
 `projector/runtime/scope_generation_intents.go`, and one per record when the
 record's payload names a correlation (`projector/runtime/reducer_intent.go`).
 Runs are rows in `fact_work_items`.
-
-A run caused by a different source is the exception. Each way is a separate
-mechanism.
-
-| Way a run starts again | What it means | Who uses it |
-|---|---|---|
-| New snapshot of its own scope | The normal path | Every correlation |
-| Completion announcement | A producer finishes and every run of its consumers at an active snapshot is re-opened, or flagged to replay if it is in flight. The announcement does not say which scope changed | Image identity and CI/CD re-open supply-chain impact. Five producers re-open value-flow refresh |
-| Producer finish, keyed | A producer finishes and re-opens only the runs that name the same repository | Workload materialization re-opens service catalog. Deployment mapping re-opens deployable unit, workload, and service catalog |
-| Producer-activation settle | A snapshot becomes active and re-opens runs that share image keys or resource ARNs with it. Off unless `ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED` is set | Image identity, Kubernetes materialization, AWS drift |
-| Maintenance re-open | After an ingest pass, a fixed list of six correlations is checked. Most re-open only when a fingerprint of their inputs changed | Deployable unit, workload, service catalog, Kubernetes materialization, image identity, AWS drift |
-| Holder fan-out | A run that changed a finding re-opens the other scopes that hold a copy of it | Supply-chain impact |
-| Parked wait | A run waits for a named thing and is woken when it finishes | Supply-chain impact, security alerts, advisory groups |
-| Timed sweep | A periodic pass queues runs regardless of events | Config-against-state drift (every 5 minutes), search index. The AWS drift 24-hour audit is a condition of the maintenance re-open, not a timer of its own |
 
 The cross-scope producer and consumer pairs are declared in one place,
 `dependencyCatalog` in `reducer/crossscope/dependencies.go`. The maintenance list

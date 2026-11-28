@@ -215,23 +215,24 @@ will point you at the right check.
 New here? Read [First Successful Run](docs/public/getting-started/first-successful-run.md), then
 [Start Here](docs/public/start-here.md), then [Connect MCP](docs/public/mcp/index.md). Then follow your job.
 
-The docs live in eight buckets. Here's where each one really lives:
+The docs live in nine buckets. Here's where each one really lives:
 
 - **Getting started** — [First Successful Run](docs/public/getting-started/first-successful-run.md) and the rest of [getting-started/](docs/public/getting-started/), plus [Run locally](docs/public/run-locally/index.md).
 - **Guides** — [All Guides](docs/public/guides/index.md): task-focused walkthroughs once Eshu is running.
 - **Concepts** — [Understand Eshu](docs/public/understand/index.md) and [How Eshu works](docs/public/concepts/how-it-works.md): the system model in plain words.
 - **Reference** — [Reference](docs/public/reference/index.md): commands, settings, APIs, and contracts to look up.
 - **Architecture** — [Architecture](docs/public/architecture.md): runtime boundaries and who owns what.
-- **Diagrams** — [docs/diagrams/](docs/diagrams/): the standalone Mermaid sources. Most pages also carry their own inline diagrams.
+- **Diagrams & Flows** — [Flow Atlas](docs/public/concepts/flows/index.md): one home for every end-to-end system, correlation, read-path, and deployment diagram.
+- **Deployment** — [Deploy Eshu](docs/public/deployment/index.md) and [eshu-deploy](https://github.com/eshu-hq/eshu-deploy): topologies, service runtimes, Postgres read routing, Helm, and Compose.
 - **Decisions** — [Decisions](docs/public/decisions/index.md): how choices are recorded and where the records live.
 - **Contributing** — [Contributing](docs/public/contributing.md) and the root [CONTRIBUTING.md](CONTRIBUTING.md): how to help, from first patch to PR.
 
 | Your job | Start here |
 | --- | --- |
 | Index repos and ask questions | [Use Eshu](docs/public/use/index.md) |
-| Run a shared service | [Deploy Eshu](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md) |
-| Keep it healthy | [Operate Eshu](docs/public/operate/index.md) |
-| Learn how it fits together | [Understand Eshu](docs/public/understand/index.md) |
+| Run a shared service | [Deploy Eshu](docs/public/deployment/index.md) |
+| Keep it healthy or troubleshoot | [Operate Eshu](docs/public/operate/index.md) and [Troubleshooting](docs/public/operate/troubleshooting.md) |
+| Learn how it fits together | [Understand Eshu](docs/public/understand/index.md) and [Flow Atlas](docs/public/concepts/flows/index.md) |
 | Add collectors or language support | [Extend Eshu](docs/public/extend/index.md) |
 | Change Eshu with an AI agent | [Code with agents](docs/public/guides/coding-with-agents.md) |
 | Look up commands and settings | [CLI Reference](docs/public/reference/cli-reference.md) |
