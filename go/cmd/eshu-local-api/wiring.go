@@ -419,7 +419,7 @@ func wireAPI(
 	(&serviceintelhttp.ReportHandler{
 		Entities:    router.Entities,
 		Incidents:   newIncidentEvidenceSourceWithReadStore(readStore, logger),
-		SupplyChain: newSupplyChainEvidenceSourceWithReadStore(readStore, logger, readImpactFromWinners),
+		SupplyChain: newSupplyChainEvidenceSourceWithReadStore(readStore, logger, readImpactFromWinners, instruments),
 	}).Mount(apiMux)
 
 	// CLI-support endpoints (8874 S4); see mountCLISupportEndpoints.
