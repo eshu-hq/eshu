@@ -20,6 +20,7 @@
 #     Integration suites that need Postgres or NornicDB are CI's job — see
 #     docs/public/reference/local-testing.md.
 #   - 500-line file cap + package docs: the cheap structural gates.
+#   - Nested Go modules (a go.mod under go/ besides go/go.mod itself) run the test and race lanes from their own module roots, partitioned at execution time by nearest go.mod.
 #
 # The selected-gate runner owns the whole-module Go prelude and its later
 # registry reuse. It runs go build and go vet alongside the precommit helper
@@ -128,6 +129,7 @@ run_step() {
 
 step_test() {
 	local dirs=() d
+	local status=0 root sub pkgs=()
 	# A direct parent-parser change selects the full parser tree so external
 	# child-package tests exercise the parent Engine contract. Child-only changes
 	# stay focused. The selector also deduplicates fixture consumers.
@@ -139,8 +141,22 @@ step_test() {
 		return 0
 	fi
 	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
-	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
-	return "${PIPESTATUS[0]}"
+	# One go test per module group: nested packages do not resolve from go/,
+	# so each group tests where its go.mod lives.
+	pre_pr_partition_go_dirs <<<"$(printf '%s\n' ${dirs[@]+"${dirs[@]}"})"
+	if [[ ${#main_go_dirs[@]} -gt 0 ]]; then
+		( cd "${go_dir}" && go test -count=1 "${main_go_dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
+		[[ "${PIPESTATUS[0]}" -eq 0 ]] || status=1
+	fi
+	for root in ${nested_go_roots[@]+"${nested_go_roots[@]}"}; do
+		pkgs=()
+		while IFS= read -r sub; do
+			[[ -n "${sub}" ]] && pkgs+=("${sub}")
+		done < <(pre_pr_nested_group_pkgs "${root}")
+		( cd "${repo_root}/${root}" && go test -count=1 "${pkgs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
+		[[ "${PIPESTATUS[0]}" -eq 0 ]] || status=1
+	done
+	return "${status}"
 }
 
 step_filecap() {
@@ -193,6 +209,7 @@ step_race() {
 		--base "${base}" --tier pre-pr --category race || rc=1
 	printf '== lane 2: scoped race for changed Go packages no race gate covers ==\n'
 	local dirs=() seen=" " f rel
+	local root sub pkgs=()
 	while IFS= read -r f; do
 		[[ -n "${f}" ]] || continue
 		rel="./$(dirname "${f#go/}")"
@@ -209,8 +226,21 @@ step_race() {
 		printf 'scoped race: no changed Go packages outside the registry race gates\n'
 	else
 		printf 'scoped race: %d package(s) not covered by a race gate\n' "${#dirs[@]}"
-		( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
-		[[ "${PIPESTATUS[0]}" -eq 0 ]] || rc=1
+		# One race run per module group: nested packages do not resolve from
+		# go/, so each group races where its go.mod lives.
+		pre_pr_partition_go_dirs <<<"$(printf '%s\n' ${dirs[@]+"${dirs[@]}"})"
+		if [[ ${#main_go_dirs[@]} -gt 0 ]]; then
+			( cd "${go_dir}" && go test -race -count=1 "${main_go_dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
+			[[ "${PIPESTATUS[0]}" -eq 0 ]] || rc=1
+		fi
+		for root in ${nested_go_roots[@]+"${nested_go_roots[@]}"}; do
+			pkgs=()
+			while IFS= read -r sub; do
+				[[ -n "${sub}" ]] && pkgs+=("${sub}")
+			done < <(pre_pr_nested_group_pkgs "${root}")
+			( cd "${repo_root}/${root}" && go test -race -count=1 "${pkgs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
+			[[ "${PIPESTATUS[0]}" -eq 0 ]] || rc=1
+		done
 	fi
 	printf 'note: CI runs the authoritative full `go test ./... -race`; `make pre-pr-full` runs it locally.\n'
 	return ${rc}

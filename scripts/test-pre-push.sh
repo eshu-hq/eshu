@@ -405,6 +405,10 @@ source "${repo_root}/scripts/lib/test-pre-push-registry-drift-cases.sh"
 # shellcheck source=lib/test-pre-push-single-test-cases.sh
 source "${repo_root}/scripts/lib/test-pre-push-single-test-cases.sh"
 
+# ── Cases N1-N3: nested Go modules run from their own module roots (#456) ──
+# shellcheck source=lib/test-pre-push-nested-module-cases.sh
+source "${repo_root}/scripts/lib/test-pre-push-nested-module-cases.sh"
+
 # ── Cases E-I: the merge-tree step (#7111 F5) ──
 # shellcheck source=lib/test-pre-push-merge-cases.sh
 source "${repo_root}/scripts/lib/test-pre-push-merge-cases.sh"
