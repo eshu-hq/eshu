@@ -14,15 +14,15 @@ import (
 )
 
 // servedDigestExcludedKey is the digest-excluded top-level payload key the
-// stored winner payload serves (findings_decode.go), so the winner
-// select keeps it and the writer capture secondary-compares it
-// (#10880 arbiter ruling 2026-11-21, decision 4). The selected EPSS
-// score date is the second served excluded key, kept nested inside
-// provenance while the select strips any top-level occurrence (#11598:
-// accepted staleness for provenance metadata while the score is
-// unchanged). Every other excluded key is volatile: the select strips
-// it from the stored payload (decision 3), so neither a per-key read
-// nor a wholesale copy of it may reach the winners table.
+// stored winner payload serves (findings_decode.go), so the winner select keeps
+// it. Under the #11598 Option C arbiter amendment to #10880 Decision 4, neither
+// evidence_fact_ids nor nested provenance.selected_epss_score_date triggers
+// dirty-log capture on content-identical rescans (accepted staleness on
+// canonical_winners until the next semantic change; supports.payload stays
+// fresh for Explain and AuditWinners masks both fields). Every other excluded
+// key is volatile: the select strips it from the stored payload (decision 3),
+// so neither a per-key read nor a wholesale copy of it may reach the winners
+// table.
 const servedDigestExcludedKey = "evidence_fact_ids"
 
 // winnerPayloadStripExpr renders the payload normalization the winner
@@ -136,5 +136,62 @@ func TestWinnerSelectReadsNoDigestExcludedPayloadField(t *testing.T) {
 	}
 	if got := winnerSelectDigestViolations(leaked); len(got) == 0 {
 		t.Error("seeded violation undetected: a select reading intent_id reports no violation")
+	}
+}
+
+// TestWinnersAuditDiffMasksEvidenceAndScoreDate pins the #11598 Option C audit
+// alignment: winnersAuditDiffSelect must mask evidence_fact_ids and nested
+// provenance.selected_epss_score_date on both sides of the ROW comparison so
+// AuditWinners does not loop repairs on accepted staleness, while keeping
+// SupplyChainImpactWinnersContractVersion at 3 and leaving semantic fields
+// compared verbatim.
+func TestWinnersAuditDiffMasksEvidenceAndScoreDate(t *testing.T) {
+	t.Parallel()
+
+	if postgres.SupplyChainImpactWinnersContractVersion != 3 {
+		t.Fatalf("SupplyChainImpactWinnersContractVersion = %d, want 3 (audit mask must not bump winners contract)", postgres.SupplyChainImpactWinnersContractVersion)
+	}
+	check := func(sql string) []string {
+		var errs []string
+		for _, alias := range []string{"n", "w"} {
+			want := "((" + alias + ".payload - 'evidence_fact_ids') #- '{provenance,selected_epss_score_date}')"
+			if !strings.Contains(sql, want) {
+				errs = append(errs, "missing audit payload mask "+want)
+			}
+			if strings.Contains(sql, ", "+alias+".payload,") {
+				errs = append(errs, "unmasked "+alias+".payload still present in audit ROW compare")
+			}
+		}
+		for _, required := range []string{"n.priority_score", "w.priority_score", "n.winner_fact_id", "w.winner_fact_id", "n.suppression_state", "w.suppression_state"} {
+			if !strings.Contains(sql, required) {
+				errs = append(errs, "semantic column missing from audit diff: "+required)
+			}
+		}
+		return errs
+	}
+
+	for _, tc := range []struct {
+		name string
+		sql  string
+	}{
+		{name: "full", sql: postgres.WinnersAuditDiffSelectForTest},
+		{name: "range_first", sql: postgres.WinnersAuditRangeFirstSQLForTest},
+		{name: "range_next", sql: postgres.WinnersAuditRangeNextSQLForTest},
+		{name: "single_scan_first", sql: postgres.WinnersAuditSingleScanFirstSQLForTest},
+		{name: "single_scan_next", sql: postgres.WinnersAuditSingleScanNextSQLForTest},
+	} {
+		if errs := check(tc.sql); len(errs) != 0 {
+			t.Fatalf("%s audit diff mask check failed: %v\nSQL:\n%s", tc.name, errs, tc.sql)
+		}
+	}
+	shipped := postgres.WinnersAuditDiffSelectForTest
+	// Seeded RED: removing the mask on either side (n.payload or w.payload) must be caught.
+	unmaskedN := strings.ReplaceAll(shipped, "((n.payload - 'evidence_fact_ids') #- '{provenance,selected_epss_score_date}')", "n.payload")
+	if errs := check(unmaskedN); len(errs) == 0 {
+		t.Fatal("seeded violation undetected: unmasked n.payload passed audit mask guard")
+	}
+	unmaskedW := strings.ReplaceAll(shipped, "((w.payload - 'evidence_fact_ids') #- '{provenance,selected_epss_score_date}')", "w.payload")
+	if errs := check(unmaskedW); len(errs) == 0 {
+		t.Fatal("seeded violation undetected: unmasked w.payload passed audit mask guard")
 	}
 }

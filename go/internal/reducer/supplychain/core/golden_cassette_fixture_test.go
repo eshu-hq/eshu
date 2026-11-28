@@ -106,8 +106,8 @@ func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 	if got.EPSSProbability != "0.87345" {
 		t.Fatalf("EPSSProbability = %q, want 0.87345 from the epss_score fact", got.EPSSProbability)
 	}
-	if got.EPSSPercentile != "0.99012" {
-		t.Fatalf("EPSSPercentile = %q, want 0.99012 from the epss_score fact", got.EPSSPercentile)
+	if got.EPSSPercentile != "0.99" {
+		t.Fatalf("EPSSPercentile = %q, want 0.99 (0.01-floored from 0.99012)", got.EPSSPercentile)
 	}
 	if !got.KnownExploited {
 		t.Fatalf("KnownExploited = false, want true from the known_exploited fact")

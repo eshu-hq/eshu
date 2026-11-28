@@ -5,13 +5,12 @@ package core
 
 import "testing"
 
-// TestDirtyIdentifiersToCaptureStagesEvidenceOnlyChange pins the #10880
-// arbiter ruling (2026-11-21, decision 4): evidence_fact_ids is excluded
-// from the content digest but served from the stored winner payload, so a
-// same-generation rewrite whose digest is unchanged is still captured when
-// its evidence set changed, and still skipped when only the volatile keys
-// (intent, cause, generation) churned — those are stripped from the stored
-// payload by the winner select (decision 3).
+// TestDirtyIdentifiersToCaptureStagesEvidenceOnlyChange pins the #11598 Option C
+// arbiter amendment to #10880 Decision 4: evidence_fact_ids is excluded from
+// the content digest and is no longer secondary-compared in
+// dirtyIdentifiersToCapture, so a same-generation or prior-generation rewrite
+// whose content digest is unchanged skips staging even when its evidence_fact_ids
+// set moved (daily EPSS fact_id churn). A digest move or a new row still stages.
 func TestDirtyIdentifiersToCaptureStagesEvidenceOnlyChange(t *testing.T) {
 	t.Parallel()
 
@@ -30,14 +29,20 @@ func TestDirtyIdentifiersToCaptureStagesEvidenceOnlyChange(t *testing.T) {
 		stored  []storedFinding
 		wantLen int
 	}{
-		{name: "evidence added stages", rows: []changedRow{row("ev-a", "ev-b")}, stored: stored("ev-a"), wantLen: 1},
-		{name: "evidence removed stages", rows: []changedRow{row()}, stored: stored("ev-a"), wantLen: 1},
+		{name: "evidence added skips when digest equal (#11598)", rows: []changedRow{row("ev-a", "ev-b")}, stored: stored("ev-a"), wantLen: 0},
+		{name: "evidence removed skips when digest equal (#11598)", rows: []changedRow{row()}, stored: stored("ev-a"), wantLen: 0},
 		{name: "same evidence set reordered skips", rows: []changedRow{row("ev-b", "ev-a")}, stored: stored("ev-a", "ev-b"), wantLen: 0},
 		{name: "identical rewrite skips", rows: []changedRow{row("ev-a")}, stored: stored("ev-a"), wantLen: 0},
 		{name: "new row stages", rows: []changedRow{row("ev-a")}, stored: nil, wantLen: 1},
 		{
 			name:    "first pass skips on identical prior generation baseline",
 			rows:    []changedRow{{factID: "fact-2", stableKey: "k-1", digest: "digest-1", ident: ident, evidenceFactIDs: []string{"ev-a"}}},
+			stored:  []storedFinding{{factID: "fact-1", generationID: "gen-0", stableKey: "k-1", digest: "digest-1", evidenceFactIDs: []string{"ev-a"}}},
+			wantLen: 0,
+		},
+		{
+			name:    "first pass skips on evidence-only move with equal digest (#11598)",
+			rows:    []changedRow{{factID: "fact-2", stableKey: "k-1", digest: "digest-1", ident: ident, evidenceFactIDs: []string{"ev-b"}}},
 			stored:  []storedFinding{{factID: "fact-1", generationID: "gen-0", stableKey: "k-1", digest: "digest-1", evidenceFactIDs: []string{"ev-a"}}},
 			wantLen: 0,
 		},

@@ -73,31 +73,60 @@ SELECT (payload->'evidence_fact_ids')::text FROM supply_chain_impact_canonical_w
 }
 
 // TestSupplyChainImpactWinnersResweepKeyedEvidenceOnlyRefreshLive proves the
-// capture half of the #10880 arbiter ruling (2026-11-21, decision 4) through
-// the production writer: an evidence-only writer pass (content digest
-// unchanged) stages the key, the keyed resweep refreshes the stored evidence
-// set, and the audit then finds nothing to repair. An intent-only rerun —
-// the volatile keys the winner select strips — stages nothing, writes
-// nothing on the keyed tick, and also audits clean, so steady state keeps
-// Repairs=0 without staging every finding every pass.
+// #11598 Option C amendment to #10880 Decision 4 through the production writer
+// and AuditWinners: an evidence-only or EPSS-score-date-only writer pass
+// (content digest unchanged) updates supports.payload for Explain while staging
+// zero dirty keys, leaving the keyed tick with zero writes and AuditWinners
+// with Repairs=0 (provenance mask). A semantic change still stages, updates the
+// stored winner (carrying the latest evidence_fact_ids forward), and audits
+// clean. An intent-only rerun also stages nothing and audits clean.
 func TestSupplyChainImpactWinnersResweepKeyedEvidenceOnlyRefreshLive(t *testing.T) {
-	h := newKeyedHarness(t, "#10880 keyed evidence capture proof")
+	h := newKeyedHarness(t, "#11598 keyed evidence-only skip and audit mask proof")
 	scopeA, _ := keyedSeedSettled(h)
 
 	changed := keyedFinding("CVE-2026-2002", "pkg:npm/y", 5)
 	changed.EvidenceFactIDs = []string{"cve-evidence", "ev-new"}
+	changed.EPSSScoreDate = "2026-11-26"
+	h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 5), changed)
+	if depth := h.pendingDepth(); depth != 0 {
+		t.Fatalf("evidence-only/date-only writer pass staged %d captures, want 0 (#11598)", depth)
+	}
+	if got := h.keyed(); got.Updated != 0 || got.Inserted != 0 || got.Deleted != 0 {
+		t.Fatalf("keyed tick after the evidence-only pass = %+v, want zero winner writes", got)
+	}
+	// supports.payload must still carry the fresh evidence set for Explain.
+	var supportEv string
+	if err := h.db.QueryRowContext(h.ctx, `
+SELECT (payload->'evidence_fact_ids')::text FROM supply_chain_impact_finding_supports WHERE scope_id = $1 AND cve_id = 'CVE-2026-2002'`, scopeA).Scan(&supportEv); err != nil {
+		t.Fatalf("read support evidence set: %v", err)
+	}
+	var supportIDs []string
+	if err := json.Unmarshal([]byte(supportEv), &supportIDs); err != nil {
+		t.Fatalf("decode support evidence set %q: %v", supportEv, err)
+	}
+	if len(supportIDs) != 2 || supportIDs[0] != "cve-evidence" || supportIDs[1] != "ev-new" {
+		t.Fatalf("support evidence set = %v, want [cve-evidence ev-new]", supportIDs)
+	}
+	// AuditWinners masks evidence_fact_ids and provenance.selected_epss_score_date,
+	// so steady-state Audits keep Repairs=0 despite accepted staleness on winners.
+	if audit, err := h.store.AuditWinners(h.ctx); err != nil || audit.Skipped || audit.Repairs != 0 {
+		t.Fatalf("audit after evidence-only/date-only pass = %+v, %v; want zero repairs", audit, err)
+	}
+
+	// Real semantic change must still stage and refresh the winner (including the new evidence set).
+	changed.PriorityScore = 9
 	h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 5), changed)
 	if depth := h.pendingDepth(); depth == 0 {
-		t.Fatal("evidence-only writer pass staged no capture; the keyed tick would never refresh the stored evidence set")
+		t.Fatal("semantic change staged no capture")
 	}
 	if got := h.keyed(); got.Updated != 1 || got.Inserted != 0 || got.Deleted != 0 {
-		t.Fatalf("keyed tick after the evidence-only pass = %+v, want exactly one winner updated", got)
+		t.Fatalf("keyed tick after semantic change = %+v, want exactly one winner updated", got)
 	}
 	if ids := keyedStoredEvidence(t, h, "CVE-2026-2002"); len(ids) != 2 || ids[0] != "cve-evidence" || ids[1] != "ev-new" {
-		t.Fatalf("stored evidence set after the keyed tick = %v, want [cve-evidence ev-new]", ids)
+		t.Fatalf("stored winner evidence set after semantic change = %v, want [cve-evidence ev-new]", ids)
 	}
 	if audit, err := h.store.AuditWinners(h.ctx); err != nil || audit.Skipped || audit.Repairs != 0 {
-		t.Fatalf("audit after the evidence refresh = %+v, %v; want zero repairs", audit, err)
+		t.Fatalf("audit after semantic refresh = %+v, %v; want zero repairs", audit, err)
 	}
 
 	// Intent-only rerun: same findings, new intent id and cause.

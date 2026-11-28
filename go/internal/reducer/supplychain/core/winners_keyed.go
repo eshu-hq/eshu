@@ -170,12 +170,12 @@ const SupplyChainImpactWinnersAuditDomain = "supply_chain_impact_winners_audit"
 // list; a guard in the postgres package reads the select and fails if one is.
 // Since #10880 the stored winner payload carries evidence_fact_ids, the one
 // top-level served key in this list: the select strips the volatile keys
-// before storing and the capture secondary-compares the evidence set (#10880
-// arbiter ruling 2026-11-21), so no key here can move a stored winner
-// uncaptured. The score date is the one nested served key: the select keeps
-// the provenance entry and no capture compares it, so the served date goes
-// stale on a date-only refresh (#11598: accepted staleness for provenance
-// metadata while the score is unchanged).
+// before storing. Under the #11598 Option C arbiter amendment to #10880
+// Decision 4, neither evidence_fact_ids nor the nested provenance score date is
+// secondary-compared at capture: both accept staleness on canonical_winners
+// across content-identical rescans until the next semantic change while
+// supports.payload stays fresh for Explain and AuditWinners masks both fields
+// so steady-state Audits keep Repairs=0.
 func DigestExcludedPayloadKeys() []string {
 	return []string{"intent_id", "cause", "generation_id", "evidence_fact_ids", selectedEPSSScoreDateProvenanceKey}
 }
@@ -200,21 +200,24 @@ func dirtyIdentifierOf(payload reducerderivedv1.SupplyChainImpactFinding) Winner
 // dirtyIdentifiersToCapture returns the distinct identifiers of the rows a pass
 // is about to write that are new or changed, in row order. A rerun of a
 // generation that already has rows of its own is judged against them, matched
-// by fact id: a row is skipped only when the pass's own generation already
-// holds that fact id with an equal, non-empty content digest and an equal
-// evidence fact id set. A rewrite of identical content leaves every input of
-// the winners select unchanged (fact id, scope, generation and tombstone
-// state are fixed by the fact id; every payload field the select reads is
-// inside the digest). The evidence set is the one served payload field
-// outside the digest, so it is compared beside the digest (#10880 arbiter
-// ruling decision 4); the volatile excluded keys are stripped from the stored
-// payload and need no comparison. The first pass of a generation has no rows
-// of its own, so it is judged against the scope's previous generation,
-// matched by stable key (#11414): identical content re-proves an
-// already-computed winner and stages nothing, instead of re-staging the whole
-// window on every re-match. The baseline switch mirrors changedCVEIDs: once
-// the generation has rows of its own they are the baseline and the previous
-// generation is not consulted.
+// by fact id: a row is skipped when the pass's own generation already holds
+// that fact id with an equal, non-empty content digest. A rewrite of identical
+// content leaves every semantic input of the winners select unchanged (fact id,
+// scope, generation and tombstone state are fixed by the fact id; every
+// semantic payload field is inside the digest). Under the #11598 Option C
+// arbiter amendment to #10880 Decision 4, evidence_fact_ids is no longer
+// secondary-compared here: daily enrichment rescans mint new fact_ids for
+// unchanged scores, and staging winner recaptures on evidence_fact_ids alone
+// amplified re-marks across duplicate copies. supports.payload stays fresh for
+// Explain while winners.payload accepts staleness on evidence_fact_ids and
+// provenance.selected_epss_score_date until the next semantic change;
+// AuditWinners masks those two provenance fields so steady-state Audits keep
+// Repairs=0. The first pass of a generation has no rows of its own, so it is
+// judged against the scope's previous generation, matched by stable key
+// (#11414): identical content re-proves an already-computed winner and stages
+// nothing, instead of re-staging the whole window on every re-match. The
+// baseline switch mirrors changedCVEIDs: once the generation has rows of its
+// own they are the baseline and the previous generation is not consulted.
 func dirtyIdentifiersToCapture(rows []changedRow, stored []storedFinding, generationID string) []WinnersDirtyIdentifier {
 	own := make(map[string]storedFinding, len(stored))
 	prior := make(map[string]storedFinding, len(stored))
@@ -230,12 +233,10 @@ func dirtyIdentifiersToCapture(rows []changedRow, stored []storedFinding, genera
 	var out []WinnersDirtyIdentifier
 	for _, row := range rows {
 		if rerun {
-			if base, ok := own[row.factID]; ok && base.digest != "" && base.digest == row.digest &&
-				memberSetsEqual(row.evidenceFactIDs, base.evidenceFactIDs) {
+			if base, ok := own[row.factID]; ok && base.digest != "" && base.digest == row.digest {
 				continue
 			}
-		} else if base, ok := prior[row.stableKey]; ok && base.digest != "" && base.digest == row.digest &&
-			memberSetsEqual(row.evidenceFactIDs, base.evidenceFactIDs) {
+		} else if base, ok := prior[row.stableKey]; ok && base.digest != "" && base.digest == row.digest {
 			continue
 		}
 		if _, dup := seen[row.ident]; dup {

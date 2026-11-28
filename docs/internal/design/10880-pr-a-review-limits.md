@@ -22,11 +22,16 @@ including `payload`, so it sees a payload change under an unchanged
   `source_confidence`. Reading them would detoast every winner each tick and
   still not close the gap.
 
-In staged-audit mode the only guard for an evidence-only rewrite is the
-writer's dirty-fact capture and its evidence-set secondary compare (arbiter
-ruling decision 4, `writer_changed.go`). A lost dirty mark is not repaired by
-the staged audit. Covering it would mean comparing an evidence or payload
-hash in the staged diff, which is not part of PR-A.
+In staged-audit mode PR-A originally guarded evidence-only rewrites through
+the writer's dirty-fact capture secondary compare (`#10880` ruling decision 4).
+The `#11598` Option C arbiter ruling
+([`11598-epss-remark-storm-ruling-2026-11-28.md`](../arbiter/11598-epss-remark-storm-ruling-2026-11-28.md))
+amended Decision 4: `dirtyIdentifiersToCapture` no longer secondary-compares
+`evidence_fact_ids`, and `AuditWinners` masks `evidence_fact_ids` and
+`provenance.selected_epss_score_date` on both sides of its diff. Both staged
+and full audit now accept staleness on those provenance fields in
+`canonical_winners` until the next semantic change, while `supports.payload`
+stays fresh for Explain.
 
 ## Migration 332 retries only lock timeouts
 

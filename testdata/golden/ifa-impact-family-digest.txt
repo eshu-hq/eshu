@@ -8,4 +8,8 @@
 # Re-pinned for #9975 round 6: the digest covers whole support rows (to_jsonb(s)), so the new key_presence
 # bitmask column moves it. Fault-free local run on scratch PG18 (1/2/4 workers agree at
 # 0380619c9676b2fa19ccce34fc9298c47ba44fa5bd04e4fe775593213c6dc211): 0380619c.
-0380619c9676b2fa19ccce34fc9298c47ba44fa5bd04e4fe775593213c6dc211
+# Re-pinned for #11598 Option C: applyRiskSignals floors EPSSPercentile to 0.01 before priority scoring and
+# payload encoding, so fixtures carrying >2-decimal EPSS percentiles hash on the floored string. Fault-free
+# local run on scratch PG18 (1/2/4 workers agree at
+# 903470b5307bec3c58c960c03c76708d1ccbb57f5c3f6ac4210389d3d1887bd8): 903470b5.
+903470b5307bec3c58c960c03c76708d1ccbb57f5c3f6ac4210389d3d1887bd8
