@@ -417,7 +417,7 @@ The union is Postgres-side; no new Cypher was added for it. The
 completeness check's per-repo Cypher anchors on `Repository {id}` with a file
 fan-out plus an optional Function containment count, the same vocabulary the
 deadcode surface runs in production. Validated 2026-10-15 against the pinned
-NornicDB image (`nornicdb-amd64-cpu:fix-500-e022384c`, digest `sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`;
+NornicDB image (`nornicdb-amd64-cpu:v1.5.2-hotfix`, digest `sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5`;
 own container on moved ports, removed after): the exact statement returns
 evaluated `rel` strings and `entities` int64s, with `a.go -> 2` and an
 uncontained `b.go -> 0`, so the single-OPTIONAL-MATCH-plus-count shape is

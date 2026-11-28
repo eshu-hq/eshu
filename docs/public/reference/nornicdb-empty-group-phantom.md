@@ -4,7 +4,7 @@ Companion to [NornicDB Pitfalls](nornicdb-pitfalls.md): that page is frozen by
 the file cap, so this executor defect gets its own page. Measured live for
 [#7816](https://github.com/eshu-hq/eshu/issues/7816) over
 `neo4j-go-driver/v5` Bolt on the pinned
-`nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b...` build, with
+`nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de...` build, with
 `neo4j:2026-community` as the control. One `PackageVersion` node seeded
 (`package_id` `zz7816:lib-common`).
 
@@ -76,8 +76,8 @@ group row per page id (pages hold at most 200 keys per
 `query-source-coverage.yaml`) after the aggregation, with no `ORDER BY`,
 `LIMIT`, or second `MATCH`.
 
-- Backends: `nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b...`
-  (self-reports 1.3.3) and `neo4j:2026-community`, warm containers on one
+- Backends: `nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de...`
+  (self-reports 1.5.2-hotfix) and `neo4j:2026-community`, warm containers on one
   shared host; timings are live-test wall time (driver round trip
   dominated), same fixture, same seeded state both directions.
 - Baseline (old statement, base code): NornicDB FAIL in 0.01 s (the

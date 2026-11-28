@@ -19,7 +19,7 @@
 //
 //	docker run -d --name eshu-live-nornic -p 127.0.0.1:27940:7687 \
 //	  -e NORNICDB_NO_AUTH=true -e NORNICDB_EMBEDDING_ENABLED=false \
-//	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1
+//	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5
 //
 //	docker run -d --name eshu-live-neo4j -p 127.0.0.1:27950:7687 -e NEO4J_AUTH=none \
 //	  neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f

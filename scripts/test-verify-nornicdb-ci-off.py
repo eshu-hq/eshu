@@ -318,8 +318,8 @@ class RealTreeMutantTest(unittest.TestCase):
         self.assertEqual(text.count(old), 1, "tier script must pin the Neo4j image once")
         tier.write_text(text.replace(
             old,
-            'NEO4J_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:'
-            '74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1"'),
+            'NEO4J_IMAGE="ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:'
+            'ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5"'),
             encoding="utf-8")
         result = self.run_gate(root)
         self.assertEqual(result.returncode, 1, result.stderr)
