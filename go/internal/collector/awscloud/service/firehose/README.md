@@ -103,29 +103,6 @@ one `DescribeDeliveryStream` point read per stream, no `PutRecord`,
 writes in the collector. The describe-per-stream fan-out is the same bounded
 shape the Glue workflow path uses (`ListWorkflows` + `GetWorkflow` per name).
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/firehose/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers delivery stream metadata fact emission, the stream-to-S3-bucket,
-stream-to-Redshift-cluster, stream-to-OpenSearch-domain, stream-sourced-from-
-Kinesis-stream, stream-uses-IAM-role, stream-uses-KMS-key,
-stream-logs-to-CloudWatch-log-group, and stream-uses-Lambda-transform
-relationship emission (each asserting `target_type` and `target_resource_id`),
-duplicate-target edge collapsing, the commercial/`aws-us-gov`/`aws-cn`
-partition-faithful ARN assertions, the metadata-only/no-secret resource
-assertions, the SDK adapter mutation/record-API exclusion reflection test,
-runtime registration, the relguard graph-join guard over the live scanner tree,
-and the derived collector-aws-cloud supported-service guard. This is a new
-metadata-only scanner with no graph-write, queue, or hot-path behavior change to
-existing scanners.
-
-No-Observability-Change: the scanner reuses the existing AWS collector telemetry
-contract — `aws.service.scan`, `aws.service.pagination.page`,
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total`, `eshu_dp_aws_relationships_emitted_total`,
-and `aws_scan_status`. No new instrument, span, or metric label is introduced,
-and metric labels stay bounded to service, account, region, operation, result,
-and status.
-
 Collector Deployment Evidence: Firehose runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

@@ -47,18 +47,6 @@ uninstrumented.
 - The profile allowlist is closed: a new file template without an entry is
   excluded from the probe until classified here.
 
-## Performance Evidence
-
-No-Regression Evidence: pure Pattern-B leaf move from the `cypher` root
-(#6694 slice). The helpers carry no Cypher templates; the sanitize and
-detector behavior plus the six file-profile classifications are identical to
-the pre-move root versions, proven by the RED/GREEN behavior dump diff
-recorded in the move PR (empty diff) and the moved contract tests.
-
-No-Observability-Change: profile logging, parameter handling, and execution
-ordering are unchanged; this package adds no metric name, label, worker,
-queue domain, knob, backend branch, or new graph-write route.
-
 ## Related docs
 
 - `docs/public/reference/cypher-performance.md`

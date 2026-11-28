@@ -81,22 +81,11 @@ resource kind, one detail read per resource, and per-rule-group tag reads. Rule
 group metadata is read through `DescribeRuleGroupMetadata`, which never returns
 the rule source.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Network Firewall resource fact emission, all five relationship kinds,
-metadata-only rule group emission, the SDK adapter's read-only interface
-(reflection exclusion test) and rule-body-free domain types (struct reflection
-test), runtime registration, and command configuration.
-
 Collector Observability Evidence: Network Firewall uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Network Firewall scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: Network Firewall runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

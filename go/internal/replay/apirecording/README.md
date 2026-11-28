@@ -78,9 +78,3 @@ cd go && go test ./internal/replay/apirecording -run TestQueryPlaybookRecordingM
 ```
 
 Review the golden diff like any other reviewed change before committing.
-
-## No-regression evidence
-
-`Record`/`Assert` perform no I/O beyond driving the in-process handler and (for
-file helpers) reading/writing the golden path; they hold no shared state.
-Verified by `go test ./internal/replay/apirecording/ -count=1`.

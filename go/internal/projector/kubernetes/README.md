@@ -33,13 +33,6 @@ import the root projector package. The workload-node and image-edge builders
 share `kubernetes_workload_materialization:<scope>` so edge projection waits
 for canonical workload-node readiness.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution, reconciliation, and graph-write telemetry. Moving
-the pure builders adds no queue, storage, graph, span, metric, or log boundary.
-
 ## Gotchas / invariants
 
 - Pod-template builders use the earliest matching fact and preserve source-ref

@@ -140,21 +140,10 @@ roll-up by collection type, ListSecurityConfigurations name-only mapping,
 ListApplications plus GetApplication, and ListStudios plus DescribeStudio with
 ListStudioSessionMappings, all without mutation or sensitive-body calls.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers EMR
-resource and relationship fact emission, omission of step args, bootstrap
-bodies, security configuration policy bodies, and Serverless job-run arguments,
-the reflective SDK-adapter exclusion guards, runtime registration through the
-derived supported-service guard, and command configuration.
-
 Collector Observability Evidence: EMR uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses EMR scans through the bounded shared instruments; this scanner adds
-no new metric, span, or log.
 
 Collector Deployment Evidence: EMR runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

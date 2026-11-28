@@ -106,24 +106,3 @@ cd go && go test -race ./internal/replay/schedulereplay/ -count=1
 
 No Docker, no Postgres, no graph backend — the gate runs in the default
 `go test` pass.
-
-## Performance & observability evidence
-
-- **No-Regression Evidence:** This package is additive replay/gate
-  infrastructure. It imports and drives the existing `reducer.Service` claim
-  loop unchanged; it adds no code to any production runtime path (no edit under
-  `go/internal/reducer`, `go/internal/storage`, `go/internal/queue`, or the
-  service binaries). Conflict domain: a single in-memory canonical graph keyed
-  by node identity and `(from, rel, to)` edge tuple, mutated under one mutex by
-  the reducer executor; worker settings exercised are `Workers=1` (sequential)
-  and `Workers=4, BatchClaimSize=4` (concurrent batch). Input shape: 4 work
-  items (one repository, three directories) from the committed
-  `nested-directory-tree.json` cassette; terminal state is a fixed 4-node /
-  3-edge snapshot, identical across every scripted delivery order. Wall time is
-  not asserted (ordering correctness, not throughput); `go test -race` for the
-  package completes in ~1.6s. Because no production path changed, there is no
-  reducer throughput, queue-depth, or row-count regression to measure.
-- **No-Observability-Change:** No telemetry instruments, spans, logs, or status
-  fields are added or modified. The gate asserts the canonical graph-truth
-  snapshot directly (`Graph.Canonical()`), not a runtime metric, and the
-  reducer's existing claim/queue instrumentation is untouched.

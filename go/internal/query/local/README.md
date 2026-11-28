@@ -233,33 +233,6 @@ whose stem is `local` or starts with `local_`; RED unless it has a justified
 `identity_totp_test.go`. `identity_*_test.go` is fine because no `identity/`
 leaf exists.
 
-No-Regression Evidence: the `go test ./internal/query -list '.*'` and
-`go test ./internal/query/local -list '.*'` name union equals this move's own
-base (`81fc4f317`, main after the console test-timeout fix #6685 merged -- 2623 root names, measured directly on that
-commit, not derived) minus
-`TestIdentityHashMatchesUnexportedImplementation` (replaced, see above) plus
-the 27 tests this move added: fifteen `handler_test.go` route tests
-(`TestBootstrap`, `TestBootstrapRequiresSharedOperator`, `TestLogin`,
-`TestLoginInvalidCredentialReturnsUnauthorized`,
-`TestLoginMalformedBodyReturnsBadRequest`, `TestCreateInvitation`,
-`TestCreateInvitationRequiresAllScopeAuth`, `TestAcceptInvitation`,
-`TestResetPassword`, `TestRotatePassword`, `TestResetMFA`, `TestDisableUser`,
-`TestEnableBreakGlass`, `TestBreakGlassSession`,
-`TestBreakGlassSessionUnavailableReturnsUnauthorized`), six
-`api_tokens_test.go` route tests (`TestListAPITokens`,
-`TestListAPITokensRequiresAuthentication`, `TestCreateAPIToken`,
-`TestRevokeAPIToken`, `TestRevokeAPITokenNotOwnedReturnsNotFound`,
-`TestRotateAPIToken`), four `totp_test.go` route tests
-(`TestBeginTOTPEnrollment`, `TestBeginTOTPEnrollmentRequiresAuthenticatedSession`,
-`TestConfirmTOTPEnrollment`, `TestConfirmTOTPEnrollmentWrongCodeReturnsBadRequest`),
-one `helpers_test.go` replacement test (`TestIdentityHashUsesTheSha256Prefix`),
-and `TestAuditLocalIdentityStampsActorClassByAuthMode`. That is
-2623 - 1 + 27 = 2649, matching the measured union of the head root list (2621
-names) and this leaf's own list (28 names). No name was dropped or duplicated
-beyond that one documented replacement. `go test ./internal/query/...
-./cmd/api ./cmd/mcp-server ./internal/mcp ./cmd/golden-corpus-gate/...
--count=1` is green.
-
 The `internal/query` dirgate ledger row
 (`scripts/lib/dirgate-grandfather.tsv`) moved from 326 non-test files to 318
 (nine files left root, one alias file arrived); `bash
@@ -267,16 +240,6 @@ scripts/verify-dirgate.sh --all` passes with no exemption row for this new
 leaf directory (the alias file's own `//nolint:dirgate` marker on its
 package line suppresses its own sibling-prefix hit, the same pattern every
 other `*_alias.go` file in root uses).
-
-No-Observability-Change: this move adds no span, metric, log line, worker,
-queue, or runtime knob. The family emits none of its own today (no
-`startQueryHandlerSpan` call in any of the nine moved files), so there is no
-handler-tracing.go seam to add either, unlike the freshness/language
-precedents. `docs/public/observability/telemetry-coverage.md`'s
-require-SSO-login-gate row is repointed to this package's file (no line
-number, following the established bare-file convention this doc already
-uses for other behavior-preserving package moves) rather than the vacated
-root path.
 
 ## Related docs
 

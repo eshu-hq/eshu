@@ -106,14 +106,6 @@ GetQueryResults / GetQueryExecution / ListQueryExecutions / GetNamedQuery /
 GetPreparedStatement calls, no mutation calls, and no graph writes in the
 collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Athena workgroup, data catalog, prepared-statement, and named-query
-metadata fact emission, workgroup-to-result-bucket relationship emission,
-workgroup-to-KMS-key relationship emission with ARN/alias differentiation,
-prepared-statement workgroup membership emission, named-query workgroup
-membership emission, omission of all SQL body fields, runtime registration,
-and command configuration.
-
 Collector Observability Evidence: Athena uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -123,48 +115,11 @@ status. `eshu_dp_aws_resources_emitted_total{service="athena"}` is populated
 by `ClaimedSource.recordEmissionCounts` for every emitted workgroup, data
 catalog, prepared-statement, and named-query fact.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Athena scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
-
 ### Partition-aware result-bucket join (#860)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/athena/... -count=1`
-covers the new `TestWorkGroupResultBucketRelationshipDerivesPartition`
-(commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
-existing commercial result-bucket assertions in `scanner_test.go`. Athena
-workgroups carry no ARN, so the workgroup->result-bucket target ARN now derives
-its partition from the scan boundary's region via `partition(boundary)` instead
-of hardcoding `aws`, letting GovCloud and China joins resolve to the bucket node
-the S3 scanner publishes (`arn:<partition>:s3:::<bucket>`) instead of dangling.
-Commercial-partition output is byte-for-byte unchanged; this is a metadata-only
-correctness fix with no graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized target ARN value; no instrument, span, metric label, or
-`aws_scan_status` row changes.
 
 Collector Deployment Evidence: Athena runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/athena/... -count=1`
-covers the new `TestWorkGroupARNDerivesPartition` and
-`TestDataCatalogARNDerivesPartition` (commercial / `aws-us-gov` / `aws-cn` /
-blank-region-fallback) alongside the existing assertions. The Athena APIs return
-no workgroup or data-catalog ARN, so `workGroupARN` / `dataCatalogARN` and the
-result-bucket join now derive the partition from the scan boundary via
-`awscloud.PartitionForBoundary` (replacing the package-local `partition`
-helper) instead of hardcoding `aws`. Commercial output (`us-east-1`) is
-byte-for-byte unchanged; this is a metadata-only correctness fix with no
-graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

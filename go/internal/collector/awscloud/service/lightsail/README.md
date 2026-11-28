@@ -100,26 +100,6 @@ one paginated GetDisks stream, and one paginated GetStaticIps stream, with no
 Create/Delete/Reboot/Start/Stop/Snapshot/Attach/Detach calls, no access-key or
 master-password reads, no mutations, and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/lightsail/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers Lightsail instance, database, load balancer, disk, and static IP
-metadata fact emission; load-balancer-to-instance, instance-to-disk, and
-instance-to-static-IP relationship emission with target_type and
-target_resource_id assertions; source/target keys matching the published node
-resource_ids; the metadata-only exclusion reflection gate on the SDK adapter;
-SDK pagination and mapping; runtime registration; and the derived
-supported-service guard. This is a new metadata-only scanner with no change to
-any existing scanner, so existing-path output is byte-for-byte unchanged.
-
-No-Observability-Change: the Lightsail scanner reuses the existing AWS
-collector telemetry contract. It adds no instrument, no span name, no metric
-label, and no `aws_scan_status` shape. Scans are diagnosed through the existing
-`aws.service.scan`, `aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
-`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
-`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` surfaces, with
-metric labels bounded to service, account, region, operation, result, and
-status.
-
 Collector Deployment Evidence: Lightsail runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

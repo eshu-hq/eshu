@@ -61,10 +61,6 @@ server span then also stays unset for 499, and its server request metric
 carries `http.response.status_code=499`, so a dashboard can split client walk-aways from server faults. Neither helper
 logs.
 
-No-Observability-Change: the span name, its three attributes, and the tracer
-name are identical to what package `query` emitted before this move. Moving the
-code changed where it sits, not what it emits.
-
 ## Gotchas / invariants
 
 The tracer is a parameter, not a package lookup, and that is load-bearing rather
@@ -85,13 +81,6 @@ answers 500 with a span error. `ClientCanceled` is that conjunction, and
 `WriteServerFailure` uses it for the 499 decision. A route that also logs a
 failure (for example the supply-chain stage log) calls the same predicate, so
 its log line and its status cannot disagree about what was a cancel.
-
-No-Regression Evidence: the seam is proven live by mutation, not by the tests
-merely passing. Rewriting `StartHandlerSpanWith` to call `HandlerTracer()`
-instead of its `tracer` argument still builds at exit 0 and makes
-`TestHandleLanguageQueryEmitsLanguageQuerySpan` fail with
-`ended spans = 0, want 1 (handleLanguageQuery must emit exactly one span)`.
-Restoring the argument returns the suite to exit 0. 17 span cases run.
 
 ## Related docs
 

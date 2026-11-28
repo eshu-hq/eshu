@@ -64,24 +64,6 @@ means zero, not a dropped primitive. Span
 completion log carries per-stage `load` / `derive` / `retract` / `graph_write`
 / `total_duration_seconds`.
 
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk in the moved production files is a package clause, an
-import requalification, or an identifier requalification: symbols the reducer
-root supplied as one-line forwarders (`loadFactsForKinds`,
-`partitionDecodeFailures`, `recordQuarantinedFacts`, `inputInvalidSubSignals`,
-`decodeAWSResource`, `decodeAWSRelationship`, `decodeEC2InstancePosture`,
-`cloudResourceUID`, `derefString`, `uniqueSortedStrings`, `formatTally`) are
-now called directly against the leaf package that already owned them
-(`factload`, `factdecode`, `schemadecode`, `cloudjoin`, `payloadcore`).
-Measured on this branch: `go build ./...` exits 0, `go vet ./...` exits 0,
-`go test ./internal/reducer/ec2blockkms -count=1` passes, and
-`go test ./internal/reducer/... ./cmd/reducer ./internal/storage/postgres
--count=1` passes.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph, or
-storage contract. The two counters above and the span/log are the same before
-and after the move.
-
 ## Gotchas / invariants
 
 - The dual readiness gate (EC2 instance-node phase, EBS/KMS CloudResource

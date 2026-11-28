@@ -122,32 +122,6 @@ covered through the content_entity batch. File (structural file-retract path the
 offline delta tier does not yet drive) and Variable (reducer-owned semantic
 graph subset, skipped by the canonical entity phase) remain follow-ups.
 
-No-Regression Evidence: this change adds cassette facts and offline-tier live
-tests only; no production projection code changes. On the pinned NornicDB
-`timothyswt/nornicdb-cpu-bge:v1.1.9`, `scripts/verify-replay-tier.sh` proved the
-new K8sResource label and the doomed GitlabJob/GitlabPipeline instances retract
-to count=0 (survivor GitlabJob remains count=1) in a 4s tier run, all live tests
-green. No queue or row-count contract applies to the single-writer offline tier.
-
-No-Observability-Change: no metric, span, log, worker, lease, or status field is
-added; the tier reuses the existing canonical writer phase-group telemetry.
-
-No-Regression Evidence: `projector.ExtractEntityRows` is a thin exported wrapper
-over the existing unexported `extractEntities`; it adds no new production
-projection logic and is called only by this offline test tier, so the
-reducer/projector graph-write path is byte-unchanged. The offline tier's new
-`content_entity` case routes those facts through that same mapping. Proof on the
-pinned NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.9`: `scripts/verify-replay-tier.sh`
-wrote gen1 (81 content_entity labels present, count=1 each) then gen2, and the
-production `entity_retract` phase removed all 81 (count=0 each) in 0.11s over 85
-statements; total tier wall-clock 5s, all four live tests green. No queue or
-row-count contract applies because the tier is a single-writer offline replay.
-
-No-Observability-Change: the tier reuses the existing canonical writer spans,
-metrics, and phase-group logs (`phase=entity_retract`); no metric name, label,
-span, worker, lease, batch, or status field is added. Operators diagnose entity
-retract through the existing canonical phase-group telemetry.
-
 ### File-retract coverage (C-14 #4367)
 
 `DeltaMaterializationFromGenerations` now collects gen2 tombstoned `git.file`
@@ -156,16 +130,6 @@ the production delta file retract (`canonicalNodeRetractDeltaDeletedFilesCypher`
 removes them. `delta_tier_file_retract_live_test.go` proves a File present in
 gen1 and tombstoned in gen2 is retracted (count=0) while a surviving File
 remains.
-
-No-Regression Evidence: the delta materialization change only adds a
-`DeltaDeletedFilePaths` population that mirrors the existing
-`DeltaDeletedDirectoryPaths` one; the file retract Cypher it drives is unchanged
-production code. On the pinned NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.9`,
-`scripts/verify-replay-tier.sh` proved the tombstoned File retracts to count=0
-while the surviving File stays count=1, all live tests green in a 5s tier run.
-
-No-Observability-Change: no metric, span, log, worker, lease, or status field is
-added; the tier reuses the existing canonical writer phase-group telemetry.
 
 ### Edge-retract coverage (C-14 #4367)
 
@@ -181,16 +145,6 @@ retractable edge type is reducer-materialized (code-call, inheritance,
 repository-relationship, cloud, IAM, SQL, taint) and is not reachable through the
 offline canonical-writer tier, so covering those needs a reducer delta-replay
 harness, tracked separately.
-
-No-Regression Evidence: this change adds cassette gitlab facts, a `go` live test,
-and its `-run` wiring only — no production projection code. On the pinned
-NornicDB `timothyswt/nornicdb-cpu-bge:v1.1.9`, `scripts/verify-replay-tier.sh`
-proved DEFINES_JOB(pipelineA -> mover) retracts to count=0 while pipelineA,
-pipelineB, and the mover job all survive (count=1) and DEFINES_JOB(pipelineB ->
-mover) is written (count=1), all live tests green.
-
-No-Observability-Change: no metric, span, log, worker, lease, or status field is
-added; the tier reuses the existing canonical writer phase-group telemetry.
 
 ## Cassette fact-kind decode disposition
 
@@ -227,11 +181,3 @@ schema. The shared-intent DDL alone does not create the ingestion scopes and
 generations that the replay-coordinate seed and acceptance fences require.
 Each proof drops its schema on exit and uses a dedicated disposable NornicDB
 backend; the database-identity mismatch test needs a second clean endpoint.
-
-No-Regression Evidence (#7533 fixture setup): the real tagged tests first
-failed with SQLSTATE 42P01 while seeding `ingestion_scopes`. After the fixture
-bootstrap change, all seven repository-dependency proofs and the reducer
-grouped-retry proof passed with `-race -count=1` on pinned NornicDB and
-PostgreSQL 18.6, with no named-test skips. This changes test setup only.
-No-Observability-Change: no production metric, span, log or runtime setting
-changes; the existing fault assertions and graph readbacks remain intact.

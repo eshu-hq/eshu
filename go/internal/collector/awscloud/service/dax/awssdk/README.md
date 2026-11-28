@@ -46,13 +46,6 @@ operation is reachable. `client_test.go` asserts this by reflection.
 - Throttle errors are classified through the shared smithy `APIError` check and
   recorded on the throttle counter; the adapter does not retry.
 
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/dax/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `../README.md` - DAX scanner contract.

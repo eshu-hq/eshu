@@ -28,13 +28,6 @@ import the root projector package. Both builders use the same
 `gcp_resource_materialization:<scope>` acceptance-unit key so relationship
 projection waits for the corresponding canonical-node readiness publication.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution and graph-write telemetry. Moving the pure builders
-does not add a queue, retry, storage, graph, span, metric, or log boundary.
-
 ## Gotchas / invariants
 
 - A generation without the exact GCP fact kind emits no family intent.

@@ -44,13 +44,6 @@ single-quoted strings, hex/octal numbers, and comments in its slow-query
 `query` field; this package redacts them. The operator recipe for lining the two up is in
 [Graph-read safety](../../../../../docs/public/reference/telemetry/graph-read-safety.md).
 
-## Telemetry
-
-No-Observability-Change (#7035): this package emits no metric, span, or log.
-It is a pure function whose output feeds the `eshu.graph_read.statement_fingerprint`
-span attribute and the `graph_read.statement_head` log field owned by
-`internal/query`.
-
 ## Gotchas
 
 - Whitespace is ASCII space, tab, newline, vertical tab, form feed, carriage

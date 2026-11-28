@@ -25,10 +25,6 @@ Rename-only `routecontract` to `contract/route` and `toolcontract` to
 (`Arguments`, `Request`, `ToolDefinition` keep their names, methods, and
 shapes); only import paths change.
 
-No-Observability-Change: no stage added and no metric, span, or log name
-changed; this namespace declares no function, holds no state, and performs
-no I/O of its own.
-
 ## Related docs
 
 - [MCP architecture](../README.md)

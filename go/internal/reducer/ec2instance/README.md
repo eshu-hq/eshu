@@ -85,32 +85,3 @@ standard reducer execution covered by `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds`, its graph write is timed by the
 shared `reducer.ec2_instance_identity_materialization` span, and malformed
 facts are quarantined via `eshu_dp_reducer_input_invalid_facts_total`.
-
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk in the moved production files is a package clause, an
-import requalification, or an identifier requalification: symbols the reducer
-root exposed as one-line forwarders
-(`loadFactsForKinds`→`factload.LoadFactsForKinds`,
-`partitionDecodeFailures`/`recordQuarantinedFacts`/`inputInvalidSubSignals`/`attributeShapeAsFactDecodeError`→`factdecode.*`,
-`preferMaxSourceOrderKey`/`sourceOrderKey`/`derefString`/`uniqueSortedStrings`→`payloadcore.*`,
-`decodeAWSResource`/`decodeEC2InstancePosture`→`schemadecode.*`,
-`cloudResourceUID`→`cloudjoin.CloudResourceUID`,
-`graphProjectionPhaseStateForIntent`/`publishIntentGraphPhase`→`gpphase.*`)
-are now called on the leaf package directly. The one inlined helper,
-`ec2InstanceIdentityUIDForResource`, mirrors the root's
-`cloudResourceUIDForResource` rule-for-rule (resource_id with arn fallback,
-empty-identity rejection) and is covered by the same uid assertions that
-covered the forwarder. No handler branch, extraction rule, readiness gate,
-retract/write ordering, trust-boundary rule, quarantine isolation, or
-Cypher-facing row shape changed.
-`go test ./internal/reducer/ec2instance -count=1` passes with the moved
-test suite unchanged in assertion content (30 tests: 12 identity — 7
-handler, 5 extraction — plus 18 node — 8 handler, 10 extraction; plus the
-fleet-scale `BenchmarkExtractEC2InstanceIdentityNodeRows` benchmark; only
-import paths, leaf requalification, and unexported symbol duplication for
-the package boundary).
-
-No-Observability-Change: the move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; the
-shared span and the completion logs keep the same names, labels, and key set
-at the new import path.

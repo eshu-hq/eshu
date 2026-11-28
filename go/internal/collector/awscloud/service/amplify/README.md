@@ -94,27 +94,11 @@ GetApp/GetBranch point reads (their structs carry the same secret-bearing fields
 and are unnecessary), no Create/Update/Delete/Start-job/Start-deployment calls,
 no token reads, no mutations, and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-Amplify app and branch metadata fact emission, app-to-repository (`git_repository`
-anchor), app-to-IAM-role (service + compute role), app-to-Route 53 hosted zone
-(normalized domain join key), app-to-CloudFront distribution (`*.cloudfront.net`
-subdomain join key, deduped), and branch-to-app relationship emission, the
-no-env-vars/no-tokens payload assertion, the SDK-adapter mutation/token-read
-exclusion reflection test, the GovCloud/China synthesized-ARN partition cases,
-runtime registration, and the SDK adapter's safe metadata mapping.
-
 Collector Observability Evidence: Amplify uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Amplify scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. This scanner adds no new instrument, span,
-metric label, or status row.
 
 Collector Deployment Evidence: Amplify runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

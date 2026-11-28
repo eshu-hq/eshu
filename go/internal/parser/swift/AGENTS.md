@@ -61,12 +61,6 @@ Dead-code reachability hints belong in parser metadata as
 same-file evidence that this package can prove without importing the parent
 parser.
 
-No-Regression Evidence: `go test ./internal/parser/... -count=1` passes (1269
-tests), including `TestSwiftComprehensiveSymbolExtractionGate` and the
-`TestDefaultEngineParsePathSwift*` parity suite. No-Observability-Change: this
-parser-local change adds no metric, span, log, status field, queue behavior,
-graph query, environment variable, or runtime knob.
-
 `dogfood_real_repo_test.go` is a standing regression test (#5399) backing the
 `real-repo-validated` grade; it is not opt-in like the `SWIFT_PARSE_DUMP`
 equivalence harness. Do not hand-edit

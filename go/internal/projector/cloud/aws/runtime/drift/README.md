@@ -39,14 +39,6 @@ root projector package — root already imports this package to dispatch to it,
 so the reverse import would cycle. The builder triggers on fact presence only
 and never decodes the payload, so it carries no `factschema_decode_*` seam.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer's evidence load keeps the `reducer.aws_runtime_drift_evidence_load`
-span (`telemetry.SpanReducerAWSRuntimeDriftEvidenceLoad`). Moving the pure
-builder adds no queue, storage, graph, span, metric, or log boundary.
-
 ## Gotchas / invariants
 
 - The trigger is `aws_resource` presence, anchored to the earliest such fact
@@ -79,29 +71,6 @@ builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: #6627 changes this builder's package path and
-references without changing its package name, exported symbols, trigger,
-value, or fan-out position. The reducer intent domain, entity
-key, reason, anchor selection, and source-system derivation are identical to
-the base commit, and the dispatcher's ordered fan-out is unchanged at 44
-builder probes with this probe still running immediately after
-`packagesource.BuildReducerIntent` and immediately
-before `multidrift.BuildReducerIntent`. No-Observability-Change: trigger facts,
-intent values, and fan-out position are identical, so
-`eshu_dp_reducer_intents_enqueued_total` and the reducer execution signals in
-the coverage row above are unchanged. During the earlier #6057 extraction,
-the root
-`awsCloudRuntimeDriftSourceSystem` helper it called was compared body-for-body
-against its `projectorintent.SourceSystem` replacement (both trim
-`SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`, with no
-third literal fallback in either), so the substitution used both here and at
-the helper's two other root call sites at that time is behavior-identical by
-construction, and the child pins both tiers. Focused proof, run from the `go/`
-module root:
-`go test ./internal/projector/cloud/aws/runtime/drift -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
 
 ## Related docs
 

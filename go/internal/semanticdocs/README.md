@@ -46,10 +46,6 @@ integrations must add operator-visible metrics, spans, logs, status fields, and
 audit records before enabling hosted, local, Compose, or assistant-mediated
 semantic extraction.
 
-No-Observability-Change: this package is a pure, mock-only fact builder. It
-does not add a worker, provider request, queue consumer, graph write, database
-query, HTTP handler, MCP tool, or runtime stage.
-
 ## Gotchas / invariants
 
 - Observations are evidence only. `Emitter` validates that mocked provider

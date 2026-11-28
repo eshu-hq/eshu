@@ -230,151 +230,6 @@
 - **Derived scopes retire with their repository (#10054).** Resolve a repository's scopes only through `retirementScopesOfReposSQL`/`retirementScopesOfRepoSQL` and attribute them through `retirementScopeRepoIDSQL`; never select by a derived scope's `partition_key` (the shared fairness key) or a scope-id prefix. A derived commit takes its parent's shared key in sorted order and refuses on any open parent tombstone; a non-derived commit must keep its one barrier and no extra read. See `derived-scope-retirement.md`; run the `repository_retirements_derived*_live_test.go` proofs after changing either side.
 - **Key sidecar deletes (#7420).** A new statement that deletes `fact_records` (directly, or through a `scope_generations` or `ingestion_scopes` cascade) runs the `facts/keys` delete first in the same transaction, or touches only fact kinds that own no key rows, and is classified in `factDeleteSites`. Read `facts/keys/AGENTS.md` first.
 
-## Evidence notes
-
-No-Regression Evidence: #4444 review (codex P1) changes upsertStreamingFacts's
-write call from upsertFactBatch (ExecContext) to upsertFactBatchReturningAccepted
-(QueryContext with a RETURNING fact_id clause appended to the existing
-ON CONFLICT ... WHERE fencing_token <= EXCLUDED.fencing_token guard), so
-afterBatch's repository-catalog and relationship-evidence derivation only sees
-envelopes whose fact_records write actually accepted. Baseline: before this
-change, a fenced-out stale batch's payload still reached afterBatch and could
-insert stale relationship_evidence_facts rows in the same transaction even
-though its fact_records row was correctly rejected. After: filterAcceptedEnvelopes
-narrows every batch to the RETURNING-reported accepted set before afterBatch
-runs. Backend/proof shape: local Go unit tests
-(`go test ./internal/storage/postgres -count=1`, 1199 passed, no regression
-across the whole package) plus a live-Postgres two-sided proof —
-`postgres:16-alpine` throwaway container,
-`go test ./internal/storage/postgres -run
-'TestUpsertFactBatchCrossBatchFencingTokenGuard|TestIngestionStoreCommitScopeGenerationFencesDerivedRelationshipEvidence'
--v -count=1` — reproduces the pre-fix leak (both repo-target-a and
-repo-target-b evidence rows land after a stale second commit) and proves the
-post-fix guard (only repo-target-a remains). The write shape adds one
-RETURNING clause to an existing primary-key-scoped ON CONFLICT statement; no
-new query, index, batch size, or worker/lease/concurrency knob changes. The
-non-streaming upsertFactBatch/upsertFacts path (no afterBatch consumer) is
-byte-identical to before.
-
-No-Observability-Change: #4444 adds no new metric, span, log key, route,
-worker, lease, or runtime knob. The fact_records upsert is still covered by
-the existing `eshu_dp_postgres_query_duration_seconds` Postgres query-span
-instrumentation regardless of whether the statement runs through ExecContext
-or QueryContext; operators diagnose fencing/derived-evidence correctness
-through the same row-shape truth (fencing_token, payload,
-relationship_evidence_facts) the new tests assert directly.
-
-No-Regression Evidence: #2718 code reachability watermarks use the
-repository-generation row key `(scope_id, generation_id, repository_id)`.
-`go test ./internal/reducer -run 'CodeReachabilityProjectionRunner' -count=1`
-covers non-empty replacements and empty snapshots writing the loaded completion
-watermark. `go test ./internal/storage/postgres -run 'CodeReachability'
--count=1` covers the watermark DDL, empty replacement watermark writes, and
-pending selection across `code_calls` plus `inheritance_edges`.
-
-No-Observability-Change: #2718 keeps the existing `code reachability projection
-completed` structured log with input count, row count, and duration for the
-same runner cycle; the fix changes durable progress tracking and does not add
-worker knobs, retries, or high-cardinality telemetry labels.
-
-Performance Evidence: #2050 changes workflow claim admission and completion
-guards from an unfenced baseline to the same indexed workflow row shape plus one
-active tenant-scope grant predicate keyed by opaque tenant/workspace/scope and
-policy revision. The focused workflow/coordinator/Postgres package suite proves
-the after shape on Postgres-backed workflow rows, including denied planning,
-one admitted hosted work item, duplicate convergence with tenant boundary keys,
-and terminal completion guarded by non-tombstoned, non-expired grant rows.
-
-Observability Evidence: #2050 adds no high-cardinality metric label or runtime
-worker knob. Operators diagnose the path through bounded coordinator logs for
-`tenant_scope_missing_or_stale_policy`, planned/authorized/denied counts,
-`workflow_runs`, `workflow_work_items`, `workflow_claims`, coordinator reconcile
-metrics, and existing Postgres query spans and duration metrics for the
-`tenant_workspace_grants` and workflow stores.
-
-Benchmark Evidence: #2587 changes reducer readiness claim admission from
-per-domain correlated predicates to one bounded requirements lookup against
-`graph_projection_phase_state`. Local Compose Postgres 18-alpine on Darwin arm64
-with `ESHU_REDUCER_CLAIM_READINESS_BENCH_CASES=1000:1000:1,1000:5000:4` measured
-`BenchmarkReducerQueueClaimReadinessGateGrowth` at `15141958 ns/op` for 1,000
-queue rows and 1,000 phase rows across one domain, and `14127125 ns/op` for
-1,000 queue rows and 5,000 phase rows across four domains, both with unchanged
-`102 allocs/op`.
-
-No-Regression Evidence: #2587 keeps the claim update, lease, retry,
-dead-letter, expired-claim replay, and conflict-domain fencing SQL unchanged
-while focused readiness tests prove single claim, batch representative claim,
-and `/admin/status` blockage reporting still wait on every required
-scope/generation readiness phase.
-
-No-Observability-Change: #2587 adds no metric, span, log, route, worker, lease,
-batch size, or runtime default. Operators continue to diagnose readiness waits
-through Postgres query spans, `eshu_dp_postgres_query_duration_seconds`, queue
-status, bounded `/admin/status` blockage rows, failure class, retry/dead-letter
-state, and reducer logs.
-
-No-Regression Evidence: #2589 adds the `eshu_search_vector_metadata` schema and
-store only. Focused storage tests prove idempotent upsert, active-generation
-filtering through `ingestion_scopes.active_generation_id`, bounded status
-aggregation by scope/model/index version, and bootstrap SQL/file parity. The
-slice does not change API/MCP behavior, reducer workers, graph writes,
-embedding providers, ranking, query routing, or runtime defaults.
-
-No-Observability-Change: #2589 adds no route, worker, queue domain, metric,
-label, span name, log shape, runtime knob, or external network dependency.
-When a caller later wires the store through the instrumented Postgres adapter,
-existing query/exec spans and `eshu_dp_postgres_query_duration_seconds` cover
-the SQL path.
-
-No-Regression Evidence: #2947 changes `code_function_summary` full-snapshot
-cleanup from a marker-only no-op for stale rows to repo-scoped replacement of
-`function_summaries`, `function_sources`, and `function_graph_ids`. Baseline:
-a full value-flow scan that emitted only `code_dataflow_scanned` could enqueue
-no summary replacement and leave deleted or renamed functions in the durable
-stores. After: projector intents carry `repo_id` and `full_snapshot=true`, the
-reducer filters the durable baseline outside that repo, validates every
-replacement function id belongs to the repo, and the store deletes rows with
-`repo = $1 AND updated_at <= $2` before upserting current rows in one
-transaction when a transaction-capable DB is present. Backend/proof shape:
-local Go unit tests against the Postgres store SQL fakes and reducer/projector
-fakes, with one stale same-repo function, one current same-repo function, one
-unrelated-repo function, and one marker-only empty full scan. Terminal row
-assertions: the same-repo stale row is absent, the unrelated repo is excluded
-from the replacement set, empty full snapshots replace with zero summary rows,
-and empty full snapshots issue one zero-row replacement each for companion
-source and graph-id stores. Verification: `go test ./internal/projector
-./internal/reducer ./internal/storage/postgres ./cmd/reducer -count=1`.
-
-No-Observability-Change: #2947 adds no metric instrument, metric label, span
-name, worker, queue domain, lease, route, graph write, runtime knob, status
-field, or batch/concurrency setting. Operators diagnose the path through
-existing reducer execution spans/counters, durable reducer queue rows, the
-`code function summary persistence completed` log fields `repo_id`,
-`full_snapshot`, `function_count`, `source_count`, and `graph_id_count`, plus
-instrumented Postgres exec/query spans and
-`eshu_dp_postgres_query_duration_seconds` when the store is wrapped by
-`InstrumentedDB`.
-
-No-Regression Evidence: #2633 adds a nullable `partition_hash` column, partial
-pending indexes for hashed and unhashed rows, and Postgres selectors for pending
-shared intents that hash into a leased code-call partition or still need the
-legacy unhashed path. `go test ./internal/storage/postgres -run
-'TestSharedIntentStoreListPendingDomain(Partition|Unhashed)Intents|TestSharedIntentSchemaSQLIncludesPartitionCandidateIndexes'
--count=1` failed before the selectors existed, then passed after the SQL
-filtered by projection domain, non-null partition hash plus modulo
-partition id/count, null partition hash for legacy rows, uncompleted state, and
-deterministic `created_at, intent_id` ordering. `go test
-./internal/storage/postgres -run 'TestSharedIntent(Store|Schema|SQL)' -count=1`
-and `go test ./internal/storage/postgres -count=1` prove shared-intent upsert
-batching, schema SQL parity, acceptance lookup, partition loading, history
-lookup, completion marking, and lease behavior still work with the new column.
-
-No-Observability-Change: the selector adds no table, route, queue domain,
-worker, lease, runtime knob, metric instrument, or metric label. The new read is
-covered by the existing `InstrumentedDB` Postgres query spans and
-`eshu_dp_postgres_query_duration_seconds`; operators still pair those with
-shared-intent backlog/status queries and reducer code-call cycle logs.
-
 ## Common changes and how to scope them
 
 - **Add a new Postgres store** → implement against `db.ExecQueryer`; add a
@@ -672,46 +527,6 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   duplicates one-at-a-time). Keep both sides in lockstep when changing
   the truncation policy.
 
-## Evidence Notes
-
-No-Regression Evidence: admission-decision evidence bounds are covered by
-`go test ./internal/query -run 'TestAdmissionDecision|TestOpenAPISpecIncludesAdmissionDecisions' -count=1`
-and `go test ./internal/storage/postgres/admission -run 'TestAdmissionDecisionStore|TestAdmissionDecisionSchema|TestAdmissionDecisionStates' -count=1`.
-The route rejects unsupported lightweight profiles before store reads and caps
-embedded evidence at 20 rows per decision with truncation metadata.
-
-No-Observability-Change: the admission-decision evidence cap adds no route,
-worker, queue, graph write, metric, span, runtime default, or high-cardinality
-label. Existing HTTP route attribution, truth envelopes, and Postgres query
-spans/`eshu_dp_postgres_query_duration_seconds` diagnose the read.
-
-No-Regression Evidence: the #2842/#2903-review `graph_endpoint_presence` migration
-NON-DESTRUCTIVELY backfills pre-#2842 `repo_workload` rows with
-`UPDATE ... SET repo_id = uid WHERE keyspace = 'repo_workload' AND repo_id = ''`,
-so the repo-scoped runtime retract (keyed `repo_id = ANY(...)`) can finally match
-and clean legacy stale rows once their repo re-materializes. It deliberately does
-NOT delete blank-provenance rows: a delete would also remove still-CURRENT target
-presence, and because `worker.FilterRowsByReadiness` terminalizes (does not defer) a
-handles_route/runs_in row whose presence is absent, that would silently drop a live
-edge until the next re-materialization (the #2903 P1). The hashed
-`api_endpoint_repo_path` uid (#2844) makes repo_id unrecoverable, so those legacy
-rows are left in place and are bounded-safe — the HANDLES_ROUTE MERGE re-MATCHes the
-actual `:Endpoint`, so a stale-present row never creates an edge to a removed/
-re-pathed endpoint, and a current endpoint re-upserts proper provenance next
-materialization. The backfill matches zero rows once migrated, so it is idempotent
-on every `EnsureSchema`. `go test ./internal/storage/postgres -run
-'TestGraphEndpointPresenceSchemaSQL|TestGraphEndpointPresenceStoreRetractStaleRepoGenerations|TestGraphEndpointPresenceStoreUpsertIsIdempotent'
--count=1` covers the backfill assertion and the upsert/retract contract; the Go DDL
-const and `024_graph_endpoint_presence.sql` stay byte-identical.
-
-No-Observability-Change: the backfill only sets `repo_id` on blank-provenance
-`repo_workload` rows in an existing table on schema apply; it deletes nothing and
-drops no presence. It adds no route, worker, queue domain, graph write, lease,
-runtime knob, metric instrument, metric label, span, or log key; operators still
-diagnose presence through the existing workload-materialization completion logs,
-the shared-projection blocked/terminal counters, and
-`eshu_dp_postgres_query_duration_seconds`.
-
 ## What NOT to change without an ADR
 
 - `fact_work_items` table schema (columns, indexes, conflict keys) — the projector
@@ -741,25 +556,7 @@ migration, and `SELECT DISTINCT ... ORDER BY` enumeration / bounded `DELETE`
 prune, all parameterized. Written before the graph write (superset
 invariant); see `go/internal/reducer/AGENTS.md` (#4893).
 
-No-Regression Evidence: `go test ./internal/storage/postgres/code/taint/...
--count=1` covers schema-SQL parity, in-batch dedupe/blank skipping,
-enumeration query shapes, and prune shapes. Full runtime evidence in
-`go/internal/reducer/AGENTS.md` (#4893).
-
-No-Observability-Change: the ledger reads/writes are covered by the existing
-`InstrumentedDB` Postgres query spans and `eshu_dp_postgres_query_duration_seconds`;
-no new metric, label, worker, queue domain, lease, or runtime knob.
-
 ## #4861 — Drop redundant graph_projection_phase_state_lookup_idx
-
-Performance Evidence: `graph_projection_phase_state` has PRIMARY KEY
-`(scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase)`.
-Postgres auto-creates a unique B-tree index for that PK. A separate index
-`graph_projection_phase_state_lookup_idx` was defined on the identical six
-columns in identical order — fully redundant. Every INSERT/UPDATE maintained
-two identical indexes. The only lookup query (`lookupGraphProjectionPhaseStateSQL`)
-and the reducer readiness gate use the full six-column key, already covered by
-the PK index.
 
 | metric | BEFORE (PK+lookup+updated) | AFTER (PK+updated) | delta |
 |---|---|---|---|
@@ -777,14 +574,6 @@ except the index name changes from `graph_projection_phase_state_lookup_idx`
 to `graph_projection_phase_state_pkey` — same `Index Only Scan`, same
 `cost=0.41..8.44`, same `Execution Time ~0.03ms`, output-preserving (0/0 diff).
 
-No-Observability-Change: this change only drops a redundant Postgres index.
-No metric, span, log key, route, worker, queue domain, lease, graph write,
-or runtime knob changes. The `graph_projection_phase_state` table upsert
-is still covered by the existing `InstrumentedDB` Postgres query spans and
-`eshu_dp_postgres_query_duration_seconds`. Operators continue to diagnose
-readiness waits through the same Postgres query spans, queue status,
-`/admin/status` blockage rows, and reducer logs.
-
 ## #4860 — Batch ContentWriter tombstone DELETEs
 
 `ContentWriter.Write` accumulated tombstoned `(repo_id, relative_path)` file
@@ -799,10 +588,6 @@ deleted; only the round-trip count changes. Entity `StartLine` validation is
 unchanged (still enforced for every entity before the deleted-branch, matching
 origin/main). The parallel `ContentStore` per-row delete path
 (`content_store_writes.go`) is a separate type and out of scope.
-
-Performance Evidence: measured with a counting `fakeExecQueryer` that records
-every `ExecContext` DELETE (deterministic, no DB needed), via
-`TestContentWriterBatchesTombstoneDeletes`.
 
 | scenario | BEFORE (per-row) | AFTER (batched) | reduction |
 | --- | --- | --- | --- |
@@ -838,21 +623,7 @@ quantified by the exec-count table above). Postgres rewrites the same-repo
 row-list to `repo_id = $ AND relative_path = ANY(array)` and still index-scans;
 with mixed repos the row-wise `IN` remains index-backed via the same keys.
 
-No-Observability-Change: the batched deletes target the same tables and rows as
-before and add no metric instrument, metric label, span, log key, route, queue
-domain, worker, lease, or runtime knob. Operators still diagnose the content
-write path through the existing `InstrumentedDB` Postgres exec/query spans and
-`eshu_dp_postgres_query_duration_seconds`, and the existing content-write stage
-timing logs.
-
 ## #4859 — Drop unused fact_records_stable_key_idx
-
-Performance Evidence: `fact_records_stable_key_idx` on `(stable_fact_key,
-generation_id)` is the single biggest fact-insert write-amplification contributor
-and has no query reader. It is the only general/all-row `idx_scan=0` secondary
-index on `fact_records` (2132 MB on the live `e2e3586persist` stack, 22h uptime,
-`idx_scan=0`). Every other `idx_scan=0` index is a fact-kind/tombstone/expression
-partial that only writes for matching facts.
 
 No query filters `WHERE stable_fact_key = ...` (repo-wide `rg`: every
 `stable_fact_key` reference is an `EXCLUDED.stable_fact_key` upsert SET or a
@@ -881,12 +652,6 @@ real 82-index schema):
 Dropping this ONE index captures 99% of the achievable insert win from all
 idx_scan=0 indexes (dropping ALL 77: 2024.3 ms; −35.0%).
 
-No-Observability-Change: dropping an unused index. No metric, span, log key,
-route, worker, queue domain, lease, graph write, or runtime knob changes. The
-`fact_records` upsert is still covered by the existing `InstrumentedDB` Postgres
-query spans and `eshu_dp_postgres_query_duration_seconds`. Changed-since and all
-reads are unaffected (they use `fact_records_scope_generation_idx`).
-
 ## #4862 — Keep content pg_trgm GIN indexes (drop disproven)
 
 A proposal to drop the two `pg_trgm` GIN indexes on `content_files.content`
@@ -896,49 +661,6 @@ search read path: `InvestigateCodeTopic` (`content_reader_code_topic.go`) and
 the `SearchFileContentAnyRepo` / `SearchEntityContentAnyRepo` content readers.
 Repository-scoped probes can also use content GIN indexes; the measured #7246
 file probe intersects repository and content indexes. All-repository reads are not their only consumers.
-
-### Performance Evidence
-
-Live audit on a drained `e2e3586persist` stack (Postgres 18-alpine, 838 repos):
-
-| metric | value |
-|---|---|
-| `content_entities` live rows | 2,504,903 (2312 MB) |
-| `content_files` live rows | 137,373 (746 MB) |
-| `content_entities_source_trgm_idx` size | 518 MB |
-| `content_files_content_trgm_idx` size | 233 MB |
-| total GIN write-tax | 751 MB |
-| `content_entities_source_trgm_idx` idx_scan | 1 (post-search) |
-| `content_files_content_trgm_idx` idx_scan | 2 (post-search) |
-
-The planner selects both indexes via **Bitmap Index Scan** for the all-repo path.
-Session-local drop simulation (no actual DROP, `SET enable_bitmapscan=off;
-SET enable_indexscan=off`):
-
-| query | WITH GIN | forced seq scan | penalty |
-|---|---|---|---|
-| `content_entities.source_cache ILIKE '%authenticate%'` | 737 ms | 3580 ms | ~4.9× slower |
-| planner cost (entities) | 347 | 153158 | ~440× |
-| `content_files.content ILIKE '%authenticate%'` | 4203 ms | 5388 ms | ~1.3× slower |
-| planner cost (files) | 138 | 15108 | ~100× |
-
-The seq-scan penalty scales with table size, so it widens on larger corpora.
-Issue #4980 disproved replacing these reads with the curated BM25 tables:
-search documents cap context at 4,096 bytes, omit governed rows, and implement
-token rather than arbitrary-substring semantics. The accuracy-preserving fix
-keeps the exact GINs but defers their initial creation until cold content
-projection drains. `content_substring_index_state` fences unscoped reads until
-all four exact indexes validate and bootstrap-index has run `ANALYZE`. Existing
-indexes are never dropped during restart, upgrade, or steady-state ingestion.
-See #4980 (retired evidence record) for the before/after, exactness,
-plan, restart, failure, and lock-exclusion proof.
-
-Issue #4980 adds the bounded `content_index_finalization` value to the existing
-bootstrap phase histogram, start/terminal logs with state, duration, and failure
-class, and the durable lifecycle row. Operators still diagnose content reads
-through the existing `postgres.query` spans. The schema-constant guard test
-(`TestContentStoreSearchIndexSchemaSQLKeepsExactTrigramGINs`) remains the
-compile-time safety lock that prevents an inaccurate BM25 substitution.
 
 ## #4686 — Typed decode for azure_tag_observation / gcp_tag_observation in cloud_tag_evidence.go
 
@@ -964,44 +686,6 @@ collector's emission counter and scan-status summarizer — only switch on the
 fact kind to count occurrences), so a decode struct for it would be a hollow,
 never-validated contract.
 
-Benchmark Evidence: `go test ./internal/storage/postgres -run '^$' -bench
-'BenchmarkCloudTagEvidenceRecordFromRow' -benchmem -count=5` (darwin/arm64,
-Apple M1 Max; one representative azure_tag_observation row + one
-gcp_tag_observation row per iteration, each carrying 3 tag fingerprints).
-BEFORE (raw map + coerceJSONString, commit f51260fb5, measured in a throwaway
-`git worktree` at that commit with the same benchmark file copied in
-unmodified — the function signature did not change) -> AFTER (typed decode):
-5629 ns/op -> 6647 ns/op (+18.1% time), 3312 B/op -> 4224 B/op (+27.5% bytes),
-64 allocs/op -> 72 allocs/op (+12.5% allocs), all for the 2-row batch (halve
-for per-row cost: ~2815 ns/row -> ~3323 ns/row). This exceeds the ~10%
-diagnostic-rigor band; it is accepted rather than optimized away because (a)
-the cost is the price of `decodeAndValidate`'s reflection-based required-field
-check and struct decode replacing an ad hoc map type-switch, the same shape
-every prior Contract System v1 typed-decode migration in this file pays, and
-(b) tag-evidence rows are a small fraction of one generation's fact volume —
-bounded by the count of azure/gcp resources that carry at least one tag, never
-the dominant row count next to `azure_cloud_resource`/`gcp_cloud_resource` or
-the relationship kinds — so a few added microseconds per row does not create a
-queue or admission backlog risk. Result class: correctness win (closes a
-silent-coercion accuracy gap) with a measured, bounded, non-hot-path cost.
-
-No-Regression Evidence: `go test ./internal/storage/postgres -run
-'CloudTag|TagEvidence' -count=1 -v` covers the existing azure/GCP mapping
-tests (now updated with the collector-required `normalized_resource_id`/
-`resource_type` fields the typed struct requires), the SQL allowlist lockstep
-test, and the blank scope/generation rejection test unchanged. A new test,
-`TestPostgresCloudTagEvidenceLoaderDropsNonStringFingerprintValues`, is RED
-against the pre-change raw path (a `tag_value_fingerprints` value of `42`
-decodes to `1` record carrying the coerced string `"42"`) and GREEN after (the
-row is dropped, `0` records) — the concrete regression this change fixes.
-
-No-Observability-Change: #4686 adds no new metric, span, route, worker, queue
-domain, or runtime knob. The existing `logSkippedRow` structured log ("cloud
-tag evidence loader skipped source fact", `cloud_tag_evidence_source_fact_decode`
-failure class, scope/generation/fact_kind attributes) still fires on every
-dropped row, decode failures included, so an operator's existing diagnostic
-path is unchanged.
-
 ## #5438 — identity-fact load epoch cache
 
 ### Concurrency design
@@ -1023,8 +707,7 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
   final probe that serves a filled cache (a budget-spent caller at the lead decision relies on the same pass's top probe). Outcomes `gave_up_flights` (churn),
   `gave_up_wall` (slow flight). A call's time in the cache is bounded by one
   heartbeat plus two load attempts and a few probes; a call with its budget spent never
-  leads: it fails retryably and the next caller leads. Evidence:
-  (#7805).
+  leads: it fails retryably and the next caller leads (#7805).
 - **TOCTOU analysis**: the probe→serve window (between epoch probe and cache
   hit) is a bounded probe-interval gap. Today's baseline does a full paginated
   O(corpus) scan inside every call, mixing facts from different commit
@@ -1093,18 +776,6 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
 
 ### Evidence notes
 
-Performance Evidence: (probe figures here are superseded by #7805, see
-(#7805).) #5438 adds an epoch-cached identity fact set to
-`ListActiveContainerImageIdentityFacts`, replacing ~2,000 O(corpus) paginated
-loads per worst-case reducer drain with 1 reload + ~2,000 index-only epoch
-probes. The probe is backed by the partial index (#6543 renamed it `_v2`)
-`fact_records_identity_epoch_idx_v2 ON fact_records (observed_at, fact_id)
-WHERE <6-arm identity filter> AND is_tombstone = FALSE` and runs FROM
-fact_records alone (no ingestion_scopes/scope_generations JOIN), so it
-leverages an Index Only Scan. Proved locally with the identity-epoch test
-suite (7 new tests, all green, including concurrent-singleflight under 32
-goroutines and commit-mid-load rejection).
-
 Shim measurements (postgres:18-alpine, 2.5M rows, 500k identity facts,
 2000 scopes):
 
@@ -1148,22 +819,3 @@ Estimated in-process Go struct bytes (string fields + JSON payload + 40-byte
 fixed overhead): ~342 MB. Default cap = 500 MiB = 2.2× in-process estimate,
 keeping the 500k-fact shim comfortably cached while a pathological set above
 this bound passes through observably via the passthrough counter.
-
-Observability Evidence: six new `eshu_dp_` instruments registered in
-`go/internal/telemetry/instruments.go` (IdentityCacheHitTotal,
-IdentityCacheMissTotal, IdentityCacheReloadTotal,
-IdentityCachePassthroughTotal, IdentityCacheReloadDuration,
-IdentityCacheProbeDuration). The cache receives `*telemetry.Instruments`
-via `NewIdentityEpochCache`, wired from the reducer's real `instruments`
-in `buildObservedReducerService`. Metrics appear on the `/metrics`
-endpoint via the shared Prometheus exporter. All are documented in
-`docs/public/observability/telemetry-coverage.md`. The blocking
-telemetry-coverage gate (`ESHU_TELEMETRY_COVERAGE_BASE=origin/main
-scripts/verify-telemetry-coverage.sh`) is green. X4 dashboard:
-diagnostic cache-internal signals; not headline-alarm-worthy per the
-skill's conditional ("If the metric should appear"). The cache path
-adds no route, worker, queue domain, lease, graph write, or runtime
-knob beyond `ESHU_IDENTITY_CACHE_MAX_BYTES`. Operators diagnose cache
-effectiveness through the hit/miss/reload/passthrough counters and
-probe/reload duration histograms, plus the existing
-`eshu_dp_postgres_query_duration_seconds` for the underlying DB queries.

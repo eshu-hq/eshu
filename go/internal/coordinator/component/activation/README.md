@@ -72,9 +72,6 @@ This package is a pure value parser. It emits no telemetry itself; every
 consumer's own telemetry (coordinator reconcile metrics, planner package
 docs) covers the paths that call into it.
 
-No-Observability-Change: this package adds no metric, span, log field,
-status value, queue, worker, lease, retry, or runtime setting.
-
 ## Gotchas / invariants
 
 - `schema_version` must equal `eshu.component.instance.v1`; a blank
@@ -98,11 +95,6 @@ status value, queue, worker, lease, retry, or runtime setting.
   packages. If a future change to `Config` needs coordinator-only context,
   that context belongs in the caller, not here — importing coordinator here
   would reintroduce the exact import cycle this package exists to avoid.
-
-No-Regression Evidence: `go test ./internal/coordinator/component/activation -count=1`
-covers a blank configuration, an unrelated collector configuration, a valid
-configuration with component identity, a missing required field, an
-unsupported `runtime.sdk_protocol`, and an unsupported `runtime.adapter`.
 
 ## Related docs
 

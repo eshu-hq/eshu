@@ -91,57 +91,17 @@ list summaries with no Describe fanout. There is no graph write, queue, lease,
 or worker change: the scanner returns a fact slice for the existing claim
 runtime to commit, so this slice adds no new concurrency surface.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/sagemaker/... ./internal/collector/awscloud/awsruntime/... ./cmd/collector-aws-cloud/... -count=1`
-covers resource fact emission for all 15 types, the eight required
-relationships, sensitive-payload omission, the reflection gate proving
-InvokeEndpoint and mutation methods are unreachable, runtime self-registration
-through the derived guard, and command-side SageMaker target validation.
-
 Collector Observability Evidence: SageMaker uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total{service="sagemaker"}`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses SageMaker scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. This scanner adds no new instrument.
-
 ### Partition-aware S3 artifact join (#816)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/sagemaker/... -count=1`
-covers the new `TestModelArtifactRelationshipDerivesPartition` (commercial /
-`aws-us-gov` / `aws-cn` / missing-ARN-fallback) alongside the existing
-`TestScannerModelRelationshipsTargetTypes` commercial assertion. The
-model->S3-artifact target ARN now derives its partition from the model ARN via
-`arnPartition` instead of hardcoding `aws`, so GovCloud and China joins resolve
-to the bucket node the S3 scanner publishes (`arn:<partition>:s3:::<bucket>`)
-instead of dangling. Commercial-partition output is byte-for-byte unchanged;
-this is a metadata-only correctness fix with no graph-write, queue, or hot-path
-behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized target ARN value; no instrument, span, metric label, or
-`aws_scan_status` row changes.
 
 Collector Deployment Evidence: SageMaker runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/sagemaker/... -count=1`
-keeps the `#816` model-artifact partition assertions green after the synthesized
-S3 bucket ARN was switched from the package-local `arnPartition` helper to the
-shared `awscloud.PartitionFromARN`. The derivation logic is identical; the
-bucket ARN still inherits the partition of the referencing model ARN.
-Commercial output is byte-for-byte unchanged; this is a metadata-only
-consolidation with no graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the change only swaps a helper; the synthesized ARN
-value is unchanged, and no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

@@ -101,12 +101,6 @@ error; the next pass retries.
   repository target, or its `scope_id` renamed), is not retired here (#9071).
 - The plan key is validated but not normalized.
 
-No-Regression Evidence: the focused child test calls the production planner.
-The full parent and binary package tests compile the root interface, service
-call, and concrete wiring after the import move. Whole-module build and vet
-verify the same `alert.WorkPlanner` wiring through the root
-`SecurityAlertPlanner` interface.
-
 ## Related docs
 
 - `go/internal/coordinator/README.md`

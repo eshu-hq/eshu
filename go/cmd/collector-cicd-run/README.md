@@ -107,43 +107,12 @@ Host-file failures use `auth_denied`; static-token provider failures retain
 
 ## Evidence
 
-No-Regression Evidence: `go test ./cmd/collector-cicd-run
-./internal/collector/cicdrun/ghactionsruntime ./internal/runtime -count=1`
-covers config parsing, claim-driven provider collection, binary deployability,
-and Helm chart rendering for the hosted runtime.
-
-Observability Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
-./internal/telemetry ./internal/storage/postgres -count=1` covers CI/CD run
-provider metrics, spans, partial-generation metrics, rate-limit metrics, and
-fact-backed central collector status evidence.
-
 ### Historical #9186 evidence
 
 The following validation and impact notes were recorded for #9186 against
 baseline `d1f56dc14b` using Go 1.26.6. They do not describe or validate the
 App authentication, durable Actions queue, storage, or telemetry changes in
 #9146; those changes require their own proof.
-
-No-Regression Evidence (#9186): `go test ./cmd/collector-cicd-run
-./internal/collector/cicdrun/... ./internal/workflow -count=1` was reported
-green for that change with synthetic unit targets and no live provider calls. The token_env mapping statements
-are verbatim and its fetch-error propagation is untouched, so existing
-static-token activations behave byte-identically (pinned by
-TestMapTargetTokenEnvByteIdentical). host_minted adds per-claim file
-resolution (a local disk read, no provider volume change) and classifies a
-refused host value as terminal `auth_denied`; the fetch, pagination, and
-watermark hot path is otherwise untouched. These unit checks do not measure
-provider latency or the end-to-end cost of #9146. No queue, lease, Cypher, or
-storage path is touched in #9186, so there
-are no terminal queue or row counts to compare.
-
-Observability Evidence (#9186): no new metrics, spans, logs, or status
-fields. The existing fetch dimensions carry one new bounded value:
-resolution and refusal failures record under `status_class="auth_denied"`,
-distinguishable from provider `"error"`, with the token value excluded from
-every label (pinned by
-TestClaimedSourceHostMintedRecordsAuthDeniedTelemetry and the lane startup
-tests).
 
 ## Workflow Claim Store
 

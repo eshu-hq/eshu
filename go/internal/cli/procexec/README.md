@@ -86,28 +86,11 @@ not by changing what they do, so there is no before/after measurement to
 report and inventing one would be dishonest. What follows is what was actually
 established.
 
-No-Regression Evidence: the extraction is behaviour-preserving, proven by
-running ten CLI invocations against a binary built from the base commit
-(`6db694d0628406764ca67a62f4bfdaea0b7b0313`) and one built from this branch,
-including the failure paths and the paths that actually reach the re-exec
-rather than only the flag parsing above it. Combined stdout and stderr are
-byte-identical on all ten and the exit codes match. The harness was proved able
-to fail by deliberately mutating the "after" binary and confirming it reported
-exactly the mutated case as differing. `go test ./cmd/eshu/...
-./internal/cli/... -count=1` passes, and no `testdata/`, cassette, or golden
-path appears in the diff, so the golden-corpus gate (B-7) and the end-to-end
-snapshot (B-12) are untouched.
-
 There is no shape change to measure. Call sites went from an unqualified
 package-scope identifier to a qualified one in another package; both compile to
 the same indirect call through a package-level variable, and each one runs at
 most once per CLI invocation, immediately before a process spawn or a process
 replacement.
-
-No-Observability-Change: this package emits no metrics, spans, or logs, and
-the move neither added nor removed an instrument. Every `fmt.Print*` on these
-paths stayed in `go/cmd/eshu`, which is what the byte-identical parity captures
-above demonstrate.
 
 ## Related
 

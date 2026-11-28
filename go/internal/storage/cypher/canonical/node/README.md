@@ -29,16 +29,3 @@ The moved templates keep their original Cypher bytes and parameters.
 Changes to their MATCH, MERGE, or SET clauses affect graph truth and must
 follow the Cypher performance and materialization proof requirements in the
 root agent guidance.
-
-No-Regression Evidence: all 68 moved Cypher literals are byte-identical to
-the pre-move root files (sorted SHA-256 extraction diff is empty over the
-moved set); the caller dispatch sequence, family order, retract-before-upsert
-order, and Drain flags are unchanged, so the move cannot change database
-work or row counts. The full `go test ./internal/storage/cypher/...` tree,
-the Ifá materialized-edge coverage tests, and
-`scripts/verify-query-plan-regression.sh` stay green. No production graph
-write was run; terminal queue/row counts are not applicable to this
-source-only move.
-
-No-Observability-Change: the package move adds no writer route, statement
-metadata, metric, span, or log field.

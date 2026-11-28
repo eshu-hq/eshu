@@ -101,11 +101,6 @@ the shared API request duration and error metrics in `internal/query`.
 - `Route` returns a fresh query map per call, so a caller may mutate one
   result without changing a later one or the arguments it was given.
 
-No-Observability-Change: this extraction moves only pure supply-chain-impact
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, summaries, and transport
-telemetry, and the same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../../README.md)

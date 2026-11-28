@@ -91,27 +91,11 @@ DescribeNFSFileShares / DescribeSMBFileShares point reads, no ActivateGateway,
 DeleteGateway, RefreshCache, or Create*/Delete* calls, no mutations, and no
 graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-Storage Gateway gateway, volume, and file-share metadata fact emission,
-volume-to-gateway and file-share-to-gateway relationship emission,
-file-share-to-S3-bucket relationship emission with partition-aware bucket-ARN
-derivation (commercial / `aws-us-gov` / `aws-cn`), file-share-to-IAM-role,
-file-share-to-KMS-key, and file-share-to-CloudWatch-log-group relationship
-emission, gateway-to-VPC-endpoint emission gated on a `vpce-` identity, the
-relguard graph-join contract over every emitted edge, runtime registration, and
-the SDK adapter's metadata-only mapping and exclusion-reflection gate.
-
 Collector Observability Evidence: Storage Gateway uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the scanner reuses the existing AWS collector
-telemetry contract through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`;
-it adds no new instrument, span, or metric label.
 
 Collector Deployment Evidence: Storage Gateway runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

@@ -88,11 +88,6 @@ DescribeSubnetGroups stream, one paginated DescribeParameterGroups stream, one
 ListTags read per cluster ARN, no mutation calls, and no graph writes in the
 collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/dax/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 Collector Observability Evidence: DAX uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,

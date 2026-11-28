@@ -71,10 +71,6 @@ None here. The reducer's `CodeReachabilityProjectionRunner` (which this
 store's `InputLoader`/`RowWriter` methods feed) owns runtime observability
 for the projection cycle; see `go/internal/reducer/AGENTS.md`.
 
-No-Observability-Change: this extraction moves only the store, loader, and
-helpers; no metric, span, log field, worker, queue, lease, or runtime knob
-changed.
-
 ## Loader contract
 
 `LoadPendingCodeReachabilityInputs` schedules only complete, non-delta runs

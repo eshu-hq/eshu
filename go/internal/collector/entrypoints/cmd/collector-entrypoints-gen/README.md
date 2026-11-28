@@ -31,9 +31,6 @@ Collector Observability Evidence: generated collectors continue to attach the
 provider source tracer and instruments through generated service wiring; this
 developer command does not alter runtime telemetry contracts.
 
-No-Observability-Change: this command verifies source files and has no runtime
-collector process, provider client, status row, metric label, or trace span.
-
 ## Gotchas / invariants
 
 `-check` must never rewrite files. A stale-file failure tells reviewers to run

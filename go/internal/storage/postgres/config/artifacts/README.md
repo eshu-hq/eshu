@@ -252,40 +252,6 @@ instrumented Postgres wrapper.
 
 ## Evidence (PR3b-1a)
 
-No-Regression Evidence: baseline is the base branch without this change,
-where none of these tables or functions exist. PR3b-1a adds no caller in any runtime binary
-and no trigger on `content_files`, so no existing hot path runs new work; the
-only runtime change is migration 170 at bootstrap (five `CREATE TABLE IF NOT
-EXISTS` and one `CREATE OR REPLACE FUNCTION` on empty tables, recorded at 5 ms
-by the tracked migrator on a fresh PostgreSQL 18.6 database). The two new
-statements a future walker runs were measured on PostgreSQL 18.6 (Homebrew,
-local) with 3,000 version rows and 2,990 state rows: the walk page
-(`walkPageSQL`, 500 rows) is an Index Only Scan on
-`config_artifact_content_versions_pkey`, 5 buffers; the dirty join
-(`dirtySQL`, generic plan via `PREPARE`/`EXECUTE` with
-`plan_cache_mode = force_generic_plan`, 21 dirty of 3,000) is a hash join over
-two sequential scans of tables that grow with repositories, not files,
-59 buffers per execution. In round 2 it ran in 0.80-0.87 ms over five runs
-after one discarded run. The round 5 form (labels in Classify's precedence,
-plus a separate priority column) has the same plan and buffers; an
-interleaved A/B of the round 4 and round 5 statements, 15 runs each with the
-first mover alternating, gave medians of 1.217 ms and 1.152 ms on a host at
-load average 22. The review of
-round 1 measured 62-65 ms at 300,000 repositories (parallel hash join), so the
-cost is linear in repositories. Both tables are O(repositories) (815 in the QA
-environment on 2026-10-10).
-
-No-Observability-Change: no runtime path calls this package yet, so it
-emits no metric, span, or log in production. `CheckEncoding` and `CheckFence`
-have no caller (PR3b-2 wires them into the deriving binaries and the API).
-When called, `CheckEncoding` logs `event_name=postgres.server_encoding` at
-INFO or ERROR, and every statement here runs through the caller's
-instrumented Postgres wrapper (`eshu_dp_postgres_query_duration_seconds`).
-
-Observability Evidence: `CheckFence` logs
-`event_name=postgres.config_artifact_fence` (the hermetic tests in
-`fence_test.go` assert the level, event and every field below):
-
 | Level | When | Fields |
 |---|---|---|
 | INFO | all five triggers fire | `fence_triggers=5` |
@@ -299,28 +265,7 @@ migration 186 for a dropped trigger, `ALTER TABLE ... ENABLE TRIGGER` for
 both fence reasons; the `eshu_dp_config_artifact_derives_total` counter that
 carries it is registered by a later PR3b-2 slice, so no metric exists yet.
 
-Performance Evidence: the baseline (base branch) runs no fence check; after
-this change the check is one catalog statement per process start, and no
-binary calls it yet, so no hot path changes. Backend: PostgreSQL 18.6
-(`postgres:18.6` in Docker, local). Input shape: a fully bootstrapped
-database, 770 `pg_trigger` rows (26 non-internal), five requested pairs, five
-rows returned. `EXPLAIN (ANALYZE, BUFFERS)` of `fenceTriggersSQL`: a hash
-join of the five pairs over a sequential scan of `pg_trigger`, 18 shared
-buffers on the scan, 0.043-0.064 ms execution over four runs on 2026-10-16
-(schema at origin/main 26be17f76). The cost
-grows with catalog triggers, not with content rows. It is safe because it
-reads only `pg_trigger`, takes no lock beyond the catalog's ACCESS SHARE, and
-never fails or blocks the caller.
-
 ## Evidence (PR3b-2b, the derive core)
-
-Performance Evidence: baseline is the base branch, where no derive exists;
-this slice adds no caller, so no runtime hot path runs new work. The cost a
-later caller pays is step 3's write transaction, the only part that holds
-the repository lock. Backend: `postgres:18.6` in Docker, local, a 16-core
-host at load average 10-14, 2026-10-17. Shape: one repository of 20,000 rows
-over 5,000 files, beside 800 repositories of 21 rows, the statements of
-`derive_sql.go` under `EXPLAIN (ANALYZE, BUFFERS)`, one transaction per run:
 
 | Shape | Lock | State read | Delete | Insert | Upsert | Commit | Transaction |
 |---|---|---|---|---|---|---|---|
@@ -337,9 +282,6 @@ only derives of one repository: a 20,000-row repository holds it for about
 Step 2 holds no lock and no transaction (proved by
 `TestDeriveHoldsTheLockOnlyInStepThreeLive`). The end-to-end derive time on
 a large repository is not measured here; S1 measures it with the caller.
-
-Observability Evidence: a failed derive logs one record at ERROR (the
-hermetic `runFailure` tests assert the level, the event and the fields):
 
 | Field | Value |
 |---|---|
@@ -364,15 +306,6 @@ outcome counter and duration histogram are registered by the wiring slice.
 
 ## Evidence (PR3b-2c-2, the wiring)
 
-Performance Evidence: S1 on the built path, the real `ContentWriter.Write`
-with and without the wired derive. Backend: `postgres:18` in Docker, local,
-a shared host at load average 2.5 to 6.4, 2026-10-19. The harness is a
-throwaway live test (kept at `~/.cache/coord8155/s1/`, deleted before the PR),
-interleaved A/B over fresh repositories. Shapes: the golden fixture corpus
-(194 repositories, 2,130 files, 1.74 MB) and one synthetic monster (5,000
-files, 4.00 MB in, 5,000 rows stored, 5,000 candidates listed and read, plus
-10,000 entities so the Write wall is production-width).
-
 | Shape | Added Write wall (wired minus plain) |
 |---|---|
 | Golden corpus, 193 interleaved pairs | median +0.8 to +1.1 ms, p95 +1.8 to +2.1 ms (four runs) |
@@ -389,20 +322,6 @@ this slice (same R1 story, 7 serial reads on QA image sha-3d7cb9c6, 2026-10-19)
 is in (#8155): the
 `deployment_artifacts` stage is 2.04 to 2.29 s of a 2.35 to 2.60 s route
 (83 to 91%), graph stages total at most 0.01 s, bodies byte-identical 7/7.
-
-Observability Evidence: PR3b-2c-2 is the first emission of the registered
-derive signals. Every Write derive counts one
-`eshu_dp_config_artifact_derives_total{trigger=write,outcome}` (outcome
-`canceled` included: a canceled caller records `OutcomeCanceled`, kept apart
-from `error`), observes one
-`eshu_dp_config_artifact_derive_duration_seconds{trigger=write}`, ends one
-`config_artifacts.derive` span carrying `repo_id`, `trigger` and `outcome`
-(no id on the metrics), and logs one `derive_config_artifacts` content-writer
-stage line with trigger, outcome, row and content-version counts. A disabled
-derive logs `config_artifacts.derive.disabled` once at start and builds no
-deriver. A refused startup check answers every derive with
-`encoding_unsupported` or `fence_missing` without a statement, counted the
-same way.
 
 ## Known limits for the wiring slice
 
@@ -432,29 +351,3 @@ ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN='postgres://USER@HOST:PORT/postgres?sslmode
 ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 \
   go test ./internal/storage/postgres/config/artifacts -count=1 -run Live
 ```
-
-## Performance Evidence (PR3c shadow slice)
-
-No-Regression Evidence: the live default path is statement-identical to
-before this slice. `TestDisabledShadowIssuesNoStoredStatement` proves the
-zero `ShadowConfig` issues no stored statement, and every pre-existing
-suite in the touched packages passes unchanged, so served responses are
-byte-identical. Baseline: live-only read, 0 stored statements per call.
-
-Benchmark Evidence: `ReadStored` issues exactly 1 statement per call for
-any non-empty id set (`TestReadStoredReturnsTrustedRowsInRequestOrder`,
-`TestReadStoredDedupesIDsAndKeepsOrder`, which also prove dedup and
-request-order preservation), and 0 statements for empty input
-(`TestReadStoredEmptyIDsSendsNoStatement`). Backend: scripted fake
-(`storedFakeDB`); no live backend ran in this slice. Input shape: fixed
-fixture row sets (multi-id with duplicates, empty, error). Row counts:
-one `Repository` per distinct requested id. After: 1 stored statement per
-read call in shadow/stored mode, short-circuited before any TOAST-heavy
-path. A stored-read error keeps serving live
-(`TestShadowReadErrorKeepsServingLive`), so the bound holds on failure too.
-
-No-Observability-Change: the live path emits no new signal. The
-`eshu_dp_config_artifact_shadow_compare_total` counter is registered in
-this slice; first emission and the `config_artifacts.shadow.mismatch` log
-land with the shadow wiring slice. The live QA shadow run is that slice's
-measurement, not this one's.

@@ -99,12 +99,6 @@ no Postgres queue rows and no graph backend. The scanner emits in-memory fact
 envelopes only, so there is no added graph write, worker claim fanout, lease
 contention, or reducer queue pressure in this package.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Identity Center metadata fact emission, inline-policy-body exclusion,
-application access-scope exclusion, principal display-name redaction,
-no-instance and access-skip warning behavior, runtime registration, command
-configuration, and the SDK adapter's metadata-only API surface.
-
 Collector Observability Evidence: Identity Center uses the existing AWS
 collector `aws.service.scan` and `aws.service.pagination.page` spans plus
 `eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
@@ -112,9 +106,6 @@ collector `aws.service.scan` and `aws.service.pagination.page` spans plus
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows to show
 successful metadata emission, AWS API/throttle volume, and skipped credentials.
 Metric labels stay bounded to service, account, region, operation, and result.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-covers this scanner. No new metric, span, or log name is introduced.
 
 Collector Deployment Evidence: Identity Center runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

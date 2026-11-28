@@ -46,20 +46,6 @@ truncation, timeout, failure class, and candidate truth-level counts. A future
 runtime caller must bridge those observations into metrics, spans, or
 structured logs without using high-cardinality IDs as metric labels.
 
-## No-Regression Evidence
-
-No runtime defaults, API contracts, MCP contracts, graph writes, reducer
-projection queues, or schema migrations are changed by this package. Focused
-tests prove the adapter sends only `SemanticContext` label requests, preserves
-bounded limits, maps derived truth labels, rejects NornicDB fallback, rejects
-label escapes, and rejects candidates outside the request scope.
-
-## Observability Evidence
-
-Adapter metadata plus `searchretrieval.Runner` observations cover duration,
-mode, result count, truncation, timeout, failure class, and truth summaries for
-the internal retrieval attempt. This branch does not wire a live OTEL exporter.
-
 ## Verification
 
 ```bash

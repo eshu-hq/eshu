@@ -162,20 +162,6 @@ statement text is rendered from the key list, so it cannot name a key
 (`observed_at DESC, fact_id DESC`) and the `observedAt` freshness map are
 unchanged.
 
-Performance Evidence: on a 28,000-row synthetic set (about 4,925 MB of
-payloads, 4 percent over 1 MB, largest about 5 MB),
-`BenchmarkLoadRepositoryCatalogDecode` decodes the whole payloads in 23.6 to
-28.6 s per pass over three runs (21.7 GB allocated, 576 M allocations) and the
-projected objects in 0.044 to 0.046 s per pass (4.97 MB, 1.1 M allocations). Server-side
-projection cost on a read replica was 3.6 s with 6.8 MB shipped, against 4.4 GB
-shipped before.
-
-No-Observability-Change: the loader adds no metric, span, or log. The
-existing `eshu_dp_deferred_backfill_duration_seconds` histogram and the
-`relationship.backfill_deferred` span keep timing the pass that contains this
-read, and the `catalog_load` block (#8138) times the whole catalog loader
-call.
-
 ## Bounded backfill reads (#11460)
 
 The anchor-scoped and ArgoCD config loads page by the
@@ -188,28 +174,6 @@ next page begins; the overall load ctx is 330s. No read transaction is held
 across client-side processing and no cursor `WITH HOLD` exists on these
 paths. The per-commit fact load and discovery run on the store connection
 outside the barrier transaction, which covers only the evidence write.
-
-Performance Evidence: disposable PostgreSQL 18.6, 12,000 matching content
-facts plus 50 non-matching noise rows, one shared `observed_at`. Three full
-anchor loads return all 12,000 facts exactly once in 0.13 s each (0.39 s
-total; 1,428,000 payload bytes per pass). `EXPLAIN (ANALYZE, BUFFERS)` of
-both page shapes carries the `Limit` into the plan with the row comparison
-as an index condition (cursor page: 13.8 ms, 460 shared hits). A concurrent
-`CREATE INDEX CONCURRENTLY` completes in 0.04 s while the loader runs: no
-page holds a snapshot the build must wait out.
-
-No-Regression Evidence: the two shipped corpus query texts are
-byte-identical after the body split (pinned by the pages-derive-from-base
-test plus reviewer byte-compare), so the pages select exactly the rows the unpaged
-query did. The hermetic anchor parity suite (paged loads through a
-keyset-emulating fake) and the live parity proofs pass unchanged:
-discovery over the paged loads equals the fleet answer with zero lost rows.
-
-Observability Evidence: each path stamps its `application_name` per page
-transaction; the per-commit name was sampled live from `pg_stat_activity`
-while the loader ran, and zero non-idle backfill backends remain after the
-loads return. Existing block telemetry (the `fact_load` block, the
-per-partition duration and fact-count histograms) is unchanged.
 
 ## Reopen storm loop and circuit breaker
 
@@ -312,20 +276,6 @@ Operator signals and alerts:
   passes, queue depth below high water, memo `max(committed_at)` fresh,
   zero new dead letters.
 
-Performance Evidence (reopen breaker): 96%-miss pass (50 candidates, 48
-would-be reopens) runs 48 reopen execs before vs 0 execs + 1 park line
-after, on disposable Postgres 18 via the RED-first unit suite; small pools
-(<20) still reopen. Parking skips N `ReopenSucceeded` round-trips, so the
-bound is strictly cheaper than the storm path; parked rows retry next
-pass, so no owed replay is dropped and no worker/lease/queue shape
-changes. Safe direction: park on uncertainty, never skip.
-
-Observability Evidence (reopen breaker): no new metric beyond
-`eshu_dp_maintenance_reopen_parked_by_breaker_total{domain}` plus the
-`maintenance_reopen_circuit_breaker_open` line and `parked_by_breaker`
-span attr; rollout watch is wave amplitude, queue depth vs high water,
-memo freshness, and zero new dead letters.
-
 ## Gotchas / invariants
 
 - Batches publish nothing partition-wide. Readiness and memo rows come
@@ -369,25 +319,3 @@ memo freshness, and zero new dead letters.
 - (#8750) (successor guard
   sizing)
 - `docs/public/reference/cypher-performance.md` for hot-path query work
-
-## No-Regression Evidence (#7794 extraction):
-
-Baseline: origin/main with the engine at the postgres root. After: this
-package move at the PR head (exact head bound by the CI wave recorded in
-the PR). Backend: hermetic (no database); DSN-gated live proofs run in the
-CI postgres_ci lane. Input shape: package move plus seam, zero query-text
-deltas — every moved SQL constant resolves byte-identically to main's text
-(verified with a const resolver; the only textual diffs are Go identifier
-renames that resolve to identical values). Batch sizing, worker counts,
-lock order, transaction scope, and upsert conflict targets are unchanged.
-Terminal counts: `go test ./internal/storage/postgres/...` passes with
-zero FAIL lines across root, backfill, and all subpackages;
-`golangci-lint run` reports 0 issues.
-
-No-Observability-Change: metric names in `go/internal/telemetry/
-instruments.go` are untouched, and the engine emits the same log lines
-(`deferred_backfill_batch_committed`, `deferred_backfill_fanin_completed`,
-`deferred_backfill_fanin_partition_skipped`) and the same
-`relationship.backfill_deferred` span attributes through the `Instruments`
-the root seam supplies. The telemetry-coverage doc rows now point at the
-new file locations with unchanged metric columns.

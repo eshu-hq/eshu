@@ -60,22 +60,3 @@ handle type, coverage, and response shapes live in
 `internal/storage/postgres` (`db`, `admission`), `internal/telemetry`, and
 `internal/truth`. The root query package imports this package for the
 handler alias; this package must never import the root query package.
-
-## Telemetry
-
-No-Observability-Change (#6642): this move adds no spans, metrics, or logs.
-Every handler span keeps its name (`telemetry.SpanQuery*`), capability, and
-route attributes — the tracer moved with the family but the emitted spans
-are unchanged — and the fixed failure bodies moved with their routes. Starts
-stay in the handler, as before.
-
-## Performance
-
-No-Regression Evidence (#6642): this move relocates the evidence handler
-family with no behavior change. No Cypher, SQL, queue, lease, batching,
-list-bound, or retry change; no new runtime branch. The pinned Cypher in
-`repositoryCountForEvidenceBundle` is byte-identical (the queryplan
-source-coverage manifest entry is re-keyed by path only, `source_sha256`
-unchanged). The deployable-unit packet composes through the responder seam
-with bounds read from the live request inside root's implementation,
-byte-identical to the pre-move route. Baseline is origin/main `8941b78d0`.

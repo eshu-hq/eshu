@@ -180,28 +180,6 @@ AWS API call counters, throttle counters, and pagination spans.
 
 ## Evidence
 
-### ec2_instance_posture fact, PR1 facts-only (#1146)
-
-No-Regression Evidence: `go test
-./internal/collector/awscloud/service/ec2/... ./internal/facts -count=1` covers
-`TestScannerEmitsInstancePostureFactsWithoutInventory` (one
-`ec2_instance_posture` fact, zero `aws_resource` facts, no `aws_ec2_instance`
-resource, IMDS / user-data-presence / instance-profile-ARN asserted, no
-`relationship_type` and no user-data content on the payload),
-`TestMapInstanceDerivesMetadataOnlyPosture` /
-`TestMapInstanceDerivesPartitionForGovCloud` (SDK mapper derives IMDSv2-required,
-endpoint, hop limit, monitoring, EBS-optimized, public-IP, instance-profile ARN,
-tenancy, enclave, and block-device metadata; `UserDataPresent` and per-volume
-`Encrypted` stay nil; the synthesized instance ARN is partition-aware), and the
-`facts` registry/envelope tests. The fact is built from the `DescribeInstances`
-pass the scanner now runs once per boundary; user-data content is never fetched,
-so there is no per-instance API fan-out.
-
-No-Observability-Change: the scanner emits facts only; it adds no instrument,
-span, metric label, or `aws_scan_status` row. The `awssdk` adapter's existing
-pagination span and API-call counter cover the new `DescribeInstances` read via
-`recordAPICall`.
-
 ### EBS volume metadata facts (#1303)
 
 Collector Performance Evidence: the EBS volume path is one paginated
@@ -212,101 +190,6 @@ encrypted/KMS, missing-key, unencrypted, attached, and missing-identity cases.
 The emitted fact volume is linear in the number of volumes returned by AWS and
 adds at most one resource fact plus one optional KMS relationship fact per
 volume.
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
-covers `TestScannerEmitsEBSVolumeMetadataAndKMSRelationship` (one
-`aws_ec2_volume` resource fact, one volume-to-KMS relationship keyed to
-`aws_kms_key`, one attachment summary, and no `aws_ec2_instance` inventory fact),
-`TestScannerKeepsVolumesWithoutKMSRelationshipWhenKeyMissing` (encrypted or
-unencrypted volumes without a reported KMS key remain resource-only), and
-`TestScannerSkipsVolumeWithoutIdentity` (missing volume identity produces no
-unjoinable fact). `TestMapVolumePreservesEncryptionKMSAndAttachments` and
-`TestMapVolumeDerivesPartitionForGovCloud` prove the SDK adapter maps
-`DescribeVolumes` encryption, KMS, attachment, and partition-aware volume ARN
-metadata without reading volume contents or snapshots.
-
-No-Observability-Change: the EC2 volume path reuses the existing EC2 SDK
-adapter pagination span and AWS API call/throttle counters through
-`recordAPICall` with operation `DescribeVolumes`. The scanner emits source
-facts only and adds no new metric labels or scan-status dimensions.
-
-### security_group_rule posture fact, PR1 facts-only (#1135)
-
-No-Regression Evidence: `go test
-./internal/collector/awscloud/service/ec2/... ./internal/facts -count=1` covers
-`TestScannerEmitsNetworkTopologyWithoutInstanceFacts` (now also asserting one
-`aws_security_group_rule` fact with `group_id=sg-123`, `direction=ingress`,
-`source_kind=cidr_ipv4`, `source_value=0.0.0.0/0`, `is_internet=true`) and the
-`aws_resource`/`aws_relationship` counts (5/7) are unchanged, proving the
-posture fact is purely additive. The new fact is built from the rule slice the
-scanner already fetched via `ListSecurityGroupRules`, so it adds no AWS API call
-and no per-resource fan-out; emission is one extra in-memory envelope per rule
-inside the existing rule loop.
-
-No-Observability-Change: the scanner emits facts only; it adds no instrument,
-span, metric label, or `aws_scan_status` row. The `awssdk` adapter's existing
-`DescribeSecurityGroupRules` pagination span and API-call counter already cover
-the read that sources the fact.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
-covers the new `TestEC2InstanceARNDerivesPartition` (commercial / `aws-us-gov` /
-`aws-cn`) alongside the existing commercial assertions. The synthesized EC2
-instance ARN used as a network-interface attachment target now derives its
-partition from the instance region via `awscloud.PartitionForRegion` instead of
-hardcoding `aws`, so the ENI->instance edge resolves in GovCloud and China.
-Commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
-metadata-only correctness fix with no graph-write, queue, or hot-path behavior
-change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
-
-### EC2 instance identity fact + instance->AMI relationship (#5448)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
-covers `TestScannerEmitsInstancePostureAndIdentityFacts` (one
-`ec2_instance_posture` fact, one `aws_resource` identity fact carrying
-`ami_id`, and one `aws_relationship` instance->AMI fact) and
-`TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank` (the identity
-fact still emits with an empty `ami_id` when the instance carries no AMI id,
-but no relationship fact is fabricated). The identity fact is built from the
-same `DescribeInstances` entry the posture fact already reads (`instance.ImageID`,
-mapped in `awssdk/mapper.go`'s `mapInstance`), so it adds no AWS API call and
-no per-instance fan-out.
-
-No-Observability-Change: the scanner emits facts only; it adds no instrument,
-span, metric label, or `aws_scan_status` row. The existing `DescribeInstances`
-pagination span and API-call counter already cover the read.
-
-### AMI resource identity fact (#5717)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/ec2/... -count=1`
-covers `TestScannerEmitsInstancePostureAndIdentityFacts` (now also asserting a
-second `aws_resource` fact, `resource_type=aws_ec2_ami`, with matching
-`resource_id`/`account_id`/`region`),
-`TestScannerEmitsIdentityWithoutAMIRelationshipWhenImageIDBlank` (no AMI
-resource fact when the instance carries no AMI id), and
-`TestScannerDedupesAMIResourceFactAcrossSharedInstances` (two instances
-sharing one AMI id emit exactly one AMI `aws_resource` fact, not two, while
-still emitting their own instance-identity and relationship facts). At the
-reducer layer, `go test ./internal/reducer -run
-TestExtractAWSRelationshipEdgeRowsResolvesEC2InstanceUsesAMITarget -count=1`
-proves `ExtractAWSRelationshipEdgeRows` resolves the `ec2_instance_uses_ami`
-target by bare id once the AMI's `aws_resource` fact is present — the reducer
-join code itself needed NO changes, since `buildCloudResourceJoinIndex`
-already indexed every `aws_resource` fact generically regardless of
-`resource_type`; the fix is entirely the collector now emitting the
-previously-missing fact. The AMI fact is built from the same
-`DescribeInstances` entry the instance identity fact already reads
-(`instance.ImageID`), so it adds no AWS API call; the per-scan dedup adds one
-small map, not a fan-out.
-
-No-Observability-Change: the scanner emits facts only; it adds no instrument,
-span, metric label, or `aws_scan_status` row. The existing `DescribeInstances`
-pagination span and API-call counter already cover the read.
 
 ## Related docs
 

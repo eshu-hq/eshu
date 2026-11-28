@@ -69,25 +69,3 @@ logged. The run is also covered by the shared
 `reducer.s3_external_principal_grant_materialization` span. This family has no
 row in `telemetry-coverage.md` (verified: zero hits); the move adds no
 instrument, so none is needed.
-
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk in the moved production files is a package clause, an
-import requalification, or an identifier requalification: symbols the reducer
-root exposed as one-line forwarders
-(`loadFactsForKinds`→`factload.LoadFactsForKinds`,
-`partitionDecodeFailures`/`recordQuarantinedFacts`/`inputInvalidSubSignals`→`factdecode.*`,
-`derefString`/`formatTally`/`anyToString`→`payloadcore.*`,
-`decodeS3ExternalPrincipalGrant`→`schemadecode.*`) are now called on the leaf
-package directly, and the bucket-name join substrate (`cloudjoin`) was already
-called on the leaf by the s3logsto move. No handler branch, extraction rule,
-readiness gate, retract/write ordering, trust-boundary rule, quarantine
-isolation, or Cypher-facing row shape changed.
-`go test ./internal/reducer/s3grant -count=1` passes with the moved test
-suite unchanged in assertion content (7 tests: 4 extraction, 3 handler; only
-import paths, leaf requalification, and unexported symbol duplication for the
-package boundary).
-
-No-Observability-Change: the move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; the
-shared span and the completion log keep the same names, labels, and key set
-at the new import path.

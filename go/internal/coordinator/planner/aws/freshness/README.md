@@ -81,14 +81,6 @@ contracts. This package does not import its parent and performs no I/O.
 None. Planning inherits the parent reconcile metrics, the AWS freshness
 handoff counters, and workflow/claim status.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-status field, queue, worker, lease, retry, or runtime setting. Coordinator
-failures remain visible through
-`eshu_dp_workflow_coordinator_reconcile_total`,
-`eshu_dp_workflow_coordinator_reconcile_duration_seconds`, the AWS freshness
-handoff event counters recorded in `service_aws_freshness.go`, and workflow
-row and claim status.
-
 ## Gotchas / invariants
 
 - Run IDs are `aws:<instance_id>:webhook:<plan_key>`. Work-item and generation
@@ -115,13 +107,6 @@ row and claim status.
 - The `scheduled_scan_enabled` flag lives in the same configuration document
   but belongs to the scheduled AWS family at root; this package does not read
   it.
-
-No-Regression Evidence: `go test ./internal/coordinator/planner/aws/freshness ./internal/coordinator -count=1`
-proves request validation, target-scope parsing and normalization, duplicate
-trigger coalescing, unauthorized-target rejection on its specific error text,
-scope/acceptance/generation identities, and the root claim-lease, handoff, and
-failure paths through `fakeAWSFreshnessPlanner`. This is a same-behavior file
-move: no lease, conflict-key, retry, batching, or ordering change.
 
 ## Related docs
 

@@ -86,15 +86,6 @@ paginated ListComplianceStatus stream per policy reduced to a deduplicated,
 sorted member-account set, no GetPolicy calls, no mutations, and no graph writes
 in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/fms/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers Firewall Manager policy fact emission, security-service-type and
-in-scope resource-type label emission, policy-to-member-account relationship
-emission keyed on the bare account id, the metadata-only rule-payload omission,
-the relguard graph-join contract, partition-aware ARN handling (the policy ARN
-is used verbatim from the API for commercial, GovCloud, and China partitions),
-runtime registration, and the SDK adapter's read-only metadata surface.
-
 Collector Observability Evidence: Firewall Manager uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
@@ -102,12 +93,6 @@ collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 labels stay bounded to service, account, region, operation, result, and
 resource type; policy ARNs, policy ids, and member account ids stay out of
 metric labels.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Firewall Manager scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. This scanner adds no new instrument, span, or
-metric label.
 
 Collector Deployment Evidence: Firewall Manager runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

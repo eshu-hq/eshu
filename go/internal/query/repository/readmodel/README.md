@@ -74,26 +74,6 @@ targeted identifiers beginning with `Repository`; a follow-up may revisit
 these for full rule-4 compliance. No read behavior, response envelope,
 paging bound, or cursor semantics changed.
 
-## No-Regression Evidence
-
-Baseline `origin/main` at the move vs this branch: `go test
-./internal/query/...` passes with 0 failures across 46 packages; a
-name-for-name test-list union (`go test ./internal/query/repository/... -list
-'.*'`) taken before the move (against the base worktree) and after (against
-this branch) match exactly, package-path differences aside. The `git diff
-origin/main --stat -- testdata/golden testdata/cassettes` is empty: this
-move touches no Cypher text, queue behavior, or projection output. Response
-envelopes, pagination bounds (`ListDefaultLimit`/`ListMaxLimit`/
-`ListMaxOffset`, `RefPageDefaultLimit`/`RefPageMaxLimit`), and cursor
-version/kind semantics (`RefPageCursorVersion`) are pinned verbatim by the
-`repository` package's branch-paging suite, exercised through the repointed
-import.
-
-## No-Observability-Change
-
-This package emits no metric, span, or log of its own; it is a pure
-in-process read-shaping leaf. No new runtime behavior, so no new telemetry.
-
 ## Dependencies
 
 Standard library, `net/http`, and `querycontract` only, plus

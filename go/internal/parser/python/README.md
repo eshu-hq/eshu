@@ -91,19 +91,6 @@ This package emits no telemetry directly. Parser timing and parse failure
 context remain owned by the ingester and collector runtime paths that call the
 parent Engine.
 
-## Pre-scan Performance
-
-Performance Evidence: `go test ./internal/parser -run '^$' -bench
-BenchmarkPreScanSelectedLanguages -benchmem -benchtime=1x -count=1` measured
-the Python 10K LOC pre-scan fixture at `9479073792 ns/op`, `1886298072 B/op`,
-and `76148088 allocs/op` before the declaration-only pre-scan, versus
-`49806083 ns/op`, `4682952 B/op`, and `157848 allocs/op` after. Compatibility
-is guarded by `TestPreScanMatchesParseDeclarationNames`.
-
-No-Observability-Change: this parser package still emits no metrics, spans, or
-logs. Operators diagnose parser and pre-scan cost through existing collector
-snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.
-
 ## Notebook In-Memory Parse (issue #4874)
 
 `Parse` and `PreScan`'s `.ipynb` branches used to convert the notebook to
@@ -114,33 +101,6 @@ disk I/O on every notebook parse for source tree-sitter can accept as a
 `[]byte` directly. `notebookPythonSource` (`notebook.go`) now converts the
 notebook straight to the `[]byte` `Parse`/`PreScan` already hold in memory,
 and the temp-file helper (`notebook_temp.go`) is deleted.
-
-Benchmark Evidence: `go test ./internal/parser/python/... -run '^$' -bench
-BenchmarkParseNotebookTempFileRoundTrip -benchmem -benchtime=2000x -count=5`
-on a representative 40-cell notebook fixture measured `54099-54101 allocs/op`
-and `1668113-1668371 B/op` before the change versus `54088-54090 allocs/op`
-and `1667303-1667570 B/op` after — a consistent ~11 fewer allocations and
-~700-800 fewer bytes per parse across all 5 samples, isolating cleanly to the
-four removed temp-file syscalls (both before and after parse the identical
-synthesized Python source, so the tree-sitter walk and payload construction
-cost is unchanged). Wall-clock `ns/op` is reported as a Diagnostic win only,
-not a throughput win: both the before and after samples ranged roughly
-12ms-120ms on this run because 5 other agent processes were compiling and
-testing concurrently on the same shared development machine, and that
-variance swamps the real per-call syscall-avoidance signal. Payload
-equivalence: `TestParseNotebookMatchesEquivalentPythonSource` and
-`TestPreScanNotebookMatchesEquivalentPythonSource` assert `Parse`/`PreScan`
-on a notebook produce a byte-for-byte identical payload (aside from the
-legitimately different `path` field) to `Parse`/`PreScan` on the same
-notebook's already-converted `.py` source, and `go test
-./internal/parser/... -count=1` (every language sub-package, including the
-pre-existing `TestDefaultEngineParsePathPythonNotebook`) stayed green with no
-fixture or golden-gate change — the 0/0 payload-equivalence proof that
-removing the disk round trip does not change parser truth.
-
-No-Observability-Change: this parser package still emits no metrics, spans,
-or logs. Operators diagnose parser cost through existing collector
-snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.
 
 ## Import flags (issue #7344)
 
@@ -234,61 +194,3 @@ coverage without making the package depend on the parent dispatcher.
 - docs/public/architecture.md
 - docs/public/reference/local-testing.md
 - docs/public/languages/support-maturity.md
-
-## Evidence notes
-
-No-Regression Evidence: bounded Django and DRF route extraction is parser-only
-and no-provider deterministic. `go test ./internal/parser/python -run
-'TestBuildPythonFrameworkSemanticsDjango|TestBuildPythonFrameworkSemanticsDRF'
--count=1` failed before the parser emitted `framework_semantics.django` and
-`framework_semantics.drf` `route_entries`, then passed after literal
-`path(...)` under `urlpatterns`, same-file function identifiers, same-file
-class-view methods, literal DRF `ViewSet.as_view({...})` maps, router
-registrations with literal URLconf mounts or `urlpatterns = router.urls`, and
-literal `@action` routes emitted exact method/path rows with handlers only when
-the target is exact.
-Django route literals preserve their trailing slash shape, while DRF router
-entries apply DRF's trailing slash convention after any literal mount prefix.
-`../scripts/go-test-run-guard.sh 1
-TestDefaultEngineParsePathPythonDjangoDRFExactRouteEntries --
-./internal/parser/python -count=1` proves the
-parent `DefaultEngine.ParsePath` payload carries those rows into the emitted
-file fact shape. `go test ./internal/reducer/code/call/materialization -run
-TestBuildHandlesRouteIntentRowsResolvesClassMethodHandler -count=1` proves the
-existing `HANDLES_ROUTE` projection resolves `Class.method` handler strings to
-the exact Function entity when the parser can prove the class method. Dynamic
-`include()`, generated URLconf, shadowed `path` helpers, nonliteral route
-strings, dynamic DRF router prefixes or mounts, nonliteral action maps, and
-imported Django bare names or attributes stay unclaimed for handler projection
-while still preserving exact method/path evidence when the route literal is
-static.
-
-No-Regression Evidence: bounded aiohttp and Tornado route extraction is
-parser-only and no-provider deterministic. `go test ./internal/parser/python
--run 'TestBuildPythonFrameworkSemantics(AioHTTP|Tornado)' -count=1` failed
-before the parser emitted `framework_semantics.aiohttp` and
-`framework_semantics.tornado` `route_entries`, then passed after literal
-aiohttp `RouteTableDef` decorators, `app.router.add_*`,
-`app.router.add_route(...)`, `app.add_routes([web.*(...)])`, and Tornado
-`Application` URL specs emitted exact method/path rows with handlers only when
-the target was exact. `../scripts/go-test-run-guard.sh 1
-TestDefaultEngineParsePathPythonAioHTTPTornadoExactRouteEntries --
-./internal/parser/python -count=1`
-proves the parent `DefaultEngine.ParsePath` payload carries those rows into the
-emitted file fact shape. `go test ./internal/reducer/code/call/materialization -run
-TestBuildHandlesRouteIntentRowsEmitsAioHTTPTornadoFrameworkRoutes -count=1`
-proves the existing `HANDLES_ROUTE` projection resolves aiohttp function
-handlers and Tornado `Class.method` handler strings to exact Function entities.
-Nonliteral aiohttp path/method/handler values, dynamic route lists, app factory
-indirection, imported Tornado handler attributes, generated URL specs, plugin
-loading, and runtime-discovered routes stay unclaimed.
-
-No-Observability-Change: this change only adds deterministic rows to the
-existing `framework_semantics.route_entries` payload consumed by existing
-endpoint extraction and `HANDLES_ROUTE` shared projection. It adds no metric
-instrument, metric label, span, log key, status field, env var, queue domain,
-worker, lease, batch, runtime knob, graph query, or graph writer. Operators
-continue to diagnose parsing through collector parse-stage logs and
-`eshu_dp_file_parse_duration_seconds`, and route projection through existing
-reducer run spans, shared-projection intent rows, execution counters, and
-`HANDLES_ROUTE` projection logs.

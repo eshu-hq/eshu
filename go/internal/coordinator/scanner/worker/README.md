@@ -58,11 +58,6 @@ does not log registry, repository, runtime reference, or source object IDs.
   instance, scope, and acceptance unit. This package performs no I/O and owns
   no goroutine, lock, transaction, retry, claim, or lease.
 
-No-Regression Evidence: focused child tests call the production planner and
-check deterministic IDs, requested-scope privacy, duplicate rejection, and
-required target paths. Parent coordinator and workflow-coordinator command
-tests compile the root interface, service call, and concrete child wiring.
-
 ## Related docs
 
 - `go/internal/coordinator/README.md`

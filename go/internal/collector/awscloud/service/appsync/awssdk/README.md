@@ -66,15 +66,9 @@ covers paginated GraphQL API discovery, per-API data source, type-name, resolver
 function, schema-status, and API key listing, the nil-page guard, and the
 forbidden-method interface contract.
 
-No-Regression Evidence: `go test ./internal/collector/awscloud/...` covers the
-adapter together with the scanner and runtime registration.
-
 Collector Observability Evidence: the adapter records the
 `aws.service.pagination.page` span and `eshu_dp_aws_api_calls_total` and
 `eshu_dp_aws_throttle_total` counters per operation.
-
-No-Observability-Change: the adapter reuses the shared AWS collector telemetry
-contract and adds no new metric names.
 
 ## Related docs
 

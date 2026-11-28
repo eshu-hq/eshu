@@ -14,14 +14,3 @@ The package owns:
 
 The package does not call LLM providers, persist rows, retain prompts, retain
 raw responses, or promote semantic output into canonical graph truth.
-
-## Performance And Observability
-
-No-Regression Evidence: planning is O(current chunks + previous records) with
-hash-map lookups by audit-safe source/chunk identity hashes. The package has no
-database, provider, graph, goroutine, lease, or Cypher path.
-
-No-Observability-Change: this package emits no telemetry directly. It exposes
-bounded status, reason, failure, provider profile, policy, guard, and budget
-fields for the storage and telemetry layers to aggregate without raw source
-identifiers, prompts, responses, paths, or provider error bodies.

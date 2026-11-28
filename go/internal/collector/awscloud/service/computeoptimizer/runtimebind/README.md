@@ -26,12 +26,6 @@ the scanner with an SDK-backed client from the provided `ScannerDeps`. The one
 blank-import line for this package lives in
 `awsruntime/bindings/bindings.go` (append-only, alphabetical).
 
-## Evidence
-
-No-Regression Evidence: registration-only package; new binding, no change to existing hot paths. `go test ./internal/collector/awscloud/service/computeoptimizer/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `../README.md` - scanner contract.

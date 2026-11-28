@@ -389,26 +389,6 @@ a completion or a completed-row re-upsert adds no entry. It does not replace
 liveness `completed_at > $5` probe. Status readiness waits for the latest
 migration receipt, so it reports not ready until 246's build finishes.
 
-Performance Evidence: scope is the status `shared_projection_pending`
-aggregate, no `LIMIT`, one row per `projection_domain`, PostgreSQL 18.6, 500,000
-intents with 20,000 pending over 12 domains. Before #9320 it was an Index Only
-Scan on `shared_projection_intents_pending_idx` (1.46-1.55 ms, 207 buffers).
-With the new expression and no index it was a Bitmap Heap Scan over 8,441 heap
-blocks (11.9-12.9 ms warm). With 246 it is an Index Only Scan with Heap Fetches
-0 (1.27-1.86 ms, 101 buffers; index 808 kB).
-`TestSharedIntentPendingAgeIndexOnlyScanLive` pins the plan and fails without
-246. Writes over 500,000 rows (1,000 per statement, 5 reps): a completed-row
-re-upsert and `markIntentsCompletedSQL` write byte-identical WAL with and
-without 246; a new pending row and a reopen add one index entry each (about
-135 B of WAL). The liveness InitPlan and the partition, unhashed and
-acceptance-unit pending reads keep their plans; the `created_at`-ordered
-domain reads move to the new index and get 7-9x faster at LIMIT 200. The index
-adds no unique constraint, conflict key, or blocking lock.
-
-No-Observability-Change: the read runs inside the existing status statement
-and its read telemetry; the writers keep their existing counters and logs.
-Evidence: (#9320).
-
 ## Migration 271: owned-target slot progress (#9776)
 
 `271_owned_target_slot_progress.sql` creates `owned_target_slot_progress`: one row
@@ -420,9 +400,6 @@ deleted row costs one repeat window, never a missed target. Numbered 271
 because 270 was held by an unmerged migration; re-derive the digest, the count
 and the manifest row in `embed_invariant_test.go` and
 `migration_checksum_manifest_test.go` if the number moves on rebase.
-
-No-Observability-Change: the table is read and written only by the slot-progress
-path, which reports `eshu_dp_owned_target_slot_selection_total`.
 
 ## Migration 280: Crossplane XRD entity index (#10005)
 
@@ -474,10 +451,6 @@ with a DROP-object control, and
 `TestSupplyChainImpactSecurityAlertCVEProbeBeforeAfterStatsLive` pins the
 sibling probe. Evidence:
 (#10050).
-
-No-Observability-Change: no new metric, span, log key, route, worker,
-lease, or runtime knob; the probe statements are unchanged and stay under
-the existing Postgres query spans.
 
 ## Verification
 

@@ -57,17 +57,6 @@ trigger branch reads only envelope-level fields (`FactKind`, `FactID`,
 package-local `payloadString` copy (`payload.go`, mirroring root's
 `payload.go` helper of the same name) — never a second typed decode.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains `eshu_dp_reducer_executions_total`,
-`eshu_dp_reducer_run_duration_seconds`,
-`eshu_dp_container_image_identity_decisions_total`, and
-`eshu_dp_container_image_identity_retirements_total` for its own execution
-and decisions. Moving the pure builder adds no queue, storage, graph, span,
-metric, or log boundary.
-
 ## Gotchas / invariants
 
 - The candidate-kind list (`candidateFactKinds`) must stay in sync with
@@ -115,49 +104,6 @@ fan-out parity and probe-count tests, the projector package tree, the focused
 `TestRouteServesDataRegistry` run, package-doc and path mirrors, dirgate,
 telemetry coverage, and the golden-corpus gates selected by the changed
 paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason string, candidate-kind set, and source-system derivation are
-identical to the base commit, and the dispatcher's ordered fan-out is
-unchanged at 44 builder probes with this probe still running immediately
-after `s3.BuildInternetExposureMaterializationReducerIntent` and
-immediately before `correlation.BuildReducerIntent`.
-The family carried one private helper,
-`containerImageIdentitySourceSystem`, checked body-for-body against
-`projectorintent.SourceSystem` and found identical (trim
-`SourceRef.SourceSystem`, else trim `CollectorKind`, no third tier), so the
-substitution is behavior-identical by construction and it was dropped rather
-than moved; the child test
-`TestBuildContainerImageIdentityReducerIntentSourceSystemFallsBackToCollectorKind`
-pins both tiers. The `aws_relationship` decode call was moved to a local
-`decodeContainerImageIdentityAWSRelationship` wrapper
-(`factschema_decode_aws.go`) that calls the same
-`factschema.DecodeAWSRelationship` seam root's dropped
-`decodeAWSRelationship` called, with the same error-discarding caller
-behavior, matching the `ec2`/`observability/coverage` per-package decode
-pattern; the child tests
-`TestTriggerFactAWSRelationshipTargetingContainerImage`,
-`TestTriggerFactAWSRelationshipNotTargetingContainerImage`, and
-`TestTriggerFactAWSRelationshipUndecodable` pin that substitution directly.
-Focused proof, run from the `go/` module root:
-`go test ./internal/projector/container/image/identity ./internal/projector -count=1`
-green, whole-module `go build` and `go vet` clean.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 container nesting): base `f5960e824`,
-backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
-recursive projector tests green, moved tests green in the new path, replay
-coverage gate reported 437/437 satisfied with CI required-gates as the
-blocking authority. B-7 golden-corpus gate was not run locally: the Docker
-daemon is unreachable (socket EOF on image pull), so CI is the blocking
-authority there. Same code path on the same input shape before and after;
-rename-only, so no benchmark delta exists to measure.
-
-No-Observability-Change (#6627 container nesting): no stage added and no
-metric, span, or log name changed; the covering instruments named in this
-section are unchanged.
 
 ## Related docs
 

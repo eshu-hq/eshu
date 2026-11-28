@@ -51,15 +51,6 @@ handle; the instrumented handle and the callers own observability.
 - Do not import the parent `postgres` package: that is an import cycle.
   Root tests exercise this package through its exported constructors.
 
-No-Observability-Change: this extraction moves only the tenant grant store,
-its SQL text, and its DDL. The statements are byte-identical, the callers
-construct the same store, and no metric, span, or log name changes.
-
-No-Regression Evidence: focused `postgres` package tests plus the tenant
-grant, bootstrap-definition, and identity bootstrap tests run green on the
-moved tree; the SQL text is unchanged so no plan or lifecycle proof is
-re-owed.
-
 ## Related docs
 
 - [Postgres storage](../README.md)

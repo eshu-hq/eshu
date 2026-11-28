@@ -90,29 +90,6 @@ API call counters, throttle counters, and pagination spans.
 - This package emits reported AWS evidence only. Do not infer service,
   environment, or deployable-unit truth here.
 
-## Evidence
-
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/elb/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers Classic load balancer resource emission with the synthesized
-partition-aware ARN, registered-instance / subnet / security-group / VPC / ACM-
-certificate / IAM-server-certificate relationship emission with the
-target_resource_id each target scanner publishes, the graph-join contract via
-`relguard.AssertObservations`, the metadata-only guarantees (no live instance
-health, no certificate bodies), the GovCloud and China synthesized-ARN cases,
-the SDK adapter's metadata-only read surface (reflective exclusion test proving
-no mutation or `DescribeInstanceHealth` method is reachable), runtime
-registration, and the derived supported-service guard in the command. This is a
-new metadata-only scanner with no graph-write, queue, or hot-path behavior
-change.
-
-No-Observability-Change: the scanner reuses the existing AWS collector telemetry
-contract. The `awssdk` adapter emits the shared `aws.service.pagination.page`
-span and `eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total` counters
-labeled by service, account, region, operation, and result only. No new metric,
-span, label, or status field is introduced, and no metric label carries an ARN,
-DNS name, certificate ARN, tag, or instance id.
-
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

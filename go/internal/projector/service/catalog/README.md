@@ -39,13 +39,6 @@ schema registry, `internal/reducer` for the domain constant, and
 source-label fallback. There is no decode seam: like `package/source`, this
 builder reads only `envelope.FactKind` and never a payload field.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains the `ServiceCatalogCorrelations` counter. Moving the
-pure builder adds no queue, storage, graph, span, metric, or log boundary.
-
 ## Gotchas / invariants
 
 - Every registry-recognized catalog kind is a trigger and none outranks
@@ -73,42 +66,6 @@ pure builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-the trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason string, input-order anchor selection across all recognized
-catalog kinds, and three-tier source-system derivation are identical to the
-base commit, and the dispatcher's ordered fan-out is unchanged at 44 builder
-probes with this probe still running immediately after
-`attestation.BuildSBOMAttestationAttachmentReducerIntent` and before
-`posture.BuildSecretsIAMTrustChainReducerIntent`. The private
-`serviceCatalogCorrelationSourceSystem` helper the root file owned was
-compared body-for-body against `projectorintent.SourceSystem` and found to
-carry a third fallback (the scope's `SourceSystem`) the shared helper lacks,
-so it moved with the family unchanged rather than being swapped; the root
-`firstMatchingKindPredicate` forwarder was a direct delegate to
-`projectorintent.FactLookup.FirstMatchingKindPredicate`, so that substitution
-is behavior-identical by construction, and the forwarder stays at root for the
-three root probes that still call it. Focused proof, run from the `go/` module
-root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildServiceCatalogCorrelationReducerIntent' -- ./internal/projector/service/catalog -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 service nesting): base `cef5e2506`,
-backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
-recursive projector tests green, moved tests green in the new path, B-12
-replay reported 437/437 PASS in the move lane with CI required-gates as the
-blocking authority. B-7 golden-corpus gate was not run locally: the Docker
-daemon is unreachable (socket EOF), so CI is the blocking authority there.
-Same code path on the same input shape before and after; rename-only, so no
-benchmark delta exists to measure.
-
-No-Observability-Change (#6627 service nesting): no stage added and no
-metric, span, or log name changed; the covering instruments named in this
-section are unchanged.
 
 ## Related docs
 

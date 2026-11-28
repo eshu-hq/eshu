@@ -52,16 +52,6 @@ handle; the instrumented handle owns observability.
   an unbounded result set.
 - Do not import the parent `postgres` package: that is an import cycle.
 
-No-Observability-Change: this extraction moves only the decision store, its
-SQL text, and its DDL. The upsert, list, and evidence statements are
-byte-identical, the admin store constructs the same store, and no metric,
-span, or log name changes.
-
-No-Regression Evidence: focused package tests cover upsert-and-list,
-upsert-overwrite, decision-type filtering, evidence insert/list, empty
-evidence insert, and the default-limit clamp; they run green on the moved
-tree with the SQL text unchanged, so no plan or lifecycle proof is re-owed.
-
 ## Related docs
 
 - [Postgres storage](../README.md)

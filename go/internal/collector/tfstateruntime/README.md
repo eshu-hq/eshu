@@ -94,21 +94,6 @@ The bypass warning facts use stable reason codes (`source_missing` and
 `actionability=blocking_evidence` so status readbacks can distinguish missing
 source evidence from accepted parser guardrails.
 
-No-Regression Evidence: the missing-source path is covered by
-`go test ./internal/collector/tfstateruntime -run 'TestClaimedSourceEmitsWarningGenerationFor(MissingS3State|OversizedState)' -count=1`.
-It adds no discovery fan-out, parser buffering, worker-count change, graph
-write, or new queue type.
-
-Observability Evidence: the existing Terraform-state source observation metric
-records `result=state_missing`, warning counters record
-`warning_kind=state_missing` with the bounded safe locator hash, and the emitted
-warning fact carries the source type, `source_handle`, `safe_locator_hash`,
-version-aware `candidate_identity`, and a redacted locator marker without
-exposing bucket names or object keys.
-The projector-owned `graph_projection_phase_state` rows and workflow
-completeness rows then show whether the warning-only generation reached the
-durable zero-row projection checkpoint.
-
 Collector Performance Evidence: warning classification is one closed
 `warning_kind`/`reason` map lookup per emitted warning fact and adds no source
 read, discovery fan-out, parser buffering, worker-count change, queue type, or
@@ -128,11 +113,6 @@ Collector Deployment Evidence: no deployment, ServiceMonitor, Helm value,
 collector instance, port, credential, or runtime profile changes are required.
 The existing Terraform-state collector deployment and metrics scrape continue
 to cover this path.
-
-No-Observability-Change: no telemetry instruments, metric names, metric labels,
-span names, or structured-log fields changed. Operators diagnose this path
-through the existing Terraform-state warning counters, composite-skip counter,
-safe warning fact payloads, `/api/v0/status/index`, and `/api/v0/index-status`.
 
 ## Trusted-Deletion Attestation
 

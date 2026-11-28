@@ -124,28 +124,6 @@ the graph gate; this handler never emits it.
 - `go/internal/reducer/code/value/README.md` — the value-flow fixpoint sibling this package's projector calls into
 - `docs/internal/design/reducer-target-tree.md` — the #6061 restructure
 
-No-Regression Evidence: #6061 moves function-summary fact decoding,
-materialization, and additive-domain registration out of the reducer root
-into this new package, without changing any field, exported behavior, wire
-string, or call order. `CodeFunctionSummary*`/`CodeFunctionSource*`/
-`CodeFunctionGraphID*` exported identifiers dropped their prefix per
-`docs/internal/naming.md` (for example `CodeFunctionSummaryLoader` ->
-`Loader`, `CodeFunctionSummaryMaterializationHandler` ->
-`Handler`); `codeFunctionSummaryDomainDefinition` became the
-exported `Definition`. The reducer root keeps every one of the prior
-spellings through the code-function-summary stanza of `compat_decode.go`, so
-no external caller needed a source change. Measured from `go/`, with
-`GOROOT` unset: `go build ./...`, `go vet ./internal/reducer/...
-./cmd/reducer/... ./internal/storage/...`, and `go test ./internal/reducer/...
-./cmd/reducer/... ./internal/storage/cypher/... ./internal/replay/...
--count=1` all exited 0 on this branch. `git diff --check` exited 0.
-
-No-Observability-Change: this move adds no queue domain, worker, lease,
-graph, or Postgres operation, runtime setting, metric instrument, metric
-label, span, or status surface. The structured-log message and its fields
-listed under Telemetry above are unchanged; only the package that owns the
-code moved.
-
 Issue #6923 changed this package's runtime behavior again after the move
 above: the inline fixpoint solve was removed and the handler's ACK became a
 value-flow-refresh producer instead. See

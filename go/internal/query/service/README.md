@@ -93,34 +93,6 @@ code, never Cypher text or queue/projection behavior. The
 change only when a function source actually changes, proven by the queryplan
 test.
 
-No-Regression Evidence (#6060 lane-B B4): this package is a pure move of
-the service family from the query root (base 73ed3ad73) with no handler
-logic changes — function bodies are identical modulo package qualifiers and
-the documented export renames. Emitted Cypher text is byte-identical, pinned
-by the queryplan production-binding tests (green) and the per-symbol
-source_sha256 audits in `query-source-coverage.yaml` (2 legacy non_hot rows
-converted to typed audits, digests verified).
-
-No-Regression Evidence (#6642 rule 4): the export destutter renamed 43
-identifiers and nothing else. Every SQL and Cypher literal in this package is
-byte-identical to the pre-rename commit; the one queryplan digest that moved
-with the rename (`buildServiceDocumentationOverview`) did so only because
-the recorded function text names a renamed identifier, and
-`go test ./internal/queryplan/` is green on the re-pinned rows.
-`go test ./internal/query/... -count=1` and
-`./cmd/api ./cmd/mcp-server ./internal/mcp` pass on the renamed tree,
-including the route-serves-data anti-poison suite; no benchmark delta is
-claimed because no query changed shape.
-
-No-Observability-Change (#6642 rule 4): the rename touches no span, metric,
-or log name; `service_query.stage_*` events, `QueryStageTimer`'s output and
-the tracer scope are unchanged.
-
-No-Observability-Change (#6060 lane-B B4): no new runtime behavior, so no
-new spans, metrics, or logs. The existing `service_query.stage_*`
-telemetry events moved with their handlers unchanged; operator signals are
-identical to base.
-
 ## Deployment-evidence fallback bounds (#7951)
 
 When the graph has no deployment evidence for the service, the
@@ -145,16 +117,3 @@ timed-out reader answers the retryable 503 with `Retry-After`), then
 `499` when the caller canceled the request. The handler span now starts from
 the package-local `catalogHandlerTracer` seam, seeded from
 `tracing.HandlerTracer()`, so the failure test can swap in a recorder.
-
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No SQL, query parameter, call count, row bound, or success
-path changed. A failure now costs one span `RecordError`/`SetStatus` and a
-fixed-string write instead of formatting the error into the body.
-`go test ./internal/query/... ./internal/queryplan/... -count=1` and
-`go test -race ./internal/query/service/...` exit 0.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the fixed
-message; a client cancel adds `eshu.request.client_canceled`, leaves the
-status Unset, and answers `499`. The span name and attributes are unchanged.
-`server_failure_test.go` asserts both span shapes with a recording tracer.

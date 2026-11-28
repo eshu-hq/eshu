@@ -231,18 +231,6 @@ flowchart LR
 
 ## Evidence
 
-No-Regression Evidence (#9239): collected generations are built
-`GenerationStatusPending`, never `Completed`, so the commit guard
-(`backfill.ValidateGenerationInput`) accepts them and the projector marks
-completion afterwards. `go test ./internal/collector/cicdrun/... -count=1`
-passes, including `TestClaimedGenerationIsPendingBeforeProjection` (fails on
-`Completed`, passes on `Pending`). No fetch, retry, batching, or telemetry
-shape changes.
-
-No-Observability-Change: no new spans, metrics, or log fields; the existing
-`auth_error`/`success` status classes and `auth_denied` failure class are the
-unchanged operator signals.
-
 Collector Performance Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
 -count=1` proves each claim fetches exactly one bounded run page (`per_page`
 already equals `max_runs`, so the runs request itself is bounded — see
@@ -269,40 +257,6 @@ TestHelmCICDRunCollectorDeployment -count=1` and `helm lint $ESHU_DEPLOY_CHECKOU
 prove the hosted `eshu-collector-cicd-run` Deployment, metrics Service,
 ServiceMonitor, NetworkPolicy, and PodDisruptionBudget render only when the
 matching claim-driven `ci_cd_run` collector instance is enabled.
-
-No-Regression Evidence: `go test ./internal/collector/cicdrun/ghactionsruntime
--count=1` and `golangci-lint run ./internal/collector/cicdrun/ghactionsruntime`
-prove claim validation, bounded GitHub Actions snapshot collection, fixture
-normalization, artifact URL redaction, checked HTTP response cleanup, safe SDK
-HTTP error wrapping for non-rate-limit provider statuses, provider request
-metrics, rate-limit metrics, fact-emission metrics, partial-generation metrics,
-and source spans without live provider access.
-
-No-Regression Evidence: `go test ./internal/collector ./internal/collector/cicdrun/ghactionsruntime -run 'TestClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|TestGitHubClientReturnsRateLimitRetryGuidance|TestClaimedSourceRecordsRateLimitTelemetry' -count=1` proves GitHub rate-limit retry guidance sets durable claim `visible_at`, keeps `errors.Is(err, ErrRateLimited)` working, records rate-limit metrics, and leaves CI/CD fact output shape unchanged on successful reads.
-
-No-Regression Evidence (#5338 PR B, multi-run collection): the per-claim
-job/artifact fetch volume now multiplies by up to `max_runs`x versus the
-pre-#5338 single-run fetch (one runs-list request stays constant; job and
-artifact requests go from 2 total to up to `2 * max_runs`). This is a bounded
-external HTTP fan-out against GitHub's API, not a hot graph/reducer/database
-path: `max_runs` defaults to 10 and hard-caps at 100, so worst case is 200
-additional bounded HTTP requests per claim cycle, paced by the existing claim
-poll interval and GitHub rate-limit backoff (`ErrRateLimited`/`RateLimitError`)
-that already govern this runtime. `go test
-./internal/collector/cicdrun/ghactionsruntime -count=1` proves the bounded
-per-run request shape (`TestGitHubClientFetchRunsCollectsEveryRunInTheWindow`)
-and that a full runs page still bounds to `max_runs` runs
-(`TestGitHubClientFetchRunsMarksTruncatedWhenMoreRunsExistBeyondTheWindow`,
-`TestClaimedSourceBoundsToMaxRunsAndEmitsRunsTruncatedWarning`).
-`TestClaimedSourceReemittingTheSameRunsWindowIsIdempotent` proves re-fetching
-the same window across claim cycles yields the same `StableFactKey` per run
-(the stateless-idempotent design substituting for a persistent
-watermark/cursor).
-
-Observability Evidence: the hosted command wires the source with
-`telemetry.NewInstruments` and the shared status server. Central collector
-status evidence also admits active `ci_cd_run` facts through the bounded
-Postgres status query.
 
 ### GitHub Deployments API polling (#5425 STEP 3)
 
@@ -344,26 +298,6 @@ container image. `ci.deployment_event` collection runs inside the SAME
 `ci.run` (see `TestHelmCICDRunCollectorDeployment` above); there is no
 separate deployment-polling workload to render or deploy.
 
-No-Regression Evidence: `go test
-./internal/collector/cicdrun/ghactionsruntime -run
-'TestGitHubClientFetchDeployments|TestClaimedSourceEmitsDeploymentEvents|TestClaimedSourceEmitsUnanchoredDeploymentWarning|TestNewClaimedSourceRejectsUnboundedTargets'
--count=1 -v` proves the bounded deployments-list and per-deployment-statuses
-fetch shape, the full-page truncation heuristic, rate-limit classification
-reuse, non-200 handling without token leakage, `max_deployments` bounds
-validation, same-generation emission alongside `ci.run` facts, and the
-`deployment_unanchored` warning path -- with zero graph writes or queue
-work.
-
-Performance Evidence (#5429 cross-cycle watermark gap detection):
-`go test ./internal/collector/cicdrun/ghactionsruntime -bench
-BenchmarkNextClaimed -benchtime=20000x -run '^$' -count=3` compares the
-touched `NextClaimed` path with `SourceConfig.Watermarks` unset (the
-pre-#5429 shape, where `loadWatermark`/`detectRunBackfillGap`/`saveWatermark`
-all short-circuit on a nil check) against the same path with an in-memory
-`runwatermark.Store` wired (a real Load + gap-detect + Save every call, the
-same store work a Postgres-backed store performs minus network/disk
-latency), on the same 10-run fetched page:
-
 | Shape | ns/op (3 runs) |
 | --- | --- |
 | `Watermarks` unset (nil-safe, pre-#5429 behavior) | 160342, 161230, 160756 |
@@ -380,14 +314,6 @@ cycle (`max_runs`=100).
 
 ## App authentication cost proof
 
-No-Regression Evidence: `BenchmarkBoundedPATFetch` measures `FetchRuns` entry
-through decoding one run, one job, and one artifact over a reused local TLS
-connection. The same fixture on base `d33bb45932` and the App implementation
-produced five-sample means of 107.120 us/op (SD 0.310) and 107.385 us/op
-(SD 0.307), respectively: a 0.25% difference. Two prior base sample sets set the
-control bound. The 2026-10-26 local run held load1 below 0.65 on 16 CPUs;
-these are fixture measurements, not provider latency or an absolute SLO.
-
 `BenchmarkAppCredentialMint` measures the added per-claim JWT signing and token
 exchange separately: three samples averaged 1.330 ms/op over local TLS. The
 production-path regression checks one mint per claim, token reuse across the
@@ -395,9 +321,3 @@ bounded reads, and a fresh mint on the next claim. Run the benchmarks with
 `go test ./internal/collector/cicdrun/ghactionsruntime -run '^$'
 -bench 'Benchmark(BoundedPATFetch|AppCredentialMint)$' -benchtime=300ms
 -count=5 -benchmem` from `go/` on a quiet host.
-
-Observability Evidence: the source records App failures on
-`eshu_dp_ci_cd_run_provider_requests_total` with bounded `auth_error` or
-`rate_limited` status classes, and on `ci_cd_run.observe` and
-`ci_cd_run.fetch` spans. App mint rate limits preserve workflow retry delays;
-a provider-read 401 retries the fenced claim with a newly minted token.

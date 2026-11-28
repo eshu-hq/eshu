@@ -55,12 +55,6 @@ non-Get method is ever added.
 service, account, region, operation, and result labels. No bespoke metric is
 added.
 
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/computeoptimizer/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `../README.md` - scanner contract and resource_id shapes.

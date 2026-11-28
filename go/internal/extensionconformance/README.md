@@ -52,14 +52,6 @@ kind's registered schema even when the manifest omits `payloadSchemaRef`.
 
 ## Telemetry
 
-No-Observability-Change: this package emits no telemetry. It is a local
-validation helper used by CLI and test harnesses; runtime proof that executes
-services must add telemetry or cite the existing service signals in the owning
-runtime package.
-
-No-Regression Evidence: fixture-mode conformance behavior is covered by
-`go test ./internal/extensionconformance -count=1`.
-
 `emitter_payload_conformance_test.go` closes a gap the fixture-pack tests above
 could not: it builds a REAL envelope from each of the internal AWS/IAM/S3 fact
 emitters (`go/internal/collector/awscloud`, `go/internal/collector/secretsiam`)

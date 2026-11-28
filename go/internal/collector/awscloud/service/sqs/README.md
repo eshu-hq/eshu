@@ -67,20 +67,11 @@ covers the bounded SQS metadata path: one paginated queue listing, one metadata
 attribute read per queue, one tag read per queue, no message reads, and no queue
 mutations.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers SQS queue metadata fact emission, dead-letter queue relationship
-emission, safe omission of queue policy JSON, runtime registration, command
-configuration, and the SDK adapter's explicit metadata attribute allowlist.
-
 Collector Observability Evidence: SQS uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses SQS scans through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: SQS runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

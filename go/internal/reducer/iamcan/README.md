@@ -131,29 +131,6 @@ Facts rejected for a malformed payload increment the shared
 executions that run these handlers stay covered by
 `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
 
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk inside the ten moved production files is a package
-clause, an import requalification, or an identifier requalification: symbols the
-reducer root supplied as one-line forwarders are now imported from the leaf that
-already owned them (`payloadcore` for the deref/tally/payload helpers,
-`contract` for the intent, result, ownership and domain vocabulary,
-`factload`/`factdecode`/`schemadecode`/`gpphase` for the rest), and symbols with
-consumers on both sides moved to `cloudjoin` and `iampolicy` with their bodies
-untouched. The one behavioral seam is the readiness gate: both handlers used to
-build a full phase *state* and read `.Key` off it, and now call
-`gpphase.KeyFromScope` directly. The key is byte-identical -- the state
-constructor did nothing else to it, and the root's own constructor calls that
-same function -- and the discarded half was two timestamps the gate never read.
-A Go import change adds no indirection at runtime. Measured on this branch:
-`go build ./...` exits 0, `go vet ./internal/reducer/...` exits 0, and `go test
-./internal/reducer/... -count=1` passes, including this package. Binary output
-was not compared and no such claim is made here.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span, or
-log field. The four counters above and the executions that wrap them are the
-same before and after the move.
-
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a symbol
@@ -175,34 +152,6 @@ same before and after the move.
 - **`assumeEdgeKey` is function-local and unrelated to `iampolicy.EdgeKey`.** It
   dedupes CAN_ASSUME rows by (principal, role); the shared `EdgeKey` dedupes by
   (principal, target). Same shape, different identity.
-
-## #6785 cross-scope evidence
-
-Performance Evidence: the cross-scope scope-state query
-(`iamCanPerformCrossScopeTargetScopesQuery`) was measured before it was built,
-on throwaway Postgres 16 with the real `001`/`002`/`012` DDL. The shape was
-105 000 scopes (85 000 AWS across 50 accounts x 17 regions x 100 services, plus
-20 000 git), 525 000 generations, and 85 000 committed phase rows. Three
-`EXPLAIN (ANALYZE, BUFFERS)` runs took 10.9, 11.3, and 13.1 ms. The plan is a
-parallel seq scan of `ingestion_scopes` (3 530 shared hits) followed by
-index-only phase and pending probes, and it returned exactly the 18 candidate
-scopes. Baseline: there was no cross-scope read before, and resolution was
-same-scope only. The fact read reuses
-`FactStore.ListFactsByKindAndPayloadValue` on
-`fact_records_scope_generation_idx`, pinned to one generation per candidate
-scope. Both reads run once per CAN_PERFORM evaluation that names an exact
-cross-scope ARN. While a wait is open, a poll every `RetryDelay` (30 s
-default) repeats only the scope query and the fact read for the missing ARNs;
-the R2-F3 before/after numbers are in the design note's Evidence section. The projector's CAN_PERFORM intent builder adds one
-probe on the shared fact index per scope generation. The live B-7 run records
-the end-to-end effect (CAN_PERFORM 1, USES 2, drain timings).
-
-Observability Evidence: `eshu_dp_iam_can_perform_cross_scope_targets_total{outcome}`
-and `eshu_dp_reducer_readiness_waits_total{domain,outcome}` are registered in
-`internal/telemetry/instruments.go`. Unit tests drive both through the handler.
-The wait logs at INFO (`deferred`, `settled_missing`) and WARN (`abandoned`,
-with a bounded sample) with `failure_class`, counts,
-`elapsed_since_first_defer`, and `max_wait`.
 
 ## Related docs
 

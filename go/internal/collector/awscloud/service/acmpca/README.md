@@ -82,24 +82,11 @@ covers the bounded ACM Private CA metadata path: one paginated CA listing, one
 DescribeCertificateAuthority per CA, one paginated tag read per CA, no
 certificate issuance, no chain/CSR/key reads, and no CA mutations.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers CA metadata fact emission keyed by the CA ARN, ARN-gated KMS/parent/CRL
-relationship emission, omission of sensitive bodies, runtime registration,
-command configuration, and the SDK adapter's reflective exclusion of forbidden
-operations. The scanner introduces no Cypher, graph writes, worker claims,
-leases, batching, or queue behavior; the only new SDK call paths are bounded,
-read-only control-plane reads.
-
 Collector Observability Evidence: acm-pca uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses acm-pca scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. This scanner adds no new instruments.
 
 Collector Deployment Evidence: acm-pca runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

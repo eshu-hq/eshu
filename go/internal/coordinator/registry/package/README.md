@@ -71,9 +71,6 @@ None. Planning runs inline during the parent coordinator's reconcile pass and
 inherits its reconcile metrics, workflow rows, claim status, and
 `/api/v0/index-status` surface.
 
-No-Observability-Change: this move adds or renames no metric, span, log
-field, status field, queue, worker, lease, or runtime setting.
-
 ## Gotchas / invariants
 
 - The package clause is `packages`, not `package`; see the gotcha above

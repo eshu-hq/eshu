@@ -142,23 +142,3 @@ repoRoot)` for the same purpose.
 ```bash
 cd go && go test ./internal/replay/parserfixture/... -count=1
 ```
-
-## No-Regression Evidence
-
-`Emitter` reads only the local source tree (no network, no credentials).
-`Source` performs no parser run, no network call, and no filesystem read beyond
-loading the fixture; it holds no shared mutable state beyond a single drained
-flag advanced single-threaded per `collector.Service`. The record→replay
-round-trip reproduces identical envelopes including provenance for every
-parser-backing-ledger parser (cloudformation, dockerfile, hcl, yaml), the C-12
-language fixtures, and the Go demo; a changed or dropped `SourceURI` is caught
-by the round-trip and loader gates (proven failing-capable by a false-green
-probe), and the portability seam is proven the inverse of itself with a mutation
-check. Re-record is byte-identical (canonical determinism), and committed
-fixtures carry no machine-specific checkout path. Verified by
-`go test ./internal/replay/parserfixture/... -count=1`.
-
-## No-Observability-Change
-
-No new metrics, spans, or log lines are emitted by this package. Collector-level
-telemetry records normally when `Source` is wired through `collector.Service`.

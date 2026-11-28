@@ -86,25 +86,6 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
 - NOT_CHECKED: the dark-deployment leg (synthetic writes to the shared
   satellite database stay with the coordinator under the standing grant
   preconditions). No shared-infra writes were made from this lane.
-- No-Regression Evidence: baseline full parity suite green twice at 10/10
-  pre-change (8.338s, 8.720s wall); after final tree green 11/11 twice
-  (8.356s, then 6.872s wall on the final tree) on the same legs. Backend: claim-plane image
-  sha256:e1b564afa5f72167e3911aea7c881973c74bab123183c03d9d6af5a2d80e47a4
-  (linux/amd64 emulated on arm64, `--reap-interval=1h`), Postgres 18.6 on
-  disposable servers, Go 1.26.6. Input shape: identical seeded fixtures
-  with deterministic run/item IDs and one fixed clock per scenario, plus
-  stub-server round trips for the client unit tests. Terminal counts:
-  satellite claims/items/runs/progress/completeness 0/0/0/0/0 and no
-  leftover disposable databases on the repeat run. Telemetry: suite verdict
-  lines only. Why safe: the five routes are new methods no existing caller
-  uses; the `mutate()` early-reject and the store validation fire only on
-  values outside `[a-z0-9_]{1,64}`, which the legitimate path never emits
-  (producers sanitize) — the full workflow, parity, and focused storage
-  suites stay green.
-- No-Observability-Change: no new spans, metrics, logs, or dashboards; a
-  rejected mutation returns before `post()`, so it emits no Observe event
-  (no request, no outcome), consistent with the exactly-one-outcome
-  contract.
 
 ## Known divergences
 
@@ -128,32 +109,3 @@ Throughput numbers log per leg for the dark-deployment no-regression baseline.
   through separate `CreateRun`/`EnqueueWorkItems` calls. The rehearsal must
   cover the duplicate-admission scenario on the flipped scope
   ([#8875](https://github.com/eshu-hq/eshu/issues/8875)).
-
-No-Regression Evidence: this change adds a harness-only `Backend` method and
-a test; production guard SQL, wire shapes, queue depths, and row counts are
-untouched. Baseline and after: full `go test ./internal/workflow/parity/`
-two-legged green before and after (5.685s on 77c751be0c) with
-identical scenario sets plus the new gap test; backend Go 1.26 linux/arm64
-against local Postgres 18 and the QA claim-plane. Terminal counts: 0 parity
-rows remain satellite-side, no local schema remains.
-
-No-Observability-Change: no new spans, metrics, logs, or dashboards; the
-test emits only the standard `go test` verdict lines.
-
-Performance Evidence: the in-tree leg now bootstraps a full database per
-test instead of an isolated schema (change in `openInTreeBackend`). Baseline:
-the suite with the public schema bootstrapped by hand, 8.6 s and 9.1 s wall
-time across two runs, Postgres 18.6, the pinned `eshu-workflow` image.
-After: 6.3 s (and 9.8 s under `-race`) on the same shape, 7 top-level tests
-including the 30-claim throughput probe. Terminal counts: 0 rows in the
-satellite tables, no leftover `parity_*` schema, and the per-test databases
-dropped (`pg_database` lists only `postgres`, `template0`, `template1`).
-
-No-Regression Evidence: pass set unchanged apart from the 12 tests that
-failed on a fresh database before this change; production code, the claim
-guard SQL and `postgresproof` are untouched, and the tests still skip when
-`PARITY_INTREE_DSN` is unset.
-
-Observability Evidence: none needed. This is a test-only package; a failing
-run prints both outcome records with the underlying error texts, and the
-opt-in or admin-DSN guards fail with the variable name.

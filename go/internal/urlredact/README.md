@@ -111,17 +111,6 @@ earlier version of this list read as complete while `servicecatalog` and
 `cicdrun`'s envelope sanitizer still carried the defect; count call sites
 before trusting it again (`rg -n "CarriesUserinfo\(" go sdk`).
 
-No-Regression Evidence: in every consumer, `CarriesUserinfo` runs only on the
-branch where the plain parse found no host — the branch that previously
-returned the value unsanitized or re-strung it — so hierarchical URLs, which
-is every well-formed `https://` value these sanitizers see, take exactly the
-parse they took before. The added cost on the rare non-hierarchical branch is
-one extra `url.Parse` of an already-short string during fact-envelope
-construction, not on any query or graph path.
-
-No-Observability-Change: string sanitization only; no metric, span, log, or
-status surface moves.
-
 ## Why the walk is an index walk
 
 `Query` walks by index rather than `Split` then `Join`, because the separators

@@ -91,35 +91,6 @@ instead of a family-specific one, and the reducer executions that run this
 handler stay covered by `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds`.
 
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Every hunk inside the moved production files is
-package-clause and import requalification: symbols the reducer root used to
-supply as one-line forwarders or aliases (`Intent`, `Result`,
-`ContainerImageIdentityOutcome` and its constants, `FactLoader`,
-`quarantinedFact`, the `reducerFact*` batch-insert family, `derefString` and
-the other `payloadStr`-family helpers, the `decodeAWS/Azure/GCP/OCI/CICD*`
-schema decoders, `cicdRunKeyFromParts`/`trimmedCICDPtr`, and the
-`packageSource*` matching helpers) are now imported from the leaf package
-that already owned them. `ParseContainerImageRef` /
-`NormalizeContainerRepositoryKey` / `DigestFromImageRef` /
-`ContainerImageIdentityFormatImageRef` and the four fields of
-`ParsedContainerImageRef` were exported (from unexported originals) because
-root-staying Kubernetes correlation, AWS running-image resolution, and
-supply-chain-impact anchor consensus name them directly; each keeps a root
-forwarder under its former unexported spelling so no root call site changed.
-`GraphQueryRunner` and `activeRepositoryFactLoader` are locally redeclared,
-not imported, for the reason above. A Go import change and an unexported
-struct field becoming exported add no indirection or behavior change at
-runtime. Measured on this branch after the final edit: `go build ./...` and
-`go vet ./...` both exit 0, and `go test ./internal/reducer/... -count=1`
-passes, including this package.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span,
-or log field. The three counters above and the reducer executions that wrap
-them are the same before and after the move; only the file paths the
-telemetry-coverage rows point at changed.
-
 ## Unchanged-replay completion suppression (#8284)
 
 Every succeeded identity ACK used to emit a coalesced
@@ -143,19 +114,6 @@ NULL — so a byte-identical first publish after an activation stays
 suppressed while a changed one still reopens consumers. No worker or batch
 shape changed: every item still ACKs to succeeded, only the event INSERT is
 filtered.
-
-No-Regression Evidence: `go test ./internal/reducer/containerimage/
--count=1` and `go test ./internal/storage/postgres/ -count=1` pass, including
-the gate truth table, the handler signal forwarding proof, the single/batch
-ACK emit-gate proofs, and the writer previous-last_set_id mapping proof. The
-live suppression and activation-race proofs run against disposable Postgres
-via `ESHU_POSTGRES_TEST_DSN`.
-
-No-Observability-Change: no new instrument, label, span, or log field. The
-verdict travels on the existing `Result.SubSignals` path (one new
-`sub_signal_support_changed` key on the handler's existing sub-signal
-logging); the suppressed completions are visible as a lower
-`supply_chain_impact` execution rate against an unchanged identity rate.
 
 ## Gotchas / invariants
 
@@ -218,20 +176,6 @@ test runs. Missing opt-in, identity mismatch, connection failure and a nonempty
 database fail before execution. Ordinary test runs perform no automatic schema
 bootstrap; their existing no-DSN skip behavior remains intact.
 
-No-Regression Evidence: #7533 changes test fixtures only. The first real
-15-test race run passed 14 cases and failed the unmapped-config fixture on its
-missing activation lookup. After supplying the real lookup and canonical
-activation, all 15 selected tests passed with no skips on a fresh PostgreSQL
-18.6 database bootstrapped by this test binary. Package tests and the bootstrap
-configuration/failure contracts passed. These are execution observations, not a
-performance comparison. Production writers, SQL, pool sizes and concurrency
-are unchanged.
-
-No-Observability-Change: these test-only helpers add no runtime stage or
-instrument. The handler's existing decision and retirement counters and reducer
-execution signals remain unchanged. Bootstrap failures are printed before the
-test binary exits nonzero.
-
 ## Dockerfile base-ref placeholder guard (#8810)
 
 `dockerfileStageBaseRef` now also reports false when a stage's `base_tag`
@@ -239,14 +183,3 @@ still holds a `$` placeholder, matching its existing check on `base_image`. The
 parser expands ARG defaults declared before the first `FROM` and leaves a
 reference unexpanded only when its value is known at build time, so a
 placeholder tag is no longer joined into a literal image reference.
-
-No-Regression Evidence: this is one extra `strings.Contains` on a short tag
-string per Dockerfile stage inside a pure in-process helper. It adds no query,
-lock, claim, lease, queue, batch, or concurrency change, and the helper still
-runs once per stage list. The new `container_image_base_image_test.go` cases
-cover an expanded tag (resolved) and a placeholder tag (unresolved) for the
-same stage shape; the whole package passes under `-race`.
-
-No-Observability-Change: the helper emits no metric of its own. Its decisions
-flow into the existing container-image identity decision counters and reducer
-execution signals, which are unchanged.

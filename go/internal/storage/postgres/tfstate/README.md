@@ -40,9 +40,6 @@ increments `DriftUnresolvedModuleCalls` plus a structured log per
 unresolved module call when `Instruments` is wired, and logs WARN on payload
 decode failures via `Logger`. All three are optional; nil disables emission.
 
-No-Observability-Change: this move relocates the family byte-identical. No
-metric, span, or log name changes.
-
 ## Gotchas / invariants
 
 - SQL constants stay byte-identical on moves; predicate changes need their
@@ -56,10 +53,6 @@ metric, span, or log name changes.
   `fixtures.ConfigResourcesArray` (issue #8552); the remaining
   fixtures in this package's tests are tfstate-only shapes.
 - Do not import the parent `postgres` package: that is an import cycle.
-
-No-Regression Evidence: `go test ./internal/storage/postgres/...` green on
-the moved tree (root plus new `tfstate` package, 101 tests discovered in
-`tfstate`); SQL literals verified byte-identical to the pre-move tree.
 
 ## Related docs
 

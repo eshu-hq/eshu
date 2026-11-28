@@ -107,41 +107,6 @@ verdict builder treats its presence as proof the repo's exact route surface
 cannot be trusted as complete, and keeps every controller action rather than
 downgrading one that a macro or a namespaced route actually covers.
 
-## Performance and observability evidence
-
-Performance Evidence: This change moves Ruby method-call and script-guard
-extraction from a per-line byte scanner onto the existing single-pass
-tree-sitter AST walk that already produced every other Ruby bucket. The walk
-visits each `call` node once and reads context from the in-memory scope stack,
-removing the second per-line pass over the source that the deleted scanner
-performed, so the parser does strictly less per-file work on the same AST.
-
-No-Regression Evidence: The full parser suite plus the Ruby semantics and
-dead-code root tests pass unchanged (`go test ./internal/parser/... ./internal/mcp
-./internal/query ./internal/reducer -count=1`), confirming the AST call set
-matches the prior call set for the `function_calls`, `imports`,
-`module_inclusions`, and `dead_code_root_kinds` buckets. Ruby parsing is an
-ingester-side, per-file CPU step with no graph write, queue, or lease behavior,
-so there is no concurrency or backend contention surface to measure.
-
-No-Observability-Change: This package emits no telemetry; parse timing and spans
-remain owned by the parent parser engine, and this change does not add, remove,
-or alter any metric, span, log, or status field.
-
-Bundler runtime evidence comes from the same manifest scans as dependency evidence: literal Gemfile `ruby` requirements and the lockfile `RUBY VERSION` section. The parser binds private evidence to the exact source bytes; malformed Gemfile Ruby syntax, dynamic/file-derived directives, and malformed lock version lines produce no runtime declaration. The Git collector removes this evidence before file facts persist.
-
-Bundler parsing is intentionally static. Literal `gem` calls in `Gemfile`
-emit `variables` rows with `config_kind=dependency`,
-`package_manager=rubygems`, version requirement text, group scope, and
-git/path source metadata. Dynamic gem names or dynamic version expressions are
-skipped instead of resolved. `Gemfile.lock` rows emit exact versions from
-`specs:` sections and set `dependency_path`, `dependency_depth`, and
-`direct_dependency` only when the lockfile `DEPENDENCIES` section plus
-indented `specs:` edges prove the direct or transitive chain. Git and path
-Bundler sources preserve `source_type`, `source_path`, and
-`source_ambiguous=true` so reducers do not treat forked or local gems as
-public RubyGems registry consumption.
-
 ## Related docs
 
 - docs/public/languages/support-maturity.md

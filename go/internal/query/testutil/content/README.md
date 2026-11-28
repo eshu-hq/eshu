@@ -186,27 +186,6 @@ A non-test file under `internal/query` importing this package fails
 
 ## Performance and observability
 
-No-Regression Evidence: the base-side figure that used to sit in the parent
-README was measured against 94197f893, five commits earlier, one of which
-moved a test between packages. Only the measurement that reproduces at the
-stated commit is kept. The delta it described,
-`TestContentReaderCheckArgsComparesByteSliceBindArgsWithoutPanicking` moving
-into this package with the function it covers, is recorded above. That total is
-not a portable constant -- it moves in both directions as tests are added and
-as families move out of root.
-
-No-Regression Evidence: the flagged hot file is
-`go/internal/query/repository/catalog.go` (moved from
-`go/internal/query/catalog.go` for #6060 lane-B B3), which does issue a real
-Cypher `MATCH` against the graph. This change does not touch that query. The
-only edit there turns `CatalogWorkloadIdentityEntry` from a struct declaration
-into a type ALIAS onto `querycontract`, so `FakePortContentStore` can name it
-from outside the root package. An alias preserves type identity, so no
-conversion, copy, or extra allocation is introduced on the row-decoding path;
-the query text, its parameters, and the decode loop are byte-identical. The
-same shape applies to the other read models promoted to `querycontract`
-alongside it.
-
 `FakePortContentStore` itself is a test double and runs only inside test
 binaries, so it sits on no production path at all. Its promotion is a move: the
 method bodies came across from `ports_test.go` unchanged and the root package
@@ -218,7 +197,3 @@ Measured rather than asserted: 126 files under `internal/query` name
 plus the two files its method bodies were split into, and one delegating method
 in `service_story_target_support_test.go`. Those are the fake's DEFINITION
 sites. The remaining 122, which are the call sites, are untouched.
-
-No-Observability-Change: no metric, span, log, or status surface is touched. A
-test double deliberately emits no telemetry -- one that produced spans would
-pollute the traces of whatever it stands in for.

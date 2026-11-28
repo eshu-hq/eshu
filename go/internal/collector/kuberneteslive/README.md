@@ -136,28 +136,6 @@ scope id. Parallel multi-cluster collection is deferred and must partition by th
 per-cluster scope id (its natural conflict key) rather than serialize, per the
 repository's "serialization is not a fix" rule.
 
-## Performance and observability evidence
-
-No-Regression Evidence: this package is the read-only collection library behind
-the extracted satellite; it is not wired into any default Compose or Helm
-profile, and it touches no reducer, graph writer, query handler, hot-path
-Cypher, or schema DDL. There is no existing path to regress. The path is
-bounded by design: read-only Kubernetes list calls with page size 200 and
-continue tokens, one generation per cluster per poll, cost proportional to
-listed object count. Focused tests pass with `-count=1`:
-`go/internal/collector/kuberneteslive/...`,
-`go/internal/collector/secretsiam`, `go/internal/facts`, and
-`go/internal/telemetry`.
-
-Observability Evidence: every snapshot records `eshu_dp_kubernetes_api_calls_total`,
-`eshu_dp_kubernetes_resources_listed_total`, `eshu_dp_kubernetes_facts_emitted_total`,
-`eshu_dp_kubernetes_warnings_total`, and `eshu_dp_kubernetes_list_duration_seconds`,
-emits the `kubernetes_live.snapshot` and `kubernetes_live.api_call` spans, and logs
-per-cluster completion (scope id, generation id, partial flag, fact count,
-duration). The fake-client unit tests exercise the resources-listed,
-facts-emitted, warning, and partial paths that drive these signals, so an
-operator can diagnose a stuck or partial snapshot at 3 AM.
-
 ## Collector authoring evidence
 
 Collector Performance Evidence: read-only Kubernetes list calls bounded by page

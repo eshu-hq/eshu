@@ -93,26 +93,11 @@ read per flow (Tasks/field-mappings and run records never read), one paginated
 DescribeConnectorProfiles stream, no StartFlow or StopFlow calls, no mutations,
 and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-AppFlow flow and connector profile metadata fact emission, flow-to-S3-source,
-flow-to-S3-destination, flow-to-connector-profile, flow-to-KMS-key, and
-connector-profile-to-secret relationship emission, the no-field-mappings and
-no-credentials assertions, the metadata-only Client exclusion reflection guard,
-the GovCloud/China partition derivation for the synthesized S3 bucket ARN, the
-exact Secrets Manager ARN service-segment match, runtime registration, and the
-SDK adapter's safe metadata mapping.
-
 Collector Observability Evidence: AppFlow uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the new scanner reuses the existing AWS collector
-telemetry contract (`aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`);
-it adds no new instrument, span, metric label, or status row.
 
 Collector Deployment Evidence: AppFlow runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

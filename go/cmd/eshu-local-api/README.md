@@ -76,26 +76,3 @@ NornicDB and unset-backend sessions (owner decision (b)-narrowed on
 go build ./cmd/eshu-local-api/
 go test ./cmd/eshu-local-api/... -count=1
 ```
-
-## Relocation evidence (#11514)
-
-No-Regression Evidence (#11514): session-half move of the serving tree from
-`go/cmd/api` to `go/cmd/eshu-local-api` (111 renames plus comment and
-path-string repoints, no logic change). Baseline `origin/main`
-`859e7f6001`, after the relocation commit on `drive/11514-session-half`:
-`go build ./...` exit 0;
-`go test ./cmd/eshu-local-api/...` ok (both packages);
-`go test ./internal/cli/localsupervisor/ ./internal/envregistry/
-./internal/workflow/ ./internal/cli/vulnscan/` ok;
-`bash scripts/test-verify-ask-eshu-local-proof.sh` exit 0. The session-spawn
-matrix (nornicdb/unset to `eshu-local-api`, neo4j to `eshu-core-api`) and the
-unknown-backend pre-spawn refusal stay green throughout. Backend/version:
-not applicable (no backend or query change; identical sources, new
-directory). Input shape: rename-only diff plus path-string repoints; the two
-diagnostic import-path edits are the only code-line changes. Safe because the
-serving bytes are identical and every consumer build (Dockerfile, installer,
-corpus shells, latency-gate api branch) resolves the new path.
-
-No-Observability-Change (#11514): no metric, span, log, status, or telemetry
-identity changed. The OTEL service name and the `--version` display name are
-deliberately kept so dashboards and alerts are unaffected.

@@ -71,23 +71,12 @@ MaxResults=100 and IncludePlannedDeletion=true; no GetSecretValue,
 BatchGetSecretValue, ListSecretVersionIds, GetResourcePolicy, mutation calls,
 or graph writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Secrets Manager metadata fact emission, direct KMS and rotation Lambda
-relationship emission, omission of value/version/policy fields, SDK pagination,
-runtime registration, command configuration, and the SDK adapter's safe
-metadata mapping.
-
 Collector Observability Evidence: Secrets Manager uses the existing AWS
 collector `aws.service.pagination.page` span plus
 `eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
 `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Secrets Manager scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: Secrets Manager runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

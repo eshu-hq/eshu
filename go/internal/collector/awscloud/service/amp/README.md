@@ -90,11 +90,6 @@ ListRuleGroupsNamespaces stream per workspace, one paginated ListScrapers
 stream, no rule-definition body reads, no scrape-configuration reads, no
 queries, and no graph writes in the collector.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/amp/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 Collector Deployment Evidence: AMP runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

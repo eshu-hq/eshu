@@ -59,8 +59,3 @@ The accepted SDK surface is list/describe reads plus tag reads only, enforced by
 a reflection guard test over the adapter `apiClient` interface. The scanner never
 starts an assessment, imports resources, reads an assessment result or drift
 detail, reads recommendation bodies, or mutates Resilience Hub state.
-
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/resiliencehub/...` green.
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

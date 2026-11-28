@@ -94,13 +94,6 @@ Never the parent reducer package. No leaf imports this package back, and
 
 ## Evidence
 
-No-Regression Evidence: #6626 batch 1 retires the root
-`reducer.ExtractCodeCallRows` alias (a deleted `compat_projection.go` stanza)
-and retargets its 7 callers (4 test files plus doc references) to
-`codecall.ExtractRows`. No logic, query, queue, lease, or concurrency path
-changes: the alias forwarded to this package's `ExtractRows`, so the call
-graph is identical before and after.
-
 - Baseline: `cb5fa4a515`, `go test -count=1 ./internal/reducer/
   ./internal/reducer/code/call/ ./internal/accuracygate/
   ./internal/resolutionparity/`: 4 ok, 0 fail.
@@ -116,16 +109,6 @@ graph is identical before and after.
 - Why safe: compiler-checked symbol retarget; the RED run (`go vet` failing
   on the unresolved alias before the retarget) proves the alias is gone, and
   the GREEN run proves every former caller resolves to the same function.
-
-No-Observability-Change: this batch adds, removes, and renames no operator
-signal; `verify-telemetry-coverage.sh` passes unchanged.
-
-No-Regression Evidence (#10023): the delta scope collector now also keeps
-the delta repository set and the unusable-scope reasons, and
-`materialization.Handler` builds the file scopes once, earlier (before the
-symbol load) instead of inside the intent build. No query, queue, lease,
-graph write, or concurrency path changes: the new check is one map lookup
-per unusable delta repository, and a fenced work item writes nothing.
 
 - Baseline: `origin/main` at `b16cb9689b`; after: this branch. Command, run
   in each tree with the same benchmark file:
@@ -148,9 +131,3 @@ per unusable delta repository, and a fenced work item writes nothing.
   scopes as before (`TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions`,
   `TestBuildRefreshIntentsKeepsWholeScopeForUnscopedFullGeneration`, and the
   existing file-scope tests pass unchanged).
-
-Observability Evidence (#10023): a new counter,
-`eshu_dp_code_call_delta_scope_unusable_total{reason}`, one ERROR log,
-`code call delta scope unusable, failing closed`, and the dead-letter
-`failure_class=code_call_delta_scope_unusable`. Operator guide:
-[Shared-Write Operations](../../../../../docs/public/reference/telemetry/shared-write-operations.md#code-call-unusable-delta-scopes).

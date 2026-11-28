@@ -453,20 +453,6 @@ projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same bound
   identities. NornicDB MERGE retry remains the safety net for backend-level
   commit races and changed error formats.
 
-No-Regression Evidence: `go test ./internal/projector -run
-'TestRuntimeProject.*PackageRegistryIdentity' -count=1` and `go test
-./cmd/ingester ./cmd/projector ./cmd/bootstrap-index -run
-'TestBuild(IngesterProjectorRuntime|ProjectorRuntime|BootstrapProjector)'
--count=1` prove projector package UID locks wrap canonical writes only when
-package-registry rows are present and that every Postgres-backed projector
-runtime wires the durable locker.
-
-Observability Evidence: `go/internal/storage/postgres/lock.PackageRegistryIdentityLocker`
-logs `package registry identity advisory locks acquired` with
-`package_uid_count`, `lock_key_sample`, and `wait_s` when lock acquisition exceeds
-100ms; existing projector `canonical_write` stage metrics and NornicDB retry
-metrics still distinguish backend write time from recovered graph conflicts.
-
 ## Extension points
 
 - `CanonicalWriter` — wire a different backend by implementing this interface;
@@ -562,157 +548,6 @@ backend-specific adapters.
   uniformly. Core-owned facts with an unsupported (or blank) schema version are
   rejected; fact kinds core does not own pass through.
 
-No-Regression Evidence: the central gate is one O(1) registry lookup plus, for
-an owned kind on the common exact-version path, a string compare —
-`go test ./internal/facts -run '^$' -bench BenchmarkValidateSchemaVersion -benchmem`
-reports ~10 ns/op and 0 allocs, replacing the previous seven sequential
-per-family lookups, so the per-fact projection cost does not regress. Behavior is
-covered by `go test ./internal/projector -run 'SchemaVersion|TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily' -count=1`.
-
-No-Observability-Change: admission rejection continues to surface through the
-existing projector `build_projection` stage error and the projection failure
-path; no new metric, span, log field, or status row is added.
-
-Performance Evidence: post-#4623 current-main NornicDB full-corpus proof
-`post4623-current-main-e2e-cap30-20260703T2225Z` stopped after 18m51s once the
-15-minute target was already missed. At stop, source-local projection had
-273/895 repositories succeeded with zero failed, retrying, or dead-lettered
-items. Among completed source-local writes, `canonical_write` summed 4,754.276s
-with a 482.143s max; canonical phase logs split that into `entities` 3,514.763s
-sum and 426.327s max, `files` 912.185s sum and 50.210s max. Chunk logs showed
-`entities|Variable` as the largest cumulative entity family: 12,887 chunks,
-64,005 statements, and 21,515.213s cumulative chunk time. The worst completed
-repository carried 12,402 files and 241,719 content entities; its first-
-generation canonical write spent 46.686s in files and 426.327s in entities.
-Removing plain `Variable` from source-local canonical graph projection targets
-that measured graph-write amplification while keeping plain variable lookup in
-the content index and semantic variable graph truth in the reducer-owned
-semantic entity path.
-
-Observability Evidence: this split uses existing projector stage logs
-(`projector runtime stage completed`), canonical phase logs
-(`canonical phase group completed`), content-store spans for variable lookups,
-and semantic entity reducer logs. It adds no metric name, metric label, worker,
-queue domain, runtime knob, graph backend branch, or response field.
-
-No-Regression Evidence: Terraform-state snapshot-only and warning-only phase
-publication is covered by
-`go test ./internal/projector -run 'TestRuntimeProjectPublishesTerraformStateCanonicalCheckpointsForSnapshotOnly|TestRuntimeProjectPublishesTerraformStateWarningOnlyCanonicalPhases' -count=1`.
-It changes no worker count, claim ordering, fact fan-out, graph write
-cardinality, batch size, retry timing, or NornicDB setting; it publishes the
-already-required reducer phase rows for Terraform-state generations that have
-zero canonical graph nodes.
-
-No-Observability-Change: existing projector `build_projection` stage logs,
-`graph_projection_phase_state` rows, workflow completeness rows,
-`/api/v0/index-status`, and queue terminal counters expose whether warning-only
-or snapshot-only Terraform-state work reached the durable zero-row checkpoint
-or remains in reducer convergence.
-
-No-Regression Evidence: SBOM attachment intent routing is covered by
-`../scripts/go-test-run-guard.sh 1 'TestBuildSBOMAttestationAttachmentReducerIntent' -- ./internal/projector/sbom/attestation -count=1` (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing after a rename).
-It adds at most one reducer intent per SBOM or attestation scope generation and
-does not change graph write cardinality, worker counts, claim ordering, batch
-size, retry timing, or backend settings.
-
-No-Regression Evidence: PagerDuty incident-routing intent routing is covered by
-`../scripts/go-test-run-guard.sh 4 'IncidentRoutingMaterialization' -- ./internal/projector/... -count=1` (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing and would leave this pin silently exercising no tests after a rename).
-It adds at most one reducer intent per incident/routing scope generation and
-does not change graph writes, worker counts, claim ordering, batch size, retry
-timing, or backend settings.
-
-No-Observability-Change: existing projector `intent_enqueue` stage logs,
-`eshu_dp_reducer_intents_enqueued_total`, reducer domain counters,
-`fact_work_items` terminal state, and `/admin/status` expose whether SBOM
-attachment work was queued, drained, retried, or dead-lettered.
-
-No-Regression Evidence: non-repository content gating is covered by
-`go test ./internal/projector -run 'TestRuntimeProject(SkipsContentMaterializationForNonRepositoryScopes|CopiesRepoIDIntoContentMaterialization|MaterializesExplicitEntityRecords|MaterializesSourceLocalTruthAndReducerIntents)' -count=1`.
-It does not change worker counts, claim ordering, fact loading, graph write
-cardinality, reducer intent fan-out, batch size, retry timing, or backend
-settings; it only prevents repository content writes when scope metadata has no
-`repo_id`.
-
-No-Observability-Change: existing projector `build_projection` content row
-counts, `content_write` stage logs, projector `failure_class` logs,
-`/api/v0/index-status`, and queue terminal counters expose whether a
-non-repository scope skipped content rows while canonical and reducer work
-continued.
-
-No-Regression Evidence: `go test ./internal/projector -run
-'TestBuildCanonicalMaterialization(ExtractsDeltaProjectionScope|PreservesDeltaPathWhitespace)' -count=1`
-proves repository delta metadata is qualified to repo-local file paths, preserves
-legal Git path whitespace, and rejects absolute or parent-traversal paths.
-
-No-Observability-Change: delta extraction only changes
-`CanonicalMaterialization` inputs to the existing canonical writer. Existing
-projector stage logs, `canonical.write` spans, phase-publish logs, and content
-write result logs still diagnose the projection.
-
-No-Regression Evidence: cloud-inventory admission intent scheduling (#2209) is
-covered by `../scripts/go-test-run-guard.sh 1 'TestBuildReducerIntent' -- ./internal/projector/cloud/inventory -count=1`, run from the `go/` module root (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing after a rename).
-Baseline: the `cloud_inventory_admission` reducer domain was registered and wired
-but received no intent, so `reducer_cloud_resource_identity` rows were never
-written and `GET /api/v0/cloud/inventory` returned zero rows. After: the
-projector enqueues at most one reducer intent per scope generation that carries a
-provider cloud-inventory source fact (`aws_resource`, `gcp_cloud_resource`, or
-`azure_cloud_resource`) — one per scope, not per fact — scope-keyed and anchored
-to the first such fact so reprojection of the same generation converges. Backend:
-none changed (Postgres fact store; no Cypher, no graph write in this domain). It
-does not change graph write cardinality, worker counts, claim ordering, batch
-size, retry timing, or backend settings; the shared `cloud_inventory_admission`
-handler is already proven idempotent and bounded under concurrent workers and is
-unchanged here.
-
-No-Observability-Change: existing projector `intent_enqueue` stage logs,
-`eshu_dp_reducer_intents_enqueued_total`, the reducer domain counters, and
-`fact_work_items` terminal state expose whether the `cloud_inventory_admission`
-work was queued, drained, retried, or dead-lettered; no new telemetry series or
-spans are added.
-
-Benchmark Evidence: issue #4875's shared `reducerIntentFactIndex` refactor is
-covered by `BenchmarkAppendScopeGenerationReducerIntentsFanOut`
-(`runtime/scope_generation_intents_fanout_bench_test.go`), which runs
-`appendScopeGenerationReducerIntents` against a representative multi-domain
-fixture (`fanOutParityFixture`, spanning 44 emitted domains across all 47 probes)
-padded to 5,005 total facts with source-code-domain decoy kinds none of the 47
-probes match — the dominant real shape the issue describes: a source-heavy
-generation where most cloud/k8s/supply-chain probes scan the whole generation
-and find nothing. `go test ./internal/projector/... -run '^$' -bench
-'^BenchmarkAppendScopeGenerationReducerIntentsFanOut$' -benchmem -count=6` plus
-`benchstat` before/after the refactor on this machine (Apple M1 Max) reported:
-
-```
-      │   old (full scan)   │      new (shared index)       │
-      │       sec/op        │   sec/op     vs base           │
-FanOut-10  5433.1µ ± 18%       980.4µ ± 45%  -81.95% (p=0.002 n=6)
-
-      │       B/op          │    B/op      vs base           │
-FanOut-10  66.19Ki ± 0%        72.77Ki ± 0%  +9.94% (p=0.002 n=6)
-
-      │    allocs/op        │  allocs/op   vs base           │
-FanOut-10     665.0 ± 0%        172.0 ± 0%  -74.14% (p=0.002 n=6)
-```
-
-Wall time drops ~82% and allocation count drops ~74%; the ~10% B/op increase is
-the shared index's own O(N) position storage (`runtime/reducer_intent_fact_index.go`
-counts each fact kind once, then fills exactly-sized `[]int` position slices —
-no `append`-growth waste), which is expected and bounded by generation size,
-not by the number of probes. `TestAppendScopeGenerationReducerIntentsFanOutParity`
-(`runtime/scope_generation_intents_fanout_parity_test.go`) is the accuracy half of this
-proof: it pins the exact anchor `FactID`, `EntityKey`, `Reason`, `SourceSystem`,
-and `Payload` every one of the 42 emitted domains produces for the same fixture,
-captured from the pre-refactor full-scan implementation, and must still pass
-unchanged — a `0/0` symmetric diff of emitted intents old-vs-new.
-
-No-Observability-Change: this refactor changes only how
-`appendScopeGenerationReducerIntents` looks up trigger facts internally, not
-what it emits. Existing projector `intent_enqueue` stage logs,
-`eshu_dp_reducer_intents_enqueued_total`, the reducer domain counters, and
-`fact_work_items` terminal state still expose whether each domain's work was
-queued, drained, retried, or dead-lettered; no new metric, span, log field, or
-runtime knob is added.
-
 ## Curated search-document sweeper (design 430)
 
 `SearchDocumentProjectionSweeper` is a decoupled background loop (wired in
@@ -730,18 +565,7 @@ item, keyed by `scope_id+generation_id+domain+entity` and inserted
 tick is a no-op and an advanced active generation yields a fresh work item, so
 the sweeper holds no lease and concurrent reducers converge on the same
 idempotent inserts; the handler's per-generation retire-not-in-set write is
-idempotent under retry. No-Regression Evidence: the projector per-generation
-projection path and its tests are unchanged; the sweeper is additive. The live
-round-trip proof (env-gated `TestEshuSearchDocumentProjectionRoundTripLive`)
-loaded 2148 entities + 82 files, curated 2183 documents, wrote them, and read
-them back through the active-generation store; the pending query returned 32
-repository scopes against the live corpus.
-
-Observability Evidence: each sweep emits a structured
-`eshu search document projection sweep completed` log with `pending_scopes`,
-`enqueued_intents`, and `duration_seconds`; the handler emits the canonical-write
-counter and duration plus its per-cycle log with considered/included/skipped/
-written/retired counts. No new metric series or spans are added.
+idempotent under retry.
 
 ## Dead-letter triage
 

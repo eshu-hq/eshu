@@ -76,9 +76,6 @@ stay out of metric labels.
 - SDK adapters translate AWS records into scanner-owned types; scanner tests
   should not mock AWS SDK pagination.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/ses/...` green.
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud-scanners.md`

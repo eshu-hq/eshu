@@ -64,10 +64,6 @@ it emits no metrics, spans, or logs of its own. `OwnedTargetRotationFreshness`
 (#9775) derives the owned-package rotation period (slot count times interval)
 and compares it with the freshness bound; the coordinator publishes the result.
 
-No-Observability-Change: this move adds or renames no metric, span, log
-field, status field, queue, worker, lease, or runtime setting. Each caller's
-existing reconcile telemetry is unchanged.
-
 ## Gotchas / invariants
 
 - `TargetClassRank` ranks an unrecognized class last (4) so it can never

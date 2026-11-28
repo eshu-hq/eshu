@@ -91,48 +91,6 @@ Documents rejected for a malformed payload increment the shared
 executions that run either handler remain covered by
 `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
 
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Almost every hunk inside the moved production files is
-package-clause and import requalification: symbols the reducer root used to
-supply as one-line forwarders are now imported from the leaf that already
-owned them (`payloadcore` for the payload/slice/identity helpers, `contract`
-for the intent/result/domain/join-mode vocabulary, `factload`/`factdecode`/
-`factwrite`/`schemadecode` for the rest, `gpphase` for the readiness-key
-construction newly extracted from the root's own
-`graphProjectionPhaseStateForIntent`, which now calls the identical extracted
-function so both call sites share one implementation). Moved test files
-additionally gained local copies of a handful of fixture-builder helpers and
-fake test doubles (`stubFactLoader`, `fakeProjectedSourceLedger`,
-`statefulProjectedSourceLedger`, `fakeWorkloadIdentityExecer`, `readyLookup`)
-that other reducer-root test files also use, because Go test files cannot
-share unexported symbols across a package boundary. Measured against baseline
-`origin/main`: `go build ./...` and `go vet ./...` both exit 0 on the branch,
-and `go test ./internal/reducer/... -count=1` passes, including this package
-and the root package whose wiring tests gained matching minimal writer
-doubles. Binary output was not compared and no such claim is made here.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
-Postgres operation, runtime setting, metric instrument, metric label, span, or
-log field. The two counters and the span this family emits, and the
-executions that wrap them, are the same before and after the move.
-
-No-Regression Evidence: #9055 adds at most one kind-filtered fact read
-(`ec2_instance_posture` only) per materialization attempt, and only when the
-AWS CloudResource phase has committed and the EC2 instance-node phase has
-not. A committed EC2 phase skips the read:
-`TestObservabilityCoverageMaterializationWritesWhenPostureAndEC2PhaseReady`
-asserts exactly one fact load. For a scope with no posture fact the change
-replaces a claim and readiness miss every retry interval, indefinitely, with
-one completed run per generation. The claim query, edge writer, Cypher, and
-retract path are unchanged.
-
-Observability Evidence: #9055 adds the `ec2_node_hold` field
-(`satisfied` or `not_required`) to the existing
-"observability coverage materialization completed" log line. A deferral is
-still the `observability_coverage_nodes_not_ready` failure class on the work
-item, and a failed posture read fails the intent with the classified
-fact-load error instead of reading as a readiness wait.
-
 ## Gotchas / invariants
 
 - **Do not import the reducer root from here.** If this package needs a

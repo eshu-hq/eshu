@@ -92,14 +92,6 @@ plus DescribeConfigurationSettings fan-out. No mutation, environment-rebuild,
 CNAME-swap, environment-info data-plane, or configuration-validation API is
 reachable, and the collector performs no graph writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers application, environment, and application-version fact emission, every
-relationship's non-empty target type and join key, redaction of every
-option-setting value, structural absence of clear-text secret values in emitted
-facts, runtime registration, the registry-derived redaction-key requirement, and
-command configuration. The SDK adapter reflection contract test proves the
-mutation and data-plane APIs are unreachable.
-
 Collector Observability Evidence: Elastic Beanstalk uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`,
@@ -107,11 +99,6 @@ collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and resource
 type.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Elastic Beanstalk scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. No new instrument or label was added.
 
 Collector Deployment Evidence: Elastic Beanstalk runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

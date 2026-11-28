@@ -76,30 +76,6 @@ included local headers that are intentionally not parsed):
   Migrating these would require parsing each header and is out of scope without
   an ADR.
 
-## No-Regression / No-Observability-Change
-
-- No-Regression Evidence: the AST extractor replaces a node-text regex with a
-  field walk over the already-built tree. Output is identical for the simple,
-  destructor, and namespace-nested cases proven by the unchanged
-  `engine_cpp_dead_code_roots_test.go` (including
-  `TestDefaultEngineParsePathCPPMarksNamespaceQualifiedHeaderMethod`, which pins
-  `api::Service::run` to class `Service`). New parity and improvement coverage
-  lives in `internal/parser/cpp/dead_code_roots_test.go`
-  (`TestCPPQualifiedFunctionNameAndClassFromNode`, 10 cases incl. operator,
-  template, pointer/reference return) and
-  `internal/parser/cpp/cpp_qualified_method_ast_test.go`
-  (`TestDefaultEngineParsePathCPPOutOfLineQualifiedMethodsViaAST`, end-to-end via
-  `ParsePath`). Commands and counts:
-  - `cd go && gofmt -l internal/parser/cpp` -> empty.
-  - `cd go && go test ./internal/parser/... -count=1` -> 1182 passed, 41
-    packages.
-  - `cd go && golangci-lint run ./internal/parser/...` -> No issues found.
-  - `command rg -c 'regexp\.MustCompile' internal/parser/cpp/*.go` ->
-    dead_code_roots.go 3, header_roots.go 5, parser.go 1 (cppQualifiedFunctionPattern
-    removed; `cTypedefAliasPattern` in parser.go is out of #3574 scope).
-- No-Observability-Change: this package emits no telemetry by design; the audit
-  neither adds nor removes spans, metrics, or logs.
-
 ## Common Changes And Scope
 
 - Add C++ parser behavior by starting with focused parser tests in the parent

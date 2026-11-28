@@ -56,10 +56,6 @@ None in this package: it is a persistence layer with no metric, span, or log
 of its own. Callers that decide admission states and callers that serve API
 requests own the operator-facing signal for those actions.
 
-No-Observability-Change: this move relocates existing store code and its
-tests with no behavior change; no metric, span, log field, or telemetry
-attribute changed.
-
 ## Gotchas / invariants
 
 - `ListDecisions` and `ListEvidence` fail closed on an unbounded filter

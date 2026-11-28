@@ -58,10 +58,6 @@ Collector Observability Evidence: this package emits no facts, metrics, spans,
 logs, status rows, or graph writes. Future importer wiring must add runtime
 collector signals before any long-running or hosted ingestion path is enabled.
 
-No-Observability-Change: this package is a pure metadata preflight helper. It
-adds no worker, queue consumer, graph write, database query, HTTP handler, MCP
-tool, runtime stage, provider client, or hosted collector path.
-
 ## Gotchas / invariants
 
 - Preflight never stores raw `source_scope_id`, source cursor, issue keys,

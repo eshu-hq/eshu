@@ -148,34 +148,6 @@ choice; the SQL itself is proven against Postgres by
 `service_changed_since_bearer_test.go` proves the admission in front of it
 through the real scoped-token middleware.
 
-No-Regression Evidence: the `go test ./internal/query/...` and
-`go test ./internal/query/freshness/` test-name union (`-list '.*'`) equals
-main's 2777 root names (`origin/main` 43c0606ca) plus exactly
-`TestFreshnessCapabilityLockstep`, nothing dropped or duplicated (2778
-total). That test has since been removed: #6642 Part C pointed root's three
-rows at this package's constructors, leaving one declaration and nothing for
-it to compare. The `internal/query` dirgate ledger row
-(`scripts/lib/dirgate-grandfather.tsv`) moved from 479 non-test files to 475
-(five files left root, one alias file arrived); `bash
-scripts/verify-dirgate.sh --all` passes with no exemption row for this new
-leaf directory.
-
-No-Observability-Change: every route keeps its span name
-(`telemetry.SpanQueryFreshnessChangedSince`,
-`telemetry.SpanQueryFreshnessGenerationLifecycle`,
-`telemetry.SpanQueryFreshnessServiceChangedSince`) and
-`http.route`/`eshu.capability` attributes. `freshnessHandlerTracer` is this
-package's own package-local tracer var (mirroring `languageHandlerTracer` in
-`go/internal/query/language/handler_tracing.go`), seeded from
-`tracing.HandlerTracer()`; `service_changed_since_telemetry_test.go` (moved
-here for the reason above) proves the handler still emits exactly one span
-per request with the documented attributes, including the
-`eshu.service_changed_since.grant_refused`/`grant_refused_reason` pair. #6475
-part B removed the `shared_ownership` reason (the refusal it named no longer
-exists) and added `eshu.service_changed_since.unattributed` (a served legacy
-lineage) and `eshu.service_changed_since.ambiguous_scope_count` (the size of a
-409 answer, never the scope ids).
-
 ## Failed reads (#7674)
 
 A failed store read answers a fixed message per route, never the backend
@@ -189,19 +161,6 @@ answers the retryable 503 with `Retry-After`), then
 `tracing.WriteServerFailure`: `500` with the error on the handler span, or
 `499` when the caller canceled the request. The 404 and 409 answers keep
 their caller-input text.
-
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No SQL, query parameter, call count, row bound, or success
-path changed. A failure now costs one span `RecordError`/`SetStatus` and a
-fixed-string write instead of formatting the error into the body.
-`go test ./internal/query/... ./internal/queryplan/... -count=1` and
-`go test -race ./internal/query/freshness/...` exit 0.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the
-route's fixed message; a client cancel adds `eshu.request.client_canceled`,
-leaves the status Unset, and answers `499`. `server_failure_test.go` asserts
-both span shapes for all three routes with a recording tracer.
 
 ## Related docs
 

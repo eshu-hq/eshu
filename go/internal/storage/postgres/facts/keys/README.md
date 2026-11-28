@@ -58,9 +58,3 @@ statistics, and under forced generic plans. See
 (#7420),
 (#7420) and the live
 proofs in the parent package (`generation_retention_fact_keys_*_test.go`).
-
-No-Observability-Change: timing and row counts are reported by the caller
-through `eshu_dp_generation_retention_phase_duration_seconds`
-(`phase=delete_fact_keys`) and `eshu_dp_generation_retention_rows_pruned_total`.
-The orphan census is an on-demand query, not a sampled gauge: each run scans
-`fact_records`, which is too costly to sample every minute.

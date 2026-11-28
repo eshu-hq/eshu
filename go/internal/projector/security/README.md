@@ -35,14 +35,6 @@ import the root projector package. The three security-group builders use the
 same `aws_resource_materialization:<scope>` acceptance-unit key so endpoint,
 rule, and security-group-node readiness can gate edge projection together.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution, retry, dead-letter, readiness, and graph-write
-telemetry. Moving the pure builders adds no queue, storage, graph, span, metric,
-or log boundary.
-
 ## Gotchas / invariants
 
 - Alert reconciliation accepts exactly provider-alert and package-registry
@@ -57,21 +49,6 @@ or log boundary.
   reducer handlers retain validation, retry, and dead-letter ownership.
 - Root owns dispatcher order and deterministic final sorting. Reducer queue and
   graph-write contracts continue to own idempotency and retry behavior.
-
-## Performance
-
-Benchmark Evidence: lookup construction stays in root, which passes the same
-concrete `intent.FactLookup` value to all four security builders. The
-same-shape gate is
-`BenchmarkAppendScopeGenerationReducerIntentsFanOut`: 5,000 interleaved decoys
-plus trigger facts producing 42 ordered intents across 44 builder probes. Six
-same-host baseline runs at `0b9177156faab940bdcfd72e9fc225a275874eaf`
-measured 154,937-158,718 ns/op, 74,928-74,929 B/op, and 178 allocs/op. The
-post-move runs measured 152,256-156,272 ns/op, 74,928-74,930 B/op, and 178
-allocs/op. Allocation count is identical and timing remains in the same narrow
-operating band; reported bytes per operation differed by at most two bytes
-across the twelve samples. No graph backend or queue participates in this
-in-process benchmark.
 
 ## Verification
 

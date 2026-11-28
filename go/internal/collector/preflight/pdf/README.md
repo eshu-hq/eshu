@@ -70,10 +70,6 @@ collector binary, runtime flag, or environment-variable path changes in this
 slice. The default-off collector routing test keeps PDF files out of hosted
 documentation ingestion until a reviewed extractor slice enables them.
 
-No-Observability-Change: this package is a pure metadata preflight helper. It
-adds no worker, queue consumer, graph write, database query, HTTP handler, MCP
-tool, runtime stage, or hosted collector path.
-
 ## Gotchas / invariants
 
 - Preflight never stores raw PDF text, links, metadata values, source names, or

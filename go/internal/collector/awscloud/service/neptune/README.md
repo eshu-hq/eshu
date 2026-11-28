@@ -123,14 +123,6 @@ fan-out is bounded by resource count, not unbounded. No database or graph
 connections, graph queries, vertex/edge reads, snapshot content reads,
 parameter-value reads, mutations, or Eshu graph writes occur in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud
-./internal/collector/awscloud/...` covers Neptune metadata fact emission,
-direct relationship emission, omission of master-username/secret/vertex/edge/
-query-result fields, runtime registration, command configuration, and the SDK
-adapter's safe metadata mapping. The Neptune scanner adds a new bounded
-metadata read path and does not change any existing scanner, reducer, queue,
-or graph-write hot path.
-
 Collector Observability Evidence: Neptune uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,

@@ -84,24 +84,6 @@ paginated ListTables stream per database, one ListTagsForResource point read
 per database and per table, no record reads, no queries, no WriteRecords, no
 mutations, and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-Timestream database and table metadata fact emission, table-in-database,
-database-to-KMS-key, and table-to-S3 relationship emission with the target
-type and target resource id each downstream join needs, the no-records
-metadata-only assertions, the SDK adapter exclusion reflection test that fails
-the build if a record-read or mutation method ever reaches the adapter,
-GovCloud and China synthesized-bucket-ARN partition derivation, runtime
-registration, and the SDK adapter's safe metadata mapping.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Timestream scans through `aws.service.scan`,
-`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`,
-`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
-`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. This
-scanner adds no instrument, span, metric label, or status row. Metric labels
-stay bounded to service, account, region, operation, result, and status.
-
 Collector Deployment Evidence: Timestream runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

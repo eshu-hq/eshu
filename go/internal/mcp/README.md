@@ -106,27 +106,6 @@ flowchart TB
     pce -->|"plain JSON"| plain
 ```
 
-## Dispatch deadline evidence
-
-No-Regression Evidence: issue #2469 adds a context-only MCP dispatch deadline
-with no new graph, storage, queue, or HTTP query work. Baseline behavior was
-the existing `dispatchTool` path calling `handler.ServeHTTP` with the caller
-context and no dispatch deadline. After measurement on Go 1.26 covered
-`go test ./cmd/mcp-server ./internal/query ./internal/mcp -count=1` and
-`golangci-lint run ./...`; input shape was `list_indexed_repositories` routed
-through the shared HTTP handler with a test override of 20ms and a parent
-deadline case. Terminal row counts and queue counts are unchanged because the
-patch does not query Postgres, NornicDB, Neo4j, or reducer queues. The change is
-safe because success responses keep the same handler envelope, while timeout
-and parent-cancellation paths stop before response parsing and return structured
-MCP error content.
-
-Observability Evidence: dispatch timeout and cancellation failures emit
-`mcp tool dispatch context ended` with `tool`, `timeout`, and `err` fields. The
-success path has No-Observability-Change: it preserves the existing
-`dispatch tool` debug log and does not add spans, metrics, or extra per-row
-logging.
-
 ## Dispatch response-size budget
 
 Issue #3498 adds a tool-agnostic response-size budget at the dispatch boundary
@@ -156,17 +135,6 @@ and narrowing guidance. Per-route token budgets such as the relationship-story
 response-size sibling of the dispatch deadline guard. See the
 [response fallback decision](../../../docs/internal/design/7206-mcp-response-budget-fallback.md)
 and [source_cache clip](../../../docs/public/reference/http-api/source-cache-clip.md).
-
-No-Regression Evidence: this guard adds no I/O. Tests cover both wire shapes,
-25-row secrets, oversized resources, disabled enforcement, and full evidence.
-
-Observability Evidence: the resource-only path emits `mcp tool response resource
-fallback` with `tool`, `response_bytes`, `emitted_bytes`, and `budget_bytes`.
-Refusal emits `mcp tool response over budget` and returns budget accounting and
-narrowing guidance in `error.details`. Per-tool `eshu_dp_mcp_response_bytes`,
-`eshu_dp_mcp_response_resource_fallback_total`, `eshu_dp_mcp_response_budget_page_total` (log `mcp tool response budget page` carries `rows_returned`, `rows_available`), and
-`eshu_dp_mcp_response_over_budget_total` (all four carry a bounded `shape` label, and the three budget log lines a `shape` field) distinguish the attempted size,
-successful fallback, budget page, and refusal (see [MCP response-budget telemetry](../../../docs/public/reference/telemetry/mcp-response-budget.md)).
 
 ## Tool groups
 

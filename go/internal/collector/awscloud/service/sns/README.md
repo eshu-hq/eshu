@@ -73,21 +73,11 @@ attribute read per topic, one tag read per topic, one paginated subscription
 listing per topic, no message publishes, no subscription mutations, and no graph
 writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers SNS topic metadata fact emission, ARN-only subscription relationship
-emission, omission of topic policy/data-protection/message payload fields,
-runtime registration, command configuration, and the SDK adapter's safe
-attribute mapping.
-
 Collector Observability Evidence: SNS uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses SNS scans through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: SNS runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

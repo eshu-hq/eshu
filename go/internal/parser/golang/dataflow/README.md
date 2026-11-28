@@ -50,19 +50,6 @@ catalog) is internal: no other package needs it, so it stays unexported.
 None. The lowering is a pure function; a reducer that drives the ingest
 pipeline owns telemetry for the stage that calls it.
 
-No-Regression Evidence: this is a pure package-move (issue #6774 stage 2,
-`golang/cfg_*.go` -> `golang/dataflow/*.go`, `package golang` -> `package
-dataflow`). No function body changed beyond swapping the root's one-line
-`nodeText`/`nodeLine`/`walkNamed` forwarders for the `internal/parser/shared`
-calls they forwarded to, and renaming the two symbols the root still calls
-(`goEmitDataflowBuckets` -> `EmitBuckets`, `goInterprocPayloads` ->
-`InterprocPayloads`) to their new exported names. Verified by
-`go test ./internal/parser/golang/... -count=1` and the accuracy golden gate
-(`scripts/verify_accuracy_golden_gate.sh`), both green on the moved code.
-
-No-Observability-Change: the move adds no metric, span, log, status field,
-runtime knob, queue, worker, or graph query.
-
 ## Gotchas / invariants
 
 - **`block` wraps a `statement_list`** in the Go tree-sitter grammar;

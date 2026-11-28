@@ -349,19 +349,6 @@ None. The coordinator (`internal/coordinator`) and storage
   `CollectorKind`, `Keyspace`, `PhaseName` — callers can compare slices
   element-by-element for drift detection.
 
-No-Regression Evidence: the Terraform-state workflow completion fix is covered
-by
-`go test ./internal/workflow ./internal/collector ./internal/collector/tfstateruntime ./internal/storage/postgres -run 'TestRequiredPhasesForCollectorMatchesTerraformStateReducerContract|TestClaimedServiceCompletesUnchangedTerraformStateClaimWithoutCommit|TestClaimedServiceCompletesTerraformStateClaimWithResolvedProjectionIdentity|TestClaimedSourceCompletesS3NotModifiedCandidateWhenPriorGenerationKnown|TestWorkflowControlStoreIntegrationCompleteClaimCanResolveProjectionIdentity' -count=1`.
-The Postgres identity mutation was also exercised with
-`ESHU_POSTGRES_DSN=postgres://... go test ./internal/storage/postgres -run TestWorkflowControlStoreIntegrationCompleteClaimCanResolveProjectionIdentity -count=1 -v`
-against a throwaway Postgres container.
-The test set proves the phase contract matches the reducer-owned Terraform
-state checkpoints, candidate-scoped claims complete with the real snapshot
-identity, S3 not-modified claims carry prior-generation identity, and Postgres
-stores the resolved phase tuple under the same claim fence. It changes no
-worker counts, claim ordering, scan cardinality, graph writes, or NornicDB
-settings.
-
 `sbom_attestation` collector instances are claim-capable. The coordinator plans
 one bounded work item per configured SBOM or attestation source target. The
 runtime fetches configured HTTP(S) documents or OCI referrer artifact blobs,
@@ -376,105 +363,6 @@ Targets must name a credential environment variable and an explicit repository
 allowlist. Optional `api_base_url` values must use HTTPS because the collector
 sends the bearer token to that endpoint; `source_uri` remains a source-document
 identifier and may point at HTTP fixtures.
-
-Observability Evidence: no new metrics were required. Existing workflow-run
-status, workflow completeness rows, workflow work-item identity columns,
-claim-fence mutation errors, `/api/v0/index-status`, and the remote runtime
-state gate expose whether Terraform-state claims are still collecting,
-completed, blocked, or stuck in reducer convergence.
-
-No-Regression Evidence: `go test ./internal/workflow -run 'TestReconcileRunProgressCompletesAWSWithoutImplementedGraphPhases|TestCollectorContractForAWSHasNoOperationalGraphReadinessUntilProjectionLands' -count=1`
-proves completed AWS collector work reaches terminal workflow status without
-waiting on unimplemented `cloud_resource_uid` graph phase rows. The change does
-not alter claim ordering, AWS scan fan-out, fact commit shape, reducer queue
-claiming, worker counts, graph writes, or NornicDB settings.
-
-Observability Evidence: no new metrics were required. Existing
-`workflow_runs`, `workflow_work_items`, `aws_scan_status`,
-`eshu_dp_aws_resources_emitted_total`, `eshu_dp_aws_relationships_emitted_total`,
-`eshu_dp_aws_tag_observations_emitted_total`, AWS runtime-drift reducer logs,
-and `/api/v0/index-status` separate collector completion, fact emission, scan
-health, drift read-model publication, and future graph-readiness gaps.
-
-No-Regression Evidence: `go test ./internal/workflow -run 'TestCollectorContractForGCPHasNoOperationalGraphReadinessUntilSchedulerLands' -count=1`
-proves GCP is registered as a known collector contract with no canonical
-keyspaces or reducer phase requirements. The change does not add live GCP SDK
-calls, credentials, provider I/O, workflow planning, graph writes, read-model
-writes, queue claiming, worker counts, or NornicDB settings.
-
-No-Observability-Change: GCP remains non-operational and claim-disabled at the
-coordinator boundary, so there is no new runtime path to instrument. Existing
-coordinator startup validation errors and collector-instance config surfaces
-are the only operator-facing signals for this blocked activation state.
-
-No-Regression Evidence: the owned package target derivation contract is covered
-by `go test ./internal/coordinator/... ./internal/workflow ./internal/storage/postgres ./internal/collector/registry/package/runtime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
-The test set proves package-registry planning derives unique metadata targets
-from active owned package evidence across npm, PyPI, Go modules, Maven, NuGet,
-Composer, RubyGems, and Cargo; vulnerability planning derives OSV
-targets only for exact owned npm, PyPI, Go, Maven, NuGet, Composer, RubyGems,
-Cargo, Pub, Hex, and Swift versions, range and alias dependencies stay out of
-exact vulnerability collection, skipped exact-query candidates carry stable
-reason counts by ecosystem, source-backed Swift package names with slashes are
-encoded into storage-safe `scope_id` values, the coordinator passes active
-owned dependency rows to both planners, and both hosted collector commands parse
-the new derivation config. Planning remains bounded by
-`derive_from_owned_packages.target_limit` (and, with the in-tree OSV `slot_progress` flag, selected by persisted least-recently-planned virtual slots, #9776); the default remains 100 derived
-targets, and operators can explicitly raise the cap up to 5000 for full-corpus
-proofs. Package-registry derivation reads package-level identities and defaults
-omitted derived `version_limit` values to one registry version when metadata is
-fetched. Vulnerability derivation reads exact package-version identities and
-batches them into storage-safe OSV querybatch work items, and the coordinator
-rotates each bounded read by reconcile bucket. This does not change worker
-counts, claim leases, graph writes, reducer queues, or NornicDB settings.
-
-Observability Evidence: no new metrics were required. Existing workflow run
-rows, work-item rows, `requested_scope_set` payloads, coordinator reconcile
-metrics, collector claim status, package-registry request/fact/rate-limit
-metrics, vulnerability-intelligence observation/fetch/fact metrics, and
-`/api/v0/index-status` expose planned, skipped, rate-limited, failed, completed,
-and stuck target states. `requested_scope_set.skipped_targets` reports skipped
-vulnerability derivation counts by ecosystem and reason without package names or
-versions. `/admin/status?format=json` also exposes
-package-registry metadata target counts by ecosystem without putting package
-names, versions, feed URLs, or credential material in metric labels.
-
-No-Regression Evidence: `go test ./internal/coordinator/... ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps the same run key and zero rotation offset across reconcile buckets, while config validation rejects unsupported planning modes. The default mode remains rotating, so hosted collectors can continue progressing through larger corpora.
-
-No-Regression Evidence: `go test ./internal/coordinator/... ./internal/workflow ./internal/storage/postgres ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-vulnerability-intelligence -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|DerivedInstalledEvidence|TestOSVQueryEcosystemMapsInstalledOSEcosystems|VulnerabilityIntelligenceCollectorConfigurationAcceptsInstalledEvidenceDerivation|TestMapConfigAcceptsInstalledEvidenceDerivation' -count=1` proves installed OS package and SBOM component derivation admits only exact source-owned evidence, batches OSV query scopes where supported, preserves stable skip reason counts, and maps distro ecosystems to OSV query names.
-
-Observability Evidence: installed-evidence derivation reuses workflow run
-`requested_scope_set`, work-item status, collector claim status, source
-snapshot, fetch duration, fact-emitted, rate-limit, and `/api/v0/index-status`
-signals. No new metric labels were added; skipped-target status is aggregated
-by reason, ecosystem, source family, collector kind, target class, source, and
-selected/limit counts only.
-
-Observability Evidence: no new metrics were required. Single-pass proof mode is visible in collector instance configuration, stable workflow run IDs, zero-offset target-reader requests in tests, and `/api/v0/index-status` queue totals. The remote runtime-state gate now fails representative proofs whose outstanding queue grows beyond the configured derived-target budget guard.
-
-No-Regression Evidence (#4459): `go test ./internal/workflow -run
-'TestReconcileRunProgressTerminalReducerDeadLetterBlocksConvergence|TestReconcileRunProgressRetryableDeadLetterDoesNotBlockConvergence'
--count=1` plus `ESHU_POSTGRES_DSN=<local Postgres> go test
-./internal/storage/postgres -run
-'TestWorkflowControlStoreIntegrationReconcileWorkflowRuns' -count=1` prove a
-terminal `fact_work_items` dead-letter (`status = 'dead_letter'`) on a
-required, bridged phase now terminates the run as `blocked`/`failed` instead
-of wedging in `reducer_converging` forever, while a still-retrying row or a
-dead-letter on a non-bridged phase leaves completeness `pending` (no false
-block). Two worktrees at main (18b78ac5a) versus this fix, identical seeded
-scenario: main wedges across three reconciliation cycles spanning 24
-simulated hours; this branch terminates on the first cycle. No claim
-ordering, worker count, graph write, reducer claiming, or NornicDB setting
-changed — only a new `fact_work_items` read inside `ReconcileWorkflowRuns`
-and a completeness-blocking branch gated on a confirmed terminal row.
-
-Observability Evidence (#4459): added
-`eshu_dp_workflow_run_terminal_dead_letter_blocks_total`
-(`go/internal/telemetry/instruments.go`), labeled by `collector_kind` and
-`domain` only (bounded, never run/scope/generation IDs), plus a "workflow run
-blocked by terminal reducer dead-letter" structured log carrying `run_id`,
-`keyspace`, `phase`, `domain`, and the dead-lettered item count. See the
-Queue Domains section of `docs/public/observability/telemetry-coverage.md`.
 
 ## Extension points
 

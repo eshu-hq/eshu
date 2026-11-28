@@ -26,33 +26,6 @@ storage, graph, queue, or runtime dependencies.
 No telemetry is emitted. Runtime diagnostics remain owned by extensionhost,
 projector, reducer, and storage callers that know the stage and failure class.
 
-## Evidence
-No-Regression Evidence: #4803 centralizes existing envelope field copies in a
-generated in-memory adapter. Baseline is `origin/main` before this branch, where
-extensionhost, reducer, and projector each carried local field mapping; after is
-this branch head, where `factenvelope` owns the shared SDK-to-internal and
-internal-to-factschema adapters. The measured input shapes are one SDK collector
-fact with host-owned claim fields, payload, source ref, and tombstone metadata;
-one fully populated durable `facts.Envelope`; and
-version-less codegraph repository/file facts carrying both empty schema version
-and the persisted `0.0.0` sentinel. The change adds no database backend call,
-graph write, queue claim, lease, retry, worker, batch, or transaction shape, so
-terminal queue counts and graph row counts are unchanged by construction.
-Focused local proof passed with
-`GOCACHE=/tmp/eshu-4803-gocache go test ./cmd/fact-envelope-adapter ./cmd/capability-inventory ./internal/factenvelope ./internal/collector/extensionhost ./internal/reducer ./internal/projector -count=1`.
-The final rebased `make pre-pr` run passed gofumpt, whole-module
-`golangci-lint`, go build, go vet, changed-package tests, package docs,
-capability inventory, telemetry coverage, replay coverage, generated code
-coverage, performance evidence, and race graph-writes.
-
-No-Observability-Change: the adapter package emits no metrics, spans, logs, or
-status rows. Invalid facts continue to surface through the existing caller-owned
-signals: extensionhost result validation, reducer dead-letter/classification
-paths, and projector `input_invalid` quarantine metrics/logs for the stage that
-consumes the decoded fact. Operators still diagnose this path from the same
-generation fact counts, projector/reducer stage metrics, dead-letter rows, and
-structured quarantine logs; no telemetry contract or label cardinality changes.
-
 ## Gotchas / invariants
 The public SDK wire names are not the same as the durable internal names:
 `kind` maps to `FactKind`, `stable_key` maps to `StableFactKey`, and

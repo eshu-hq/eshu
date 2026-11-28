@@ -105,20 +105,10 @@ registered-type discovery, and the guard tests for forbidden template and
 mutation APIs. No template body, parameter value, change-set body, or drift
 property document appears anywhere in the test surface.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers CloudFormation resource and relationship fact emission, output
-redaction, the runtimebind registration, command configuration, and the SDK
-adapter contract.
-
 Collector Observability Evidence: CloudFormation uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses CloudFormation scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: CloudFormation runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

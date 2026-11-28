@@ -130,49 +130,6 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   and `base_ref_unresolved_args` (at most the name bytes of one 4096-byte
   reference), which ride on the row on top of that figure.
 
-No-Regression Evidence: #8810. The reference bound adds one linear pass over
-each reference that contains `$`. The output cap adds one length compare after
-each expansion. The evidence cap adds one length compare per stored default.
-`go test -run xxx -bench BaseRefExpansion/ordinary -benchmem -benchtime=500000x`,
-old and new interleaved on one loaded host (load average about 32): the ordinary
-`ARG` plus `FROM` Dockerfile took 2.3 to 6.3 us per Dockerfile depending on host
-load, with old and new within noise of each other in every pair, and 33
-allocs/op old, 36 new (5504 B/op old, 6136 B/op new: the expander state and
-the three added `Stage` fields). That is no measurable change in time.
-Differential: `RuntimeMetadata(...).Map()`
-JSON for the 23 tracked Dockerfile inputs (22 files named `Dockerfile`,
-`Dockerfile.<ext>` or `*.Dockerfile`, plus the `Dockerfile.j2` template) is
-byte-identical between the unbounded and the bounded expander. Against main, 5
-of them change by design because they have an ARG in `FROM` (`Dockerfile`,
-`examples/collector-extensions/pagerduty/Dockerfile`,
-`examples/collector-extensions/scorecard/Dockerfile`,
-`examples/collector-extensions/scorecard/oci.worker.Dockerfile`,
-`scripts/ci/tools.Dockerfile`): they gain `base_ref_template` and an expanded
-base.
-Hostile input, re-measured together on one host for the review that found the
-figures disagreed (`-benchtime=3x -count=5` for one line; one run for the 200
-lines with the bound disabled; a scratch copy of the pre-shared-buffer code
-with `exceedsExpansionBounds` forced to `false`): a balanced 60 KB line of
-nested `${A:-` blocks took 442-454
-ms/op and 835.8 MB/op with the reference bound disabled and 0.39 ms/op and 0.54
-MB/op with it. 200 such lines in one Dockerfile took 48.8 s and 167 GB
-allocated with the bound disabled. With the bound, the same 200 lines
-(`hostileNestedFrom(60_000)` repeated 200 times through `RuntimeMetadata`,
-`-benchtime=3x -count=5`, load average about 52) took 93-101 ms/op and 87.7
-MB/op; the time is host-dependent (a reviewer's rerun on a loaded host took
-0.145-0.54 s). Earlier figures in
-other notes (366 ms, 461-887 ms, 59.8 s, 68.4 s) came from different load
-levels and are superseded by this set. A padded ARG chain (100 ARGs of
-about 4000 literal bytes each repeating the previous one, then 1000
-`FROM i:${A100}` lines, 416 KB of input) took 563-576 ms/op and 426.6 MB/op
-before the output cap, and left 400 MB of base tags across the 1000 stages. It
-takes 7.8-13.1 ms/op and 5.0 MB/op after, and every stage stays unresolved with
-a 7-byte tag (`${A100}`).
-ARG default evidence, marshaled `json.Marshal(RuntimeMetadata(src).Map())`
-(`TestBaseRefArgDefaultEvidencePayloadStaysBounded`; 200 ARGs of
-`ARG Un=${TARGETARCH}` plus 4000 bytes, one `FROM i:$U0$U1...$U199` line per
-stage):
-
 | Shape | Input | Payload before | Payload after |
 | --- | --- | --- | --- |
 | 200 ARGs, 100 FROM lines | 894,290 B | 81,589,217 B | 1,583,117 B |
@@ -190,19 +147,6 @@ default once, and each stage row holds its own
 `TestBaseRefPaddedArgChainIsUnresolved`, and
 `TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages` pin the expansion cases.
 
-No-Regression Evidence: #8810, shared-buffer expansion (review round four).
-A reference inside both caps could still cost O(depth^2 x 4096) bytes: each
-nesting level built its own output and the whole result was copied outward at
-every level. `TestBaseRefNestedPaddedReferenceAllocationIsBounded` pins the
-shape the review measured (`ARG K` of 4000 bytes, then 1000 lines of
-`FROM img:${U:-${K}${U:-${K}...x}}}` 63 deep, 631 bytes per line, 645,007
-bytes of input) with a 50 MB ceiling on `runtime.MemStats` `TotalAlloc`. It
-failed before the fix (8,870,755,872 bytes allocated) and passes after; with
-the nested-copy behavior put back it fails again (341,547,928 bytes).
-`go test -run xxx -bench 'BaseRef' -benchmem -count=5`, same quiet-as-possible
-host both times (the host was loaded, load average 12-20 on 16 cores, so read
-ns/op as an upper bound; B/op and allocs/op are stable):
-
 | Benchmark | Before ns/op | Before B/op | After ns/op | After B/op |
 | --- | --- | --- | --- | --- |
 | `BaseRefNestedPadded` (1000 lines, 63 deep) | 1.26-1.38 s | 8.874 GB (332,201-332,328 allocs) | 7.4-12.5 ms | 9.11 MB (21,060 allocs) |
@@ -214,10 +158,6 @@ The ordinary Dockerfile gains three allocations and 632 bytes for the
 expander state; its time is unchanged. `RuntimeMetadata` also runs at read time
 (repository runtime artifacts and the Dockerfile relationship read), so this
 bound is paid on reads, not only at ingest.
-
-No-Observability-Change: the parser emits no telemetry of its own. Parse
-timing stays on the parent parser engine's existing per-file duration. A
-rejected reference shows up as `base_ref_unresolved_args` on the stage.
 
 Known limit: the tokenizer drops backslash escapes and quotes before
 expansion, so an escaped `\$` or single-quoted `$` is treated as a variable.
@@ -281,33 +221,3 @@ existing stage, port, ARG, ENV and label buckets unchanged. Focused parser and
 collector fact tests cover install forms, stage binding, heredoc boundaries,
 option values, and credential drops through persisted install entities and
 content reference names.
-
-Performance Evidence: two quiet-host base/candidate rounds used the identical
-`BenchmarkInstallEvidenceStageScope` harness and
-`GOMAXPROCS=4 go test ./internal/parser/dockerfile -run '^$' -bench
-'^BenchmarkInstallEvidenceStageScope$' -benchtime=100x -count=5 -benchmem`.
-Median ordinary parse cost moved from 4.602-4.713 to 5.789-5.892
-microseconds (+25-26%, about 1.2 microseconds). One inherited lookup across
-1,000 stages moved from 1.438-1.488 to 1.865-1.880 ms (+25-31%). A
-1,001-stage Dockerfile with 100 final-stage inherited installs moved from
-1.516-1.561 to 3.037-3.048 ms: a material 95-101% and about 1.5 ms
-increase. Five fixed ecosystem fixture Dockerfiles (seven stages total)
-moved from 20.096-20.418 to 23.773-24.039 microseconds per five-file pass:
-+16-20%, or 3.36-3.94 microseconds. A guarded fast path was proved first
-against the same fixture words and encoded/opaque values; it saved about
-1.5 microseconds per five-file pass relative to the prior candidate. These
-are paired medians of five samples per side in each of two quiet-host rounds;
-raw output is retained in the run evidence. The candidate stayed below the
-provisional 50 ms hostile-case investigation bound, but this is not an
-end-to-end or production-corpus no-regression claim. The visible files in this
-checkout have at most seven stages; this is only a checkout proxy.
-The original preimplementation timing investigation expired before a quiet
-host was available, so its theory remains unproven. The later paired run
-verifies only the implemented parser path. No new metric or span was added;
-the parent parser's existing file-parse timing remains the operator signal.
-The figures above predate the signed-query guard. Its first paired comparison
-found +1.8% and -1.1% on the unchanged five-file fixture corpus. A final
-paired comparison of the shared URL classifier found +0.8–0.9% per five-file
-pass and +4.2–8.0% on an ordinary pip-index URL microcase, with one extra
-allocation in that case. See signed-query proof (#9303)
-for the source hashes, query controls, and interpretation.

@@ -55,10 +55,6 @@ None. Decisions are evaluated inline during the parent coordinator's
 reconcile and scheduling passes and inherit its reconcile metrics and
 governance audit events.
 
-No-Observability-Change: this move adds or renames no metric, span, log
-field, status field, queue, worker, lease, or runtime setting. The parent
-package's collector-egress and extension-egress audit events are unchanged.
-
 ## Gotchas / invariants
 
 - The two policies do not default the same way: an unconfigured

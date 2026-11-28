@@ -309,73 +309,6 @@ The README cross-references this section from its tree-sitter support table.
 
 ## Evidence notes
 
-No-Regression Evidence: `go test ./internal/parser -run 'TestEngine(DispatchesRegisteredLanguageProvider|SkipsProviderPreScanWithoutCapability)' -count=1` failed before provider dispatch and pre-scan capability gating existed, then passed after custom registry providers could parse and opt into pre-scan without shared engine switch edits. `go test ./internal/reducer/code/call -run TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName -count=1` failed before language-specific code-call resolvers were registered outside the generic resolver, then passed after the Go resolver branches moved behind phase-ordered registration while preserving the previous branch order.
-
-No-Observability-Change: provider dispatch and code-call resolver registration add no graph query, queue, worker, lease, batch, runtime knob, metric instrument, metric label, route, or status field. Operators still diagnose parser behavior through existing collector parse-stage logs and `eshu_dp_file_parse_duration_seconds`, and code-call materialization through existing durable intent rows plus the existing completion log.
-
-### Single physical read per `ParsePath` call (issue #4515, front-half throughput)
-
-No-Regression Evidence: `go test ./internal/parser -run 'TestParsePathReadsSourceExactlyOnce|TestParsePathReadsRawTextSourceExactlyOnce' -count=1` failed before the single-read cache existed (`ParsePath` read a Go and a raw_text fixture's bytes twice: once inside the dispatched language parser via `shared.ReadSource`/`readSource`, once again for `inferContentMetadata`), then passed after `ParsePath` primed a call-scoped cache (`shared.PrimeSource`/`shared.ClearSource`, keyed by absolute path) that both `shared.ReadSource` and the engine-local `readSource` consult before touching disk. Full `go test ./internal/parser/... -count=1` (every language sub-package) stayed green with no fixture or golden-gate change, which is the byte-identity proof: no sub-package `Parse` signature changed, so every language's payload is built from the identical bytes it would have read itself. See the parent README's "Single physical read per `ParsePath` call" section for the `BenchmarkParsePath` before/after numbers.
-
-No-Observability-Change: this adds no metric, span, structured log, status field, queue, graph write, worker, lease, batch, or runtime knob. Operators still diagnose parse behavior through the existing collector `telemetry.FileParseDuration` instrument and `collector snapshot stage completed` logs.
-
-### Per-repository JS/TS config-scope cache (issue #4515 P2a)
-
-No-Regression Evidence: `go test ./internal/parser/javascript -run 'TestNearestTSConfigOptionsComputedOnceForSharedConfig|TestNearestPackageManifestComputedOnceForSharedManifest|TestConfigScopeCacheDoesNotCollapseDistinctMonorepoManifests|TestConfigScopeCacheInvalidatesOnManifestChange|TestConfigScopeCacheConcurrentAccessIsRaceFree' -race -count=1` and `go test ./internal/parser/javascript -run 'TestEngineParsePathComputesRepoConfigMetadataOnceForSharedManifests|TestEngineParsePathConcurrentJavaScriptFilesShareConfigComputationOnce' -race -count=1` failed before the config-scope cache existed (every file parsed through `Engine.ParsePath` independently re-read and re-parsed the same nearest tsconfig.json/package.json), then passed after `javascript/config_scope_cache.go` memoized each parsed config keyed by its resolved absolute path, invalidated on `(mtime, size)` change. The cache is keyed by resolved config path, not repo root, so a monorepo with several nested tsconfig.json/package.json files keeps each subtree's evidence distinct instead of collapsing into one repo-wide value. Full `go test ./internal/parser/... -race -count=1` stayed green with no fixture or golden-gate change, which is the byte-identity proof: no `Parse` signature or payload field changed, only how many times the shared config is read and parsed. See the `javascript` package README's "Per-repository config-scope cache" section for the `BenchmarkParsePathTypeScriptRepoSharedConfig` before/after numbers (`-79.35%` wall time, `p=0.000, n=10`, on a 50-file shared-config fixture).
-
-No-Regression Evidence (PR #4669 review follow-up, generation-overwrite and unbounded-cache fixes): the first-round single-flight design keyed the in-flight/settled cache entry by path alone. `go test ./internal/parser/javascript -run 'TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange|TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup' -race -count=1` failed against that design -- forcing goroutine A (older `(mtime,size)` generation) to still be mid-compute when goroutine B (a newer generation, same path) started reproduced a waiter reading back the WRONG generation's value (and, when the key mutation was tried without the fix, a cross-generation deadlock instead) -- then passed after the cache was rewritten as a generic `configScopeCache[V]` keyed by the FULL `(path, stat)` tuple, so two generations of one path can never share, overwrite, or block on the same in-flight slot. The same PR review flagged the cache as unbounded process-global memory for a long-running ingester scanning many repositories over time; `TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity` failed before the bound existed (inserting `configScopeCacheCapacity + 500` keys left every entry cached) and passed after `configScopeCache[V]` became a bounded LRU (`container/list` + map, capacity 4096), asserting cache size never exceeds the cap and that an evicted key correctly recomputes rather than serving stale or zero data. `go test ./internal/parser/... -race -count=1` (1499 tests, up from 1496: the three new regression tests) and `go test ./internal/parser/... -race -count=3` (4497 = 1499*3) stayed green with no flake, and `go test ./internal/parser/javascript -run '^$' -bench BenchmarkParsePathTypeScriptRepoSharedConfig -benchmem -count=3` confirmed the single-flight/LRU rework did not regress the original cache win (`~30ms/op`, versus the pre-cache `~202ms/op` baseline).
-
-No-Observability-Change: this adds no metric, span, structured log, status field, queue, graph write, worker, lease, batch, or runtime knob. Operators still diagnose parse behavior through the existing collector `telemetry.FileParseDuration` instrument and `collector snapshot stage completed` logs.
-
-### Cyclomatic complexity per language (issue #3488)
-
-No-Regression Evidence: `go test ./internal/parser -run TestCyclomaticComplexityPerLanguage -count=1`
-and `go test ./internal/parser/shared -run TestCyclomaticComplexity -count=1` failed
-before the shared McCabe walker existed (C, C++, Java, C#, Rust, Scala emitted no
-`cyclomatic_complexity` field; Go and Python omitted short-circuit boolean
-operators), then passed after `shared.CyclomaticComplexity` drove every
-tree-sitter adapter from per-language `shared.BranchNodeSet` tables. Backend:
-tree-sitter grammars vendored in `go/go.mod` (`go-tree-sitter v0.25.0`). Input
-shape: single-file fixtures with hand-counted decision points (straight-line = 1,
-branchy = 1 + each if/elif/loop/case/match-arm/catch/ternary/`&&`/`||`). The walk
-adds one bounded extra named+anonymous traversal of each already-parsed function
-subtree at parse time; complexity is a pure function of the function node, so it
-adds no queue, lease, worker, batch, Cypher, or graph-write work and stays within
-the existing per-file parse budget measured by
-`eshu_dp_file_parse_duration_seconds`. Full `go test ./internal/parser/... -count=1`
-stayed green, so no language regressed.
-
-No-Observability-Change: complexity is written to the existing
-`cyclomatic_complexity` function-entity field that `content/shape` already
-forwards to the graph node property read by `find_most_complex_functions` and
-`calculate_cyclomatic_complexity`. No new metric instrument, metric label, span,
-log line, status field, env var, queue, worker, lease, batch, runtime knob, or
-graph query is added. SCIP definitions now emit `0` (unknown) instead of a
-fabricated `1`; rankings exclude `0` via the existing
-`WHERE coalesce(e.cyclomatic_complexity, 0) > 0` filter, so operators see fewer
-misleading rows, not a changed observability surface.
-
-No-Regression Evidence (PR #3523 review follow-up): `go test ./internal/parser
--run TestCyclomaticComplexityCatchAndDefaultArms -count=1` locks in two McCabe
-edge cases. Exception handlers each add one decision point (verified C++
-try/catch via a compiled grammar probe: the vendored tree-sitter-cpp grammar
-does emit a named `catch_clause`, so C++ catch increments and is not silently
-zero; Java/C#/Scala catch and Python except confirmed the same). The switch
-`default` arm and the bare Rust/Scala/Python wildcard `_` arm are the implicit
-else and are excluded, so a switch or match whose only arm is the catch-all
-stays complexity 1; this fixed a real over-count where Java `switch_label`, C#
-`switch_section`, C/C++ `case_statement`, Rust `match_arm`, and Scala/Python
-`case_clause` previously counted the catch-all as a decision. A guarded wildcard
-(`_ if cond`) still counts because the guard is a decision. Go was already
-correct because its grammar emits a distinct `default_case` node left out of the
-branch kinds. This adds no runtime, queue, or graph-write cost; the walk shape is
-unchanged aside from a bounded direct-child check on switch/match arm nodes.
-
-No-Observability-Change (PR #3523 review follow-up): the catch/default/wildcard
-correctness fix touches only the computed `cyclomatic_complexity` value; no
-metric, span, log, status field, env var, queue, worker, lease, batch, runtime
-knob, or graph query changes.
-
 ### Kotlin/Swift symbol extraction parity (issue #3486)
 
 Context: issue #3486 (part of the #3480 capability regression audit) claimed
@@ -389,36 +322,6 @@ calls. This change fixes both, adds golden gates, and corrects the README
 capability state from "parser rewrite pending" to the real hybrid line-scan +
 tree-sitter-syntax design.
 
-No-Regression Evidence:
-`../scripts/go-test-run-guard.sh 3 'TestDefaultEngineParsePathKotlinExtractsBareCalls|TestKotlinComprehensiveSymbolExtractionGate|TestSwiftComprehensiveSymbolExtractionGate' -- ./internal/parser/... -count=1`
-plus (after #6062 relocated the Swift extension test into its own package)
-`go test ./internal/parser/swift -run 'TestDefaultEngineParsePathSwiftExtensionMethodsCarryClassContext' -count=1`
-failed before the fix (Swift extension methods carried no `class_context`; Kotlin
-bare calls like `info(...)`/`println(...)` were absent from `function_calls`) and
-passes after. Full `go test ./internal/parser/... -count=1` (1118 tests) plus
-`./internal/mcp ./internal/query ./internal/content/shape` (4972 total) and
-`./internal/reducer/... ./internal/collector/... ./internal/projector/...` stayed
-green, so the added Swift `extension` scope and Kotlin bare-call rows did not
-regress any existing parser, reducer call-materialization, or content-shape
-contract. Backend: tree-sitter grammars vendored in `go/go.mod`
-(`go-tree-sitter v0.25.0`, `tree-sitter-kotlin v1.1.0`, Swift grammar v0.21.0).
-Input shape: single-file Kotlin/Swift fixtures plus the comprehensive
-`tests/fixtures/ecosystems/{kotlin,swift}_comprehensive` corpora with
-hand-checked symbol sets. The extension scope reuses the existing per-line
-brace-depth stack and the bare-call scan reuses the existing per-line
-`seenLineCalls` dedup, so neither adds queue, lease, worker, batch, Cypher, or
-graph-write work; both stay within the existing per-file parse budget measured by
-`eshu_dp_file_parse_duration_seconds`.
-
-No-Observability-Change: symbols flow through the existing `functions`,
-`classes`, `function_calls`, and `class_context` payload keys that `content/shape`
-already forwards; the Swift `extension` scope emits no new type entity and the
-Kotlin bare-call path emits the existing `function_calls` row shape. No new metric
-instrument, metric label, span, log line, status field, env var, queue, worker,
-lease, batch, runtime knob, or graph query is added. Operators still diagnose
-Kotlin/Swift parsing through the existing collector parse-stage logs and
-`eshu_dp_file_parse_duration_seconds`.
-
 ### SCIP symbol-parsing regex compile hoist (issue #4874)
 
 `nameFromSymbol` and `parseSignature` (`go/internal/parser/scip/parser.go`)
@@ -431,18 +334,3 @@ pre-existing `trailingCallRe`. `TestScipNameFromSymbolMatchesSeparatorSplit`
 and `TestScipParseSignatureMatchesArgsAndReturnType` pin the exact matched
 name/args/return-type output, including the empty-input and no-match
 fallback cases, before and after the hoist.
-
-Benchmark Evidence: `go test ./internal/parser/scip -run '^$' -bench
-BenchmarkScipNameFromSymbolRegexHoist -benchmem -benchtime=200000x -count=3`
-measured `10972-19615 ns/op`, `1425-1429 B/op`, `20 allocs/op` before the
-hoist versus `7057-12181 ns/op`, `642-644 B/op`, `10 allocs/op` after — 50%
-fewer allocations and roughly 55% fewer bytes per call, with `go test
-./internal/parser/... -count=1` staying green (no fixture or golden-gate
-change), which is the 0/0 payload-equivalence proof: SCIP symbol table and
-call-edge construction reads only through these two functions' return
-values, so identical outputs mean identical downstream SCIP payloads.
-
-No-Observability-Change: this adds no metric, span, structured log, status
-field, queue, graph write, worker, lease, batch, or runtime knob. Operators
-still diagnose SCIP parse behavior through the existing collector parse-stage
-logs and `eshu_dp_file_parse_duration_seconds`.

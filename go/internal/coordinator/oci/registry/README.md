@@ -49,12 +49,6 @@ does not import its parent and performs no I/O.
 None. Planning inherits the parent reconcile metrics, workflow and claim
 status, and duplicate-admission logs.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-status field, queue, worker, lease, retry, or runtime setting. Coordinator
-failures remain visible through `eshu_dp_workflow_coordinator_reconcile_total`,
-`eshu_dp_workflow_coordinator_reconcile_duration_seconds`, workflow row and
-claim status, and the existing admission logs.
-
 ## Gotchas / invariants
 
 - Run IDs are a function of instance, resolved trigger kind (schedule or
@@ -84,18 +78,6 @@ claim status, and the existing admission logs.
 - Requested-scope metadata (`RequestedScopeSet`) sorts targets by `scope_id`
   and carries only `scope_id`, `provider`, and `repository` — never
   credentials, base URLs, or tag limits.
-
-No-Regression Evidence:
-`go test ./internal/coordinator/oci/registry ./internal/coordinator -count=1`
-proves request validation, configured-target parsing, normalization,
-per-provider identity resolution across all seven providers including the
-GHCR default-host and lowercase paths, duplicate normalized-target rejection
-(asserted on the specific error text and colliding scope ID, not merely a
-non-nil error), blank-configuration rejection, run, work-item, generation and
-fairness identities pinned byte-for-byte by
-`TestOCIRegistryWorkPlannerPinsExactIdentityStrings`, and root admission wiring
-through `fakeOCIRegistryPlanner`. This is a behavior-preserving file move: no
-lease, conflict-key, retry, batching, or ordering change.
 
 ## Related docs
 

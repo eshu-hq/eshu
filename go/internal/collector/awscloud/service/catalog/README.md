@@ -95,29 +95,11 @@ product, one paginated `ScanProvisionedProducts` stream, and one paginated
 No provisioning, association, constraint-mutation, template-read, or
 record-output API is reachable, and there are no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/catalog/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers portfolio, product, and provisioned-product metadata fact emission,
-provisioned-product-to-CloudFormation-stack relationship emission gated on
-`CFN_STACK` type and stack-ARN shape, product-to-portfolio relationship
-emission, portfolio-to-IAM-role relationship emission gated on fully defined
-role ARNs, the metadata-only client-interface exclusion reflection guard, the
-relguard graph-join contract for every emitted edge, the GovCloud/China
-stack-ARN partition-preservation case, runtime registration, and the SDK
-adapter's safe metadata mapping including the `SearchProvisionedProducts`
-physical-id stamping.
-
 Collector Observability Evidence: Service Catalog uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Service Catalog scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. This scanner adds no new instrument, span,
-metric label, or status row.
 
 Collector Deployment Evidence: Service Catalog runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

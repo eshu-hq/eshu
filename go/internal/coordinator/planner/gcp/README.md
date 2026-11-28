@@ -61,10 +61,6 @@ handoff additionally records `eshu_dp_gcp_freshness_events_total` and
 `eshu_dp_gcp_freshness_fanout_scope_count`. Workflow rows and claim status
 expose durable progress.
 
-No-Observability-Change: this package move adds no metric, span, log field,
-status value, queue, worker, lease, retry, or runtime setting. The same root
-signals continue to cover scheduling and handoff failures.
-
 ## Gotchas / invariants
 
 - Live collection must be explicitly enabled (`live_collection_enabled=true`)
@@ -86,17 +82,6 @@ signals continue to cover scheduling and handoff failures.
   same validation errors `PlanGCPWork` returns for the same configuration,
   because both call the same private parse and validate helpers.
 - Run, generation, and work-item IDs are deterministic for a fixed request.
-
-No-Regression Evidence: direct child tests call the production planner and
-pin request-field validation, live-collection opt-in enforcement, sorted
-scope order, disabled-scope skipping, scope-configuration field validation,
-default derivation, deterministic IDs and fairness keys, requested-scope
-privacy, freshness scope filtering including a valid empty selection, and
-that `EnabledScopes`/`ValidateClaimSchedulerConfiguration` surface the same
-validation `PlanGCPWork` does. Root tests pin GCP config-loader startup
-rejection and active-mode scheduling, skip, and tenant-scope-filtering
-behavior. Planning scans `n` configured scopes in O(n) and sorts them in
-O(n log n). It opens no network or database connection.
 
 No-Concurrency-Change: the planner remains a pure per-call value transform
 with no shared state, goroutine, lock, claim, lease, transaction, or retry.

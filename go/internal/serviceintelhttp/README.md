@@ -64,22 +64,6 @@ The route is mounted by `cmd/api` and `cmd/mcp-server` (which already import
   or a load error leaves the section `unsupported` with its fallback rather than
   fabricating an empty supported section.
 
-No-Regression Evidence: the supply-chain source reads one bounded
-`impact_status` inventory page through the existing aggregate read model, scoped
-by resolved workload id and precise detection profile. `TestBuildReportInput*`
-proves sourced, empty, load-error, and blank-workload report composition;
-`TestDurableSupplyChainEvidenceSource*` proves the store filter, limit
-(`SupplyChainImpactAggregateMaxLimit+1`), count rollup, nil-empty behavior, and
-operator log on load failure; `TestDispatchServiceIntelligenceReportParity`
-proves the MCP tool receives the sourced section through the same HTTP route.
-
-No-Observability-Change: this adds no graph write, queue, worker, lease, metric,
-span name, deployment knob, or provider call. The new read uses the existing
-Postgres aggregate query path and request context; operators diagnose it through
-the existing service intelligence request route metrics/spans, existing
-supply-chain aggregate Postgres instrumentation, and the structured
-`serviceintel.supply_chain_load_error` log.
-
 ## Verification
 
 ```bash

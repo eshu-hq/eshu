@@ -132,13 +132,6 @@ from the GHSA record's, which forms two groups.
 
 ## Evidence (#9959 ghsa key spelling)
 
-No-Regression Evidence: `validateVulnerabilityGHSAKeySpelling` in `workflow` reads the raw
-document on every `ValidateVulnerabilityIntelligenceCollectorConfiguration` call,
-for every source, because a target's source can only be read from its raw keys.
-Baseline: the same branch on main `0cb384ca89` with that one call removed. Input:
-one document of 64 targets. Run: `go test -bench -benchmem -benchtime=2s -count=3`,
-Go 1.26.6, no backend, host load average about 46, so treat times as rough.
-
 | Document | Before ns/op | After ns/op | Before allocs | After allocs |
 | --- | --- | --- | --- | --- |
 | 64 `ghsa` targets | 184,208 to 197,250 | 1,046,722 to 1,350,277 | 414 | 8,578 |
@@ -153,10 +146,6 @@ there are no terminal queue or row counts. No migration is added:
 `TestPublicAdvisoryReconcileFunctionDoesNotAdmitGHSA` pins that migration 254's
 reconcile function still refuses `ghsa`.
 
-No-Observability-Change: core adds no metric, span, or log. A refused `ghsa` target
-surfaces through the existing configuration validation error at coordinator and
-collector-instance load, which names the key and quotes no value.
-
 ## CVE List shard mapping
 
 `CVEListShardForCVEID` maps a CVE ID to its CVE List v5 shard directory,
@@ -168,48 +157,3 @@ see `CVEListShardCounts`). This is the
 item 5.1 measurement substrate (#9961, plan §4.4): pure string accounting,
 no network, database, or workflow mutation. The measured verdict lives in
 (#9961).
-
-## GHSA rolling windows: performance and observability evidence (#10037)
-
-No-Regression Evidence: baseline `origin/main` at `2d477a517d`; after this
-change at the branch HEAD. At measurement time GHSA was not activatable: no
-configuration section minted a GHSA window scope, so every production claim
-then took the unchanged path. (Superseded in part by the
-`derive_ghsa_rolling_windows` wiring, #9959/#10516: the section now exists
-and mints window scopes when enabled and stays off by default. Superseded in
-full by the green S6 1-hour tokened QA run under #10465
-([S6 record](https://github.com/eshu-hq/eshu/issues/10465#issuecomment-6788316515), owner-accepted shortened soak; see amended activation criteria in the window-scope decision):
-GHSA rolling is activatable for production truth via
-`derive_ghsa_rolling_windows` with a host-minted token on the 1-hour S6 evidence. The measurements
-below still describe the non-GHSA hot path.) The added hot-path work per non-GHSA claim is one
-`strings.Contains` infix check in `IsGHSAWindowScope` plus one map-free
-policy nil check in the extension host; the successor guard gains one
-boolean arm evaluated before the existing arms with no new query (the
-write-once prior read reuses the candidate tuple and active read the
-guard already performs, rechecked in-transaction by the existing #8750
-recheck). Measured locally with `go test -count=1` on the touched
-packages (Go toolchain on this host, no database): `extensionhost`
-0.659s, `coordinator/vulnerability` 0.029s, `vulnsource` under 0.01s for
-the grammar and golden-vector tests, and the storage guard fake-harness
-cells including the racing-recheck cell pass in the
-`internal/storage/postgres` suite. Terminal queue and row counts were
-unchanged because no window scope was planned in the measured configuration;
-the cursor table adds at most two rows per collector instance (one per
-advisory type) now that rolling activation has landed. Live-DSN cursor cells
-(`TestGHSAWindowCursorCompareAndAdvanceLive`) are enrolled in the
-live-postgres-readiness runner and were NOT_CHECKED locally (no
-`ESHU_POSTGRES_DSN` in this environment); they prove overlapping
-transactions settle at the max and a rollback leaves the cursor.
-
-Observability Evidence: `eshu_dp_ghsa_cursor_lag_seconds{advisory_type}`
-(gauge; a value growing past the anchor refresh interval plus one hour
-means the stream is stuck), `eshu_dp_ghsa_window_advance_total{advisory_type,outcome}`
-with closed outcomes `advanced`, `prefix`, `held`, `no_progress`, the new
-`write_once` label on `eshu_dp_ingestion_successor_guard_decisions_total`,
-WARN log `ghsa window claim refused by commit policy, nothing committed`
-with the failure class, advisory type, work item, and generation (never
-the scope id or a payload value), and the existing `successor_guard`
-commit-stage log naming scope, generation, and rule. The conflict domain
-is one advisory-type stream's cursor row plus one write-once scope row;
-concurrent claims on different windows or types never serialize, and the
-compare-and-advance keeps the max under either commit order.

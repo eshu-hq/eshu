@@ -95,41 +95,15 @@ ListUsersInGroup, ListUserPoolClientSecrets, mutation calls, or graph writes
 exist in the collector. Fanout is bounded by the user-pool and identity-pool
 count per claim.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Cognito metadata fact emission, user-pool-client, lambda-trigger, and
-identity-pool relationship emission, omission of ClientSecret and
-ProviderDetails, SDK pagination, runtime registration, the redaction-key guard,
-command configuration, and the SDK adapter's safe metadata mapping.
-
 Collector Observability Evidence: Cognito uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
 
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Cognito scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
-
 Collector Deployment Evidence: Cognito runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/cognito/... -count=1`
-covers the new `TestIdentityPoolARNDerivesPartition` (commercial / `aws-us-gov`
-/ `aws-cn`) alongside the existing assertions. The cognito-identity APIs return
-only the bare pool id, so `identityPoolARN` now derives the partition from the
-scan boundary via `awscloud.PartitionForBoundary` instead of hardcoding `aws`.
-Commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
-metadata-only correctness fix with no graph-write, queue, or hot-path behavior
-change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

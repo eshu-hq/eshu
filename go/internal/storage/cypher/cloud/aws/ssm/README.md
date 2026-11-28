@@ -24,18 +24,3 @@ observation nodes and `REPORTED_WITH` pairing edges (issue #9558).
 - Retracts are host- and evidence-scoped `DETACH DELETE`s: application nodes
   strictly older than the superseding capture, and listed conflicted platform
   uids. Retracts run sequential `Execute`, never `ExecuteGroup` (#4367).
-
-## Performance Evidence
-
-New write path (no baseline to regress): batches ride `UNWIND` with the
-default batch size; node MERGEs seek the `SSMHostApplication_uid_unique` /
-`SSMHostPlatform_uid_unique` constraints added with this change; the
-committed-capture read runs once per intent (not per host); retracts are
-host-scoped. No existing statement, phase order, or hot path is touched.
-
-## Observability Evidence
-
-No new instrument: writes flow through the existing executor/retry
-instrumentation and the reducer domain's completion log. Retract statements
-carry the `canonical_retract` operation and the `ssm_host_inventory` phase
-metadata.

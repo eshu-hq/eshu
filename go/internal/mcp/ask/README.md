@@ -51,11 +51,6 @@ handler retains
 - Keep global fanout, the root adapter, HTTP dispatch, query execution,
   provider calls, authorization, and telemetry out of this package.
 
-No-Observability-Change: this extraction moves only pure Ask route selection.
-The root adapter still feeds the same global fanout, dispatch, authorization,
-summaries, and transport telemetry, and the same query handler executes the
-request.
-
 ## Related docs
 
 - [MCP package](../README.md)

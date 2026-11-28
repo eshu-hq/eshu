@@ -211,10 +211,6 @@ and dbtsql sibling sites in this issue (see `../AGENTS.md#evidence-notes` and
 own regression and race tests rather than a separate golang-specific
 benchmark.
 
-No-Observability-Change: parse timing remains owned by the ingester and
-collector runtime paths that call the parent Engine, per this file's existing
-anti-pattern against adding telemetry from this package.
-
 ### #6062 residual
 
 One single-language test remains at the `internal/parser` root:

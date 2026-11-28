@@ -85,34 +85,6 @@ directly rather than keeping a duplicate or a forwarding wrapper.
 `nodeIDSet` had exactly one consumer file (the declaring one, now
 `packet_test.go`) so it moved unexported rather than being hoisted.
 
-No-Regression Evidence: baseline `origin/main` vs this branch -- `go build
-./...` is clean; `go vet ./internal/query/... ./cmd/api ./cmd/mcp-server
-./internal/mcp` reports no issues; `go test ./internal/query/... -count=1`,
-`go test ./cmd/api ./cmd/mcp-server ./internal/mcp -count=1`, and `go test
-./cmd/golden-corpus-gate/... -count=1` (the golden snapshot pins the
-service-story packet shape through the root forwarder) pass with zero
-failures; the root and
-leaf test-name union (`go test ./internal/query/ -list '.*'` UNION `go test
-./internal/query/visualization/ -list '.*'`) is the pre-move `go test
-./internal/query/ -list '.*'` list plus exactly the five tests this leaf
-adds (the four `TestHandlerDerive*` cases in `handler_test.go` and root's
-`TestVisualizationPacketDerivationCapabilityLockstep`, the latter since
-removed by #6642 Part C when root's row adopted the constructor), with no
-duplicate
-and no drop; the `-list 'Benchmark.*'` union equals the pre-move root
-benchmark list, with
-`BenchmarkBuildServiceStoryVisualizationPacketRetainedShape` moving from
-root's list to the leaf's. This route issues no Cypher, so
-`internal/queryplan`'s source-coverage manifest has no row naming it and
-none needed re-pinning. `git diff origin/main --stat -- testdata/golden
-testdata/cassettes` is empty.
-
-No-Observability-Change: this route emits no span, metric, or log of its own
--- it is a pure in-process transformation with no graph, content, or
-reducer read -- so there is nothing route-local to regress. The route path
-(`POST /api/v0/visualizations/derive`) and its `visualization.packet_derivation`
-truth capability string are unchanged.
-
 ## Related docs
 
 - `docs/public/reference/visualization-packets.md`

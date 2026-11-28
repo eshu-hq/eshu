@@ -89,29 +89,11 @@ per-resource Describe fan-out; no mutations; no `DescribeRouterConfiguration`.
 Cardinality is bounded by the connection, virtual interface, gateway, LAG, and
 association counts Direct Connect returns for the claimed account and region.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
-covers Direct Connect resource and relationship emission, the
-`aws_direct_connect_gateway` join key that closes the transit-gateway edge,
-gateway-to-transit-gateway and gateway-to-virtual-private-gateway association
-edges, the read-only Client and SDK adapter exclusion guards (authKey and MACsec
-key material never mapped), runtime registration through the derived service
-guard, and command configuration not requiring a redaction key.
-
 Collector Observability Evidence: Direct Connect uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: Direct Connect adds no new telemetry contract. The
-existing AWS collector signals already diagnose Direct Connect scans through the
-`aws.service.scan` and `aws.service.pagination.page` spans,
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total{service="directconnect"}`,
-`eshu_dp_aws_relationships_emitted_total{service="directconnect"}`, and
-`aws_scan_status` rows. Direct Connect only adds the bounded
-`service="directconnect"` label value to those existing instruments.
 
 Collector Deployment Evidence: Direct Connect runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

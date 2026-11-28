@@ -83,30 +83,3 @@ generation emits no per-reason series; the admission summary
 `EvidenceSummary` is the always-present record. Malformed provider identities
 never reach quarantine as `input_invalid` — they are counted outcomes, not
 malformed facts.
-
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk in the moved production files is a package clause, an
-import requalification, or an identifier requalification: symbols the reducer
-root exposed as one-line forwarders (`workloadIdentityExecer` /
-`reducerFactRow` / `reducerBatchInsertFacts` / `reducerWriterNow` /
-`reducerFactCollectorKind` → `factwrite.*`, `Intent` / `Result` /
-`ResultStatusSucceeded` / `ResultStatusSuperseded` / `DomainDefinition` /
-`OwnershipShape` / `GenerationFreshnessCheck` /
-`DomainCloudInventoryAdmission` → `reducercontract.*`) are now called on the
-leaf package directly; key sorting goes through the shared
-`payloadcore.SortedKeys` (the root `sortedKeys` forwarder in
-`candidate_loader.go` stays for `candidate_loader.go`,
-`code_import_repo_edge.go`, and `package_consumption_repo_edge.go`). The
-`correlation/cloudinventory`, `admissiondecision`, `facts`, `telemetry`, and
-`truth` calls were already leaf-qualified and are untouched. No handler
-branch, fold rule, attach rule, bound/cap, dedupe key, payload shape,
-idempotency key, or generation gate changed.
-`go test ./internal/reducer/cloudinventory -count=1` passes with the moved
-test suite unchanged in assertion content (only package clause, import paths,
-leaf requalification, and unexported symbol duplication for the package
-boundary).
-
-No-Observability-Change: the move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; the
-shared admission counter keeps the same name, labels, and key set at the new
-import path.

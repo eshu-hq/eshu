@@ -124,39 +124,12 @@ per-key DescribeKey, ListAliases roll-up, ListGrants, ListKeyPolicies,
 GetKeyRotationStatus with UnsupportedOperationException tolerance, and
 ListResourceTags without cryptographic or lifecycle calls.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers KMS resource and relationship fact emission, omission of policy
-Statement bodies, omission of grant encryption contexts, runtime
-registration, command configuration, and the SDK adapter's safe
-metadata mapping.
-
 Collector Observability Evidence: KMS uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows.
 
-No-Observability-Change: the existing AWS collector telemetry contract
-already diagnoses KMS scans through the bounded shared instruments.
-
 ### Resource-policy permission fact (PR4b of #1134)
-
-No-Regression Evidence: `cd go && go test ./internal/facts ./internal/collector/awscloud ./internal/collector/awscloud/service/kms/... -count=1`
-covers the new `aws_resource_policy_permission` emission, the derived
-key-policy statement normalization, the GetKeyPolicy adapter call, and the
-existing metadata path. This slice is facts-only: no Cypher, graph write,
-queue, lease, or reducer change. The added work is one control-plane
-`GetKeyPolicy` call per key policy name (almost always the single `default`
-policy), bounded by the policy-name count `ListKeyPolicies` already returns,
-so the per-key API fan-out grows by one bounded read; AccessDenied on a
-policy read is treated as "no readable policy" and contributes no fact rather
-than failing the scan.
-
-No-Observability-Change: the `GetKeyPolicy` call flows through the existing
-`recordAPICall` path, so it is already counted by
-`eshu_dp_aws_api_calls_total{operation="GetKeyPolicy"}` and traced by the
-`aws.service.pagination.page` span; the derived fact flows through the
-existing `eshu_dp_aws_resources_emitted_total{service="kms"}` collector
-signal. No new metric, span, or log is introduced.
 
 Collector Deployment Evidence: KMS runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

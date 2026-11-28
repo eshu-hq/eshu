@@ -35,9 +35,6 @@ coordinator subpackage.
 None. Parsing runs once during each caller's configuration load, before any
 runtime telemetry exists.
 
-No-Observability-Change: this move adds or renames no metric, span, log
-field, status field, queue, worker, lease, or runtime setting.
-
 ## Gotchas / invariants
 
 - The package is named `environment`, not `env`. The repository's

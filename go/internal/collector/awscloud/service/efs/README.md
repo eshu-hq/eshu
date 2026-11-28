@@ -71,26 +71,11 @@ per mount target, one lifecycle configuration read per file system, and one
 account-wide replication configuration listing, with no file reads and no
 mutations.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers EFS file system, access point, mount target, and replication
-configuration fact emission, the five EFS relationships, omission of NFS file
-system policy bodies, runtime registration, command configuration, and the SDK
-adapter's metadata-only describe seam. Input shape: one file system with one
-access point, one mount target with two security groups, and one replication
-configuration with one destination. Backend: none (the scanner is a pure mapping
-stage that emits facts.Envelope values; no graph backend is exercised).
-
 Collector Observability Evidence: EFS uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses EFS scans through `aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, the centrally recorded resource/relationship counters in
-`awsruntime/source.go`, and `aws_scan_status`. The EFS scanner adds no new
-counter, span, log scope, or metric label.
 
 Collector Deployment Evidence: EFS runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

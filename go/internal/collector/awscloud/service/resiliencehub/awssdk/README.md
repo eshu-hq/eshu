@@ -38,8 +38,3 @@ protected-resource edge it cannot join.
 Every paginator page is wrapped in `recordAPICall`, which emits the shared AWS
 pagination span and increments the shared AWS API-call and throttle counters.
 Metric labels stay bounded to service, account, region, operation, and result.
-
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane adapter; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/resiliencehub/...` green.
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

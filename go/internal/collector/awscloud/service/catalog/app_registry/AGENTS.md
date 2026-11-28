@@ -42,13 +42,6 @@
 - Keep AppRegistry ARNs, names, descriptions, tags, and AWS error payloads out
   of metric labels.
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/catalog/app_registry/...`
-green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle
-counters; no telemetry contract change.
-
 ## Common Changes
 
 - Add a new AppRegistry metadata field by extending the scanner-owned type,

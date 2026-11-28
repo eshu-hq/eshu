@@ -65,11 +65,6 @@ signals, while the relationship HTTP handlers retain
   authorization, transport, timeout, budget, envelope, and telemetry behavior
   out of this package.
 
-No-Observability-Change: these selectors preserve the existing selected method,
-path, body, and query values. Root dispatch, authorization, timeouts, response
-budgets, envelopes, transport, and telemetry remain unchanged, as do query
-validation, graph reads, and response shaping.
-
 ## Related docs
 
 - [MCP package](../README.md)

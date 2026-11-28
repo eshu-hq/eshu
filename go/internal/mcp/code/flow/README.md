@@ -68,11 +68,6 @@ API request duration and error metrics (`request.go` in
 - Family membership is an explicit name-to-path map, never a prefix match,
   even though the four names share the `dispatch_` spelling.
 
-No-Observability-Change: this extraction moves only pure code-flow route
-selection. The root adapter still feeds the same global fanout, dispatch,
-authorization, budgets, envelopes, summaries, and transport telemetry, and the
-same query handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../README.md)

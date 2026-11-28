@@ -35,14 +35,6 @@ so the reverse import would cycle. The builder triggers on fact presence only
 and never decodes the payload, so it carries no `factschema_decode_*` seam,
 unlike `ec2`'s and `s3`'s decode-bearing builders.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains the `reducer.aws_relationship_materialization` span
-and the `eshu_dp_aws_relationship_edges_total` counter. Moving the pure
-builder adds no queue, storage, graph, span, metric, or log boundary.
-
 ## Gotchas / invariants
 
 - The `EntityKey` is `aws_resource_materialization:<scope>` — NOT a
@@ -66,25 +58,6 @@ builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason, anchor selection, and source-system derivation are identical to
-the base commit, and the dispatcher's ordered fan-out is unchanged at 44
-builder probes with this probe still running immediately after
-`ec2.BuildInstanceNodeMaterializationReducerIntent` and immediately before
-`image.BuildMaterializationReducerIntent`. The root
-`awsCloudRuntimeDriftSourceSystem` helper it called was compared body-for-body
-against its `projectorintent.SourceSystem` replacement (both trim
-`SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`), and the
-root `firstOfKind` forwarder was a direct delegate to
-`projectorintent.FactLookup.FirstOfKind`, so both substitutions are
-behavior-identical by construction. At that extraction checkpoint the root
-helper remained for seven other callers; later family extractions removed its
-final callers and definition. Focused proof:
-`../scripts/go-test-run-guard.sh 1 'TestBuildMaterializationReducerIntent' -- ./internal/projector/cloud/aws/relationship -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
 
 ## Related docs
 

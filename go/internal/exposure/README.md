@@ -171,16 +171,3 @@ flowchart LR
 cd go && go test ./internal/exposure -count=1
 cd go && golangci-lint run ./internal/exposure/...
 ```
-
-No-Regression Evidence: #3191 adds `config_security_key` and
-`iac_misconfiguration` as non-GraphBacked catalog fixtures only. `MatchSink`
-rejects plausible config and Terraform misconfiguration edge shapes until a
-Function-anchored materializer and `ValueFlowFixpointEvidenceLoader` path exist,
-and the reducer cloud-sink loader test proves those catalog-only rows do not
-produce fixpoint targets.
-
-No-Observability-Change: the change adds no graph query, graph write, queue
-domain, worker, runtime knob, metric, span, log field, or status field. Operators
-continue to diagnose value-flow sink reachability through the existing fixpoint
-load log, reducer execution counters, graph query instrumentation, and
-`TAINT_FLOWS_TO` writer summaries when a real graph-backed sink path exists.

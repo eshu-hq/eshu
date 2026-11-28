@@ -56,14 +56,6 @@ seam.
 Two of the three builders — external-principal-grant and internet-exposure —
 trigger on the mere presence of a fact and do not decode its payload.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution, reconciliation, and graph-write telemetry. Moving
-the pure builders adds no queue, storage, graph, span, metric, or log
-boundary.
-
 ## Gotchas / invariants
 
 - All three builders key their intent's `EntityKey` to
@@ -86,17 +78,6 @@ Run the package contract tests, root S3 assembly tests, ordered fan-out
 parity and probe-count tests, the projector package tree, package-doc and
 path mirrors, dirgate, telemetry coverage, and the golden-corpus gates
 selected by the changed paths.
-
-No-Regression Evidence: this extraction moves three builders and their typed
-decode wrapper without changing a trigger, a value, or the order they run in.
-Reducer intent domains emitted by all three builders are identical to the base
-commit, and the dispatcher's ordered fan-out is unchanged at 44 builder probes with
-each swap at its original position. `awsCloudRuntimeDriftSourceSystem` and
-`codegraphDerefString` were compared body-for-body against their
-`projectorintent` and local replacements rather than by name. Focused proof:
-`go test ./internal/projector/... -count=1` green, whole-module `go build` and
-`go vet` clean, and the B-7 golden corpus gate reports 561 pass /
-0 required-fail with the B-12 snapshot byte-identical to main.
 
 ## Related docs
 

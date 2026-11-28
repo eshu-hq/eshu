@@ -127,27 +127,3 @@ reject an uncanonicalizable URL: it falls back to hashing the raw string,
 which would silently mint an id from text that was never a durable identity.
 `ResolveRepoID` gates on the canonicalization succeeding before ever calling
 `CanonicalRepositoryID`, so that guess never happens.
-
-## No-Regression Evidence
-
-`go test ./internal/collector/repo/submodule -count=1` covers: parser behavior
-(single/multiple submodules, missing `path`/`url`, comments, blank lines,
-quoted values, repeated keys, non-submodule and bare-subsectionless sections,
-CRLF line endings), `IsGitmodulesPath` exact-match behavior, `ResolveRepoID`
-(absolute URL shapes resolve, relative/local/ambiguous shapes do not, and
-different equivalent spellings of the same remote resolve identically), and
-envelope emission (schema version, collector kind, source ref, stable-key
-differentiation across repo/submodule path, optional
-`collector_instance_id`, `pinned_sha` always absent).
-
-Collector Performance Evidence: this package introduces no runtime, worker,
-or queue. `Parse`, `ResolveRepoID`, and `Emit` are pure library functions
-that run in a single linear pass over one small file's lines; cost is linear
-in file size with no hot-path Cypher and no new query.
-
-Collector Observability Evidence: not applicable — this package mounts no
-runtime and exposes no health/readiness/metrics surface. Facts flow through
-the Git collector's existing observe/stream/fact-emission telemetry.
-
-No-Observability-Change: this package adds no metrics, spans, or logs of its
-own.

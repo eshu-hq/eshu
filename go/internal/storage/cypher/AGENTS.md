@@ -237,10 +237,6 @@
   `resolution_method` from the row. Do not reintroduce relationship-local
   `confidence = 0.95` literals in inheritance edge writers.
 
-No-Regression Evidence: `go test ./internal/reducer/inheritance -run 'TestExtractInheritanceRowsStampsDeclaredResolutionMethod' -count=1` and `go test ./internal/storage/cypher -run 'TestBuildInheritanceRowMap(DerivesTieredConfidence|DefaultsToLegacyConfidence)|TestInheritanceCypherTemplatesAreParameterized|TestBuildInheritanceRowMapRoutesImplements|TestEdgeWriterWriteEdgesInheritanceDispatch' -count=1` prove inheritance and IMPLEMENTS rows carry `codeprovenance` methods, derive confidence/reason from the row, and preserve the existing backend-neutral `UNWIND` plus label/uid `MATCH` plus relationship `MERGE` shape for one-row inheritance and IMPLEMENTS inputs.
-
-No-Observability-Change: inheritance edge writes still flow through `EdgeWriter.WriteEdges`, existing route summaries, `GroupExecutor`/sequential execution, shared-edge group metrics, statement summaries, retry wrapping, and failure logs. This change adds no metric name, metric label, worker, queue domain, runtime knob, backend branch, or new graph-write route.
-
 ## Common changes and how to scope them
 
 - **Add a new canonical domain node type** → add a BuildCanonical...Upsert
@@ -275,76 +271,11 @@ No-Observability-Change: inheritance edge writes still flow through `EdgeWriter.
   compile-time list in `go/internal/telemetry/contract.go`; record via
   `Instruments.*` in the write path.
 
-Performance Evidence: Remote full-corpus NornicDB Compose proof on the
-code-call partition-loading branch reached bootstrap completion with schema
-applied and active code-call partition leases, but tiny `INSTANTIATES` code-call
-groups repeatedly spent about 25-28 s in the graph write while adjacent typed
-`CALLS` and `REFERENCES` groups completed in milliseconds. The slow route used
-the multi-label `Function|Class|File` to `Class|Struct|Enum` template for
-1-17-row groups; exact endpoint labels were present in the row payload. The
-fix keeps the same backend-neutral `UNWIND` plus `MERGE` semantics while routing
-typed `INSTANTIATES` rows through exact label + `uid` matches. Red evidence:
-`go test ./internal/storage/cypher -run
-'TestEdgeWriterWriteEdgesInstantiatesUsesExactEndpointLabels' -count=1` failed
-because the old template still used multi-label endpoint matches. Green
-evidence: `go test ./internal/storage/cypher -run
-'TestEdgeWriterWriteEdgesInstantiatesUsesExactEndpointLabels|TestBuildCodeCallRowMapRoutesInstantiates'
--count=1` and `go test ./internal/storage/cypher -count=1`.
-
-No-Observability-Change: typed `INSTANTIATES` rows still execute through
-`EdgeWriter.WriteEdges`, existing grouped/sequential executor paths,
-`CodeCallEdgeDuration`, `CodeCallEdgeBatches`, shared edge group metrics, retry
-wrapping, and bounded route summaries with relationship, source label, target
-label, and row count. The change adds no metric name, metric label, worker,
-queue domain, runtime knob, backend branch, or new graph-write route.
-
-No-Regression Evidence: package-registry dependency-target package rows now
-skip UIDs already covered by primary package rows in the same canonical
-materialization. The baseline failed
-`go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriterSkipsDependencyTargetsCoveredByPackageRows' -count=1`
-with one duplicate target statement for a one-package, one-dependency NPM input
-shape. After the fix, `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriter(SkipsDependencyTargetsCoveredByPackageRows|DeduplicatesPackageRegistryDependencyTargets|DeduplicatesPackageRegistryPackages|DeduplicatesPackageRegistryPackagesWithDeterministicTieBreaker|BuildsPackageRegistryStatements|SeparatesPackageRegistryPhaseGroups)'
--count=1` and `go test ./internal/projector ./internal/storage/cypher -count=1`
-pass. The backend contract is unchanged: primary package rows still write first,
-target-only dependencies still create target packages, and terminal row counts
-drop only for duplicate same-UID target upserts.
-
-No-Observability-Change: package-registry dependency-target filtering runs
-inside statement construction before the existing `CanonicalNodeWriter.Write`
-path. Existing canonical write spans, phase metadata, package identity locks,
-retry classification, backend query metrics, and phase failure logs still cover
-the write. The change adds no metric name, metric label, worker, queue domain,
-runtime knob, backend branch, or new graph-write route.
-
 ## CodeTaintEvidence writer (value-flow projection, #2889)
 
 `CodeTaintEvidenceWriter` upserts value-flow taint findings as `CodeTaintEvidence`
 nodes attached to their `Function`. It is the reducer-owned graph-write for the
 `code_taint_evidence` projection domain.
-
-No-Regression Evidence: `go test ./internal/storage/cypher/edge/writer -run 'TestCodeTaintEvidenceWriter' -count=1`
-and `go test ./internal/graph -run 'TestSchemaStatements.*CodeTaintEvidence' -count=1`
-prove the writer emits one batched, backend-neutral `UNWIND $rows` statement that
-`MATCH (f:Function {uid})` (never `MERGE`, so a missing Function adds no orphan
-node), `MERGE (ev:CodeTaintEvidence {uid})`, and
-`MERGE (f)-[:HAS_TAINT_EVIDENCE]->(ev)`, and that retraction is a single
-`DETACH DELETE` scoped to `scope_id` + `evidence_source`. Input shape: one row per
-resolved finding per scope generation (bounded by `DefaultBatchSize`); the
-MERGE-on-uid identity plus the new `code_taint_evidence_uid_unique` constraint
-(NornicDB: a uid lookup index) keep the upsert O(rows) and idempotent. Backend:
-NornicDB default and Neo4j compatibility, same `Executor`/`GroupExecutor` path as
-every other evidence writer. The domain is gated off until its loader and writer
-are wired in `cmd/reducer`, so there is no production graph-write load on this
-path yet.
-
-No-Observability-Change: the writer flows through the existing `Executor`/
-`GroupExecutor` dispatch, `Statement` phase/label/summary metadata
-(`code_taint_evidence` phase, `CodeTaintEvidence` label), retry wrapping
-(`WrapRetryableNeo4jError`), and failure logging. It adds no new metric name,
-metric label, worker, queue domain, runtime knob, backend branch, or other new
-graph-write route surface.
 
 ## CodeInterprocEvidence writer (cross-function value-flow projection, #2906)
 
@@ -354,27 +285,6 @@ reducer-owned graph-write for the `code_interproc_evidence` projection domain an
 mirrors the existing reducer-owned scoped edges (`iam_can_assume`,
 `handles_route`): the flow is an edge, not a node, so it needs no new schema
 constraint or index.
-
-No-Regression Evidence: `go test ./internal/storage/cypher/edge/writer -run 'TestCodeInterprocEvidenceWriter' -count=1`
-proves the writer emits one batched, backend-neutral `UNWIND $rows` statement that
-`MATCH (s:Function {uid})` and `MATCH (t:Function {uid})` (never `MERGE`, so a
-finding whose endpoint is absent draws no edge to a phantom node),
-`MERGE (s)-[rel:TAINT_FLOWS_TO {evidence_uid: row.uid}]->(t)`, and that retraction
-is a single `DELETE` scoped to `scope_id` + `evidence_source`. Input shape: one
-row per resolved cross-function finding per scope generation (bounded by
-`DefaultBatchSize`); the MERGE-on-`evidence_uid` identity keeps the upsert
-O(rows) and idempotent, and the MERGE is bounded by the two MATCHed endpoints so
-it needs no global relationship index. Backend: NornicDB default and Neo4j
-compatibility, same `Executor`/`GroupExecutor` path as every other evidence
-writer. The domain is gated off until its loader and writer are wired in
-`cmd/reducer`, so there is no production graph-write load on this path yet.
-
-No-Observability-Change: the writer flows through the existing `Executor`/
-`GroupExecutor` dispatch, `Statement` phase/label/summary metadata
-(`code_interproc_evidence` phase, `TAINT_FLOWS_TO` label), retry wrapping
-(`WrapRetryableNeo4jError`), and failure logging. It adds no new metric name,
-metric label, worker, queue domain, runtime knob, backend branch, or other new
-graph-write route surface.
 
 ## Failure modes and how to debug
 

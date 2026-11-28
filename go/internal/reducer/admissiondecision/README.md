@@ -99,31 +99,6 @@ spans, per-domain execution counters, and completion logs are unchanged by
 this move. `docs/public/observability/telemetry-coverage.md` carries zero rows
 naming `admission_decisions.go` before or after the move (verified by `rg`).
 
-No-Regression Evidence: issue #6061 relocates this shared vocabulary and its
-helpers without changing behavior. Every hunk in the moved production file is
-one of: the package clause; the sole added import, `internal/reducer/contract`
-(`internal/facts` was already imported pre-move); the `domain Domain` ->
-`domain reducercontract.Domain` signature requalification on
-`NewAdmissionDecision`, type-identical through the `Domain =
-reducercontract.Domain` alias `go/internal/reducer/intent.go` declares (see
-Gotchas below); capitalizing six previously-unexported identifiers whose call
-sites in the three consuming families are repointed to the qualified,
-capitalized name in the same commit; or an added doc comment -- no control
-flow, identity derivation, or persistence call changes. `go build ./...` and
-`go vet ./...` exit 0, and `go test ./internal/reducer/... ./cmd/reducer
-./internal/storage/postgres -count=1` passes byte-identical for every
-existing case, including `admission_decision_mapping_test.go`'s three cases,
-which test the calling handlers' `Handle` methods and stay in the reducer
-root unmoved (they exercise root-owned correlation logic, not this package's
-own symbols).
-
-No-Observability-Change: this move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, metric label, or log
-key. Operators still diagnose the path through the existing reducer run
-spans, per-domain execution counters, and completion logs each calling
-handler already emits; this package contributes no telemetry of its own
-before or after the move.
-
 ## Gotchas / invariants
 
 - `NewAdmissionDecision`'s `domain` parameter is typed

@@ -36,8 +36,3 @@ mutation method is ever added.
 This package owns SDK type mapping, pagination, namespace fan-out, and throttle
 classification. It does not own fact selection, identity mapping, or relationship
 join keys, which live in the parent `applicationautoscaling` package.
-
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/applicationautoscaling/...` green.
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.

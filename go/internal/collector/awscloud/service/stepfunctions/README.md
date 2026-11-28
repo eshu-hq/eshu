@@ -83,14 +83,6 @@ ListTagsForResource read per state machine, one paginated ListActivities
 stream, one ListTagsForResource read per activity, no execution or mutation
 calls, and no graph writes in the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Step Functions state machine and activity metadata fact emission,
-state-machine-to-IAM-role relationship emission, ARN-only referenced-resource
-relationship emission, omission of execution input/output, omission of
-literal Parameters/ResultPath/ResultSelector/InputPath/OutputPath/Result
-contents, runtime registration, command configuration, and the SDK adapter's
-safe metadata mapping.
-
 Collector Observability Evidence: Step Functions uses the existing AWS
 collector `aws.service.pagination.page` span plus
 `eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
@@ -98,11 +90,6 @@ collector `aws.service.pagination.page` span plus
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 status.
-
-No-Observability-Change: the existing AWS collector telemetry contract
-already diagnoses Step Functions scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters,
-resource/relationship counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: Step Functions runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

@@ -95,29 +95,6 @@ here as `scope_test.go` using `auth.AuthContext`/
 `auth.ContextWithAuthContext`/`auth.AuthModeScoped` and
 `querycontract.ProfileProduction` directly.
 
-No-Regression Evidence: baseline `origin/main` vs this branch -- `go test
-./internal/query/...` and `go test ./internal/query/workitem/` pass, and their
-combined test-name union carries every pre-move name from the `go test
-./internal/query/ -list '.*'` baseline (2815 names, no duplicate, no drop);
-the only addition is `TestWorkItemEvidenceCapabilityLockstep`
-(`capability_lockstep_work_item_test.go`, root package `query`), the drift
-guard the capability-lockstep review finding added, bringing the union to
-2816 (that test has since been removed: #6642 Part C made root's
-`contract_work_item.go` call `EvidenceSupport()`, leaving one declaration
-and nothing for it to compare); `go list -deps ./internal/query/workitem` names no `internal/query`
-(root) dependency; the `internal/query` dirgate ledger row drops 490 -> 483
-(eight non-test files left, one alias file arrived; the new lockstep test
-file does not move this count, since dirgate excludes `*_test.go`).
-
-No-Observability-Change: the span this route emits keeps its name
-(`telemetry.SpanQueryWorkItemEvidence`) and `http.route`/`eshu.capability`
-attributes, and the per-state span counters
-(`telemetry.SpanAttrWorkItemEvidence*`) are unchanged.
-`workitemHandlerTracer` is this package's own package-local tracer var
-(mirroring `incidentHandlerTracer` in `go/internal/query/incident/handler.go`;
-also used by the sibling #6642 language move's `language/handler_tracing.go`'s
-`languageHandlerTracer`), seeded from `tracing.HandlerTracer()`.
-
 #6623 then moved `factschema_decode.go`'s nine wrappers, the decode input,
 the schema envelope, and `derefBool` -- plus `logWorkItemEvidenceDecodeDrop`
 from `evidence.go` -- into the shared `internal/query/decode/workitem` leaf
@@ -134,19 +111,6 @@ A failed store read on `GET /api/v0/work-items/evidence` answers the fixed
 answers the retryable 503 with `Retry-After`), then
 `tracing.WriteServerFailure`: `500` with the error on the handler span, or
 `499` when the caller canceled the request.
-
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No SQL, query parameter, call count, row bound, or success
-path changed. A failure now costs one span `RecordError`/`SetStatus` and a
-fixed-string write instead of formatting the error into the body.
-`go test ./internal/query/... ./internal/queryplan/... -count=1` and
-`go test -race ./internal/query/workitem/...` exit 0.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the fixed
-message; a client cancel adds `eshu.request.client_canceled`, leaves the
-status Unset, and answers `499`. `server_failure_test.go` asserts both span
-shapes with a recording tracer.
 
 ## Related docs
 

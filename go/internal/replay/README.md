@@ -67,25 +67,3 @@ replay/
   source.go           the Source interface
   cassette/           credential-free cassette replay flavor (re-homed from collector/)
 ```
-
-## No-Regression Evidence
-
-`Canonicalize` performs no I/O and holds no shared state; it is a pure transform
-over a decoded JSON tree. Verified by `go test ./internal/replay/... -count=1`.
-The re-home of `collector/cassette` → `replay/cassette` is import-path-only: the
-package name, types, and behavior are unchanged, proven by the unmodified
-`cassette` test suite passing at the new path.
-
-Performance Evidence: the retained 61,007-fact Ifá benchmark performs two
-canonicalizations in 2.402 seconds normally and 24.543 seconds under `-race`,
-down from 6.499 and 76.626 seconds on the same input
-(`ledger:5975-two-call-normal-base`, `ledger:5975-two-call-normal-candidate`,
-`ledger:5975-two-call-race-base`, `ledger:5975-two-call-race-candidate`).
-Canonical output remains byte-identical. See
-(#5975).
-
-No-Observability-Change: the sorter is a synchronous in-memory helper beneath
-fixture recorders, API/MCP replay, input tapes, graph dumps, synthetic data, and
-Ifá conformance tests. It performs no I/O and adds no runtime stage or telemetry
-contract. The shared replay tests, determinism checks, and benchmarks are its
-diagnostic surface.

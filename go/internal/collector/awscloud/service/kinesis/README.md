@@ -96,15 +96,6 @@ full, so no per-stream describe) followed by one ListTagsForStream per video
 stream, no record-plane or media-plane APIs, no mutation APIs, and no graph
 writes inside the collector.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers data-stream, delivery-stream, and video-stream fact emission, ARN-only
-KMS key, IAM role, Lambda transform, S3, and OpenSearch relationship emission,
-URL-keyed Splunk and HTTP endpoint relationship emission, JDBC-derived Redshift
-relationship emission, omission of record, media, processing Lambda body, and
-destination secret material, runtime registration, command configuration, and
-the SDK adapter's safe metadata mapping. The adapter's reflection contract test
-proves the record-plane, media-plane, and mutation APIs are unreachable.
-
 Collector Observability Evidence: Kinesis uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`,
@@ -112,12 +103,6 @@ Collector Observability Evidence: Kinesis uses the existing AWS collector
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and
 resource type.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Kinesis scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`. No new instrument or label was added; the
-sub-service distinction rides the existing `resource_type` label.
 
 Collector Deployment Evidence: Kinesis runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

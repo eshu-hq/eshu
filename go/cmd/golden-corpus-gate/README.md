@@ -210,14 +210,6 @@ because NornicDB does not reliably evaluate `WHERE` on these shapes.
   `live_nornicdb_answer_truth`) passes on NornicDB v1.3.3 (flags both the
   omitted-key edge and a literal token) and on `neo4j:2026-community` (flags
   only the literal token).
-- No-Regression Evidence: the check adds two whole-graph reads per gate run.
-  On NornicDB v1.3.3 over Bolt, 10,000 elements (5,000 File nodes and 5,000
-  CALLS edges) read back in 1.35 s, 1.49 s and 1.47 s over three runs. The
-  golden corpus is far smaller, so the cost is well under the B-7 budget. It is
-  never on a production request path.
-- No-Observability-Change: the finding line (`unresolved_row_tokens`, with the
-  offending `kind Name.prop=token (count)` groups) is the observability. No
-  production telemetry changes.
 
 ## Query shapes
 
@@ -333,23 +325,3 @@ assertion. It counts genuine self-referential edges (e.g. the Dart
 `(label {property: value})` scope, so a regression that inflates every
 declaration into a spurious self-loop (the #5332 class) or drops genuine
 recursion is caught by a closed `[min, max]` bound rather than a floor.
-
-- No-Regression Evidence: `CountSelfLoopEdges` executes once per B-7
-  golden-corpus gate invocation against the freshly projected test graph — it
-  is never on a production request path. Baseline: the gate had no self-loop
-  assertion. After: the full B-7 gate completes in 39s (budget ceiling 1800s)
-  with the added query, and `(Function {language:"dart"})-[:CALLS]->(self)`
-  returns exactly 2 (recursionFib, recursionFact), matching the parser-level
-  self-loop count. Backend: NornicDB over Bolt. Input shape: the 22-repo corpus
-  after Dart staging (Repository=22, Function=202, CALLS=25). The query fetches
-  the matched label's `CALLS` edges and compares endpoint `elementId`s in Go —
-  mirroring `ListCorrelationEdgeProperty`, which already filters in Go for the
-  same NornicDB limitation: a reused-endpoint pattern `(n)-[r]->(n)` degenerates
-  to `(n)-[r]->()`, and every in-query identity predicate (`elementId(n)=
-  elementId(m)`, `n.uid=m.uid`, `startNode(r)=endNode(r)`) silently returns 0.
-  Terminal counts: 2 identity-matched self-loops out of 25 CALLS edges scanned
-  — bounded by the per-label CALLS count, negligible.
-- No-Observability-Change: this is a golden-corpus-gate assertion; its own
-  pass/fail line (the printed count against the `[min, max]` bound) is the
-  observability. No production telemetry, spans, metrics, logs, or status
-  surfaces are added or changed.

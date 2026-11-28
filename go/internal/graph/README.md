@@ -298,62 +298,6 @@ cancellation errors fail fast because the caller has already lost its execution
 budget. No metrics or span instruments are registered here; backend executors
 own those.
 
-No-Regression Evidence: focused schema tests keep the prior non-deadline warning
-behavior while adding a deadline regression that proves context budget
-exhaustion is returned after the first failed statement.
-
-Observability Evidence: structured schema statement logs expose backend, phase,
-ordinal, total, duration, bounded statement summary, and failure class so a
-Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
-
-No-Regression Evidence: #2902 adds
-`TestSchemaApplicationsDeclareCompatibilityDecision`, which pins the
-current Neo4j fingerprint
-`556d133c15610ecaaf773af2200717062e5d91d0edd2709fa7f6a83072a11c53`
-(227 statements) and NornicDB fingerprint
-`cfff663a3a7cae4e7c36823e0304b25f7f046eed2e139951e8a9bf8121b9ba69`
-(290 statements). The latest NornicDB-only DDL bump adds the Function legacy-ID
-lookup used by relationship-story fallback. It is additive, so the
-immediately preceding NornicDB fingerprint remains writer-compatible.
-
-No-Observability-Change: graph schema compatibility remains a Postgres marker
-read/write contract through `graphschemacompat`; this update changes only the
-compiled compatibility list returned with the current schema application. Schema
-DDL execution still emits the existing structured statement logs, and runtime
-startup refusal/acceptance continues through the existing caller logs and
-Postgres query instrumentation.
-
-No-Regression Evidence: #5651 adds `KubernetesNamespace` to
-`uidConstraintLabels` plus the `kubernetes_namespace_cluster_id` /
-`kubernetes_namespace_namespace` performance indexes, bumping the current
-Neo4j fingerprint to `b54c586015a30b929b103723c5549e424d800d1159253e8f4745d90af24ba94b`
-(242 statements) and NornicDB fingerprint to
-`ddaa10e5b634a4c42796ba01d2f8dd88181f93a4c0a73655d4cae6233f4e0a2e`
-(318 statements). The bump is additive: `KubernetesNamespace` nodes already
-exist in production (written by the #5434 reducer with no backing index), and
-their reducer-derived `uid` values are already unique per
-`(cluster_id, namespace)`, so an older writer's rows never violate the new
-constraint and the immediately preceding fingerprint
-(`graphSchemaNeo4jPreKubernetesNamespaceIndexesFingerprint` /
-`graphSchemaNornicDBPreKubernetesNamespaceIndexesFingerprint`) stays
-writer-compatible.
-
-Performance Evidence (#5651): the pinned NornicDB build (`eshu-nornicdb-pr261:
-149245885258`, v1.1.11) returns no `PROFILE`/`EXPLAIN` plan metadata over its
-Bolt-HTTP `tx/commit` transport (reproduced directly: `PROFILE RETURN 1 AS x`
-returns the same body as a plain `RETURN 1 AS x`, no `stats`/`plan` field),
-matching the documented limitation this package's `kustomize_overlay_repo_id`
-index evidence above already cites, so warm wall-clock timing on a
-discriminating query shape is the available proof, not a plan-tree db-hit
-count. Proof ladder: an isolated, throwaway NornicDB container (same pinned
-image, ports 17474/17687, no shared state with any Compose stack) was seeded
-with 200,000 `KubernetesNamespace` nodes (8,000 synthetic clusters x 25
-namespaces each, unique `uid`/`cluster_id`/`namespace` triples) via batched
-`UNWIND ... CREATE` — representative of the reducer's own row shape
-(`kubernetes/namespace.go`). Each shape below is `time.perf_counter`
-wall time over the Bolt-HTTP `tx/commit` endpoint, 2 warm-up + 7 measured
-requests, reporting the median:
-
 | Query shape | OLD (no index) | NEW (indexed) | Rows OLD vs NEW |
 | --- | ---: | ---: | --- |
 | `MATCH (n:KubernetesNamespace {uid: $uid}) RETURN ...` (found, last-inserted) | 1.827ms | 1.653ms | identical (1 row) |
@@ -389,12 +333,6 @@ at one `UNIQUE` row, and the node count was unchanged — proving
 `CREATE ... IF NOT EXISTS` DDL re-application is a no-op on this backend, the
 same idempotency contract `EnsureSchema`'s non-strict statement loop already
 relies on for every other label in `uidConstraintLabels`.
-
-No-Observability-Change: the two new indexes and the new `uidConstraintLabels`
-entry ride the existing generic schema-statement logging (`graph_backend`,
-`schema_phase`, `statement_index`/`statement_total`, `schema_statement`,
-`duration_ms`) documented above; no new metric, span, log line, or runtime
-knob was added.
 
 ## Gotchas / invariants
 

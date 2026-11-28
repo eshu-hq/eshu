@@ -70,11 +70,3 @@ The harness emits no metrics, spans, or logs. It is test/proof infrastructure.
   promotion proof.
 - `go/internal/collector/README.md` — claim-driven collector execution.
 - `go/internal/reducer/README.md` — domain admission and readback.
-
-## Evidence
-
-`No-Regression Evidence:` in-memory harness; drives the real `ClaimedService`
-with stub stores and asserts claim/commit/readback contracts.
-`go test ./internal/collector/conformance/parity -count=1`.
-`No-Observability-Change:` emits no telemetry; verifies existing collector
-claim/commit/dead-letter behavior only.

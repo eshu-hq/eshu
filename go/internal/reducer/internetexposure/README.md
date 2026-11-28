@@ -90,30 +90,3 @@ always-present record. Each run's completion log carries the fact counts,
 `total_duration_seconds` fields — the same fields the pre-move root files
 logged. Malformed facts are quarantined via
 `eshu_dp_reducer_input_invalid_facts_total`.
-
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Every hunk in the moved production files is a package
-clause, an import requalification, or an identifier requalification: symbols
-the reducer root exposed as one-line forwarders
-(`loadFactsForKinds`→`factload.LoadFactsForKinds`,
-`partitionDecodeFailures`/`recordQuarantinedFacts`/`inputInvalidSubSignals`→`factdecode.*`,
-`derefString`/`anyToString`/`formatTally`→`payloadcore.*`,
-`decodeEC2InstancePosture`/`decodeAWSRelationship`/`decodeAWSSecurityGroupRule`/`decodeS3BucketPosture`→`schemadecode.*`,
-`cloudResourceUID`→`cloudjoin.CloudResourceUID`,
-`graphProjectionPhaseStateForIntent`→`gpphase.StateForIntentValue`) are now
-called on the leaf package directly. The two single-family helpers
-(`addToSet`, `boolPtrValue`) moved with the family unchanged; the
-`cloudjoin.BuildS3BucketJoinIndex` / `S3PostureBucketName` calls were already
-leaf-qualified and are untouched. No handler branch, extraction rule,
-readiness gate, retract/write ordering, trust-boundary rule, quarantine
-isolation, or Cypher-facing row shape changed.
-`go test ./internal/reducer/internetexposure -count=1` passes with the moved
-test suite unchanged in assertion content (23 tests: 3 EC2 handler, 9 EC2
-extraction, 3 S3 handler, 8 S3 extraction; only package clause, import
-paths, leaf requalification, and unexported symbol duplication for the
-package boundary).
-
-No-Observability-Change: the move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; the
-shared spans and the completion logs keep the same names, labels, and key
-set at the new import path.

@@ -58,30 +58,6 @@ layer's `PostgresMultiCloudRuntimeDriftEvidenceLoader` cover Postgres query
 duration. See `docs/public/observability/telemetry-coverage.md` (no row change:
 this move is a rename, not a new stage).
 
-No-Regression Evidence: #6061 relocates this family's production logic without
-changing it. Every hunk in the moved production files is a package clause, an
-import requalification, or an identifier requalification: symbols the reducer
-root supplied as one-line forwarders (`Intent`/`Result`/`ResultStatusSucceeded`/
-`DomainMultiCloudRuntimeDrift`, `workloadIdentityExecer`, `reducerFactVersionedRow`,
-`reducerBatchInsertVersionedFacts`, `reducerWriterNow`, `reducerFactCollectorKind`,
-`nonNilStrings`, `nonNilMapSlice`) are now called directly against the leaf
-package that already owned them (`reducer/contract`, `reducer/factwrite`,
-`reducer/payloadcore`). The previously-unexported domain constructor
-(`multiCloudRuntimeDriftDomainDefinition`) is exported and renamed to
-`MaterializationDomainDefinition` to match the `iamescalation`/`ec2blockkms`
-precedent. Measured on this branch: `go build ./...` exits 0, `go vet ./...`
-exits 0, `go test ./internal/reducer/multicloudruntimedrift -count=1` passes,
-and `go test ./internal/reducer/... ./cmd/reducer ./internal/storage/postgres
-./internal/replay/costcounting -count=1` passes.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph, or
-storage contract. The metrics and log lines are the same before and after the
-move.
-
-No-Regression Evidence (#7989): the per-finding `multi cloud runtime drift finding admitted` line moves from INFO to DEBUG with identical fields, and each batch emits one INFO `multi cloud runtime drift batch admitted` summary. Baseline (production capture in the issue): the same per-finding INFO volume that rotated the engine startup lines out of the retained log. After: 1 INFO line per batch plus N DEBUG lines, asserted with exact keys by `TestMultiCloudRuntimeDriftHandlerLogsOneInfoSummaryPerBatch` with canonical writes decoupled from admitted count; DEBUG stays suppressed under the production `LevelInfo` logger setting (`go/internal/telemetry/logging.go`). No compute, write, or counter path changes: the DEBUG attribute work is the same construction that already ran at INFO, `RecordEvaluation` still emits the per-admitted-finding counters, and finding facts are untouched. `go test ./internal/reducer/awscloud/ ./internal/reducer/multicloudruntimedrift/ -count=1` passes on this branch.
-
-Observability Evidence (#7989): the batch summary carries domain, scope, generation, pack, evaluated, admitted, canonical_writes, duration, and per-kind counts (orphaned, unmanaged, ambiguous, unknown, image_version_drift, value_comparison_inconclusive); per-finding detail keeps the same redacted fields at DEBUG and stays durable in the finding facts. Admitted volume remains visible without log lines through `eshu_dp_correlation_rule_matches_total` and the orphan/unmanaged counters. Coverage row added in `docs/public/observability/telemetry-coverage.md`.
-
 ## Gotchas / invariants
 
 - `excludeAWSOwnedRows` MUST run before candidate construction. The shared

@@ -80,11 +80,3 @@ cd go && go test ./internal/replay/mcpreplay -run TestMCPToolCallRecordingMatche
 ```
 
 Review the golden diff like any other reviewed change before committing.
-
-## No-regression evidence
-
-`RecordToolCalls` / `AssertToolCalls` perform no I/O beyond driving the
-in-process handler and (for file helpers) reading/writing the golden path.
-`TestMCPAssertCatchesDeliberateShapeChange` mutates the golden and requires
-`AssertToolCalls` to fail — it is the anti-false-green proof. Verified by
-`go test ./internal/replay/mcpreplay/ -count=1`.

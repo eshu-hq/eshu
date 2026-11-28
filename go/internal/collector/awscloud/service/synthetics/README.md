@@ -74,10 +74,6 @@ spans.
 
 ## Evidence
 
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/synthetics/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 Collector Performance Evidence:
 `go test ./internal/collector/awscloud/service/synthetics/...` covers the
 bounded Synthetics metadata path: one paginated DescribeCanaries stream, no run

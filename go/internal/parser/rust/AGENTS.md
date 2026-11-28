@@ -129,8 +129,6 @@ tree-sitter AST extraction or a justified permanent exception.
   identifier. Neither scans raw source for symbols, so both remain content/text
   helpers, not symbol extractors.
 
-No-Regression Evidence:
-
 - `cd go && gofmt -l internal/parser/rust` (empty output).
 - `cd go && go test ./internal/parser/... -count=1` (all packages `ok`;
   `internal/parser/rust` passes, including the new `TestRustLifetimeASTParity`
@@ -139,7 +137,3 @@ No-Regression Evidence:
 - `cd go && golangci-lint run ./internal/parser/...` (`0 issues`).
 - `rg -n 'regexp\.' go/internal/parser/rust/ --glob '!*_test.go'` returns 4
   sites (the documented permanent exceptions), down from 6.
-
-No-Observability-Change: parser-internal change only. No metric, span, log,
-status, env var, queue, worker, or graph-write behavior changed. The emitted
-payload keys and value shapes are unchanged (byte-parity).

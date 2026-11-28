@@ -75,25 +75,3 @@ the package contract.
 - Test fakes duplicated from `package cypher` (`bolt_harness_test.go`,
   `recording_executor_test.go`) are copies, not the source of truth;
   change behavior in both or reunite them when the canonical leaf moves.
-
-## Target guard repository naming (#11242)
-
-No-Regression Evidence: the pre-write target guard issues the same probe
-statements as before, in the same order, over the same input rows. The change
-wraps each statement with the repository of the node it anchors
-(`targetProbe`), so no Cypher text, parameter, statement count, index use or
-backend call changes; only the repository the miss error and WARN name
-differs. Backend: none touched (the probe-shape tests
-`TestEdgeWriterDeployableUnitProbeAnchorsBothRepos`,
-`TestEdgeWriterHandlesRouteProbeAnchorsFunction` and
-`TestEdgeWriterTargetMissProbeMentionsBatchScope` still pass unmodified apart
-from the renamed builder). Input shape: one batch of up to the domain batch
-size, at most two probes per row, deduplicated. The added cost is one string
-field per probe, with no allocation beyond the existing probe slice.
-
-No-Observability-Change: no metric, span or log key is added or removed.
-`eshu_dp_shared_edge_target_miss_total{domain}` is counted as before and the
-`shared edge batch target absent, deferring batch` WARN keeps its fields; its
-`sample_repo_id` now names the repository whose node was absent instead of the
-first row's repository, so an operator reading it at 3 AM sees the repository
-the batch is actually waiting on.

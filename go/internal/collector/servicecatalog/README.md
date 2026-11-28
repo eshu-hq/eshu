@@ -204,23 +204,6 @@ remain deferred to the hosted telemetry + Compose-proof slice. The
 shipped downstream `ServiceCatalogCorrelations{outcome}` reducer counter remains
 the diagnosis chain for "facts emitted but zero exact correlations."
 
-No-Regression Evidence: fixture normalization for every provider is covered by
-`go test ./internal/collector/servicecatalog -count=1`, which exercises typed
-contract emission, the reducer round-trip reaching exact/derived/unresolved/
-rejected/stale/ambiguous outcomes, blank `service_id`/`workload_id`/
-`repository_id` assertions, warning emission for unsupported version, missing
-ref, duplicate entity, and redacted link, empty input, and idempotent
-re-emission — without graph writes or queue work. The OpsLevel slice adds the
-same matrix over `opslevel.yml` fixtures, including the provider-host repository
-URL derivation (known provider -> derivable URL; unknown/self-hosted provider ->
-name-only locator that the reducer rejects). The Cortex slice adds the same
-matrix over `cortex.yaml` fixtures, including the git-provider host derivation
-(known provider -> derivable URL; unknown/self-hosted provider -> name-only
-locator the reducer rejects; Azure project+repository split), deterministic
-multi-provider resolution that prefers a resolvable provider over an unexpandable
-one, and the scorecard slice (definition + result facts that pass the
-schema-version gate and provably do not change any entity outcome).
-
 Collector Performance Evidence: this slice introduces no runtime, no claim, no
 worker, no queue, and no graph write. `BackstageManifestEnvelopes`,
 `OpsLevelManifestEnvelopes`, `CortexManifestEnvelopes`, and
@@ -252,7 +235,3 @@ Helm Deployment, metrics Service, or ServiceMonitor is added or changed by this
 slice. Repo-hosted descriptors run inside the existing Git collector. Wiring a
 hosted claim-based catalog API runtime (with health/readiness, metrics,
 ServiceMonitor, and Helm) is deferred to a future runtime slice.
-
-No-Observability-Change: this package mounts no runtime and adds no metrics,
-spans, or logs. The later telemetry slice must add fact-emission, warning, and
-parse-result signals before live collection is enabled.

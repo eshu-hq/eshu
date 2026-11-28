@@ -285,16 +285,6 @@ and every run is capped by input bytes, duration, wall time, and output
 bytes. The engine adds no worker, queue, graph write, or storage work. It is
 safe because nothing calls it yet and each run fails closed at a cap.
 
-Observability Evidence: each run emits the `media.transcript_engine.run`
-span, `eshu_dp_media_transcript_engine_runs_total`,
-`eshu_dp_media_transcript_engine_duration_seconds`,
-`eshu_dp_media_transcript_engine_segments_total`, and one log line.
-`telemetry_test.go` asserts outcome labels, segment kinds, span attributes,
-and the absence of transcript text for completed, no_speech,
-engine_failed, and timeout runs. The sandbox log lines above carried
-`outcome`, `elapsed_seconds`, and `engine_peak_rss_bytes`, and the proof
-script found no canary text in them.
-
 ## Sandbox proof
 
 `scripts/verify-media-transcript-sandbox.sh` builds
@@ -369,19 +359,6 @@ facts fails the run. Measured rows land in
 `testdata/accuracy/ocr-media-wer-baseline.json` via
 `scripts/refresh-ocr-media-wer-baseline.sh`, which updates measured fields
 only — thresholds are separate reviewed edits.
-
-Performance Evidence (#10073): the scorer (`wer.go`) is a pure function
-over at most 11 reference words (worst case speech fixtures: a 12×~15 int
-table, microseconds); it runs only in unit tests and the sandbox-eval
-test, never on any ingester or collector runtime path. After: eval rows in
-the baseline carry `wall_seconds` per fixture (about 1.8 s, dominated by
-the whisper-cli subprocess). There is no worker, queue, lease, graph
-write, or storage work. It is safe because no serving path calls it — the
-only callers are the sandbox-gated eval tests.
-
-No-Observability-Change (#10073): production telemetry is untouched.
-`MEDIA_WER_EVIDENCE` lines are test-binary stdout consumed by the eval
-scripts, not operator signals.
 
 ## Packaging
 

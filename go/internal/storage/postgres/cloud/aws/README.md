@@ -52,10 +52,6 @@ resume, expiry, and failure events, tagged by service/account/region/operation a
 result. `AWSScanStatusStore` emits no metric of its own; its rows are read
 directly by the `/admin/status` surface.
 
-No-Observability-Change: this extraction moves both stores unchanged; no
-metric, span, log field, worker, queue, lease, retry, or durable write shape
-changed.
-
 ## Gotchas / invariants
 
 - `AWSPaginationCheckpointStore.Save`/`Complete`/`ExpireStale` must keep
@@ -73,7 +69,3 @@ changed.
 - Do not import the parent `postgres` package: that is an import cycle.
   (The former in-tree command importer was removed with the #8852
   extraction; the satellite owns that wiring now.)
-
-No-Regression Evidence: `go test ./internal/storage/postgres/cloud/aws/...
--count=1` covers both stores' schema, fencing, and event-recording
-contracts.

@@ -56,19 +56,6 @@ logged and metered by the reducer maintenance runner, not here.
 - The TOCTOU guard re-verifies connectivity for exactly the keys about to be
   deleted, immediately before the delete.
 
-## Performance Evidence
-
-No-Regression Evidence: pure Pattern-B leaf move from the `cypher` root
-(#6694 slice). All 30 emitted statements (S1/S2 reads and S3/S4/S5 writes
-across the six labels, plus sanitize/profile allowlist probes) are
-byte-identical to the pre-move root versions, proven by the RED/GREEN
-template dump diff recorded in the move PR (empty diff). Backend execution
-shape is unchanged.
-
-No-Observability-Change: the store still executes through the caller's
-`Executor`/`OrphanSweepReader`; this package adds no metric name, label,
-worker, queue domain, knob, backend branch, or new graph-write route.
-
 ## Related docs
 
 - `docs/public/reference/cypher-performance.md` (chunking measurement)

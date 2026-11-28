@@ -144,41 +144,6 @@ names, same emission sites, only the package that owns the code moved.
 - `docs/internal/design/package-restructure.md` — the #6061 restructure
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for these two domains
 
-No-Regression Evidence: #6061 moves the code_taint_evidence and
-code_interproc_evidence materialization handlers, their loader/writer ports,
-typed decode + quarantine, row/edge projection, and projected-node/-edge
-ledgers plus backfillers out of the reducer root into this new package,
-without changing any field, exported behavior, or call order. The two
-interfaces the backfillers need (`GraphQueryRunner`,
-`BackfillStateMarker`, both root-owned at the time; the marker
-later moved to `value` under #6609) are locally redeclared with the identical
-method set rather than imported, so every existing concrete implementation
-still satisfies them with no new indirection. `DerefInt`/`DerefStringTrimmed`
-were hoisted to `payloadcore` (alongside the existing `DerefBool`/
-`DerefString`) because both this package and the function-summary decoder
-(then the root's `code_function_summary_typed_decode.go`, now
-`code/function/summary/decode.go`) needed them. Every outward caller —
-`cmd/reducer` (`canonical_graph_writers.go`,
-`code_value_flow_stale_cleanup_wiring.go`, `value_flow_wiring.go`),
-`internal/reducer` root (`defaults_handlers.go`,
-`defaults_additive_domains_incident_code.go`,
-`code_value_flow_stale_cleanup_runner.go`,
-`code/value/fixpoint_evidence_loader.go`, `match.go`) —
-was updated to the qualified `taint.` symbol in the same commit.
-Measured against baseline `86daa9eee` on `feat/6061-codetaint` (based on
-`feat/6061-generationcheck`): from `go/`, with `GOROOT` unset and `GOCACHE`
-pointed at this worktree, `go build ./...`, `go vet ./...`,
-`go test ./internal/reducer/... -count=1` (15 subpackages, taint's own
-suite included), and `go test ./cmd/reducer ./internal/storage/postgres
-./internal/query -count=1` each exited 0 on the branch. `git diff --check`
-exited 0. Binary output was not compared and no such claim is made here.
-
-No-Observability-Change: this move adds no queue domain, worker, lease,
-graph or Postgres operation, runtime setting, metric instrument, metric
-label, span, or status surface. The metric names, emission sites, and
-structured-log messages listed under Telemetry above are unchanged; only the
-package that owns the code moved.
-
 **Exported-stutter drop addendum (issue #6061, PR #6645):** the package clause
 changed from `codetaint` to `taint` in the move PR, but every exported
 identifier still repeated the `Code`/`CodeTaint`/`CodeInterproc` package-name
@@ -237,9 +202,3 @@ that named the old spelling were updated alongside. Measured from `go/`, with
 ./internal/reducer/... ./cmd/reducer/... ./internal/storage/postgres/...
 ./internal/storage/cypher/... ./internal/replay/...
 ./internal/backendconformance/... -count=1` all exited 0 on this branch.
-
-No-Observability-Change: this rename adds no queue domain, worker, lease,
-graph or Postgres operation, runtime setting, metric instrument, metric
-label, span, or status surface. Every string value named under Telemetry
-above — evidence-source tags, structured-log messages and fields, metric
-names — is byte-identical; only Go identifiers changed.

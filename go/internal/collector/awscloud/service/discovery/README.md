@@ -86,27 +86,11 @@ read per namespace and service; no instance reads; no mutations. Cardinality is
 bounded by the namespace and service counts Cloud Map returns for the claimed
 account and region.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
-covers Cloud Map resource and relationship emission, the App Mesh service join
-key, the Route 53 hosted-zone join key, instance-count-only recording, the SDK
-mutation/instance-reader exclusion guard, runtime registration through the
-derived service guard, and command configuration requiring no redaction key.
-
 Collector Observability Evidence: Cloud Map uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: Cloud Map adds no new telemetry contract. The existing
-AWS collector signals already diagnose Cloud Map scans through the
-`aws.service.scan` and `aws.service.pagination.page` spans,
-`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
-`eshu_dp_aws_resources_emitted_total{service="servicediscovery"}`,
-`eshu_dp_aws_relationships_emitted_total{service="servicediscovery"}`, and
-`aws_scan_status` rows. Cloud Map only adds the bounded
-`service="servicediscovery"` label value to those existing instruments.
 
 Collector Deployment Evidence: Cloud Map runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

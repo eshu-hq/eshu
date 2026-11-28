@@ -43,17 +43,3 @@ qualifier; see `AGENTS.md`.
 `logWorkItemEvidenceDecodeDrop` from `internal/query/workitem/evidence.go`,
 deleted the incident store's `decode_workitem.go` fork, and repointed all
 consumers with no logic change.
-
-No-Regression Evidence: `go test ./internal/query/...` and
-`./internal/payloadusage/...` green before and after; the
-payload-usage-manifest gate still attributes all 9 `work_item.*` kinds with
-identical field sets (only the `decode_func` keys change); `factschema-diff`
-reports no contract change. A wiring mutation (force `DecodeRecord` to
-return an error) fails the leaf, `workitem`, and `incident/store` suites
-RED, proving both consumers execute this code; `TestDerefBool` pins the
-deref helper at the leaf.
-
-No-Observability-Change: the drop-log helper keeps byte-identical messages
-and attributes; this package adds no metric, span, route, or log of its own.
-Whether a drop is logged remains each read path's decision to call the
-helper.

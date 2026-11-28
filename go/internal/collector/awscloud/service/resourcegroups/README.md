@@ -110,26 +110,6 @@ pagination spans.
 
 ## Evidence
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/resourcegroups/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-is green. `scanner_test.go` covers the group resource fact, the ARN-to-family
-classifier across every recognized member family (asserting each
-`target_type`/`target_resource_id`/ARN-keyed shape), the unrecognized-family
-SKIP (no dangling edges), the CloudFormation-stack edge (and its absence for
-tag-filter groups), partition awareness (`aws-us-gov` member ARN preserved), and
-the metadata-only exclusions (`Client` interface shape reflection and
-query-body-never-persisted). `awssdk/client_test.go` covers the SDK adapter
-mapping, stack-identifier extraction, member ARN skipping, and the SDK-seam
-exclusion reflection. The `relguard` and `partitionguard` guards pass over the
-new scanner tree. This is a new metadata-only scanner: it adds emission for a
-previously unscanned service and changes no existing scanner output, so there is
-no hot-path, graph-write, or queue behavior to regress.
-
-No-Observability-Change: this scanner introduces no new instrument, span, metric
-label, or `aws_scan_status` row beyond the shared per-service API-call counters,
-throttle counters, and pagination spans the `awssdk` adapter records through the
-common `recordAPICall` path that every AWS scanner already uses.
-
 Collector Deployment Evidence: Resource Groups runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

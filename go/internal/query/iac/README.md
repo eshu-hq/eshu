@@ -155,33 +155,6 @@ introduces no import cycle. `internal/query`'s dirgate row shrank from 361 to
 `.go` -- 32 non-test -- plus `README.md` and `AGENTS.md`) carries no
 naming-exemption row and passes `verify-dirgate.sh --all` on its own weight.
 
-## No-Regression Evidence
-
-No-Regression Evidence: `go test ./internal/query/iac/... -count=1` (138 cases before the two route-
-coverage-driven additions above, 145 after -- `=== RUN` lines including
-subtests) and `go test ./internal/query/... -count=1` (9,401 `=== RUN` lines
-across the whole tree) both pass with the moved
-production code unmodified except package-qualified spellings, imports, and
-doc comments. `go test ./cmd/api ./cmd/mcp-server ./internal/mcp
-./cmd/golden-corpus-gate/... -count=1` and `go test ./internal/queryplan/...
--count=1` also pass; `internal/mcp/route_serves_data_registry_routes_2.go`'s
-`GET /api/v0/iac/resources` row and `internal/queryplan/testdata/query-source-coverage.yaml`'s
-`(*Handler).listResources` row were re-pinned to the new path/symbol/source
-digest (path and symbol only; class, count, and disposition unchanged).
-
-## No-Observability-Change
-
-No-Observability-Change: this move adds no new span, metric, log key, or runtime knob.
-`handler_tracing.go` seeds its tracer from the same `tracing.HandlerTracer()`
-seam root's `handler_tracing.go` used before the move (see
-`freshness/handler_tracing.go` for the identical precedent), so every route's
-`telemetry.SpanQueryIaC*`/`telemetry.SpanQueryDeadIaC` span name and
-`http.route`/`eshu.capability` attributes are unchanged. The nine capability
-IDs and the two capability-string mirrors carry the identical string values
-root registered before the move.
-
-Inventory, reachability, and AWS management readers expose `WithReadStore` constructors that accept guarded query-only connections. The existing constructors retain legacy SQL callers.
-
 ## Failed reads (#7674)
 
 Every route answers a failed store or graph read with a fixed message per
@@ -199,23 +172,6 @@ validation` without the validation error, which quoted finding ids.
 `server_failure*_test.go` covers each route and step. The operator contract is
 in
 [Selector And Read Failures](../../../../docs/public/reference/http-api/selector-and-read-failures.md#iac-read-failures).
-
-No-Regression Evidence (#7674): the change runs only after a read has already
-returned an error. No SQL, Cypher, query parameter, call count, row bound, or
-success path changed. A failure now costs one span `RecordError`/`SetStatus`
-and a fixed-string write instead of formatting the error into the body.
-`go test ./internal/query/... ./internal/queryplan/... -count=1` and
-`go test -race ./internal/query/iac/... ./internal/query/tracing/...` exit 0.
-No benchmark is claimed because the success path has no runtime delta to
-measure.
-
-Observability Evidence (#7674): a server fault records the backend error on
-the handler span as an `exception` event and sets status Error with the step's
-fixed message as the description; a client cancel adds
-`eshu.request.client_canceled`, leaves the status Unset, and answers `499`.
-The resource route's `resources_metrics.go` error counter is unchanged.
-`server_failure*_test.go` asserts both span shapes with a recording tracer for
-every route and step.
 
 ## Dead-IaC selector errors
 

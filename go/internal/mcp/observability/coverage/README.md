@@ -65,11 +65,6 @@ API request duration and error metrics.
 - `Route` returns a fresh query map per call, so a caller may mutate one result
   without changing a later one or the arguments it was given.
 
-No-Observability-Change: this extraction moves only pure observability-coverage
-route selection. The root adapter still feeds the same global fanout, dispatch,
-authorization, budgets, envelopes, summaries, and transport telemetry, and the
-same query handler executes the request.
-
 ## Related docs
 
 - [MCP package](../../README.md)

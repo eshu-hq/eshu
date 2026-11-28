@@ -80,32 +80,3 @@ always-present record. Each handler run's completion log carries
 / `retract` / `graph_write` / `total_duration_seconds` fields — the same
 fields the pre-move root file logged. The run is also covered by the shared
 `reducer.iam_instance_profile_role_materialization` span.
-
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Every hunk in the moved production files is a package
-clause, an import requalification, or an identifier requalification: symbols
-the reducer root exposed as one-line forwarders
-(`loadFactsForKinds`→`factload.LoadFactsForKinds`,
-`partitionDecodeFailures`/`recordQuarantinedFacts`/`inputInvalidSubSignals`/`quarantinedAttributeShapeFact`→`factdecode.*`,
-`derefString`/`formatTally`/`anyToString`→`payloadcore.*`,
-`decodeAWSResource`→`schemadecode.DecodeAWSResource`,
-`cloudResourceUID`→`cloudjoin.CloudResourceUID`,
-`graphProjectionPhaseStateForIntent`→`gpphase.StateForIntentValue`,
-readiness keyspace/phase/lookup→`gpphase.*`,
-`PriorGenerationCheck`/`Intent`/`Result`/`DomainDefinition`/`OwnershipShape`/`IsRetryable`→`reducercontract.*`)
-are now called on the leaf package directly. `iampolicy.ResourceTypeRole`
-is untouched: it is a shared IAM-vocabulary leaf (the `iamcan` precedent),
-not reducer-root substrate, so no hoist applies. No handler branch,
-extraction rule, readiness gate, retract/write ordering, dedupe key, row
-shape (`profile_uid` / `role_uid` / `relationship_type` /
-`resolution_mode`), evidence source, failure class, or quarantine isolation
-changed.
-`go test ./internal/reducer/iaminstprofile -count=1` passes with the moved
-test suite unchanged in assertion content (8 tests: 5 extraction, 3
-handler; only package clause, import paths, leaf requalification, and
-unexported symbol duplication for the package boundary).
-
-No-Observability-Change: the move adds no route, graph query shape, queue
-table, worker, lease, runtime knob, metric instrument, or metric label; the
-shared span and the completion log keep the same names, labels, and key set
-at the new import path.

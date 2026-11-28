@@ -52,12 +52,6 @@ The scanner itself emits no new metrics. The AWS SDK adapter records API calls
 with the shared AWS collector API-call events, spans, throttle counters, and
 operation labels.
 
-No-Observability-Change: existing AWS collector API-call metrics, pagination
-spans, throttle counters, `aws_warning` facts, resource and relationship
-emission counters, and `aws_scan_status` rows cover API Gateway metadata
-scanning. Sustained `GetResources` throttling marks the scan partial with
-`failure_class=throttled` while preserving API, stage, and domain observations.
-
 ## Gotchas / invariants
 
 - The scanner boundary must remain `awscloud.ServiceAPIGateway`.
@@ -79,23 +73,6 @@ scanning. Sustained `GetResources` throttling marks the scan partial with
   claim. Authorization and contract errors stay terminal.
 - Stage variables, policy JSON, API keys, authorizer secrets, integration
   credentials, request templates, and response templates stay out of facts.
-
-## Evidence
-
-### Partition-aware ARNs (#866)
-
-No-Regression Evidence: `go test ./internal/collector/awscloud/service/apigateway/... -count=1`
-covers the new `TestRestAPIARNDerivesPartition` and `TestV2APIARNDerivesPartition`
-(commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
-existing commercial assertions. API Gateway control-plane ids carry no ARN, so
-`restAPIARN` and `v2APIARN` now derive the partition from the region via
-`awscloud.PartitionForRegion` instead of hardcoding `aws`. Commercial output
-(`us-east-1`) is byte-for-byte unchanged; this is a metadata-only correctness
-fix with no graph-write, queue, or hot-path behavior change.
-
-No-Observability-Change: the fix only changes the partition substring of a
-synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
-row changes.
 
 ## Related docs
 

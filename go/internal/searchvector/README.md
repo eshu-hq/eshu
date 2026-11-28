@@ -68,28 +68,6 @@ operator-facing signals described in the telemetry docs.
 - This package is not a queue worker, ANN index, or public semantic-search
   adapter.
 
-## Evidence
-
-No-Regression Evidence: `go test ./internal/searchvector ./internal/storage/postgres
--run 'TestBuilderAnchorsPagedBuildToFirstGeneration|TestBuilderPagesThroughAllActiveDocuments|TestBuilderPersistsReadyVectorsForActiveDocuments|TestEshuSearchDocumentStoreAnchorsExplicitGeneration|TestEshuSearchVectorValueStoreListsOnlyActiveGeneration'
--count=1` failed before vector builds paged through every active-document row,
-before paged builds anchored to the first observed generation, and before vector
-value reads were gated by matching ready metadata, then passed.
-
-No-Regression Evidence: `go test ./internal/searchembedprovider
-./internal/searchembedruntime ./internal/searchvector ./internal/storage/postgres
-./internal/reducer ./cmd/reducer -count=1` covers provider request cancellation,
-per-repository/source policy admission before embedding, policy-denied
-documents converging as disabled metadata without vector values, top-level
-search-document content hashes for pending detection, and reducer wiring of the
-shared runtime selector.
-
-Observability Evidence: the builder result now reports `DisabledCount` for
-policy-denied documents. `SearchVectorBuildRunner` logs the aggregate
-`disabled_count` beside existing document, vector, failure, provider profile,
-source class, model, vector-index version, duration, and failure-class fields.
-No metric label, graph write, queue domain, API field, or MCP field changed.
-
 ## Related docs
 
 - `docs/internal/design/2578-ann-vector-index-production-hybrid-search-contract.md`

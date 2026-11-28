@@ -198,38 +198,6 @@ even through a type alias. `ci_cd_run_correlation.go:173` and
 `cross_scope_readiness_test.go` were repointed at the
 capitalized name; every other call site is unchanged.
 
-## No-Regression / No-Observability-Change Evidence
-
-No-Regression Evidence: #6061 moves the cross-scope producer-readiness floor
-(`cross_scope_readiness.go`, `cross_scope_readiness_floor.go`) and the
-dependency catalog (`cross_scope_dependencies.go`) out of the reducer root
-into this package, cut-paste with identifiers capitalized and doc comments
-rewritten, and leaves compatibility forwarders in
-the cross-scope stanza of `compat_projection.go` so every existing root caller keeps
-compiling against the identical behavior. Two struct fields needed to become
-exported (see Compatibility above); their two call sites were updated
-accordingly. Measured on the branch, from `go/`:
-`go build ./...` exited 0; `go vet ./...` (which also compiles test files, so
-it catches a moved test fixture breaking a sibling package) exited 0;
-`go test ./internal/reducer/... -count=1` exited 0 across all 16 reducer
-subpackages including the new `crossscope`; `go test ./cmd/reducer
-./internal/storage/postgres ./internal/query -count=1` exited 0, which proves
-the storage layer's `reducer.CrossScopeCompletionEdges`,
-`reducer.CrossScopeProducerReadinessByDomain`, and
-`reducer.CrossScopeProducerNotReadyFailureClass` call sites still resolve and
-behave the same; `go test ./internal/ifa/materializededges/... -count=1`
-exited 0.
-
-No-Observability-Change: #6061 adds no queue domain, worker, lease, graph, or
-Postgres operation, runtime setting, metric instrument, or metric label. The
-one log line this floor emits (`LogProducerNotReadyDefer`) keeps its exact
-message text, level, and field names (`log.Domain`, `log.ScopeID`,
-`log.GenerationID`, `producer_domains`, `max_wait`,
-`elapsed_since_cycle_start`); the `ProducerNotReadyFailureClass` string value
-`cross_scope_producer_not_ready` that `go/cmd/golden-corpus-gate/drains_readiness_classes.go` and
-`internal/storage/postgres/reducer_queue_readiness_sql.go` depend on is
-copied verbatim, unchanged.
-
 ## Related docs
 
 - [Reducer package](../README.md)

@@ -79,11 +79,6 @@ the registration ARN).
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, or environment truth from names, locations, or AWS tags.
 
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/networkmanager/...` green.
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

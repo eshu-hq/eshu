@@ -95,41 +95,6 @@ regex in `dead_code_roots.go`, and the `__all__` literal regex in
 evidence) is now also on AST in this branch under epic #3531 — see the
 within-node section below. No `regexp` import remains in the package.
 
-No-Regression Evidence: `go test ./internal/parser/... -count=1` stays green
-(1112 baseline plus the new AST-node tests in
-`internal/parser/python/semantics_test.go`). The pre-existing engine parity
-suites still pass byte-for-byte:
-`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPython(FastAPISemantics|FlaskSemantics|ORMMappings|UnknownRouteDecoratorRemainsUnclassified|FastAPIBindsDefHandler|FlaskBindsDefHandler)' -count=1` and
-`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPython(EmitsScriptMainGuardRoot|EmitsReversedScriptMainGuardRoot|DunderAssignmentEvidenceIsEnclosingScopeScoped|EmitsPublicAPIRootKinds)' -count=1` (both suites now live in `internal/parser/python`: the first six moved with the earlier #6062 relocation, the dead-code-root cases with this one).
-The orphan route (`@app.post("/orphan")` with no following def) still emits the
-route with no handler because tree-sitter parks the bare decorator under an
-ERROR node whose parent is not a `decorated_definition`, preserving the #2788
-correlation-truth contract.
-
-No-Regression Evidence (PR #3544 Codex P2 follow-up): the AST `__all__` reader
-now descends concatenated literals. `__all__ = ["foo"] + ["bar"]` parses with a
-`binary_operator` right-hand side, so `pythonStringSequenceLiterals` recurses
-through both operands (and nested `binary_operator` nodes) and collects string
-literals from each `list`/`tuple`/`set` operand. Before the fix the helper
-returned no names for the split form and the exported symbols lost their
-`python.module_all_export` roots, surfacing as dead-code candidates; the old
-regex RHS scan had captured them.
-`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPythonConcatenatedAllExportsAreRoots' -count=1`
-and `go test ./internal/parser/python -run TestPythonModuleAllNamesAcceptsConcatenatedLiterals -count=1`
-fail before the fix and pass after, while the plain list/tuple `__all__` and
-`TestDefaultEngineParsePathPythonEmitsPublicAPIRootKinds` suites stay green. The
-augmented form `__all__ += [...]` parses as `augmented_assignment`, a node kind
-the prior regex-on-`assignment` path never captured, so it stays out of scope to
-preserve parity.
-
-No-Observability-Change: this change is parser-internal; it edits only how the
-existing `framework_semantics`, `orm_table_mappings`, and
-`dead_code_root_kinds` payload fields are computed. No metric instrument, metric
-label, span, log line, status field, env var, queue, worker, lease, batch,
-runtime knob, or graph query is added or changed. Operators still diagnose
-parser behavior through existing collector parse-stage logs and
-`eshu_dp_file_parse_duration_seconds`.
-
 ### Function-signature and class-header within-node regex to AST (epic #3531)
 
 The last three within-node `regexp` sites now read tree-sitter nodes instead of
@@ -159,30 +124,6 @@ matching the rendered node text:
   `parsePythonParameterAnnotation`, and all line-scan regexes leave the package
   with no `regexp` import.
 
-No-Regression Evidence: `go test ./internal/parser/python ./internal/parser
--count=1` (652 tests) and `go test ./internal/parser
-./internal/collector/discovery ./internal/content/shape ./internal/collector
--count=1` (1020 tests) stay green; `golangci-lint run ./internal/parser/...`
-reports no issues. The pre-existing engine parity suites pass byte-for-byte:
-`go test ./internal/parser/python -run 'TestDefaultEngineParsePathPython(EmitsTypeAnnotationsBucket|EmitsMetaclassMetadata)' -count=1` and
-`go test ./internal/parser -run TestDefaultEngineParsePathPythonEmbeddedShellCommands -count=1` (the first two moved into
-`internal/parser/python` with the #6062 relocation; the embedded-shell case
-lives in the parent's own `embedded_shell_test.go`).
-New guards added in `internal/parser/python/engine_python_ast_parity_test.go`:
-`TestDefaultEngineParsePathPythonMultilineClassHeaderUsesAST` fails on the prior
-single-line regex and passes on AST; the splat-typed-parameter and rich
-embedded-shell (module alias, direct import, os module, alias shadowing,
-nested-function attribution, module-level skip) tests lock the payload
-byte-for-byte against the prior line-scan output.
-
-No-Observability-Change: parser-internal; it changes only how the existing
-`type_annotations`, `classes[].bases`, `classes[].metaclass`, and
-`embedded_shell_commands` payload fields are computed. No metric instrument,
-metric label, span, log line, status field, env var, queue, worker, lease,
-batch, runtime knob, or graph query is added or changed. Operators still
-diagnose parser behavior through existing collector parse-stage logs and
-`eshu_dp_file_parse_duration_seconds`.
-
 ### Notebook in-memory parse, no temp-file round trip (issue #4874)
 
 `Parse` and `PreScan` no longer write the notebook-converted Python source to
@@ -201,7 +142,3 @@ the payload of every unflagged import. Keep the `else` branch of a
 `TYPE_CHECKING` guard and `not TYPE_CHECKING` unflagged, and keep class bodies
 non-deferred. Add a case to `engine_import_flags_test.go` with any new
 context.
-
-No-Observability-Change: this parser package still emits no metrics, spans,
-or logs. Operators diagnose parser cost through existing collector
-snapshot stage logs and `eshu_dp_file_parse_duration_seconds`.

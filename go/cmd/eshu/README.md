@@ -181,85 +181,11 @@ The Cobra dispatcher does no OTEL bootstrap. Telemetry runs inside each
 launched runtime via the shared `telemetry` package. Errors print to
 `os.Stderr`; the binary exits 1 on any Cobra error.
 
-No-Observability-Change: provider-parity lifecycle normalization stays inside
-the local CLI and aggregate proof mapping. The Eshu finding read still uses the
-existing supply-chain impact API request path, API telemetry, and aggregate
-JSON/error output.
-
-No-Regression Evidence: provider-parity lifecycle behavior is covered by
-`go test ./cmd/eshu -count=1`.
-
-No-Observability-Change: component package-manager output and dry-run planning
-remain local filesystem CLI behavior. They do not start runtimes, call the API,
-or emit OTEL from this dispatcher.
-
-No-Regression Evidence: component package-manager JSON/text behavior is
-covered by `go test ./cmd/eshu -run 'TestComponent' -count=1`.
-
-No-Observability-Change: component inventory and diagnostics are API-backed CLI
-readers. Inventory passes an explicit 1..500 API `limit`; the CLI dispatcher
-emits no OTEL, opens no graph/Postgres drivers, and preserves the API envelope
-that carries hosted registry diagnostics.
-
-No-Regression Evidence: component extension API readback is covered by
-`go test ./cmd/eshu -run 'TestComponentInventoryCommandReadsCanonicalAPIEnvelope|TestComponentDiagnosticsCommandReadsComponentDrilldown' -count=1`.
-
 `component extraction-readiness [collector-family]` is a local, offline reader: it
 prints the advisory collector extraction readiness checklist (keep-in-tree /
 extraction-candidate / blocked / external-ready) from the static
 `internal/extraction` policy catalog, with `--verbose` and `--json`. It calls no
 API and opens no datastore.
-
-No-Observability-Change: extraction-readiness renders static in-binary policy
-data; the dispatcher emits no OTEL and opens no graph/Postgres drivers.
-
-No-Regression Evidence: extraction-readiness CLI output is covered by
-`go test ./cmd/eshu -run TestExtractionReadiness -count=1`.
-
-No-Observability-Change: component init collector scaffolding writes local
-template files only. The generated sample uses SDK validator tests and does not
-start Eshu runtimes, claim workflow work, write graph state, or emit OTEL from
-this dispatcher.
-
-No-Regression Evidence: component init collector scaffolding is covered by
-`go test ./cmd/eshu -run 'TestComponentInitCollector' -count=1`.
-
-No-Observability-Change: component conformance runs local manifest and fixture
-validation only. It does not start Eshu runtimes, call the API, claim workflow
-work, or emit OTEL from this dispatcher.
-
-No-Regression Evidence: component conformance CLI behavior is covered by
-`go test ./cmd/eshu -run 'TestComponentConform|TestComponentCommandTreeIncludesConform' -count=1`.
-
-No-Observability-Change: component index verification runs the offline
-`componentindex` verifier over a local YAML or JSON index only.
-
-No-Regression Evidence: component index verification CLI behavior is covered by `go test ./cmd/eshu -run 'TestComponentCommandTreeIncludesIndexVerify|TestComponentIndexVerify' -count=1`.
-
-No-Regression Evidence (#9090): the component trust policy now takes its core
-version from `--core-version`, then `ESHU_COMPONENT_CORE_VERSION`, then the
-build version, and the chart passes `componentExtensionCollector.coreVersion`
-to each activation `reconcile-*` init container. Before the fix a main-branch
-build (version = commit SHA) refused every install with `compatibleCore`; with
-neither the flag nor the variable set it still does. Proof:
-`go test ./cmd/eshu -run TestComponentInstallHonorsCoreVersionOverride -count=1`
-(five cases: override inside and outside the range, no override, flag over
-variable) and `go test ./internal/runtime -run
-TestHelmComponentActivationReconcilePassesCoreVersion -count=1`. `helm template`
-of the default values is byte-identical before and after (checked with `cmp`),
-because the variable renders only when `coreVersion` is set and the
-`values.yaml` change is a comment.
-
-No-Observability-Change (#9090): no metric, span, log key, or status field
-changes. A refused install still prints `component verification failed` with
-the version it checked, in the CLI output and the `reconcile-<instanceId>` init
-container log.
-
-No-Observability-Change: answer-quality scorecard evaluation scores already
-captured and redacted evidence offline. It starts no runtime or datastore.
-
-No-Regression Evidence: answer-quality scorecard CLI behavior is covered by
-`go test ./cmd/eshu -run 'TestAnswerQualityScorecardCommand' -count=1`.
 
 Observability: `evidence bundle export --live` performs three read-only HTTP
 GETs against the target's status routes (`/api/v0/status/index`, `/pipeline`,
@@ -268,61 +194,6 @@ the route that failed. The default export and `evidence bundle validate` still
 run entirely in the local CLI process over deterministic redacted bundle data or
 caller-supplied bundle JSON. No path starts a runtime, opens a graph or Postgres
 driver, claims queue work, or emits OTEL from this dispatcher.
-
-No-Regression Evidence: evidence bundle CLI behavior is covered by
-`go test ./cmd/eshu -run 'TestEvidenceBundle|TestRootCommandIncludesEvidenceBundle' -count=1`.
-
-No-Observability-Change: operator digest rendering validates explicit
-share-safe inputs and projects offline artifacts without runtime, provider,
-datastore, graph-write, or reducer-claim side effects.
-
-No-Regression Evidence: operator digest behavior needs two commands, because
-the model, artifact, and scope-validation logic now lives in
-`go/internal/cli/opdigest` and this command is the cobra wrapper around it.
-Counts below are test functions, not test cases:
-`go test ./cmd/eshu -run 'TestOperatorDigest' -count=1` covers the wrapper (6
-tests, no subtests); `go test ./internal/cli/opdigest -count=1` covers the
-logic it calls (14 tests, 19 including subtests). The first pattern alone
-stopped reaching scope validation, question-limit truncation, text-render
-content, and the artifact write path when those moved.
-
-No-Observability-Change: `change impact` and `change plan` only derive local
-caller-supplied changed-file metadata, build bounded HTTP requests, and render
-canonical response envelopes. They add no spans, metrics, datastore access,
-graph traversal, queue claims, or provider calls in the CLI process.
-
-No-Regression Evidence: change planning CLI behavior is covered by
-`go test ./cmd/eshu -run 'TestChangePlan|TestFetchChangePlan|TestRunChangePlan|TestChangeImpact' -count=1`.
-
-No-Observability-Change: hosted-onboard starter playbook guidance projects the
-in-process query playbook catalog locally without runtime or datastore access.
-
-No-Regression Evidence: hosted-onboard starter playbook guidance is covered by
-`go test ./cmd/eshu -run 'TestHostedOnboardArtifactOutputFields|TestHostedOnboardIncompleteConnectionStillSafeArtifact|TestHostedOnboardMarkdownNamesPlaybookIDs' -count=1`.
-
-No-Observability-Change: assistant ritual verification stays in the local CLI
-process and reuses the MCP setup seam for snippets and read-only tool checks.
-
-No-Regression Evidence: assistant ritual verification is covered by
-`go test ./cmd/eshu -run 'TestAssistantInstall|TestAssistantStatus' -count=1`.
-
-No-Observability-Change: assistant hook preflight runs entirely inside the
-local CLI process over already-supplied host metadata. It starts no runtime,
-calls no MCP/API endpoint or provider, opens no graph/Postgres driver, writes no
-source, installs no hook, claims no queue work, and emits no OTEL from this
-dispatcher.
-
-No-Regression Evidence: assistant hook preflight is covered by
-`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -count=1`.
-
-Benchmark Evidence: assistant hook preflight is measured by
-`go test ./cmd/eshu ./internal/cli/hookpreflight -run 'TestAssistantHookPreflight|TestDocLockstep' -bench 'BenchmarkAssistantHookPreflight' -benchtime=1000x -count=1`;
-local Darwin arm64 samples kept evaluator advisory below 279 ns/op, evaluator
-fail-open below 102 ns/op, command advisory JSON at 10.789 us/op, and
-malformed-payload fail-open at 6.065 us/op. Those bounds are carried forward
-from the measurement taken before the planner moved into
-`go/internal/cli/hookpreflight`; the move and the doc-lockstep work since have
-changed no evaluator line and did not re-measure them.
 
 ## Gotchas / invariants
 

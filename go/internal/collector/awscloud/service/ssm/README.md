@@ -73,22 +73,11 @@ parameter name. The collector does not call GetParameter, GetParameters,
 GetParametersByPath, GetParameterHistory, decryption, mutation APIs, or graph
 writes.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers SSM parameter metadata fact emission, direct KMS relationship emission,
-omission of values/history/descriptions/allowed-patterns/policy JSON, SDK
-pagination, tag reads, runtime registration, command configuration, and the SDK
-adapter's safe metadata mapping.
-
 Collector Observability Evidence: SSM uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses SSM scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: SSM runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

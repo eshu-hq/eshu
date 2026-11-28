@@ -117,42 +117,12 @@ partial collection wrapper, and the shared SDK production code is 400 lines.
 The existing adopter surface is 65 lines smaller while future collectors reuse
 the shared request and failure kernel instead of copying it.
 
-No-Regression Evidence: `go test ./internal/collector/sdk
-./internal/collector/jira
-./internal/collector/observability/tempo -count=1` covers SDK
-base URL validation, retry-after parsing, bounded HTTP retries, safe HTTP
-errors, and the four adopters' existing pagination, redaction, warning,
-rate-limit, and provider failure behavior.
-
-No-Observability-Change: the SDK emits no telemetry directly. Jira, PagerDuty,
-Grafana, and Tempo keep their existing provider request counters, fetch
-duration histograms, rate-limit counters, fact counters, and provider spans;
-metric labels remain bounded to provider, status class, fact kind, and existing
-low-cardinality dimensions.
-
-No-Regression Evidence (#2756): `go test ./internal/collector/sdk ./internal/collector ./cmd/collector-cicd-run -run 'Test(HTTPErrorExposesRetryAfterDelay|ClassifyProviderFailurePreservesRetryAfterDelay|ClaimedServiceHonorsSDKProviderFailureRetryAfter|ClaimedServiceHonorsRetryAfterOnRetryableCollectFailure|BuildClaimedServiceWires)' -count=1` proves SDK HTTP errors return parsed Retry-After delay, provider failure classification preserves that delay for claim-aware retry handling, `ClaimedService` applies it to retryable claim `visible_at`, and standard claim-driven collector commands wire the default bounded attempt budget.
-
-No-Observability-Change (#2756): the SDK remains telemetry-free and does not
-sleep, retry beyond caller-supplied bounds, mutate workflow state, or add labels.
-Provider-throttle retries still use the existing workflow claim rows, failure
-class, failure message, retryable status, hosted readiness, and collector-owned
-rate-limit signals. This slice adds no worker, queue, graph write, database
-table, metric, label, span, log field, runtime knob, Helm value, or deployment
-process.
-
 Line-count marker (#2361): Prometheus/Mimir and Loki now reuse the SDK request
 and failure kernel. This slice deletes 210 lines of duplicated local
 `failure.go` wrappers, removes the last local retry-status helper in these two
 packages, and leaves the affected production Go diff at 254 insertions and 356
 deletions, a net reduction of 102 lines while preserving provider-owned API
 status handling and Loki YAML decoding.
-
-No-Regression Evidence (#2361): `go test ./internal/collector/sdk
-./internal/collector/observability/prometheus -count=1` covers
-the SDK custom decoder hook, bounded SDK `HTTPError` return path, retry counts
-on hard provider failures, Prometheus/Mimir API-status failures,
-partial warnings, and terminal versus retryable workflow failure
-classes.
 
 Collector Performance Evidence: Prometheus/Mimir and Loki keep the same
 provider endpoint sequence, the same `maxHTTPRetries = 2`, the same per-target
@@ -175,12 +145,6 @@ ServiceMonitors, command flags, environment variables, health routes, status
 routes, scrape labels, or runtime profiles for `collector-prometheus-mimir` or
 `collector-loki`.
 
-No-Observability-Change (#2361): Prometheus/Mimir and Loki still emit
-provider-local spans, request counters, retry counters, rate-limit counters,
-fact counters, stale counters, and redaction or high-cardinality counters. The
-SDK remains telemetry-free, and metric labels stay bounded to provider, status
-class, fact kind, and existing low-cardinality reason values.
-
 Line-count marker (#2366): the GitHub REST collectors (`securityalerts` and
 `cicdrun/ghactionsruntime`) now reuse SDK failure constants, bounded default
 HTTP clients, base URL validation, `HTTPError` wrappers, and `Retry-After`
@@ -189,40 +153,12 @@ GitHub Actions `UseNumber` decoding remain provider-owned. This intentionally
 keeps the local GitHub traversal files and leaves the production Go diff at 20
 net added lines while deleting the local GitHub Actions `Retry-After` parser.
 
-No-Regression Evidence (#2366): `go test ./internal/collector/sdk
-./internal/collector/cicdrun/ghactionsruntime
-./cmd/collector-cicd-run -count=1` covers SDK
-HTTP error wrapping, HTTP-date `Retry-After` parsing, credential-bearing base
-URL rejection, Dependabot cursor pagination and same-host guards, GitHub
-Actions rate-limit retry guidance, artifact URL redaction, and command config
-construction.
-
-No-Observability-Change (#2366): security-alert and CI/CD run collectors keep
-their existing provider request counters, fetch-duration histograms, rate-limit
-counters, fact counters, partial-generation counters, and observe/fetch spans.
-The SDK remains telemetry-free, and metric labels remain bounded to provider,
-status class, fact kind, and existing low-cardinality reason values.
-
 Line-count marker (#2371): Confluence now reuses SDK base URL validation,
 bounded default HTTP client construction, bounded `HTTPError` values, and
 `Retry-After` parsing. Confluence-owned read-only GET traversal, `_links.next`
 pagination, 403/404 permission-gap handling, retry backoff and jitter, and
 source-stage telemetry stay local. The production Go diff is four net added
 lines while deleting the local Confluence `Retry-After` parser.
-
-No-Regression Evidence (#2371): `go test ./internal/collector/sdk
--count=1` covers SDK
-base URL credential rejection, default client construction, bounded SDK HTTP
-errors for retryable and non-retryable provider statuses, and HTTP-date
-`Retry-After` parsing. Confluence provider traversal now runs from the
-extracted satellite (`eshu-hq/eshu-collector-confluence`, #8855).
-
-No-Observability-Change (#2371): Confluence keeps its existing HTTP request
-counters, fetch-duration histograms, sync failure counters,
-permission-denied counters, fact counters, shared `collector.observe` span, and
-hosted status surface. The SDK remains telemetry-free, and metric labels remain
-bounded to operation, result, status class, failure class, and the existing
-collector dimensions.
 
 Line-count marker (#2374, historical — package-registry runtime extracted to the satellite under #10620): package-registry metadata fetches now reuse the SDK
 bounded HTTP error and default-client primitives while keeping provider-specific
@@ -231,40 +167,11 @@ request shape and registry workflow failure classification in
 SDK dependency without adding retries, sleeps, goroutines, queues, graph writes,
 database writes, collector binaries, Helm values, or runtime knobs.
 
-No-Regression Evidence (#2374, historical — commands below predate the #10620 extraction): `go test ./internal/collector/sdk
-./internal/collector/registry/package
-./internal/collector/registry/package/runtime
-./cmd/collector-package-registry -count=1` covers SDK default-client reuse,
-bounded SDK `HTTPError` causes for status and transport failures, the existing
-`registry_*` failure-class mapping, rate-limit sentinel matching, metadata URL
-redaction, request auth, ecosystem-specific accept headers, and metadata body
-bounds.
-
-No-Observability-Change (#2374): package-registry retains its provider-local
-request, observe, rate-limit, fact, parse-failure, warning-fact, readiness,
-metrics, and admin-status signals. The SDK still emits no telemetry directly,
-and no metric label now contains package names, metadata URLs, versions, feed
-paths, source locators, or credential material.
-
 Line-count marker (#2377, superseded by #8869 extraction): Vault live's
 `vaultapi` adapter reused SDK base URL validation, bounded default HTTP client
 construction, and bounded `HTTPError` values. The adapter left with the
 extraction to `eshu-hq/eshu-collector-vault-live`; the package still has no
 HashiCorp Vault SDK dependency.
-
-No-Regression Evidence (#8869): `go test ./internal/collector/sdk -count=1`
-covers SDK base URL credential rejection, bounded default client construction,
-and SDK HTTP error wrapping for status and transport failures. Vault
-metadata-only path guards, 404 empty-state behavior, and the seven metadata
-families are proven by the satellite repo and the QA lane on #8869.
-
-No-Observability-Change (#2377, superseded by #8869 extraction): Vault live kept
-its existing secrets/IAM source fact counters, API-call counters,
-partial-scope counters, redaction counters, freshness gauge, shared collector
-metrics, and `vault_live.snapshot` span until the extraction moved those
-instruments to `eshu-hq/eshu-collector-vault-live`. The SDK emits no telemetry
-directly, and metric labels remain bounded to source, fact kind, operation,
-result, reason, field class, and scope kind.
 
 Line-count marker (#2381, historical — OCI distribution runtime extracted to the satellite under #10620): OCI Distribution now reuses SDK base URL validation,
 bounded default HTTP client construction, and bounded `HTTPError` values for
@@ -273,37 +180,11 @@ resolution, `/v2/` auth-challenge handling, token query shaping, repository path
 escaping, referrers capability errors, blob body caps, and registry workflow
 failure classes stay local.
 
-No-Regression Evidence (#2381, historical — commands below predate the #10620 extraction): `go test ./internal/collector/sdk
-./internal/collector/registry/oci/distribution
-./internal/collector/registry/oci/runtime
-./cmd/collector-oci-registry -count=1` covers
-SDK base URL credential rejection, default client construction, SDK HTTP error
-causes for status and transport failures, Distribution ping, tag, manifest,
-blob, referrer, and token behavior, OCI runtime warning handling, and the SBOM
-OCI-referrer fetch path that depends on this client.
-
-No-Observability-Change (#2381): Distribution and the SDK remain telemetry-free.
-The OCI and SBOM runtimes keep their existing provider-local spans, request
-counters, warning facts, status surfaces, and shared collector metrics. Metric
-labels remain bounded and do not include registry hosts, repository paths, tags,
-digests, URLs, token values, or credential material.
-
 Line-count marker (#2384, historical — sbom runtime extracted to the satellite under #10450): SBOM configured-document fetches then reused the SDK
 default HTTP client constructor, bounded `HTTPError` values, and `Retry-After`
 parsing. SBOM-owned arbitrary document body reads, auth header construction,
 OCI referrer delegation, document identity, and source URI redaction stayed local
 to `internal/collector/sbom/runtime` until extraction.
-
-No-Regression Evidence (#2384, historical — commands below predate the #10450 extraction): `go test ./internal/collector/sbom/runtime -run
-'TestHTTPProviderConfiguredSource(StatusFailure|TransportFailure)' -count=1`
-covers bounded SDK HTTP status and transport causes, retry-after preservation,
-registry failure class/details compatibility, configured document response-body
-redaction, and transport cause unwrapping.
-
-No-Observability-Change (#2384): SBOM configured-document fetches keep the same
-claim workflow, fact emission, warning fact, and workflow failure class/details
-surface. The SDK remains telemetry-free and adds no metric, span, log, status,
-queue, graph write, deployment, or runtime profile change.
 
 Line-count marker (#2387): the vulnerability-intelligence source clients now
 reuse SDK default HTTP client construction, bounded `HTTPError` values,
@@ -311,20 +192,6 @@ reuse SDK default HTTP client construction, bounded `HTTPError` values,
 EPSS, and NVD. Source-owned request shaping, OSV ecosystem mapping, CISA KEV
 catalog decoding, FIRST EPSS query limits, NVD window validation, and NVD
 header-only API key handling stay local.
-
-No-Regression Evidence (#2387): `go test ./internal/collector/sdk
-./internal/collector/vulnerabilityintelligence
-./internal/collector/vulnerabilityintelligence/vulnruntime
-./cmd/collector-vulnerability-intelligence -count=1` covers SDK-backed HTTP
-status, transport, decode, and retry-after behavior for vulnerability source
-clients plus runtime request-result and source-state classification from
-structured SDK errors.
-
-No-Observability-Change (#2387): the SDK remains telemetry-free. The
-vulnerability-intelligence runtime keeps ownership of observe/fetch spans,
-observation counters, fetch-duration histograms, fact counters, rate-limit
-counters, durable source-state rows, health, readiness, metrics, and
-admin-status surfaces.
 
 Fleet closeout marker (#2392): after the collector migration slices through
 #2387, `rg --files go/internal/collector go/cmd | rg
@@ -383,13 +250,3 @@ first-party HTTP retry loops inside the adapters.
 Command and API clients under `go/cmd` were reviewed by the same audit and stay
 outside #2353 because they are CLI, API, NornicDB, or runner clients rather than
 claimed collector provider clients.
-
-No-Regression Evidence (#2392): this closeout is docs and audit only. The
-helper-file and cloud/platform scans above were reviewed with the package docs
-for the owner boundaries they list. The required verification is the package
-docs gate, docs build, whitespace check, and a final live
-`capability:collector-sdk` issue-label query before closing #2353.
-
-No-Observability-Change (#2392): no Go runtime, metric, span, log, status,
-queue, graph, database, deployment, or command path changes. The closeout
-records ownership of existing boundaries and adds no telemetry surface.

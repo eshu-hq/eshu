@@ -113,24 +113,6 @@
   `semantics_ast.go`). Adding any other regex for extraction
   requires an ADR.
 
-## No-Regression / No-Observability-Change
-
-- No-Regression Evidence: the AST conversion replaces multi-pass regex scans
-  with single-pass walks over an already-built tree; sibling files are parsed
-  once and cached. Output is identical for valid code, proven by the unchanged
-  `engine_*`, `engine_typescript_*`, `engine_tsx_*` tests and the
-  js/ts/tsx comprehensive golden fixtures. Two framework-semantics buckets are
-  intentionally narrowed because the prior raw-source regexes matched code-shaped
-  tokens inside comments, strings, imports, and type annotations: `react.hooks_used`
-  now collects only real `call_expression` hook calls (bare and `React.useState`
-  member form), and `aws`/`gcp` `client_symbols` collects only `new`-constructed
-  `XxxClient` names. Dynamic `import("@aws-sdk/client-*")` is now covered for the
-  service buckets alongside static import and require. These narrowings drop prior
-  false positives and have regression tests in
-  `engine_ast_conversion_test.go`.
-- No-Observability-Change: this package emits no telemetry by design; the
-  conversion neither adds nor removes spans, metrics, or logs.
-
 ## Common changes and how to scope them
 
 - Add JavaScript-family behavior by writing a focused external-package test
@@ -176,7 +158,6 @@
   signatures, and helpers walk ancestors via `parents.Parent(node)`. Keep the
   cgo-crossing regression gate
   `TestJavaScriptParentLookupEliminatesCgoCrossings` green.
-
 
 ## Subpackages and the leaf rule
 
@@ -303,19 +284,6 @@ agreement. Coverage includes:
   `datastore`, `logging-min`; rejection of AWS specifiers, unscoped names, empty
   slugs, uppercase slugs; integration over `require` and static `import`;
   cross-pattern isolation confirming AWS and GCP regexes are mutually exclusive.
-
-### No-Regression Evidence (issue #3590)
-
-```
-cd go && gofmt -l internal/parser/javascript/   # empty — no formatting drift
-cd go && go test ./internal/parser/... -count=1  # 1238 passed, 41 packages
-cd go && golangci-lint run ./internal/parser/javascript/...  # no issues
-```
-
-### No-Observability-Change
-
-This package emits no telemetry by design. The audit adds only tests and
-documentation; no spans, metrics, or logs are added or removed.
 
 ### #6062 residual
 

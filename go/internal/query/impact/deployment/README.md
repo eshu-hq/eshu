@@ -69,18 +69,11 @@ or graph drivers.
 This package emits no metrics, spans, or logs. Handlers retain their
 existing telemetry.
 
-No-Observability-Change: moving helpers here changes no call path that
-emits telemetry.
-
 ## Performance
 
 Helpers here run per-request response shaping, not hot row loops; shared
 `querycontract` decoders inline away. No benchmark delta is claimed because
 there is no runtime delta to measure.
-
-No-Regression Evidence: same gates as `impact/README.md` — query, mcp,
-queryplan, golden-corpus, replay-coverage, and ci gates plus build and vet,
-all exit 0, with byte-identical B-7 cassettes and B-12 snapshot.
 
 ## Gotchas / invariants
 

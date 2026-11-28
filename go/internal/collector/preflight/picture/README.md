@@ -74,10 +74,6 @@ changes in this slice. The default-off collector routing test keeps image files
 out of hosted documentation ingestion until a reviewed OCR extractor slice
 enables them.
 
-No-Observability-Change: this package is a pure metadata preflight helper. It
-adds no worker, queue consumer, graph write, database query, HTTP handler, MCP
-tool, runtime stage, OCR engine, or hosted collector path.
-
 ## Gotchas / invariants
 
 - Preflight never stores raw image bytes, OCR text, EXIF values, source names,

@@ -58,12 +58,6 @@ See `doc.go` for the full godoc contract.
 No metrics, spans, or logs are emitted: the seam is unwired prototype
 code with no production caller.
 
-- No-Observability-Change: no operator signal changes in this package.
-- No-Regression Evidence: additive-only package with no production
-  importer. The in-tree `extensionhost` and `collector-component-extension`
-  suites run unchanged and green:
-  `cd go && go test -race -count=1 ./internal/collector/extensionhost/... ./cmd/collector-component-extension/...`.
-
 Grant decisions reach operator telemetry at cutover through `Observer`,
 which the extracted host will back with its grant telemetry recorder.
 
@@ -71,18 +65,6 @@ The Box 1 cutover gate (`wiring.go`, `#9381`) is default-off with no
 production importer: flag-off reports `ErrCutoverDisabled` with no wire,
 grant-read, or observer side effects, and flag-on delegates to the `Client`
 proven above.
-
-- No-Regression Evidence: baseline `origin/main@446af11c8e` package suite
-  green; after `go test -race -count=1
-  ./internal/collector/extensionhost/remote/claim/` green including 9 new
-  `TestCutover_*` (flag-off sentinel parity, flag-on claim/commit routing
-  via the pinned fake, wired-vs-in-tree authority match on 7 grant sets,
-  second-producer denial, 8x25 concurrent-use race probe). No queues,
-  workers, batches, or locks added or retuned: the gate holds one
-  read-only bool plus the bound `Client`, and the `WaitGroup`/`go func`
-  content hits live in the race-probe test only.
-- No-Observability-Change: the gate emits no metrics, spans, or logs; the
-  bound `Client` observes grant decisions only when enabled.
 
 ## Gotchas / invariants
 

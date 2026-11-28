@@ -108,32 +108,6 @@ content summary keeps the 200 with `repository_context_content_coverage_degraded
 A client cancel of that read answers 499. Stats and story have no fallback (null
 counts), so their fence answers 503.
 
-Observability Evidence: the 34 `writeReadFailure` call sites, which recorded
-nothing on the request span before #7674, now record a span error with the
-step's message, or only the `eshu.request.client_canceled` event for a client
-cancel. `serveRepoServerFailure` in `server_failure_test.go` asserts both
-outcomes for every row of `repositoryRouteSteps`.
-
-No-Regression Evidence (#7626): for the content-backed selector routes in
-this package, `iac` dead-IaC, and `contentread`, the new
-`selector.WriteLookupFailure` calls run only after
-`selector.ResolveExactForAccess` has already returned an error, so the success
-path issues the same catalog and graph reads in the same order, and no Cypher
-text, read count, or bound changed (`selector.go`'s Cypher literals are
-untouched; `hot-cypher-source-coverage` passes). Proven by
-`go test ./internal/query/... ./internal/queryplan/... -count=1` (74 packages
-ok) with the route regressions in `selector_lookup_test.go`,
-`../iac/dead_selector_lookup_test.go`, and
-`../contentread/content_handler_selector_lookup_test.go`.
-
-Observability Evidence (#7626): a lookup failure on these routes now records
-the error and an `exception` event on the request span (the iac
-`SpanQueryDeadIaC` handler span for dead-IaC) with status description
-`repository selector lookup failed`, and so does the stats budget `504`; a
-reader-fence `503`, a graph `503`/`504`, not-found, and ambiguous answers leave
-the span untouched. The route tests assert both halves with an SDK span
-recorder.
-
 ## Story file list
 
 `getRepositoryStory` reads the repository file list once, in the
@@ -210,26 +184,6 @@ the unscoped probe, grouped read and loader; `dependency_edge_cap.go` holds the
 group-size read and the prefix computation. Measurements are in
 (#6786).
 
-Performance Evidence (#6786 review R2-F6): on NornicDB v1.3.3 with 500
-repositories of 200 files each, the grouped read costs 0.0045s median against
-0.635s for the per-edge read, with identical row sets at LIMIT 50001, 100 and
-7 on NornicDB and Neo4j. `listCatalogRepositoriesFromGraph` went from
-0.60-0.66s (per-edge) to 0.013s.
-
-Performance Evidence (#6786 review R3-F2, recorded in
-(#6786)): on
-the same graph with 75,000 and 150,000 Repository `DEPENDS_ON` edges, the
-capped read transfers 50,100 edges instead of all of them. The interleaved
-loader median moves 0.160s to 0.169s and 0.154s to 0.166s on NornicDB, and
-0.171s to 0.138s and 0.189s to 0.100s on Neo4j. Below the bound the statements are unchanged apart from the
-parameterized LIMIT (NornicDB at 40,000 edges: 0.0423s to 0.0410s).
-
-Observability Evidence (#6786 review R2-F10, R3-F2): both routes time the read
-as `repository_query.stage_*` with `stage=dependency_cluster_edges`
-(`operation=repository_list` or `catalog_list`), carrying `edge_count`,
-`truncated`, `error`, `edge_scan_skipped` and `edge_transfer_capped`; only the
-list route adds `cluster_count`.
-
 ## API surface endpoint paging (#10477)
 
 `QueryRepoAPISurfacePaged` pages the endpoint set at the Cypher read for the
@@ -243,29 +197,6 @@ byte-identical (cassette and snapshot stability); the paged variant shares
 only the row mapping. The handler clamps pages into `[1, 100]` (default 50);
 an empty set -- or an offset past the end -- answers 200 with the true
 total, not 404.
-
-No-Regression Evidence (#10477): the default path is unchanged (the unpaged
-query text is untouched; `git diff` on `api_surface.go` shows only the added
-paged variant), the new variant adds a bounded `SKIP`/`LIMIT` page to the same
-ordered read, and per-page rows stay within the handler clamp. The `OFFSET`
-form first written here failed live against the pinned backend (B-7
-`mcp:list_service_api_endpoints` 500 on an unparsable page query); the
-`SKIP` form matches the live-tested repository-list shape; the B-7 run
-at the fix head passed (`PASS: B-7 golden corpus gate green`, 757 pass,
-0 required-fail, `mcp:list_service_api_endpoints` green). Focused proof:
-`TestQueryRepoAPISurfacePagedHonorsLimitOffset` pages a
-60-endpoint fixture 25/25/10 with `endpoint_count == 60` and no `next_offset`
-on the last page; the service, entity, and root handler paging tests cover
-the list tool, the 400s, and the story/context agreement; the full
-`repository`, `service`, `query`, `entity`, `querycontract`, `deployment`,
-`mcp`, `queryplan`, and `cmd/api` suites are green. No live `EXPLAIN` was
-run (plan shape is the proven one); the count/total pinning in the focused
-tests plus the B-7 live pass is the regression cover.
-
-No-Observability-Change (#10477): the paged handler is a read-only query-path
-handler with no new stage, worker, queue, or write; the existing handler
-spans and the `eshu_dp_api_request_duration_seconds` /
-`eshu_dp_api_request_errors_total` signals cover the route.
 
 ## Dependencies
 
@@ -287,35 +218,3 @@ code, never Cypher text or queue/projection behavior. The
 `query-source-coverage.yaml` file keys and `grandfathered_non_hot.go`
 entries move with the functions; bounds and digests change only when a
 function source actually changes, proven by the queryplan test.
-
-No-Regression Evidence (#6060 lane-B B3): this package is a pure move of
-the RepositoryHandler family from the query root (base 2d8258ecc) with no
-handler logic changes — function bodies are identical modulo package
-qualifiers and export renames. Emitted Cypher text is byte-identical, pinned
-by `queryplan_legacy_production_binding_test.go` (green) and the per-symbol
-source_sha256 audits in `query-source-coverage.yaml` (13 legacy rows
-converted to typed audits, digests verified). After measurement on this
-commit: `go build ./...` clean; `go test ./internal/query/...` 17 packages
-ok, 0 failures; `./internal/mcp/...` ok; `./internal/queryplan/...` ok;
-`go vet` clean on all three trees; `git diff --check` clean;
-`verify-dirgate.sh --all` exit 0. No benchmark delta is claimed because no
-hot path changed shape; the suites above are the no-regression proof.
-
-No-Regression Evidence (#6642 rule 4): the export destutter renamed
-fifteen identifiers and nothing else. Every SQL and Cypher literal in this
-package is byte-identical to the pre-rename commit; the eight queryplan
-source digests that moved did so only because the receiver type in the
-recorded function text changed, and `go test ./internal/queryplan/` is
-green on the re-pinned rows. `go test ./internal/query/... -count=1`,
-`./cmd/api ./cmd/mcp-server ./internal/mcp`, and the parser-relationship-kit
-verifier pass on the renamed tree; no benchmark delta is claimed because no
-query changed shape.
-
-No-Observability-Change (#6642 rule 4): the rename touches no span, metric,
-or log name; `repository_query.stage_*` events and the tracer scope are
-unchanged.
-
-No-Observability-Change (#6060 lane-B B3): no new runtime behavior, so no
-new spans, metrics, or logs. The existing `repository_query.stage_*`
-telemetry events moved with their handlers unchanged; operator signals are
-identical to base.

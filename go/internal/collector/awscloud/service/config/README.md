@@ -102,24 +102,12 @@ source-account set. The scanner issues no per-resource configuration-history or
 compliance-detail read, so handler cost scales with Config object cardinality,
 not with the number of recorded resources in the account.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers Config resource and relationship fact emission, omission of recorded
-configuration item bodies, partition derivation for cross-partition account
-edges, custom-rule-to-Lambda edge gating, runtime registration, command
-configuration, and the SDK adapter's safe metadata mapping plus the
-configuration-item-body and mutation exclusion gate.
-
 Collector Observability Evidence: AWS Config uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, resource
 type, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Config scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`.
 
 Collector Deployment Evidence: AWS Config runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

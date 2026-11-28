@@ -49,17 +49,6 @@ This family carries no decode seam: `triggerFact` reads only the
 `payload.go` helper of the same name — this package cannot import root, so
 the shared logic is duplicated rather than referenced).
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains `eshu_dp_reducer_executions_total`,
-`eshu_dp_reducer_run_duration_seconds`, and
-`eshu_dp_crossplane_satisfied_by_edges_total` for its own execution and edge
-writes. The `eshu_dp_crossplane_redrive_*` counters belong to the reducer's
-separate redrive sweep, not to intent enqueue. Moving the pure builder adds
-no queue, storage, graph, span, metric, or log boundary.
-
 ## Gotchas / invariants
 
 - The candidate-kind list (`candidateFactKinds`) must stay in sync with
@@ -100,19 +89,6 @@ no queue, storage, graph, span, metric, or log boundary.
 - [Intent contract](../../intent/README.md)
 - [Package restructure](../../../../../docs/internal/design/package-restructure.md)
 
-No-Regression Evidence: this extraction moves one builder without changing its
-trigger, value, or fan-out position. The reducer intent domain
-(`DomainCrossplaneSatisfiedByMaterialization`), the
-`crossplane_satisfied_by_materialization:<scope>` entity key, the
-`k8s_resource/crossplane_xrd content-entity facts observed` reason string, and
-the fact-id selection are identical to the base commit; only the scope and
-generation identifiers changed from struct-field reads to parameters, carrying
-the same values from the call site. The dispatcher's ordered fan-out is
-unchanged at 44 builder probes on both sides, with this probe still running
-immediately after `projectorkubernetes.BuildCorrelationMaterializationReducerIntent`
-and immediately before
-`projectorsecurity.BuildSecurityGroupEndpointMaterializationReducerIntent`.
-
 The family's private `crossplaneSatisfiedBySourceSystem` helper was compared
 body-for-body against `projectorintent.SourceSystem` and found identical -- two
 tiers, both trimmed, no third literal fallback -- so it was dropped in favour of
@@ -127,29 +103,3 @@ domain: `DomainCrossplaneSatisfiedByMaterialization` appears in neither
 carries no `k8s_resource` or `crossplane_xrd` content-entity fact. This package's
 own tests are therefore the only thing asserting these values -- do not rely on
 the parity fixture as a safety net for a change here.
-
-No-Observability-Change: no metric, span, log, or quarantine counter is added,
-moved, or renamed by this extraction. Root assembly and
-`eshu_dp_reducer_intents_enqueued_total` are untouched, the
-`crossplane_satisfied_by_materialization` domain keeps
-`eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds` on
-the handler side, and the two new files under this package emit no signal of
-their own -- `payload.go` is unexported map and scalar readers that perform no
-I/O, and `satisfied_by_intents.go` is a pure trigger-and-value builder. The
-telemetry-coverage rows for both were written from what the files contain rather
-than copied from a sibling.
-
-### Move record (#6627)
-
-No-Regression Evidence (#6627 crossplane nesting): base `f21c0e0b`,
-backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
-recursive projector tests green, moved tests green in the new path via the
-test-run guard, and the repoint listing is non-empty (7 tests). B-12 replay
-and B-7 golden-corpus gates were not run locally: the Docker daemon is
-unreachable (socket EOF), so CI is the blocking authority there. Same code
-path on the same input shape before and after; rename-only, so no benchmark
-delta exists to measure.
-
-No-Observability-Change (#6627 crossplane nesting): no stage added and no
-metric, span, or log name changed; the covering instruments named in this
-section are unchanged.

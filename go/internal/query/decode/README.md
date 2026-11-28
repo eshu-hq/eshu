@@ -62,30 +62,6 @@ file rename was needed). The exported surface (`Error`, `New`) carried no
 leading `Decode`/`Query` word, so nothing needed destuttering there. No
 decode behavior, error classification, or wrapped-error semantics changed.
 
-## No-Regression Evidence
-
-`factschema_shared.go` came from the query root's `factschema_decode_shared.go`
-for #6642 (move-sequence row 7). Its alias and forwarder were deleted, its
-constant and helper exported, and the five package-local copies of the constant
-and five of the helper in `package/registry`, `workitem`, `incident/store` and
-`supply/chain/{advisory,impact}` now call these instead. Every copy returned
-the same literal or the same zero-value deref, so no decoded value changes.
-
-Earlier: baseline `origin/main` at the move vs this branch: `go build ./...` and
-`go test ./internal/query/... -count=1` pass with 0 failures. The decode
-paths that exercise this package live in the root package's
-`factschema_decode_*_test.go` files, `internal/query/incident/store`,
-`internal/query/supply/chain/{advisory,impact}`, and
-`internal/query/package/registry`, all exercising this leaf through their existing
-importers unchanged. The test-name set under the leaf
-(`go test ./internal/query/decode/... -list '.*'`) is identical to
-`./internal/query/querydecode/...` at `origin/main`.
-
-## No-Observability-Change
-
-This package emits no metric, span, or log of its own; it is a pure
-in-process error-value leaf. No new runtime behavior, so no new telemetry.
-
 ## Related docs
 
 - [Package restructure design](../../../../docs/internal/design/package-restructure.md)

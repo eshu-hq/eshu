@@ -70,18 +70,6 @@ precedence the queue documents), while the triage detail keeps
 without force like any other exhausted transient; only the `manual_review`
 classes (`projection_bug`, `resource_exhausted`) need `--force`.
 
-No-Observability-Change: the new value rides the existing
-`eshu_dp_queue_dead_letters_total` counter by bounded `failure_class`
-(`admission_timeout` passes the label bound); no metric, span, or log is
-added or renamed.
-
-No-Regression Evidence (admission_timeout class, #10502): the change runs
-only on the dead-letter cold path — two `errors.As` traversals plus the
-pre-existing message format per dead-lettered item. No new query, index,
-lease, graph write, or concurrency change; the retry path, attempt budget,
-and admitted write path are byte-identical. Verified by the focused
-failure/queue suites plus the full ingester and projector packages.
-
 #3514 is resolved by wiring, not deletion: the live dead-letter path in
 `storage/postgres` (`projector_queue.go` `Fail`, `reducer_queue_helpers.go`
 `failIntent`) now calls `queuestore.DeadLetterTriageMetadata`, which runs `ClassifyFailure`
@@ -97,33 +85,6 @@ transient bucket, while `projection_bug` / `resource_exhausted` map to
 cause never carries `non_retryable` and vice versa, asserted by
 `TriageDispositionConflicts` and `TestTriageFailureConsistencyWithRetryable`.
 
-Performance Evidence: the dead-letter path is the cold failure branch, not the
-success hot path. `TriageFailure` adds one `ClassifyFailure` call (the same
-`errors.As` / type-switch work the reducer already ran via `queuestore.QueueFailureMetadata`)
-plus one `fmt.Sprintf` per dead-lettered item; no new query, index, lease, or
-graph write is introduced, and the durable `UPDATE` is byte-for-byte the prior
-`failProjectorWorkQuery` / `failReducerWorkQuery` with only the `failure_class`,
-message, and details argument values changed.
-No-Regression Evidence: `cd go && go test ./internal/projector
-./internal/storage/postgres ./internal/reducer -race -count=1` passed (3484
-tests, no data races); the retry branch and its
-`TestProjectorQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted` /
-`TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted`
-proofs are unchanged, and `TestProjectorQueueFailDeadLettersWithTriageClass`,
-`TestProjectorQueueFailDeadLettersRetryExhaustedWithTriageClass`, and
-`TestReducerQueueFailDeadLettersTerminalWithTriageClass` prove the live queue
-writes the triage class on the dead-letter row.
-
-Observability Evidence: the operator-facing signal is the durable
-`fact_work_items.failure_class` value on dead-lettered rows, surfaced through the
-existing `eshu admin facts list --status dead_letter` query and the
-`replay --failure-class` filter. The structured `details` string carries
-`stage=`, `triage=`, `class=`, `code=`, `disposition=`, `retryable=`, and
-`exhausted=` so an operator inspecting one dead letter at 3 AM can tell a
-transient pileup (safe to replay) from a poison projection bug (needs code fix)
-without reading the projector source. No new metric series or span is added; the
-change relabels an existing durable column.
-
 `ManualReviewTriageClasses` exposes the `manual_review` triage classes
 (`projection_bug`, `resource_exhausted`) as the single source of truth for the
 admin replay-safety guard in `internal/query`, so a poison item cannot drain via
@@ -131,18 +92,3 @@ admin replay-safety guard in `internal/query`, so a poison item cannot drain via
 `terminalTriageDispositions` backs both `reconcileTriage` and
 `ManualReviewTriageClasses`, so the guard can never drift from the disposition
 actually written on a dead-letter row.
-
-Performance Evidence: `ManualReviewTriageClasses` is an in-memory iteration over
-a five-entry map plus a sort, evaluated once at `internal/query` package init
-(`buildUnsafeReplayFailureClasses`), not on any request or projection path.
-`reconcileTriage` keeps the same single map lookup it already did per
-dead-lettered item; no new query, index, lock, or graph write is introduced.
-No-Regression Evidence: `cd go && go test ./internal/projector ./internal/query
--race -count=1` passed (3486 tests, no data races); the live-path triage proofs
-and the retry-branch proofs are unchanged, and the new
-`TestReplayRefusesManualReviewTriageClassWithoutForce` /
-`TestUnsafeReplayClassesIncludeManualReviewTriage` prove the guard refuses an
-un-forced `projection_bug` replay.
-No-Observability-Change: the guard reuses the existing
-`replay_refused_unsafe_class` governance-audit reason code and the existing
-422 refusal envelope; no new metric, span, or log scope is added.

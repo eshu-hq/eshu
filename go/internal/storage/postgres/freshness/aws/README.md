@@ -48,16 +48,6 @@ the injected `db.ExecQueryer` in their own `InstrumentedDB`
 call-level tracing and metrics are the caller's responsibility, not this
 package's.
 
-No-Observability-Change: this extraction moves only the AWS freshness
-trigger store, its SQL text, and its DDL. The upsert, claim, reap, and
-completion statements are byte-identical, both callers construct the same
-store through their own instrumentation wrapper, and no metric, span, or log
-name changes.
-
-No-Regression Evidence: focused `internal/storage/postgres/...` tests
-(including this package) run green on the moved tree with `-race`; the SQL
-text is unchanged so no plan or lifecycle proof is re-owed.
-
 ## Gotchas / invariants
 
 - `ClaimQueuedTriggers` sets a `claim_expires_at` lease
@@ -86,20 +76,3 @@ text is unchanged so no plan or lifecycle proof is re-owed.
 From `go/`, run `go test ./internal/storage/postgres/... -race -count=1` and
 `go vet ./internal/storage/postgres/...`. From the repository root, run
 `scripts/verify-package-docs.sh`.
-
-No-Regression Evidence (Lane 1 #9296): the trigger-type home move changes one
-import line in `store.go` (collector freshness path to coordinator freshness
-path); the SQL text, method set, and validation outcomes are unchanged.
-Baseline: pre-move validation through the scanner registry. After: validation
-through the host-owned service-kind set, pinned equal to the live registry by
-`TestSupportedServiceKindsMatchScannerRegistry` (mutation-proven: a planted
-skew fails naming the diff). Input shape is trigger `Validate` calls on
-`StoreTrigger`; no predicate, projection, or row-count change, so no query
-plan or lifecycle proof is re-owed. Hermetic store unit tests green
-(`go test ./internal/storage/postgres/freshness/aws/ -count=1`); live-PG
-claim-lease proofs are DSN-gated and skip locally exactly as on base, covered
-by CI.
-
-No-Observability-Change (Lane 1 #9296): no new metric, span, or log field.
-The `eshu_dp_aws_freshness_*` counters are emitted by the unchanged caller
-instrumentation wrappers around the same store methods.

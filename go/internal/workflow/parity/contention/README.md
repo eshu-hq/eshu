@@ -87,13 +87,6 @@ See `AGENTS.md`. The ones that bite:
   seed instance from its own instances file, so claims on it resolve while
   it is declared (arbiter (b2) on #10280). The reversal deletes no
   `collector_instances` row.
-- No-Regression Evidence: the revert removes one PK upsert per run in setup
-  and one PK delete per run in reversal, both single-threaded phases outside
-  the worker window; worker, claim, and queue code is untouched. Full
-  contention suite stays green (see the implementing PR's proof).
-- No-Observability-Change: no new metrics, spans, or logs; the reversal
-  surfaces through the existing `report.Deleted` counts and the residue
-  census.
 
 ## How the spec maps to code
 
@@ -471,11 +464,3 @@ LIMIT 1000)`) as `DeletePrefixed` does. Then rerun the residue counts.
 - `go/cmd/workflow-coordinator/REMOVAL_CONTENTION_SPEC.md` (the contract)
 - `go/internal/workflow/parity/README.md` (the parity harness and its legs)
 - [Local Testing](../../../../../docs/public/reference/local-testing.md)
-
-## No-regression and observability note
-
-- No-Regression Evidence: test-only package (`doc.go`: no production binary
-  imports `contention/`); focused suite 12/12 green, `go vet` and
-  `gosec-changed` clean; no production hot path changed.
-- No-Observability-Change: no production spans, metrics, or logs added or
-  altered; harness sampling and reporting run only under explicit invocation.

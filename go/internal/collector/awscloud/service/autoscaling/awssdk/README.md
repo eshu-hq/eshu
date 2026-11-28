@@ -71,16 +71,9 @@ covers the bounded mapping and read surface: subnet identifier splitting,
 launch-template ID preference, UserData and notification-metadata exclusion, and
 the reflective metadata-only guard. The adapter performs no graph writes.
 
-No-Regression Evidence: the reflective `exclusion_test.go` proves the read
-surface is Describe-only and cannot mutate Auto Scaling resources or control
-capacity.
-
 Collector Observability Evidence: the adapter reuses the existing
 `aws.service.pagination.page` span and `eshu_dp_aws_api_calls_total` /
 `eshu_dp_aws_throttle_total` counters with bounded labels.
-
-No-Observability-Change: no new instrument or label was added; the adapter
-reuses the shared AWS collector telemetry contract.
 
 ## Related docs
 

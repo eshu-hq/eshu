@@ -59,16 +59,6 @@ import: the transport arrives through `EnvelopeFetcher`.
 None. These are CLI command bodies; their observable surface is the rendered
 output itself.
 
-No-Observability-Change: this package emits no metrics, spans, or logs, and
-the extraction neither added nor removed an instrument. The commands render
-onto the writer `go/cmd/eshu` hands them, exactly as they did before the
-move.
-
-No-Regression Evidence: command behavior is covered by
-`go test ./internal/cli/component ./cmd/eshu -count=1`, and the extraction is
-proven by a byte-identical CLI parity table (stdout, stderr, and exit codes)
-between binaries built from the base commit and from this branch.
-
 ## Gotchas / invariants
 
 - Behavior preservation is the extraction's contract: rendered bytes and

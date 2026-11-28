@@ -72,28 +72,6 @@ transcript fact construction is bounded by media preflight limits, synthetic
 transcript segments, section text bounds, and deterministic mention extraction
 without adding discovery, queue, graph, or runtime work.
 
-No-Regression Evidence: the value-segment walk (#9786) adds a small cost. It
-sorts the segments, capped at 1,000 by the `whispercpp` engine, and makes two
-passes over them. Baseline is `d2e483870d`, measured at `9e2cb253b2`. A
-throwaway benchmark of `buildSections` on 1,000 benign synthetic segments, 5
-runs of 3,000 iterations each on arm64, went from a median of 8.27 ms/op to
-8.43 ms/op, about 2% more, with about 1,004 more allocations per call (24,913
-to 25,917). There is no backend, queue, or row count: this is in-memory work
-with no production caller, and it holds no lock and starts no worker.
-
-No-Regression Evidence: the spoken keyword fold (#9788) adds work per
-segment. Baseline is `main` at `82c9ef362e`; after is the #9788 branch with the
-ASCII fold fast path, the split-segment join, and the keyword result computed
-once per segment and shared with `persistedContent`. The `whispercpp` cap is
-4,096 characters per segment (`defaultMaxSegmentChars`) and 1,000 segments, so
-a typical 85-character segment and the capped case were both run. A throwaway
-benchmark called `buildSections` on 1,000 synthetic benign segments (arm64,
-two passes of 6 alternating base and branch rounds, 30 iterations each, built
-from `git archive` copies of both trees). The host was shared: its load average
-ran from 12 to 36 during the runs, and a few runs on either side came in
-2-3 times slower, so the table gives the normal band and the median, and the
-outliers are listed after it.
-
 | Segment size | main | branch | Allocations |
 | --- | --- | --- | --- |
 | 85 characters | 11.9-13.5 ms, median 12.0 | 13.8-14.4 ms, median 14.0 | 26,915 to 28,914 |
@@ -112,26 +90,6 @@ is a few milliseconds per transcript, and about 30 ms at the capped size, in
 memory. There is no backend, queue, or row count: no production
 caller exists, and the work holds no lock and starts no worker.
 
-No-Regression Evidence: the look-back (#9792) adds a queue to the value walk.
-Baseline is `origin/main` at `0e4aafe77e`; after is the #9792 branch. A
-throwaway benchmark called `buildSections` on 1,000 synthetic segments (arm64,
-5 alternating base and branch rounds of 30 iterations each, built from `git
-archive` copies of both trees; the host was shared and its load average ran from
-35 to 54, so read the medians). Benign 85-character segments: median 17.11 ms on
-main (16.62-17.61) and 17.29 ms on the branch (16.10-18.64). Benign
-4,096-character segments: 568.89 ms (544.40-616.05) and 556.36 ms
-(543.88-577.12). The time difference is inside the noise. Allocations per call
-went from 27,918 to 29,254 at 85 characters (+1,336, about 4.8%) and from 28,079
-to 29,415 at 4,096 characters (+1,336, about 4.8%): the queue is a slice of the
-indexes of the last two segments with a letter or digit plus the blank segments
-among them. A transcript where every fifth segment holds a keyword: median 9.71
-ms on main and 5.39 ms on the branch; one where every segment holds a keyword:
-3.99 ms and 2.76 ms. Those are faster because a withheld segment skips the
-mention and length work. There is no backend, queue, or row count: the work is
-in memory with no production caller, holds no lock, and starts no worker. A test
-(`TestValueSegmentsLongBlankRunsStayBounded`) pins the result on 918 segments
-with a 300-segment blank run before each keyword.
-
 Collector Observability Evidence: this package emits no facts outside the
 returned envelopes and has no runtime side effects. Future runtime wiring must
 add collector signals for attempted media preflight and transcription,
@@ -143,16 +101,6 @@ Collector Deployment Evidence: no Docker Compose, Helm, Service,
 ServiceMonitor, collector binary, runtime flag, environment-variable path, or
 hosted collector route changes in this slice. Media transcripts remain callable
 only through an injected engine in tests or future reviewed code.
-
-No-Observability-Change: this package adds no worker, queue consumer, database
-query, graph write, HTTP handler, MCP tool, runtime flag, hosted collector path,
-metric, span, log, or status row. Existing collector, fact-store, HTTP, and MCP
-readback surfaces already carry the emitted documentation facts.
-
-No-Observability-Change: the value-segment rule (#9786), the spoken keyword
-forms (#9788), and the look-back (#9792) add none of these and no error text. A
-value section carries the existing `redacted` and `redaction_class` metadata,
-which is what a future caller counts.
 
 ## Value segments
 

@@ -163,17 +163,6 @@
   pinned constant the coordinator's slot scopes and the persisted progress rows
   share; changing it orphans every progress row (#9776).
 
-  No-Regression Evidence: `OSVDirectoryEcosystem` is a pure function with no
-  caller yet. Baseline: none (new). After: mapping all 11 directories costs
-  about 420 ns (about 38 ns per call, 80 B and 9 allocs per 11 calls) on an
-  Apple M5 Max under a busy host (load 20-38),
-  `go test -bench -benchtime=200000x -count=3` (415.8, 420.9, 428.5 ns/op),
-  from a throwaway benchmark that is not committed.
-  Input: the 11 OSV directory names; no Postgres or graph backend, so there
-  are no queue or row counts. It takes no lock, spawns no goroutine, and
-  touches no shared state, so it is safe under any concurrency.
-  No-Observability-Change: a pure lookup emits no metric, span, or log. Its
-  future callers (the feed reader, #9777) own the operator signals.
 - **collectorContracts lookup must be exhaustive** — unknown collector kinds
   return an empty phase list; `ReconcileRunProgress` will treat them as having
   no requirements, which may silently permit premature `complete` transitions.

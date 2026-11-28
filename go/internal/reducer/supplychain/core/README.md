@@ -39,77 +39,6 @@ observed version and only an `==`-pinned requirement stays `possibly_affected`
 with reason `range_only_manifest`: the pin is a requirement, not
 installed-version proof, so it never claims `affected_exact`. OS distribution advisories (#9848) join an installed `os_package` row by `purlPackageKey`, which drops the advisory purl's qualifiers, subpath and version so it meets the installed `packageIDFromPURL` key; the installed key and the migration-153 index expression are unchanged. A merged OSV OS fact holds every release's range, so unless its ranges name their release lines it never yields `affected_exact` (`osAffectedFactCarriesReleaseEvidence`: release evidence is `ReleaseLine` set and nothing else, so a vendor-sourced fact has it only after the join verified its line; a vendor fact's exact-version list that names the installed version is read before every OSV range and the single-fix shortcut and gives `affected_exact` (#9929; the match is on the exact version string, and only after `selectOSVendorFactLine` verified that the fact's purl `distro` qualifier names the host's own release line, read through `osAdvisoryPURLReleaseLine` and the same `osHostReleaseLine` table (#9945): a vendor fact for another release is marked unlisted with its fix and list cleared, so it holds the host at `os_release_not_in_advisory` at most and is counted `vendor_line_mismatch`; one whose line cannot be read, or whose host line is unknown, carries no release evidence, loses its fixed versions, reads `possibly_affected` / `os_release_unverified` for a list or range that names the host and never `affected_exact` or `not_affected_known_fixed`, and is counted `vendor_line_unknown`; a non-OSV OS fact from any other source takes the same unknown arm even beside a verified vendor fact, and so does an rpm exact-version list (the host-line table has no rpm row, so `evaluateRPMVersionMatch` reads it `possibly_affected` / `os_release_unverified` too); the authorized-scan conflict pass keeps a vendor branch only when it is the host vendor's own fact and its line is the host's, and an OS SBOM component with no installed row runs the same check with an unknown host line); an unreadable vendor list entry never counts as a match but keeps the shortcuts from claiming known fixed, so it reads `possibly_affected` / `malformed_advisory_range`): a range that contains the version with no range fixed at or below it is `possibly_affected` with reason `os_release_unverified`, a contains-and-fixed disagreement is `possibly_affected` with reason `os_release_ambiguous`, and a fix at or below the version with no containing range is `not_affected_known_fixed`. The converter tags each OS range with the release lines that listed it (`releases`, #9806; `osv_release.go`), and `selectOSAdvisoryRelease` narrows a fully tagged fact to the installed row's line (`osHostReleaseLine`, pinned to the converter's key by one shared vector table) before the finding reads ranges and fixes: on a listed line the host's own range decides, so a version below its fix is `affected_exact` and the exact-version list is dropped; the boundary also blanks an unlisted fact's fixed versions, so neither the matcher shortcut nor the remediation branches can name another line's fix. On a tagged fact that lists no range for the host's line the answer is `possibly_affected` / `os_release_not_in_advisory`, never exact and never known fixed even above every listed fix. A fact with any untagged range keeps the untagged rules. The typed decode fills `AffectedRange.Releases` from the rc.13 pin, so fully tagged facts report `release_matched`/`release_unlisted` (untagged only when a range carries no tag). The join is by binary package name or, since #9859, by the installed row's source package name, and the fleet-wide pass classifies each image subject digest on its own (#9858): rows sharing the digest their sibling scanner analysis resolves classify once per (release line, installed version) the digest holds through the manifest fanout (#10057; a digest below a fix no longer reads known fixed by row order; measurements in (#10057)), a digest holding one version on one release line still yields its one finding, and rows no analysis resolves classify once per (release line, installed version) through the same fanout (#9984; measurements in (#9984)). The first of them used to decide one finding for every host, so a fleet on two lines reported one host with a verdict that depended on row order. The SBOM branch's base (digest-less rows and digests no attached SBOM names) goes through the same fleet pass, so each unattached digest is its own group and the cost is linear in them. Coalesce labels two findings of one writer identity as `sbom_component_version_conflict` only when an SBOM component was read for one of them (`findingHasSBOMComponentPath`); two digest-less lines whose purl has no distro qualifier merge keeping the lesser reason. Each pass counts OS advisory facts joined and not joined, once per index it evaluates (the fleet-wide index and each authorized scan target's), in `eshu_dp_supply_chain_impact_os_advisory_joins_total{source,outcome}` and the `os_advisories_considered` and `os_advisories_joined` sub-signals; each joined fact also reports its strongest release result over every row it joins (#10056) (`release_matched`, `release_unlisted`, `release_untagged`, `host_release_unknown`, `vendor_source`, `vendor_line_mismatch`, `vendor_line_unknown`) in `eshu_dp_supply_chain_impact_os_advisory_release_selections_total{source,result}` and the `os_advisories_release_*` and `os_advisories_vendor_line_*` sub-signals; findings whose advisory carries tags but none for the host's line count in `eshu_dp_supply_chain_impact_os_release_not_in_advisory_total{source}` and the `os_release_not_in_advisory` sub-signal. One fact names a (CVE, package id) group, `representativeAffectedPackage`, by an order-independent rank: a group that agrees on the ecosystem keeps its table, and a group that disagrees ranks under the vendor class its package identity names, so the vendor fact wins in every fact order (#10034); when the group has no SBOM path and no consuming repository, `withJoinableOSRepresentative` (`representative_join.go`) keeps only the facts of the group that join and marks the one that names the finding, so a fact that cannot join offers no fix and decides no verdict there (#9990). It does so when that fact joins no installed row, and when it joins with a blank ecosystem, a version on every row it joins, and a fact beside it that joins nothing. A blank group whose joined rows are mixed, with and without a version, first splits by row (`splitDirectBlankGroupByRowVersion`): the versioned rows take that rule and a row with no installed version keeps the whole-group read it has at the base (9990-f6). An SBOM path and a consumer are the anchors that keep a group's representative and its bytes, and so does a spelled ecosystem that joins or a group whose facts all join, because their rows exist at the base. Among facts that join, the choice ranks under the vendor of the row each one joins, then source, then fact id. A blank-ecosystem or `os` fact reads its version family from the joined row's package manager (#10034 item 2), never from a purl of a fact that cannot join; with no joined row the group's OS purls must agree or the verdict stays `unsupported_ecosystem`. A joined row whose fact carries no purl still yields a finding: the row's family compares it, and with no readable release line the verdict is `possibly_affected` / `os_release_unverified`. `amazon` is a spelling of the amazonlinux vendor class (#10034 item 4): the join gate, the version matchers, the deciding comparator, and the remediation family all read it as rpm, so an "amazon"-ecosystem fact joins an rpm row of that vendor and reads the rpm verdict. An emitted finding that reads `unsupported_ecosystem` for an OS-shaped group keeps the generic matcher token and names the closed vendor label whose matcher is missing, the same label the representative outcome counts under. Each OS-shaped group counts once per index in `eshu_dp_supply_chain_impact_os_representative_joins_total{source,outcome}` and the `os_representatives_*` sub-signals, and `no_joinable_representative` names rows that no fact of the group can join. `no_joinable_identity` names a group whose identity can meet no row at all (#10034 item 3): an os:// package id with no purl, or a fact naming neither, against purl-keyed rows. A distro OSV record (Debian `DEBIAN-CVE-*`/`DSA-*`/`DLA-*`, Ubuntu `UBUNTU-CVE-*`/`USN-*`, Alpine `ALPINE-CVE-*`, and any record that carries one) names the CVEs it covers only in the typed `upstream` list, so `groupOSAdvisoriesByUpstream` (`os_advisory_upstream_group.go`, #9914) runs once after the batch is indexed and files the record's cve observation and its affected_package facts under every `CVE-*` id in that list (case and whitespace folded; `DEBIAN-CVE-*` and `UBUNTU-CVE-*` entries are not keys). The join is on `AdvisoryID`, so a record whose alias shares a `cve_id` with an unrelated record never carries that record's packages, and a record with no advisory id fails closed as `ungrouped`. One installed package then reads one finding per CVE, and `cve_id` is the CVE. An OS-class finding's `advisory_id`, fix and range come from the live record whose range holds the installed version, highest fix first (`decidingObservation`, `osHoldingFacts`); with no holder the first observation in selection order that supplied an affected_package fact and is not retracted names it, where among records of one source one whose fact lists the host's release line (a vendor fact once verified) outranks an untagged or unverified one, which outranks one that lists other lines only (`releaseTier` in `provenance_selection.go`), then the `AdvisoryID` order. A scored NVD or GHSA record in the group supplies the score without renaming the finding, so `finding_id` does not depend on what the pass loaded; every other ecosystem keeps the scored-source rule (#9693). A retracted record neither decides nor names a group that has a live record for the same package (`liveAdvisoryPackages`, before any classify call): its fact ids stay in `evidence_fact_ids` and its status in `advisory_sources`, and a wholly retracted group keeps its verdict and `AdvisoryRetraction` (#9695), judged for an OS-class finding over the records listing its package (`recordsListingThePackage`). A fact with no anchor on the index changes no finding: when only retracted facts have one, the finding is the retracted record's, retraction shown (`onlyRetractedRecordsAnchor`). The pass marks what it copies (`UpstreamCopy`): a group whose packages are all copies still emits its NVD product findings, reading only the native cve observations, and a group with a natively keyed package still skips them. The derived conflict gate reads the same index, so it sees exactly what the primary path grouped. A record with no usable CVE key keeps its own group and finding identity; the producer's `cve_id` and the stored facts never change; a bulletin naming N CVEs yields N findings per package, each carrying the bulletin's two fact ids. The #9781 evidence budget charges loaded envelopes and retained payload bytes, never these index copies or the findings they produce (`BenchmarkBuildSupplyChainImpactIndexUpstreamGrouping` measures them); there is no fan-out cap, because a cap would hide findings. The pass counts examined records in `eshu_dp_supply_chain_impact_os_advisory_upstream_groups_total{source,result}` (`grouped`, `ungrouped`) and the `os_advisories_grouped` and `os_advisories_ungrouped` sub-signals; the join census counts each fact once however many CVEs it was filed under. The finding identity (`finding_id`, winners key, `cve_id` filters, `cve_id`-scoped suppressions) moves once for every grouped OS finding. The per-target indexes of the authorized derived pass apply the same grouping but are not counted in the grouping counter. The pass reads what the load brought, so the load filter asks for the CVEs an `upstream` list names on its own field, `UpstreamCVEIDs`: they load the CVE's `vulnerability.known_exploited` and `vulnerability.epss_score` facts and the suppressions scoped to it, never its `vulnerability.cve`, `affected_package` or `affected_product` facts. An OS finding therefore takes severity only from the record that decided it until that widening is measured (#9994; a scored record the pass loaded for another reason still supplies the score), and a KEV, EPSS or suppression fact for a CVE a loaded record names stays off `CVEIDs`, because promoting it would load the excluded kinds next round. The arm a CVE takes depends on the loaded set, not on the order facts arrive or which fact triggered the pass: a CVE with any loaded CVE-keyed fact takes the full arm, and a CVE named only by an upstream list takes the signal arm. On this code no production path puts a distro record and a native record for its CVE in one pass (deb and apk package ids and purls match no NVD or GHSA row, and a KEV, EPSS or suppression pass cannot reach a distro record), so an OS finding's severity is the same from every pass; that comes from reading the code and is not checked on QA data. A suppression scoped by `cve_id` alone applies when each holding scope next runs; scope by `advisory_id` for an immediate effect (#10019).
 
-Benchmark Evidence (#9725): `BenchmarkBuildSupplyChainImpactFindingsAlertEPSS` on linux/arm64, Go 1.26.6, same single-input envelope set, three one-second samples: baseline `32fc75a3a2` 15160/15269/15118 ns/op (15444 B/op, 116 allocs/op); after 15081/15004/14826 ns/op (15444 B/op, 116 allocs/op). Ranges overlap with identical allocations: no per-finding classification regression. The two-repository #9725 input (one CVE, one affected package, two consumption rows) classifies at 58430–59007 ns/op for two findings — one in-memory classify per extra consuming repository, with no new backend call, queue stage, lock, or graph write.
-
-Benchmark Evidence (#9858): `BenchmarkOSFleetDigestFanout` on linux/arm64, Go 1.26.10, one debian advisory meeting 10, 50, and 100 fleet images (300 iterations each): 419435 ns/op (41943 ns/image) at 1x, 3380646 ns/op (67613 ns/image) at 5x, 6301179 ns/op (63012 ns/image) at 10x. The 10x total exceeds 10x the 1x total by about half, but the 5x per-image row exceeds the 10x row in both runs, so the excess reads as shared-host noise rather than a scaling knee; per-image cost stays in a 42–80µs band, allocations grow with the finding count, the in-loop count proves coalesce kept all N findings, and the pre-timer key check proves the writer identity keeps N rows. No-Observability-Change (#9858): per-digest findings reuse the existing persisted finding, counters, spans, and quarantine signals; no new metric, span, log key, queue stage, or runtime setting. The join counter still increments once per advisory entry per index, so finding counts can now exceed joined counts when images disagree. The product/CPE-only image path keeps its
-separate `affected_derived` rule. The existing finding payload and counters
-expose these decisions without a new queue stage or metric label. One package
-advisory can now produce separate findings for every verified SBOM image
-subject and installed version. An unassociated package manifest or OS scan
-remains its own finding; a scanner result joins an SBOM image only when the
-scan scope and generation resolve that image's digest. Conflicting
-scanner digests for one scope and generation resolve no subject. Conflicting
-vendor OS versions for the same resolved image stay partial with both scan
-facts in provenance. Equivalent image rows coalesce after version conflict
-checks. One complete writer pass publishes the resulting set so prior subjects
-can retract when evidence changes.
-
-No-Regression Evidence (#9430): the provenance selector now resolves a
-multi-line observation's scalar fixed version with one pass over its distinct
-fixed versions (early exit on the second distinct value) instead of indexing
-`fixed_versions[0]`. `BenchmarkBuildSupplyChainImpactFindingsTwoEPSSDates`
-(same two-envelope input, linux/arm64, Go 1.26.6, three one-second samples)
-measured 16868/16869/16869 B/op and 157 allocs/op at `origin/main`
-(`a2d69c98c2`) and 16865/16854/16851 B/op and 157 allocs/op after: allocation
-behavior is identical. Wall-time samples (23119/20782/20600 ns/op before,
-29786/61011/61838 ns/op after) are labeled not comparable: the host carried a
-22-31 load average from concurrent agents' builds during both runs, and the
-after-run samples vary 2x among themselves. No new backend call, queue stage,
-lock, or graph write; the explain-side matching-line lookup runs once per
-explained finding at read time, not in the reducer pass.
-
-No-Observability-Change (#9430): no new metric, span, log key, or queue
-stage. The existing persisted finding (`fixed_version` blank for multi-line
-facts, branches unchanged) and the existing impact-explanation read carry the
-corrected headline.
-`BuildAuthorizedScanImpactFindings` is the pure classifier seam for derived
-image targets. It accepts already-classified legacy findings and one complete
-active scan generation per immutable target. Raw legacy advisory envelopes
-cannot enter this API. Target advisory facts require server-owned public
-registration or target-bound private binding. The builder rejects incomplete
-loads, scans without a typed completed/scanned analysis, stale scan generations,
-mismatched trusted source classes, malformed
-advisories, and derived findings passed as legacy input. It never infers
-sharing from a fact kind, source label, URL, or missing tenant field. Each
-target is classified separately even when another target has the same manifest
-digest; legacy findings and target findings form one writer set.
-Conflicting current fixed versions for the same advisory and applicable
-branch yield `possibly_affected` with `advisory_fixed_version_conflict`, both
-source fact IDs, and no selected fix. A pair of explicit, disjoint comparable
-ranges remains distinct. Target IDs, attempt generations, and authority
-references stay on the internal finding for protected persistence; the public
-payload does not contain them. The authorized handler path requires one
-protected loader snapshot that classifies static sources and each target's
-advisories before any evidence limit. Its separate static input must exclude
-every derived and target-private source, including sources absent from the
-target list. Unknown source classification blocks publication with a distinct
-coverage-incomplete failure class. Static suppression facts apply only to
-static findings; a derived finding stays visible until target-bound suppression
-authority exists. The writer requires a complete-set flag and in-transaction
-protected authorization and publication ports, including a rebuild with zero
-targets. The authorization port locks and validates source and advisory
-authority before the impact owner lock, admission, or fact write. Each derived
-fact row ID includes the admitted impact fence, so a later pass retains the
-prior row and its original authority association for audit; logical finding
-IDs and canonical target keys remain stable. Generic stable fact keys carry
-an opaque target digest rather than the protected scan scope identifier. The
-publication port checks the
-same complete set, persists target/fact/evidence associations and advisory
-authority dependencies after the one fact batch upsert, then retires only
-prior publications of that impact owner before the one full-set retraction. The
-Postgres loader and publication adapter must be wired before this runtime path
-is promoted.
-
 Manifest read filter (#9286): the impact handler asks Postgres for manifest
 dependency rows with an exact `entity_name = ANY(names)` match, so the name set
 must contain the form the manifest stores. For Maven and Gradle that is the
@@ -122,31 +51,6 @@ coordinate from the purl and from the package ID with the registry path removed
 finding had no repository anchor, and the owned-anchor gate dropped it. A
 different group with the same artifact does not match. The name set is a read
 prefilter only; the consumption-key join stays the accuracy gate.
-
-No-Regression Evidence (#9286): the SQL text is unchanged; only the `$2` name
-array differs, and for lowercase coordinates it is smaller (3 names per package
-instead of 4, because the unmatchable `maven2/...` names are gone; 5 per
-package for a mixed-case coordinate). On a private PostgreSQL 18.6 with 80,000
-git dependency rows (44,000 npm, 16,400 maven/gradle, 8,000 pypi, 8,000 go,
-4,000 sbt), 160,400 `fact_records` rows, 4,000 active scopes, and the
-`listActivePackageManifestDependencyFactsWithSBTQuery` text, `EXPLAIN (ANALYZE,
-BUFFERS)` of the prepared statement, three warm runs each, planner defaults:
-1 advisory 7.2/7.0/6.5 ms before and 7.0/10.2/6.6 ms after (4,077 buffers
-both); 50 advisories 94.2/92.3/101.6 ms before and 91.8/93.8/94.5 ms after
-(116,507 buffers both, the same scope-driven nested loop on this synthetic
-data; the #8961 evidence records the same shape); 500 advisories 83.9-88.1 ms
-before and 84.4-89.5 ms after. With `enable_nestloop = off` the first branch
-uses `fact_records_active_package_dependency_entity_idx` (Index Searches 3,
-415 buffers for the 50-advisory set), 6.9-7.9 ms before and 9.7-10.7 ms after;
-the extra ~3 ms is the 400 manifest rows the fixed name set now returns, where
-the old set returned 0. The index choice, the active-generation join, the
-keyset cursor, and the ordering are unchanged.
-
-No-Observability-Change: no new query, span, or metric. The existing
-`manifest_dependency_facts` count in the impact handler's success log goes
-from 0 to the matched row count for Maven scopes, which is the operator signal
-for this fix. Findings appear only after `supply_chain_impact` reruns for the
-Maven scopes (a new OSV generation or an operator replay).
 
 Manifest read filter (#9568): manifests store registry case (`Newtonsoft.Json`,
 `PyYAML`) while the `$2` candidate set is `LowerASCII`-folded, so the exact
@@ -161,84 +65,10 @@ The Maven-family query folds the same way in branch 1 so a mixed batch that
 contains a Maven advisory still loads the non-Maven rows, and its branch-2
 exclusion folds to match, keeping the branches disjoint.
 
-No-Regression Evidence (#9568): on a disposable PostgreSQL 18.6 fixture
-(146,000 `fact_records`, 46,000 git dependency rows with the QA case mix, 4,000
-active scopes, 17-name advisory set, three warm `EXPLAIN (ANALYZE, BUFFERS)`
-runs each): the exact predicate on the old index is a scope-driven nested loop
-at 56.5-56.9 ms returning 0 rows; with migration 247's
-`fact_records_active_package_dependency_folded_entity_idx` the folded predicate
-is the same nested-loop shape with 44,000 index searches and no sequential
-scan, returning the 26,620 registry-cased rows; with both indexes the planner
-serves the full set from the old index `package_manager` prefix plus filter at
-72-81 ms, and a selective name (400 rows) seeks the new index in 1.2-1.7 ms
-versus 16-21 ms through the old prefix. Fixture timings, not a deployed claim.
-
-No-Observability-Change: no new query, span, or metric. The existing
-`manifest_dependency_facts` count goes from 0 to the matched row count for
-mixed-case NuGet, pypi, rubygems, and composer consumers, which is the operator
-signal for this fix. Findings appear only after `supply_chain_impact` reruns
-for the affected scopes (a new advisory generation or an operator replay).
-
-Performance Evidence (#9232): `BenchmarkSBOMVersionGuard` uses the same
-five-fact npm advisory and attached image on Apple M5 Max with Go 1.26.10.
-The single-subject baseline was commit `2446f21874245d2d63a46ecf28136dfed44dfa64`.
-The previous single-subject classifier measured 9592/9666/9715 ns/op (165
-allocations/op). The final multi-subject classifier measured
-11155/12777/11430 ns/op (167 allocations/op); its additional subject
-indexing has a small measurable cost on this input. The new fan-out benchmark
-measured 11244/12797 ns/op for one subject, 33096/37685 ns/op for two, and
-309411/331932 ns/op for sixteen (two one-second samples each). These runs
-bound the local cost shape; they do not claim a throughput target. The writer
-still publishes the full finding set in one transaction, with no new worker,
-lease, queue, or graph write.
-
-Performance Evidence (#9232 OS lookup): `BenchmarkSBOMSubjectOSLookup`
-prebuilds the index with one matching SBOM and vendor OS row, then times only
-package classification with 0, 100, or 10,000 unrelated OS keys. On Apple M5
-Max with Go 1.26.10, three 500 ms samples at baseline `a6933d2878` measured
-6,793/6,805/6,836 ns/op with no unrelated keys and
-363,215/361,581/363,002 ns/op with 10,000. The keyed lookup measured
-6,948/6,863/7,064 and 6,069/6,035/6,001 ns/op on those same inputs.
-The unrelated corpus no longer determines classification cost; this local
-microbenchmark excludes index construction, database work, and queue time.
-
-Observability Evidence (#9232): the existing persisted impact finding carries
-`impact_status`, `match_reason`, `observed_version`, `subject_digest`, and
-`evidence_fact_ids`; the existing query span and reducer finding counters
-expose the read and classification. No new metric or span is added.
-
 Alert-derived findings carry the provider's 0–1 EPSS percentage and percentile
 when each value is a valid decimal. The collector converts GitHub's numeric
 percentage and string percentile into fact strings before this package decodes
 them.
-
-No-Regression Evidence (#9231): `BenchmarkBuildSupplyChainImpactFindingsAlertEPSS`
-on Apple M5 Max, Go 1.26.10, same two-envelope input, three one-second samples:
-baseline 7973/7859/7884 ns/op and 118 allocs/op; changed 7960/8066/7988
-ns/op and 117 allocs/op. The ranges overlap and the changed samples are within
-2.6% of baseline. This is no measured material regression on the touched path;
-it does not prove an end-to-end throughput improvement. The benchmark has no
-backend or queue; it returns one finding per call.
-
-Observability Evidence (#9231): alert-derived findings now carry validated EPSS
-fields in the existing persisted finding and HTTP read. The RED/GREEN fixture
-checks that output. No metric, span, log key, or new queue stage was added.
-
-Performance Evidence (#9229): `BenchmarkBuildGoReachabilityAliasIndex` on
-Apple M5 Max with Go 1.26.10 and the same 200 GO advisories, each with a
-distinct CVE alias, measured 354876/360197/356569 ns/op (789913 B/op, 6303
-allocs/op) at `origin/main` and 389028/383986/393318 ns/op (874137 B/op,
-6894 allocs/op) after the alias join. The added 24–38 microseconds per 200
-advisories is the cost of indexing the extra identity; this index builds once
-per reducer intent, with no new backend calls or nested advisory scan. The
-benchmark is in memory and does not establish end-to-end throughput.
-
-No-Observability-Change (#9229): the finding's existing runtime reachability
-and evidence fields now carry matched GO call proof through a CVE alias. The
-reducer's existing execution metrics and input-invalid quarantine remain the
-operator signals; no new worker, queue stage, metric label, span, or runtime
-setting was added. QA behavior is not observable until Go target derivation
-exists.
 
 The directory stays whole. The `Suppression` field on
 `SupplyChainImpactFinding` makes the finding, core, and suppression code one
@@ -254,15 +84,6 @@ identities; undated legacy observations
 rank below dated ones. Probability, percentile, score date, optional model
 version, and evidence fact ID remain one observation. Invalid dates are
 quarantined with the input-invalid signal. KEV remains independent.
-
-No-Regression Evidence: The two-day fixture is evaluated in both input orders,
-with same-day ties, undated legacy data, invalid dates, and independent KEV.
-The same-input benchmark covers the EPSS indexing path before and after the
-change.
-
-Observability Evidence: The existing per-fact input-invalid dead-letter metric
-and structured log identify malformed date facts; selected date and optional
-model version are available in finding provenance.
 
 ## Severity derivation
 
@@ -309,19 +130,6 @@ scope's `supply_chain_impact` runs again. A label the alert path already
 stored rebuckets at deploy, and the winners table follows on the next
 resweep (30 s pause, about 72 s per QA tick). See "Severity convergence" in the
 vulnerability-impact HTTP API reference.
-
-No-Regression Evidence: `BenchmarkBaseScore` measures about 0.5 us per v3.1
-vector and 8.6 to 10.9 us per v4.0 vector (51 allocations; the range spans an idle
-and a loaded run) on an Apple M-series host, one
-call per finding that has a vector and no score; there is no new query. The
-SQL `CASE` was measured on 1,000,000 synthetic finding payloads (50% no
-severity, 30% label-only, 20% scored) with interleaved runs: 157 ms before,
-230 ms after, about 72 ns per row, because the label branch now runs for rows
-without a score. The label path extracts the JSONB path once per row.
-
-Observability Evidence: `eshu_dp_supply_chain_severity_decisions_total`
-counts findings by `outcome` (`source_reported`, `derived_from_vector`,
-`label_only`, `none`) and shows convergence as OSV scopes regenerate.
 
 ## Advisory retraction
 
@@ -386,10 +194,6 @@ decides per finding.
   of the evidence summary, and the `advisory_retracted_findings` sub-signal.
 - **Re-key wave.** A late alias merges two groups and a withdrawal or a
   removed alias splits one; each change re-keys the affected findings and carries operator suppressions across it (#10408, contract in `doc.go`, wave mechanics and freshness bound in `HOLDER_FANOUT.md`). Suppressions match through the whole group member set (#10409; rule in `AGENTS.md`, evidence in (#10409)).
-
-No-Regression Evidence (#10401): the tie rank reads lifecycle only through the closed `advisoryRetractionCode` (no new status list, no `ObservedAt`/`WithdrawnAt`/generation key). `TestNewestCopyDivergentTieLiveBeatsRetracted10401` (4 variants x 4 tie shapes x all load orders) fails pre-fix and passes post-fix with the live copy's fields; the retracted-vs-retracted guard and all #10042 controls stay green. `BenchmarkBuildFindingsMultiSourceGroups` shows no regression (live 12.55–13.01 pre vs 12.38–16.20 post ms/op with one 16.20 sample reading as shared-host noise against the 12.38–13.34 repeat band; identical allocs).
-
-No-Observability-Change (#10401): no new metric, span, log key, queue stage, or setting; ties resolving active read as ordinary active findings.
 
 ## Files
 

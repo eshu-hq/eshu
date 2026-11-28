@@ -95,29 +95,6 @@ point read per repository, one paginated `ListTagsForResource` stream per
 repository, no commit/ref/blob/file-content reads, no mutations, and no graph
 writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/codecommit/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers repository metadata fact emission, host-only clone-URL evidence,
-code-to-cloud correlation-anchor publication (repository name + clone URLs),
-the repository-to-KMS-key edge (ARN-keyed and bare-key-id-keyed), the
-repository-to-SNS-topic trigger edge, non-SNS-destination and
-no-key edge suppression, duplicate-trigger collapse, the metadata-only SDK
-adapter exclusion reflection guard, the SDK adapter batch-chunking and mapping,
-runtime registration, and the derived supported-service guard in
-`cmd/collector-aws-cloud`. The change adds only the
-`github.com/aws/aws-sdk-go-v2/service/codecommit v1.33.0` module; no shared
-AWS SDK or smithy-go dependency version changes, so no existing scanner path is
-affected. This is a metadata-only additive scanner with no graph-write, queue,
-or hot-path behavior change.
-
-No-Observability-Change: CodeCommit uses the existing AWS collector
-`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
-`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
-`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
-labels stay bounded to service, account, region, operation, result, and status.
-No instrument, span, metric label, or `aws_scan_status` row is added or
-changed.
-
 Collector Deployment Evidence: CodeCommit runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.

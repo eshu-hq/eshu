@@ -83,13 +83,6 @@ the shared API request duration and error metrics (`request.go` in
   for `internal/mcp/` path references before this move (none found) and by
   running `TestRouteServesDataRegistry` after it.
 
-No-Observability-Change: this extraction moves only the four remaining
-code-intelligence tool definitions alongside the existing pure route
-selection. The root splice keeps the same client-visible order, the root
-adapter still feeds the same global fanout, dispatch, authorization,
-budgets, envelopes, summaries, and transport telemetry, and the same query
-handlers execute the requests.
-
 ## Related docs
 
 - [MCP package](../../README.md)

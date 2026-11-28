@@ -68,10 +68,6 @@ collector binary, runtime flag, or environment-variable path changes in this
 slice. Collector routing tests keep archive extraction limited to reviewed
 documentation-oriented ZIP, tar, and gzip-compressed tar packets.
 
-No-Observability-Change: this package is a pure metadata preflight helper. It
-adds no worker, queue consumer, graph write, database query, HTTP handler, MCP
-tool, runtime stage, or hosted collector path.
-
 ## Gotchas / invariants
 
 - Preflight never stores raw archive member paths or source names in `Result`.

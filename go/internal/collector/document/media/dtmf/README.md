@@ -45,12 +45,6 @@ cancellation, and adds no worker, queue, graph, or storage work. It is safe
 because every bound is checked before or during the single decode pass and
 breaches fail loudly instead of truncating facts.
 
-No-Observability-Change: the engine emits no metric, span, log, or status
-row. The `Media transcript engine` row in
-docs/public/observability/telemetry-coverage.md names
-eshu_dp_facts_emitted_total and eshu_dp_facts_committed_total as the
-covering signals once a caller is wired.
-
 ## Gotchas / invariants
 
 - This is the deterministic fixture backend. Speech transcription is the

@@ -38,13 +38,6 @@ provider fact-kind constants and `internal/reducer` for the domain constant.
 There is no decode seam: like `package/source`, this builder reads only
 `envelope.FactKind` and never a payload field.
 
-## Telemetry
-
-No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the
-reducer handler retains `eshu_dp_cloud_inventory_admissions_total`. Moving
-the pure builder adds no queue, storage, graph, span, metric, or log boundary.
-
 ## Gotchas / invariants
 
 - A provider cloud-inventory source fact is required: `aws_resource`,
@@ -76,28 +69,6 @@ the pure builder adds no queue, storage, graph, span, metric, or log boundary.
 Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
-
-No-Regression Evidence: #6627 changes this builder's package path, package
-name, exported symbol, filename, and references without changing the trigger,
-value, or fan-out position. The reducer intent domain, entity
-key, reason string, and input-order anchor selection across the three
-provider kinds are identical to the base commit, and the dispatcher's ordered
-fan-out is unchanged at 44 builder probes with this probe still running
-immediately after `azure.BuildRelationshipMaterializationReducerIntent` and
-before `workload.BuildReducerIntent`.
-During the earlier #6057 extraction, the private
-`cloudInventoryAdmissionSourceSystem` helper the root file owned was a pure
-delegation to `projectorintent.SourceSystem` — its entire body was
-`return projectorintent.SourceSystem(envelope)` — so inlining the shared call
-is behavior-identical by construction and the focused test pins the
-`CollectorKind` fallback; the root `firstMatchingKindPredicate` forwarder was
-a direct delegate to `projectorintent.FactLookup.FirstMatchingKindPredicate`,
-so that substitution is behavior-identical the same way, and the forwarder
-stays at root for the observability-coverage correlation probe that still
-calls it. Focused proof, run from the `go/` module root:
-`go test ./internal/projector/cloud/inventory -count=1`
-and `go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
 
 ## Related docs
 

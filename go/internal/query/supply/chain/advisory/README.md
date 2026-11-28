@@ -91,26 +91,6 @@ This package was created by moving eight files out of root package `query`
 (`git mv`, no logic changes). The two assertions below are structural
 rather than promissory — each names what a reader can check.
 
-No-Regression Evidence: the move is a package relocation, not a rewrite.
-`git diff -M --find-renames` pairs each file with its root predecessor;
-the only statement-level changes are the `package` clause, the
-`advisory.` qualification at staying root call sites, the export renames
-listed in `AGENTS.md`, the `querycontract` qualification of the value
-decoders (root forwards to the identical functions), and the family-local
-copies of the decode seam, deref helpers, and map helpers, each documented
-with its root source and verified behavior-preserving by the
-re-qualified root test suite (`go test ./internal/query/...`), which pins
-the grouping, paging, normalization, SQL shape, and dead-letter behavior.
-The four vulnerability decode cases the root dead-letter table yielded
-moved with their wrappers into `factschema_decode_test.go`,
-asserting the same classification, fact kind, fact ID, and field on the
-`decode.Error` the wrappers return.
-
-No-Observability-Change: there is no observability to change — this
-package emits none, and the handler spans and capability strings keep
-their exact values (the capability constants moved byte-identical; only
-their package qualifier changed).
-
 ## Gotchas / invariants
 
 - Do not import root package `query`. Root's

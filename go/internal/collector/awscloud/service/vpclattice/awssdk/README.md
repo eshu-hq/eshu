@@ -32,13 +32,6 @@ the shared `aws.service.pagination.page` span and increments the shared
 labels stay bounded to service, account, region, operation, and result. No new
 instrument is introduced.
 
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no
-change to existing hot paths. `go test ./internal/collector/awscloud/service/vpclattice/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `../README.md` - VPC Lattice scanner contract.

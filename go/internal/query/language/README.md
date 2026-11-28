@@ -97,29 +97,6 @@ the `languageEntitySearch` type alias, the `normalizedLanguageVariants`,
 compile-time pin. The four live-tagged NornicDB grant tests in root import
 this package and call `BuildCypherWithSemanticFilter` directly.
 
-No-Regression Evidence: baseline `origin/main` vs this branch -- the Cypher
-text in `cypher.go` is byte-identical to the pre-move source (verified by the
-`cypher_shipped_text_test.go` frozen-text tests that moved with it and by the
-queryplan `source_sha256` re-pin for
-`(*Handler).queryByLanguageWithSemanticFilter` in
-`internal/queryplan/testdata/query-source-coverage.yaml`); `go test
-./internal/query/...` and `go test ./internal/query/language/` pass, and their
-combined test-name union equals the pre-move `go test ./internal/query/
--list '.*'` list exactly (2868 names, no duplicate, no drop); the
-route-serves-data registry entries citing this route's file paths point at the
-new files with unchanged evidence markers.
-
-No-Observability-Change: the span this route emits keeps its name
-(`telemetry.SpanQueryLanguageQuery`) and `http.route`/`eshu.capability`
-attributes. `languageHandlerTracer` is this package's own package-local
-tracer var (mirroring `incidentHandlerTracer` in
-`go/internal/query/incident/handler.go`), seeded from
-`tracing.HandlerTracer()`; `span_test.go` (moved with the family, since the
-tracer it swaps is now package-local) proves the handler still emits exactly
-one span with those attributes. Since #7626 that span is also set to Error,
-with an `exception` event, when the repo_id selector's backing read fails
-(`TestLanguageQuerySelectorLookupFailureAnswers500`).
-
 ## Id-anchored metadata enrichment (#7247)
 
 For a content-id-anchored label the enrichment no longer reads a second,
@@ -130,24 +107,6 @@ missed now carry content metadata, so the truth basis can move from
 `authoritative_graph` to `hybrid` on the same rows. Every other label with a
 content entity type keeps the page read; a label without one (for example
 `TerraformBackend`) never reaches the enrichment.
-
-Performance Evidence: one bounded primary-key lookup replaces the filtered
-page read for anchored labels. On the 160,000-row disposable fixture in
-`content_reader_entity_metadata_by_ids_live_test.go`, the lookup for 200 ids
-read 458 shared buffers on `postgres:18-alpine` (18.6, `shared_buffers=256MB`)
-and 465 on `postgres:18` (Debian 18.6, `shared_buffers=128MB`), under both a
-custom and a forced generic plan. The page read it replaces read 2,259
-(custom) on both, and 157,469 and 157,465 (generic). The id lookup used the
-same plan on both images; the counts differ by at most 7 buffers (1.53%)
-between images. See
-(#7247).
-
-Observability Evidence: the request span carries
-`eshu.language_query.metadata_path`, `eshu.language_query.metadata_rows_enriched`
-and `eshu.language_query.metadata_rows_missing`, and the
-`eshu_dp_language_query_metadata_rows_total{metadata_path, outcome}` counter
-counts the same rows (`metadata_anchored_telemetry_test.go`). The lookup's
-`postgres.query` span reports `db.operation=list_entity_metadata_by_ids`.
 
 ## Related docs
 

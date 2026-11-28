@@ -65,12 +65,6 @@ Proton **read** API exposes the template bundle S3 bucket on its output (the S3
 bundle source appears only in create-time `TemplateVersionSourceInput`), so this
 scanner emits no such edge rather than keying a dangling one.
 
-## Performance and observability
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/proton/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Verification
 
 ```bash

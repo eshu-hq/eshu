@@ -52,53 +52,12 @@ See `doc.go` for the godoc contract. The surface is:
 None. The lowering is a pure function; a reducer that drives the pipeline owns
 telemetry.
 
-No-Regression Evidence: the field-sensitive access-path, container-element,
-reference-alias, and lambda-capture lowering (#3254/#3255) is a pure
-per-function CPU change that adds binding precision; it touches no graph write,
-queue, lease, worker, or parser dispatch. It is strictly more precise (attribute
-targets now define access paths instead of dropping the def; attribute reads
-still record the base object, so whole-object flow is preserved), so it can add a
-reaching-def edge but never invents a false one, and path truncation is counted
-in `Overflow.AccessPaths` rather than dropped. The earlier import-aware request
-source matcher likewise stays inside the pure per-file taint catalog path.
-Verified by
-`go test ./internal/parser/python ./internal/parser/python/pydataflow ./internal/parser/... -count=1`
-(full parser tree green, including the `dataflowemit`, `valueflow`, `interproc`,
-and `taint` consumers) and the Go no-regression focused gate
-`go test ./internal/parser/golang ./internal/parser -run 'TestGo.*Taint|TestGo.*Dataflow|Test.*Catalog' -count=1`.
-
-No-Observability-Change: the lowering adds no metric, span, log, status field,
-runtime knob, queue, worker, or graph query. Operators still diagnose parser
-cost through existing collector parse-stage logs and
-`eshu_dp_file_parse_duration_seconds`.
-
-No-Regression Evidence: unpacking precision for issue #3267 is a pure
-per-function parser-lowering change. It adds starred assignment, for-loop
-unpacking, source container-element reads, recursive alias invalidation, and
-star-parameter definitions without changing parser dispatch, graph writes,
-queues, workers, or runtime knobs. Verified by focused package coverage for
-starred assignment, for-loop starred targets, and `*args` / `**kwargs`
-definitions.
-
-No-Observability-Change: the unpacking change adds no metric, span, log, status
-field, runtime knob, queue, worker, graph query, or graph write. Operators still
-diagnose parser cost through existing collector parse-stage logs and
-`eshu_dp_file_parse_duration_seconds`.
-
 ## Performance and concurrency
 
 `InterprocFindings` composes per-function summaries and calls
 `interproc.SolvePartitioned`. It introduces no new goroutines, channels, locks,
 or shared state of its own — the partitioned, race-free fixpoint lives in
 `internal/parser/interproc` and is proven there.
-
-- No-Regression Evidence: the cross-function pass is bounded by the cfg and
-  interproc limits and runs per file off the parse tree; it adds no graph write,
-  Cypher, queue, or worker behavior. Measurement is the package test suite
-  (`go test ./internal/parser/python/pydataflow -count=1`), which exercises the
-  interprocedural composition on small fixtures deterministically.
-- No-Observability-Change: pure functions with no telemetry surface; an operator
-  observes this work through the reducer that drives the pipeline, unchanged here.
 
 ## Gotchas / invariants
 

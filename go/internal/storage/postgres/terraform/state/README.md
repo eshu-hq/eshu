@@ -67,15 +67,6 @@ observability for the call.
   never invent one.
 - Do not import the parent `postgres` package: that is an import cycle.
 
-No-Observability-Change: this extraction moves only the two read-only
-Terraform-state admin-status queries and their Go reader, byte-identical.
-No metric, span, or log name changes.
-
-No-Regression Evidence: focused package tests (5 cases covering serial
-parsing, malformed-row skipping, warning bounding, Git backend-expression
-warnings, and the contract default limit) run green on the moved tree; the
-SQL text is unchanged so no query-shape proof is re-owed.
-
 ## Related docs
 
 - [Postgres storage](../../README.md)

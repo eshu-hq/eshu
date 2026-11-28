@@ -83,12 +83,6 @@ spans.
   ownership, environment, or deployable-unit truth from template names or AWS
   tags.
 
-## Evidence
-
-No-Regression Evidence: metadata-only control-plane scanner; new read path, no change to existing hot paths. `go test ./internal/collector/awscloud/service/fis/...` green.
-
-No-Observability-Change: reuses shared AWS pagination span + API-call/throttle counters; no telemetry contract change.
-
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

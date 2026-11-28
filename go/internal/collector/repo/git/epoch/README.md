@@ -75,25 +75,6 @@ span, or log key names it.
   new generation on its next sync. `Current` parses a small file once per
   process; no hot path changes.
 
-No-Regression Evidence (#9097): the per-snapshot path is unchanged in work.
-`GenerationContentVersion` stays a `sync.OnceValue` read, and
-`snapshotFreshnessHint` hashes one version string that is 10 bytes longer
-(`git-collector.<16 hex>` instead of `git-collector.v15`). A throwaway benchmark
-at base `7724e00960` and at this change (local commit `006b0b5b9e`, whose Go
-source equals the final head's; later amends touched docs only) (`-cpu 1`, three rounds each, Apple
-M5 Max, Go 1.26.10, host load average about 25) measured
-`GenerationContentVersion` at 2.07-2.44 ns/op on base and 2.10-5.06 ns/op on
-head, 0 allocations on both, and `snapshotFreshnessHint` on a one-file snapshot
-at 688-1860 ns/op on base and 784-1878 ns/op on head, 344 B and 9 allocations
-on both. The ranges overlap; the spread is host noise. The one new cost is
-parsing the embedded 73-line ledger once per process: 7.8-9.1 µs, 24,512 B, 77
-allocations. No Postgres, graph, queue, or worker path changes. Input shape:
-the content-version fixture ledger (67 buckets) and a one-file test snapshot.
-
-No-Observability-Change: no metric, span, log key, or status field changes. The
-epoch reaches operators the same way the old constant did, inside the
-freshness hint, and the store's skip and re-project signals are unchanged.
-
 ## Related docs
 
 - `docs/public/reference/reconciliation-sweep.md` ("Content-version gate

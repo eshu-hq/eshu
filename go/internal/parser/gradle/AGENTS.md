@@ -100,7 +100,3 @@ benchmarked directly on the SCIP and dbtsql sibling sites in this issue (see
 on those measurements plus its own regression tests rather than a separate
 gradle-specific benchmark, since the win is the same "stop recompiling an
 identical pattern" mechanism against Go's `regexp` package.
-
-No-Observability-Change: this package still emits no metrics, spans, or logs.
-Parser timing remains owned by the ingester and collector runtime paths that
-call the parent Engine.

@@ -47,20 +47,6 @@ package keeps transport and dispatch signals, while the HTTP handlers retain
 the shared API request duration and error metrics (`request.go` in
 `internal/query/metrics`).
 
-No-Regression Evidence: this is a pure route-selection move with no new
-graph, storage, queue, or HTTP query work. `compose_replatforming_plan` and
-`get_replatforming_rollups` keep the exact method, path, and body keys
-(including numeric defaults) the pre-extraction root switch arms sent,
-diffed against `git show origin/main:go/internal/mcp/dispatch_iac.go`.
-`go test ./internal/mcp/replatforming ./internal/mcp/... ./cmd/mcp-server -count=1`
-covers per-tool request selection, `resolveRoute` delegation for both tools,
-and the route-serves-data registry.
-
-No-Observability-Change: this extraction moves only pure replatforming-plan
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, and transport telemetry, and the
-same query handlers execute the requests.
-
 ## Gotchas / invariants
 
 - The import path ends in `replatforming`, while the declared package is

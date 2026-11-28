@@ -157,31 +157,6 @@ graph writes. Verified against `go/internal/telemetry/instruments.go` (no
 - `docs/internal/design/package-restructure.md` — the #6061 restructure
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for `code_interproc_evidence`
 
-No-Regression Evidence: #6061 moves the value-flow fixpoint cache, snapshot
-solve, Program assembly, evidence loader/projector, and graph-backed cloud
-sink loader out of the reducer root into this new package, without changing
-any field, exported behavior, or call order. The one root-owned interface
-this package needs (`GraphQueryRunner`) is locally redeclared with the
-identical method set rather than imported, so every existing concrete
-implementation still satisfies it with no new indirection.
-`anyToString` (a root forwarder to `payloadcore.AnyToString`) was replaced
-with a direct `payloadcore.AnyToString` call, since the forwarder itself
-does not move with this family. Root-side callers —
-`cmd/reducer/value_flow_wiring.go`, `internal/storage/postgres/value_flow_program_loader.go`,
-`internal/storage/postgres/code_interproc_evidence_loader.go`,
-`internal/backendconformance/corpus_value_flow*.go`, and (at the time of
-this move) the reducer root's own `code_function_summary_materialization.go`
-(since moved to `code/function/summary/handler.go`) — kept their existing `reducer.` spelling through the value-flow stanza of
-`compat_projection.go`'s type aliases and forwarding functions, so none
-needed a source change. Measured from `go/`, with `GOROOT` unset and
-`GOCACHE` pointed at this worktree: `go build ./...`, `go vet ./...`,
-`go test ./internal/reducer/... -count=1` (30 subpackages, this package's
-own suite included), `go test ./cmd/reducer ./internal/storage/postgres
-./internal/query -count=1`, and `go test ./internal/backendconformance
-./internal/replay/costcounting ./internal/projector/... -count=1` each
-exited 0 on the branch. `git diff --check` exited 0. Binary output was not
-compared and no such claim is made here.
-
 **Package-clause rename addendum (same issue #6061):** the package clause
 changed from `valueflow` to `value`, and every exported `ValueFlow*`
 identifier dropped that prefix (for example `ValueFlowFixpointCache` ->
@@ -199,9 +174,3 @@ keys, evidence sources, and telemetry names are unchanged. Measured from
 ./cmd/reducer/... ./internal/storage/...`, and `go test ./internal/reducer/...
 ./cmd/reducer/... ./internal/storage/cypher/... ./internal/replay/...
 -count=1` all exited 0 on this branch. `git diff --check` exited 0.
-
-No-Observability-Change: this move adds no queue domain, worker, lease,
-graph or Postgres operation, runtime setting, metric instrument, metric
-label, span, or status surface. The structured-log messages and fields
-listed under Telemetry above are unchanged; only the package that owns the
-code moved.

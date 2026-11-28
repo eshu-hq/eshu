@@ -49,45 +49,6 @@ the injected `db.ExecQueryer` in their own `InstrumentedDB`
 so call-level tracing and metrics are the caller's responsibility, not this
 package's.
 
-Observability Evidence: the coordinator records one
-`eshu_dp_workflow_coordinator_incident_freshness_reap_total` /
-`eshu_dp_workflow_coordinator_incident_freshness_reap_duration_seconds`
-pass and the `eshu_dp_workflow_coordinator_incident_freshness_stuck_claimed`
-gauge per reap (`RecordIncidentFreshnessReap`), and logs a WARN with
-`reclaimed_count` whenever a pass reclaims rows. The store itself still owns
-no instruments: callers wrap the injected `db.ExecQueryer` in their own
-`InstrumentedDB` (`StoreName: "incident_freshness_triggers"`).
-
-No-Regression Evidence: the claim predicate and order are unchanged from the
-pre-lease statement (`status = 'queued'` ordered by `received_at`,
-`trigger_id` with `FOR UPDATE SKIP LOCKED`), so the existing
-`incident_freshness_triggers_status_received_idx` keeps serving claims; only
-the `SET` clause gains the lease assignment and token bump. Live recovery
-proof against PostgreSQL 18.3 (isolated schema, dropped after):
-`TestIncidentFreshnessStoreReapExpiredTriggerClaimsLive` (2 rows: 1
-expired-lease reclaimed to `queued`, 1 live-lease untouched, second pass a
-no-op; 0.15s), `...StaleHolderCannotCompleteReapedClaimLive` (stale
-hand-off and stale failure each affect 0 rows, redelivery coalesces with
-`duplicate_count` 1 and status still `claimed`, new-owner hand-off lands;
-0.12s), `...ConcurrentSafety` (10 rows, 5 concurrent reapers, each row
-reclaimed exactly once; 0.11s). Row counts are terminal-state assertions,
-not samples: every claimed row is reclaimed exactly once and no stale write
-lands.
-
-Performance Evidence: `EXPLAIN` of the reap predicate on PostgreSQL 18.3
-uses `Index Scan using incident_freshness_triggers_claimed_lease_idx`
-with the `(claim_expires_at IS NOT NULL, claim_expires_at < now())` index
-condition and presorted `(claim_expires_at, trigger_id)` order, so a reap
-pass reads only the claimed set however much `handed_off` history the table
-holds. Migration 238's `ADD COLUMN` statements are catalog-only (constant
-`DEFAULT 0`, `NULL` lease) and migration 239's backfill `UPDATE` touches
-only rows in `status = 'claimed'` (#7961 DDL/DML split); both are
-`IF NOT EXISTS` no-ops where the listener already ran `EnsureSchema`. Baseline: before this change a crash between
-claim and commit stranded rows at `claimed` permanently (no lease column,
-no reap); after, the same crash is reclaimed on the next tick and fenced
-against dual completion, with no new hot-path index beyond the
-claimed-only partial one.
-
 ## Gotchas / invariants
 
 - `ClaimQueuedTriggers` sets a `claim_expires_at` lease

@@ -66,10 +66,6 @@ destination case, matching the array-scan shape stores actually use).
 None. A test double records calls in memory for assertions; it performs no
 I/O and needs no operator-facing signal.
 
-No-Observability-Change: this package is new test-support code with no
-runtime code path, metric, span, log field, worker, queue, lease, retry, or
-durable write of its own.
-
 ## Gotchas / invariants
 
 - `ExecQueryer` guards every field with an internal mutex: it is safe for

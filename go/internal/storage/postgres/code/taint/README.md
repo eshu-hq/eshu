@@ -54,9 +54,6 @@ database handle; the reducer's value-flow fixpoint projector and stale
 cleanup runner that call them own observability for the domain (see
 `internal/reducer/AGENTS.md`, #4893).
 
-No-Observability-Change: this extraction moves only the two durable ledgers;
-no metric, span, log field, worker, queue, lease, or runtime knob changed.
-
 ## Gotchas / invariants
 
 - `RecordProjectedEdges`/`RecordProjectedNodes` must run, and complete,
@@ -75,11 +72,6 @@ no metric, span, log field, worker, queue, lease, or runtime knob changed.
   `cmd/reducer` constructs both stores and wires them into
   `internal/reducer/code/taint`'s backfillers, evidence materializers, and
   `internal/reducer.CodeValueFlowStaleCleanupRunner`.
-
-No-Regression Evidence: `go test ./internal/storage/postgres/code/taint/...
--count=1` covers schema-SQL parity, in-batch dedupe/blank skipping,
-enumeration query shapes, and prune shapes for both ledgers. Full runtime
-evidence lives in `go/internal/reducer/AGENTS.md` (#4893).
 
 ## Related docs
 

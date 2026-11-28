@@ -94,33 +94,11 @@ ListTagsForResource stream per table; no ExecuteStatement, BatchStatement,
 Select, row reads, cell reads, RestoreTable calls, mutations, or graph writes in
 the collector.
 
-No-Regression Evidence:
-`go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
-keyspace and table metadata fact emission, table-in-keyspace relationship
-emission, direct customer-managed KMS relationship emission, omission of
-data-plane row/cell fields, the metadata-only adapter-interface exclusion test,
-SDK metadata mapping, runtime registration, and the derived supported-service
-guard.
-
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/keyspaces/... -count=1` covers
-`TestTableKeyspaceRelationshipDerivesPartitionFromTableARN` (commercial /
-`aws-us-gov` / `aws-cn`), proving the synthesized keyspace ARN inherits the table
-ARN's partition instead of hardcoding `aws`, so the table->keyspace edge resolves
-to the keyspace node the scanner publishes (`arn:<partition>:cassandra:...:/keyspace/<ks>/`)
-in every partition.
-
 Collector Observability Evidence: Keyspaces uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses Keyspaces scans through `aws.service.scan`,
-`aws.service.pagination.page`, API/throttle counters, resource/relationship
-counters, and `aws_scan_status`; this scanner adds no new instrument, span,
-metric label, or status row.
 
 Collector Deployment Evidence: Keyspaces runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

@@ -101,19 +101,10 @@ ListApiKeys, with no mapping-template, code, schema-body, or mutation calls.
 API key IDs and descriptions are discarded at the SDK boundary; only API-level
 counts and lifecycle timestamps are emitted, never per-key resource identities.
 
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
-covers AppSync resource and relationship fact emission, the partition-derived
-DynamoDB target ARN, the Cognito user pool join key, omission of SDL, mapping
-template, function code, API key values, IDs, and descriptions, lifecycle
-summary ordering, runtime registration, and command configuration.
-
 Collector Observability Evidence: AppSync uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows.
-
-No-Observability-Change: the existing AWS collector telemetry contract already
-diagnoses AppSync scans through the bounded shared instruments.
 
 Collector Deployment Evidence: AppSync runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

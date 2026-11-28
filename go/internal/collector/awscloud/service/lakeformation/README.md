@@ -97,28 +97,11 @@ paginated `ListResources` stream, and one paginated `ListPermissions` stream,
 with no grant/revoke, register/deregister, settings-put, LF-Tag mutation, or
 credential-vending read, and no graph writes in the collector.
 
-No-Regression Evidence:
-`go test ./internal/collector/awscloud/service/lakeformation/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
-covers data-lake settings, registered-resource, and permission metadata fact
-emission; registered-resource-to-S3-bucket and registered-resource-to-IAM-role
-relationship emission; permission-to-Glue-database, permission-to-Glue-table,
-and permission-to-IAM-role-principal relationship emission; the partition-aware
-S3 bucket ARN derivation (commercial / `aws-us-gov` / `aws-cn`); the
-metadata-only / no-policy-body / no-condition-expression assertions; the SDK
-adapter reflection guard proving grant/revoke/register/settings-put/LF-Tag
-mutation and credential-vending readers are unreachable; runtime registration;
-and the derived supported-services and graph-join guards.
-
 Collector Observability Evidence: Lake Formation uses the existing AWS
 collector `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
 `eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
 labels stay bounded to service, account, region, operation, result, and status.
-
-No-Observability-Change: the new scanner reuses the existing AWS collector
-telemetry contract (`aws.service.scan`, `aws.service.pagination.page`,
-API/throttle counters, resource/relationship counters, and `aws_scan_status`);
-no instrument, span, metric label, or status row is added or changed.
 
 Collector Deployment Evidence: Lake Formation runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

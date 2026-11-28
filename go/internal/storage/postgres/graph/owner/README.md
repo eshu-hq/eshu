@@ -72,10 +72,6 @@ transaction/database handle and returns structured results
 (`contendedLost`, `owned`) for the caller to log or count; it holds no
 worker, queue, lease, or retry loop of its own.
 
-No-Observability-Change: this extraction moves the store and its DDL
-byte-identically; no metric, span, log field, worker, queue, lease, retry,
-or durable write shape changed.
-
 ## Gotchas / invariants
 
 - `ResolveOwnedUIDs` and `LockUIDs` MUST use the identical advisory-lock
@@ -112,8 +108,3 @@ go vet ./internal/storage/postgres/graph/owner/...
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root.
-
-No-Regression Evidence: `go test ./internal/storage/postgres/graph/owner/... -race -count=1`
-covers the store and backfill-store contracts; `go test ./internal/storage/postgres/... -run TestGraphNodeOwner -count=1`
-covers the root SPLIT test still asserting on this package's exported
-lockstep symbols.

@@ -216,13 +216,6 @@ See `doc.go` for the godoc contract. Key types and functions:
   `GET /api/v0/status/operator-control-plane` route and `get_operator_control_plane`
   MCP tool add no database or graph cost beyond the shared snapshot read.
 
-  No-Regression Evidence: additive in-memory projection over the existing status
-  snapshot; the shared `/api/v0/status/pipeline` read path is unchanged and no new
-  DB or graph query is issued. Verified by `go test ./internal/status ./internal/query ./internal/mcp`.
-  Observability Evidence: the read model surfaces correlation IDs (`scope_id`,
-  `generation_id`, `domain`, `collector_kind`, `failure_class`) that match the
-  existing runtime metric and span labels; no new metrics introduced.
-
 ### Collector promotion proofs
 
 `collector.PromotionProofs(report.CollectorEvidence(), opts)` projects the runtime collector evidence
@@ -266,13 +259,6 @@ omitted when none are present). The full-fleet enumeration — including
 no-instance and unsupported lanes — is produced by calling
 `collector.PromotionProofs` with the default catalog and is exposed through the
 dedicated collector-readiness read model.
-
-`No-Regression Evidence:` `collector.PromotionProofs` is a pure in-memory
-projection over `collector.RuntimeStatuses(report.CollectorEvidence())` (O(collectors)); it performs
-no I/O, no graph or Cypher access, and runs only inside the already-bounded
-status render. Covered by `go test ./internal/status ./internal/scope -count=1`.
-`No-Observability-Change:` reuses the existing `/admin/status` text/JSON signal;
-adds no metrics, spans, or logs.
 
 ### Health states
 
@@ -379,27 +365,6 @@ strings.
 Collector generation dead-letter state is a status surface only. Runtime
 metrics derive aggregate gauges from it; failure messages and payload references
 stay out of metric labels.
-
-No-Regression Evidence: `go test ./internal/status ./internal/storage/postgres
--run 'Test(RenderStatusIncludesCollectorBackpressure|ReadWorkflowCollectorBackpressureStatus|ReadCoordinatorSnapshotIncludesCollectorBackpressure|ReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogFallback|ReadCoordinatorSnapshotClampsNegativeOldestPendingAge)'
--count=1` proves `/admin/status` text and JSON render bounded
-`coordinator.collector_backpressure` rows, the Postgres status reader wires the
-rows into the coordinator snapshot, workflow retry/terminal/expired counts come
-from `workflow_work_items`, collector-generation dead letters come from
-`collector_generation_dead_letters`, and the SQL omits scope ids, source-run
-ids, generation ids, acceptance-unit ids, payloads, and raw failure messages.
-Input shape: one collector family/instance/source-system row with pending,
-claimed, retrying, terminal, expired, active-claim, overdue-claim, and
-dead-letter counts. Backend: Postgres status read path with no queue mutation.
-
-No-Observability-Change: collector backpressure is an additive status projection
-only. It adds no route, worker, queue mutation, lease mutation, runtime knob,
-metric name, metric label, span name, log field, or high-cardinality telemetry
-value. Operators diagnose provider throttling, retry storms, terminal collector
-failures, expired claims, and recovery pressure through the existing
-`/admin/status` text/JSON surface plus existing `workflow_work_items`,
-`workflow_claims`, `collector_generation_dead_letters`, Postgres query spans,
-and `eshu_dp_postgres_query_duration_seconds`.
 
 ## Gotchas / invariants
 
