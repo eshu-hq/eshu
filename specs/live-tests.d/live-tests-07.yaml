@@ -952,6 +952,16 @@ tests:
     class: dedicated_ci
     reason: "lane-9774: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.68s)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_full_chunked_differential_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#9805: reducer-contention enrolled 1 named Go test via the WinnersFullChunked alternation in the -run filter of the reducer-contention gate workflow; local -race run against disposable PostgreSQL 18 passed (5.75s)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_stored_arm_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#9805: reducer-contention enrolled 5 named Go tests via the WinnersStoredOnly, WinnersUnlessCurrent, WinnersDeadKey, WinnersDeadOnly and WinnersFullEnumeration alternations in the -run filter of the reducer-contention gate workflow; local -race run against disposable PostgreSQL 18 passed (summed test elapsed 1.90s)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_quiet_absolute_reprove_live_test.go
     tag: ~
     class: scheduled
