@@ -36,6 +36,10 @@ reads probe before each call, and how the reducer-side readers used it.
 | `eshu_dp_supply_chain_impact_stable_key_fill_rows_total` | counter | `outcome` | Supports the fill gave a key (`filled`) or left keyless because their fact twin has no key (`skipped`). |
 | `eshu_dp_supply_chain_impact_stable_key_fill_pauses_total` | counter | `reason` | Passes held back by a pause condition: `replay_lag` (a replica over the limit), `free_disk` (under the limit), `disk_unreadable` (a limit is set and no reading is wired), `index_build` (`pg_stat_progress_create_index` not empty), `probe_error` (a condition could not be read, never taken as clear). |
 | `eshu_dp_supply_chain_impact_stable_key_fill_complete` | gauge | none | 1 once the fill marker is set: a clean verification found no keyless support whose twin has a key. 0 until then, and while the fill is off (the default). |
+| `eshu_dp_supply_chain_impact_key_presence_fill_steps_total` | counter | `outcome` | Key-presence fill steps (#9975, #11626): `chunk`, `verify`, `gap` (a verification slice found a support whose stored bits disagreed with its payload and restarted the sweep), `complete`, `failed`. A chunk updates at most 500 supports of one scope generation under its conflict-domain lock. |
+| `eshu_dp_supply_chain_impact_key_presence_fill_rows_total` | counter | `outcome` | Supports the key-presence fill gave bits (`filled`) or left alone because a concurrent writer already filled them (`skipped`). |
+| `eshu_dp_supply_chain_impact_key_presence_fill_pauses_total` | counter | `reason` | Key-presence fill passes held back by a pause condition: `replay_lag`, `free_disk`, `disk_unreadable`, `index_build`, `probe_error`. |
+| `eshu_dp_supply_chain_impact_key_presence_fill_complete` | gauge | none | 1 once the key-presence fill marker is set (a clean verification found no support whose stored bits disagree with its payload), which flips keyed winners ticks to the guarded plain-column probe. 0 until then, and while the fill is off (the default). |
 | `eshu_dp_supply_chain_impact_supports_backfill_ready` | gauge | none | 1 once the backfill finished and verified at the current contract version and the fence is empty, else 0. A reader of the table refuses a grant-scoped call while it is 0. |
 | `eshu_dp_supply_chain_impact_go_evidence_recheck_aborts_total` | counter | `reason` | Impact passes aborted at the end of their write transaction (their writes roll back) because the Go evidence they loaded no longer names its go scope's active generation (`generation_changed`: a Go-modules fence retracted it or a successor activated) or the shared go-evidence lock timed out behind a fence (`lock_timeout`). Each retries without spending an attempt (class `supply_chain_impact_go_evidence_changed`) and the retry reloads the evidence. A sustained rate means fences and passes keep colliding on one repository. |
 | `eshu_dp_go_fence_advisory_lock_timeouts_total` | counter | none | Go-modules fence attempts that hit the lock timeout (SQLSTATE 55P03) waiting for the exclusive go-evidence advisory lock behind an in-flight impact pass. Nothing was detached; the coordinator retries the page next tick. Three consecutive ticks timing out on the same scope returns to the owner of #11327. |
@@ -253,3 +257,38 @@ readable through SQL, so with the default limit and no reading wired it pauses w
 `disk_unreadable`; set `..._MIN_FREE_DISK_BYTES=0` only when disk is watched elsewhere.
 The replay-lag read needs the `pg_monitor` role. Read the fill with the `complete` gauge, the
 `rows_total{outcome="filled"}` rate against the WAL budget, and `pauses_total` by reason.
+
+## Key-presence fill
+
+The key-presence fill (#11626, Refs #9975) populates the `key_presence` bitmask column added
+by migration 362 so keyed winners ticks can flip automatically to the triple-guarded covering
+index from migration 363 once the `supply_chain_impact_key_presence_fill_v1` marker completes.
+It is off unless `ESHU_SUPPLY_CHAIN_IMPACT_KEY_PRESENCE_FILL_ENABLED=true`. One elected
+reducer runs it under session advisory lock `(5319, 10882)`, in chunks of at most 500
+supports, paced to `ESHU_SUPPLY_CHAIN_IMPACT_KEY_PRESENCE_FILL_WAL_BYTES_PER_HOUR` (default
+8 GB) using `..._WAL_BYTES_PER_ROW` (default 120 KB) per filled row, and idles on a 5-minute
+poll once complete until context cancellation. It reuses `StableKeyFillProbe`, so free disk
+is not readable through SQL and pauses with `disk_unreadable` unless
+`ESHU_SUPPLY_CHAIN_IMPACT_KEY_PRESENCE_FILL_MIN_FREE_DISK_BYTES=0` is set when disk is
+monitored externally; the replay-lag probe needs `pg_monitor`. Read progress via
+`eshu_dp_supply_chain_impact_key_presence_fill_complete`,
+`eshu_dp_supply_chain_impact_key_presence_fill_steps_total{outcome}`,
+`eshu_dp_supply_chain_impact_key_presence_fill_rows_total{outcome}`, and
+`eshu_dp_supply_chain_impact_key_presence_fill_pauses_total{reason}`.
+
+- No-Regression Evidence: `ESHU_SUPPLY_CHAIN_IMPACT_KEY_PRESENCE_FILL_ENABLED` defaults to
+  `false` (`TestKeyPresenceFillConfigDefaultsAreOffAndWithinTheRulingLimits`,
+  `TestKeyPresenceFillStartsNothingWhenDisabled`), so steady-state reducer CPU, Postgres
+  writes, and keyed-winners query shape are unchanged when disabled. When enabled, single-leader
+  election `(5319, 10882)` caps throughput at 500 rows/chunk under an 8 GB/h WAL budget
+  (~27 s/chunk) and pauses before each step on active index builds, replay lag, or disk limits;
+  keyed winners remain on the shipped payload-expression probe until verification sets the
+  completion marker (verified under `go test -race` in `go/cmd/reducer`, `go/internal/telemetry`,
+  and `go/internal/envregistry`, Go 1.26).
+- Observability Evidence: registers and emits four bounded-label OTel instruments
+  (`eshu_dp_supply_chain_impact_key_presence_fill_steps_total{outcome}`,
+  `..._rows_total{outcome}`, `..._pauses_total{reason}`, and `..._complete`), pinned for
+  bounded labels and nil-safety by `TestKeyPresenceFillInstrumentsRecordBoundedLabelsAndAreNilSafe`
+  and enrolled in `docs/public/observability/telemetry-coverage-reducer-domains.md`, with
+  structured logs on pause (`Warn`), completion (`Info`), pass failure (`Error`), and stop
+  (`Error`).

@@ -1574,6 +1574,12 @@ type Instruments struct {
 	SupplyChainImpactStableKeyFillRows     metric.Int64Counter
 	SupplyChainImpactStableKeyFillPauses   metric.Int64Counter
 	SupplyChainImpactStableKeyFillComplete metric.Int64Gauge
+	// The key_presence fill's signals (#9975, #11626): steps by outcome, rows by
+	// outcome, pauses by reason, and the marker-complete gauge.
+	SupplyChainImpactKeyPresenceFillSteps    metric.Int64Counter
+	SupplyChainImpactKeyPresenceFillRows     metric.Int64Counter
+	SupplyChainImpactKeyPresenceFillPauses   metric.Int64Counter
+	SupplyChainImpactKeyPresenceFillComplete metric.Int64Gauge
 	// SupplyChainImpactFactWriteRejected counts impact-finding fact writes the
 	// PR-C reject trigger refused (#10880); registered with the supports signals.
 	SupplyChainImpactFactWriteRejected metric.Int64Counter
