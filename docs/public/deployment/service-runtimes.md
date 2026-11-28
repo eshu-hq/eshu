@@ -193,7 +193,7 @@ configuration.
   to restore the old pending-until-retention behavior; see
   [Resolution Engine](../services/resolution-engine.md) "Activation obligations".
   Tune it with `ESHU_ACTIVATION_OBLIGATION_LEASE` (default `30m`,
-  arbiter-ruled #7638 item-2 interim: the measured 395 s full-corpus
+  interim default for #7638: the measured 395 s full-corpus
   984-scope pass fits inside the lease-minus-a-fifth deadline, while the
   2m default timed out),
   `ESHU_ACTIVATION_OBLIGATION_POLL_INTERVAL` (default `10s`), and

@@ -1,7 +1,7 @@
 # Go reachability operator plan
 
-Out-of-rotation one-shot for Go reachability scopes (eshu-hq/eshu#10002,
-arbiter ruling B.3): `eshu-workflow-coordinator plan-go-reachability-scope`
+Out-of-rotation one-shot for Go reachability scopes (#10002):
+`eshu-workflow-coordinator plan-go-reachability-scope`
 plans exactly one repository through the real `reachability.Plan` and the real
 open-target admission, under a distinct `go-modules-operator-<request-id>` plan
 key and the `operator_recovery` trigger. It exists for the case where a

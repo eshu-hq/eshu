@@ -77,6 +77,4 @@ and 512 buffers as seeded, and 0 heap fetches and 32 buffers after a `VACUUM`,
 with the same plan. That is the spread (396, 400, 642, 884 and 889 blocks across
 five separately seeded runs) the entity row of the work tables could not hold
 ([#11224](https://github.com/eshu-hq/eshu/issues/11224)). A production database is
-vacuumed in steady state, so the gate measures that state on purpose. The
-`EXPLAIN (ANALYZE, BUFFERS)` figures are in
-#11170 (retired evidence record).
+vacuumed in steady state, so the gate measures that state on purpose (#11170).

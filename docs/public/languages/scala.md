@@ -85,8 +85,8 @@ ModuleID methods that change neither coordinates nor configurations.
 | `% "Test"`, `% "Compile"` (configuration strings are case sensitive) | partial; `% "test"` and `% Test` are `test` |
 | a string holding a backslash, triple-quoted too | opaque: no literal coordinate |
 | `.transform(...)`, `.set(...)`, `.remove1(...)`, `.removeN(...)` anywhere (a `val` body, after an operator, an `if` branch), sbt 0.13's `<<=` | supersedes earlier rows, like `~=`; outside a grammar context, every row |
-| `.withRank(...)` then `:=`, `~=`, `-=`, `--=`, `<<=` | supersedes earlier rows |
-| `.withRank(...)` then `+=`, `++=`, `<+=`, `<++=` | partial; earlier rows unchanged |
+| `.withRank(...)` followed by replacing operator (`:=`, `~=`, `-=`, `--=`, `<<=`) | supersedes earlier rows |
+| `.withRank(...)` followed by append operator (`+=`, `++=`, `<+=`, `<++=`) | partial; earlier rows unchanged |
 | `.append1(...)`, `.appendN(...)`, `<+=`, `<++=`, any other assignment operator | partial; earlier rows unchanged |
 | `.map(...)`, `.filter(...)` or any other member that returns no Setting and is no read | denied: supersedes every row, counted once |
 | any other `libraryDependencies` occurrence: `(libraryDependencies) := Nil` at any depth, `(Compile / libraryDependencies) := Nil`, `libraryDependencies in Compile in Test := Nil`, `libraryDependencies set (x, pos)`, `libraryDependencies withRank r := Nil`, a bare key | denied: supersedes every row, counted |

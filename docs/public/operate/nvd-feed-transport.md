@@ -9,9 +9,7 @@ landing: false
 
 # NVD feed transport: governed enable and trip lines
 
-Use this page when you operate the NVD 2.0 JSON feed transport (design:
-`docs/internal/design/10671-nvd-feed-transport-fallback.md`, arbiter ruling
-#10671 (retired evidence record), design PR
+Use this page when you operate the NVD 2.0 JSON feed transport (#10671, PR
 #10719).
 The feed is a second transport for NVD window claims, not a replacement: the
 API stays primary when healthy, and cutover back is automatic — once the cursor

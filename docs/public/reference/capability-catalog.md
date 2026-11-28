@@ -254,8 +254,7 @@ winners table, and `fact_records_reducer`;
 Store-honesty enforcement is partial: the layer-2 audit is live (#11251),
 the waiver burn-down is still open (#11212), and graph/content reads are not
 recorded — so this catalog does not claim every capability is fully
-enforced. Full before/after numbers live in
-#10880 (retired evidence record).
+enforced (background measurements are tracked on #10880).
 
 ## Related
 

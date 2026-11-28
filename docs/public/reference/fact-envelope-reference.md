@@ -475,19 +475,13 @@ fail closed unless a permission decision says the viewer can read the source.
 
 When adding or changing a fact family:
 
-1. Add or update the family metadata in
-   `specs/fact-kind-registry.v1.yaml`, then regenerate the generated registry
-   contract in `go/internal/facts`.
-2. Set `CollectorKind`, `SourceConfidence`, `ScopeID`, `GenerationID`, and
-   `StableFactKey` deliberately in the emitter.
+1. Update `specs/fact-kind-registry.v1.yaml` and regenerate `go/internal/facts`.
+2. Set `CollectorKind`, `SourceConfidence`, `ScopeID`, `GenerationID`, and `StableFactKey` explicitly.
 3. Redact sensitive payload values before emission.
 4. Prove idempotency for duplicate delivery, retries, and stale generations.
-5. Add the reducer, projector, or query consumer contract before presenting the
-   fact as active platform truth.
-6. Update this page and [Fact Schema Versioning](fact-schema-versioning.md) if
-   the compatibility contract changes.
-7. If an optional component emits the fact family, update its manifest contract
-   in [Component Package Manager](component-package-manager.md).
+5. Add the reducer, projector, or query consumer contract before exposing the fact as platform truth.
+6. Update this page and [Fact Schema Versioning](fact-schema-versioning.md) when compatibility changes.
+7. If an optional component emits the family, update [Component Package Manager](component-package-manager.md).
 
 ## Related
 

@@ -32,19 +32,34 @@ relationship), so the route does not return deploying-workload links. For
 source-to-image provenance, use the container image source bridge routes under
 `/api/v0/supply-chain/container-images/identities`.
 
-Performance Evidence: the handler's exact Cypher shape (a bounded
-`(:ContainerImage)` label scan with `limit+1`, `SKIP $offset`, and deterministic
-`ORDER BY img.digest, img.uid`) was measured against the warm local Compose
-NornicDB backend (`nornic` database, `~/example-repos` corpus, 10 `ContainerImage`
-nodes) over the Bolt-HTTP tx endpoint: warm priming 3.2 ms, then 0.82 ms,
-0.71 ms, 1.02 ms across three runs returning the full 10-row inventory. See
-retired evidence record for the full evidence record.
+The handler emits the `query.container_image_list` span,
+`eshu_dp_query_image_list_duration_seconds`, and
+`eshu_dp_query_image_list_errors_total`.
 
-Observability Evidence: the handler emits the `query.container_image_list` span
-with `http.route` and `eshu.capability=platform_impact.container_image_list`,
-the `eshu_dp_query_image_list_duration_seconds` histogram with a low-cardinality
-`outcome` label, and the `eshu_dp_query_image_list_errors_total` counter with a
-bounded `reason` label.
+## Container Image Tag History Route
+
+`GET /api/v0/images/tag-history` returns bounded per-tag digest mutation
+history for an `image_ref`.
+
+- **Scoped-token filtering (`grant_filtered: true`):** Rows are kept only when
+  the `resolved_digest` image is linked via `ContainerImage-[:BUILT_FROM]->Repository`
+  to a granted repository (`previous_digest` is omitted unless its image is also
+  granted, and observations with no `BUILT_FROM` edge are withheld). `mutated`
+  stays as observed so a caller knows a prior digest existed without learning
+  its identity.
+- **Refill and bounded scan:** Grant-filtered pages refill in fixed 200-row
+  chunks up to an 800-row per-request scan ceiling. If all scanned rows are
+  withheld, the response returns `count: 0` with `truncated: true` rather than
+  ending the walk.
+- **Encrypted cursors:** `next_cursor` is an authenticated-encryption envelope
+  sealed with the deployment DEK (`ESHU_AUTH_SECRET_ENC_KEY` or
+  `ESHU_AUTH_SECRET_ENC_KEY_FILE`) and bound to `(image_ref, grants,
+  first_observed_at, uid)`. Pass it back verbatim as `cursor` until
+  `truncated` is `false`. Edited, foreign-ref, or grant-changed cursors return
+  `400` (restart from page one); missing DEK omits `next_cursor` with a
+  `truth.reason` and rejects `cursor` requests with `503 capability_degraded`.
+- **Offset rules:** Unscoped and all-scope callers may use `offset`; scoped
+  callers sending a non-zero `offset` receive `400` and responses omit `offset`.
 
 ## Ingester Status Routes
 

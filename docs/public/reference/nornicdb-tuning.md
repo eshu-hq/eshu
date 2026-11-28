@@ -364,9 +364,8 @@ their connectivity (S2, a key-anchored `MATCH`) before marking or sweeping.
 
 S2's connectivity check (`UNWIND $keys AS candidate_key MATCH (n:Label {key:
 candidate_key})-[r]-(m) RETURN DISTINCT n.key`) is bounded to exactly the S1
-candidate set, never a full-label scan (see [Cypher
-Performance](cypher-performance.md#orphan-sweep-anti-join-connectivity-read-chunking-5147)
-for the alternative shapes measured and rejected). Its own per-statement cost
+candidate set, never a full-label scan (see [Cypher Performance](cypher-performance.md)).
+Its own per-statement cost
 scales super-linearly with candidate-list size, so the read is split into
 `defaultOrphanSweepConnectedKeysChunkSize` (500, a compiled-in constant, not
 an env knob) round trips rather than one unbounded anchor. Measured on a

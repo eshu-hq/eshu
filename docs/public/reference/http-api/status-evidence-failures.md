@@ -85,36 +85,36 @@ reads, chosen by the caller:
 
 ## Fixed messages
 
-| Route | Failed step | Fixed message |
-| --- | --- | --- |
-| `GET /api/v0/status/pipeline` | status snapshot read | `pipeline status read failed` |
-| `GET /api/v0/status/collectors`, `GET /api/v0/collectors` | status snapshot read | `collector status read failed` |
-| `GET /api/v0/status/ingesters/{ingester}`, `GET /api/v0/ingesters/{ingester}` | status snapshot read | `ingester status read failed` |
-| `GET /api/v0/status/index`, `GET /api/v0/index-status` | status snapshot read (unscoped caller) | `index status read failed` |
-| `GET /api/v0/status/index`, `GET /api/v0/index-status` | graph repository count (scoped caller) | `scoped index status repository count failed` |
-| `GET /api/v0/status/index`, `GET /api/v0/index-status` | graph repository count (unscoped caller) | `index status repository count failed` |
-| `GET /api/v0/status/hosted-readiness` | status snapshot read | `hosted readiness status read failed` |
-| `GET /api/v0/status/freshness-causality` | status snapshot read | `freshness causality status read failed` |
-| `GET /api/v0/status/collector-readiness`, `GET /api/v0/collector-readiness` | status snapshot read | `collector readiness status read failed` |
-| `GET /api/v0/status/semantic-extraction` | status snapshot read | `semantic extraction status read failed` |
-| `GET /api/v0/status/operations` | status snapshot read | `operations status read failed` |
-| `GET /api/v0/status/operations` | live-activity read | `operations live activity read failed` |
-| `GET /api/v0/status/governance` | status snapshot read | `governance status read failed` |
-| `GET /api/v0/status/governance` | governance audit summary read | `governance audit summary read failed` |
-| `GET /api/v0/status/answer-narration` | status snapshot read | `answer narration status read failed` |
-| `GET /api/v0/evidence/bundle` | status snapshot read | `live evidence bundle status read failed` |
-| `GET /api/v0/evidence/bundle` | bundle validation | `live evidence bundle composition failed` |
-| `GET /api/v0/evidence/relationships/{resolved_id}` | relationship evidence read | `relationship evidence read failed` |
-| `POST /api/v0/evidence/citations` | file content read | `evidence citation file read failed` |
-| `POST /api/v0/evidence/citations` | entity content read | `evidence citation entity read failed` |
-| `GET /api/v0/investigations/deployable-unit/packet` | admission decision read | `deployable-unit packet admission decision read failed` |
-| `GET /api/v0/investigations/deployable-unit/packet` | packet build | `deployable-unit packet build failed` |
-| `GET /api/v0/investigations/deployable-unit/packet` | refusal packet build | `deployable-unit refusal packet build failed` |
-| `GET /api/v0/investigations/drift/packet` | drift finding read | `drift packet readback failed` |
-| `GET /api/v0/investigations/drift/packet` | packet build | `drift packet build failed` |
-| `GET /api/v0/investigations/drift/packet` | refusal packet build | `drift refusal packet build failed` |
-| `GET /api/v0/investigations/supply-chain/impact/packet` | packet build | `supply-chain impact packet build failed` |
-| `GET /api/v0/investigations/supply-chain/impact/packet` | refusal packet build | `supply-chain impact refusal packet build failed` |
+| Route and failed step | Fixed message |
+| --- | --- |
+| `GET /api/v0/status/pipeline` — status snapshot read | `pipeline status read failed` |
+| `GET /api/v0/status/collectors`, `GET /api/v0/collectors` — status snapshot read | `collector status read failed` |
+| `GET /api/v0/status/ingesters/{ingester}`, `GET /api/v0/ingesters/{ingester}` — status snapshot read | `ingester status read failed` |
+| Unscoped status snapshot: `GET /api/v0/status/index`, `GET /api/v0/index-status` | `index status read failed` |
+| Scoped graph repo count: `GET /api/v0/status/index`, `GET /api/v0/index-status` | `scoped index status repository count failed` |
+| Unscoped graph repo count: `GET /api/v0/status/index`, `GET /api/v0/index-status` | `index status repository count failed` |
+| `GET /api/v0/status/hosted-readiness` — status snapshot read | `hosted readiness status read failed` |
+| `GET /api/v0/status/freshness-causality` — status snapshot read | `freshness causality status read failed` |
+| `GET /api/v0/status/collector-readiness`, `GET /api/v0/collector-readiness` — status snapshot read | `collector readiness status read failed` |
+| `GET /api/v0/status/semantic-extraction` — status snapshot read | `semantic extraction status read failed` |
+| `GET /api/v0/status/operations` — status snapshot read | `operations status read failed` |
+| `GET /api/v0/status/operations` — live-activity read | `operations live activity read failed` |
+| `GET /api/v0/status/governance` — status snapshot read | `governance status read failed` |
+| `GET /api/v0/status/governance` — governance audit summary read | `governance audit summary read failed` |
+| `GET /api/v0/status/answer-narration` — status snapshot read | `answer narration status read failed` |
+| `GET /api/v0/evidence/bundle` — status snapshot read | `live evidence bundle status read failed` |
+| `GET /api/v0/evidence/bundle` — bundle validation | `live evidence bundle composition failed` |
+| `GET /api/v0/evidence/relationships/{resolved_id}` — relationship evidence read | `relationship evidence read failed` |
+| `POST /api/v0/evidence/citations` — file content read | `evidence citation file read failed` |
+| `POST /api/v0/evidence/citations` — entity content read | `evidence citation entity read failed` |
+| `GET /api/v0/investigations/deployable-unit/packet` — admission decision read | `deployable-unit packet admission decision read failed` |
+| `GET /api/v0/investigations/deployable-unit/packet` — packet build | `deployable-unit packet build failed` |
+| `GET /api/v0/investigations/deployable-unit/packet` — refusal packet build | `deployable-unit refusal packet build failed` |
+| `GET /api/v0/investigations/drift/packet` — drift finding read | `drift packet readback failed` |
+| `GET /api/v0/investigations/drift/packet` — packet build | `drift packet build failed` |
+| `GET /api/v0/investigations/drift/packet` — refusal packet build | `drift refusal packet build failed` |
+| `GET /api/v0/investigations/supply-chain/impact/packet` — packet build | `supply-chain impact packet build failed` |
+| `GET /api/v0/investigations/supply-chain/impact/packet` — refusal packet build | `supply-chain impact refusal packet build failed` |
 
 The packet build and bundle validation steps do not read a store. They
 answer `500` with the fixed message, because a build error can quote packet
@@ -139,27 +139,3 @@ with no `Retry-After`.
   client-cancel contract.
 - [Admin Route Failures](admin-failures.md) for the same contract on the
   `/api/v0/admin/*` routes.
-
-## Unscoped graph-count evidence (#8395)
-
-No-Regression Evidence (#8395): baseline `go test ./internal/query -run
-TestUnscopedIndexStatusGraphCountFailureIsNotZero -count=1` on the pre-fix
-tree answers every graph-count failure with 200 and `repository_count: 0`;
-after the fix the same run is green with 503 on a graph outage, 504 on a
-graph read deadline, and 500 `index status repository count failed`
-otherwise, while `TestServeIndexStatusUnscopedEmptyIndexStays200` pins the
-healthy empty index at 200 with `repository_count: 0`, `queue.total` intact,
-and exactly one graph read. Backend: handler-level fakes plus the production
-driverless `Neo4jReader` (no live backend); Go 1.26.9. Full
-`go test ./internal/query ./internal/queryplan -count=1` green (~15s). This
-is safe because the success path issues the same single COUNT statement as
-before (the Cypher text is unchanged and still gated on a wired graph),
-retryability comes from the shared `WriteGraphReadError` classifier rather
-than new logic, and no backend error text reaches the body (pinned by the
-failure harness on every case).
-
-No-Observability-Change: this change adds no metric instrument, label, log
-line, or new span. The success path emits the same spans as before, and the
-new failure answers reuse this route's existing `WriteServerFailure` shape
-(the same helper the snapshot-read failure already calls). Operators keep
-diagnosing this route through the HTTP status and the fixed error body.

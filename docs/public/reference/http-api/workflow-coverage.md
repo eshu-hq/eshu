@@ -20,12 +20,12 @@ when the sentinel row comes back is `candidate_pool_status`
 sentinel row, so its scan is complete and it reads `absent` or `present` with
 no marker.
 
-| Observed workflow files | Repository files | State | Coverage |
-| --- | --- | --- | --- |
-| None | 5,000 or fewer | `absent` | No workflow in the indexed file pool read |
-| None | 5,001 or more | `unknown` | The bounded prefix cannot establish absence |
-| One or more | 5,000 or fewer | `present` | Workflow evidence observed |
-| One or more | 5,001 or more | `present` | Observed count and paths; candidate coverage remains uncertain |
+| Observed workflows and repository size | State | Coverage |
+| --- | --- | --- |
+| None observed; 5,000 or fewer repo files | `absent` | No workflow in the indexed file pool read |
+| None observed; 5,001 or more repo files | `unknown` | The bounded prefix cannot establish absence |
+| One or more observed; 5,000 or fewer repo files | `present` | Workflow evidence observed |
+| One or more observed; 5,001 or more repo files | `present` | Observed count and paths; candidate coverage remains uncertain |
 
 The marker is omitted when the scan is complete. On the repository story the
 marker follows the story's file read alone: an entity list longer than 5,000
