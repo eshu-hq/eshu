@@ -42,13 +42,16 @@ if [ -z "$repo_root" ]; then
 fi
 
 base="${ESHU_PERFORMANCE_EVIDENCE_BASE:-}"
+merge_parent="$(eshu_gate_merge_ref_parent "$repo_root")"
+if [ -n "$merge_parent" ]; then
+  # On a GitHub pull_request merge ref (2-parent HEAD), parent 1 is the exact
+  # base tip combined with the PR. github.event.pull_request.base.sha can lag
+  # behind main when main advances, which would attribute main's hot-path
+  # commits to an unrelated PR.
+  base="$merge_parent"
+fi
 if [ -n "$base" ] && ! git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev/null; then
-  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
-    git -C "$repo_root" rev-parse --verify --quiet "HEAD^2^{commit}" >/dev/null 2>&1 &&
-    parent_base="$(git -C "$repo_root" rev-parse --verify --quiet "HEAD^1^{commit}" 2>/dev/null)"; then
-    printf 'verify-performance-evidence: base %s not in checkout; using HEAD^1 %s\n' "$base" "$parent_base" >&2
-    base="$parent_base"
-  elif eshu_gate_fetch_base "$repo_root" "$base" &&
+  if eshu_gate_fetch_base "$repo_root" "$base" &&
     git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev/null; then
     :
   else

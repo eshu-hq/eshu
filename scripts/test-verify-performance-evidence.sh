@@ -124,4 +124,25 @@ expect_rc "comment-only hot file passes" 0 \
   env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${comment_dir}" ESHU_PERFORMANCE_EVIDENCE_BASE=HEAD~1 \
   bash "${verifier}" --pr-body "${empty_body}"
 
+# 10. PR merge ref with stale base SHA does not blame PR for hot commits on main (GREEN).
+merge_dir="$(init_repo merge-ref-stale-base)"
+stale_base="$(git -C "${merge_dir}" rev-parse HEAD)"
+git -C "${merge_dir}" checkout -q -b docs-pr
+printf '# Docs only\n' >"${merge_dir}/README.md"
+git -C "${merge_dir}" add . && git -C "${merge_dir}" commit -q -m "docs only PR"
+git -C "${merge_dir}" checkout -q -
+cat >"${merge_dir}/go/internal/reducer/worker.go" <<'GO'
+package reducer
+
+func Run() int { return 99 }
+GO
+git -C "${merge_dir}" add . && git -C "${merge_dir}" commit -q -m "main hot commit"
+git -C "${merge_dir}" merge -q --no-ff docs-pr -m "synthetic GitHub merge ref"
+expect_rc "PR merge ref ignores hot commits landed on main after stale base SHA" 0 \
+  env ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT="${merge_dir}" \
+  ESHU_PERFORMANCE_EVIDENCE_BASE="${stale_base}" \
+  GITHUB_EVENT_NAME=pull_request \
+  ESHU_PERFORMANCE_EVIDENCE_PR_BODY="plain docs PR body" \
+  bash "${verifier}"
+
 printf 'test-verify-performance-evidence: all cases passed\n'
