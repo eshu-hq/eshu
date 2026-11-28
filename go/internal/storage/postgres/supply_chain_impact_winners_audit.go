@@ -39,7 +39,7 @@ WITH winners_now AS (` + supplyChainImpactWinnerSelectFromSupportsSQL + `)
 // ruling). Both fields are intentionally excluded from dirty-log capture so
 // content-identical enrichment rescans do not re-mark canonical winners;
 // masking them here keeps AuditWinners and staged-audit Repairs=0 without
-// altering supplyChainImpactWinnerBodySQL or bumping winners contract v3.
+// altering supplyChainImpactWinnerBodySQL or bumping winners contract v4.
 func supplyChainImpactWinnerAuditRowExpr(prefix string) string {
 	cols := make([]string, len(supplyChainImpactWinnerDataColumns))
 	for i, c := range supplyChainImpactWinnerDataColumns {

@@ -40,10 +40,23 @@ import (
 // resweep transaction; concurrency still comes from the keyed ticks and the
 // single-flight lock, never from shrinking a chunk to one row.
 
+// winnersFullStoredIdentsSQL selects the stored winners' identifiers: the
+// same five columns the delete match reads, over the canonical winners
+// table. The select list derives from winnersStoredIdentSelectList, which
+// shares winnersStoredIdentC0 with the match tuple, so the enumeration's
+// stored arm cannot drift from the delete's notion of identity.
+var winnersFullStoredIdentsSQL = `SELECT ` + winnersStoredIdentSelectList("w") + `
+FROM supply_chain_impact_canonical_winners AS w`
+
 // buildWinnersFullIdentsSQL enumerates the full rebuild's identifier set
-// once: the distinct payload-derived five-tuples of the exact legacy
-// candidate set (supplyChainImpactWinnerActiveFactsInnerSQL, the row source
-// the audit runs), numbered deterministically so chunks page it in bounded
+// once: the UNION of the live arm (the distinct payload-derived five-tuples
+// of the exact legacy candidate set, supplyChainImpactWinnerActiveFactsInnerSQL,
+// the row source the audit runs) and the stored arm (every identifier the
+// winners table still holds). The stored arm is what lets a chunk delete a
+// key the live set no longer produces: a tombstoned key, a rotated
+// canonical key, or a key left behind by a resweep to zero. Without it the
+// per-chunk deletes tile only the live set and the stored-only rows survive
+// every resweep. Numbered deterministically so chunks page it in bounded
 // ranges. The extraction reads the once-detosted record over the fact
 // payload; liveness stays with the per-chunk live_gens join, exactly as the
 // shipped probe resolves it.
@@ -52,8 +65,10 @@ CREATE TEMP TABLE winners_full_idents ON COMMIT DROP AS
 SELECT package_id, repository_id, subject_digest, c0, advisory_id,
        ROW_NUMBER() OVER (ORDER BY package_id, repository_id, subject_digest, c0, advisory_id) AS rn
 FROM (
-    SELECT DISTINCT ` + winnersIdentExprsAs() + `
+    SELECT ` + winnersIdentExprsAs() + `
     FROM (` + supplyChainImpactWinnerActiveFactsInnerSQL + `) AS fact` + winnersDetoastFactLateral + `
+    UNION
+    ` + winnersFullStoredIdentsSQL + `
 ) AS idents
 `
 

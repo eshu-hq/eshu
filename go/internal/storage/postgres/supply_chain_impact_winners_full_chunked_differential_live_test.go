@@ -3,8 +3,6 @@
 
 package postgres_test
 
-//eshu:readiness:env ESHU_POSTGRES_TEST_DSN ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE
-
 import (
 	"context"
 	"database/sql"
@@ -16,14 +14,18 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// Live differential for the ruled #9805 v3-full fix: the new chunked-full
-// rebuild path (ResweepWinners, bounded keyed chunks over fact_records)
-// agrees with the shipped legacy supplyChainImpactWinnerSelectSQL row for
-// row on the same seeded backend, on a clean scope set and on a
-// dirty/orphan scope that mirrors the replica findings (orphan supports on
-// an active generation, stale stored priority_score vs the fact payload).
-// It also records the chunked walk's wall time (every sequential chunk is
-// bounded above by the walk total) and the advisory-lock single-flight.
+// Live differential for the ruled #9805 full fix: the new chunked-full
+// rebuild path (ResweepWinners, bounded keyed chunks over fact_records plus
+// the stored identifiers) agrees with the shipped legacy
+// supplyChainImpactWinnerSelectSQL row for row on the same seeded backend,
+// on a clean scope set, on a dirty/orphan scope that mirrors the replica
+// findings (orphan supports on an active generation, stale stored
+// priority_score vs the fact payload), on the dead-key classes the live-only
+// enumeration dropped (a tombstoned key, a rotation-dropped key), and on a
+// resweep to zero. Every phase asserts byte-equal rows (EXCEPT ALL 0 both
+// directions) AND equal counts. It also records the chunked walk's wall
+// time (every sequential chunk is bounded above by the walk total) and the
+// advisory-lock single-flight.
 
 const (
 	fullDiffCleanScope = "vuln-intel://9805-full-diff/clean"
@@ -84,6 +86,30 @@ func fullDiffExceptAll(t *testing.T, ctx context.Context, db *sql.DB) (forward, 
 		fullDiffTextList("w"), "supply_chain_impact_canonical_winners AS w",
 		fullDiffTextList("l"), "legacy_now AS l")
 	return forward, reverse
+}
+
+// fullDiffAssertParity asserts the byte-equality half of the differential:
+// the stored winners match the legacy select EXCEPT ALL 0 in both directions
+// over every content column, AND the row counts agree. A delete the resweep
+// missed fails the counts even when the row sets happen to align.
+func fullDiffAssertParity(t *testing.T, ctx context.Context, db *sql.DB, phase string) {
+	t.Helper()
+	fwd, rev := fullDiffExceptAll(t, ctx, db)
+	var stored, legacy int64
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_canonical_winners`).Scan(&stored); err != nil {
+		t.Fatalf("%s stored count: %v", phase, err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM (`+postgres.WinnerSelectSQLForTest+`) AS legacy`).Scan(&legacy); err != nil {
+		t.Fatalf("%s legacy count: %v", phase, err)
+	}
+	t.Logf("%s differential: legacy-minus-stored=%d stored-minus-legacy=%d stored=%d legacy=%d",
+		phase, fwd, rev, stored, legacy)
+	if fwd != 0 || rev != 0 {
+		t.Fatalf("%s chunked-full disagrees with legacy: forward=%d reverse=%d", phase, fwd, rev)
+	}
+	if stored != legacy {
+		t.Fatalf("%s row counts disagree: stored=%d legacy=%d", phase, stored, legacy)
+	}
 }
 
 func fullDiffSeed(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -268,9 +294,44 @@ WHERE winner_fact_id = 'f-b4'`).Scan(&b4); err != nil {
 		t.Fatalf("phase-2 chunked-full disagrees with legacy: forward=%d reverse=%d", fwd, rev)
 	}
 
+	// Phase 3: dead-key classes the live-only enumeration dropped. Tombstone
+	// one clean fact (its key goes stored-only) and rotate one dirty key to a
+	// new package_id (its old key goes stored-only, its new key is inserted).
+	// The stored arm must carry both dead keys into a chunk so the deletes fire.
+	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = 'f-a2'`)
+	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET payload = jsonb_set(payload, '{package_id}', '"pkg:npm/rotated"') WHERE fact_id = 'f-b1'`)
+	thirdStart := time.Now()
+	third, err := store.ResweepWinners(ctx)
+	if err != nil || third.Skipped {
+		t.Fatalf("phase-3 full resweep = %+v, %v", third, err)
+	}
+	thirdElapsed := time.Since(thirdStart)
+	t.Logf("phase-3 dead-key resweep: inserted=%d updated=%d deleted=%d unchanged=%d in %v",
+		third.Inserted, third.Updated, third.Deleted, third.Unchanged, thirdElapsed)
+	if third.Deleted != 2 || third.Inserted != 1 {
+		t.Fatalf("phase-3 resweep = %+v, want exactly 2 deleted (tombstoned + rotation-dropped) and 1 inserted", third)
+	}
+	fullDiffAssertParity(t, ctx, db, "phase-3")
+
+	// Phase 4: resweep to zero. Every fact is tombstoned, so the live arm is
+	// empty and only the stored arm feeds the chunks; every stored row must go.
+	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = TRUE`)
+	fourthStart := time.Now()
+	fourth, err := store.ResweepWinners(ctx)
+	if err != nil || fourth.Skipped {
+		t.Fatalf("phase-4 full resweep = %+v, %v", fourth, err)
+	}
+	fourthElapsed := time.Since(fourthStart)
+	t.Logf("phase-4 reswept-to-zero: inserted=%d updated=%d deleted=%d unchanged=%d in %v",
+		fourth.Inserted, fourth.Updated, fourth.Deleted, fourth.Unchanged, fourthElapsed)
+	if fourth.Deleted != 8 || fourth.Inserted != 0 || fourth.Updated != 0 || fourth.Unchanged != 0 {
+		t.Fatalf("phase-4 resweep = %+v, want all 8 remaining winners deleted", fourth)
+	}
+	fullDiffAssertParity(t, ctx, db, "phase-4")
+
 	// Every chunk ran sequentially inside its resweep transaction, so each
 	// chunk took at most the walk total, far under the 60 s bound.
-	for name, elapsed := range map[string]time.Duration{"phase-1": firstElapsed, "phase-2": secondElapsed} {
+	for name, elapsed := range map[string]time.Duration{"phase-1": firstElapsed, "phase-2": secondElapsed, "phase-3": thirdElapsed, "phase-4": fourthElapsed} {
 		if elapsed > 60*time.Second {
 			t.Errorf("%s walk took %v: a chunk cannot be shown bounded under 60 s", name, elapsed)
 		}

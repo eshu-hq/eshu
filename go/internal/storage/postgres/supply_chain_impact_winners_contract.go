@@ -37,7 +37,7 @@ import (
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
 // supplyChainImpactWinnerDataColumns byte-parity rule).
-const SupplyChainImpactWinnersContractVersion int64 = 3
+const SupplyChainImpactWinnersContractVersion int64 = 4
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
 // of the statements it names. A version maps to exactly one hash. Version 2
@@ -162,6 +162,26 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// The shipped-environment live differential of the chunked full against
 	// the legacy select is owed with the live proofs.
 	3: "2bff09ee3c0d3b9e667f9f096dca497ed95d1a75a2835e95323498f6828b56b2",
+	// Version 4 (ruled #9805 stored-arm fix): the full enumeration unions the
+	// live candidate set with the stored winners' identifiers
+	// (winnersFullStoredIdentsSQL, derived from winnersStoredIdentSelectList,
+	// which shares winnersStoredIdentC0 with the delete match). Winners a
+	// resweep produces change for the same facts exactly where they were
+	// wrong before: a stored-only key (tombstoned facts, a rotated canonical
+	// key, a row left by a resweep to zero) is now visited and deleted, so
+	// the stored table converges to the legacy select. Every instance runs
+	// one full after the roll, which also heals any dead key an older binary
+	// left behind. Differential justification, measured on the seeded
+	// backend (TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive):
+	// phases 1-2 agree with the legacy select EXCEPT ALL 0 in both directions
+	// with equal row counts (live keys byte-identical: ranking, projection
+	// and write shape untouched), phase 3 deletes exactly the tombstoned and
+	// rotation-dropped keys (Deleted 2, Inserted 1) with EXCEPT ALL 0/0 and
+	// stored == legacy == 8, and phase 4 deletes all 8 remaining winners on
+	// a resweep to zero with the table and the legacy select both empty.
+	// The UnlessCurrent healing proof (stored v3 runs the full, stored v4
+	// skips) rides the same live run.
+	4: "2e8903a9f694893f3caf8bdb1ec8bce8afd705c92974dc12e567cd371a2dfc40",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the

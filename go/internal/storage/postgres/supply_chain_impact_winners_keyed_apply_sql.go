@@ -11,8 +11,39 @@ import "strings"
 // Moved verbatim from supply_chain_impact_winners_keyed_sql.go for the
 // 500-line file cap; behavior-preserving move, no statement text changed.
 
+// winnersStoredIdentC0 renders the coalesced fourth identifier over the
+// stored winner columns of alias. The keyed delete match and the full
+// enumeration's stored arm both derive it from here, so a drift between the
+// two reads as a hermetic failure, never a silent missed delete.
+func winnersStoredIdentC0(alias string) string {
+	return `COALESCE(NULLIF(` + alias + `.cve_id, ''), NULLIF(` + alias + `.advisory_id, ''), '')`
+}
+
+// winnersStoredIdentTuple renders the five stored identifier expressions
+// over alias, in identifier-table column order.
+func winnersStoredIdentTuple(alias string) string {
+	return alias + `.package_id, ` + alias + `.repository_id, ` + alias + `.subject_digest,
+        ` + winnersStoredIdentC0(alias) + `, ` + alias + `.advisory_id`
+}
+
+// winnersStoredIdentSelectList renders the five stored identifier columns
+// with the identifier-table column names, for a SELECT over the stored
+// winners table. It shares winnersStoredIdentC0 with the match tuple, so
+// the enumeration's stored arm cannot drift from the delete's identity.
+func winnersStoredIdentSelectList(alias string) string {
+	return alias + `.package_id AS package_id,
+        ` + alias + `.repository_id AS repository_id,
+        ` + alias + `.subject_digest AS subject_digest,
+        ` + winnersStoredIdentC0(alias) + ` AS c0,
+        ` + alias + `.advisory_id AS advisory_id`
+}
+
 // winnersStoredIdentMatch matches stored winner rows (alias w) to the
-// identifier table; the winners table keeps the same coalesced columns.
+// identifier table; the winners table keeps the same coalesced columns. It
+// stays a literal so const SQL builders (the enrichment carry claim) can
+// splice it; TestWinnersStoredIdentMatchDerivesFromSharedFragment pins it
+// byte-equal to the derived tuple, so the literal cannot drift from the
+// fragment the full enumeration's stored arm derives from.
 const winnersStoredIdentMatch = `(w.package_id, w.repository_id, w.subject_digest,
         COALESCE(NULLIF(w.cve_id, ''), NULLIF(w.advisory_id, ''), ''), w.advisory_id)
        IN (SELECT package_id, repository_id, subject_digest, c0, advisory_id FROM ` + winnersKeyedIdentsTable + `)`

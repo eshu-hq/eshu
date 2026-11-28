@@ -268,3 +268,59 @@ func TestWinnersFullChunkInsertDerivationsRoundTrip(t *testing.T) {
 		insertWinnersFullChunkActiveFactsSQL, winnersFullChunkActiveFactsInsertHead,
 		buildWinnersKeyedActiveFactsNarrowSQL, winnersFullChunkActiveFactsCreateHead)
 }
+
+// TestWinnersStoredIdentMatchDerivesFromSharedFragment pins that the delete
+// match literal is the derived shared fragment, not a second hand-copy: the
+// match LHS is byte-equal to winnersStoredIdentTuple("w"), and its c0 is
+// byte-equal to winnersStoredIdentC0("w"). The literal stays a const so const
+// SQL builders can splice it; this test is what keeps it honest. Mutating the
+// fragment (or hand-editing the literal) fails here.
+func TestWinnersStoredIdentMatchDerivesFromSharedFragment(t *testing.T) {
+	t.Parallel()
+
+	wantLHS := `(` + winnersStoredIdentTuple("w") + `)`
+	if !strings.HasPrefix(winnersStoredIdentMatch, wantLHS) {
+		t.Errorf("match LHS is not the derived tuple:\nmatch %.120s...\nwant  %.120s...",
+			winnersStoredIdentMatch, wantLHS)
+	}
+	c0 := winnersStoredIdentC0("w")
+	if strings.Count(winnersStoredIdentMatch, c0) != 1 {
+		t.Errorf("match holds the shared c0 %d times, want exactly once", strings.Count(winnersStoredIdentMatch, c0))
+	}
+	// The tuple and the select list share the c0 fragment verbatim: a drift
+	// between the delete's identity and the enumeration's stored arm would
+	// leave stored-only rows no chunk visits.
+	if !strings.Contains(winnersStoredIdentSelectList("w"), c0+" AS c0") {
+		t.Error("stored select list does not carry the shared c0 fragment as c0")
+	}
+}
+
+// TestWinnersFullEnumerationUnionsLiveAndStoredIdents pins the ruled #9805
+// enumeration shape: the live arm pages the shipped active-facts inner
+// select, the stored arm selects the derived stored identifiers verbatim, and
+// exactly one UNION joins them. A stored arm that hand-copies the c0
+// expression (instead of deriving winnersStoredIdentSelectList) fails the
+// verbatim check; dropping the stored arm fails the UNION and table checks,
+// which is the tombstoned-key regression that left Deleted at 0.
+func TestWinnersFullEnumerationUnionsLiveAndStoredIdents(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(buildWinnersFullIdentsSQL, supplyChainImpactWinnerActiveFactsInnerSQL) {
+		t.Error("enumeration lost the live arm: the shipped active-facts inner select is gone")
+	}
+	if !strings.Contains(buildWinnersFullIdentsSQL, winnersFullStoredIdentsSQL) {
+		t.Error("enumeration does not carry the stored arm verbatim: it must derive, never hand-copy")
+	}
+	if !strings.Contains(winnersFullStoredIdentsSQL, winnersStoredIdentSelectList("w")) {
+		t.Error("stored arm does not derive from winnersStoredIdentSelectList")
+	}
+	if n := strings.Count(buildWinnersFullIdentsSQL, "UNION"); n != 1 {
+		t.Errorf("enumeration holds UNION %d times, want exactly one live-plus-stored union", n)
+	}
+	if !strings.Contains(buildWinnersFullIdentsSQL, "FROM supply_chain_impact_canonical_winners AS w") {
+		t.Error("enumeration stored arm does not read the canonical winners table")
+	}
+	if strings.Contains(buildWinnersFullIdentsSQL, "supply_chain_impact_finding_supports") {
+		t.Error("enumeration reads the supports table: ranking stays payload-derived, identity stays fact-or-stored")
+	}
+}

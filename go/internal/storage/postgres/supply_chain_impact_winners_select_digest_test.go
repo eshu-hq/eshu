@@ -143,13 +143,13 @@ func TestWinnerSelectReadsNoDigestExcludedPayloadField(t *testing.T) {
 // alignment: winnersAuditDiffSelect must mask evidence_fact_ids and nested
 // provenance.selected_epss_score_date on both sides of the ROW comparison so
 // AuditWinners does not loop repairs on accepted staleness, while keeping
-// SupplyChainImpactWinnersContractVersion at 3 and leaving semantic fields
+// SupplyChainImpactWinnersContractVersion at 4 and leaving semantic fields
 // compared verbatim.
 func TestWinnersAuditDiffMasksEvidenceAndScoreDate(t *testing.T) {
 	t.Parallel()
 
-	if postgres.SupplyChainImpactWinnersContractVersion != 3 {
-		t.Fatalf("SupplyChainImpactWinnersContractVersion = %d, want 3 (audit mask must not bump winners contract)", postgres.SupplyChainImpactWinnersContractVersion)
+	if postgres.SupplyChainImpactWinnersContractVersion != 4 {
+		t.Fatalf("SupplyChainImpactWinnersContractVersion = %d, want 4 (only the #9805 stored-arm fix bumps winners contract past the audit mask)", postgres.SupplyChainImpactWinnersContractVersion)
 	}
 	check := func(sql string) []string {
 		var errs []string

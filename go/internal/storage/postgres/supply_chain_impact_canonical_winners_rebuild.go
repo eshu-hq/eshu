@@ -79,7 +79,10 @@ func supplyChainImpactWinnerConflictSet() string {
 //
 // Each chunk deletes the stored winners of its identifier set that the chunk
 // no longer produces; the sets tile the enumeration, so the union is the
-// full delete. The final watermark stamp (stampWinnersFullWatermarkSQL) is
+// full delete. The enumeration unions the live candidate set with the stored
+// winners' identifiers, so a stored-only key (tombstoned facts, a rotated
+// canonical key, a row left by a resweep to zero) still lands in some chunk
+// and its delete fires. The final watermark stamp (stampWinnersFullWatermarkSQL) is
 // unconditional, so it stamps even a resweep whose chunks produced zero
 // winners, which lets the read tell "never populated" (no watermark row) from
 // "reswept to zero findings" (watermark present, table empty).

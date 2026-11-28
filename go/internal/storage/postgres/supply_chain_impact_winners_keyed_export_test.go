@@ -9,7 +9,7 @@ var WinnerSelectSQLForTest = supplyChainImpactWinnerSelectSQL
 
 // WinnersAuditDiffSelectForTest and the range audit SQL exports expose every
 // shipped audit diff statement so tests can pin the #11598 audit payload mask
-// without altering the winners contract v3 select.
+// without altering the winners contract v4 select.
 var (
 	WinnersAuditDiffSelectForTest         = winnersAuditDiffSelect("winners_now", "supply_chain_impact_canonical_winners")
 	WinnersAuditRangeFirstSQLForTest      = selectWinnersAuditFirstRangeSQL
