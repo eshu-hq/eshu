@@ -48,6 +48,6 @@ creating a session.
 
 ## Related docs
 
-- `/docs/internal/design/3452-user-management-identity-federation.md`
+- `#3452` (user management and identity federation design history)
 - `/docs/public/reference/http-api.md`
 - `/docs/public/reference/authorization-catalog.md`

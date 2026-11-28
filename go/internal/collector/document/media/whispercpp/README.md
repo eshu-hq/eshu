@@ -384,5 +384,5 @@ the `eshu-ingester` satellite.
 ## Related docs
 
 - `go/internal/collector/document/media/README.md`
-- `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+- #1737
 - `docs/public/reference/telemetry/media-transcript-engine.md`

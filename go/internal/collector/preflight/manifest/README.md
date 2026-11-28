@@ -79,5 +79,5 @@ collector signals before any long-running or hosted ingestion path is enabled.
 
 ## Related docs
 
-- `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`
+- #1741
 - `docs/public/reference/local-testing.md`

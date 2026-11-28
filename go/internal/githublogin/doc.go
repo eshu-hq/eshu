@@ -42,6 +42,6 @@
 // use per-user issued API tokens for MCP access (issue #5164, F-3) rather
 // than pretending a GitHub-backed browser session implies MCP bearer-token
 // validation — see this package's README for the recorded decision and
-// docs/internal/design/3452-user-management-identity-federation.md for the
+// #3452 for the
 // broader identity-federation design this connector extends.
 package githublogin

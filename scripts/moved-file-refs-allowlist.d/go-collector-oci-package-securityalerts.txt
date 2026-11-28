@@ -22,11 +22,6 @@
 # repoint at -- the emitters now live in the satellites -- so the cells stay
 # as the pre-extraction contract record (same precedent as the
 # vulnerability rows already allowlisted).
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/oci/runtime/source.go
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/oci/warning.go
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/package/envelope.go
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/registry/package/warning.go
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/securityalerts/envelope.go
 # The AWS relationship edge materialization design records the OCI
 # normalization path as it stood when the Lambda join was designed.
 # Supersede rather than edit.

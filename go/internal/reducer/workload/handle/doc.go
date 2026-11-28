@@ -9,6 +9,6 @@
 // ladder resolves the full id by exact match and the handle by bare name
 // within a caller-supplied candidate set, failing closed on ambiguity: a
 // handle naming workloads in more than one repository resolves to none of
-// them. See docs/internal/design/5385-workload-identity-compatibility.md
+// them. See #5385
 // sections 1.4 and 2.3.
 package handle

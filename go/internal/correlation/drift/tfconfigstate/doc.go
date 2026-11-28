@@ -55,7 +55,7 @@
 //
 // Making drift durable (go/internal/reducer/tfconfigstate/terraform_config_state_drift_
 // writer.go) required deciding which of the six-outcome vocabulary defined at
-// docs/internal/design/391-observability-coverage-correlation.md:294-303
+// #391
 // (exact, derived, ambiguous, unresolved, stale, rejected) this domain
 // actually reaches. DriftKind answers "what disagreed"; outcome answers "how
 // confident is the join" -- they are orthogonal, and every durable finding

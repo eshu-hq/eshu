@@ -34,7 +34,7 @@
   `git.directory`, `git.file`, `git.gitlab_pipeline`, `git.gitlab_job`) reads
   raw payloads by design and is EXEMPT from the `sdk/go/factschema` typed-decode
   migration (epic #4783) and its future W3a raw-payload ratchet gate (#4800).
-  See [ADR #4866](../../../../docs/internal/design/4866-offlinetier-cassette-exemption.md).
+  See ADR #4866.
   Do not "fix" this by inventing typed structs or routing it through
   `factschema.Decode*` without first reading that ADR.
 - The assertion MUST fail when the projection writes nothing (no false green).

@@ -13,7 +13,7 @@ import (
 )
 
 // This file holds the pure decisions of the suppression fan-out designed in
-// docs/internal/design/10019-suppression-fanout.md. The writer does not call
+// #10019. The writer does not call
 // it yet: the behavior it serves needs the OS finding shape of #9914.
 
 // suppressionDiffRow is one row of the generation-diff statement: a suppression

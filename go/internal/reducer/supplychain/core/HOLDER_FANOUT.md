@@ -169,7 +169,7 @@ range again instead of trusting it. Signals: `…_suppression_diff_total`
 `supply_chain_impact.suppression_diff` span, the result sub-signals
 `suppression_diff_rows`, `suppression_diff_cve_ids`, and
 `suppression_diff_no_identity_scope`, and the `supply chain impact suppression
-diff` log line. Design: `docs/internal/design/10019-suppression-fanout.md`.
+diff` log line. Design: #10019.
 
 ## Enrichment refresh (#9878)
 

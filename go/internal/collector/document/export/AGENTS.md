@@ -4,7 +4,7 @@ Read these before changing this package:
 
 - `AGENTS.md`
 - `docs/internal/agent-guide.md`
-- `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`
+- #1741
 - `go/internal/collector/preflight/manifest/README.md`
 - `go/internal/collector/document/export/README.md`
 

@@ -105,7 +105,7 @@ metrics, and low-cardinality labels in their owning collector packages.
 
 - `docs/public/guides/collector-authoring.md`
 - `docs/public/deployment/service-runtimes-collectors.md`
-- `docs/internal/design/1821-collector-extension-sdk-contracts.md`
+- #1821
 
 ## Evidence
 

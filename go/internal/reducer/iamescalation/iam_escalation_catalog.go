@@ -8,7 +8,7 @@ import "sort"
 // iamEscalationTargetKind names which IAM node family a primitive escalates to.
 // It selects how the extractor reads the target identity from the contributing
 // statement's resources and is documented in
-// docs/internal/design/1134-iam-privilege-escalation-catalog.md §3.
+// #1134 §3.
 type iamEscalationTargetKind string
 
 const (
@@ -63,7 +63,7 @@ const iamEscalationPassRoleAction = "iam:passrole"
 // iamEscalationCatalog is the curated, documented set of IAM privilege-escalation
 // primitives this slice promotes to CAN_ESCALATE_TO edges. Every entry, its
 // required actions, its target, and its citation live in
-// docs/internal/design/1134-iam-privilege-escalation-catalog.md §3. The catalog
+// #1134 §3. The catalog
 // is intentionally conservative: only well-known, high-confidence primitives with
 // an unambiguous single-node target are included. The general CAN_PERFORM edge
 // (any action on any resource) is a deferred follow-up.

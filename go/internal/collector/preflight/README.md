@@ -57,4 +57,4 @@ contract.
 - `go/internal/collector/preflight/media/README.md`
 - `go/internal/collector/preflight/ooxml/README.md`
 - `go/internal/collector/README.md`
-- `docs/internal/design/1738-office-spreadsheet-deck-archive-ingestion.md`
+- #1738

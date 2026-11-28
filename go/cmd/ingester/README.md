@@ -51,7 +51,7 @@ concurrently. Transient per-unit faults are owned by each service's own Run loop
 from either service cancels the other; the composite runner then waits a bounded
 drain grace for the sibling to finish its in-flight unit and joins every
 terminal error (see
-`docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`).
+#3501).
 
 `signal.NotifyContext` on `SIGINT` and `SIGTERM` propagates cancellation through
 `compositeRunner.Run`. `app.NewHostedWithStatusServer` mounts `/healthz`,
@@ -353,7 +353,7 @@ The ingester inherits collector and projector telemetry. Key signals:
 - `compositeRunner` isolates transient faults and only cancels the peer on a
   *fatal* error, then drains the sibling within a bounded grace and joins every
   terminal error with `errors.Join` (see
-  `docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`). A
+  #3501). A
   projector shutdown logged alongside a collector shutdown does not mean both
   failed independently; inspect the joined error and the
   `composite_runner_fatal` / `composite_runner_drain_timeout` log fields to see

@@ -7,7 +7,7 @@ unless a line says Observed.
 records, package and image records, repository manifest rows, and workload rows
 from the runtime group. For the reader-facing explanation of statuses and
 priority, see
-[Advisory Intelligence: How Correlation Works](../design/advisory-intelligence-correlation-flow.md).
+Advisory Intelligence: How Correlation Works (advisory intelligence correlation flow).
 
 ## Who feeds what
 

@@ -4,7 +4,7 @@
 
 1. `go/internal/componentindex/README.md` - package purpose and invariants
 2. `go/internal/componentindex/verify.go` - index schema and verifier
-3. `docs/internal/design/1830-community-extension-index-publication-workflow.md`
+3. #1830
 4. `docs/public/reference/component-package-manager.md`
 5. `docs/public/reference/plugin-trust-model.md`
 6. `docs/public/reference/fact-schema-versioning.md`

@@ -172,5 +172,5 @@ only — thresholds are separate reviewed edits.
 ## Related docs
 
 - `docs/internal/design/9728-ocr-engine-backend.md`
-- `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+- #1737
 - `go/internal/collector/document/ocr/README.md`

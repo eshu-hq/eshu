@@ -413,7 +413,7 @@ exact `rg` commands run against every real-consumer-signal directory for
 both the kind's `facts.<Kind>FactKind` identifier and its wire-string
 literal, with the confirmed-empty result — matching the #5475 seed entries'
 auditability standard. See
-`docs/internal/design/5474-ifa-coverage-backfill-plan.md` (agent-internal,
+#5474 (agent-internal,
 not part of this published site) for the tracked backfill plan; these 21
 kinds still need either a real consumer wired up or a per-kind owner
 decision to remove them from the registry.

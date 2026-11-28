@@ -24,8 +24,6 @@ go/internal/storage/postgres/evidence-notes.md:go/cmd/api/seed_initial_admin.go
 
 # Dated design records. Each rules on the tree as it stood; supersede,
 # never edit.
-docs/internal/design/7766-repository-retirement-phase1-locking.md:go/cmd/api/main.go
-docs/internal/design/7766-repository-retirement.md:go/cmd/api/main.go
 
 # Dated evidence notes. Each records a measurement, transcript, or decision
 # against the tree as it stood at write time.

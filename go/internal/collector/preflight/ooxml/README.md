@@ -99,7 +99,7 @@ hosted documentation ingestion until a reviewed extractor slice enables them.
 
 ## Related docs
 
-- `docs/internal/design/1738-office-spreadsheet-deck-archive-ingestion.md`
+- #1738
 - `docs/public/reference/local-testing.md`
 - Go `archive/zip`: https://pkg.go.dev/archive/zip
 - Microsoft Open Packaging Conventions overview:

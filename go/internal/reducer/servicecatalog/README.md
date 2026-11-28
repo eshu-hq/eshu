@@ -141,7 +141,7 @@ anchor. The defer and bound lines add `runs_on_intents_pending` and
 is repaired by the `workload_materialization` ACK, which reopens the
 succeeded catalog rows whose decisions name its repository and flags any
 claimed or running row at the active generation; see
-[the design note](../../../../docs/internal/design/8169-service-catalog-runtime-retrigger.md).
+the design note (#8169).
 
 The bound is per in-flight repository. Each repository's elapsed time runs
 from its newest in-flight producer row's last-workable time:

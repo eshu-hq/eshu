@@ -101,7 +101,7 @@
   in a cross-repo group must be known repo-dependency or evidence-artifact
   upsert templates. It does not make arbitrary `UNWIND ... DELETE` or
   accumulating `SET` replay-safe; see
-  `docs/internal/design/6634-runs-on-atomic-replay.md` for its proof limits.
+  #6634 for its proof limits.
   Exact RUNS_ON transaction timeouts (NornicDB v1.3.3, Neo4j's
   TransactionTimedOutClientConfiguration and TransactionTimedOut) defer once
   to the queue as `graph_write_timeout` with no local retry; elsewhere they

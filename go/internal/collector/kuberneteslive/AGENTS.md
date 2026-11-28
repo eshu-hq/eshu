@@ -9,7 +9,7 @@
    Kubernetes secrets/IAM source-fact mapping
 5. `go/internal/collector/kuberneteslive/envelope.go` - fact envelope contract
 6. `go/internal/collector/service.go` - shared collector commit boundary
-7. `docs/internal/design/388-kubernetes-live-collector.md` - design and scope
+7. #388 - design and scope
 8. `go/internal/telemetry/README.md` - metric and span contract
 
 ## Invariants This Package Enforces

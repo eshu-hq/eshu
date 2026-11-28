@@ -1813,7 +1813,6 @@
           "cd go \u0026\u0026 go test ./internal/collector/kuberneteslive ./internal/reducer/... ./internal/query -count=1"
         ],
         "fixture_refs": [
-          "docs/internal/design/388-kubernetes-live-collector.md",
           "go/internal/collector/kuberneteslive/testdata"
         ],
         "truth_profile": "provider_gated"

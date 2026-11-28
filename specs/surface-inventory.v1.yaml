@@ -452,5 +452,5 @@ surfaces:
       projection_surfaces: [kubernetes_correlation, secrets_iam_trust_chain]
       read_surfaces: [GET /api/v0/kubernetes/correlations, list_kubernetes_correlations]
       proof_gates: [cd go && go test ./internal/collector/kuberneteslive ./internal/reducer/... ./internal/query -count=1]
-      fixture_refs: [go/internal/collector/kuberneteslive/testdata, docs/internal/design/388-kubernetes-live-collector.md]
+      fixture_refs: [go/internal/collector/kuberneteslive/testdata]
       truth_profile: provider_gated

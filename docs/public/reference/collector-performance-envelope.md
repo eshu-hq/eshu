@@ -104,7 +104,7 @@ The issue (#3801) gates "each collector with `src ≥ 4` has a documented gold
 point" on a `src` (source-count) column in `gap-analysis.md § P2-1`. That
 column and that section are **not recoverable in the current tree**: the only
 gap-analysis document is
-`docs/internal/design/2228-code-relation-taxonomy-gap-analysis.md`,
+#2228,
 which has no `P2-1` section and no `src` column, and the capability catalog
 (`docs/public/reference/capability-catalog.md`) keys maturity on a capability
 `ni`/availability level, not a numeric source count. Rather than fabricate a

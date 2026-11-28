@@ -41,7 +41,7 @@
   commits trigger the pass, and the escape would add a surprise startup pass.
 - **compositeRunner retry-aware bounded drain** — superseding the former
   "first-error cancel" invariant (see
-  `docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`).
+  #3501).
   A *transient* per-unit fault is owned by each service's own Run loop (durable
   dead-letter replay) and must not escape to the composite runner: a retryable
   collector commit failure is quarantined and the loop continues; the projector
@@ -165,7 +165,7 @@
   silencing either service error, returning only the first-arriving result, or
   promoting a retryable per-unit fault into a fatal teardown all break the
   failure-isolation contract in
-  `docs/internal/design/3501-ingester-composite-runner-failure-isolation.md`.
+  #3501.
   The drain wait must stay bounded; an unbounded wait can hang ingester
   teardown.
 

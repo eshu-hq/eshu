@@ -24,7 +24,7 @@ The derive is best-effort. A derive failure never fails the content Write. A
 stale or missing row costs latency, never accuracy, because the live extractor
 answers for that repository. The derive protocol, the fence and the
 interleavings are in the
-[protocol companion](7126-ingest-time-config-artifacts-protocol.md). The
+protocol companion (#7126). The
 measurements are recorded on issue #7126.
 
 ## 1. Context

@@ -88,7 +88,7 @@ import (
 // removed in #5458 once it gained a real consumer, and
 // package_registry.registry_event was removed in the same epic's
 // registry_event slice once IT gained a real consumer (31 remain). See
-// docs/internal/design/5474-ifa-coverage-backfill-plan.md for the tracked
+// #5474 for the tracked
 // backfill plan the remaining kinds still need.
 // #nosec G101 -- map values are sha256 source-content digests for the
 // consumer-disclosure ledger, not credentials.

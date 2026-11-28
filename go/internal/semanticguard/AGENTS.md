@@ -10,7 +10,7 @@ It must stay pure, fail closed, and audit-safe.
 3. `guard.go` and `types.go` - decision logic, state constants, and request
    structs.
 4. `guard_test.go` - default-deny, redaction, retention, and response tests.
-5. `docs/internal/design/1755-semantic-extraction-security-gates.md` - design
+5. #1755 - design
    baseline for security review.
 
 ## Invariants

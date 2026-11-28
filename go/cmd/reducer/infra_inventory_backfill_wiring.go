@@ -19,7 +19,7 @@ import (
 // hosts the read model's reconcile loop. There is no disable switch: the
 // marker is what lets readers leave the graph path, and every replica may run
 // it because the per-repository derive lock and the idempotent marker insert
-// make concurrent passes safe (docs/internal/design/11196-infra-backfill-reducer-owner.md).
+// make concurrent passes safe (#11196).
 func infraInventoryBackfillRunnerFor(
 	database db.ExecQueryer,
 	instruments *telemetry.Instruments,

@@ -80,7 +80,7 @@ A newer pending generation beside an active one does not defer. A resource
 added in a later target generation waits for the next IAM generation; the
 account-scoped re-enqueue is being built in a separate PR (see the design note).
 Resource-policy grantee resolution stays same-scope. See
-`docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
+#6785.
 
 ## Package boundary
 

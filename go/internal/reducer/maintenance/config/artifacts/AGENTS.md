@@ -5,7 +5,7 @@ parent `AGENTS.md` still apply; these add to them.
 
 ## Read first
 
-1. `docs/internal/design/7126-ingest-time-config-artifacts-protocol.md`,
+1. #7126,
    sections 3 (derive protocol) and 4 (reader and walker).
 2. `../../infra/` — the infra read model reconcile runner this walker
    follows.

@@ -3,7 +3,7 @@
 ## Purpose
 
 `componentindex` validates the static community extension index proposed in
-[#1830](../../../docs/internal/design/1830-community-extension-index-publication-workflow.md).
+#1830.
 The index is a reviewed discovery document for component packages; it is not a
 trust grant and does not install, enable, or run extensions.
 
@@ -57,7 +57,7 @@ spans, logs, or status fields.
 
 ## Related docs
 
-- [Community Extension Index And Publication Workflow](../../../docs/internal/design/1830-community-extension-index-publication-workflow.md)
+- Community Extension Index And Publication Workflow (#1830)
 - [Component Package Manager](../../../docs/public/reference/component-package-manager.md)
 - [Plugin Trust Model](../../../docs/public/reference/plugin-trust-model.md)
 - [Fact Schema Versioning](../../../docs/public/reference/fact-schema-versioning.md)

@@ -335,14 +335,14 @@ Recommended child slices:
    supports leaving the persisted BM25 corpus uncapped for this corpus. A vector
    or NornicDB-search lane still needs separate backend evidence. Issue #2578
    records the production ANN/vector-index contract and approval checklist in
-   [ANN Vector-Index Contract For Production Hybrid Search](2578-ann-vector-index-production-hybrid-search-contract.md);
+   ANN Vector-Index Contract For Production Hybrid Search (#2578);
    implementation must satisfy that gate before adding persisted vector state or
    changing runtime search behavior.
 
 Issues #417, #418, #420, #421, and #431 should stay behind this architecture
 gate. #417 can start once the bounded search document projection and backend
 startup policy have proof. #431 is tracked separately in
-[NornicDB Primary Knowledge Store Evaluation](431-nornicdb-primary-store-evaluation.md)
+NornicDB Primary Knowledge Store Evaluation (#431)
 and should not evaluate replacing Postgres until the search lane has at least
 one shadow-read and shadow-write comparison.
 

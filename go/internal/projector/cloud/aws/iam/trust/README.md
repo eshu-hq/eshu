@@ -88,4 +88,4 @@ selected by the changed paths.
 
 - [Projector architecture](../../../../README.md)
 - [Intent contract](../../../../intent/README.md)
-- [IAM CAN_ASSUME trust graph design](../../../../../../../docs/internal/design/1134-iam-can-assume-trust-graph.md)
+- IAM CAN_ASSUME trust graph design (#1134)

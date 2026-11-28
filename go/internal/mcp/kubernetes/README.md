@@ -82,7 +82,7 @@ API request duration and error metrics and its own
 
 - [MCP package](../README.md)
 - [MCP route contract](../contract/route/README.md)
-- [Kubernetes correlation read model](../../../../docs/internal/design/388-kubernetes-correlation-readmodel.md)
+- Kubernetes correlation read model (#388)
 - [HTTP API reference](../../../../docs/public/reference/http-api.md)
 
 ## Verification

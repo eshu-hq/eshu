@@ -5,7 +5,7 @@
 1. `go/internal/collector/document/ocr/tesseract/README.md`
 2. `docs/internal/design/9728-ocr-engine-backend.md`
 3. `go/internal/collector/document/ocr/README.md` and `extract.go`
-4. `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+4. #1737
 
 ## Invariants
 

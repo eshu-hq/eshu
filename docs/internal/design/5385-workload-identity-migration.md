@@ -1,7 +1,7 @@
 # Workload Identity: Migration, Rebuild, And Consumer Impact
 
 Status: decided 2026-09-25 for issue #5385, companion to
-[5385-workload-identity-compatibility.md](5385-workload-identity-compatibility.md),
+the #5385 workload-identity compatibility spec,
 which holds the identity model, the SDK contract, and the decision record.
 This document carries the delete set, the ordered cutover, the probes that
 must run before implementation, the required tests, consumer impact, and

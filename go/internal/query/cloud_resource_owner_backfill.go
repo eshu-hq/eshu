@@ -112,7 +112,7 @@ type CloudResourceOwnerBackfiller struct {
 // (a012da4557), and no reader gates on its completion marker. The reducer's
 // live graph writes keep the ledger complete on a fresh install, and the first
 // page of its graph scan can exceed the graph read deadline on a large graph
-// (#6797). docs/internal/design/11196-infra-backfill-reducer-owner.md records
+// (#6797). #11196 records
 // the assessment; the infra read model backfill, which the reducer now runs,
 // is a separate component (#11196).
 func BackfillCloudResourceOwnerLedger(ctx context.Context, db *sql.DB, graph GraphQuery) error {

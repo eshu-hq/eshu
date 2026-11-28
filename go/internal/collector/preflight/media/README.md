@@ -91,5 +91,5 @@ slice enables them.
 
 ## Related docs
 
-- `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+- #1737
 - `docs/public/reference/local-testing.md`

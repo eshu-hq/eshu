@@ -84,7 +84,7 @@ documentation-oriented ZIP, tar, and gzip-compressed tar packets.
 
 ## Related docs
 
-- `docs/internal/design/1738-office-spreadsheet-deck-archive-ingestion.md`
+- #1738
 - `docs/public/reference/local-testing.md`
 - Go `archive/zip`: https://pkg.go.dev/archive/zip
 - Go `archive/tar`: https://pkg.go.dev/archive/tar

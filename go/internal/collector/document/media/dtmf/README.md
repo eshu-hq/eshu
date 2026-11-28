@@ -64,4 +64,4 @@ breaches fail loudly instead of truncating facts.
 ## Related docs
 
 - `go/internal/collector/document/media/README.md`
-- Design rationale: `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+- Design rationale: #1737

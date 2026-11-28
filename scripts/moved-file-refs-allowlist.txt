@@ -131,7 +131,6 @@ go/internal/query/querycontract/README.md:go/internal/query/querycontract/rowval
 # there is no successor file to point at. The citations baseline keeps the
 # design notes' existing LINE rows for the same reason.
 docs/internal/design/5385-workload-identity-key.md:go/internal/graph/mutations.go
-docs/internal/design/5385-workload-identity-options.md:go/internal/graph/mutations.go
 scripts/docs-citations-baseline.txt:go/internal/graph/mutations.go
 # #6818 tracing move evidence: this row pins the BEFORE state of the moved
 # file by its blob hash at the pre-move path, so the no-regression comparison
@@ -152,7 +151,6 @@ docs/internal/design/5385-workload-identity-key.md:go/internal/query/impacttrace
 # stood when written; repointing would falsify the record. The citations
 # baseline keeps these documents' existing LINE rows for the same reason.
 docs/internal/design/2222-resolution-provenance-code-edges.md:go/internal/storage/cypher/edge_writer_code_call_labels.go
-docs/internal/design/2248-retention-semantics-generations-facts-content.md:go/internal/storage/cypher/edge_writer_retract.go
 docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_logging.go
 docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_rationale_labels.go
 docs/internal/measurements.jsonl:go/internal/storage/cypher/edge_writer_retract_repo.go
@@ -187,7 +185,6 @@ scripts/docs-citations-baseline.txt:go/internal/collector/ociregistry/ociruntime
 # sibling citation on that row and the gate refuses to re-authorize them. The row
 # records the integration surface as it stood at #4786; editing it to satisfy one
 # gate would falsify a dated record and redden another.
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/projector/tfstate_canonical.go
 # ... and the burn-down row that mirrors that citation. The baseline records the
 # doc's citation verbatim, so it necessarily carries the same historical path;
 # rewriting it here without rewriting the doc would desynchronise the two.
@@ -323,7 +320,6 @@ go/internal/reducer/evidence-6626-batch6-bucket5-shared-projection-row.md:go/int
 # helper-map for the work-item row. There is no in-tree successor path to
 # repoint at -- the envelope now lives in the satellite -- so the cells
 # stay as the pre-extraction contract record.
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/jira/envelope.go
 # Confluence satellite extraction: the in-tree source package is deleted and
 # collection now runs from the confluence satellite activation. The 7110
 # evidence note names client.go at its pre-extraction in-tree path as the
@@ -346,7 +342,6 @@ docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/j
 # the observability row. There is no in-tree successor path to repoint at --
 # the envelope now lives in the satellite -- so the cells stay as the
 # pre-extraction contract record.
-docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/observability/loki/envelope.go
 # AWS-cloud satellite extraction (#8852): the in-tree command is deleted and
 # collection now runs from eshu-hq/eshu-collector-aws-cloud. The 6965
 # record-pseudonymization evidence note names main.go at its pre-extraction
@@ -380,7 +375,9 @@ docs/internal/evidence/5837-aws-drift-reopen.md:go/cmd/collector-terraform-state
 go/internal/query/AGENTS-evidence-history-3.md:go/cmd/mcp-server/wiring.go
 go/internal/reducer/code/call/go_package_test.go:go/cmd/mcp-server/wiring.go
 # #8856: dated security-review record names the reviewed in-tree path; no in-tree successor, repointing would falsify.
-docs/internal/design/multicloud-live-collector-security-review.md:go/cmd/collector-gcp-cloud/main.go
 
 # Released SDK changelog entry citing a retired internal design plan (#11679); historical release notes are kept verbatim.
 sdk/go/factschema/CHANGELOG.md:docs/internal/design/advisory-intelligence-correlation-plan.md
+
+# Released changelog entry citing a shipped closed-issue design spec (#11680); historical release notes are kept verbatim.
+CHANGELOG.md:docs/internal/design/391-observability-coverage-correlation.md

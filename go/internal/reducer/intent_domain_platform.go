@@ -67,7 +67,7 @@ const (
 	// role/user node materializes an edge; external, AWS-service, wildcard,
 	// account-root, and unscanned principals fabricate no edge and are counted.
 	// The escalation edges (CAN_PERFORM, CAN_ESCALATE_TO) are a follow-up design
-	// fork; see docs/internal/design/1134-iam-can-assume-trust-graph.md §8.
+	// fork; see #1134 §8.
 	DomainIAMCanAssumeMaterialization = reducercontract.DomainIAMCanAssumeMaterialization
 	// DomainIAMEscalationMaterialization projects merged aws_iam_permission facts
 	// into the IAM privilege-escalation graph: each principal that holds a complete,
@@ -123,7 +123,7 @@ const (
 	// bucket logging to itself) is a legal S3 config and DOES produce an edge.
 	// Cross-account, out-of-scope, and unscanned log targets fabricate no edge and
 	// are counted. The GRANTS_ACCESS_TO :ExternalPrincipal node-then-edge slice is
-	// a deferred follow-up; see docs/internal/design/1144-s3-logs-to-edge.md §8.
+	// a deferred follow-up; see #1144 §8.
 	DomainS3LogsToMaterialization = reducercontract.DomainS3LogsToMaterialization
 	// DomainRDSPostureMaterialization projects rds_instance_posture facts onto
 	// existing RDS DB instance and Aurora cluster CloudResource nodes. It is a

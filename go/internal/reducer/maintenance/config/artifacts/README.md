@@ -73,5 +73,5 @@ at INFO; routine cycles log at DEBUG.
 ## Related docs
 
 - `docs/internal/design/7126-ingest-time-config-artifacts.md`
-- `docs/internal/design/7126-ingest-time-config-artifacts-protocol.md`
+- #7126
 - `docs/public/observability/telemetry-coverage.md`

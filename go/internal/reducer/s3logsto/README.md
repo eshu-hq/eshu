@@ -4,7 +4,7 @@
 
 Projects `s3_bucket_posture` logging-target facts into canonical `LOGS_TO`
 edges between S3 `:CloudResource` nodes. This is issue #1144 PR2 (design doc
-`docs/internal/design/1144-s3-logs-to-edge.md`). This package moved out of the
+#1144). This package moved out of the
 flat `internal/reducer` root under issue #6061.
 
 ## Ownership boundary

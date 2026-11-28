@@ -5,7 +5,7 @@
 Projects `ec2_instance_posture` `instance_profile_arn` into canonical
 `USES_PROFILE` edges from EC2 `:CloudResource` nodes to the IAM
 instance-profile `:CloudResource` nodes they use. This is issue #1146 PR-B
-(design doc `docs/internal/design/1146-ec2-uses-profile-edge.md`). This
+(design doc #1146). This
 package moved out of the flat `internal/reducer` root under issue #6061.
 
 ## Ownership boundary

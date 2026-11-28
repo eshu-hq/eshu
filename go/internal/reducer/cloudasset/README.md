@@ -74,4 +74,4 @@ already stands and recovery is a caller-driven intent retry, not a repair entry.
 - `go/internal/reducer/gpphase/README.md`
 - `go/internal/reducer/factwrite/README.md`
 - `docs/internal/design/4784-reducer-derived-fact-governance.md`
-- `docs/internal/design/4786-contract-integration-matrix.md`
+- #4786

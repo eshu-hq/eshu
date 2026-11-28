@@ -44,4 +44,4 @@ This package registers no metric. The root handler records `eshu_dp_reducer_read
 
 ## Related
 
-- `docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`
+- #6785

@@ -32,7 +32,7 @@ import (
 // explicitly wired EC2UsesProfileEdgeWriter and FactLoader; registering it without
 // them would silently drop every intent. It mirrors
 // s3logsto.MaterializationDomainDefinition (#1144 PR2). See issue #1146 PR-B and
-// docs/internal/design/1146-ec2-uses-profile-edge.md.
+// #1146.
 func MaterializationDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{
 		Domain:  reducercontract.DomainEC2UsesProfileMaterialization,
@@ -111,7 +111,7 @@ type EC2UsesProfileEdgeWriter interface {
 // Cross-account, out-of-scope, and unscanned profiles are counted and logged,
 // never written and never dropped silently.
 //
-// See issue #1146 PR-B and docs/internal/design/1146-ec2-uses-profile-edge.md.
+// See issue #1146 PR-B.
 type EC2UsesProfileMaterializationHandler struct {
 	FactLoader factload.FactLoader
 	EdgeWriter EC2UsesProfileEdgeWriter

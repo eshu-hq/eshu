@@ -6,7 +6,7 @@
 2. `go/internal/collector/document/media/doc.go`
 3. `go/internal/collector/document/media/extract.go`
 4. `go/internal/collector/preflight/media/README.md`
-5. `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+5. #1737
 
 ## Invariants
 

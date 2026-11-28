@@ -31,7 +31,7 @@ import (
 // explicitly wired KubernetesWorkloadNodeWriter and FactLoader; registering it
 // without them would silently drop every intent. The live-workload edge slice
 // (#388 PR3) joins against the nodes this domain commits. See issue #388 and
-// docs/internal/design/388-kubernetes-correlation-readmodel.md.
+// #388.
 func kubernetesWorkloadMaterializationDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainKubernetesWorkloadMaterialization,

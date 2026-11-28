@@ -11,7 +11,7 @@ It must stay pure and fail closed.
 4. `normalize.go` - policy validation and canonicalization
 5. `match.go` - request matching and source selector behavior
 6. `go/internal/semanticprofile/README.md` - provider profile boundary
-7. `docs/internal/design/1758-documentation-semantic-observations.md` - semantic
+7. #1758 - semantic
    observation security and policy context
 
 ## Invariants

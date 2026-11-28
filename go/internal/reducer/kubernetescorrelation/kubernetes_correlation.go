@@ -119,7 +119,7 @@ type kubernetesCorrelationSourceFactLoader interface {
 // durable provenance-only reducer facts with the six-outcome contract plus a
 // drift classification. It writes no graph edges: the gated canonical edge is a
 // later PR (PR3). See issue #388 and
-// docs/internal/design/388-kubernetes-correlation-readmodel.md.
+// #388.
 type KubernetesCorrelationHandler struct {
 	FactLoader  factload.FactLoader
 	Writer      KubernetesCorrelationWriter

@@ -242,7 +242,7 @@ Measured scale (all **exists**):
 
 ### E2E design and the determinism gap (mixed)
 
-- **Exists:** `docs/internal/design/1225-e2e-integration-suite.md` — parent E2E
+- **Exists:** #1225 — parent E2E
   design with children #1230/#1227/#1226/#1229, covering proof architecture,
   corpus families, runtime/collector/reducer matrices, API/MCP/CLI readback
   parity, observability, evidence-packet schema, and failure policy.

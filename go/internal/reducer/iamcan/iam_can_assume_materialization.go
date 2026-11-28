@@ -31,7 +31,7 @@ import (
 // IAMCanAssumeEdgeWriter and FactLoader; registering it without them would
 // silently drop every intent. It mirrors
 // awsRelationshipMaterializationDomainDefinition (#805 PR2). See issue #1134 PR2
-// and docs/internal/design/1134-iam-can-assume-trust-graph.md.
+// and #1134.
 func AssumeMaterializationDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{
 		Domain:  reducercontract.DomainIAMCanAssumeMaterialization,
@@ -79,7 +79,7 @@ type IAMCanAssumeEdgeWriter interface {
 // principals are counted and logged, never written and never dropped silently.
 //
 // See issue #1134 PR2 and
-// docs/internal/design/1134-iam-can-assume-trust-graph.md.
+// #1134.
 type IAMCanAssumeMaterializationHandler struct {
 	FactLoader factload.FactLoader
 	EdgeWriter IAMCanAssumeEdgeWriter

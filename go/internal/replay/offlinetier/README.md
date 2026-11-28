@@ -157,7 +157,7 @@ consumers migrated to under epic #4783 (Contract System — Full Integration).
 This is deliberate, not deferred debt: those fact kinds have no real
 collector producer and no factschema family, so there is nothing to decode
 against. See
-[ADR: replay/offlinetier Cassette Fact-Kind Exemption (#4866)](../../../../docs/internal/design/4866-offlinetier-cassette-exemption.md)
+ADR: replay/offlinetier Cassette Fact-Kind Exemption (#4866)
 for the full rationale, the exempt fact-kind list, and the requirement that
 the future W3a raw-payload ratchet gate (#4800) allowlist this package by
 name instead of flagging it.

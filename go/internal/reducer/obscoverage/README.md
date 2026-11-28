@@ -129,5 +129,5 @@ executions that run either handler remain covered by
 ## Related docs
 
 - [Reducer package](../README.md)
-- [Observability coverage design](../../../../docs/internal/design/391-observability-coverage-correlation.md)
+- Observability coverage design (#391)
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)

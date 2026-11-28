@@ -414,6 +414,6 @@ an injected engine in tests or future reviewed code.
 
 - `SECRET_RUNS.md` (the secret run rule, its limits, and its cost, #9799)
 - (#9799)
-- `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+- #1737
 - `go/internal/collector/preflight/picture/README.md`
 - `docs/public/reference/local-testing.md`

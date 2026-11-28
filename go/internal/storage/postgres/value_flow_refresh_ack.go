@@ -299,7 +299,7 @@ const valueFlowInputsFenceStatusList = `('pending', 'claimed', 'running', 'retry
 // apart. See
 // (#6923) for the EXPLAIN
 // (ANALYZE, BUFFERS) proof (index range scans only, sub-millisecond at B-7
-// scale) and docs/internal/design/6785-value-flow-cloud-sink-refresh.md for
+// scale) and #6785 for
 // why the writer set is eight domains (six reducer, two shared), not four.
 var valueFlowInputsFenceSQL = `
 (SELECT 'reducer' AS kind,

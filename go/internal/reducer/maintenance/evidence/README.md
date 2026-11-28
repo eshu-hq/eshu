@@ -50,5 +50,5 @@ Inherit the caller's span; no new metric or span.
 
 ## Related docs
 
-- `docs/internal/design/collector-readiness-evidence-summary-materialization-design.md`
+- the collector readiness evidence summary design
 - `docs/public/observability/telemetry-coverage.md`

@@ -70,7 +70,7 @@ add scope-injection logic here without that design.
 defense-in-depth control (the cost gate runs `EXPLAIN (FORMAT JSON)` in the SAME
 read-only transaction as execution, so the validated plan matches what runs).
 This supersedes the earlier note that cost gating was wired by the API layer
-(#3263); see the design decision in `docs/internal/design/3302-ask-eshu-tier2-enablement.md`.
+(#3263); see the design decision in #3302.
 Co-locating it with the read-only-tx executor is required for plan/exec
 consistency (RLS `SET LOCAL`, `search_path`, statement timeouts).
 

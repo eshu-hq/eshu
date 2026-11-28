@@ -5,7 +5,7 @@
 1. `go/internal/collector/preflight/picture/README.md`
 2. `go/internal/collector/preflight/picture/doc.go`
 3. `go/internal/collector/preflight/picture/preflight.go`
-4. `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+4. #1737
 5. `go/internal/collector/README.md`
 
 ## Invariants
