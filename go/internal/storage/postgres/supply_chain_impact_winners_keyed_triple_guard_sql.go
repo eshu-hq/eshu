@@ -9,8 +9,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// The triple-guarded keyed probe (#9975 round 6): the plain-column twin of
-// the shipped payload-expression narrow probe in
+// The plain-column lenient keyed probe (#11691; the triple-guarded probe
+// of #9975 round 6 with its key-presence guard conjuncts dropped): the
+// plain-column twin of the shipped payload-expression narrow probe in
 // supply_chain_impact_winners_keyed_sql.go, selected per tick by
 // winnersKeyedProbeVariant once the key-presence fill marker completes. The
 // audit keeps the legacy statement as its oracle.
@@ -51,8 +52,8 @@ SELECT ` + winnersKeyedNarrowColumns + ` FROM narrow
 `
 }
 
-// buildWinnersKeyedNarrowKeyPresenceSQL persists the triple-guarded probe
-// over the whole identifier set: one row per pre-filter copy. It is the
+// buildWinnersKeyedNarrowKeyPresenceSQL persists the plain-column lenient
+// probe over the whole identifier set: one row per pre-filter copy. It is the
 // whole-chunk twin of the budgeted per-identifier insert below (same body,
 // staged source table there), so the two cannot silently split; the winners
 // contract pins this text. The shipped payload-expression build stays the
@@ -62,8 +63,8 @@ CREATE TEMP TABLE winners_keyed_narrow ON COMMIT DROP AS
 ` + winnersKeyedNarrowProbeSelectKeyPresence(winnersKeyedIdentsTable)
 
 // insertWinnersKeyedNarrowKeyPresenceBatchSQL probes exactly the staged
-// identifier with the triple-guarded probe and appends its copies to the
-// narrow table. Same RowsAffected budget contract as the shipped batch
+// identifier with the plain-column lenient probe and appends its copies to
+// the narrow table. Same RowsAffected budget contract as the shipped batch
 // insert above; the two share nothing but the output columns, so the flip
 // between them is explicit (see winnersKeyedProbeVariant), never a silent
 // derivation.
@@ -74,16 +75,17 @@ var insertWinnersKeyedNarrowKeyPresenceBatchSQL = `INSERT INTO ` + winnersKeyedN
 // completed its disagreement-0 verification for the marker ($1). No row, or
 // a NULL completed_at, reads as not ready: the tick then runs the shipped
 // payload-expression probe, which is correct on unfilled rows, instead of
-// the triple-guarded one.
+// the plain-column lenient one.
 const selectWinnersKeyPresenceFillReadySQL = `
 SELECT completed_at IS NOT NULL FROM supply_chain_impact_finding_supports_backfill WHERE marker_name = $1`
 
 // winnersKeyedProbeVariant selects the budgeted narrow probe's per-identifier
-// insert for one tick: the triple-guarded text once the key-presence fill
-// marker is complete, the shipped payload-expression text before that. The
-// default (no marker row) is fail-closed on the shipped text: an unfilled
-// row keeps DEFAULT 0 bits, which the guarded probe would exclude from ”
-// identifiers, while the shipped probe matches it exactly as before.
+// insert for one tick: the plain-column lenient text once the key-presence
+// fill marker is complete, the shipped payload-expression text before that.
+// Both texts agree on unfilled rows (a missing key and a JSON null read as
+// the coalesced identifier in either one); the marker selects the index-only
+// path versus the payload path, not fail-closed exclusion. The default (no
+// marker row) stays on the shipped text.
 func winnersKeyedProbeVariant(keyPresenceReady bool) string {
 	if keyPresenceReady {
 		return insertWinnersKeyedNarrowKeyPresenceBatchSQL
@@ -95,7 +97,7 @@ func winnersKeyedProbeVariant(keyPresenceReady bool) string {
 // marker completed its disagreement-0 verification. Any read failure,
 // including a missing marker row, reads as not ready: the tick then runs the
 // shipped probe, so an unreadable gate can never flip the tick onto the
-// guarded text.
+// plain-column text.
 func winnersKeyPresenceFillCompleted(ctx context.Context, q db.Queryer) bool {
 	rows, err := q.QueryContext(ctx, selectWinnersKeyPresenceFillReadySQL,
 		SupplyChainImpactKeyPresenceFillMarker)
