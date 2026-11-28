@@ -27,16 +27,23 @@ type postgresMigrationInventoryRow struct {
 	FullChecksumSHA256 string `json:"full_checksum_sha256,omitempty"`
 }
 
-// printPostgresMigrationInventoryFlag handles the offline mode and rejects
-// unsupported arguments before normal bootstrap can change either store.
-func printPostgresMigrationInventoryFlag(args []string, output io.Writer) (bool, error) {
+// printInventoryFlag handles the offline modes and rejects unsupported
+// arguments before normal bootstrap can change either store. Either inventory
+// flag must be the sole argument; the version flags keep their own dispatch
+// earlier in main.
+func printInventoryFlag(args []string, output io.Writer) (bool, error) {
 	if len(args) == 0 {
 		return false, nil
 	}
-	if len(args) != 1 || args[0] != postgresMigrationInventoryFlag {
-		return true, fmt.Errorf("unsupported arguments: use %s, --version, or -v alone", postgresMigrationInventoryFlag)
+	if len(args) == 1 {
+		switch args[0] {
+		case postgresMigrationInventoryFlag:
+			return true, json.NewEncoder(output).Encode(buildPostgresMigrationInventory())
+		case graphSchemaInventoryFlag:
+			return true, printGraphSchemaInventoryFlag(output)
+		}
 	}
-	return true, json.NewEncoder(output).Encode(buildPostgresMigrationInventory())
+	return true, fmt.Errorf("unsupported arguments: use %s, %s, --version, or -v alone", postgresMigrationInventoryFlag, graphSchemaInventoryFlag)
 }
 
 func buildPostgresMigrationInventory() postgresMigrationInventory {

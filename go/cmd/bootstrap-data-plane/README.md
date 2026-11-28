@@ -32,6 +32,16 @@ other runtimes. This binary does not stay resident.
   object and exits before telemetry setup, configuration validation, or store
   access. The flag must be used alone. It reads the SQL embedded in the binary,
   so it can inspect a release image without starting its schema Job.
+- `eshu-bootstrap-data-plane --graph-schema-inventory` prints one JSON object
+  and exits the same way: alone, before telemetry or store access, reading only
+  the DDL and write-identity contract embedded in the binary. It prints both
+  backends, so it never reads `ESHU_GRAPH_BACKEND`. It only reports values:
+  it enforces nothing and never reads the marker. A deployment pin check can
+  compare the deployed backend's fingerprint against the latest
+  `graph_schema_applications` row; a mismatch fences writers until this binary
+  runs with the pinned image. The marker read is
+  `SELECT schema_fingerprint, compatible_fingerprints FROM
+  graph_schema_applications WHERE backend = $1 ORDER BY applied_at DESC LIMIT 1`.
 
 Any other command-line argument, including a misspelled inventory flag or a
 combination of flags, exits with an error before normal bootstrap starts.
@@ -47,6 +57,13 @@ variant; it remains a separate ledger variant. The output contains no SQL,
 database state, or deployment configuration. Compare it with migration
 receipts before running the Job; the inventory itself does not certify that a
 database is ready or apply any schema.
+
+The graph inventory has `format_version: 1` and a `backends` array with one row
+per backend in fixed order (`neo4j`, then `nornicdb`). Each row has `backend`,
+`fingerprint`, `statement_count`, and `compatible_fingerprints` (present even
+when empty). Values come only from `graph.SchemaApplicationForBackend`, the
+same source the writer fence compares against. Like the migration inventory it
+certifies nothing about the live store.
 
 ## Configuration
 
