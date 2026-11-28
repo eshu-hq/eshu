@@ -184,8 +184,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
 
       - name: Set up Go
@@ -228,8 +229,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
 
       - name: Set up Go
@@ -303,8 +305,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
 
       - name: Set up Go
@@ -344,8 +347,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/eshu-ci/go-build
-          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}
           restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.mod', 'go/go.sum') }}-
             ${{ runner.os }}-${{ runner.arch }}-gobuild-
 
       - name: Set up Go

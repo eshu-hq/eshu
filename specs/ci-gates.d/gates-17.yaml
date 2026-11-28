@@ -50,16 +50,18 @@ gates:
     name: GHA CodeQL cache prune (daily)
     category: hygiene
     layer: secondary
-    purpose: "Deletes stale CodeQL overlay/trap Actions caches older than 24h (keeping newest 4/family) to protect the 10 GB cache store."
+    purpose: "Deletes stale CodeQL overlay/trap (keep newest 4/family, >24h) and superseded Linux-X64 Go caches (keep newest 1/family, >12h) to protect the 10 GB cache store."
     tier: ci-heavy
     blocking: false
     triggers:
       - ".github/workflows/gha-codeql-cache-prune.yml"
       - "scripts/ci/prune-gha-codeql-caches.sh"
       - "scripts/ci/test-prune-gha-codeql-caches.sh"
+      - "scripts/ci/prune-gha-go-caches.sh"
+      - "scripts/ci/test-prune-gha-go-caches.sh"
     ci:
       workflow: gha-codeql-cache-prune.yml
       job: "GHA CodeQL cache prune"
     requirements:
       - credentials
-    ci_only_reason: "scheduled delete against the live Actions cache API with actions: write; scripts/ci/test-prune-gha-codeql-caches.sh exercises the selection and fail-closed contract hermetically"
+    ci_only_reason: "scheduled delete against the live Actions cache API with actions: write; scripts/ci/test-prune-gha-codeql-caches.sh and scripts/ci/test-prune-gha-go-caches.sh exercise the selection and fail-closed contracts hermetically"

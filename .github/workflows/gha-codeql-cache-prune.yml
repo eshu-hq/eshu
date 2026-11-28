@@ -5,9 +5,13 @@ name: GHA CodeQL Cache Prune
 # those entries consume >6 GB of the repository's 10 GB Actions cache quota
 # and evict Go build/race and Playwright caches.
 #
-# This daily job deletes ONLY `codeql-overlay-*` and `codeql-trap-*` caches
-# whose last_accessed_at is older than 24 hours, always keeping the 4 newest
-# entries per family. Go, Playwright, Trivy, and Node caches are never touched.
+# This daily job deletes ONLY:
+# - `codeql-overlay-*` and `codeql-trap-*` caches older than 24h (always keeping
+#   the 4 newest entries per family), and
+# - superseded Linux-X64 Go caches (`gobuild`, `gobuildrace`, `golangcilint`,
+#   `go-static`) older than 12h once a newer replacement entry is >=1h old
+#   (always keeping at least the newest entry per family).
+# Playwright, Trivy, Node, and macOS caches are never touched.
 on:
   schedule:
     # Daily 05:17 UTC, outside busy merge hours and offset from ghcr-buildcache-prune.
@@ -15,12 +19,12 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: List stale CodeQL caches that would be deleted and delete nothing
+        description: List stale CodeQL and superseded Go caches that would be deleted and delete nothing
         required: false
         default: false
         type: boolean
       min_age_hours:
-        description: Minimum hours since last_accessed_at before pruning (default 24)
+        description: Minimum hours since last_accessed_at before pruning CodeQL caches (default 24)
         required: false
         default: "24"
         type: string
@@ -44,11 +48,18 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Self-test the prune script
-        run: bash scripts/ci/test-prune-gha-codeql-caches.sh
+      - name: Self-test the prune scripts
+        run: |
+          bash scripts/ci/test-prune-gha-codeql-caches.sh
+          bash scripts/ci/test-prune-gha-go-caches.sh
       - name: Prune stale CodeQL Actions caches
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRUNE_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
           PRUNE_MIN_AGE_HOURS: ${{ inputs.min_age_hours || '24' }}
         run: bash scripts/ci/prune-gha-codeql-caches.sh
+      - name: Prune superseded Linux-X64 Go Actions caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRUNE_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: bash scripts/ci/prune-gha-go-caches.sh
