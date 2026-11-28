@@ -23,6 +23,7 @@ import (
 // not inherit, so a second same-name CREATE would fail with 42P07. The drop
 // is the single lifecycle for every temp the walk owns; the consumed,
 // scope-idents and batch tables it never touches keep their keyed lifecycle.
+// #nosec G101 -- SQL DDL dropping temp tables; static statement with no credential literal, flagged on heuristic.
 const dropWinnersFullChunkTempSQL = `DROP TABLE IF EXISTS winners_full_idents, winners_keyed_idents, winners_keyed_narrow, winners_keyed_active_facts`
 
 // winnersFullChunkPage is one bounded identifier page of the full rebuild.

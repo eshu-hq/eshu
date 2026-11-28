@@ -243,6 +243,7 @@ SELECT
 // min - 1us)) (#11117), so a mark that committed after the drain stays queued
 // with the watermark under it. It runs unconditionally, so it stamps even a
 // resweep whose chunks produced zero winners.
+// #nosec G101 -- SQL watermark upsert; fully-parameterized statement with no credential literal, flagged on heuristic.
 const stampWinnersFullWatermarkSQL = `
 INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
 VALUES (1, LEAST($1::timestamptz, (
