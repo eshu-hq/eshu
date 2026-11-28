@@ -24,6 +24,13 @@ var (
 // select's tail: a digest match proves the shape preserves winner truth.
 var WinnerBodySQLForTest = supplyChainImpactWinnerBodySQL
 
+// WinnerSelectFromSupportsSQLForTest exposes the supports-swapped winners
+// select: the legacy select's row source moved to the supports table, which
+// is the oracle the chunked full agrees with on production-shaped data. On
+// supports-only data the fact_records twin reads nothing, so a differential
+// against it is vacuous; this twin is the comparison that can fail.
+var WinnerSelectFromSupportsSQLForTest = supplyChainImpactWinnerSelectFromSupportsSQL
+
 // WinnersKeyedActiveFactsSQLForTest exposes the statement that builds the keyed
 // active_facts temp table from the analyzed identifier temp table, so a plan
 // test can assert the once-per-identifier probe on the keyed winners index.

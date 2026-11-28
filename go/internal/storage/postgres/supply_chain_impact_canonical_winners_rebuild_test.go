@@ -400,7 +400,8 @@ func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, args ...an
 		tx.contractStamps = append(tx.contractStamps, args)
 	case claimSupplyChainImpactWinnersEnrichmentCarryFullSQL,
 		claimSupplyChainImpactWinnersEnrichmentCarryKeyedSQL:
-	case buildWinnersFullIdentsSQL,
+	case dropWinnersFullChunkTempSQL,
+		buildWinnersFullIdentsSQL,
 		analyzeWinnersFullIdentsSQL,
 		createWinnersKeyedIdentsSQL,
 		createWinnersKeyedNarrowSQL,
@@ -408,12 +409,12 @@ func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, args ...an
 		clearWinnersKeyedIdentsSQL,
 		clearWinnersKeyedNarrowSQL,
 		clearWinnersKeyedActiveFactsSQL,
-		insertWinnersKeyedNarrowFullChunkSQL,
+		insertWinnersKeyedNarrowSupportsFullChunkSQL,
 		insertWinnersKeyedNarrowPresenceFullChunkSQL,
 		analyzeWinnersKeyedNarrowSQL,
 		insertWinnersFullChunkActiveFactsSQL,
 		analyzeWinnersKeyedActiveFactsSQL,
-		addWinnersKeyedOperatorFactsNarrowSQL:
+		addWinnersKeyedOperatorFactsNarrowFromSupportsSQL:
 	default:
 		if !strings.HasPrefix(query, insertWinnersKeyedIdentsPrefix) {
 			return nil, errors.New("the resweep must not use ExecContext")
@@ -535,6 +536,7 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	// the walk.
 	wantExecs := []string{
 		pinWinnersFullReadCommittedSQL,
+		dropWinnersFullChunkTempSQL,
 		buildWinnersFullIdentsSQL,
 		analyzeWinnersFullIdentsSQL,
 		createWinnersKeyedIdentsSQL,
@@ -548,7 +550,7 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 		clearWinnersKeyedActiveFactsSQL,
 		insertWinnersFullChunkActiveFactsSQL,
 		analyzeWinnersKeyedActiveFactsSQL,
-		addWinnersKeyedOperatorFactsNarrowSQL,
+		addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
 		claimSupplyChainImpactWinnersEnrichmentCarryFullSQL,
 		stampSupplyChainImpactWinnersContractSQL,
 	}
@@ -556,7 +558,7 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 		t.Fatalf("execs = %q, want the walk setup plus one full chunk", tx.execs)
 	}
 	for i, wantExec := range wantExecs {
-		if i == 7 {
+		if i == 8 {
 			if !strings.HasPrefix(tx.execs[i], insertWinnersKeyedIdentsPrefix) {
 				t.Fatalf("execs[%d] = %q, want the staged chunk page", i, tx.execs[i])
 			}
@@ -590,11 +592,12 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	}
 }
 
-// TestResweepWinnersFallsBackToFactRecordsProbeWhenSupportsNotReady pins the
-// ruled gate: a closed (or unreadable) supports gate runs the chunk probe
-// over fact_records instead of refusing, and an open gate runs the
-// triple-guarded presence probe over supports.
-func TestResweepWinnersFallsBackToFactRecordsProbeWhenSupportsNotReady(t *testing.T) {
+// TestResweepWinnersFallsBackToSupportsExpressionProbeWhenSupportsNotReady pins
+// the ruled gate: a closed (or unreadable) supports gate runs the chunk probe
+// over supports with the payload expression instead of refusing, and an open
+// gate runs the triple-guarded presence probe over supports. Both variants
+// read supports; the flip is the probe shape, never the row source.
+func TestResweepWinnersFallsBackToSupportsExpressionProbeWhenSupportsNotReady(t *testing.T) {
 	t.Parallel()
 
 	oneIdent := [][]winnersKeyedChunkIdent{{{pkg: "a", repo: "r", digest: "d", c0: "c", advisory: ""}}}
@@ -606,17 +609,17 @@ func TestResweepWinnersFallsBackToFactRecordsProbeWhenSupportsNotReady(t *testin
 		if err != nil || got.Skipped {
 			t.Fatalf("%s: ResweepWinners() = %+v, %v; want the full to run on the fallback probe", name, got, err)
 		}
-		foundFactRecords, foundPresence := false, false
+		foundFallback, foundPresence := false, false
 		for _, exec := range tx.execs {
-			if exec == insertWinnersKeyedNarrowFullChunkSQL {
-				foundFactRecords = true
+			if exec == insertWinnersKeyedNarrowSupportsFullChunkSQL {
+				foundFallback = true
 			}
 			if exec == insertWinnersKeyedNarrowPresenceFullChunkSQL {
 				foundPresence = true
 			}
 		}
-		if !foundFactRecords || foundPresence {
-			t.Fatalf("%s: fact_records probe %v, presence probe %v; want only the fallback probe", name, foundFactRecords, foundPresence)
+		if !foundFallback || foundPresence {
+			t.Fatalf("%s: supports-expression probe %v, presence probe %v; want only the fallback probe", name, foundFallback, foundPresence)
 		}
 	}
 
@@ -633,7 +636,7 @@ func TestResweepWinnersFallsBackToFactRecordsProbeWhenSupportsNotReady(t *testin
 		if exec == insertWinnersKeyedNarrowPresenceFullChunkSQL {
 			foundPresence = true
 		}
-		if exec == insertWinnersKeyedNarrowFullChunkSQL {
+		if exec == insertWinnersKeyedNarrowSupportsFullChunkSQL {
 			t.Fatal("open gate ran the fallback probe; want the presence probe")
 		}
 	}

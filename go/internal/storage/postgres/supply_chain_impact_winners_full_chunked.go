@@ -15,23 +15,27 @@ import (
 )
 
 // Bounded chunked full rebuild of the #3389 canonical winners read model
-// (ruled #9805 v3-full). The full resweep walks the table as bounded keyed
-// chunks over fact_records instead of one statement over the supports table:
+// (ruled #9805 v3-full, re-sourced round 5). The full resweep walks the table
+// as bounded keyed chunks over the supports table — the only copy of a
+// finding since the #10880 write stop — the way the shipped keyed tick does:
 //
 //   - (a) each chunk is identifier-bounded by the existing chunk sizing
 //     (chunkBounds, default 200 identifiers) and staged with the existing
 //     batch builder (winnersKeyedIdentBatch, with its parameter-ceiling
 //     guard). The chunk probe reuses the triple-guard flip
 //     (winnersKeyedProbeVariant is the keyed twin; winnersFullChunkNarrowProbe
-//     is this path's): supports serve candidate fact_id presence only, and
-//     only while the supports-ready gate is open, with the fact_records
-//     payload-expression probe as the closed-gate fallback.
+//     is this path's): supports serve candidate fact_id presence, through
+//     the triple-guarded plain-column probe while the supports-ready gate is
+//     open and through the supports payload-expression probe when it is
+//     closed. Both variants read supports; no chunk statement reads
+//     fact_records.
 //   - (b) ranking reads PAYLOAD-derived canonical_key, priority_score and
 //     has_payload_finding_id through the shipped detoast extraction over the
-//     fact_records payload — never stored supports columns.
+//     verbatim supports payload — never stored supports columns (a stored
+//     derived column can go stale against the payload, so ordering by one
+//     would move winners after a dirt the capture missed).
 //   - (c) the winner and override payloads arrive by fact_id point lookup
-//     (fact_records fact_id is the primary key) and the shipped final
-//     projection runs verbatim.
+//     over supports and the shipped final projection runs verbatim.
 //   - (d) each chunk sorts at default work_mem: no SET work_mem anywhere on
 //     this path. The resweep lock and the audit oracle are unchanged.
 //
@@ -50,23 +54,24 @@ FROM supply_chain_impact_canonical_winners AS w`
 
 // buildWinnersFullIdentsSQL enumerates the full rebuild's identifier set
 // once: the UNION of the live arm (the distinct payload-derived five-tuples
-// of the exact legacy candidate set, supplyChainImpactWinnerActiveFactsInnerSQL,
-// the row source the audit runs) and the stored arm (every identifier the
+// of the exact supports candidate set,
+// supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL, the row source the
+// keyed tick and the audit run) and the stored arm (every identifier the
 // winners table still holds). The stored arm is what lets a chunk delete a
 // key the live set no longer produces: a tombstoned key, a rotated
 // canonical key, or a key left behind by a resweep to zero. Without it the
 // per-chunk deletes tile only the live set and the stored-only rows survive
 // every resweep. Numbered deterministically so chunks page it in bounded
-// ranges. The extraction reads the once-detosted record over the fact
-// payload; liveness stays with the per-chunk live_gens join, exactly as the
-// shipped probe resolves it.
+// ranges. The extraction reads the once-detosted record over the verbatim
+// supports payload; liveness stays with the per-chunk live_gens join,
+// exactly as the shipped supports probe resolves it.
 var buildWinnersFullIdentsSQL = `
 CREATE TEMP TABLE winners_full_idents ON COMMIT DROP AS
 SELECT package_id, repository_id, subject_digest, c0, advisory_id,
        ROW_NUMBER() OVER (ORDER BY package_id, repository_id, subject_digest, c0, advisory_id) AS rn
 FROM (
     SELECT ` + winnersIdentExprsAs() + `
-    FROM (` + supplyChainImpactWinnerActiveFactsInnerSQL + `) AS fact` + winnersDetoastFactLateral + `
+    FROM (` + supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL + `) AS fact` + winnersDetoastFactLateral + `
     UNION
     ` + winnersFullStoredIdentsSQL + `
 ) AS idents
@@ -155,11 +160,13 @@ func winnersFullChunkInsertFromCreate(name, createSQL, createHead, insertHead st
 	return strings.Replace(createSQL, createHead, insertHead, 1)
 }
 
-// insertWinnersKeyedNarrowFullChunkSQL probes one chunk page over
-// fact_records with the shipped payload expression: the closed-gate fallback
-// and the derivation base the audit keeps as its oracle.
-var insertWinnersKeyedNarrowFullChunkSQL = winnersFullChunkInsertFromCreate(
-	"narrow probe", buildWinnersKeyedNarrowSQL,
+// insertWinnersKeyedNarrowSupportsFullChunkSQL probes one chunk page over
+// supports with the shipped payload expression: the closed-gate fallback,
+// derived from the supports-swapped whole-chunk probe so it cannot drift
+// from what the keyed tick runs. The audit keeps the legacy fact_records
+// statement as its derivation base, never as a runtime row source.
+var insertWinnersKeyedNarrowSupportsFullChunkSQL = winnersFullChunkInsertFromCreate(
+	"narrow probe", buildWinnersKeyedNarrowFromSupportsSQL,
 	winnersFullChunkNarrowCreateHead, winnersFullChunkNarrowInsertHead)
 
 // insertWinnersKeyedNarrowPresenceFullChunkSQL probes one chunk page over the
@@ -171,45 +178,33 @@ var insertWinnersKeyedNarrowPresenceFullChunkSQL = winnersFullChunkInsertFromCre
 	winnersFullChunkNarrowCreateHead, winnersFullChunkNarrowInsertHead)
 
 // winnersFullChunkNarrowProbe selects the chunk probe: the triple-guarded
-// presence probe over supports while the gate is open, the fact_records
-// payload-expression probe once it is closed.
+// presence probe over supports while the gate is open, the supports
+// payload-expression probe once it is closed. Both read supports; the flip
+// is the probe shape, never the row source.
 func winnersFullChunkNarrowProbe(supportsReady bool) string {
 	if supportsReady {
 		return insertWinnersKeyedNarrowPresenceFullChunkSQL
 	}
-	return insertWinnersKeyedNarrowFullChunkSQL
+	return insertWinnersKeyedNarrowSupportsFullChunkSQL
 }
 
-// buildWinnersKeyedActiveFactsNarrowSQL is the legacy narrow twin of the
-// keyed active-facts build: the copy identity plus the once-extracted fields
-// over fact_records, without the payload, resolved against the once-per-tick
-// live generation set. It is derived from the shipped wide build by the same
-// narrowing the supports twin uses, so the two commute (see
-// TestWinnersKeyedNarrowingCommutesWithSupportsSwaps).
-var buildWinnersKeyedActiveFactsNarrowSQL = narrowWinnersKeyedTempBuild(
-	"full chunk active facts", buildWinnersKeyedActiveFactsSQL, "")
-
-// addWinnersKeyedOperatorFactsNarrowSQL is the legacy narrow twin of the
-// operator insert: the same rows, the same filters, identity plus extracted
-// fields, no payload. It keeps its INSERT head, so chunks run it verbatim.
-var addWinnersKeyedOperatorFactsNarrowSQL = narrowWinnersKeyedTempBuild(
-	"full chunk operator facts", addWinnersKeyedOperatorFactsSQL,
-	"\nWHERE fact.scope_id = '"+supplyChainImpactOperatorScopeID+"'")
-
 // insertWinnersFullChunkActiveFactsSQL fills the chunk active_facts temp from
-// the narrow probe output, once per chunk.
+// the narrow probe output, once per chunk. It derives the per-chunk INSERT
+// from the keyed tick's own supports narrow build, so the chunk and the tick
+// cannot drift; the head swap is pinned by
+// TestWinnersFullChunkInsertDerivationsRoundTrip.
 var insertWinnersFullChunkActiveFactsSQL = winnersFullChunkInsertFromCreate(
-	"chunk active facts", buildWinnersKeyedActiveFactsNarrowSQL,
+	"chunk active facts", buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
 	winnersFullChunkActiveFactsCreateHead, winnersFullChunkActiveFactsInsertHead)
 
 // winnersFullChunkStreamBodySQL is the CTE-streaming winner body over
-// fact_records: the shipped body with extraction moved to the narrow chunk
+// supports: the shipped body with extraction moved to the narrow chunk
 // temp and the payload fetched by fact_id for the emitted winner and
 // override rows only. It is derived from the shipped body, never copied, and
 // TestWinnersFullChunkStreamBodyReversesToShipped inverts the derivation
 // byte-for-byte, so the two differ only by the declared point-lookup
 // transform.
-var winnersFullChunkStreamBodySQL = streamWinnersKeyedBodyFrom(supplyChainImpactWinnerBodySQL, "fact_records")
+var winnersFullChunkStreamBodySQL = streamWinnersKeyedBody(supplyChainImpactWinnerBodySQL)
 
 // winnersFullChunkSelectSQL is the winner select one full chunk ranks: the
 // streamed body over the chunk's narrow active_facts temp.
@@ -263,10 +258,14 @@ ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(
 RETURNING (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
 `
 
-// fullChunkSupportsProbeReady reports whether the full-chunk probe may read
-// supports for candidate fact_id presence. Any probe error reads as not
-// ready: the chunk then runs the shipped fact_records probe, so an unreadable
-// gate can never flip the full onto the guarded text.
+// fullChunkSupportsProbeReady reports whether the full-chunk probe may use
+// the triple-guarded plain-column presence probe. Any probe error reads as
+// not ready: the chunk then runs the supports payload-expression probe, so
+// an unreadable gate can never flip the full onto the guarded text. Both
+// variants read supports; the full never refuses, it only picks the probe.
+// The recorded outcome names the pick: served ran the presence probe,
+// not_ready ran the payload-expression probe, failed read no gate and ran
+// the payload-expression probe.
 func fullChunkSupportsProbeReady(ctx context.Context, tx db.Transaction, instruments *telemetry.Instruments) bool {
 	ready, err := SupplyChainImpactSupportsReady(ctx, tx)
 	if err != nil {
@@ -284,168 +283,20 @@ func fullChunkSupportsProbeReady(ctx context.Context, tx db.Transaction, instrum
 	return true
 }
 
-// winnersFullChunkPage is one bounded identifier page of the full rebuild.
-type winnersFullChunkPage struct {
-	idents []winnersKeyedChunkIdent
-}
-
-// scanWinnersFullChunkPage reads one identifier page: the five-tuple per row
-// in page order.
-func scanWinnersFullChunkPage(rows db.Rows) (winnersFullChunkPage, error) {
-	var page winnersFullChunkPage
-	for rows.Next() {
-		var id winnersKeyedChunkIdent
-		if err := rows.Scan(&id.pkg, &id.repo, &id.digest, &id.c0, &id.advisory); err != nil {
-			_ = rows.Close()
-			return page, fmt.Errorf("scan supply chain impact winners full chunk identifier: %w", err)
-		}
-		page.idents = append(page.idents, id)
-	}
-	if err := rows.Err(); err != nil {
-		_ = rows.Close()
-		return page, fmt.Errorf("read supply chain impact winners full chunk identifiers: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return page, fmt.Errorf("close supply chain impact winners full chunk identifiers: %w", err)
-	}
-	return page, nil
-}
-
-// applyWinnersFullChunk runs one identifier page: it stages the page, probes
-// it, builds the chunk active_facts, ranks the chunk and writes only its new
-// or changed winners, and reports the chunk counts. stamp is the resweep's
-// stamp ceiling S, written as materialized_at on every row the chunk touches.
-func applyWinnersFullChunk(
-	ctx context.Context,
-	tx db.Transaction,
-	stamp time.Time,
-	page winnersFullChunkPage,
-	supportsReady bool,
-) (inserted, updated, deleted, unchanged int64, err error) {
-	if _, err := tx.ExecContext(ctx, clearWinnersKeyedIdentsSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("clear supply chain impact winners full chunk identifiers: %w", err)
-	}
-	query, args, err := winnersKeyedIdentBatch(insertWinnersKeyedIdentsPrefix, page.idents)
-	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("stage supply chain impact winners full chunk identifiers: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("stage supply chain impact winners full chunk identifiers: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, clearWinnersKeyedNarrowSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("clear supply chain impact winners full chunk probe: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, winnersFullChunkNarrowProbe(supportsReady)); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("probe supply chain impact winners full chunk copies: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedNarrowSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("analyze supply chain impact winners full chunk probe: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, clearWinnersKeyedActiveFactsSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("clear supply chain impact winners full chunk active facts: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, insertWinnersFullChunkActiveFactsSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("build supply chain impact winners full chunk active facts: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedActiveFactsSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("analyze supply chain impact winners full chunk active facts: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, addWinnersKeyedOperatorFactsNarrowSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("add supply chain impact winners full chunk operator facts: %w", err)
-	}
-	rows, err := tx.QueryContext(ctx, applyWinnersFullChunkSQL, stamp)
-	if err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("apply supply chain impact winners full chunk: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return 0, 0, 0, 0, fmt.Errorf("apply supply chain impact winners full chunk: %w", err)
-		}
-		return 0, 0, 0, 0, fmt.Errorf("apply supply chain impact winners full chunk: statement returned no counts")
-	}
-	if err := rows.Scan(&inserted, &updated, &deleted, &unchanged); err != nil {
-		_ = rows.Close()
-		return 0, 0, 0, 0, fmt.Errorf("scan supply chain impact winners full chunk counts: %w", err)
-	}
-	if rows.Next() {
-		return 0, 0, 0, 0, fmt.Errorf("apply supply chain impact winners full chunk: statement returned more than one row")
-	}
-	if err := rows.Err(); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("apply supply chain impact winners full chunk: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("close supply chain impact winners full chunk counts: %w", err)
-	}
-	return inserted, updated, deleted, unchanged, nil
-}
-
-// runWinnersFullChunks walks the enumerated identifier set in bounded pages
-// and applies each page, accumulating the chunk counts. Pages are dense row
-// ranges, so consecutive ranges tile the set: the walk ends on a short page.
-func runWinnersFullChunks(
-	ctx context.Context,
-	tx db.Transaction,
-	stamp time.Time,
-	bounds winnersChunkBounds,
-	supportsReady bool,
-) (inserted, updated, deleted, unchanged int64, err error) {
-	if _, err := tx.ExecContext(ctx, buildWinnersFullIdentsSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("enumerate supply chain impact winners full identifiers: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, analyzeWinnersFullIdentsSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("analyze supply chain impact winners full identifiers: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, createWinnersKeyedIdentsSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("create supply chain impact winners full chunk identifiers: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, createWinnersKeyedNarrowSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("create supply chain impact winners full chunk probe: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, createWinnersKeyedActiveFactsNarrowSQL); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("create supply chain impact winners full chunk active facts: %w", err)
-	}
-	size := bounds.identifiers
-	var lower int64
-	for {
-		if err := ctx.Err(); err != nil {
-			return 0, 0, 0, 0, fmt.Errorf("walk supply chain impact winners full chunks: %w", err)
-		}
-		rows, err := tx.QueryContext(ctx, selectWinnersFullChunkPageSQL, lower, lower+size)
-		if err != nil {
-			return 0, 0, 0, 0, fmt.Errorf("page supply chain impact winners full identifiers: %w", err)
-		}
-		page, err := scanWinnersFullChunkPage(rows)
-		if err != nil {
-			return 0, 0, 0, 0, err
-		}
-		if len(page.idents) == 0 {
-			return inserted, updated, deleted, unchanged, nil
-		}
-		var ins, upd, del, unc int64
-		if ins, upd, del, unc, err = applyWinnersFullChunk(ctx, tx, stamp, page, supportsReady); err != nil {
-			return 0, 0, 0, 0, err
-		}
-		inserted, updated, deleted, unchanged = inserted+ins, updated+upd, deleted+del, unchanged+unc
-		lower += size
-		if int64(len(page.idents)) < size {
-			return inserted, updated, deleted, unchanged, nil
-		}
-	}
-}
-
 // winnersFullChunkContractStatements lists the full-chunk statements that
 // define what a resweep writes: the enumeration, the probe pair, the chunk
-// rank and apply, and the final stamp. The contract pin and the
-// supports-input split test both read this list, so the two cannot drift.
+// active-facts refill, rank and apply, and the final stamp. The operator
+// insert and the other shared supports builds live in the keyed section of
+// the contract pin (the chunk runs them verbatim), so this list holds only
+// what the chunk owns. The contract pin and the supports-input split test
+// both read this list, so the two cannot drift.
 func winnersFullChunkContractStatements() []string {
 	return []string{
 		buildWinnersFullIdentsSQL,
 		selectWinnersFullChunkPageSQL,
-		insertWinnersKeyedNarrowFullChunkSQL,
+		insertWinnersKeyedNarrowSupportsFullChunkSQL,
 		insertWinnersKeyedNarrowPresenceFullChunkSQL,
 		insertWinnersFullChunkActiveFactsSQL,
-		addWinnersKeyedOperatorFactsNarrowSQL,
 		winnersFullChunkSelectSQL,
 		applyWinnersFullChunkSQL,
 		stampWinnersFullWatermarkSQL,

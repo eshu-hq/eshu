@@ -108,6 +108,14 @@ var (
 	// the active supports of every active scope generation.
 	supplyChainImpactWinnerActiveFactsFromSupportsSQL = applyWinnersSupportsInputSwaps(
 		"full active facts", supplyChainImpactWinnerActiveFactsSQL, winnersActiveFactsSwaps)
+	// supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL is the inner
+	// candidate set of the full select over the supports table: the same
+	// swaps narrow the inner select the chunked-full enumeration pages, so
+	// the full rebuild's live arm reads the supports row source the keyed
+	// tick and the audit read. The table stays aliased AS fact, so the
+	// detoast lateral keeps resolving fact.payload verbatim.
+	supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL = applyWinnersSupportsInputSwaps(
+		"full active facts inner", supplyChainImpactWinnerActiveFactsInnerSQL, winnersActiveFactsSwaps)
 	// supplyChainImpactWinnerSelectFromSupportsSQL is the winner select the
 	// maintainer's rebuild runs; the audit keeps supplyChainImpactWinnerSelectSQL.
 	supplyChainImpactWinnerSelectFromSupportsSQL = supplyChainImpactWinnerActiveFactsFromSupportsSQL + supplyChainImpactWinnerBodySQL
@@ -221,11 +229,11 @@ func streamWinnersKeyedBody(body string) string {
 
 // streamWinnersKeyedBodyFrom derives the CTE-streaming keyed body from the
 // shipped winner body with the payload fetched from payloadTable. The keyed
-// tick streams over the supports table; the ruled #9805 v3-full chunks stream
-// over fact_records, so the winner and override payloads arrive by fact_id
-// point lookup from the facts while the shipped final projection runs
-// verbatim. Every anchor count is independent of the table name, so the two
-// derivations differ only by the declared row source.
+// tick and the ruled #9805 chunked full both stream over the supports table,
+// so the winner and override payloads arrive by fact_id point lookup from
+// the supports while the shipped final projection runs verbatim. Every
+// anchor count is independent of the table name, so two derivations over
+// different payload tables differ only by the declared row source.
 func streamWinnersKeyedBodyFrom(body, payloadTable string) string {
 	if n := strings.Count(body, winnersDetoastFactLateral); n != 2 {
 		panic("winners stream body: lateral occurs " + fmt.Sprintf("%d", n) + " times, want 2")

@@ -37,7 +37,7 @@ import (
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
 // supplyChainImpactWinnerDataColumns byte-parity rule).
-const SupplyChainImpactWinnersContractVersion int64 = 4
+const SupplyChainImpactWinnersContractVersion int64 = 5
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
 // of the statements it names. A version maps to exactly one hash. Version 2
@@ -182,6 +182,31 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// The UnlessCurrent healing proof (stored v3 runs the full, stored v4
 	// skips) rides the same live run.
 	4: "2e8903a9f694893f3caf8bdb1ec8bce8afd705c92974dc12e567cd371a2dfc40",
+	// Version 5 (ruled #9805 round-5 row-source fix): every chunked-full
+	// statement reads the supports table the way the shipped keyed path
+	// does — the supports-swapped identifier enumeration, probe pair,
+	// active-facts and operator builds, and the supports payload table
+	// for the streamed winner and override fetches. Winners a resweep
+	// produces change for the same facts exactly where they were wrong
+	// before: on supports-only data the fact-sourced full rebuilt zero
+	// winners and the stored arm emptied the table; the re-sourced full
+	// ranks the verbatim supports payloads, so the stored table converges
+	// to the supports oracle. Every instance runs one full after the roll,
+	// which also heals any table a v4 binary emptied. Differential
+	// justification, measured on seeded backends
+	// (TestSupplyChainImpactWinnersFullChunkedMatchesLegacyLive phases 1-4
+	// against the legacy and supports oracles, and
+	// TestSupplyChainImpactWinnersFullChunkedMatchesSupportsWriterLive
+	// seeded end to end through the production writer with no finding rows
+	// in fact_records): phases agree with the supports oracle EXCEPT ALL 0
+	// in both directions with equal row counts (payload-derived ranking,
+	// projection and write shape untouched), and the writer-seeded phase
+	// proves the legacy fact select reads nothing on that data. The
+	// hermetic pins carry the row source per statement
+	// (TestWinnersFullChunkedReadsPayloadDerivedRanking,
+	// TestWinnersMaintainerStatementsReadNoFactRecords with the v3-full
+	// exemption removed).
+	5: "2a3dc4a2b1c250aca2efa17f4d5489478d7a108f66fcad57b287ec51f91ab736",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the

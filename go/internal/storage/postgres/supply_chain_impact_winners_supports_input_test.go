@@ -30,25 +30,18 @@ const winnersLegacyContractPin = "25e4d8910be1951ac76980f97de64e5d5f9b483e9151a4
 // stopped halfway.
 const winnersKeyedLegacyReversedPin = "02700e716da69adf716099f1e2d6d262cc880621ea3370c50a2091d18ef12146"
 
-// TestWinnersMaintainerStatementsReadNoFactRecords proves every keyed
-// statement the winners contract names reads the supports table and not
-// fact_records: after the PR-C write stop the finding facts are no longer
-// written, so a keyed maintainer statement that still read them would read
-// stale rows. The ruled #9805 v3-full chunks are exempt by design: they rank
-// over fact_records with the shipped detoast extraction, and the presence
-// probe reads supports for fact_id presence only. That split is pinned by
-// TestWinnersFullChunkedReadsPayloadDerivedRanking, not here.
+// TestWinnersMaintainerStatementsReadNoFactRecords proves every statement
+// the winners contract names reads the supports table and not fact_records:
+// after the PR-C write stop the finding facts are no longer written, so a
+// maintainer statement that still read them would read stale rows. The ruled
+// #9805 chunked full is covered, not exempt: round 5 re-sourced every chunk
+// statement to supports (TestWinnersFullChunkedReadsPayloadDerivedRanking
+// pins the row source per statement), so the exemption the v3-full tree
+// carried is gone.
 func TestWinnersMaintainerStatementsReadNoFactRecords(t *testing.T) {
 	t.Parallel()
 
-	fullChunk := map[string]bool{}
-	for _, stmt := range winnersFullChunkContractStatements() {
-		fullChunk[stmt] = true
-	}
 	for i, stmt := range supplyChainImpactWinnersContractStatements() {
-		if fullChunk[stmt] {
-			continue
-		}
 		if strings.Contains(stmt, "fact_records") {
 			t.Errorf("winners contract statement %d still names fact_records:\n%s", i, stmt)
 		}
@@ -126,12 +119,13 @@ func TestWinnersSupportsInputsDeriveFromTheLegacyStatements(t *testing.T) {
 	t.Parallel()
 
 	for name, c := range map[string]struct{ derived, legacy string }{
-		"full active facts": {supplyChainImpactWinnerActiveFactsFromSupportsSQL, supplyChainImpactWinnerActiveFactsSQL},
-		"full select":       {supplyChainImpactWinnerSelectFromSupportsSQL, supplyChainImpactWinnerSelectSQL},
-		"scope idents":      {buildWinnersKeyedScopeIdentsFromSupportsSQL, buildWinnersKeyedScopeIdentsSQL},
-		"keyed active":      {buildWinnersKeyedActiveFactsFromSupportsSQL, buildWinnersKeyedActiveFactsSQL},
-		"keyed operator":    {addWinnersKeyedOperatorFactsFromSupportsSQL, addWinnersKeyedOperatorFactsSQL},
-		"keyed narrow":      {buildWinnersKeyedNarrowFromSupportsSQL, buildWinnersKeyedNarrowSQL},
+		"full active facts":       {supplyChainImpactWinnerActiveFactsFromSupportsSQL, supplyChainImpactWinnerActiveFactsSQL},
+		"full active facts inner": {supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL, supplyChainImpactWinnerActiveFactsInnerSQL},
+		"full select":             {supplyChainImpactWinnerSelectFromSupportsSQL, supplyChainImpactWinnerSelectSQL},
+		"scope idents":            {buildWinnersKeyedScopeIdentsFromSupportsSQL, buildWinnersKeyedScopeIdentsSQL},
+		"keyed active":            {buildWinnersKeyedActiveFactsFromSupportsSQL, buildWinnersKeyedActiveFactsSQL},
+		"keyed operator":          {addWinnersKeyedOperatorFactsFromSupportsSQL, addWinnersKeyedOperatorFactsSQL},
+		"keyed narrow":            {buildWinnersKeyedNarrowFromSupportsSQL, buildWinnersKeyedNarrowSQL},
 	} {
 		if c.derived == c.legacy {
 			t.Errorf("%s: the supports statement equals the legacy one", name)

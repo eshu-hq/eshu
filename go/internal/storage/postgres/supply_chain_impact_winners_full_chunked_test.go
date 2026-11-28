@@ -8,40 +8,45 @@ import (
 	"testing"
 )
 
-// Hermetic pins for the ruled #9805 v3-full fix: the full rebuild walks the
-// table as bounded keyed chunks over fact_records. The supports table serves
-// only candidate fact_id presence under the supports-ready gate (with the
-// fact_records probe as the closed-gate fallback); ranking reads
+// Hermetic pins for the ruled #9805 v3-full fix, re-sourced round 5: the full
+// rebuild walks the table as bounded keyed chunks over the supports table,
+// the only copy of a finding since the #10880 write stop. The
+// supports-ready gate picks the probe shape only (triple-guarded presence
+// while open, supports payload-expression while closed); ranking reads
 // PAYLOAD-derived fields through the shipped detoast extraction, never
 // stored supports columns; the winner and override payloads arrive by
-// fact_id point lookup; the shipped final projection runs verbatim; each
-// chunk sorts at default work_mem; the lock and the audit oracle are
-// unchanged. Rejected: a covering index, a precise-only path, a work_mem
-// raise, and serialization to batch 1.
+// fact_id point lookup over supports; the shipped final projection runs
+// verbatim; each chunk sorts at default work_mem; the lock and the audit
+// oracle are unchanged. Rejected: a covering index, a precise-only path, a
+// work_mem raise, serialization to batch 1, and any fact_records read on the
+// chunk path.
 
 // TestWinnersFullChunkedReadsPayloadDerivedRanking pins the ruled row source
-// and ranking inputs: the chunked-full statements read fact_records, extract
-// the ranking fields from the payload through the shipped detoast lateral,
-// order by the derived canonical key (never a stored supports column), add
-// no covering index, and touch no work_mem knob.
+// and ranking inputs: the chunked-full statements read supports, extract
+// the ranking fields from the verbatim payload through the shipped detoast
+// lateral, order by the derived canonical key (never a stored supports
+// column), add no covering index, and touch no work_mem knob.
 func TestWinnersFullChunkedReadsPayloadDerivedRanking(t *testing.T) {
 	t.Parallel()
 
-	// The enumeration pages the exact legacy candidate set: the shipped
-	// active-facts inner select is its row source, so eligibility cannot
-	// drift from what the audit runs.
-	if !strings.Contains(buildWinnersFullIdentsSQL, supplyChainImpactWinnerActiveFactsInnerSQL) {
-		t.Error("full-chunk enumeration does not read the shipped active-facts inner select")
+	// The enumeration pages the exact supports candidate set: the
+	// supports-swapped active-facts inner select is its row source, so
+	// eligibility cannot drift from what the keyed tick and the audit run.
+	if !strings.Contains(buildWinnersFullIdentsSQL, supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL) {
+		t.Error("full-chunk enumeration does not read the supports active-facts inner select")
+	}
+	if strings.Contains(buildWinnersFullIdentsSQL, supplyChainImpactWinnerActiveFactsInnerSQL) {
+		t.Error("full-chunk enumeration reads the legacy fact_records inner select: it pages supports identifiers")
 	}
 	// The identifier columns come from the once-extracted detoast record
-	// over the fact payload, never a stored supports column.
+	// over the verbatim supports payload, never a stored supports column.
 	for _, f := range winnersDetoastIdentFields {
 		if !strings.Contains(buildWinnersFullIdentsSQL, "d."+f) {
 			t.Errorf("full-chunk enumeration does not extract identifier field d.%s from the payload", f)
 		}
 	}
-	if strings.Contains(buildWinnersFullIdentsSQL, "supply_chain_impact_finding_supports") {
-		t.Error("full-chunk enumeration reads the supports table: it pages fact_records identifiers")
+	if !strings.Contains(buildWinnersFullIdentsSQL, "supply_chain_impact_finding_supports") {
+		t.Error("full-chunk enumeration does not read the supports table: it must page supports identifiers")
 	}
 
 	for name, stmt := range map[string]string{
@@ -75,26 +80,33 @@ func TestWinnersFullChunkedReadsPayloadDerivedRanking(t *testing.T) {
 			t.Errorf("%s does not sort winners by the derived canonical key", name)
 		}
 		// Never stored supports columns: no key-presence bits, no stored
-		// plain-column ordering, and the supports table appears nowhere —
-		// the chunk fetches winner payloads from fact_records.
+		// plain-column ordering — the chunk fetches winner payloads from
+		// supports by fact_id, and ranking reads the extracted temp,
+		// never the stored derived columns.
 		for _, banned := range []string{
 			"key_presence",
 			"s.package_id",
 			"s.repository_id",
 			"s.subject_digest",
-			"supply_chain_impact_finding_supports",
+			"ORDER BY s.",
 		} {
 			if strings.Contains(stmt, banned) {
-				t.Errorf("%s reads a stored supports column or table via %q", name, banned)
+				t.Errorf("%s reads a stored supports column via %q", name, banned)
 			}
 		}
-		// Winner and override payloads arrive by primary-key join only.
+		if !strings.Contains(stmt, "supply_chain_impact_finding_supports") {
+			t.Errorf("%s does not read the supports table: payloads arrive from supports, never fact_records", name)
+		}
+		if strings.Contains(stmt, "fact_records") {
+			t.Errorf("%s reads fact_records: no chunk statement may read the frozen finding facts", name)
+		}
+		// Winner and override payloads arrive by fact_id point lookup only.
 		for _, want := range []string{
-			"JOIN fact_records AS source_payload ON source_payload.fact_id = source.fact_id",
-			"LEFT JOIN fact_records AS override_payload ON override_payload.fact_id = override.fact_id",
+			"JOIN supply_chain_impact_finding_supports AS source_payload ON source_payload.fact_id = source.fact_id",
+			"LEFT JOIN supply_chain_impact_finding_supports AS override_payload ON override_payload.fact_id = override.fact_id",
 		} {
 			if !strings.Contains(stmt, want) {
-				t.Errorf("%s lost the fact_records point lookup %q", name, want)
+				t.Errorf("%s lost the supports point lookup %q", name, want)
 			}
 		}
 	}
@@ -115,18 +127,24 @@ func TestWinnersFullChunkedReadsPayloadDerivedRanking(t *testing.T) {
 	}
 }
 
-// TestWinnersFullChunkNarrowProbeFallsBackToFactRecords pins the ruled probe
-// flip: under the supports-ready gate the chunk probes supports for
+// TestWinnersFullChunkNarrowProbeFallsBackToSupportsExpression pins the ruled
+// probe flip: under the supports-ready gate the chunk probes supports for
 // candidate fact_id presence with the triple guard; when the gate is closed
-// the same chunk probes fact_records with the shipped payload expression.
-func TestWinnersFullChunkNarrowProbeFallsBackToFactRecords(t *testing.T) {
+// the same chunk probes supports with the shipped payload expression. The
+// flip is the probe shape, never the row source: both read supports, since
+// the write stop left no finding facts for a fact_records probe to read.
+func TestWinnersFullChunkNarrowProbeFallsBackToSupportsExpression(t *testing.T) {
 	t.Parallel()
 
 	if got := winnersFullChunkNarrowProbe(true); got != insertWinnersKeyedNarrowPresenceFullChunkSQL {
 		t.Error("an open supports gate must run the triple-guarded presence probe over supports")
 	}
-	if got := winnersFullChunkNarrowProbe(false); got != insertWinnersKeyedNarrowFullChunkSQL {
-		t.Error("a closed supports gate must fall back to the fact_records payload-expression probe")
+	if got := winnersFullChunkNarrowProbe(false); got != insertWinnersKeyedNarrowSupportsFullChunkSQL {
+		t.Error("a closed supports gate must fall back to the supports payload-expression probe")
+	}
+	if strings.Contains(winnersFullChunkNarrowProbe(true), "fact_records") ||
+		strings.Contains(winnersFullChunkNarrowProbe(false), "fact_records") {
+		t.Error("a chunk probe reads fact_records: both probe shapes read supports")
 	}
 	// The presence probe reads supports for fact_id presence only: the
 	// triple guard plus the copy identity, no stored ranking columns, no
@@ -152,7 +170,7 @@ func TestWinnersFullChunkNarrowProbeFallsBackToFactRecords(t *testing.T) {
 func TestWinnersFullChunkStreamBodyReversesToShipped(t *testing.T) {
 	t.Parallel()
 
-	if got := reverseWinnersKeyedStreamBodyFrom(winnersFullChunkStreamBodySQL, "fact_records"); got != supplyChainImpactWinnerBodySQL {
+	if got := reverseWinnersKeyedStreamBodyFrom(winnersFullChunkStreamBodySQL, winnersSupportsTable); got != supplyChainImpactWinnerBodySQL {
 		t.Fatalf("full-chunk streamed body does not reverse to the shipped body byte-for-byte:\n%s",
 			firstDiffLine(got, supplyChainImpactWinnerBodySQL))
 	}
@@ -195,8 +213,11 @@ func TestWinnersFullChunkApplyKeepsTheWriteOnlyChangedShape(t *testing.T) {
 			t.Errorf("full-chunk apply lost %q", want)
 		}
 	}
-	if strings.Contains(body, "supply_chain_impact_finding_supports") {
-		t.Error("full-chunk apply reads the supports table: ranking runs over the chunk active_facts")
+	if !strings.Contains(body, "supply_chain_impact_finding_supports") {
+		t.Error("full-chunk apply does not read the supports table: payloads arrive from supports, never fact_records")
+	}
+	if strings.Contains(body, "fact_records") {
+		t.Error("full-chunk apply reads fact_records: no chunk statement may read the frozen finding facts")
 	}
 	// The chunk counts are the keyed apply's first four RETURNING lines:
 	// inserted, updated, deleted, unchanged. The final stamp reports the
@@ -258,15 +279,15 @@ func TestWinnersFullChunkInsertDerivationsRoundTrip(t *testing.T) {
 				firstDiffLine(got, createSQL))
 		}
 	}
-	roundTrip("fact_records chunk probe",
-		insertWinnersKeyedNarrowFullChunkSQL, winnersFullChunkNarrowInsertHead,
-		buildWinnersKeyedNarrowSQL, winnersFullChunkNarrowCreateHead)
+	roundTrip("supports payload-expression chunk probe",
+		insertWinnersKeyedNarrowSupportsFullChunkSQL, winnersFullChunkNarrowInsertHead,
+		buildWinnersKeyedNarrowFromSupportsSQL, winnersFullChunkNarrowCreateHead)
 	roundTrip("presence chunk probe",
 		insertWinnersKeyedNarrowPresenceFullChunkSQL, winnersFullChunkNarrowInsertHead,
 		buildWinnersKeyedNarrowKeyPresenceSQL, winnersFullChunkNarrowCreateHead)
 	roundTrip("chunk active facts",
 		insertWinnersFullChunkActiveFactsSQL, winnersFullChunkActiveFactsInsertHead,
-		buildWinnersKeyedActiveFactsNarrowSQL, winnersFullChunkActiveFactsCreateHead)
+		buildWinnersKeyedActiveFactsNarrowFromSupportsSQL, winnersFullChunkActiveFactsCreateHead)
 }
 
 // TestWinnersStoredIdentMatchDerivesFromSharedFragment pins that the delete
@@ -296,17 +317,22 @@ func TestWinnersStoredIdentMatchDerivesFromSharedFragment(t *testing.T) {
 }
 
 // TestWinnersFullEnumerationUnionsLiveAndStoredIdents pins the ruled #9805
-// enumeration shape: the live arm pages the shipped active-facts inner
-// select, the stored arm selects the derived stored identifiers verbatim, and
-// exactly one UNION joins them. A stored arm that hand-copies the c0
-// expression (instead of deriving winnersStoredIdentSelectList) fails the
-// verbatim check; dropping the stored arm fails the UNION and table checks,
-// which is the tombstoned-key regression that left Deleted at 0.
+// enumeration shape: the live arm pages the supports-swapped active-facts
+// inner select, the stored arm selects the derived stored identifiers
+// verbatim, and exactly one UNION joins them. A stored arm that hand-copies
+// the c0 expression (instead of deriving winnersStoredIdentSelectList) fails
+// the verbatim check; dropping the stored arm fails the UNION and table
+// checks, which is the tombstoned-key regression that left Deleted at 0. A
+// live arm over fact_records fails the row-source check: the write stop left
+// no finding facts to enumerate.
 func TestWinnersFullEnumerationUnionsLiveAndStoredIdents(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(buildWinnersFullIdentsSQL, supplyChainImpactWinnerActiveFactsInnerSQL) {
-		t.Error("enumeration lost the live arm: the shipped active-facts inner select is gone")
+	if !strings.Contains(buildWinnersFullIdentsSQL, supplyChainImpactWinnerActiveFactsInnerFromSupportsSQL) {
+		t.Error("enumeration lost the live arm: the supports active-facts inner select is gone")
+	}
+	if strings.Contains(buildWinnersFullIdentsSQL, supplyChainImpactWinnerActiveFactsInnerSQL) {
+		t.Error("enumeration reads the legacy fact_records inner select: the live arm pages supports")
 	}
 	if !strings.Contains(buildWinnersFullIdentsSQL, winnersFullStoredIdentsSQL) {
 		t.Error("enumeration does not carry the stored arm verbatim: it must derive, never hand-copy")
@@ -320,7 +346,7 @@ func TestWinnersFullEnumerationUnionsLiveAndStoredIdents(t *testing.T) {
 	if !strings.Contains(buildWinnersFullIdentsSQL, "FROM supply_chain_impact_canonical_winners AS w") {
 		t.Error("enumeration stored arm does not read the canonical winners table")
 	}
-	if strings.Contains(buildWinnersFullIdentsSQL, "supply_chain_impact_finding_supports") {
-		t.Error("enumeration reads the supports table: ranking stays payload-derived, identity stays fact-or-stored")
+	if !strings.Contains(buildWinnersFullIdentsSQL, "supply_chain_impact_finding_supports") {
+		t.Error("enumeration live arm does not read the supports table: ranking stays payload-derived over supports")
 	}
 }
