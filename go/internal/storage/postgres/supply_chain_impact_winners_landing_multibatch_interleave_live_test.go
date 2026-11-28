@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
 // Landing replay for eshu-hq/eshu#10901, host-independent half: the
@@ -270,6 +271,17 @@ func TestSupplyChainImpactWinnersLandingMultibatchInterleaveLive(t *testing.T) {
 		return upsertMarks + retractMarks
 	}
 
+	// The writer passes plant frozen finding history, so the concurrent
+	// phase runs with the finding write stop disabled: per-pass scoped
+	// SeedFindingFacts windows are unsafe here because the stop is global
+	// catalog state and one pass would re-arm under another pass's open
+	// transaction. The capture, fence, and staging triggers still fire, and
+	// the setup-cleanliness and final-drain assertions below run disarmed;
+	// they assert on winners/staging state, not the finding gate.
+	if err := postgresproof.DisarmFindingWriteStop(ctx, database); err != nil {
+		t.Fatalf("disarm the finding write stop for the concurrent writer phase: %v", err)
+	}
+
 	for _, writers := range []int{2, 4} {
 		stratum := writers
 		scopes := writers / 2
@@ -403,5 +415,15 @@ func TestSupplyChainImpactWinnersLandingMultibatchInterleaveLive(t *testing.T) {
 		if _, err := database.ExecContext(ctx, `DELETE FROM supply_chain_impact_winners_dirty_log`); err != nil {
 			t.Fatalf("writers=%d reset log: %v", writers, err)
 		}
+	}
+
+	// Re-arm after the concurrent phase so the stop reads enabled when the
+	// writers are done: a later finding-fact write outside a seed window
+	// must fail loudly instead of passing silently.
+	if err := postgresproof.ArmFindingWriteStop(ctx, database); err != nil {
+		t.Fatalf("re-arm the finding write stop after the concurrent writer phase: %v", err)
+	}
+	if armed, err := postgresproof.FindingWriteStopArmed(ctx, database); err != nil || !armed {
+		t.Fatalf("finding write stop armed = %v (err %v) after the concurrent writer phase, want true", armed, err)
 	}
 }
