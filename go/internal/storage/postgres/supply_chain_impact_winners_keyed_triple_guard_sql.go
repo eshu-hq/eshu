@@ -86,8 +86,8 @@ SELECT completed_at IS NOT NULL FROM supply_chain_impact_finding_supports_backfi
 // (Refs #11691: plain equalities, no key-presence guards — both probes read
 // a missing key and a JSON null as ”) and only extends the select list with
 // the plain ranking columns the winner step orders by. The default (no
-// marker row) is fail-closed on the shipped text, which is lenient on every
-// leg, so an unfilled row matches exactly as before.
+// marker row) stays on the shipped text, which is lenient on every leg, so
+// an unfilled row matches exactly as before.
 func winnersKeyedProbeVariant(keyPresenceReady bool) string {
 	if keyPresenceReady {
 		return insertWinnersKeyedTop1NarrowBatchSQL

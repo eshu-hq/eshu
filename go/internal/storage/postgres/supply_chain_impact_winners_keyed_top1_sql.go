@@ -367,7 +367,8 @@ func (s SupplyChainImpactWinnersStore) buildWinnersKeyedTop1ActiveFacts(
 // writer lowercases that column for filtering while the oracle body carries
 // the fact's own spelling. operator_overrides matches the streamed override
 // shape (fact_id for the payload fetch, suppression state for the overlay,
-// rank columns for the per-key lateral below, sort-free by construction).
+// rank columns for the per-key lateral below; the winner step is sort-free
+// and the override microsort is planner-correct and bounded per key).
 var winnersKeyedTop1SelectSQL = `WITH source_winners AS (
     SELECT k.canonical_key, w.fact_id, ws.scope_id, ws.finding_id, w.priority_score,
         k.source_count, ws.impact_status, COALESCE(ws.payload->>'ecosystem', '') AS ecosystem,
