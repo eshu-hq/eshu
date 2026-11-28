@@ -21,11 +21,14 @@ flowchart TB
   Load --> Scope["Per-item scope recompute\nstamped fast path,\nfull fallback"]
   Scope --> Build["Build + suppress\nfindings, one suppression index"]
   Build --> Tx["Write transaction\nlock, diff, fence, upsert\nsupports-only copy"]
-  Tx --> Guard["Write-on-change guard\nidentical replay writes nothing"]
-  Guard --> Win["Winners reconciliation\ncanonical table"]
-  Win --> Adv["Advisory-group projection\nenqueued after commit"]
-  Adv --> Fan["Holder fan-out reopen\nflag live items, enqueue missing"]
-  Fan --> RQ["Same reducer queue\nconsumers re-run"]
+  Tx --> Guard["Write-on-change guard\ndigest + evidence-set check"]
+  Guard -->|"fact_upsert / fact_retract"| Dirty["Winners dirty queue\ndirty_staging -> dirty_log"]
+  Dirty --> Win["Winners maintainer\nkeyed tick -> canonical_winners\n+ materialized_at watermark"]
+  Guard --> Adv["Advisory-group projection\nenqueued after commit"]
+  Win -->|"must cover enqueue/reopen time\n(30m post-claim stale bound)"| Adv
+  Adv -->|"watermark behind"| Wait["reducer_waiting_items\nnot_ready -> stale dead_letter"]
+  Guard --> Fan["Holder fan-out reopen\nflag live items, enqueue missing,\nwildcard * above CVE cap"]
+  Fan -->|"ReopenHolderDetailed\nresets attempt=0, class=NULL"| RQ["Same reducer queue\nconsumers re-run"]
 ```
 
 ## Walk

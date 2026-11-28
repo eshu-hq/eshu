@@ -414,6 +414,31 @@ configuration contract, SQL trigger `EXECUTES` reachability rule, and
 inheritance/SQL entity-type filters in
 [`shared-projection.md`](shared-projection.md).
 
+## Supply-chain winners and holder fan-out
+
+`supply_chain_impact` reduces findings into per-scope support rows and marks
+canonical winner keys in `supply_chain_impact_winners_dirty_log` (coalesced
+from `supply_chain_impact_winners_dirty_staging`). A single-holder
+keyed-winners runner drains dirty keys and advances the
+`supply_chain_impact_winners_materialization` watermark. Downstream
+`advisory_group_projection` reads that watermark: whenever `materialized_at`
+lags behind the intent's enqueue or cycle-start time, items park in
+`reducer_waiting_items` under the non-counting
+`advisory_group_winners_watermark_not_ready` class; after 30 minutes of
+post-claim deferral, they transition to the counting
+`advisory_group_winners_watermark_stale` class and dead-letter if the retry
+budget is exhausted.
+
+When a `vuln-intel://` pass changes an advisory's findings, holder fan-out
+reopens sibling `supply_chain_impact` scopes via `ReopenHolderDetailed`
+(`reopenSupplyChainImpactHolderQuery`), which resets `attempt_count = 0` and
+clears `failure_class` while setting `reopened_at` and preserving
+`last_attempt_at` (matching the reset behavior of `ReopenSucceeded`).
+Operators diagnosing a deep `pending` queue should inspect `last_attempt_at`
+and `reopened_at` before assuming items were never claimed.
+See [`supply-chain-impact.md`](../../../docs/public/concepts/flows/supply-chain-impact.md)
+and [`stuck-reducer-queue-runbook.md`](../../../docs/public/operate/stuck-reducer-queue-runbook.md).
+
 ## Facts-First Bootstrap Ordering
 
 The bootstrap pipeline in `go/cmd/bootstrap-index/main.go` enforces a

@@ -18,13 +18,19 @@ of the drain-loop chart (this page's own chart maps the queues).
 
 ```mermaid
 flowchart TB
-  Proj["Projector enqueues\npending, no lease"] --> RQ["Reducer queue\nfact_work_items"]
+  Proj["Projector enqueues\npending, no lease"] --> Adm{"Admission gate\ndepth < high-water mark?"}
+  Adm -->|no: 5m wait, retry| Proj
+  Adm -->|yes| RQ["Reducer queue\nfact_work_items"]
   RQ --> Claim["Claim\nSKIP LOCKED + recheck:\nreadiness, generation fence,\nconflict domain, visibility"]
   Claim --> Lease["Lease triple\nowner + expiry + attempt\nheartbeat renews"]
   Lease --> Exec["Execute handler"]
   Exec --> Ack["Ack variants\nper-domain completion events"]
+  Ack --> XScope["Cross-scope completion\ncross_scope_completion_events"]
+  XScope --> RQ
+  Exec --> SPI["Shared projection\nshared_projection_intents"]
+  Exec --> WinQ["Winners dirty queue\ndirty_staging -> dirty_log"]
   Exec --> Retry{"Retryable\n+ budget left?"}
-  Retry -->|yes| Wait["Waiting set-aside\nor timer backoff"]
+  Retry -->|yes| Wait["Waiting set-aside (reducer_waiting_items)\nor timer backoff (retrying)"]
   Wait --> RQ
   Retry -->|no| DL["Dead letter\ntriage metadata"]
   Sweep["Generation sweep\nold rows to superseded"]
@@ -77,6 +83,22 @@ flowchart TB
 - **Control-plane queue** (`workflow_work_items`): a separate table and
   lifecycle for scanner and collector workflow claims, with its own fair
   claim, fencing tokens, and a sweeper that retires old completed rows.
+- **Cross-scope completion** (`cross_scope_completion_events`): durable
+  producer-completion events written inside producer ACKs and coalesced into
+  canonical consumer reopens or `cross_scope_replay_required` flags.
+- **Shared projection queue** (`shared_projection_intents` plus
+  `shared_projection_partition_leases`): partitioned edge-write work gated on
+  `graph_projection_phase_state` readiness checkpoints (for example
+  `workload_materialization` gating `handles_route` and `runs_in`).
+- **Winners dirty queue** (`supply_chain_impact_winners_dirty_staging` ->
+  `supply_chain_impact_winners_dirty_log`): per-key invalidations staged by
+  impact writes and drained by the single-leased winners maintainer to advance
+  `supply_chain_impact_winners_materialization.materialized_at`.
+- **Admission backpressure gate** (`ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK`,
+  default `10000` on the ingester): when outstanding reducer rows sit at or
+  above the mark, the projector defers reducer enqueues and retries after
+  `ESHU_REDUCER_ADMISSION_MAX_WAIT` (`5m`), coupling reducer backlog directly
+  into `source_local` projector retries.
 - **Maintenance reopen.** Each pass backfills evidence, then in one
   transaction reopens what the new evidence unlocks. A memo gate skips
   partitions the same pass already handled; the breaker parks a pass that
