@@ -275,3 +275,5 @@ disagreeing bits restarts the sweep instead of completing the marker (see the `g
 outcome). Read the fill with the `complete` gauge, the
 `rows_total{outcome="filled"}` rate against the WAL budget, and `pauses_total` by
 reason.
+
+No-Regression Evidence (#11626): the key-presence fill runner changes no shipped probe, query, or write path — the guarded tick path is byte-identical with the runner disabled (default), proven by the full cmd/reducer + telemetry suites green with -race and the marker-gated flip holding the shipped text until completed_at. Benchmark Evidence (#11626): paced to 8 GB/h WAL budget, 500-row chunks, one-minute passes (~66k rows/h canary rate per the pace test); wall time is logged, not gated. Observability Evidence (#11626): the four fill signals (steps, rows, pauses, complete gauge) plus warn/error logs on pause, pass failure, and completion make every fill state readable at 3 AM.
