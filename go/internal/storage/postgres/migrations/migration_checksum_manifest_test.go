@@ -562,6 +562,8 @@ var migrationShippedChecksums = map[string]string{
 	"362_supply_chain_impact_supports_key_presence.sql": "401269fc49a983b3837dc5f7b0af63771596b888254bf9902babc9d441793da3",
 	// #9975 round 6: the covering btree for the triple-guarded keyed probe.
 	"363_supply_chain_impact_supports_keyed_triple_guard_idx.sql": "87dbb73e86d06329adf40b922c24cec02bf610b0ea246ce0c4e501dd4347fd15",
+	"364_fact_work_items_last_requeue_reason.sql":                 "b1a4d7481a435ff6978056c784313876c99fb1bc98d7456c080d2f1800bad365",
+	"365_cross_scope_ack_trigger_requeue_reason.sql":              "276688b78c6dc43b469c4fa7b8bf5f625a074a94fa75cb7eeab1ca2f870f18b9",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
