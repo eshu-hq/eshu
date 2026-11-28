@@ -422,9 +422,12 @@ import (
 // last_requeue_reason label to fact_work_items. Count 390 is 389 plus 364.
 // 365_cross_scope_ack_trigger_requeue_reason.sql (#11615) converges the 093
 // ACK trigger to stamp cross_scope_replay. Count 391 is 390 plus 365.
+// 366_supply_chain_impact_supports_covering_winner_idx.sql (#11120 lane A)
+// adds the covering winner index for the TOP-1-per-key probe rewrite.
+// Count 392 is 391 plus 366.
 const (
-	goldenBootstrapDefinitionsDigest = "d8a669e0404b7603e143b42710631db3ad1e6242032034fe32d3837f0ee06976"
-	goldenBootstrapDefinitionsCount  = 391
+	goldenBootstrapDefinitionsDigest = "8f5000dfb4d3125bf0242c381a461eb766164df96d75022f75e3c16358926dae"
+	goldenBootstrapDefinitionsCount  = 392
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

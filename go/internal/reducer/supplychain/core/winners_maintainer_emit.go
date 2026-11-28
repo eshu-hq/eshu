@@ -89,6 +89,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		attribute.Int64("chunk_kept_rows", r.ChunkKeptRows),
 		attribute.Int64("chunk_scanned_copies", r.ChunkScannedCopies),
 		attribute.String("chunk_truncated_by", r.ChunkTruncatedBy),
+		attribute.String("probe_variant", r.ProbeVariant),
 	)
 	// watermarkAge is -1 when the table had never been swept: there was no
 	// watermark to age.
@@ -139,6 +140,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		slog.Int64("chunk_kept_rows", r.ChunkKeptRows),
 		slog.Int64("chunk_scanned_copies", r.ChunkScannedCopies),
 		slog.String("chunk_truncated_by", r.ChunkTruncatedBy),
+		slog.String("probe_variant", r.ProbeVariant),
 		slog.Int64("remainder_rows_converted", r.ScopeRemainderConverted),
 		slog.Int64("settle_skipped_not_in_chunk", r.SettleSkippedNotInChunk),
 		slog.Int64("settle_skipped_version_mismatch", r.SettleSkippedVersionMismatch),

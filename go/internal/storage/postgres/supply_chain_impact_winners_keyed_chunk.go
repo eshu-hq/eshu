@@ -94,13 +94,13 @@ type winnersChunkOutcome struct {
 	// (as opposed to the identifier bound): the tick maps it to
 	// ChunkTruncatedBy so the log distinguishes the two.
 	budgetTruncated bool
-	// keyPresenceProbe reports the tick probed with the triple-guarded
-	// plain-column probe (#9975 round 6) instead of the shipped
-	// payload-expression one: the key-presence fill marker was complete when
-	// the chunk was built. It is recorded for future wiring, not for tests
-	// or operator telemetry: an operator tells which probe text a tick ran
-	// from the marker row and pg_stat_statements (the two texts are
-	// distinct statements).
+	// keyPresenceProbe reports the tick probed with the marker-gated TOP-1
+	// probe over the covering winner index (#11120 lane A) instead of the
+	// shipped payload-expression one: the key-presence fill marker was
+	// complete when the chunk was built. The tick maps it to ProbeVariant
+	// (ruling proof 4) so an operator can tell "TOP-1 active" from
+	// "pre-marker fallback active" on the span and log line; the marker row
+	// plus pg_stat_statements disambiguate the texts.
 	keyPresenceProbe bool
 }
 
@@ -212,23 +212,28 @@ func buildWinnersKeyedChunk(
 	if _, err := tx.ExecContext(ctx, createWinnersKeyedBatchIdentsSQL); err != nil {
 		return outcome, fmt.Errorf("create supply chain impact winners batch identifiers: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, createWinnersKeyedNarrowSQL); err != nil {
-		return outcome, fmt.Errorf("create supply chain impact winners keyed narrow probe: %w", err)
-	}
-	// The probe flip (#9975 round 6): the triple-guarded plain-column probe
-	// is correct only once every support carries its key-presence bits, so
-	// it runs only after the fill's disagreement-0 verification completes
-	// the marker. Before that — including when the marker row does not exist
-	// yet — the shipped payload-expression probe runs, which ignores the
-	// bits and is correct on unfilled rows. One indexed row read per tick.
+	// The probe flip (#9975 round 6, #11120 lane A): the marker-gated
+	// TOP-1 probe over the covering winner index runs only after the
+	// fill's disagreement-0 verification completes the marker. Before
+	// that — including when the marker row does not exist yet — the
+	// shipped payload-expression probe runs. Both probes are lenient
+	// (Refs #11691: a missing key and a JSON null read as ''), so the
+	// flip changes the performance path, not the reached set. One
+	// indexed row read per tick. The empty narrow table the gated probe
+	// accumulates into is selected here too, so the create always matches
+	// the probe.
 	outcome.keyPresenceProbe = winnersKeyPresenceFillCompleted(ctx, tx)
 	probeBatchSQL := winnersKeyedProbeVariant(outcome.keyPresenceProbe)
-	// Budgeted admission (Dec 6(ii)): probe the identifiers oldest-first one
-	// at a time and stop admitting new ones once the scanned-copies budget
-	// is spent. RowsAffected of the per-identifier probe is that
-	// identifier's scanned-copy count, so the probe runs once per
-	// identifier and the budget binds admission instead of counting after
-	// the fact. The first identifier is always admitted and never split,
+	if _, err := tx.ExecContext(ctx, winnersKeyedNarrowCreateSQL(outcome.keyPresenceProbe)); err != nil {
+		return outcome, fmt.Errorf("create supply chain impact winners keyed narrow probe: %w", err)
+	}
+	// Budgeted admission (Dec 6(ii), redefined unit #11120): probe the
+	// identifiers oldest-first one at a time and stop admitting new ones
+	// once the scanned-copies budget is spent. RowsAffected of the
+	// per-identifier probe is that identifier's scanned index-tuple count
+	// (no heap fetch under TOP-1), so the probe runs once per identifier
+	// and the budget binds admission instead of counting after the fact.
+	// The first identifier is always admitted and never split,
 	// so a single hot identifier still makes progress and the log drains —
 	// iff its probe finishes within ResweepStatementTimeout (see the
 	// buildWinnersKeyedChunk contract and eshu-hq/eshu#11442): no

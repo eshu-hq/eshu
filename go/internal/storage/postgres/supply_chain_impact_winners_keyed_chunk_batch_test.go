@@ -78,11 +78,14 @@ func (f *chunkBatchFakeTx) ExecContext(_ context.Context, query string, args ...
 }
 
 // isChunkNarrowProbeInsert reports whether query appends one identifier's
-// copies to the narrow table (as opposed to writing the chunk or staging
-// tables): only those INSERTs carry a scanned-copy count.
+// copies to a narrow table (as opposed to writing the chunk or staging
+// tables): only those INSERTs carry a scanned-copy count. Both the shipped
+// and the TOP-1 narrow tables count: the redefined budget meters index
+// tuples on either path.
 func isChunkNarrowProbeInsert(query string) bool {
 	trimmed := strings.TrimSpace(query)
-	return strings.HasPrefix(strings.ToUpper(trimmed), "INSERT") && strings.Contains(query, winnersKeyedNarrowTable)
+	return strings.HasPrefix(strings.ToUpper(trimmed), "INSERT") &&
+		(strings.Contains(query, winnersKeyedNarrowTable) || strings.Contains(query, winnersKeyedTop1NarrowTable))
 }
 
 func (f *chunkBatchFakeTx) Commit() error   { return nil }

@@ -270,13 +270,26 @@ func applyWinnersKeyed(
 	candidate time.Time,
 	result *supplychaincore.SupplyChainImpactWinnersResweep,
 ) error {
+	return applyWinnersKeyedWithSQL(ctx, tx, candidate, result, applyWinnersKeyedSQL)
+}
+
+// applyWinnersKeyedWithSQL runs one keyed apply statement text with the stamp
+// candidate and reads its one row of counts into result. The legacy and the
+// TOP-1 applies share this scan shape; only the winner select differs.
+func applyWinnersKeyedWithSQL(
+	ctx context.Context,
+	tx db.Transaction,
+	candidate time.Time,
+	result *supplychaincore.SupplyChainImpactWinnersResweep,
+	applySQL string,
+) error {
 	// The RETURNING watermark column reads the post-upsert value, so the
 	// replaced value is read before the apply runs.
 	previous, err := readWinnersPreStampWatermark(ctx, tx)
 	if err != nil {
 		return err
 	}
-	rows, err := tx.QueryContext(ctx, applyWinnersKeyedSQL, candidate)
+	rows, err := tx.QueryContext(ctx, applySQL, candidate)
 	if err != nil {
 		return fmt.Errorf("apply supply chain impact winners keyed resweep: %w", err)
 	}

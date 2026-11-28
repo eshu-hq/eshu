@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+import (
+	"os"
+	"strings"
+	"testing"
+)
+
+// Hermetic pins for the #11120 lane-A TOP-1-per-key probe rewrite. The
+// marker-gated TOP-1 probe keeps the shipped lenient triple legs verbatim
+// (Refs #11691: plain equalities, no key-presence guards), ranks per
+// canonical key over a new plain covering winner index, and shares the
+// streamed final select byte for byte so the projection cannot drift from
+// what the full path and audit read.
+
+// TestWinnersTop1ContractIsVersionSeven pins the mandatory contract bump
+// (ruling decision 6): the budget redefinition and candidate-set prune change
+// which identifiers a tick visits, so no same-version re-pin is allowed. The
+// bump lands on 7 because the #11691 leniency already owns 6 on this base.
+func TestWinnersTop1ContractIsVersionSeven(t *testing.T) {
+	t.Parallel()
+
+	if SupplyChainImpactWinnersContractVersion != 7 {
+		t.Fatalf("winners contract version = %d, want 7 (lane-A TOP-1 bump over the #11691 leniency)", SupplyChainImpactWinnersContractVersion)
+	}
+}
+
+// TestWinnersTop1ProbeKeepsTripleGuardLegs pins composition with the shipped
+// lenient twin: every triple equality of the marker-gated probe renders
+// byte-identically in the TOP-1 probe, and no key-presence guard survives,
+// so the prune cannot widen or narrow the probed set, and missing/JSON-null
+// keyed copies reach the same winners in TOP-1 as in the shipped probe
+// (Refs #11691).
+func TestWinnersTop1ProbeKeepsTripleGuardLegs(t *testing.T) {
+	t.Parallel()
+
+	probe := winnersTop1NarrowProbeSelect(winnersKeyedIdentsTable)
+	for _, leg := range []string{
+		"s.package_id = ident.package_id",
+		"s.repository_id = ident.repository_id",
+		"s.subject_digest = ident.subject_digest",
+		"COALESCE(NULLIF(s.cve_id, ''), NULLIF(s.advisory_id, ''), '') = ident.c0",
+		"s.advisory_id = ident.advisory_id",
+	} {
+		if !strings.Contains(probe, leg) {
+			t.Errorf("TOP-1 probe lacks the lenient triple leg %q", leg)
+		}
+	}
+	for _, banned := range []string{
+		"key_presence",
+		"ident.package_id <> ''",
+		"ident.repository_id <> ''",
+		"ident.subject_digest <> ''",
+	} {
+		if strings.Contains(probe, banned) {
+			t.Errorf("TOP-1 probe carries the strict guard %q: the shipped twin is lenient (Refs #11691)", banned)
+		}
+	}
+	if strings.Contains(probe, "fact_records") {
+		t.Error("TOP-1 probe reads fact_records: the marker-gated path is plain-column only")
+	}
+}
+
+// TestWinnersTop1ProbeCarriesRankingColumns pins that the probe emits every
+// plain ranking input the winner step orders by: the probe must return all
+// copies per identifier, carrying the columns the temp winner index ranks.
+func TestWinnersTop1ProbeCarriesRankingColumns(t *testing.T) {
+	t.Parallel()
+
+	probe := winnersTop1NarrowProbeSelect(winnersKeyedIdentsTable)
+	for _, frag := range []string{
+		"s.canonical_key, s.priority_score,",
+		"s.has_payload_finding_id",
+	} {
+		if !strings.Contains(probe, frag) {
+			t.Errorf("TOP-1 probe lacks the ranking fragment %q", frag)
+		}
+	}
+}
+
+// TestWinnersTop1SelectRanksPerKey pins the complete ranking order
+// (priority_score DESC, has_payload_finding_id DESC, fact_id ASC) in the
+// per-key winner lookup over the temp winner index: the covering index must
+// serve the probe equalities and this ordering without a Sort node, and an
+// INCLUDE column could not serve the has_payload_finding_id ordering.
+func TestWinnersTop1SelectRanksPerKey(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(winnersKeyedTop1SelectSQL, "WHERE a.canonical_key = k.canonical_key") {
+		t.Error("TOP-1 winner select is not a per-key point lookup over the temp winner index")
+	}
+	for _, frag := range []string{
+		"ORDER BY a.priority_score DESC, a.has_payload_finding_id DESC, a.fact_id ASC",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(winnersKeyedTop1SelectSQL, frag) {
+			t.Errorf("TOP-1 winner select lacks the ranking fragment %q", frag)
+		}
+	}
+}
+
+// TestWinnersTop1SharesStreamedFinalSelect pins no-drift composition: the
+// TOP-1 winner body ends in the streamed final select verbatim, so the
+// projection, payload merge, and operator overlay cannot drift from what the
+// full path and the audit read.
+func TestWinnersTop1SharesStreamedFinalSelect(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(winnersKeyedTop1SelectSQL, winnersKeyedStreamedFinalSelectSQL) {
+		t.Error("TOP-1 winner select does not embed the streamed final select verbatim")
+	}
+}
+
+// TestWinnersTop1OverridesArePerKeyLateral pins the per-key lateral override
+// step (F3): the winner select carries no DISTINCT ON over the op temp (whose only
+// whole-set shape would sort), and the overrides resolve per source key with
+// a winner-ordered LIMIT 1 lateral driven from the counts temp, exactly like
+// the winner step. The final LEFT JOIN then sees at most one override row
+// per source key, the same row the DISTINCT ON chose.
+func TestWinnersTop1OverridesArePerKeyLateral(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(winnersKeyedTop1SelectSQL, "DISTINCT ON") {
+		t.Error("TOP-1 winner select still ranks overrides with DISTINCT ON: the override step must be a per-key lateral")
+	}
+	for _, frag := range []string{
+		"FROM " + winnersKeyedTop1CountsTable + " AS k",
+		"LEFT JOIN LATERAL (",
+		"FROM " + winnersKeyedTop1OpTable + " AS a",
+		"WHERE a.canonical_key = k.canonical_key",
+		"ORDER BY a.priority_score DESC, a.has_payload_finding_id DESC, a.fact_id ASC",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(winnersKeyedTop1SelectSQL, frag) {
+			t.Errorf("TOP-1 winner select lacks the override lateral fragment %q", frag)
+		}
+	}
+}
+
+// TestWinnersTop1OpIndexServesWinnerOrder pins that the op temp index carries
+// the complete ranking order as key columns (F3): a per-key lateral can only
+// skip the sort when the index provides the order, and an INCLUDE column
+// could not serve the has_payload_finding_id ordering.
+func TestWinnersTop1OpIndexServesWinnerOrder(t *testing.T) {
+	t.Parallel()
+
+	for _, frag := range []string{
+		"(canonical_key, priority_score DESC, has_payload_finding_id DESC, fact_id ASC)",
+	} {
+		if !strings.Contains(indexWinnersKeyedTop1OpSQL, frag) {
+			t.Errorf("TOP-1 op index lacks the winner-order fragment %q", frag)
+		}
+	}
+}
+
+// TestWinnersTop1EcosystemReadsWinnerPayload pins the F1 derivation: the
+// winner ecosystem comes from the winner payload at the point lookup, not
+// from the lowercased plain filter column, so the stored spelling matches
+// the oracle body byte for byte on mixed-case payloads.
+func TestWinnersTop1EcosystemReadsWinnerPayload(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(winnersKeyedTop1SelectSQL, "ws.ecosystem") {
+		t.Error("TOP-1 winner select still reads the lowercased plain ecosystem column")
+	}
+	if !strings.Contains(winnersKeyedTop1SelectSQL, "COALESCE(ws.payload->>'ecosystem', '') AS ecosystem") {
+		t.Error("TOP-1 winner select does not derive the ecosystem from the winner payload")
+	}
+}
+
+// TestWinnersTop1DerivedExcludedInActiveBuild pins the F2 placement: the
+// probe meters every five-tuple match (the legacy pre-filter counted set),
+// and the derived-image exclusion lives in the bulk active build, where the
+// shipped body eligibility also drops those rows before ranking.
+func TestWinnersTop1DerivedExcludedInActiveBuild(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(winnersTop1NarrowProbeSelect(winnersKeyedIdentsTable), "image://derived/") {
+		t.Error("TOP-1 probe excludes derived copies: the meter must count the legacy pre-filter set")
+	}
+	if !strings.Contains(buildWinnersKeyedTop1ActiveSQL, "n.scope_id NOT LIKE 'image://derived/%'") {
+		t.Error("TOP-1 active build does not exclude the derived-image scope before ranking")
+	}
+}
+
+// TestWinnersKeyedTop1TickReadsNoFactRecords pins that no TOP-1 statement
+// reads fact_records or the finding fact kind: after the PR-C write stop the
+// finding facts are no longer written, so a maintainer statement that still
+// read them would read stale rows. The TOP-1 row source is the supports
+// table plus the tick's temp tables, exactly like the legacy keyed path.
+func TestWinnersKeyedTop1TickReadsNoFactRecords(t *testing.T) {
+	t.Parallel()
+
+	for _, stmt := range winnersKeyedTop1Statements() {
+		if strings.Contains(stmt, "fact_records") {
+			t.Errorf("TOP-1 statement names fact_records:\n%s", stmt)
+		}
+		if strings.Contains(stmt, "reducer_supply_chain_impact_finding") {
+			t.Errorf("TOP-1 statement names the finding fact kind:\n%s", stmt)
+		}
+	}
+}
+
+// TestWinnersTop1CoveringIndexIsInvalidCleanupCovered pins the migration
+// shape the schema apply path relies on: 366 holds exactly one CONCURRENTLY
+// index statement naming the covering winner index, and the extractor that
+// drops INVALID concurrent indexes before re-running finds it.
+func TestWinnersTop1CoveringIndexIsInvalidCleanupCovered(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("migrations/366_supply_chain_impact_supports_covering_winner_idx.sql")
+	if err != nil {
+		t.Fatalf("read migration 366: %v", err)
+	}
+	body := migrationStatement(string(raw))
+	if got := strings.Count(body, ";"); got != 1 {
+		t.Fatalf("migration 366 holds %d statements, want exactly 1:\n%s", got, body)
+	}
+	for _, want := range []string{
+		"CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_covering_winner_idx",
+		"canonical_key",
+		"priority_score DESC",
+		"has_payload_finding_id DESC",
+		"fact_id",
+		"INCLUDE (scope_id, generation_id, key_presence, cve_id)",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("migration 366 body lacks %q:\n%s", want, body)
+		}
+	}
+	got := concurrentIndexNamesForInvalidCleanup(string(raw))
+	if len(got) != 1 || got[0] != "supply_chain_impact_finding_supports_covering_winner_idx" {
+		t.Errorf("invalid-cleanup names for migration 366 = %v, want exactly the covering winner index", got)
+	}
+}

@@ -60,7 +60,11 @@ const winnersStoredIdentMatch = `(w.package_id, w.repository_id, w.subject_diges
 // unchanged, the keys recomputed (winners now produced plus winners deleted),
 // and the post-stamp watermark (scanned for arity only; the replaced value
 // is pre-read by the caller, #11515).
-var applyWinnersKeyedSQL = applyWinnersKeyedBodySQL + `
+// applyWinnersKeyedStampTail is the shared stamp and counts tail of a keyed
+// apply: the watermark upsert plus the inserted/updated/deleted/unchanged/
+// keys counts over the changed, deleted, and winners_now CTEs. Both the
+// legacy and the TOP-1 apply end in this text.
+const applyWinnersKeyedStampTail = `
 INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
 VALUES (1, $1)
 ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)
@@ -73,8 +77,21 @@ RETURNING
     (SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1)
 `
 
-var applyWinnersKeyedBodySQL = `
-WITH winners_now AS (` + winnersKeyedSelectSQL + `),
+var applyWinnersKeyedSQL = applyWinnersKeyedBodySQL + applyWinnersKeyedStampTail
+
+// applyWinnersKeyedTop1SQL is the TOP-1 keyed apply: the TOP-1 winner select
+// through the identical write and stamp shape.
+var applyWinnersKeyedTop1SQL = applyWinnersKeyedTop1BodySQL + applyWinnersKeyedStampTail
+
+// winnersKeyedApplyBodySQLFor renders the keyed apply body over a winner
+// select: the winners CTE plus the shared changed/upserted/deleted shape and
+// the stamp candidate. The full-chunked rebuild derives its apply from the
+// legacy body by swapping the winner select (a derivation that panics on any
+// other drift), and the TOP-1 apply reuses the same shape over the TOP-1
+// select, so the write semantics cannot split between paths.
+func winnersKeyedApplyBodySQLFor(winnersSelect string) string {
+	return `
+WITH winners_now AS (` + winnersSelect + `),
 changed AS MATERIALIZED (
     SELECT n.*, (w.canonical_key IS NULL) AS is_new
     FROM winners_now AS n
@@ -100,6 +117,18 @@ deleted AS (
     RETURNING 1
 )
 `
+}
+
+// applyWinnersKeyedBodySQL is the legacy keyed apply body over the streamed
+// winner select. It renders through the shared constructor so the TOP-1
+// apply cannot drift from it; the full-chunked derivation and the contract
+// pin read these bytes.
+var applyWinnersKeyedBodySQL = winnersKeyedApplyBodySQLFor(winnersKeyedSelectSQL)
+
+// applyWinnersKeyedTop1BodySQL is the TOP-1 keyed apply body: the identical
+// changed/upserted/deleted shape and stamp candidate over the TOP-1 winner
+// select.
+var applyWinnersKeyedTop1BodySQL = winnersKeyedApplyBodySQLFor(winnersKeyedTop1SelectSQL)
 
 // stampWinnersWatermarkSQL stamps the watermark candidate for a tick that
 // consumed nothing: $1 is the DB-clock tick stamp S when the log is empty, or

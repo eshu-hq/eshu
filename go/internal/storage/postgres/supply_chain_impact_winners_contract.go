@@ -37,7 +37,7 @@ import (
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
 // supplyChainImpactWinnerDataColumns byte-parity rule).
-const SupplyChainImpactWinnersContractVersion int64 = 6
+const SupplyChainImpactWinnersContractVersion int64 = 7
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
 // of the statements it names. A version maps to exactly one hash. Version 2
@@ -230,6 +230,29 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// operator-scope winners
 	// (TestSupplyChainImpactWinnersNarrowProbeMatchesMissingKeyLive).
 	6: "a3bed4fb82c180726f7259f3ef157702ab0eff49b587a57808b62665abf86296",
+	// Version 7 (ruled #11120 lane-A TOP-1-per-key probe rewrite over the
+	// lenient legs): the marker-gated keyed probe becomes the TOP-1 text
+	// over the covering winner index (migration 366), composing the ruled
+	// #11691 lenient triple legs verbatim (plain equalities over
+	// ''-normalized plain columns, no key-presence guards, so the shipped
+	// twin and the TOP-1 probe reach the same missing/JSON-null-keyed
+	// copies), the keyed active build becomes the eligibility-filtered
+	// narrow build with a per-key point-lookup winner step and an
+	// index-only per-key source count, and the keyed apply runs the TOP-1
+	// winner select through the identical write shape. The scanned-copies
+	// budget keeps its name, bound values, and stop behavior with a
+	// redefined counted unit (pre-filter index tuples consumed, no heap
+	// fetch). Winners a resweep produces change for the same facts exactly
+	// where the prune applies, and the budget redefinition alters which
+	// identifiers a tick visits; either alone forces the bump, so no
+	// same-version re-pin is allowed for this lane. Every instance runs one
+	// full after the roll, which also heals any winner a pre-v7 tick wrote.
+	// The full and chunked-full paths, the pre-marker fallback probe, the
+	// read-time dedup, and the audit oracles are untouched. Differential
+	// justification rides the lane proofs (hermetic reversal plus the
+	// seeded and QA-replica byte-parity differentials, EXCEPT ALL 0/0 both
+	// directions over full winner rows).
+	7: "500debcf9537f87e29b37a1e12961f1038f72d0a3ac38bcae5e10b7a00be26bc",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
@@ -253,6 +276,24 @@ func supplyChainImpactWinnersContractStatements() []string {
 		buildWinnersKeyedActiveFactsNarrowFromSupportsSQL,
 		addWinnersKeyedOperatorFactsNarrowFromSupportsSQL,
 		applyWinnersKeyedSQL,
+		// Lane-A TOP-1 statements (#11120): the marker-gated probe has no
+		// whole-chunk twin (the budgeted loop is the only probe on this
+		// path), so the batch probe itself is pinned here — unlike the
+		// legacy batch probes, which ride the pin through their whole-chunk
+		// twins plus the derivation tests. The live-gens build is pinned
+		// too (F4): it carries the eligibility liveness semantics, so a
+		// future edit to it would change winners with no hash change
+		// otherwise. The temp CREATE, INDEX, VACUUM, and remaining ANALYZE
+		// statements are not pinned (same rule as their legacy
+		// counterparts); the narrow ANALYZE plans the final fetch and is
+		// pinned like the legacy one.
+		insertWinnersKeyedTop1NarrowBatchSQL,
+		analyzeWinnersKeyedTop1NarrowSQL,
+		buildWinnersKeyedTop1LiveGensSQL,
+		buildWinnersKeyedTop1ActiveSQL,
+		buildWinnersKeyedTop1CountsSQL,
+		buildWinnersKeyedTop1OpSQL,
+		applyWinnersKeyedTop1SQL,
 		convertWinnersKeyedScopeRemainderSQL,
 	)
 }

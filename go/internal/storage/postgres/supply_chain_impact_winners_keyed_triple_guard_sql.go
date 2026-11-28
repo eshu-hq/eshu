@@ -12,15 +12,17 @@ import (
 // The plain-column lenient keyed probe (#11691; the triple-guarded probe
 // of #9975 round 6 with its key-presence guard conjuncts dropped): the
 // plain-column twin of the shipped payload-expression narrow probe in
-// supply_chain_impact_winners_keyed_sql.go, selected per tick by
-// winnersKeyedProbeVariant once the key-presence fill marker completes. The
-// audit keeps the legacy statement as its oracle.
+// supply_chain_impact_winners_keyed_sql.go. The whole-chunk twin below serves
+// the chunked-full path; the marker-gated per-tick budgeted probe is the
+// TOP-1 text (#11120 lane A, see winnersKeyedProbeVariant). The audit keeps
+// the legacy statement as its oracle.
 
 // winnersKeyedNarrowProbeSelectKeyPresence renders the plain-column twin of
 // the shipped payload-expression narrow probe in
-// supply_chain_impact_winners_keyed_sql.go, selected per tick by
-// winnersKeyedProbeVariant once the key-presence fill marker completes. The
-// audit keeps the legacy statement as its oracle.
+// supply_chain_impact_winners_keyed_sql.go. The whole-chunk twin here serves
+// the chunked-full path; the marker-gated per-tick budgeted probe is the
+// TOP-1 text (#11120 lane A, see winnersKeyedProbeVariant). The audit keeps
+// the legacy statement as its oracle.
 //
 // The triple legs are plain equalities with no key-presence guards
 // (Refs #11691): the supports writer stores a missing key and a JSON null as
@@ -30,9 +32,7 @@ import (
 // COALESCE equalities with no guards, as before. The MATERIALIZED marker and
 // OFFSET 0 guard are load-bearing for the same reason as the shipped probe's.
 // The key-presence fill still backfills the bits for older rows under its own
-// marker (the column, the fill, and the covering index are unchanged); the
-// tick runs this text only after that marker completes
-// (see winnersKeyedProbeVariant).
+// marker (the column, the fill, and the covering index are unchanged).
 func winnersKeyedNarrowProbeSelectKeyPresence(identsTable string) string {
 	return `WITH narrow AS MATERIALIZED (
     SELECT fact.fact_id, fact.scope_id, fact.generation_id
@@ -80,15 +80,17 @@ const selectWinnersKeyPresenceFillReadySQL = `
 SELECT completed_at IS NOT NULL FROM supply_chain_impact_finding_supports_backfill WHERE marker_name = $1`
 
 // winnersKeyedProbeVariant selects the budgeted narrow probe's per-identifier
-// insert for one tick: the plain-column lenient text once the key-presence
-// fill marker is complete, the shipped payload-expression text before that.
-// Both texts agree on unfilled rows (a missing key and a JSON null read as
-// the coalesced identifier in either one); the marker selects the index-only
-// path versus the payload path, not fail-closed exclusion. The default (no
-// marker row) stays on the shipped text.
+// insert for one tick: the TOP-1 text over the covering winner index once the
+// key-presence fill marker is complete, the shipped payload-expression text
+// before that. TOP-1 composes the shipped lenient triple legs verbatim
+// (Refs #11691: plain equalities, no key-presence guards — both probes read
+// a missing key and a JSON null as ”) and only extends the select list with
+// the plain ranking columns the winner step orders by. The default (no
+// marker row) stays on the shipped text, which is lenient on every leg, so
+// an unfilled row matches exactly as before.
 func winnersKeyedProbeVariant(keyPresenceReady bool) string {
 	if keyPresenceReady {
-		return insertWinnersKeyedNarrowKeyPresenceBatchSQL
+		return insertWinnersKeyedTop1NarrowBatchSQL
 	}
 	return insertWinnersKeyedNarrowBatchSQL
 }
