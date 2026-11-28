@@ -40,6 +40,10 @@ decode seam: unlike `ec2`, `s3`, and `cloud/aws/iam/trust`, this builder reads o
 `sdk/go/factschema/packageregistry/v1/README.md` lists it as a routing-only
 consumer of `SourceHint`.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `eshu_dp_package_source_correlations_total` and `eshu_dp_package_consumption_repo_edges_total` counters.
+
 ## Gotchas / invariants
 
 - Kind priority beats input position. The builder checks

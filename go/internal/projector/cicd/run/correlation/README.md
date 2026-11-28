@@ -50,6 +50,10 @@ fact-kind constants and `internal/reducer` for the domain constant. There is
 no decode seam: like `package/source` and `cloud/inventory`, this builder reads
 only envelope fields and never a payload key.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, `eshu_dp_ci_cd_run_correlations_total`, and `eshu_dp_postgres_query_duration_seconds` for its historical Postgres read.
+
 ## Gotchas / invariants
 
 - A `ci.run` fact always outranks a `ci.artifact` fact, regardless of which

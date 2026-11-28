@@ -61,3 +61,12 @@ silently. On the findings page the track emits after the stat-ranked
 stream is exhausted, in limit-bounded slices through the same offset
 accounting, so every finding emits exactly once and pages stay bounded.
 Score stays members × tokens with reasons summing exactly.
+
+## Telemetry
+
+All three handlers (findings, report, investigate) start span
+`query.code_divergence_findings` (`go/internal/telemetry/contract.go`).
+Store reads carry `db.system`, `db.operation`, and `db.sql.table` attributes
+and record errors on the span; every response carries a derived truth
+envelope naming its basis. The outlier track shares the same span and
+existing query RED signals.

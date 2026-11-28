@@ -56,6 +56,10 @@ same name (kept in sync by hand, since the import direction is closed); the
 `payloadMetadata*` readers and `payloadStringSlice` moved here wholesale
 because root had no other caller for them.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total` and `eshu_dp_projector_run_duration_seconds`; the reducer handler that consumes the intent keeps `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`.
+
 ## Gotchas / invariants
 
 - **This builder runs per fact, not per scope generation.** Every sibling

@@ -39,6 +39,10 @@ so the reverse import would cycle. The candidate-kind list comes from
 without touching this package. The builder triggers on fact presence only and
 never decodes the payload, so it carries no `factschema_decode_*` seam.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, comparison, and graph-write telemetry.
+
 ## Gotchas / invariants
 
 - The anchor is chosen with `FirstAcrossKinds`, which returns the earliest

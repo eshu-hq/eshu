@@ -57,6 +57,10 @@ trigger branch reads only envelope-level fields (`FactKind`, `FactID`,
 package-local `payloadString` copy (`payload.go`, mirroring root's
 `payload.go` helper of the same name) — never a second typed decode.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, `eshu_dp_container_image_identity_decisions_total`, and `eshu_dp_container_image_identity_retirements_total` for its own execution and decisions.
+
 ## Gotchas / invariants
 
 - The candidate-kind list (`candidateFactKinds`) must stay in sync with

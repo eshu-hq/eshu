@@ -60,3 +60,8 @@ handle type, coverage, and response shapes live in
 `internal/storage/postgres` (`db`, `admission`), `internal/telemetry`, and
 `internal/truth`. The root query package imports this package for the
 handler alias; this package must never import the root query package.
+
+## Telemetry
+
+Every handler span uses its `telemetry.SpanQuery*` name, capability, and
+route attributes, started in the handler alongside its fixed failure bodies.

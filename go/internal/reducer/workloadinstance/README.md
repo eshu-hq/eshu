@@ -38,6 +38,10 @@ through the cross-scope reopen list; the owner chose this bounded gate instead.
   sample; later generations with the same set commit at once.
 - A lookup error is an ordinary error, never the readiness class.
 
+## Telemetry
+
+This package registers no metric. The root handler records `eshu_dp_reducer_readiness_waits_total{domain,outcome}` (`deferred`, `abandoned`, `settled_missing`); `Wait.LogWait` writes the matching log line with `elapsed_since_first_defer` and `max_wait`. Deferrals are durable as the `workload_cloud_relationship_instances_not_ready` failure class on `fact_work_items`, which the golden-corpus drain breakdown reads as readiness-deferred.
+
 ## Related
 
 - `docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`

@@ -38,6 +38,10 @@ secrets/IAM posture schema registry and `internal/reducer` for the domain
 constant. There is no decode seam: like `package/source`, this builder reads
 only envelope metadata and never a payload field.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.secrets_iam_graph_projection` span and the `SecretsIAMGraphNodesWritten`/`SecretsIAMGraphEdgesWritten` counters.
+
 ## Gotchas / invariants
 
 - Every registry-recognized posture kind is a trigger and none outranks

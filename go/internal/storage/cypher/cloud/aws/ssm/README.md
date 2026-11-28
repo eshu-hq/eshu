@@ -24,3 +24,9 @@ observation nodes and `REPORTED_WITH` pairing edges (issue #9558).
 - Retracts are host- and evidence-scoped `DETACH DELETE`s: application nodes
   strictly older than the superseding capture, and listed conflicted platform
   uids. Retracts run sequential `Execute`, never `ExecuteGroup` (#4367).
+
+## Telemetry
+
+Writes flow through the shared executor/retry instrumentation and the
+reducer domain's completion log. Retract statements carry the
+`canonical_retract` operation and `ssm_host_inventory` phase metadata.

@@ -35,6 +35,10 @@ import the root projector package. The three security-group builders use the
 same `aws_resource_materialization:<scope>` acceptance-unit key so endpoint,
 rule, and security-group-node readiness can gate edge projection together.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, retry, dead-letter, readiness, and graph-write telemetry.
+
 ## Gotchas / invariants
 
 - Alert reconciliation accepts exactly provider-alert and package-registry

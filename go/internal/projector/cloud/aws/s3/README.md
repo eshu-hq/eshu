@@ -56,6 +56,10 @@ seam.
 Two of the three builders — external-principal-grant and internet-exposure —
 trigger on the mere presence of a fact and do not decode its payload.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, reconciliation, and graph-write telemetry.
+
 ## Gotchas / invariants
 
 - All three builders key their intent's `EntityKey` to

@@ -38,3 +38,7 @@ No internal Eshu dependencies. Standard library only (`fmt`, `strings`).
 ## Related docs
 
 `docs/public/reference/environment-alias-contract.md` — the full contract doc.
+
+## Telemetry
+
+Pure string functions with no new I/O. All consumers surface their environment results through existing pipeline signals (reducer execution counters, query handler spans, HTTP route attribution).

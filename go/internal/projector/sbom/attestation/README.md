@@ -37,6 +37,10 @@ candidate fact-kind constants and `internal/reducer` for the domain constant.
 There is no decode seam: like `package/source`, this builder reads only
 `envelope.FactKind` and never a payload field.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_sbom_attestation_attachments_total`.
+
 ## Gotchas / invariants
 
 - A subject anchor is required: an `sbom.document`, `attestation.statement`,

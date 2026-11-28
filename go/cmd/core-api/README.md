@@ -71,3 +71,11 @@ listen address):
   plane requeues through `FailClaimRetryable` within the claim attempt
   budget while the endpoint is down (budget-exhausted or
   terminal-classified failures still go `FailClaimTerminal`).
+
+## Telemetry
+
+The binary reuses the shared `eshu_dp_*` instruments
+(`telemetry.NewInstruments`) and process logger, and emits the startup event
+`runtime.commit_listener.listening` (with `addr`) when the commit listener
+is enabled. The Prometheus handler serves on `/metrics` (public, behind the
+same auth chain).

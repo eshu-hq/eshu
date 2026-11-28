@@ -35,6 +35,10 @@ presence only and does not decode the posture payload, so this package carries
 no `factschema_decode_aws.go` seam (unlike `ec2`'s `USES_PROFILE` builder or
 `s3`'s `LOGS_TO` builder, which each decode one field to gate their trigger).
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, readiness, and graph-write telemetry.
+
 ## Gotchas / invariants
 
 - The builder's `EntityKey` is `aws_resource_materialization:<scope>` -- NOT a

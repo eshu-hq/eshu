@@ -26,6 +26,10 @@ surfaces.
 The package imports `internal/query` for `AnswerPacket` and `AnswerTruthClass`.
 It uses only the Go standard library otherwise.
 
+## Telemetry
+
+Validation is a pure function. It emits no metrics, spans, logs, status rows, audit events, network calls, graph queries, content reads, or provider requests.
+
 ## Gotchas / invariants
 
 - The source `ResponseEnvelope` and `AnswerPacket` stay canonical.

@@ -33,6 +33,10 @@ fact and does not decode its payload, so it carries no local
 `factschema_decode_aws.go` seam, unlike `ec2`'s and `s3`'s decode-bearing
 builders.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`. Reducer execution remains visible through the shared per-domain run signals, malformed inputs through the input-invalid signals and result summary, and graph writes through the existing storage instrumentation.
+
 ## Gotchas / invariants
 
 - The builder's `EntityKey` is `aws_resource_materialization:<scope>` — NOT a

@@ -49,6 +49,10 @@ This family carries no decode seam: `triggerFact` reads only the
 `payload.go` helper of the same name — this package cannot import root, so
 the shared logic is duplicated rather than referenced).
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, and `eshu_dp_crossplane_satisfied_by_edges_total` for its own execution and edge writes. The `eshu_dp_crossplane_redrive_*` counters belong to the reducer's separate redrive sweep, not to intent enqueue.
+
 ## Gotchas / invariants
 
 - The candidate-kind list (`candidateFactKinds`) must stay in sync with

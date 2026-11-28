@@ -39,6 +39,10 @@ root projector package — root already imports this package to dispatch to it,
 so the reverse import would cycle. The builder triggers on fact presence only
 and never decodes the payload, so it carries no `factschema_decode_*` seam.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer's evidence load keeps the `reducer.aws_runtime_drift_evidence_load` span (`telemetry.SpanReducerAWSRuntimeDriftEvidenceLoad`).
+
 ## Gotchas / invariants
 
 - The trigger is `aws_resource` presence, anchored to the earliest such fact

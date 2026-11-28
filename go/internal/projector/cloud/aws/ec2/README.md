@@ -57,6 +57,10 @@ Four of the five builders — instance-node, instance-identity, block-device
 KMS posture, and internet-exposure — trigger on the mere presence of an
 `ec2_instance_posture` fact and do not decode its payload.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer handlers retain execution, reconciliation, and graph-write telemetry.
+
 ## Gotchas / invariants
 
 - `BuildInstanceNodeMaterializationReducerIntent` and

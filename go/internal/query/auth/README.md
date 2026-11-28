@@ -81,6 +81,10 @@ The Go standard library, plus `internal/governanceaudit` for the
 `GovernanceAuditAppender` and `ActorClassForAuth` carry. Neither brings a
 transitive dependency on the root query package or `querycontract`.
 
+## Telemetry
+
+This package emits no metric, span, or log. It stores and returns a value. Authentication decisions and their audit events stay in the root package's middleware, which is unchanged.
+
 ## Gotchas / invariants
 
 **The context key is defined here and only here.** That is the single most

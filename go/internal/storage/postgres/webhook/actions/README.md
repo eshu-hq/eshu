@@ -40,3 +40,14 @@ without consuming that attempt budget. The queued/claimed repository index lets
 scheduled GitHub fallback defer while any delivery is pending, including a
 blocked delivery whose next claim is not visible yet. GitLab scheduling retains
 its existing path. The bootstrap DDL and migration 236 must match.
+
+## Telemetry
+
+The coordinator records `eshu_dp_ci_cd_run_webhook_reaps_total` by `requeued`
+or `exhausted` for successful reap calls and emits an aggregate warning on
+exhaustion. It records `eshu_dp_ci_cd_run_webhook_handoffs_total` by bounded
+outcome for each delivery (even when several deliveries share one work item)
+and `eshu_dp_ci_cd_run_webhook_lag_seconds` from receipt to verified ACK.
+Queue status, failure class, and retry attempts remain per delivery. Newly
+inserted scheduled GitHub work increments
+`eshu_dp_ci_cd_run_poll_fallback_total`; GitLab admissions do not.

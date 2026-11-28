@@ -47,6 +47,10 @@ family's local three-tier helper, NOT the shared two-tier
 `projectorintent.SourceSystem` — the third literal `"observability"` tier is
 load-bearing and pinned by a package test.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`, and the reducer handler retains the observability-coverage correlation span and counters.
+
 ## Gotchas / invariants
 
 - `observabilityResourceTypes` is a three-way mirror: this package's copy,

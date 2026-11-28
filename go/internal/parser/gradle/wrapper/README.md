@@ -74,3 +74,7 @@ a `gradle_wrapper_state` envelope with `state` and `unsupported_count`.
 `go test -race -count=1 ./internal/parser/gradle/wrapper` runs the grammar
 fixtures, the allocation ceilings, a random-byte no-panic pass, and a seeded
 generator that checks the row and the absence of every planted marker.
+
+## Telemetry
+
+The package emits no metrics, spans or logs. It runs inside the parent engine's per-file parse. `gradle_wrapper_state` shows an operator a file that held a `distributionUrl` the grammar could not read.

@@ -35,6 +35,10 @@ so the reverse import would cycle. The builder triggers on fact presence only
 and never decodes the payload, so it carries no `factschema_decode_*` seam,
 unlike `ec2`'s and `s3`'s decode-bearing builders.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.aws_relationship_materialization` span and the `eshu_dp_aws_relationship_edges_total` counter.
+
 ## Gotchas / invariants
 
 - The `EntityKey` is `aws_resource_materialization:<scope>` — NOT a

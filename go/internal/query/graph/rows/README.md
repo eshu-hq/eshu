@@ -66,6 +66,11 @@ got the same rename for readability). The exported surface
 none of the three needed a rule-4 rename. No decoding, projection, or
 Cypher-fragment behavior changed.
 
+## Telemetry
+
+This package emits no metric, span, or log of its own. It only decodes rows
+and returns query text; calling handlers own their spans.
+
 ## Gotchas / invariants
 
 **`GraphSemanticMetadataProjection`'s text is not tracked by the Cypher-hot

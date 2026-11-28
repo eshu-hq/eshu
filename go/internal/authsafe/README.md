@@ -40,6 +40,10 @@ and any path carrying CR, LF or TAB (header injection).
 what lets all six call sites share it without an import cycle — the three
 consumers are peers, so the check cannot live in any one of them.
 
+## Telemetry
+
+This package emits no metric, span or log; a rejected path is reported to the caller as `""` and the calling handler owns whatever it records about the request.
+
 ## Gotchas / invariants
 
 - **`""` is a value, not a failure.** A caller that treats it as an error will

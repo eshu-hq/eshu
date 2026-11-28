@@ -53,3 +53,13 @@ generation.
 | `DriftedSimilarityThreshold` | ship threshold 0.7 |
 | `MaxCandidatesPerEntity` | per-entity verification budget 200 |
 | `MaxBandBucketSize` | band-bucket skip cap 200: overfull buckets nominate no pairs (#7228) |
+
+## Telemetry
+
+Per-intent `code drifted generation evaluated` log records `candidates`,
+`admitted`, `suppressed`, and `budget_exhausted`, alongside
+`eshu_dp_correlation_rule_matches_total` and
+`eshu_dp_correlation_drift_detected_total` on `pack=code_drifted`
+(`handler_telemetry_test.go`). The loader starts span
+`reducer.code_drifted_evidence_load` and logs `shingle_decode` at WARN on
+corrupt persisted sets.

@@ -38,6 +38,10 @@ provider fact-kind constants and `internal/reducer` for the domain constant.
 There is no decode seam: like `package/source`, this builder reads only
 `envelope.FactKind` and never a payload field.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_cloud_inventory_admissions_total`.
+
 ## Gotchas / invariants
 
 - A provider cloud-inventory source fact is required: `aws_resource`,

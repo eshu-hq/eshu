@@ -231,6 +231,10 @@ guard in [#8992](https://github.com/eshu-hq/eshu/pull/8992).
 - Match a plugin id to a package registry: `gradle_plugin` rows are ignored by
   the package reducer.
 
+## Telemetry
+
+The package emits no metrics, spans or logs. It runs inside the parent engine's per-file parse, which owns parse timing and the `parser` counters. An operator finds a catalog the parser could not read in the file fact's `gradle_catalog_state`: `state` other than `parsed`, or non-zero `unresolved_count`, `unsupported_count`, `dropped_count` or `alias_collision_count`.
+
 ## Performance
 
 | Case | ns/op | B/op | allocs/op |

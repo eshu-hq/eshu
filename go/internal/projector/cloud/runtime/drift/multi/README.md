@@ -56,6 +56,10 @@ This family carries no decode seam: `triggerFact` accepts every envelope
 `FirstAcrossKinds` hands it; `candidateFactKinds` alone restricts the scan to
 `gcp_cloud_resource` and `azure_cloud_resource`. No payload field is read.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains its own `reducer_multi_cloud_runtime_drift_finding` write telemetry.
+
 ## Gotchas / invariants
 
 - The candidate-kind list (`candidateFactKinds`) must stay in sync with what

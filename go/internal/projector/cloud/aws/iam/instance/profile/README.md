@@ -46,6 +46,10 @@ so the reverse import would cycle. The trigger predicate decodes the
 seam against `sdk/go/factschema`, mirroring `ec2`'s and `s3`'s decode-bearing
 builders rather than importing root's classified wrapper.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.iam_instance_profile_role_materialization` span and the `eshu_dp_iam_instance_profile_role_edges_total` / `eshu_dp_iam_instance_profile_role_skipped_total` counters.
+
 ## Gotchas / invariants
 
 - The `EntityKey` is `aws_resource_materialization:<scope>` — NOT a

@@ -39,6 +39,10 @@ root already imports this package to dispatch to it, so the reverse import
 would cycle. The builder triggers on fact presence only and never decodes the
 payload, so it carries no `factschema_decode_*` seam.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total` and `eshu_dp_projector_run_duration_seconds`; the reducer execution that consumes the intent stays covered by `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds`. That reducer's CloudResource node write is **not** covered by `eshu_dp_canonical_writes_total`: `AWSResourceMaterializationHandler` returns `Result.CanonicalWrites`, but `Service.recordReducerResult` records only run duration, queue wait, and execution count and never forwards it, and the handler is not one of the five `CanonicalWrites.Add` call sites. The written node count and graph-write duration are carried by the `aws resource materialization completed` structured log.
+
 ## Gotchas / invariants
 
 - The trigger is `aws_resource` presence, anchored to the earliest such fact

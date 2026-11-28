@@ -65,6 +65,10 @@ worst case (a generation of non-dependency Variables) is measured by
 `BenchmarkManifestDependencyTriggerNoDependency`; see
 (#9874).
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, and `eshu_dp_supply_chain_impact_findings_total` for its cross-source join. The #9874 marker intent is counted by the same enqueue metric; its reducer outcome is counted under `cause=manifest_dependency` on `eshu_dp_supply_chain_impact_fanout_total`.
+
 ## Gotchas / invariants
 
 - The trigger fires on the earliest fact across all twelve candidate kinds

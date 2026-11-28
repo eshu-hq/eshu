@@ -49,6 +49,10 @@ so `scripts/verify-payload-usage-manifest.sh` (issue #4573), which globs
 function for a `factschema.FactKindXxx` reference, still discovers it as a
 decode seam at its new path.
 
+## Telemetry
+
+This package emits no signal directly. Root intent enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the `reducer.iam_can_assume_materialization` span, the `eshu_dp_iam_can_assume_edges_total` counter, and the `iam_can_assume_nodes_not_ready` failure class. A permission fact that fails decode is skipped as a candidate with no operator-visible dead-letter.
+
 ## Gotchas / invariants
 
 - The `EntityKey` is `aws_resource_materialization:<scope>` — NOT a
