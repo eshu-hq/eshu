@@ -12,8 +12,6 @@ runtime code to `doc.go`; add it to the child package that owns it.
   `FixpointProjectionResult`); outside `internal/reducer`, it
   imports `internal/parser/summary` (aliased `parsed`, since the package name
   collides with this package's own `summary`) and `internal/parser/interproc`.
-- A new child here is a named destination in
-  `docs/internal/design/reducer-target-tree.md`, never a new top-level
-  reducer sibling. Amend the tree doc in the same PR.
+- Add new function-level analysis families as child packages here rather than new top-level reducer siblings.
 - Moves into this tree are behavior-preserving: prove them with the
   recursive reducer suite before claiming done.

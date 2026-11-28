@@ -23,4 +23,3 @@ None beyond what `intents/phase/repair` imports.
 
 - `go/internal/reducer/intents/README.md`
 - `go/internal/reducer/intents/phase/repair/README.md`
-- `docs/internal/design/package-restructure.md` — the #6061 restructure

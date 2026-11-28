@@ -10,5 +10,5 @@
 // (function/summary), and semantic-entity materialization (semantic). It is
 // a documentation namespace and owns no runtime behavior; each child is its
 // own Go package with its own contract (issue #6061, tree step 3 in
-// docs/internal/design/reducer-target-tree.md).
+// see #6061).
 package code

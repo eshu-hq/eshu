@@ -16,7 +16,6 @@ boundary sections for what this package owns and reuses from
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/call/projection/README.md`
 - `go/internal/reducer/intents/shared/worker/README.md` (the shared partition-processing machinery this runner drives)
-- `docs/internal/design/reducer-target-tree.md`
 
 ## Invariants
 

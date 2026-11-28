@@ -326,7 +326,6 @@ the command that proves every Go change since it is comment-only.
 
 ## Related docs
 
-- `docs/internal/design/package-restructure.md` (#6061 package restructure)
 - `docs/public/reference/http-api/evidence-and-supply-chain.md` (the
   reconciliation read surface: `security_alert_reconciliation_aggregate`)
 - `docs/public/reference/security-intelligence-provider-alert-parity.md`

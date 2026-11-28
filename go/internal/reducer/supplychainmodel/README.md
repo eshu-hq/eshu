@@ -146,5 +146,4 @@ supports a performance claim in either direction, which is the point.
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/supplychain/core/index.go` — the orchestration functions that read these DTOs
-- `docs/internal/design/package-restructure.md` — the #6061 restructure this hoist is part of
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for these files

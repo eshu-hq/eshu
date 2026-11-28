@@ -100,4 +100,3 @@ docs) covers the paths that call into it.
 
 - `go/internal/coordinator/README.md`
 - `go/internal/coordinator/planner/component/extension/README.md`
-- `docs/internal/design/package-restructure.md`

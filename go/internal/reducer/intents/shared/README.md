@@ -23,4 +23,3 @@ None beyond what `intents/shared/worker` imports.
 
 - `go/internal/reducer/intents/README.md`
 - `go/internal/reducer/intents/shared/worker/README.md`
-- `docs/internal/design/package-restructure.md` — the #6061 restructure

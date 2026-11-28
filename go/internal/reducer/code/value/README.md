@@ -154,7 +154,6 @@ graph writes. Verified against `go/internal/telemetry/instruments.go` (no
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/code/taint/README.md` — the direct (non-fixpoint) sibling this package writes through
-- `docs/internal/design/package-restructure.md` — the #6061 restructure
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for `code_interproc_evidence`
 
 **Package-clause rename addendum (same issue #6061):** the package clause

@@ -82,4 +82,3 @@ coverage, and the golden-corpus gates selected by the changed paths.
 - [Projector architecture](../../../../../README.md)
 - [Intent contract](../../../../../intent/README.md)
 - [IAM instance-profile role edge design](../../../../../../../../docs/internal/design/1299-iam-instance-profile-role-edge.md)
-- [Package restructure](../../../../../../../../docs/internal/design/package-restructure.md)

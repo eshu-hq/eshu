@@ -1,8 +1,7 @@
 # core
 
 The supplychain family: supply-chain impact correlation plus vulnerability
-suppression (issue #6061, step 2 of
-`docs/internal/design/reducer-target-tree.md`).
+suppression (issue #6061).
 
 ## Ownership
 

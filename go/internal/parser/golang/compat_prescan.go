@@ -13,7 +13,7 @@ package golang
 //
 // A family move adds a stanza here rather than creating a second
 // compat_*.go file, matching the reducer root's compat_*.go convention
-// (docs/internal/design/reducer-target-tree.md).
+// (see #6061).
 //
 // Stanzas merged here:
 //   - prescan family (PreScan, PreScanFileEvidence,

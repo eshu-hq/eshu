@@ -106,5 +106,3 @@ unchanged, which is shown above.
 ## Related docs
 
 - [`AGENTS.md`](AGENTS.md) — scoped guidance for agents editing this package.
-- [`docs/internal/design/package-restructure.md`](../../../../docs/internal/design/package-restructure.md)
-  — the `go/cmd/eshu` family extraction this package came from.

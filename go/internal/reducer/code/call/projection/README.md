@@ -144,4 +144,3 @@ elapsed wait.
 - `go/internal/reducer/code/call/README.md` — the `codecall` sibling this package reads evidence sources and partition-key versioning from
 - `go/internal/reducer/intents/shared/worker/README.md` — the shared partition-processing machinery this runner drives
 - `go/internal/reducer/code/README.md` — the `code/` namespace parent
-- `docs/internal/design/reducer-target-tree.md` — the #6061 restructure

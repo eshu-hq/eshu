@@ -99,5 +99,4 @@ and compares it with the freshness bound; the coordinator publishes the result.
 - `go/internal/coordinator/README.md`
 - `go/internal/coordinator/vulnerability/intelligence_scheduler.go`
 - `go/internal/coordinator/registry/package/scheduler.go`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

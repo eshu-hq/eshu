@@ -69,7 +69,6 @@ Rows are in `docs/public/observability/telemetry-coverage.md`. An operator seein
 
 ## Related docs
 
-- `docs/internal/design/package-restructure.md` — the split this package is part of (#6061)
 - `docs/public/observability/telemetry-coverage.md` — the rows for the four metrics above
 - (#4630) — why the quarantine read surface exists
 

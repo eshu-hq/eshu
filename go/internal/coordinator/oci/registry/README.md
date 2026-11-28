@@ -83,5 +83,4 @@ status, and duplicate-admission logs.
 
 - `go/internal/coordinator/README.md`
 - `go/internal/coordinator/oci/README.md`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

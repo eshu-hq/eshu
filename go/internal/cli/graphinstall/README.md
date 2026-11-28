@@ -24,7 +24,7 @@ subprocess-execution logic belongs to the local_graph process-supervision
 cluster in
 `go/internal/cli/localsupervisor` (`readLocalGraphVersion` in
 `graph_process.go`, exported as `ReadGraphVersion`) --
-`docs/internal/design/package-restructure.md` calls that cluster out as a
+Epic #6053 called that cluster out as a
 real bidirectional cycle that has to move as one unit or not at all, so it
 stayed out of scope for this extraction. Callers thread their
 `VersionReader` implementation through `Options.ReadVersion` and

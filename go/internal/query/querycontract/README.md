@@ -350,4 +350,3 @@ the parent package instructions.
 
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 - [HTTP API](../../../../docs/public/reference/http-api.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)

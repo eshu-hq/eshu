@@ -76,5 +76,4 @@ governance audit events.
 - `go/internal/coordinator/collector_egress_filter.go`
 - `go/internal/coordinator/component_extension_service.go`
 - `go/internal/coordinator/governance_audit.go`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

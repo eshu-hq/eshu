@@ -201,5 +201,4 @@ capitalized name; every other call site is unchanged.
 ## Related docs
 
 - [Reducer package](../README.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)

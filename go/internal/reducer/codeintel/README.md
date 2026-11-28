@@ -15,9 +15,7 @@ files it grew from — `code_reachability_projection.go` and
 `code_root_verdicts.go` — depend on each other in both directions. A trial move
 of either file alone produced a cycle (five symbols needed the other direction,
 three needed this one); moving both together turns that inter-file dependency
-into an ordinary intra-package one. The [package-restructure design
-doc](../../../../docs/internal/design/package-restructure.md) has the general
-seam.
+into an ordinary intra-package one.
 
 Four of the five symbols crossing that boundary (`BuildCodeRootVerdicts`,
 `CodeRootVerdictRow`, `RubyClassEntity`, `RubyRailsRouteFacts`) are already
@@ -173,7 +171,6 @@ and "projection (code reachability idle probe)".
 
 ## Related docs
 
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)
 - `../evidence-5376-code-root-verdicts.md`, `../evidence-5494-route-liveness.md`,
   `../evidence-5500-lexical-scope-restriction.md` — the prove-the-theory-first

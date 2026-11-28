@@ -180,4 +180,3 @@ stall signals, distinct from backoff.
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/sharedintent/README.md` — the intent row shape and ports this package drains
 - `go/internal/reducer/gpphase/README.md` — the readiness phase/keyspace vocabulary and presence-key derivations
-- `docs/internal/design/package-restructure.md` — the #6061 restructure and this hoist's no-regression evidence

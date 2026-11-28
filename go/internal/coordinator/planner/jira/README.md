@@ -75,6 +75,5 @@ transitions. Site-based fairness keys retain their prior conflict domain.
 ## Related docs
 
 - `go/internal/coordinator/README.md`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`
 - `docs/public/observability/telemetry-coverage.md`

@@ -98,7 +98,7 @@ with `cmd/eshu`, so the three cannot drift on how deep they look.
 `reporter_note` — same text, same person typed it, two verdicts decided by which
 field held it. The plan this package implements annotates the field as "key-name
 walked like everything else"
-(`docs/internal/design/4595-wrong-answer-report-capture-plan.md:203`), which was
+(#4595), which was
 never true of a bare string: there are no key names in it to walk, and
 `reporter_note` matches nothing in the sensitive pattern. So the field was not
 overlooked; it was believed covered by a rule that could not apply to it.

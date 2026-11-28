@@ -187,5 +187,4 @@ closed. The closed `phase` label set is `pre_write`/`mid_write`/`post_write`.
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/code/README.md` — the `code/` namespace parent
-- `docs/internal/design/package-restructure.md` — the #6061 restructure
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for `semantic_entity_materialization`

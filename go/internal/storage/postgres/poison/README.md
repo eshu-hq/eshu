@@ -87,4 +87,3 @@ sweep outcome.
 ## Related docs
 
 - `go/internal/reducer/recovery-runners.md` (poison dead-letter section)
-- `docs/internal/design/6693-postgres-target-tree/control-plane.md`

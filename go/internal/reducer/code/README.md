@@ -1,7 +1,7 @@
 # code
 
 Documentation namespace for the reducer's source-code analysis families
-(issue #6061, step 3 of `docs/internal/design/reducer-target-tree.md`). This
+(issue #6061). This
 directory owns no runtime behavior. Each child is its own Go package:
 
 | Child | Package | Owns |

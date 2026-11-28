@@ -17,7 +17,6 @@ Ownership boundary sections for exactly what this package owns versus what
 - `go/internal/reducer/code/function/summary/README.md`
 - `go/internal/reducer/code/value/README.md` (the fixpoint sibling this package used to solve directly)
 - `go/internal/reducer/code/value/refresh/README.md` (the singleton this package's ACK now feeds, issue #6923)
-- `docs/internal/design/reducer-target-tree.md`
 - (#6923)
 
 ## Invariants

@@ -21,8 +21,7 @@ guard. `SQLDB.withSchemaBootstrapLock` satisfies the package-private
 `schemaBootstrapLocker` contract asserted by `applyBootstrapDefinitions`, so
 moving `SQLDB` without the lock implementation would silently degrade
 bootstrap to unlocked DDL; the lock implementation in turn shares unexported
-helpers and ledger types with root tests. That colocation is recorded in
-`docs/internal/design/storage-collector-tree.md` and is why this package
+helpers and ledger types with root tests. That colocation (#6692) is why this package
 holds interfaces, not the adapters.
 
 Callers in `go/cmd/*` still construct `postgres.SQLDB` and pass it to store

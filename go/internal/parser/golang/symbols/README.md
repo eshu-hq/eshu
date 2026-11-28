@@ -101,5 +101,3 @@ entrypoints) owns any parse-stage telemetry.
 
 - `docs/public/languages/go.md` — the Go collector's fact-emission contract
   this package's callers feed.
-- `docs/internal/design/reducer-target-tree.md` — the dirgate-ledger restack
-  rule referenced when another `internal/parser/golang` leaf is split next.

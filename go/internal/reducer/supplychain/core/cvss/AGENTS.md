@@ -5,7 +5,6 @@
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/supplychain/core/AGENTS.md`
 - `go/internal/reducer/supplychain/core/cvss/README.md`
-- `docs/internal/design/advisory-intelligence-phases.md`, "Item 1.2 details"
 
 ## Invariants
 

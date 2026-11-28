@@ -5,7 +5,6 @@
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/factdecode/README.md`
-- `docs/internal/design/package-restructure.md`
 
 ## Invariants
 

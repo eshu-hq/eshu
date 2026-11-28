@@ -233,7 +233,7 @@ func redactQueryInput(value any) (any, []string) {
 //
 // Design note — key REMOVAL, not a same-key masked-value marker: the plan
 // this package implements
-// (docs/internal/design/4595-wrong-answer-report-capture-plan.md) describes
+// (#4595) describes
 // redaction as replacing a sensitive key's VALUE with a fixed
 // "[REDACTED:key-name]" marker while keeping the key. That is not
 // mechanically consistent with mechanism 3 (reportbundle.Validate's

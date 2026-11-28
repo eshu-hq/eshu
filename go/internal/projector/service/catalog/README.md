@@ -77,4 +77,3 @@ coverage, and the golden-corpus gates selected by the changed paths.
 - [Intent contract](../../intent/README.md)
 - [Service-catalog collector](../../../collector/servicecatalog/README.md)
 - [Reducer domain catalog](../../../reducer/domain-catalog.md)
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

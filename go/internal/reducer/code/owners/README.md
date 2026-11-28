@@ -84,4 +84,3 @@ by this move.
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/code/README.md` — the `code/` namespace parent
-- `docs/internal/design/reducer-target-tree.md` — the #6061 restructure

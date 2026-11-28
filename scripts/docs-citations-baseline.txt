@@ -43,14 +43,6 @@ FIXTURE tests/fixtures/ecosystems/python_terraform
 FIXTURE tests/fixtures/operator_digest/
 FIXTURE tests/fixtures/sample_projects/sample_project_scala/
 # --- LINE records ---
-LINE docs/internal/architecture-review-2026-07-direction-contracts-oss.md go/internal/facts/models.go:28
-LINE docs/internal/architecture-review-2026-07-direction-contracts-oss.md go/internal/reducer/aws_relationship_join.go:64
-LINE docs/internal/architecture-review-2026-07.md go/internal/collector/claimed_service.go:22
-LINE docs/internal/architecture-review-2026-07.md go/internal/doctruth/verifier.go:234
-LINE docs/internal/architecture-review-2026-07.md go/internal/graph/schema_tables.go:119
-LINE docs/internal/architecture-review-2026-07.md go/internal/reducer/supply_chain_impact.go:54
-LINE docs/internal/architecture-review-2026-07.md go/internal/scope/scope.go:130
-LINE docs/internal/architecture-review-2026-07.md go/internal/storage/postgres/reducer_queue_conflict.go:163
 LINE docs/internal/design/1146-ec2-instance-node.md go/internal/graph/schema.go:131
 LINE docs/internal/design/1146-ec2-instance-node.md go/internal/storage/postgres/graph_projection_phase_state.go:43
 LINE docs/internal/design/3155-typed-parser-artifact-contract.md go/internal/content/shape/materialize.go:54
@@ -84,8 +76,6 @@ LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/pos
 LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/postgres/workflow_control_sql.go:63
 LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/postgres/workflow_control_sql.go:63
 LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/postgres/workflow_control_sql.go:64
-LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:25
-LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:26
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/workload_identity_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/resource_policy_permission_envelope.go:76
@@ -202,10 +192,6 @@ LINE docs/internal/design/5435-workload-instance-runtime-admission.md go/interna
 LINE docs/internal/design/5435-workload-instance-runtime-admission.md go/internal/storage/postgres/reducer_queue_conflict.go:180
 LINE docs/internal/design/5435-workload-instance-runtime-admission.md go/internal/storage/postgres/reducer_queue_replay.go:134
 LINE docs/internal/design/563-service-catalog-manifest-fact-emitter.md go/internal/reducer/intent.go:64
-LINE docs/internal/design/package-restructure.md go/internal/payloadusage/load.go:37
-LINE docs/internal/design/package-restructure.md go/internal/reducer/intent.go:9
-LINE docs/internal/design/restructure-research.md go/internal/cigates/pathfilter.go:273
-LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths.go:99
 LINE docs/internal/skill-fragments-design.md go/internal/mcp/dispatch.go:15
 LINE docs/internal/skill-fragments-design.md go/internal/mcp/dispatch.go:15
 LINE docs/public/reference/collector-performance-envelope.md go/internal/collector/emit_bench_test.go:88

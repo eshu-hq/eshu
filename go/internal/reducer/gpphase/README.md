@@ -176,5 +176,4 @@ touching it; every call site spells the single `gpphase` name since
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/gpphase` — the canonical `PhaseState` and `PhasePublisher` declarations and the phase-publish machinery
-- `docs/internal/design/package-restructure.md` — the #6061 restructure and this hoist's no-regression evidence
 - `docs/public/observability/telemetry-coverage.md` — the coverage row for this package

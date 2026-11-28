@@ -88,4 +88,3 @@ wires, which is unchanged by this move.
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/sqlrelationship/README.md` — the delta-scope/repo-ID-merge sibling this package reuses
 - `go/internal/reducer/code/README.md` — the `code/` namespace parent
-- `docs/internal/design/reducer-target-tree.md` — the #6061 restructure

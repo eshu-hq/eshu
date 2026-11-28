@@ -221,7 +221,7 @@ multi-source family.
   (proposed ×4). Selection is deferred, never dropped — due repos,
   reindex requests (#7620: scheduled selection is their only visitor),
   and webhook triggers all remain pending work and are visited when
-  the latch releases (not filesystem mode: [refused at startup](10882-source-backpressure-replay-driver.md)). The multiplier, not a hard stop, keeps git
+  the latch releases (not filesystem mode: refused at startup (see #10882)). The multiplier, not a hard stop, keeps git
   freshness degrading gracefully instead of cliff-edging.
 - **Standalone projector** gets the same admission writer as the
   ingester, with the global backstop **off by default** (its marks
@@ -299,7 +299,7 @@ Pacing deletes nothing and terminal-fails nothing:
   arithmetic cannot guarantee that under the configured bounds, the
   per-source leg must defer by *requeue-without-attempt* semantics
   instead. Decided (#10882 fork 1, see
-  [fork rulings](10882-source-backpressure-fork-rulings.md)): paced waits
+  #10882): paced waits
   retry under their own `source_paced_waits` counter and never dead-letter.
 
 ### 7. Publication: metrics first, then the status surface
@@ -477,7 +477,7 @@ with a `SourcePacing` OpenAPI component pinned to the wire type.
   #11187 (met for the claim-gate class and the parked-wait class; the
   timer-path class and the replay arm are owed) must close before the
   replay is accepted, before #10882 closes, and before any deployment sets
-  the thresholds. Enablement gate and rollout: [r4 decisions](10882-source-backpressure-r4-decisions.md).
+  the thresholds. Enablement gate and rollout: #10882.
 
 - All thresholds (engage/release ages, depth floor, schedule
   multiplier, cache TTL) are Proposed. No live or replay measurement
@@ -493,7 +493,7 @@ with a `SourcePacing` OpenAPI component pinned to the wire type.
   documents on `origin/main`, not live QA state, and not the
   eshu-workflow satellite's claim-plane copy of the pacing consult —
   resolved: the satellite has no `reducer_source` signal, so AC3 is scoped
-  to in-repo claim paths ([fork rulings](10882-source-backpressure-fork-rulings.md)).
+  to in-repo claim paths (#10882).
 - Per-source re-read safety (decision 6) is asserted for git and
   vulnerability windows from their commit/cursor design as read here;
   the S2 proof sources must re-verify it in their own harness before

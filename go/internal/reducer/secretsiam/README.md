@@ -155,6 +155,5 @@ alone; `skip_reason` is what separates them.
 ## Related docs
 
 - [Reducer package](../README.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
 - [Secrets/IAM posture collector contract](../../../../docs/public/reference/secrets-iam-posture-collector-contract.md)
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)

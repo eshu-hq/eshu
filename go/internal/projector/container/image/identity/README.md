@@ -113,4 +113,3 @@ paths.
 
 - [Projector architecture](../../../README.md)
 - [Intent contract](../../../intent/README.md)
-- [Package restructure](../../../../../../docs/internal/design/package-restructure.md)

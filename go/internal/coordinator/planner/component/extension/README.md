@@ -89,6 +89,5 @@ egress-policy decision.
 
 - `go/internal/coordinator/README.md`
 - `go/internal/coordinator/component/activation/README.md`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`
 - `docs/public/observability/telemetry-coverage.md`

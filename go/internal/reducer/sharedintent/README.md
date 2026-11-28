@@ -118,5 +118,4 @@ change by another route: it alters the hashed bytes. Same rule applies.
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/intents/shared/worker/README.md` — the worker/runner machinery that moved out of the root in H5
-- `docs/internal/design/package-restructure.md` — the #6061 restructure and this hoist's no-regression evidence
 - `docs/public/observability/telemetry-coverage.md` — the coverage row for this file

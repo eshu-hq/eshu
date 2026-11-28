@@ -1,8 +1,6 @@
 # correlation — agent instructions (issue #6061)
 
-This directory is the package correlation family. It is mid-restructure:
-the tree doc (`docs/internal/design/reducer-target-tree.md`) is the real
-target; this package is step 1 (packages/correlation-first) and the
+This directory is the package correlation family (#6061). The
 supplychain family now lives in `supplychain/core` (step 2) and imports
 this package one-way. The step-1 packet and the tree doc's sequencing
 step 1 define the done bar; re-read both before changing anything here.

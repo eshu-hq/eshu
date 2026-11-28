@@ -27,4 +27,3 @@ imports nothing.
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/intents/shared/README.md`
 - `go/internal/reducer/intents/phase/README.md`
-- `docs/internal/design/package-restructure.md` — the #6061 restructure

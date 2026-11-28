@@ -124,7 +124,6 @@ lab run).
 
 - [Postgres storage](../../../README.md)
 - [Postgres scope helpers](../../README.md)
-- [storage/postgres target tree](../../../../../../docs/internal/design/6693-postgres-target-tree.md)
 
 ## Verification
 

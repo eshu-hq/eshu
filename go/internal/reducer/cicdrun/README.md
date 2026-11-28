@@ -171,7 +171,6 @@ identical.
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/crossscope/README.md` — the shared cross-scope readiness floor this package's `Handle` calls
-- `docs/internal/design/package-restructure.md` — the #6061 restructure
 - (#5709) — the residual-window disclosure for the batch-wide resolved-count gap above
 
 ## Completion change gate (#10972 PR-4)

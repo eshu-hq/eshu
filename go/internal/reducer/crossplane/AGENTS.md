@@ -16,7 +16,6 @@ decisions into canonical `SATISFIED_BY` graph edges.
 - `go/internal/reducer/crossplane/README.md`
 - `go/internal/projector/crossplane/satisfaction/AGENTS.md` — the projector-side
   intent trigger that enqueues this package's domain
-- `docs/internal/design/package-restructure.md`
 
 ## Invariants
 

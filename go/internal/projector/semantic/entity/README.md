@@ -99,7 +99,6 @@ This package emits no signal directly. Root intent enqueue remains covered by `e
 - [Intent contract](../../intent/README.md)
 - [Elixir language support](../../../../../docs/public/languages/elixir.md) —
   cites this package's Elixir tests as parity evidence
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
 
 The four moved test files are the builder-level coverage and they moved
 verbatim apart from the package clause and the now-exported call. Root keeps

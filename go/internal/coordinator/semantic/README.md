@@ -90,7 +90,6 @@ itself revealing anything about a specific job's content.
 - `go/internal/coordinator/README.md`
 - `go/internal/semanticpolicy/README.md`
 - `go/internal/semanticqueue/README.md`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`
 
 ## Runtime contract and evidence (moved from the coordinator root, #6781)

@@ -22,7 +22,6 @@ why the stale-evidence cleanup runner lives in the child package `cleanup/`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/value/README.md`
 - `go/internal/reducer/code/taint/README.md` (the direct evidence sibling this package writes through)
-- `docs/internal/design/package-restructure.md`
 
 ## Invariants
 

@@ -70,4 +70,3 @@ though the generation-scoped phase key is still safe to replay.
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/gpphase/README.md` — the repair shape and phase/keyspace vocabulary this package drains
-- `docs/internal/design/package-restructure.md` — the #6061 restructure

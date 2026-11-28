@@ -68,4 +68,3 @@ telemetry coverage checks, and the six-run exact same benchmark.
 - [Intent contract](../../intent/README.md)
 - [GCP resource design](../../../../../docs/internal/gcp-cloud-resource-materialization-design.md)
 - [GCP relationship design](../../../../../docs/internal/gcp-cloud-relationship-edge-materialization-design.md)
-- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

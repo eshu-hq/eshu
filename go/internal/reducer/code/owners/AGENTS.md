@@ -14,7 +14,6 @@ Purpose and Ownership boundary sections for what this package owns.
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/owners/README.md`
-- `docs/internal/design/reducer-target-tree.md`
 
 ## Invariants
 

@@ -88,6 +88,5 @@ the seam.
 
 ## Related docs
 
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md) — the seam this move follows
 - [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)
 - `../factdecode/README.md` — the quarantine and decode-error mechanism below this package

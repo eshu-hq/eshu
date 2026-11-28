@@ -79,7 +79,6 @@ go/internal/reducer/evidence-6626-batch6-bucket8-result.md:go/internal/collector
 # citation inventory that justified this whole #6053/#6061 move -- its table
 # records the citation line numbers as they stood at research time, which
 # repointing to the post-move destination would falsify.
-docs/internal/design/restructure-research.md:go/internal/reducer/shared_projection.go
 
 # #6642 freshness family move: dated #5167 evidence records that quote the
 # root paths as they stood when the evidence was captured; repointing would
@@ -378,8 +377,10 @@ docs/internal/evidence/5837-aws-drift-reopen.md:go/cmd/collector-terraform-state
 # successor paths exist, so the record stays as the pre-extraction evidence
 # record.
 # MCP satellite extraction (#9670): dated evidence/design notes keep pre-extraction wiring paths as the record they were gathered on; the parser fixture models a synthetic repo where the mcp candidate is load-bearing. No in-tree successors; repointing would falsify.
-docs/internal/design/6642-query-move-cost.md:go/cmd/mcp-server/wiring_router.go
 go/internal/query/AGENTS-evidence-history-3.md:go/cmd/mcp-server/wiring.go
 go/internal/reducer/code/call/go_package_test.go:go/cmd/mcp-server/wiring.go
 # #8856: dated security-review record names the reviewed in-tree path; no in-tree successor, repointing would falsify.
 docs/internal/design/multicloud-live-collector-security-review.md:go/cmd/collector-gcp-cloud/main.go
+
+# Released SDK changelog entry citing a retired internal design plan (#11679); historical release notes are kept verbatim.
+sdk/go/factschema/CHANGELOG.md:docs/internal/design/advisory-intelligence-correlation-plan.md

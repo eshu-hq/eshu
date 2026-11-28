@@ -36,7 +36,7 @@ var (
 // itself: running a subprocess is owned by the local_graph process-supervision
 // cluster in internal/cli/localsupervisor (readLocalGraphVersion in
 // graph_process.go, exported as ReadGraphVersion),
-// which is out of scope for this extraction (package-restructure.md calls it
+// which is out of scope for this extraction (the #6053 package restructure called it
 // out as a real bidirectional cycle that moves as one unit or not at all).
 // Callers supply their real implementation through Options.ReadVersion and
 // ManagedBinaryIfPresent so this package can verify an install without a

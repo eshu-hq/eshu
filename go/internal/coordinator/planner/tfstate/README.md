@@ -98,5 +98,4 @@ status, and the parent's waiting-on-git-generation log line.
 ## Related docs
 
 - `go/internal/coordinator/README.md`
-- `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

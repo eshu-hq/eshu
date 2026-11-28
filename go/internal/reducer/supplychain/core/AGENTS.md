@@ -1,8 +1,6 @@
 # core — agent instructions (issue #6061)
 
-This directory is the supplychain family. It is mid-restructure:
-the tree doc (`docs/internal/design/reducer-target-tree.md`) is the real
-target; this package is step 2 (supplychain-core, after
+This directory is the supplychain family (#6061, after
 packages/correlation) and the code, cloud, workload, and remaining families
 still live in the reducer root and must never import this package. The
 tree doc's sequencing step 2 defines the done bar; re-read it before

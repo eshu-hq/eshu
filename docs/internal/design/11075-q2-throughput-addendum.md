@@ -10,7 +10,7 @@ clock, or enrollment change. It never closes AC3 or the issue.
 
 ## Method (no new sampling)
 
-Every figure below comes from existing records: `11075-a2-packet.sql` runs,
+Every figure below comes from existing records: the #11075 read-replica SQL packet runs,
 the design record, the arbiter rulings (2026-11-20/21/23/25), and the posted
 QA reads. Nothing was re-measured for this addendum, and no bound, bar, or
 clock is redefined retroactively.

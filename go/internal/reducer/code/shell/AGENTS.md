@@ -16,7 +16,6 @@ boundary sections for what this package reuses from `sqlrelationship` and
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/shell/README.md`
 - `go/internal/reducer/sqlrelationship/README.md` (the delta-scope sibling this package reuses)
-- `docs/internal/design/reducer-target-tree.md`
 
 ## Invariants
 

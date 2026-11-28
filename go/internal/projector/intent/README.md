@@ -41,5 +41,4 @@ added one heap allocation per extracted builder on the 44-probe fan-out.
 
 ## Related docs
 
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
