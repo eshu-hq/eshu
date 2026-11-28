@@ -35,7 +35,7 @@ scan_artifact_citations() {
 
 # artifact_url_wellformed requires a resolvable run URL: a registry host
 # (a dot in the host) plus /actions/runs/ or a numeric run segment, per
-# docs/internal/measurement-ledger.md. Rejects bare hosts such as http://x.
+# retired measurement-ledger contract. Rejects bare hosts such as http://x.
 artifact_url_wellformed() {
   local url="$1"
   local hostpath="${url#*://}"

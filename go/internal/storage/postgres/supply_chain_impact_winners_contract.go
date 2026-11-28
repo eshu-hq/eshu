@@ -44,7 +44,7 @@ const SupplyChainImpactWinnersContractVersion int64 = 3
 // was re-pinned without a bump when #11145 added the scope-remainder convert
 // to the set and changed only the capture time a converted row carries: the
 // stored winners are byte-identical for the same facts (differential in
-// docs/internal/evidence/11145-scope-remainder-horizon.md, measured on the
+// #11145 (retired evidence record), measured on the
 // version 1 statements; version 2 rests on the scope-remainder live tests and
 // on the convert writing only the dirty log). Version 1 keeps the hash of the
 // statements it named.
@@ -71,7 +71,7 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// (TestWinnersKeyedFanoutMatchesRecomputeLive) passes, and the QA
 	// replica differential shows zero row differences both ways on two
 	// pinned sets (13,260 and 24,936 rows); see
-	// docs/internal/evidence/10839-live-gens-liveness-dedup.md. No full
+	// #10839 (retired evidence record). No full
 	// resweep is triggered by this re-pin.
 	// Re-pinned under the same version for the 2026-11-24 watermark-stall
 	// fix: the five-tuple identifier probe persists to a narrow temp table
@@ -104,7 +104,7 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// proves the shipped text differs from the legacy text only by the field
 	// pairs, and TestSupplyChainImpactWinnersDetoastFieldEquivalenceLive proves every pair
 	// equivalent on PG18 over edge-case payloads; see
-	// docs/internal/evidence/11120-single-detoast.md. No full resweep is
+	// #11120 (retired evidence record). No full resweep is
 	// triggered by this re-pin.
 	//
 	// Re-pinned under the same version for #9805 C5 / #9975 C4 CTE-streaming

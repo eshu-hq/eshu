@@ -56,7 +56,7 @@ provenance-weighted (#2719) and now prefers reducer-materialized
 reachable or `unused`.
 
 No-Regression Evidence: see the #2719 entry in
-[evidence-notes.md](evidence-notes.md); the probe stays a bounded read over
+retired evidence record; the probe stays a bounded read over
 dead-code candidates with no added round trips or graph writes.
 No-Observability-Change: #2719 reuses the existing dead-code query span and adds
 no route, metric, worker, queue, or graph write.
@@ -121,7 +121,7 @@ Read-model details stay package-local but out of the top-level index:
 - [dead-code-reachability.md](dead-code-reachability.md) covers dead-code
   language reachability, exactness blockers, candidate paging, hydration,
   observed blockers, and the language-specific suppression contract.
-- [evidence-5563-cloud-resource-paging.md](evidence-5563-cloud-resource-paging.md)
+- #5563 (retired evidence record)
   records the authorized owner-ledger page boundary, exact graph hydration,
   upgrade backfill, production variant family, interactive SLO, and
   retained/synthetic evidence for cloud resource browsing. API and MCP startup
@@ -834,7 +834,7 @@ the cursor branches back into the documented `(order_index, pattern,
 owner_ref)` order and retains only `limit+1` rows. This avoids a pinned
 NornicDB mixed-`OR` failure that silently produced an empty page while keeping
 the maximum in-process merge bounded to 603 rows. The live exactness and timing
-proof is recorded in `evidence-5419-codeowners-nornicdb-pagination.md`.
+proof is recorded in #5419 (retired evidence record).
 
 ## Exported surface
 
@@ -1069,7 +1069,7 @@ or MCP summary text.
 
 Durable no-regression and observability notes for issue-specific query shapes,
 including CloudResource candidate reads and NornicDB predicate compatibility,
-live in [evidence-notes.md](evidence-notes.md).
+live in retired evidence record.
 
 ## Operational notes
 
@@ -1411,7 +1411,7 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - [read-models.md](read-models.md) for route-specific read-model bounds,
   evidence, and investigation-route contracts.
 - [dead-code-reachability.md](dead-code-reachability.md) for dead-code language roots, exactness blockers, and candidate paging rules.
-- [evidence-notes.md](evidence-notes.md) and dashboard correctness evidence (#5244)
+- retired evidence record and dashboard correctness evidence (#5244)
   for issue-specific no-regression, performance, and observability proof.
 - `docs/public/reference/http-api.md` for the public HTTP and envelope contract.
 - `docs/public/reference/dead-code-reachability-spec.md` for the dead-code

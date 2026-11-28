@@ -70,7 +70,7 @@ coverage:
   # vulnerability.warning registry-only kind. The cross-window behaviors ride
   # on the same recording: the rejected Odù proves the delta_tombstone shape
   # and the newest-copy Odù proves the ordering shape (kept R-B10, reconciled
-  # with #10735 per docs/internal/arbiter/10735-ifa-breakage-ruling-2026-11-20.md;
+  # with #10735 per #10735 (retired evidence record);
   # the newest-copy expectation is zero findings, not a retraction).
   - {surface: "fact_kind:vulnerability.os_package", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.cve", scenario: odu, scenario_type: baseline, ref: "odu:vuln-collector-nvd", proof_gate: ifa-contract-layer}

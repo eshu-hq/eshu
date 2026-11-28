@@ -15,7 +15,7 @@ import "strings"
 // The candidate fetch is AS MATERIALIZED and that is part of the contract: without
 // it the planner drives the read from the scope tables and filters on the image,
 // measured at about 10 s for a typical image against 9 to 19 ms with it
-// (docs/internal/evidence/10880-pr-b2a/RESULTS.md). The fetch is not capped or
+// (#10880 (retired evidence record)). The fetch is not capped or
 // truncated: a cap would change the answer.
 
 // imageFetchCTE is the materialized candidate fetch of an image read: every

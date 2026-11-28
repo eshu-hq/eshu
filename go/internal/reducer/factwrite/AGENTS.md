@@ -89,7 +89,7 @@ their rows affected count the legacy cleanup `DELETE` or return only a claim
 verdict. For a write of at most `BatchSize` rows a foreign-held row is skipped
 without a report. It cannot occur today: those ids hash scope and generation.
 The probe also runs after the write, so a foreign row deleted in between reads as
-a fenced skip. Both are known limits (`docs/internal/evidence/11213-fact-id-round2.md`).
+a fenced skip. Both are known limits (#11213 (retired evidence record)).
 
 ## Failure modes
 

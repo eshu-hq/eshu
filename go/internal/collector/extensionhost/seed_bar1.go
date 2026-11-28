@@ -5,7 +5,7 @@ package extensionhost
 
 // Bar1 seed-read acceptance thresholds. They encode the corrected Bar1
 // reading from the arbiter ruling on eshu-hq/eshu#10817 (recorded in
-// docs/internal/arbiter/10817-canary-bar1-ruling-2026-11-23.md, tracked by
+// #10817 (retired evidence record), tracked by
 // eshu-hq/eshu#11386): the seed floor measures bucket_bytes over bucket-read
 // time alone (open + gunzip + scan, nvd_seed_read_ms), never over satellite
 // latency or core upsert.

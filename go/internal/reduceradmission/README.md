@@ -28,7 +28,7 @@ admits; while it defers, it doubles per deferred read up to 10 s (or half
 the max wait) and resets on the first decision whose global gates pass,
 including a per-source round that the latch then defers. A failed read reaches every
 waiter and is never held. The QA baseline, the measured schedule and the
-contract live in `go/cmd/ingester/admission-bound-evidence.md`.
+contract live in retired evidence record.
 
 ## Exported surface
 

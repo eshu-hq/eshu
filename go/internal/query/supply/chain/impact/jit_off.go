@@ -17,14 +17,14 @@ import (
 const jitOffSQL = `SELECT set_config('jit', 'off', true)`
 
 // wantsJITOff reports whether the route's one statement runs under a
-// transaction-local jit = off. The measured pair (docs/internal/evidence/10880-pr-b2a,
-// jit_pair.sh) showed jit = off at least 20 percent faster for the supplement
+// transaction-local jit = off. The measured pair (#10880, retired evidence
+// record) showed jit = off at least 20 percent faster for the supplement
 // reads, in both corpus states: the planner estimates a large
 // probe count, JIT compiles the statement, and the compile costs more than the
 // probes it speeds up. That pair measured the V statements only; the image route
 // takes the wrapper by arbiter ruling with no measured pair of its own (its QA
 // median is a B3 return line). Through the Go stores the V saving is per plan state
-// (docs/internal/evidence/10880-pr-b2a-reader/RESULTS.md): a custom plan (the first
+// (#10880 (retired evidence record)): a custom plan (the first
 // five executions of a statement on a connection) is 82 percent faster for the list
 // and both counts, and the list's generic plan is 68 percent faster; the counts'
 // generic plan costs 2.7 percent less than jit_above_cost on the lab corpus, is not

@@ -25,7 +25,6 @@ including `payload`, so it sees a payload change under an unchanged
 In staged-audit mode PR-A originally guarded evidence-only rewrites through
 the writer's dirty-fact capture secondary compare (`#10880` ruling decision 4).
 The `#11598` Option C arbiter ruling
-([`11598-epss-remark-storm-ruling-2026-11-28.md`](../arbiter/11598-epss-remark-storm-ruling-2026-11-28.md))
 amended Decision 4: `dirtyIdentifiersToCapture` no longer secondary-compares
 `evidence_fact_ids`, and `AuditWinners` masks `evidence_fact_ids` and
 `provenance.selected_epss_score_date` on both sides of its diff. Both staged

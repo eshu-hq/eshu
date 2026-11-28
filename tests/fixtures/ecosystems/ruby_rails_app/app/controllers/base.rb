@@ -3,6 +3,6 @@
 # coincidentally-named `Admin::Base` also exists
 # (app/models/admin/base.rb) but must never mask this genuine referent — see
 # that file's comment and the #5500 P0 fix
-# (go/internal/reducer/evidence-5500-lexical-scope-restriction.md).
+# (#5500 (retired evidence record)).
 class Base < ApplicationController
 end

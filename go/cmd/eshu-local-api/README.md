@@ -55,7 +55,7 @@ NornicDB and unset-backend sessions (owner decision (b)-narrowed on
 - NornicDB/lightweight sessions keep serving through this binary on the
   NornicDB `v1.5.2-hotfix` pin
   (`ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.5.2-hotfix@sha256:ece888de07a150a353f8fbf4755bb92f1126b3878828b81b964fcefaec956ac5`,
-  per `docs/internal/evidence/11535-nornicdb-strict-schema.md`). Neo4j
+  per #11535 (retired evidence record)). Neo4j
   sessions use `eshu-core-api`, which refuses any other backend; the
   dispatch surface itself ships from the eshu-api satellite.
 - Range-scan caveat on 1.5.x (backend behavior, not a defect of this

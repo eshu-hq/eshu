@@ -247,7 +247,7 @@ no database, no build tags, runs in the default `go test`:
 - `git symbolic-ref -q HEAD` → `refs/heads/drive/11430-drain-bottleneck`
   (verified before editing; all reads/writes inside that worktree).
 - Saturation inputs reused from
-  `docs/internal/evidence/11430-saturation-shim.md` (8/8 workers busy, sci
+  #11430 (retired evidence record) (8/8 workers busy, sci
   p50 39.4s / max 551s, `GRAPH_WRITE_MAX_IN_FLIGHT=6`, ~10k claimable,
   23505 ×1 benign, advisory 411/411 instant defer on stale watermarks).
 - Vendor reads: PostgreSQL 19 `transaction-iso` 13.2.1 (updated-row

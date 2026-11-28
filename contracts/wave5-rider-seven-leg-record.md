@@ -2,7 +2,7 @@
 
 Refs `eshu-hq/eshu#9669`, satellite `eshu-hq/eshu-api#101`.
 Parent plan: `docs/internal/9669-removal/step2-wave-plan.md` (Wave 5).
-Ruling: `docs/internal/arbiter/9669-step2-scope-ruling-2026-11-18.md`
+Ruling: #9669 (retired evidence record)
 (decisions 3, 7, 8). Frozen rows:
 `contracts/step2-frozen-scope.md` FORWARDED-READS R1-R3.
 

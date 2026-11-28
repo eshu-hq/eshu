@@ -197,10 +197,7 @@ gates:
     tier: pre-commit
     blocking: true
     triggers:
-      - "docs/internal/evidence/**"
-      - "docs/internal/arbiter/**"
-      - "docs/superpowers/**"
-      - "docs/plans/**"
+      - "docs/**"
       - "go/**/*.md"
       - "scripts/verify-no-ephemeral-docs.sh"
       - "scripts/test-verify-no-ephemeral-docs.sh"

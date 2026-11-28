@@ -2,7 +2,7 @@
 
 Refs `eshu-hq/eshu#9669`, satellite `eshu-hq/eshu-api#101`.
 Parent plan: `docs/internal/9669-removal/step2-wave-plan.md`.
-Ruling: `docs/internal/arbiter/9669-step2-scope-ruling-2026-11-18.md`.
+Ruling: #9669 (retired evidence record).
 
 Pins: core oracle `8a78eb3f48`, satellite origin/main `08ebde4`
 (v0.6.0), lane base `88f1fd2a22`. Fragments below are relative to

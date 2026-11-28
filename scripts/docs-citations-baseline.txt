@@ -214,8 +214,6 @@ LINE docs/internal/design/package-restructure.md go/internal/payloadusage/load.g
 LINE docs/internal/design/package-restructure.md go/internal/reducer/intent.go:9
 LINE docs/internal/design/restructure-research.md go/internal/cigates/pathfilter.go:273
 LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths.go:99
-LINE docs/internal/evidence/6296-nornicdb-helm-pin-v123.md go/internal/query/code_relationships_nornicdb_optional_match_live_test.go:16
-LINE docs/internal/measurements.jsonl go/internal/storage/cypher/edge_writer_retract_repo.go:112
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:158
@@ -265,15 +263,12 @@ LINE go/internal/parser/hcl/terraform_resource_attributes.go go/internal/correla
 LINE go/internal/parser/json/line_number_derived_test.go go/internal/content/writer.go:196
 LINE go/internal/parser/yaml/image_overrides_environment.go go/internal/query/repository_deployment_evidence_read_model.go:349
 LINE go/internal/reducer/tfconfigstate/terraform_config_state_drift.go go/internal/scope/tfstate.go:33
-LINE go/internal/relationships/evidence-5445-streaming-shape-accuracy-fix.md go/internal/collector/git_fact_builder.go:480
-LINE go/internal/relationships/evidence-5445-streaming-shape-accuracy-fix.md go/internal/parser/shared/shared.go:340
 LINE go/internal/replay/concurrentreplay/AGENTS.md go/internal/ifa/odu.go:21
 LINE go/internal/replay/concurrentreplay/README.md go/internal/ifa/odu.go:21
 LINE go/internal/replay/concurrentreplay/factslicesource.go go/internal/ifa/odu.go:21
 LINE go/internal/replay/concurrentreplay/factslicesource.go go/internal/storage/postgres/facts.go:96
 LINE go/internal/replay/costcounting/azure_resource_materialization_cost_test.go go/internal/reducer/azure_resource_materialization.go:196
 LINE go/internal/replay/costcounting/ec2_instance_node_cost_test.go go/internal/graphowner/gated_writer.go:110
-LINE go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md go/internal/telemetry/instruments.go:3464
 LINE go/internal/replay/costcounting/gcp_resource_materialization_cost_test.go go/internal/reducer/gcp_resource_materialization.go:292
 LINE go/internal/replay/costcounting/kubernetes_workload_node_cost_test.go go/internal/reducer/kubernetes_workload_materialization.go:295
 LINE go/internal/replay/faultreplay/AGENTS.md go/internal/reducer/service.go:27

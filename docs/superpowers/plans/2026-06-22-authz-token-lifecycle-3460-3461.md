@@ -49,7 +49,7 @@
 
 **Files:**
 - Modify: `docs/public/operate/user-management-runbook.md`
-- Modify: `go/internal/storage/postgres/evidence-notes.md`
+- Modify: retired evidence record
 - Modify: package docs only if contracts changed.
 
 - [ ] Add durable `No-Regression Evidence:` and `No-Observability-Change:` notes for generated-token resolution.

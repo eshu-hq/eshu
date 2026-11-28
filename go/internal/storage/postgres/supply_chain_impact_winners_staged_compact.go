@@ -401,8 +401,7 @@ func FetchStoredWinners(ctx context.Context, reader db.Queryer) (map[string]Stor
 //     metadata under an unchanged winner_fact_id. Under the #11598 Option C
 //     arbiter amendment to #10880 Decision 4, that staleness is accepted on
 //     canonical_winners until the next semantic change (supports.payload stays
-//     fresh for Explain, and AuditWinners masks both fields). See
-//     docs/internal/arbiter/11598-epss-remark-storm-ruling-2026-11-28.md.
+//     fresh for Explain, and AuditWinners masks both fields; see #11598).
 func DiffCandidates(sourceWinners map[string]StagedWinner, overrides map[string]StagedOverride, stored map[string]StoredWinner) []string {
 	var candidates []string
 	for key, winner := range sourceWinners {

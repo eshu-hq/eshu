@@ -124,7 +124,7 @@ is a standard-library-only package (see its `AGENTS.md`), so importing
   sibling. Memory has no Go-runtime-native cgroup awareness, so it still
   needs its own handwritten cgroup-limit reader and an active configuration
   call; CPU does not.
-- `go/internal/cpubudget/evidence-4456-cgroup-cpu-sizing.md` — no-regression
+- #4456 (retired evidence record) — no-regression
   evidence for the cgroup-CPU-sizing change and the full routing table.
 
 ## #4759 routing of the parser worker-sizing site

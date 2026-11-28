@@ -19,7 +19,7 @@ import (
 const keyRangeTokenBodySHA256 = "db39c3bcbd8aaec6f4be881b0773b0c616556a3376b8bc40a235ed6bf1849363"
 
 // keyRangeArrayOnlyFunction is the array-only token function (v2 of the
-// shim, docs/internal/evidence/10643-foreign-member-token-index.md), created by the tests only as a seeded
+// shim, #10643 (retired evidence record)), created by the tests only as a seeded
 // RED: it drops object keys and string scalars, which jsonb ?| matches.
 const keyRangeArrayOnlyFunction = "eshu_sci_foreign_member_tokens_red_array_only"
 
@@ -82,7 +82,7 @@ WHERE c.relname = $1`, postgres.SupplyChainImpactForeignMemberTokensIndex).Scan(
 }
 
 // keyRangeTokenMatrixSQL is the F1 shape matrix of
-// docs/internal/evidence/10643-foreign-member-token-index.md
+// #10643 (retired evidence record)
 // over function %s: 18 members shapes x 3 own-id variants x 4 fact-id buckets
 // x 9 lookup ids = 1,944 cells. Four shapes and four ids hold strings at the
 // byte bound of arbiter ruling 10643m: 1,024 and 1,025 ASCII bytes, and 512

@@ -38,7 +38,7 @@ are a separate path and were not read for this record.
 production schema at two index profiles. Per-backend WAL (`pg_stat_get_backend_wal`),
 `VACUUM` and a checkpoint before the cold arms, and a second pass with no checkpoint for
 the steady arms. `scripts/dev/11221-identical-saves/` reproduces it (raw WAL
-output was pruned per `docs/internal/evidence/README.md`; the measured figures
+output was pruned per retired evidence record; the measured figures
 stand in the table below). Per-backend WAL bytes do not
 depend on host load, which answers the "host load beside them"
 acceptance criterion for the WAL figures. The two replica queries
@@ -89,7 +89,7 @@ stage, succeeded items; the last column is the last seven days:
 | supply_chain_impact (excluded) | 928 | 874 | 328 | 304 |
 
 Row volume per kind comes from a 1% system sample of `fact_records` on the replica
-(954,192 rows; raw sample pruned per `docs/internal/evidence/README.md`): the search document kind is 30% of the sampled
+(954,192 rows; raw sample pruned per retired evidence record): the search document kind is 30% of the sampled
 rows (287,067), the supply-chain impact finding 13% (122,213), code-drifted findings 0.3%
 (3,040); every other reducer kind is below 0.02%. Scaled by 100, search documents are
 about 2,300 rows per succeeded item and code-drifted findings about 38.

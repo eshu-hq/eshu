@@ -76,15 +76,12 @@ go/internal/coordinator/README.md	687
 go/internal/parser/README.md	901
 go/internal/projector/README.md	759
 go/internal/query/README.md	1418
-go/internal/query/evidence-notes.md	1197
 go/internal/query/read-models.md	805
 go/internal/reducer/AGENTS.md	2407
-go/internal/reducer/evidence-notes.md	804
 go/internal/relationships/README.md	532
 go/internal/storage/cypher/README.md	2123
 go/internal/storage/postgres/AGENTS.md	1170
 go/internal/storage/postgres/README.md	3759
-go/internal/storage/postgres/evidence-notes.md	1032
 go/internal/workflow/README.md	518
 
 # Docs scope introduced by #6545. Each pin is measured from origin/main;
@@ -98,9 +95,6 @@ docs/internal/design/5007-cross-scope-node-ownership.md	914
 docs/internal/design/5385-workload-identity-key.md	1488
 docs/internal/design/package-restructure.md	2463
 docs/internal/design/restructure-research.md	506
-docs/internal/evidence/5490-k8sresource-candidate-index.md	507
-docs/internal/evidence/5837-aws-drift-reopen.md	1502
-docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
 docs/public/contributing-language-support.md	503
 docs/public/operate/hosted-governance.md	671
 docs/public/reference/cypher-performance.md	1821
@@ -116,4 +110,3 @@ docs/public/reference/search-benchmark-evidence.md	510
 docs/public/reference/security-intelligence.md	609
 docs/public/reference/telemetry/index.md	1269
 docs/public/services/collector-aws-cloud-scanners.md	505
-docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md	746

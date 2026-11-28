@@ -37,7 +37,7 @@ const (
 // unique tie-break. No index serves the order: at QA depth (56,698 rows) the
 // planner runs a parallel seq scan and an in-memory top-N heapsort in about
 // 21 ms, against about 4 ms for the seq primary-key scan (#11075 replica shim,
-// docs/internal/evidence/11075-winners-admission-order.md), well under 1% of
+// #11075 (retired evidence record)), well under 1% of
 // a keyed tick.
 // Admission copies instead of deleting: which rows the chunk actually applies
 // is known only after the identifier expansion and the identifier chunk bound,
@@ -265,7 +265,7 @@ var winnersKeyedBuildIdentsStmts = []string{
 // (fact_id, scope_id, generation_id) per copy, live_gens resolves each pair
 // once, and the final fetch reads wide rows only for live copies by
 // fact_id. Row-set equivalence holds by construction and is proven by QA
-// differential (see docs/internal/evidence/10839-live-gens-liveness-dedup.md).
+// differential (see #10839 (retired evidence record)).
 // The probe sits in MATERIALIZED CTEs so a join order picked from default
 // statistics on ingestion_scopes cannot put it inside a scope loop (a
 // measured run with that plan took 28 million buffer hits for a 2,000-row

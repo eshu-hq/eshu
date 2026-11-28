@@ -71,8 +71,8 @@ rules, the outcomes, and the open residual are in
   `fanout_holder_statements`/`fanout_key_ranged_ids`.
   Performance Evidence: 29,417-row id 2.36s shipped vs 0.56s key-range, identical holders.
   Observability Evidence: `fanout_holder_statements`, `fanout_max_id_mass_rows`, holder_reads duration; no new signals.
-  Proof: `docs/internal/evidence/fanout-holder-read-cost-gate-retune.md`;
-  `docs/internal/evidence/10972-h2-holders-shim.md`.
+  Proof: retired evidence record;
+  #10972 (retired evidence record).
 - Member arm (#10643 PR 2), the third arm of the shipped statement: the
   frozen `eshu_sci_foreign_member_tokens_v4` tokens each foreign member of at
   most 1,024 bytes as `bucket:member` in a partial GIN index (migrations 336,
@@ -80,7 +80,7 @@ rules, the outcomes, and the open residual are in
   1 also bucket 0). A longer lookup id has no token; it reads the same
   shipped statement, so the long-id fallback is preserved by resting on the
   shipped shape.
-  Proof: `docs/internal/evidence/10643-foreign-member-token-index.md`.
+  Proof: #10643 (retired evidence record).
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the

@@ -85,7 +85,7 @@ consecutive conflicting Claim calls (`maxConsecutiveClaimConflicts`; a success
 or a drained result resets the count) the run fails with an error wrapping the
 last conflict and naming the count, so a persistent conflict cannot hang the
 one-shot. Every other Claim error still ends the run immediately. See
-`evidence-7122-claim-conflict.md`.
+#7122 (retired evidence record).
 
 The `drainingWorkSource` wrapper converts between two modes: while the
 collector goroutine is running, an empty queue triggers a 500ms poll-wait and
@@ -534,7 +534,7 @@ worker context. Previously one slow/timed-out canonical write aborted the whole
 run and orphaned claimed work.
 
 Evidence (performance, no-regression, observability, why safe) lives in
-`evidence-4464-per-item-failure-isolation.md`.
+#4464 (retired evidence record).
 
 Two residual gaps in the same issue — the intra-materialization entity-phase
 chunk fan-out sharing a cancelable context one level below this fix, and

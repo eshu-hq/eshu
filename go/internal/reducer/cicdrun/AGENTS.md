@@ -144,4 +144,4 @@ marker in the same transaction, so a pass that commits and dies before its ack
 still emits on its retry. A missing verdict must emit. A write with no rows counts as changed on every
 such pass (an item that never produces a correlation emits on every success);
 keep that fail-open rule unless a stored baseline for "no rows" exists. Evidence:
-`docs/internal/evidence/10972-pr4-cicd-completion-gate.md`.
+#10972 (retired evidence record).

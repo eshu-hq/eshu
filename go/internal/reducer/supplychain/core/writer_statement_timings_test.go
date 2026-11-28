@@ -414,7 +414,7 @@ func TestWriterWithNilInstrumentsRecordsNothing(t *testing.T) {
 // budgets: a full fixture pass with the instrumentation recording against a
 // real SDK meter must stay under 1 percent of the measured production tx wall.
 // The reference is this lane's own QA measurement, p50 5.2 s for
-// write_findings (docs/internal/evidence/11430-write-findings-p95-decomposition.md),
+// write_findings (#11430 (retired evidence record)),
 // so the per-pass budget is 52 ms. The measured overhead is the accumulation
 // (clock reads and struct stores, which run inside the tx) plus the emission
 // (which runs after the commit or rollback returns, never inside the tx).

@@ -5,7 +5,7 @@ Status: decided 2026-09-25 for issue #5385, companion to
 which holds the identity model, the SDK contract, and the decision record.
 This document carries the delete set, the ordered cutover, the probes that
 must run before implementation, the required tests, consumer impact, and
-telemetry. Measured numbers cite `docs/internal/measurements.jsonl` rows.
+telemetry. Measured numbers cite historical #5385 measurement-ledger rows.
 
 ## 1. Measured basis, and which build it was measured on
 

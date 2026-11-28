@@ -24,7 +24,7 @@ chain. This fixture is code-only (statically parsed); it has no cassette.
 
 Two more cross-file controllers extend the #5376/#5500 discrimination to
 namespaced ancestry shapes that the #5500 P0 fix (see
-`go/internal/reducer/evidence-5500-lexical-scope-restriction.md`) specifically
+#5500 (retired evidence record)) specifically
 targets. Both must stay **CONFIRMED** (suppressed as modeled roots, never
 `cleanup_ready`); a regression here would silently re-mask a genuine
 controller as dead code.

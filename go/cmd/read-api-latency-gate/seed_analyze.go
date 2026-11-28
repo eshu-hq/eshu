@@ -22,7 +22,7 @@ type sqlExecer interface {
 // time. VACUUM sets the visibility map, which an Index Only Scan reads: without
 // it the entity search walk read between 32 and 512 buffers depending on how
 // far autovacuum had got when the sweep started (#11224; the EXPLAIN figures are
-// in docs/internal/evidence/11170-latency-gate-core-leg.md). Production reads a
+// in #11170 (retired evidence record)). Production reads a
 // steady-state database whose visibility map autovacuum has set, so the gate
 // measures that state on purpose. Not VACUUM FULL: that rewrites the tables.
 func seededTablesMaintenanceSQL() string {
@@ -45,7 +45,7 @@ func vacuumAnalyzeSeededTables(ctx context.Context, db sqlExecer) error {
 // routes read both, so they need the same steady state (#11224). A test pins
 // the list to the read-back set so a newly seeded table cannot be left out once
 // it is in the read-back set. The evidence for the visibility-map cause is in
-// docs/internal/evidence/11170-latency-gate-core-leg.md.
+// #11170 (retired evidence record).
 func analyzedSeededTables() []string {
 	return []string{
 		"ingestion_scopes", "scope_generations", "fact_work_items", "fact_records",

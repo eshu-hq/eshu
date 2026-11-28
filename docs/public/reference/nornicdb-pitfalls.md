@@ -342,7 +342,7 @@ never matched a true orphan, and the `eshu_dp_graph_orphan_nodes` gauge
 reported a constant 0 regardless of how many disconnected nodes existed. The
 same class of bug affected the `ShellCommand` orphan cleanup in
 `edge/writer/shell_exec.go` (documented in
-`go/internal/storage/cypher/evidence-4367-content-edge-retract-sequential.md`,
+#4367 (retired evidence record),
 which originally and incorrectly claimed the `COUNT { (target)--() } = 0` form
 "works" -- that claim proved only that the DELETE fired, never that it
 preserved connected nodes and excluded true orphans; the same predicate class
@@ -817,7 +817,7 @@ fresh, uncontaminated container and found NOT to be production bugs (details in
   than the `UNWIND`-batched one, and the grouped `DETACH DELETE` under-apply it
   used to work around is a v1.1.11 defect that does not reproduce on 1.2.1 or
   1.2.2 (measured 20/20 in
-  `go/internal/storage/cypher/evidence-6176-semantic-retract-regrouped.md`).
+  #6176 (retired evidence record)).
 
 ### Validation
 

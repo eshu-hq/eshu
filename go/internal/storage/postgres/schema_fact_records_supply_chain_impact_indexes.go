@@ -80,7 +80,7 @@ const SupplyChainImpactForeignMemberTokensIndex = "fact_records_sci_foreign_memb
 
 // supplyChainImpactForeignMemberTokensFunctionSQL is the foreign-member token
 // function (#10643 PR 2), function v4 of
-// docs/internal/evidence/10643-foreign-member-token-index.md. For a finding
+// #10643 (retired evidence record). For a finding
 // row it returns one token, bucket || ':' || member, for every string the
 // jsonb ?| operator matches on
 // provenance.advisory_group_members (the string elements of a top-level

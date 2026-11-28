@@ -38,7 +38,7 @@ Performance Evidence: the handler's exact Cypher shape (a bounded
 NornicDB backend (`nornic` database, `~/example-repos` corpus, 10 `ContainerImage`
 nodes) over the Bolt-HTTP tx endpoint: warm priming 3.2 ms, then 0.82 ms,
 0.71 ms, 1.02 ms across three runs returning the full 10-row inventory. See
-`go/internal/query/evidence-notes.md` for the full evidence record.
+retired evidence record for the full evidence record.
 
 Observability Evidence: the handler emits the `query.container_image_list` span
 with `http.route` and `eshu.capability=platform_impact.container_image_list`,

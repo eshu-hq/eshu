@@ -94,7 +94,7 @@ The supply-chain cassette keeps the suppression in its own
 and an authenticated-subject hash, matching the administrative producer rather
 than presenting it as provider intelligence.
 
-See `evidence-4367-projection-ordering.md` for the no-regression and
+See #4367 (retired evidence record) for the no-regression and
 no-observability-change evidence for this addition.
 
 ## Verifying a change

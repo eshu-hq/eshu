@@ -27,7 +27,7 @@ import (
 // (PG 18, synthetic finding census at 1x, 5x, and 10x; under the 10 s
 // holder-read statement timeout). #11197: on 300,000 supports the read is
 // 118 buffers and 0.59 ms against the fact read's 112 and 0.64 ms, through the
-// existing repository index (docs/internal/evidence/11197-holder-reads-supports.md).
+// existing repository index (#11197 (retired evidence record)).
 const findRepositoryFindingHoldersQuery = `
 SELECT DISTINCT support.scope_id
 FROM supply_chain_impact_finding_supports AS support

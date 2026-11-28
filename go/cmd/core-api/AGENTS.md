@@ -70,4 +70,4 @@
 - Wave-6 lane (2026-11-19): new binary, mux constructor, frozen
   enumeration, and image row. Parent rulings:
   `docs/internal/arbiter/9669-step3-gating-ruling-2026-11-19.md`,
-  `docs/internal/arbiter/9669-step2-scope-ruling-2026-11-18.md`.
+  #9669 (retired evidence record).

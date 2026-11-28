@@ -494,7 +494,7 @@ editing inside it. Three rules that are easy to get wrong from here:
 ## Evidence notes
 
 Historical no-regression and root-cause evidence for this package lives in
-[`evidence-notes.md`](evidence-notes.md) alongside this file. It was split out
+retired evidence record alongside this file. It was split out
 so `AGENTS.md` keeps headroom under the 500-line Markdown cap while the
 remaining intent families move into child packages (#6057); the sibling
 convention is `internal/reducer`, which carries its evidence the same way.

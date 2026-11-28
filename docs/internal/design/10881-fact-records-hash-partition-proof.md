@@ -22,7 +22,7 @@ differ from the small-scale numbers below, they win.
 Refs #10881. Part of #10860 (phase 3, step 2). Blocked by #10880 (reads
 move off first) and answered by #10862 (CLOSED; baseline below). Authority:
 #10861 D6 replacement plus arbiter ruling 2026-11-18
-(`docs/internal/arbiter/10861-reducer-execution-model-ruling-2026-11-18.md`,
+(#10861 (retired evidence record),
 D6 lines 66-74 reject-as-written, 116-131 replacement).
 
 The issue title ("by repository") is retired: the key is `scope_id`.

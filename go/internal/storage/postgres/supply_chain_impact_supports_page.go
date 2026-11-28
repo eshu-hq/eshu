@@ -42,7 +42,7 @@ import (
 // Each page is its own autocommit statement: no cursor and no transaction stays
 // open between pages. At a package with 1,600,000 supports a page reads 5,958
 // buffers and takes 3.8 ms warm, with no temp, under both plan_cache_mode settings
-// (docs/internal/evidence/10880-b2c/reader_plans.md).
+// (#10880 (retired evidence record)).
 
 // supplyChainImpactSupportsPackageIndexPredicate is the partial-index predicate
 // of the supports table's package_id btree ((package_id, fact_id) WHERE

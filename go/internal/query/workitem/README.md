@@ -152,5 +152,5 @@ shapes with a recording tracer.
 
 - `docs/internal/design/5584-route-serves-data-registry.md`
 - `sdk/go/factschema/workitem/v1/README.md`
-- `go/internal/query/evidence-notes.md`
+- retired evidence record
 - `go/internal/query/read-models.md`

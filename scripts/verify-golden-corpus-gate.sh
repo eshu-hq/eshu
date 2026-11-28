@@ -392,7 +392,7 @@ log "B-7 suppression producer truth: B-expired -> hidden -> A-expired"
 # ceiling is 8s (3s baseline + 5s absolute_slack_seconds) -- so any wait fails
 # on any host, from source alone, with no pipeline slowdown behind it. The
 # ~23s figure quoted around this change is an illustrative local reading, not
-# a captured measurement; see docs/internal/evidence/5837-aws-drift-reopen.md,
+# a captured measurement; see #5837 (retired evidence record),
 # "Golden-gate phase-timing note". Bracket it so the phase keeps measuring what the
 # baseline note says it measures: query-truth shell + eshu-mcp-server startup. Move these
 # stamps if the proof moves; do not delete them to "fix" a timing warning.

@@ -346,7 +346,7 @@
   `TerraformStateOwnershipTransientFailure` -- Resolved, NoOwner, and
   AmbiguousOwner are all retract-eligible.
 
-- **Provisioning-candidate read gained a deterministic, structurally bounded LIMIT (#5720)** — see `evidence-5720-provisioning-candidate-bound.md`, continued in `evidence-5720-truncation-enumeration.md` for what belongs on the consumer-truncation enumeration and why.
+- **Provisioning-candidate read gained a deterministic, structurally bounded LIMIT (#5720)** — see #5720 (retired evidence record), continued in #5720 (retired evidence record) for what belongs on the consumer-truncation enumeration and why.
 
 ## Common changes and how to scope them
 
@@ -476,12 +476,12 @@
 The dated, per-issue evidence log for this package is split across four files
 to keep every file under AGENTS.md's 500-line-per-file convention (not
 repo-enforced):
-[AGENTS-evidence-history.md](AGENTS-evidence-history.md) (part 1, #2048
+retired evidence record (part 1, #2048
 through #4794/#4733),
-[AGENTS-evidence-history-2.md](AGENTS-evidence-history-2.md) (part 2, #3492
+retired evidence record (part 2, #3492
 through #5816, plus a P1 follow-up to #5764),
-[AGENTS-evidence-history-3.md](AGENTS-evidence-history-3.md) (part 3, #5761
-and #5764), and [AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md)
+retired evidence record (part 3, #5761
+and #5764), and retired evidence record
 (part 4, #5764 rounds 6-9). Entries are either preserved with headings
 demoted one level (`##` to `###`) from a single-file AGENTS.md, or split out
 of this file's own "Invariants this package enforces" section above: the

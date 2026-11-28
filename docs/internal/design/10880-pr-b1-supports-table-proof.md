@@ -48,8 +48,8 @@ bootstrapped with the repository's `ApplyBootstrap` so the 157 `fact_records`
 indexes and all triggers are the real ones. The container is removed at the
 end. The Go harness (equality, EXPLAIN, latency, concurrency) lives in this
 worktree as untracked `zz_b1_*_scratch_test.go` files under
-`go/internal/query/supply/chain/impact/` and is not committed; the SQL is
-committed under `docs/internal/evidence/10880-pr-b1/` (see its README).
+`go/internal/query/supply/chain/impact/` and is not committed (see #10880
+retired evidence record).
 
 **Corpora.**
 

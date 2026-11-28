@@ -2,7 +2,7 @@
 
 `storage/cypher` owns backend-neutral Cypher write contracts, canonical writers,
 edge helpers, statement metadata, retry/timeout wrappers, and write instrumentation
-for Eshu's canonical graph, including [fault-injection restart evidence](fault-injection-restart-evidence.md).
+for Eshu's canonical graph, including fault-injection restart evidence.
 Every write path that touches the graph backend goes through this package.
 
 ## Where this fits in the pipeline
@@ -117,7 +117,7 @@ anti-join between two bounded reads per label:
   than anchoring one statement on an arbitrarily large key list: this
   statement's own cost scales super-linearly with key-list size on both
   pinned backends (measured ~4.7s at 5,000 keys unchunked vs ~0.6s chunked at
-  500/round trip -- see `evidence-5147-orphan-sweep-antijoin.md` and
+  500/round trip -- see #5147 (retired evidence record) and
   `docs/public/reference/cypher-performance.md`). Below the chunk size this
   is exactly one round trip, unchanged from before chunking was added.
 
@@ -185,7 +185,7 @@ on a true orphan on the live backend, then proves the anti-join store marks,
 ages, sweeps the orphan, clears a relinked node's marker, and preserves
 connected nodes across two injected-clock cycles; verified on both the pinned
 v1.1.11 and PR261/compose-default NornicDB images (see
-`evidence-5147-orphan-sweep-antijoin.md`).
+#5147 (retired evidence record)).
 
 Observability Evidence: `OrphanSweepStore` statement summaries and operation
 metadata flow through the existing `InstrumentedExecutor` metrics and spans.
@@ -374,7 +374,7 @@ the impossible code-import `RUNS_ON` role, exceeding the `158s` worthwhile-work
 threshold by `204.94s`. On the quiet retained graph, the alternative indexed
 traversal saved only milliseconds, so that rewrite was deferred. The complete
 proof and exactness table are in
-[`evidence-5208-code-import-runs-on-omit.md`](evidence-5208-code-import-runs-on-omit.md).
+#5208 (retired evidence record).
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestEdgeWriterRetractEdgesRepoDependency|TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn|TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes'
@@ -810,8 +810,8 @@ the wrappers and asserts the rule rather than leaving it to review.
 runs behind a `ProbeExecutor` existence check, because on the pinned NornicDB
 build that DELETE costs proportional to store size even when it removes zero
 rows (`ledger:5998-zero-row-explains-delete-large-store` versus
-`ledger:5998-zero-row-explains-delete-empty-store` in
-docs/internal/measurements.jsonl, same statement, same zero-row result), while
+`ledger:5998-zero-row-explains-delete-empty-store` from the retired #5998
+measurement ledger, same statement, same zero-row result), while
 the identical MATCH as a bounded read stays fast on both. The probe mirrors
 whichever retract shape
 `BuildRetractRationaleEdges` selects, so the two always ask the same question.
@@ -823,7 +823,7 @@ The delta path -- a repository's incremental sync, retracting only the
 `EXPLAINS` edges for files that changed -- gets the same guard, and it is the
 path that fires far more often: it runs on every incremental sync rather than
 once per generation. `ledger:5998-delta-per-label-retract-seeded-rerun` /
-`ledger:5998-delta-per-label-retract-empty` in docs/internal/measurements.jsonl
+`ledger:5998-delta-per-label-retract-empty` from the retired #5998 measurement ledger
 show its seven per-label statements costing 12.589s together on a
 190,000-relationship store against 0.291s on an empty one, both measured on the
 same host -- the same store-size term the whole-repository shape carries, proven
@@ -1290,7 +1290,7 @@ adapter seam.
   unique conflicts usually point at concurrent MERGE contention on shared nodes
   (Repository, Directory, Module), while driver `ConnectivityError` points at
   backend reachability, pool pressure, restart, or network churn. Check worker
-  concurrency before raising `RetryingExecutor.MaxRetries`. `reason=neo4j_parser_interval_race` is not contention: it is the false ``Variable `U` not defined`` SyntaxError from an ANTLR data race in the pinned Neo4j image on weakly ordered CPUs (antlr/antlr4#4901). It retries regardless of statement shape (parse-time, inside one transaction), and after the budget the original SyntaxError surfaces terminal, so a real undefined one-character variable costs at most `MaxRetries` retries; see `evidence-8190-neo4j-parser-interval-race.md`.
+  concurrency before raising `RetryingExecutor.MaxRetries`. `reason=neo4j_parser_interval_race` is not contention: it is the false ``Variable `U` not defined`` SyntaxError from an ANTLR data race in the pinned Neo4j image on weakly ordered CPUs (antlr/antlr4#4901). It retries regardless of statement shape (parse-time, inside one transaction), and after the budget the original SyntaxError surfaces terminal, so a real undefined one-character variable costs at most `MaxRetries` retries; see #8190 (retired evidence record).
 - `eshu_dp_canonical_atomic_fallbacks_total` > 0 means the executor does not
   implement `GroupExecutor`; write ordering relies on sequential phase execution
   which is slower and non-atomic.

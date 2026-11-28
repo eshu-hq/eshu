@@ -46,7 +46,7 @@ var canonicalEntityPhaseSkipOwners = map[string]string{
 		"Parameter MERGEs on a composite function-scoped key, not uid",
 	// No owner on purpose, and "owner" here means SOURCE-LOCAL owner. See
 	// go/internal/content/shape/materialize_tables.go and
-	// go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md.
+	// #5156 (retired evidence record).
 	// Plain source Variables stay in the Postgres content/search surface. The
 	// reducer's semantic-entity path does write Variable nodes -- for Elixir
 	// module attributes and TSX component-type assertions, under

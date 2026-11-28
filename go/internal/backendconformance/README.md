@@ -74,7 +74,7 @@ NornicDB absent-file semantic Module pin sits under #6968; the canonical-import
 pin was removed by #8168, because the import_key MERGE no longer binds the
 stray semantic node. Both lanes were observed live
 returning exactly these rows; the reasoning, the commands, and the images are
-in `evidence-notes.md`.
+in retired evidence record.
 
 No-Regression Evidence: no production Cypher text, index, schema, queue or
 batching changed. `sourcecypher.CanonicalNodeModuleUpsertCypher` is a new

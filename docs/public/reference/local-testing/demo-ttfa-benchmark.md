@@ -139,8 +139,7 @@ tell a slow image build from a slow bring-up:
 
 Every cell is the median of the same three runs, per phase rather than per run,
 so a fast phase in one trial cannot be paired with a slow one in another. The
-trials, command, host, and measured commit are in
-`docs/internal/measurements.jsonl` under the ids above.
+ids above come from the retired #4744 measurement ledger.
 
 An earlier revision of this page concluded that neither image acquisition nor
 indexing was the cost. That was wrong, and it was wrong for a structural

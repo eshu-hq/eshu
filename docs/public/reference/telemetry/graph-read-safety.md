@@ -174,10 +174,10 @@ deployment/infrastructure overview builder
 is neither bounded nor disclosed, and neither route's full call graph
 has an exhaustive audit yet: a graph-read failure there still folds into the
 "no rows" path with no `failure_class` signal. See
-`go/internal/query/AGENTS-evidence-history-3.md` (part 3, linked from
+retired evidence record (part 3, linked from
 `go/internal/query/AGENTS.md`) for the full per-site propagate/degrade
 rationale and the reasoning behind the narrower scope, and
-`go/internal/query/AGENTS-evidence-history-2.md` (part 2) for the P1 review
+retired evidence record (part 2) for the P1 review
 follow-up that bounded and disclosed the story's workload/platform/language
 row reads.
 

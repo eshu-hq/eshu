@@ -118,7 +118,7 @@
   `CommitFailedDeadError` is not retried in place because the commit outcome is
   unknown. A durable caller may later replay still-pending idempotent work after
   backoff. The loop also handles Neo.ClientError.Transaction.TransactionCommitFailed when classified as a
-  commit-time UNIQUE conflict (`retrying_executor.go`), and the Neo4j parser's false ``Variable `X` not defined`` SyntaxError (#8190, reason `neo4j_parser_interval_race`, `retrying_executor_parser_race.go`, `evidence-8190-neo4j-parser-interval-race.md`): match by prefix or one-char identity, never a literal `U`; never gate it on statement shape (it is parse-time inside one transaction) and, after the budget, return the original SyntaxError terminal, never a `neo4jRetryableError`. Vendor-bug workaround: remove once the Neo4j image bundles ANTLR with antlr/antlr4#4902.
+  commit-time UNIQUE conflict (`retrying_executor.go`), and the Neo4j parser's false ``Variable `X` not defined`` SyntaxError (#8190, reason `neo4j_parser_interval_race`, `retrying_executor_parser_race.go`, #8190 (retired evidence record)): match by prefix or one-char identity, never a literal `U`; never gate it on statement shape (it is parse-time inside one transaction) and, after the budget, return the original SyntaxError terminal, never a `neo4jRetryableError`. Vendor-bug workaround: remove once the Neo4j image bundles ANTLR with antlr/antlr4#4902.
 - **CanonicalNodeWriter.Write wraps escaping errors as retryable** — every
   return path in `CanonicalNodeWriter.Write` (atomic group, phase group, and
   sequential) routes its error through `WrapRetryableNeo4jError`, matching every
@@ -489,7 +489,7 @@ graph-write route surface.
 ## Evidence and change history
 
 The dated evidence log for this package is in
-[AGENTS-evidence-history.md](AGENTS-evidence-history.md), split out to keep this
+retired evidence record, split out to keep this
 read-first file under the repository's 500-line cap. It preserves every prior
 entry: canonical-writer retryable-error propagation (#3483), the uid-anchored
 `TAINT_FLOWS_TO` / `CodeTaintEvidence` retract and its NornicDB Bolt

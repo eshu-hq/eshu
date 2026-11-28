@@ -139,7 +139,7 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // (ListFindingsFromWinnersSupplementQuery) is derived from it and is NOT O(page):
 // it scans every stored winners row and probes one supports index entry per
 // candidate key, so its cost grows with the winners table and with the number of
-// matching keys (docs/internal/evidence/10880-pr-b2a-reader/RESULTS.md names the
+// matching keys (#10880 (retired evidence record) names the
 // measured envelope: 80,001 keys, not above it).
 //
 // It takes the SAME 30-parameter slice as ListFindingsQuery so

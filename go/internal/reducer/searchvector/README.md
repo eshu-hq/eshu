@@ -131,7 +131,7 @@ this package's three files.
   cross-package flow into `internal/query/semanticsearch`.
 - `docs/public/observability/telemetry-coverage.md` — this package's
   telemetry rows.
-- `go/internal/reducer/evidence-5063-vector-tail-page-budget.md` and
-  `go/internal/reducer/evidence-4430-search-vector-sweep-batching.md` —
+- #5063 (retired evidence record) and
+  #4430 (retired evidence record) —
   performance evidence for the tail-scope document-limit budget and the
   split-timing phase metric this package emits.
