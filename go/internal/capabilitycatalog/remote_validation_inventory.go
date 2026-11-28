@@ -12,9 +12,13 @@ import (
 	"sort"
 )
 
-// RemoteValidationInventoryFileName is the generated slug-to-row inventory
-// stored beside the human-authored remote-validation evidence files.
-const RemoteValidationInventoryFileName = "inventory.generated.json"
+// RemoteValidationInventoryPath is the repository-relative path of the
+// generated slug-to-row inventory stored beside specs/remote-validation-proofs.v1.yaml.
+const RemoteValidationInventoryPath = "specs/remote-validation-inventory.generated.json"
+
+// RemoteValidationInventoryFileName is the base filename of the generated
+// slug-to-row inventory.
+const RemoteValidationInventoryFileName = "remote-validation-inventory.generated.json"
 
 // RemoteValidationInventory is the deterministic list of production-supported
 // remote_validation claims derived from the capability matrix.
@@ -59,7 +63,7 @@ func BuildRemoteValidationInventory(matrix Matrix) RemoteValidationInventory {
 	for _, ref := range refs {
 		artifacts = append(artifacts, RemoteValidationInventoryArtifact{
 			Slug:           ref,
-			ArtifactPath:   RemoteValidationArtifactDir + "/" + ref + ".md",
+			ArtifactPath:   RemoteValidationProofsPath + "#" + ref,
 			Subjects:       uniqueSortedStrings(subjectsByRef[ref]),
 			AssertionCount: len(uniqueSortedStrings(subjectsByRef[ref])),
 		})

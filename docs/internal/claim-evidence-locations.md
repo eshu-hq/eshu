@@ -29,9 +29,8 @@ whose sole committed evidence is a lower-tier test.
 
 Committed validation evidence lives in:
 
-- `docs/internal/remote-validation/<slug>.md` (scheduled for consolidation into
-  `specs/` under #11639) — production-validation records for capability-matrix
-  `remote_validation` proof-IDs (#5407 gate).
+- `specs/remote-validation-proofs.v1.yaml` — production-validation proof
+  entries for capability-matrix `remote_validation` proof-IDs (#5407 gate).
 - `go/internal/**/*_test.go` (e.g. `internal/query`, `internal/mcp`) — the
   `go_test` suites the matrix local profiles cite.
 - `scripts/run-remote-e2e-*.sh` plus `docs/public/run-locally/docker-compose.*.yaml`

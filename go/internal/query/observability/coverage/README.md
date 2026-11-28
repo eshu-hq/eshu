@@ -65,7 +65,7 @@ or `499` when the caller canceled the request.
 
 ## Related docs
 
-- [Remote validation](../../../../../docs/internal/remote-validation/prod-observability-coverage-correlations.md)
+- Remote validation: `specs/remote-validation-proofs.v1.yaml` (`prod-observability-coverage-correlations`)
 - [Read models](../../read-models.md)
 
 The correlation store exposes `NewPostgresCorrelationStoreWithReadStore` for a

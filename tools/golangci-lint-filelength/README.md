@@ -7,8 +7,7 @@ non-generated Go source files.
 
 The cap is a load-bearing rule for Eshu — it is what keeps the
 collector → reducer → graph hot path reviewable and the
-package-`doc.go`/`README.md`/`AGENTS.md` triple maintainable. The
-audit recorded in `docs/internal/audit/2026-06-09-repo-technical-audit.md`
+package-`doc.go`/`README.md`/`AGENTS.md` triple maintainable. The 2026-06-09 repository technical audit
 calls out the 29 files that already break the rule; this plugin exists
 so new violations fail CI immediately.
 

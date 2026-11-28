@@ -37,8 +37,8 @@ const AuditAppendAdmissionContractVersion = "v0"
 // the shared port — every non-audit consumer keeps its own standing
 // until a deliberate pin covers it.
 //
-// D-wave consumer: satellite records this pin in api/version.go and
-// contracts/ with per-route byte-parity/conformance plus D0 re-review;
+// D-wave consumer: satellite records this pin in api/version.go with
+// per-route byte-parity/conformance plus D0 re-review;
 // until mint + arbiter review + record, all 18 routes carry tier-C
 // dispatch. A satellite PR consuming an unminted pin is invalid.
 // Arbiter review of this pin precedes satellite termination of any of

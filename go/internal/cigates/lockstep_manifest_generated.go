@@ -17,7 +17,6 @@ var lockstepDocsPaths = []string{
 	"AGENTS.md",
 	"docs/internal/design/430-nornicdb-graph-search-split.md",
 	"docs/internal/design/5351-ifa-materialized-edge-known-gaps.md",
-	"docs/internal/remote-validation/inventory.generated.json",
 	"docs/public/deployment/credential-file-cleanup.md",
 	"docs/public/deployment/service-runtimes-collectors.md",
 	"docs/public/deployment/service-runtimes.md",
@@ -75,5 +74,6 @@ var lockstepDocsPaths = []string{
 	"go/internal/runtime/README.md",
 	"go/internal/runtime/testdata/8894-component-extension-activations.md",
 	"go/internal/workflow/parity/contention/README.md",
+	"specs/remote-validation-inventory.generated.json",
 	"testdata/golden/documentation-positive.md",
 }

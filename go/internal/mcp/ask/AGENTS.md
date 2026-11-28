@@ -11,7 +11,7 @@
    production-boundary proof.
 6. `../contract/tool/README.md` and `../contract/route/README.md` for the
    dependency-neutral definition and request contracts.
-7. `../../../../docs/internal/remote-validation/prod-ask-default-off.md` for
+7. `specs/remote-validation-proofs.v1.yaml` (`prod-ask-default-off`) for
    deployed default-off and enabled-path evidence.
 
 ## Invariants

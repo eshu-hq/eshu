@@ -31,8 +31,7 @@ import (
 // providers GET proofs ride the pin contract suites).
 
 // TestW5RidersFrozen pins the exact surface Wave 5 proves: the R1
-// wrong-method twin plus the R2/R3 slash twins from
-// contracts/step2-frozen-scope.md. A wave change moves the ownership
+// wrong-method twin plus the R2/R3 slash twins. A wave change moves the ownership
 // note in w5_riders_wave.go, the oracle fragment column, and this
 // mirror together.
 func TestW5RidersFrozen(t *testing.T) {

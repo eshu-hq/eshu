@@ -25,8 +25,7 @@ stale or missing row costs latency, never accuracy, because the live extractor
 answers for that repository. The derive protocol, the fence and the
 interleavings are in the
 [protocol companion](7126-ingest-time-config-artifacts-protocol.md). The
-measurements are in the
-[evidence appendix](7126-ingest-time-config-artifacts-evidence.md).
+measurements are recorded on issue #7126.
 
 ## 1. Context
 
@@ -493,8 +492,7 @@ to its section here.
 <details>
 <summary>Evidence and measurements</summary>
 
-See [the evidence appendix](7126-ingest-time-config-artifacts-evidence.md).
-It holds the measurement table with sources and limits, the source facts by
+Point-in-time measurements and source-fact breakdowns are recorded on #7126.
 symbol, and the split between evidence and theory.
 
 </details>

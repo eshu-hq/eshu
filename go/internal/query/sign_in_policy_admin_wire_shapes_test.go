@@ -25,8 +25,7 @@ var _ auth.SignInPolicyReadAdmission = (*fakeSignInPolicyReadStore)(nil)
 // GET /api/v0/auth/admin/sign-in-policy serves: the 8 always-present
 // keys. The 2 conditional keys (sso_admin_verified_at,
 // sso_admin_verified_provider_config_id) are pinned separately below.
-// An added, removed, or renamed key fails here until the pin record
-// (contracts/signin-policy-read-admission.md) moves with it.
+// An added, removed, or renamed key fails here until the admission pin moves with it.
 var frozenAdminSignInPolicyKeys = []string{
 	"absolute_timeout_seconds",
 	"allow_local_user_creation",

@@ -38,8 +38,8 @@
 - **New verification kind** → add it to `allowedVerificationKinds` in
   `matrix.go` first; an unlisted key is a hard `LoadMatrix` error by design
   (#5407). Do not loosen the allow-list to unblock a one-off spec change.
-- **New or moved `remote_validation` ref** → commit the evidence at
-  `docs/internal/remote-validation/<ref>.md`. The baseline is a frozen audited
+- **New or moved `remote_validation` ref** → commit the proof entry under
+  `specs/remote-validation-proofs.v1.yaml`. The baseline is a frozen audited
   set guarded by a `# FROZEN_MAX: <N>` ceiling: it may shrink but not grow, so
   `-update` will NOT quietly baseline a new unverified `production:supported`
   ref — the regenerated file lands over the ceiling and fails the gate. Do not

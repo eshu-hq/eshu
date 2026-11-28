@@ -97,7 +97,7 @@ func TestAllJSONConfigChanged(t *testing.T) {
 	}
 	// A lockstep test input stays code even when it is JSON-shaped: editing
 	// it alone must still run the asserting test's lanes.
-	if allJSONConfigChanged([]string{"docs/internal/remote-validation/inventory.generated.json"}) {
+	if allJSONConfigChanged([]string{"specs/remote-validation-inventory.generated.json"}) {
 		t.Error("allJSONConfigChanged(lockstep JSON) = true, want false")
 	}
 }

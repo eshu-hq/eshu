@@ -249,7 +249,7 @@ measured here.
 
 ## What #8833 proves for the operator purge
 
-The acceptance lists are on [the acceptance page](8813-credential-file-exposure-acceptance.md).
+The acceptance lists live on issue #8813.
 For the purge, #8833 also proves:
 
 1. Live Postgres: a seeded active fact row, index document and terms for a

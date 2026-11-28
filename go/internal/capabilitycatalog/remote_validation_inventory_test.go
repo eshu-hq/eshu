@@ -100,20 +100,20 @@ func TestRemoteValidationInventoryRealSpecsCount(t *testing.T) {
 		t.Fatalf("production-supported remote-validation slugs = %d, want %d", got, want)
 	}
 	repoRoot := filepath.Dir(specsDir)
+	catalog, err := loadRemoteValidationProofCatalog(repoRoot)
+	if err != nil {
+		t.Fatalf("load remote-validation proofs: %v", err)
+	}
 	for _, item := range inventory.Artifacts {
-		raw, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(item.ArtifactPath)))
-		if err != nil {
-			t.Fatalf("read %s: %v", item.ArtifactPath, err)
-		}
-		artifact, err := parseRemoteValidationArtifact(string(raw))
-		if err != nil {
-			t.Fatalf("parse %s: %v", item.ArtifactPath, err)
+		artifact, ok := catalog[item.Slug]
+		if !ok {
+			t.Fatalf("missing proof entry for %s (%s)", item.Slug, item.ArtifactPath)
 		}
 		if got := len(artifact.assertions); got != item.AssertionCount {
-			t.Errorf("%s Capability-Assertion count = %d, inventory assertion_count = %d", item.Slug, got, item.AssertionCount)
+			t.Errorf("%s assertions count = %d, inventory assertion_count = %d", item.Slug, got, item.AssertionCount)
 		}
 		if got := len(artifact.b12Assertions); got != item.AssertionCount {
-			t.Errorf("%s B12-Assertion count = %d, inventory assertion_count = %d", item.Slug, got, item.AssertionCount)
+			t.Errorf("%s b12_assertions count = %d, inventory assertion_count = %d", item.Slug, got, item.AssertionCount)
 		}
 	}
 }

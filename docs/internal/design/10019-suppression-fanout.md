@@ -187,8 +187,7 @@ net-zero changes inside the unwalked span stay on the holders' cadence.
 `GROUP BY` statement over the whole chain, and its cost is linear in the pair count. The
 single statement is exact (same 80 changed suppressions and 90 CVE ids as the pairs on
 the 1,000-suppression chain) but has to sort every payload: 969 ms against 550 ms for one
-pair, and 4,482 ms against 4,147 ms for eight. The pairs shape is the design; the rounds and loads are in
-[the measurements note](10019-suppression-fanout-measurements.md).
+pair, and 4,482 ms against 4,147 ms for eight. The pairs shape is the design (#10019).
 
 At 100,000 suppressions one pair costs 550 ms, four cost 2,044 ms and eight cost 4,147 ms; at
 1,000 they cost 3.3, 8.0 and 14.1 ms (p50 on the loaded host, full table in the note). On the
@@ -230,7 +229,6 @@ pass yet reopen no holder.
 
 ## Measurements
 
-Full tables and round loads: [the measurements note](10019-suppression-fanout-measurements.md).
 **Inline is accepted.** The decision the threshold served was inline in the writer
 transaction, or an index, another shape, or an earlier cut. The plan and buffers pass: a
 Hash Full Join over two index accesses on `fact_records_scope_generation_idx` with no
@@ -481,8 +479,7 @@ in `supply_chain_impact_fanout_suppression_cveid_live_test.go`,
     on C fans out B's and C's ids. RED against the prior-generation baseline.
   - **Net-zero, both directions, on the convergence harness.** A holder that ran during B
     reads the right state after the pass on C. RED against the endpoint diff.
-- The skewed `activated_at` selector test is committed; the committed tests are listed in
-  [the measurements note](10019-suppression-fanout-measurements.md#tests-committed-now).
+- The skewed `activated_at` selector test is committed (#10019).
   Inline wiring conditions: see [Measurements](#measurements).
 - Telemetry registration, the coverage doc, `HOLDER_FANOUT.md`, the `ChangedCVEIDs` comment
   on `SupplyChainImpactWriteResult`, and the #9914 operator guidance.
@@ -495,5 +492,5 @@ in `supply_chain_impact_fanout_suppression_cveid_live_test.go`,
   proof stands alongside it).
 - Whether real activation order can ever disagree with ingest order, and whether retention
   can prune an activated generation that sits between an admitted baseline and the active one.
-- Measurement caveats (drain wall time, `work_mem`, cold cache, heap layout): see
-  [the measurements note](10019-suppression-fanout-measurements.md#not-checked).
+- Measurement caveats (drain wall time, `work_mem`, cold cache, heap layout) are
+  tracked on #10019.

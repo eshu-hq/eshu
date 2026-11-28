@@ -1,0 +1,1235 @@
+# Remote-validation deployed proofs for production-supported capability claims.
+# Validated by scripts/verify-remote-validation-artifacts.sh.
+schema_version: 1
+proofs:
+  - slug: prod-admission-decisions
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - admission_decisions.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "admission_decisions.list -> mcp:list_admission_decisions"
+  - slug: prod-advisory-catalog
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.advisory_catalog.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.advisory_catalog.list -> http:GET /api/v0/supply-chain/advisories?limit=10&q=CVE-2026-00010"
+  - slug: prod-advisory-evidence
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.advisory_evidence.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.advisory_evidence.list -> mcp:list_advisory_evidence"
+  - slug: prod-answer-narration-status
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - answer_narration.status passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "answer_narration.status -> mcp:get_answer_narration_status"
+  - slug: prod-ask-default-off
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu5552-ask-aggregate-20260809c ESHU_POSTGRES_PORT=25432 NORNICDB_BOLT_PORT=27687 NORNICDB_HTTP_PORT=27474 GATE_API_PORT=28080 GATE_MCP_PORT=28091 GATE_PROMETHEUS_SOURCE_PORT=29090 GATE_ASK_PROVIDER_PORT=29191 bash scripts/verify-golden-corpus-gate.sh > /tmp/eshu-5552-b7-ask-aggregate-20260809c.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - "ask.natural_language_answer returned non-empty answer prose and four evidence handles after the deployed engine completed one supported, bounded investigate_code_topic call."
+    b12_assertions:
+      - "ask.natural_language_answer -> mcp:ask"
+  - slug: prod-aws-runtime-drift-read-model
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - aws_runtime_drift.findings.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+      - iac_management.explain_status passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+      - iac_management.find_unmanaged_resources passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+      - iac_management.get_status passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+      - iac_management.propose_terraform_import_plan passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "aws_runtime_drift.findings.list -> mcp:list_aws_runtime_drift_findings"
+      - "iac_management.explain_status -> mcp:explain_iac_management_status"
+      - "iac_management.find_unmanaged_resources -> mcp:find_unmanaged_resources"
+      - "iac_management.get_status -> mcp:get_iac_management_status"
+      - "iac_management.propose_terraform_import_plan -> mcp:propose_terraform_import_plan"
+  - slug: prod-call-chain-path
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.call_chain_path passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.call_chain_path -> mcp:find_function_call_chain"
+  - slug: prod-call-graph-metrics
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.metrics passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.metrics -> mcp:inspect_call_graph_metrics"
+  - slug: prod-catalog
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu5552-ask-aggregate-20260809c ESHU_POSTGRES_PORT=25432 NORNICDB_BOLT_PORT=27687 NORNICDB_HTTP_PORT=27474 GATE_API_PORT=28080 GATE_MCP_PORT=28091 GATE_PROMETHEUS_SOURCE_PORT=29090 GATE_ASK_PROVIDER_PORT=29191 bash scripts/verify-golden-corpus-gate.sh > /tmp/eshu-5552-b7-ask-aggregate-20260809c.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.catalog passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.catalog -> mcp:get_ecosystem_overview"
+  - slug: prod-change-surface
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.change_surface passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.change_surface -> mcp:find_change_surface"
+  - slug: prod-ci-cd-run-correlation-aggregate
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - ci_cd.run_correlations.aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "ci_cd.run_correlations.aggregate -> mcp:count_ci_cd_run_correlations"
+  - slug: prod-ci-cd-run-correlations
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - ci_cd.run_correlations.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "ci_cd.run_correlations.list -> mcp:list_ci_cd_run_correlations"
+  - slug: prod-class-methods
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - symbol_graph.class_methods passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "symbol_graph.class_methods -> mcp:execute_language_query"
+  - slug: prod-cloud-inventory-readback
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - cloud_inventory.readback.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "cloud_inventory.readback.list -> mcp:list_cloud_resource_inventory"
+  - slug: prod-cloud-resource-list
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.cloud_resource_list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.cloud_resource_list -> http:GET /api/v0/cloud/resources"
+  - slug: prod-cloud-runtime-drift-readback
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - cloud_runtime_drift.readback.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "cloud_runtime_drift.readback.list -> mcp:list_cloud_runtime_drift_findings"
+  - slug: prod-code-flow-cfg-summary
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_flow.cfg_summary passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_flow.cfg_summary -> mcp:dispatch_cfg_summary"
+  - slug: prod-code-flow-pdg-summary
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_flow.pdg_summary passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_flow.pdg_summary -> mcp:dispatch_pdg_summary"
+  - slug: prod-code-flow-taint-path
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_flow.taint_path passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_flow.taint_path -> mcp:dispatch_taint_path"
+  - slug: prod-code-quality-refactoring
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_quality.refactoring passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_quality.refactoring -> mcp:inspect_code_quality"
+  - slug: prod-code-search-exact
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_search.exact_symbol passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_search.exact_symbol -> mcp:find_code"
+  - slug: prod-code-search-fuzzy
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_search.fuzzy_symbol passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_search.fuzzy_symbol -> mcp:find_code"
+  - slug: prod-complexity
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_quality.complexity passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_quality.complexity -> mcp:calculate_cyclomatic_complexity"
+  - slug: prod-component-extension-diagnostics
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-component-extension.sh
+    command: "CE_PROOF_PROJECT=eshu-5552-component-20260809-3 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-3; echo $?"
+    exit_code: 0
+    assertions:
+      - component_extensions.diagnostics returned allowed policy and trust decisions plus claim-capable scheduler state from the deployed component registry.
+    b12_assertions:
+      - "component_extensions.diagnostics -> mcp:get_component_extension_diagnostics"
+  - slug: prod-component-extension-inventory
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/run-remote-e2e-component-extension.sh
+    command: "CE_PROOF_PROJECT=eshu-5552-component-20260809-3 bash scripts/run-remote-e2e-component-extension.sh --artifacts /tmp/eshu-5552-component-artifacts-20260809-3; echo $?"
+    exit_code: 0
+    assertions:
+      - "component_extensions.inventory returned the installed, enabled, trusted Scorecard component from the deployed component registry."
+    b12_assertions:
+      - "component_extensions.inventory -> mcp:list_component_extensions"
+  - slug: prod-container-image-identities
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.container_image_identities.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.container_image_identities.list -> mcp:list_container_image_identities"
+  - slug: prod-container-image-identity-aggregate
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.container_image_identities.aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.container_image_identities.aggregate -> mcp:count_container_image_identities"
+  - slug: prod-container-image-list
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.container_image_list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.container_image_list -> http:GET /api/v0/images"
+  - slug: prod-content-search
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_search.content_search passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_search.content_search -> mcp:search_file_content"
+  - slug: prod-context-overview
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.context_overview passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.context_overview -> mcp:get_repo_context"
+  - slug: prod-contract-impact
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.contract_impact passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.contract_impact -> mcp:investigate_contract_impact"
+  - slug: prod-curated-semantic-search
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - semantic_search.curated_retrieval passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "semantic_search.curated_retrieval -> mcp:search_semantic_context"
+  - slug: prod-dead-code
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_quality.dead_code passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_quality.dead_code -> mcp:find_dead_code"
+  - slug: prod-dead-iac
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify_dead_iac_compose.sh
+    command: "COMPOSE_PROJECT_NAME=eshu-5552-dead-iac-20260809-5 NEO4J_HTTP_PORT=47074 NEO4J_BOLT_PORT=47087 ESHU_POSTGRES_PORT=47032 ESHU_HTTP_PORT=47080 JAEGER_UI_PORT=47086 OTEL_COLLECTOR_OTLP_GRPC_PORT=47017 OTEL_COLLECTOR_OTLP_HTTP_PORT=47018 OTEL_COLLECTOR_PROMETHEUS_PORT=47064 ESHU_API_METRICS_PORT=47164 ESHU_BOOTSTRAP_METRICS_PORT=47167 ESHU_MCP_PORT=47081 ESHU_MCP_METRICS_PORT=47168 ESHU_INGESTER_METRICS_PORT=47165 ESHU_RESOLUTION_ENGINE_METRICS_PORT=47166 bash scripts/verify_dead_iac_compose.sh >/tmp/eshu-5552-dead-iac-20260809-5.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - "iac_quality.dead_iac returned ten materialized findings across Terraform, Helm, Ansible, Kustomize, and Compose through both deployed API and MCP surfaces."
+    b12_assertions:
+      - "iac_quality.dead_iac -> mcp:find_dead_iac"
+  - slug: prod-dead-letter-list
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - operator.dead_letters.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "operator.dead_letters.list -> mcp:list_dead_letter_work_items"
+  - slug: prod-decorators
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - symbol_graph.decorators passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "symbol_graph.decorators -> mcp:execute_language_query"
+  - slug: prod-dependencies
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - dependencies.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "dependencies.list -> http:GET /api/v0/dependencies?direction=forward&package=github.com/acme/lib-common&ecosystem=go&limit=10"
+  - slug: prod-dependency-path
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.dependency_path passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.dependency_path -> mcp:explain_dependency_path"
+  - slug: prod-deployment-chain
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.deployment_chain passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.deployment_chain -> mcp:trace_deployment_chain"
+  - slug: prod-deployment-config-influence
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.deployment_config_influence passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.deployment_config_influence -> mcp:investigate_deployment_config"
+  - slug: prod-developer-change-plan
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.developer_change_plan passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.developer_change_plan -> mcp:plan_developer_change"
+  - slug: prod-direct-callees
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.direct_callees passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.direct_callees -> mcp:analyze_code_relationships"
+  - slug: prod-direct-callers
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.direct_callers passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.direct_callers -> mcp:analyze_code_relationships"
+  - slug: prod-documentation-evidence-packet
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - documentation_evidence_packet.read passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "documentation_evidence_packet.read -> mcp:get_documentation_evidence_packet"
+  - slug: prod-documentation-facts
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - documentation_facts.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "documentation_facts.list -> mcp:list_documentation_facts"
+  - slug: prod-documentation-finding-aggregate
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - documentation_findings.aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "documentation_findings.aggregate -> mcp:count_documentation_findings"
+  - slug: prod-documentation-findings
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - documentation_findings.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "documentation_findings.list -> mcp:list_documentation_findings"
+  - slug: prod-documentation-packet-freshness
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - documentation_evidence_packet.freshness passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "documentation_evidence_packet.freshness -> mcp:check_documentation_evidence_packet_freshness"
+  - slug: prod-entity-map
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.entity_map passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.entity_map -> http:POST /api/v0/impact/entity-map"
+  - slug: prod-environment-compare
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.environment_compare passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.environment_compare -> mcp:compare_environments"
+  - slug: prod-evidence-citation-packet
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - evidence_citation.packet passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "evidence_citation.packet -> mcp:build_evidence_citation_packet"
+  - slug: prod-freshness-changed-since
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - freshness.changed_since passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "freshness.changed_since -> mcp:get_changed_since"
+  - slug: prod-freshness-generation-lifecycle
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - freshness.generation_lifecycle passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "freshness.generation_lifecycle -> mcp:get_generation_lifecycle"
+  - slug: prod-freshness-service-changed-since
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - freshness.service_changed_since passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "freshness.service_changed_since -> mcp:get_service_changed_since"
+  - slug: prod-graph-summary-packet
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.graph_summary_packet passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.graph_summary_packet -> mcp:get_graph_summary_packet"
+  - slug: prod-hardcoded-secrets
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - security.hardcoded_secrets passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "security.hardcoded_secrets -> mcp:investigate_hardcoded_secrets"
+  - slug: prod-hosted-governance-status
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - hosted_governance.status passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "hosted_governance.status -> mcp:get_hosted_governance_status"
+  - slug: prod-iac-resource-list
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - iac_inventory.resources.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "iac_inventory.resources.list -> http:GET /api/v0/iac/resources?limit=50&include_facets=true"
+  - slug: prod-impact-surface
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.blast_radius passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.blast_radius -> mcp:find_blast_radius"
+  - slug: prod-import-dependencies
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - symbol_graph.import_dependencies passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "symbol_graph.import_dependencies -> mcp:investigate_import_dependencies"
+  - slug: prod-incident-context
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - incident.context.read passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "incident.context.read -> mcp:get_incident_context"
+  - slug: prod-infra-resource-aggregate
+    tier: deployed_services
+    date: "2026-09-19"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "scripts/verify-golden-corpus-gate.sh; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.infra_resource_aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.infra_resource_aggregate -> mcp:count_infra_resources"
+  - slug: prod-kubernetes-correlations
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - kubernetes.correlations.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "kubernetes.correlations.list -> mcp:list_kubernetes_correlations"
+  - slug: prod-metrics-timeseries
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_metrics.timeseries passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_metrics.timeseries -> http:GET /api/v0/metrics/timeseries?metric=queue_depth&window=1h&step=5m"
+  - slug: prod-observability-coverage-correlations
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - observability.coverage.correlations.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "observability.coverage.correlations.list -> mcp:list_observability_coverage_correlations"
+  - slug: prod-operations-status
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - operations.status passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "operations.status -> http:GET /api/v0/status/operations"
+  - slug: prod-package-registry-aggregate
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - package_registry.packages.aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "package_registry.packages.aggregate -> mcp:count_package_registry_packages"
+  - slug: prod-package-registry-correlations
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - package_registry.correlations.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "package_registry.correlations.list -> mcp:list_package_registry_correlations"
+  - slug: prod-package-registry-dependencies
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - package_registry.dependencies.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "package_registry.dependencies.list -> mcp:list_package_registry_dependencies"
+  - slug: prod-package-registry-dependency-chains
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - package_registry.dependency_chains.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "package_registry.dependency_chains.list -> http:GET /api/v0/package-registry/dependency-chains?repository_id=orders-api&limit=10"
+  - slug: prod-package-registry-packages
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - package_registry.packages.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "package_registry.packages.list -> mcp:list_package_registry_packages"
+  - slug: prod-package-registry-versions
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - package_registry.versions.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "package_registry.versions.list -> mcp:list_package_registry_versions"
+  - slug: prod-pre-change-impact
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.pre_change passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.pre_change -> mcp:analyze_pre_change_impact"
+  - slug: prod-read-only-cypher
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - graph_query.read_only_cypher passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "graph_query.read_only_cypher -> mcp:execute_cypher_query"
+  - slug: prod-reducer-input-invalid-facts-list
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - operator.reducer_input_invalid_facts.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "operator.reducer_input_invalid_facts.list -> mcp:list_reducer_input_invalid_facts"
+  - slug: prod-relationship-evidence
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - relationship_evidence.drilldown passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "relationship_evidence.drilldown -> mcp:get_repo_context"
+  - slug: prod-relationship-story
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.relationship_story passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.relationship_story -> mcp:get_code_relationship_story"
+  - slug: prod-relationships-catalog
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.relationships_catalog passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.relationships_catalog -> mcp:list_relationship_edges"
+  - slug: prod-replatforming-ownership
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - replatforming.ownership.candidates passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "replatforming.ownership.candidates -> mcp:find_unmanaged_resource_owners"
+  - slug: prod-replatforming-plan-readiness
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - replatforming.plan.readiness passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "replatforming.plan.readiness -> mcp:compose_replatforming_plan"
+  - slug: prod-replatforming-rollups
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - replatforming.rollups.readiness passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "replatforming.rollups.readiness -> mcp:get_replatforming_rollups"
+  - slug: prod-replatforming-selector-inventory
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - replatforming.selector_inventory passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "replatforming.selector_inventory -> http:GET /api/v0/replatforming/selectors?limit=10"
+  - slug: prod-resource-investigation
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.resource_investigation passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.resource_investigation -> mcp:investigate_resource"
+  - slug: prod-resource-to-code
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - platform_impact.resource_to_code passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "platform_impact.resource_to_code -> mcp:trace_resource_to_code"
+  - slug: prod-route-to-caller
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.route_to_caller passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.route_to_caller -> mcp:trace_route_callers"
+  - slug: prod-sbom-attestation-attachment-aggregate
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.sbom_attestation_attachments.aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.sbom_attestation_attachments.aggregate -> mcp:count_sbom_attestation_attachments"
+  - slug: prod-sbom-attestation-attachments
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.sbom_attestation_attachments.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.sbom_attestation_attachments.list -> mcp:list_sbom_attestation_attachments"
+  - slug: prod-secrets-iam-identity-trust-chains
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - "secrets_iam.identity_trust_chains.list returned one exact trust chain through the deployed MCP surface, including the expected workload identity and state."
+    b12_assertions:
+      - "secrets_iam.identity_trust_chains.list -> mcp:list_secrets_iam_identity_trust_chains"
+  - slug: prod-secrets-iam-posture-gaps
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - secrets_iam.posture_gaps.list returned one deployed MCP posture gap and preserved its unsupported-policy-layer type and unsupported state.
+    b12_assertions:
+      - "secrets_iam.posture_gaps.list -> mcp:list_secrets_iam_posture_gaps"
+  - slug: prod-secrets-iam-posture-summary
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - "secrets_iam.posture_summary.read returned non-zero deployed MCP buckets for exact trust chains, wildcard privilege observations, exact access paths, and unsupported policy-layer gaps."
+    b12_assertions:
+      - "secrets_iam.posture_summary.read -> mcp:count_secrets_iam_posture"
+  - slug: prod-secrets-iam-privilege-posture-observations
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - secrets_iam.privilege_posture_observations.list returned one bounded wildcard-trust observation through the deployed MCP surface with high severity and partial state.
+    b12_assertions:
+      - "secrets_iam.privilege_posture_observations.list -> mcp:list_secrets_iam_privilege_posture_observations"
+  - slug: prod-secrets-iam-secret-access-paths
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - "secrets_iam.secret_access_paths.list returned one exact deployed MCP access path with a synthetic KV-path fingerprint and the read capability, without exposing a secret value."
+    b12_assertions:
+      - "secrets_iam.secret_access_paths.list -> mcp:list_secrets_iam_secret_access_paths"
+  - slug: prod-security-alert-reconciliation-aggregate
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.security_alert_reconciliations.aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.security_alert_reconciliations.aggregate -> mcp:count_security_alert_reconciliations"
+  - slug: prod-security-alert-reconciliations
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.security_alert_reconciliations.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.security_alert_reconciliations.list -> mcp:list_security_alert_reconciliations"
+  - slug: prod-semantic-documentation-observations
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - semantic_evidence.documentation_observations.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "semantic_evidence.documentation_observations.list -> mcp:list_semantic_documentation_observations"
+  - slug: prod-service-catalog-correlations
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - service_catalog.correlations.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "service_catalog.correlations.list -> mcp:list_service_catalog_correlations"
+  - slug: prod-structural-inventory
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_inventory.structural passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_inventory.structural -> mcp:inspect_code_inventory"
+  - slug: prod-supply-chain-impact
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - reachability.go.govulncheck passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+      - supply_chain.impact_findings.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "reachability.go.govulncheck -> mcp:list_supply_chain_impact_findings"
+      - "supply_chain.impact_findings.list -> mcp:list_supply_chain_impact_findings"
+  - slug: prod-supply-chain-impact-aggregate
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.impact_findings.aggregate passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.impact_findings.aggregate -> mcp:count_supply_chain_impact_findings"
+  - slug: prod-supply-chain-impact-explain
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.impact_explanation.read passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.impact_explanation.read -> mcp:explain_supply_chain_impact"
+  - slug: prod-symbol-graph-inheritance
+    tier: deployed_services
+    date: "2026-08-11"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu5970proof ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=1200 bash scripts/verify-golden-corpus-gate.sh --keep; echo $?"
+    exit_code: 0
+    assertions:
+      - "symbol_graph.inheritance returned declared INHERITS edges in both directions from POST /api/v0/code/relationships, naming the resolved parent and child classes rather than literal text."
+    b12_assertions:
+      - "symbol_graph.inheritance -> mcp:analyze_code_relationships"
+  - slug: prod-symbol-lookup
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_search.symbol_lookup passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_search.symbol_lookup -> mcp:find_symbol"
+  - slug: prod-topic-investigation
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_search.topic_investigation passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "code_search.topic_investigation -> mcp:investigate_code_topic"
+  - slug: prod-trace-exposure-path
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_to_cloud.trace_exposure_path resolved the deployed MCP source as an HTTP handler and returned an explicit bounded unresolved result when no materialized cloud-sink bridge existed.
+    b12_assertions:
+      - "code_to_cloud.trace_exposure_path -> mcp:trace_exposure_path"
+  - slug: prod-transitive-callees
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.transitive_callees passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.transitive_callees -> mcp:analyze_code_relationships"
+  - slug: prod-transitive-callers
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - call_graph.transitive_callers passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "call_graph.transitive_callers -> mcp:analyze_code_relationships"
+  - slug: prod-variable-lookup
+    tier: deployed_services
+    date: "2026-08-08"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5681-claim-honesty-20260808-7 ESHU_POSTGRES_PORT=36542 NEO4J_BOLT_PORT=36687 NEO4J_HTTP_PORT=36474 GATE_API_PORT=36080 GATE_MCP_PORT=36091 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh >/tmp/eshu-5681-b7-postrebase2.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - code_search.variable_lookup returned four Variable-labeled matches through the deployed MCP find_code tool and the deployed HTTP code-search route.
+    b12_assertions:
+      - "code_search.variable_lookup -> mcp:find_code"
+  - slug: prod-visualization-graph-query
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - visualization.graph_query passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "visualization.graph_query -> mcp:visualize_graph_query"
+  - slug: prod-visualization-packet
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - visualization.packet_derivation passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "visualization.packet_derivation -> mcp:derive_visualization_packet"
+  - slug: prod-vulnerability-scanner-contract
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - supply_chain.vulnerability_scanner.contract.read passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "supply_chain.vulnerability_scanner.contract.read -> mcp:get_vulnerability_scanner_read_contract"
+  - slug: prod-work-item-evidence
+    tier: deployed_services
+    date: "2026-08-09"
+    kind: compose_e2e
+    source: scripts/verify-golden-corpus-gate.sh
+    command: "GATE_COMPOSE_PROJECT=eshu-5552-claim-honesty-20260809-9 ESHU_POSTGRES_PORT=44142 NEO4J_BOLT_PORT=44187 NEO4J_HTTP_PORT=44174 GATE_API_PORT=44180 GATE_MCP_PORT=44191 GATE_PROMETHEUS_SOURCE_PORT=44190 GATE_BUDGET_SECONDS=600 bash scripts/verify-golden-corpus-gate.sh --keep >/tmp/eshu-5552-b7-20260809-9.log 2>&1; echo $?"
+    exit_code: 0
+    assertions:
+      - work_item.evidence.list passed its non-vacuous capability-specific assertion through the deployed API or MCP surface.
+    b12_assertions:
+      - "work_item.evidence.list -> mcp:list_work_item_evidence"

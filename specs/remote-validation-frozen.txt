@@ -18,7 +18,7 @@
 # baseline by an atomic swap (burning down one baselined ref while adding
 # another, keeping the entry count at or under FROZEN_MAX). A ref that is not
 # frozen here cannot be baselined; its only honest path to green is a committed
-# docs/internal/remote-validation/<slug>.md artifact or a real tier downgrade.
+# specs/remote-validation-proofs.v1.yaml entry or a real tier downgrade.
 #
 # A ref LEAVES this set only when its row is validated-or-downgraded and its
 # slug is removed from BOTH this file and the baseline, in the same reviewed

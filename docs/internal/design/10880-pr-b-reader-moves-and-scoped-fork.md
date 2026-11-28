@@ -370,6 +370,5 @@ Arbiter questions, in order:
 
 ## B0 execution record
 
-PR-B0 is executed. See [the B0 execution record](10880-pr-b0-execution-record.md)
-for the commits, the audit, the guards, the derived grant leg, and the checklists
-carried to B2 and PR-C.
+PR-B0 is executed (see #10880 for the commits, the audit, the guards, the
+derived grant leg, and the checklists carried to B2 and PR-C).

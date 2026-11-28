@@ -14,8 +14,8 @@ import (
 )
 
 // checkRemoteValidation runs the remote_validation deployed-evidence gate
-// (#5407, #5552): every production-supported proof-ID must resolve to a valid
-// docs/internal/remote-validation/<ref>.md artifact or be listed in the
+// (#5407, #5552, #11639): every production-supported proof-ID must resolve to a
+// valid entry in specs/remote-validation-proofs.v1.yaml or be listed in the
 // burn-down baseline at baselinePath. It also verifies the generated
 // slug-to-row inventory. The baseline enforces two independent growth
 // guards. First, the ratcheting FROZEN_MAX ceiling: a baseline whose entry
@@ -34,6 +34,7 @@ func checkRemoteValidation(stdout io.Writer, specsDir, repoRoot, baselinePath st
 		return err
 	}
 
+	inventoryPath := filepath.Join(repoRoot, filepath.FromSlash(capabilitycatalog.RemoteValidationInventoryPath))
 	if update {
 		// Read the prior FROZEN_MAX so regeneration can ratchet the ceiling
 		// DOWN without ever raising it. A not-found result (missing file or a
@@ -44,7 +45,6 @@ func checkRemoteValidation(stdout io.Writer, specsDir, repoRoot, baselinePath st
 		if err := os.WriteFile(baselinePath, []byte(rendered), 0o600); err != nil {
 			return fmt.Errorf("write remote-validation baseline %s: %w", baselinePath, err)
 		}
-		inventoryPath := filepath.Join(repoRoot, capabilitycatalog.RemoteValidationArtifactDir, capabilitycatalog.RemoteValidationInventoryFileName)
 		if err := capabilitycatalog.WriteRemoteValidationInventory(matrix, inventoryPath); err != nil {
 			return err
 		}
@@ -52,7 +52,6 @@ func checkRemoteValidation(stdout io.Writer, specsDir, repoRoot, baselinePath st
 		return err
 	}
 
-	inventoryPath := filepath.Join(repoRoot, capabilitycatalog.RemoteValidationArtifactDir, capabilitycatalog.RemoteValidationInventoryFileName)
 	if err := capabilitycatalog.CheckRemoteValidationInventory(matrix, inventoryPath); err != nil {
 		return err
 	}

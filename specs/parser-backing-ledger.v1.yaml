@@ -26,7 +26,6 @@ parser_backing:
       - cloudformation_cross_stack_exports -> CloudFormationExport query/content evidence
     docs:
       - docs/public/languages/cloudformation.md
-      - docs/internal/parser-audit/cloudformation.md
   - parser: dockerfile
     implementation_class: structured-parser-backed-exception
     backing: bounded Dockerfile instruction scanner
@@ -54,7 +53,6 @@ parser_backing:
       - dockerfile_labels -> parser metadata and runtime evidence
     docs:
       - go/internal/parser/dockerfile/README.md
-      - docs/internal/parser-audit/dockerfile.md
   - parser: hcl
     implementation_class: structured-parser-backed-exception
     backing: HashiCorp hcl/v2 and hclsyntax AST
@@ -85,7 +83,6 @@ parser_backing:
     docs:
       - docs/public/languages/terraform.md
       - docs/public/languages/terragrunt.md
-      - docs/internal/parser-audit/hcl.md
   - parser: yaml
     implementation_class: structured-parser-backed-exception
     backing: gopkg.in/yaml.v3 document decoder plus bounded domain walkers
@@ -132,4 +129,3 @@ parser_backing:
       - docs/public/languages/kustomize.md
       - docs/public/languages/flux.md
       - docs/public/languages/helm.md
-      - docs/internal/parser-audit/yaml.md

@@ -322,8 +322,7 @@ the shared contract.
 ## 11. Fixture And Proof Matrix
 
 Status (#1381): the fixture-truth proof, live writer conformance, shared backend
-conformance, and schema readback proofs are attached in
-`1314-secrets-iam-graph-promotion-proof-2026-06-07.md`. The full load → extract
+conformance, and schema readback proofs were recorded on issue #1314 (2026-06-07). The full load → extract
 → write orchestration runs through `SecretsIAMGraphProjectionHandler` against the
 recording writer in
 `go/internal/reducer/secretsiam/secrets_iam_graph_projection_fixture_truth_test.go`,
@@ -364,7 +363,7 @@ Postgres read model.
 ## 12. Performance Impact Declaration For The Build PR
 
 Status (#1381): proof-ladder steps 1–4 are built and green, with backend proof
-captured in `1314-secrets-iam-graph-promotion-proof-2026-06-07.md`. Step 3, the
+recorded on #1314 (2026-06-07). Step 3, the
 writer benchmark, ships as `BenchmarkSecretsIAMGraphWriter`
 (`go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer_bench_test.go`): it writes
 all four `SecretsIAM*` node families and all five resolvable `SECRETS_IAM_*`

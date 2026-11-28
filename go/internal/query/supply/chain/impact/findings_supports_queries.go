@@ -182,8 +182,7 @@ const supportsListRankFilter = `  WHERE ($12 = '' OR severity_bucket = $12)
 // ListFindingsFromSupportsQuery is the granted list read of #10880 PR-B2a: the
 // legacy ListFindingsQuery with its fact_records reads swapped for reads of
 // supply_chain_impact_finding_supports. PR-B1 built it test-only and proved it
-// against the legacy read and the theory proof's plan shape
-// (docs/internal/design/10880-pr-b1-supports-read-theory-proof.md); PR-B2a
+// against the legacy read and the PR-B1 theory proof's plan shape; PR-B2a
 // serves it. It takes the SAME 30-parameter slice as ListFindingsQuery, so the
 // store swaps queries without rebuilding args.
 //

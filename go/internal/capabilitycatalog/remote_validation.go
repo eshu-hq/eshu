@@ -12,14 +12,14 @@ import (
 	"strings"
 )
 
-// RemoteValidationArtifactDir is the directory, relative to the repository
-// root, holding one committed evidence file per remote_validation proof-ID
-// cited in the capability matrix. A production-supported profile's
-// remote_validation verification ref resolves to
-// "<repoRoot>/<RemoteValidationArtifactDir>/<ref>.md"; a ref with no file
-// there must pass the deployed-evidence content contract or appear in the
-// burn-down baseline (#5407, #5552).
-const RemoteValidationArtifactDir = "docs/internal/remote-validation"
+// RemoteValidationProofsPath is the repository-relative YAML catalog holding
+// one structured proof entry per remote_validation proof-ID cited in the
+// capability matrix. A production-supported profile's remote_validation
+// verification ref resolves to an entry with matching slug inside
+// "<repoRoot>/<RemoteValidationProofsPath>"; a ref with no valid entry there
+// must pass the deployed-evidence content contract or appear in the burn-down
+// baseline (#5407, #5552, #11639).
+const RemoteValidationProofsPath = "specs/remote-validation-proofs.v1.yaml"
 
 // RemoteValidationBaselineFileName is the burn-down baseline file inside the
 // specs directory: one remote_validation ref slug per line, known-dangling
@@ -67,8 +67,8 @@ const remoteValidationBaselineHeaderProse = `# specs/remote-validation-baseline.
 # clears the gate only with a committed artifact or a real tier downgrade.
 #
 # The only honest way to remove a slug is one of:
-#   1. Run the production validation and commit the reproducible evidence
-#      artifact at docs/internal/remote-validation/<slug>.md, or
+#   1. Run the production validation and commit the reproducible proof entry
+#      under slug <slug> in specs/remote-validation-proofs.v1.yaml, or
 #   2. Downgrade the row's claimed tier in the capability matrix so it no
 #      longer asserts production:supported on unverified evidence.
 # Editing this prose, or any other text, is never an exit — only a committed
@@ -135,8 +135,8 @@ type RemoteValidationFinding struct {
 }
 
 // CheckRemoteValidationArtifacts verifies every production-supported
-// remote_validation ref cited in matrix resolves to current-format deployed
-// evidence at "<repoRoot>/docs/internal/remote-validation/<ref>.md", or is
+// remote_validation ref cited in matrix resolves to a current-format deployed
+// proof entry in "<repoRoot>/specs/remote-validation-proofs.v1.yaml", or is
 // present in baseline (known burn-down debt).
 // Findings are deduplicated by ref (a ref reused by multiple capability/
 // profile rows produces one finding) and sorted by ref.
@@ -158,28 +158,43 @@ func CheckRemoteValidationArtifacts(matrix Matrix, repoRoot string, baseline map
 		}
 	}
 
+	catalog, catalogErr := loadRemoteValidationProofCatalog(repoRoot)
+	var shapeRefs map[string]b12QueryShapeProof
+	var shapeRefsErr error
+	var shapeRefsLoaded bool
+
 	var findings []RemoteValidationFinding
 	for ref, subjects := range subjectsByRef {
 		reason := "invalid remote-validation slug"
 		// A ref that is not a valid slug is a hard finding: it can never be
-		// turned into a safe filesystem path, so it is neither artifact-backed
-		// nor eligible burn-down debt. Treating it as a finding (rather than
-		// skipping the os.Stat) blocks a path-traversal ref from resolving to
-		// an unrelated file and from being excused by a baseline entry.
+		// resolved as a safe proof entry, so it is neither artifact-backed
+		// nor eligible burn-down debt. Treating it as a finding blocks a
+		// path-traversal ref from resolving or being excused by a baseline entry.
 		if remoteValidationRefValid(ref) {
 			productionCapabilities := uniqueSortedStrings(productionCapabilitiesByRef[ref])
 			if len(productionCapabilities) == 0 {
-				if remoteValidationArtifactExists(repoRoot, ref) {
+				if catalogErr != nil {
+					reason = catalogErr.Error()
+				} else if _, ok := catalog[ref]; ok {
+					continue
+				} else {
+					reason = "proof entry is missing"
+				}
+			} else {
+				if !shapeRefsLoaded {
+					shapeRefs, shapeRefsErr = loadB12QueryShapeRefs(repoRoot)
+					shapeRefsLoaded = true
+				}
+				if err := validateRemoteValidationArtifact(repoRoot, catalog, catalogErr, shapeRefs, shapeRefsErr, ref, productionCapabilities); err == nil {
+					continue
+				} else {
+					reason = err.Error()
+				}
+			}
+			if catalogErr == nil {
+				if _, baselined := baseline[ref]; baselined {
 					continue
 				}
-				reason = "artifact is missing"
-			} else if err := validateRemoteValidationArtifact(repoRoot, ref, productionCapabilities); err == nil {
-				continue
-			} else {
-				reason = err.Error()
-			}
-			if _, baselined := baseline[ref]; baselined {
-				continue
 			}
 		}
 		sorted := append([]string(nil), subjects...)
@@ -205,27 +220,24 @@ func uniqueSortedStrings(values []string) []string {
 
 // remoteValidationRefValid reports whether ref matches the remote_validation
 // slug contract (lowercase alphanumeric segments joined by single hyphens).
-// The slug shape carries no path separators or "." segments, so a valid ref can
-// never escape RemoteValidationArtifactDir. This is the filename-safety gate:
-// every ref MUST pass it before it is joined into a filesystem path.
+// The slug shape carries no path separators or "." segments.
 func remoteValidationRefValid(ref string) bool {
 	return remoteValidationRefPattern.MatchString(ref)
 }
 
-// remoteValidationArtifactExists reports whether a committed, non-directory
-// artifact exists for ref under repoRoot. It refuses to probe any ref that is
-// not a valid slug (FIX 1, #5407): a path-traversal payload such as
-// "../../etc/passwd" would otherwise resolve to an arbitrary file and be
-// falsely reported as a committed artifact. As defense in depth, the resolved
-// path is re-verified to stay under RemoteValidationArtifactDir after cleaning,
-// so even a future regex weakening cannot let os.Stat escape the directory.
+// remoteValidationArtifactExists reports whether a committed proof entry exists
+// for ref in specs/remote-validation-proofs.v1.yaml under repoRoot. It refuses
+// any ref that is not a valid slug (FIX 1, #5407).
 func remoteValidationArtifactExists(repoRoot, ref string) bool {
-	path, ok := remoteValidationArtifactPath(repoRoot, ref)
-	if !ok {
+	if !remoteValidationRefValid(ref) {
 		return false
 	}
-	info, err := os.Stat(path) // #nosec G304 -- ref is slug-validated (remoteValidationRefValid) and the resolved path is confirmed under RemoteValidationArtifactDir before this stat, so it cannot escape the evidence directory
-	return err == nil && !info.IsDir()
+	catalog, err := loadRemoteValidationProofCatalog(repoRoot)
+	if err != nil {
+		return false
+	}
+	_, ok := catalog[ref]
+	return ok
 }
 
 // LoadRemoteValidationBaseline reads the burn-down baseline: one slug per
@@ -375,6 +387,8 @@ func ReadRemoteValidationCeiling(path string) (int, bool) {
 // deliberately holds more entries than its ceiling so the check-mode gate fails
 // until the offender commits an artifact or explicitly raises FROZEN_MAX.
 func RenderRemoteValidationBaseline(matrix Matrix, repoRoot string, priorCeiling int, priorFound bool) string {
+	catalog, catalogErr := loadRemoteValidationProofCatalog(repoRoot)
+	shapeRefs, shapeRefsErr := loadB12QueryShapeRefs(repoRoot)
 	dangling := map[string]struct{}{}
 	for _, artifact := range BuildRemoteValidationInventory(matrix).Artifacts {
 		if !remoteValidationRefValid(artifact.Slug) {
@@ -385,7 +399,7 @@ func RenderRemoteValidationBaseline(matrix Matrix, repoRoot string, priorCeiling
 			capability, _, _ := strings.Cut(subject, "/")
 			capabilities = append(capabilities, capability)
 		}
-		if err := validateRemoteValidationArtifact(repoRoot, artifact.Slug, capabilities); err != nil {
+		if err := validateRemoteValidationArtifact(repoRoot, catalog, catalogErr, shapeRefs, shapeRefsErr, artifact.Slug, capabilities); err != nil {
 			dangling[artifact.Slug] = struct{}{}
 		}
 	}

@@ -1,8 +1,6 @@
 # Fleet Validation Activation — Exact Commands (DRAFT)
 
-Companion to the
-[fleet validation activation record](1314-secrets-iam-graph-fleet-validation-activation-record.md)
-for the fleet validation deployment on the EKS cluster. Gate: ADR #1314.
+Activation commands for the fleet validation deployment on the EKS cluster. Gate: ADR #1314.
 Issues [#6228](https://github.com/eshu-hq/eshu/issues/6228) /
 [#2430](https://github.com/eshu-hq/eshu/issues/2430).
 

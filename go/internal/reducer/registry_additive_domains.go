@@ -45,9 +45,8 @@ func configStateDriftDomainDefinition() DomainDefinition {
 		// written: §10 of docs/internal/design/391-observability-coverage-
 		// correlation.md (still present, 624 lines) covers an unrelated
 		// state_to_cloud_arn rule pack, not this domain's graph-projection
-		// decision — commit 52d998301 deleted a different document entirely
-		// (docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-
-		// design.md), so the deletion is not why the old citation was wrong.
+		// decision — commit 52d998301 deleted an unrelated tfstate draft plan,
+		// so the deletion is not why the old citation was wrong.
 		Ownership: OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,

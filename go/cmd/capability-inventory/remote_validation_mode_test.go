@@ -58,7 +58,7 @@ func writeRemoteValidationInventoryForSpecs(t *testing.T, specsDir string) {
 	if err != nil {
 		t.Fatalf("load matrix for inventory: %v", err)
 	}
-	path := filepath.Join(filepath.Dir(specsDir), capabilitycatalog.RemoteValidationArtifactDir, capabilitycatalog.RemoteValidationInventoryFileName)
+	path := filepath.Join(filepath.Dir(specsDir), filepath.FromSlash(capabilitycatalog.RemoteValidationInventoryPath))
 	if err := capabilitycatalog.WriteRemoteValidationInventory(matrix, path); err != nil {
 		t.Fatalf("write inventory: %v", err)
 	}
@@ -81,24 +81,26 @@ func writeValidRemoteValidationArtifact(t *testing.T, repoRoot, ref, capability 
 	if err := os.WriteFile(filepath.Join(sourceDir, source), []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
 		t.Fatalf("write evidence source: %v", err)
 	}
-	artifactDir := filepath.Join(repoRoot, capabilitycatalog.RemoteValidationArtifactDir)
-	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
-		t.Fatalf("mkdir artifact dir: %v", err)
+	proofsPath := filepath.Join(repoRoot, filepath.FromSlash(capabilitycatalog.RemoteValidationProofsPath))
+	if err := os.MkdirAll(filepath.Dir(proofsPath), 0o755); err != nil {
+		t.Fatalf("mkdir proofs dir: %v", err)
 	}
-	body := fmt.Sprintf(`# %s production validation
-
-Validation-Slug: %s
-Validation-Tier: deployed_services
-Validation-Date: 2025-01-01
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/%s
-Validation-Command: bash scripts/%s; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: %s returns a deployed result.
-B12-Assertion: %s -> mcp:example_query
-`, ref, ref, source, source, capability, capability)
-	if err := os.WriteFile(filepath.Join(artifactDir, ref+".md"), []byte(body), 0o644); err != nil {
-		t.Fatalf("write artifact: %v", err)
+	body := fmt.Sprintf(`schema_version: 1
+proofs:
+  - slug: %s
+    tier: deployed_services
+    date: "2025-01-01"
+    kind: compose_e2e
+    source: scripts/%s
+    command: "bash scripts/%s; echo $?"
+    exit_code: 0
+    assertions:
+      - "%s returns a deployed result."
+    b12_assertions:
+      - "%s -> mcp:example_query"
+`, ref, source, source, capability, capability)
+	if err := os.WriteFile(proofsPath, []byte(body), 0o644); err != nil {
+		t.Fatalf("write proofs: %v", err)
 	}
 }
 

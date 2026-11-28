@@ -321,7 +321,7 @@ measurement cannot run and the volume, limit, and cost numbers stay NOT_PROVEN.
 ### Captured-cohort measurement, 2026-10-29 22:07-22:34 UTC (FIRST POPULATED CAPTURE)
 
 Full narrative (grant review, authorizations, association story, cleanup)
-lives in [9302-ssm-captured-cohort-evidence.md](9302-ssm-captured-cohort-evidence.md):
+is recorded on #9302:
 no pre-existing capture existed, so the temporary QA-only association path
 ran under owner + arbiter authorization (applications-only scope) and was
 deleted afterwards. The first association failed on the agent rejecting

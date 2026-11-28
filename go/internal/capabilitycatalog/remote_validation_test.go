@@ -48,23 +48,24 @@ func writeRemoteValidationArtifact(t *testing.T, repoRoot, ref, capability strin
 	if err := os.WriteFile(filepath.Join(sourceDir, sourceName), []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
-	dir := filepath.Join(repoRoot, RemoteValidationArtifactDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir %s: %v", dir, err)
+	path := filepath.Join(repoRoot, filepath.FromSlash(RemoteValidationProofsPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
-	path := filepath.Join(dir, ref+".md")
-	body := fmt.Sprintf(`# %s production validation
-
-Validation-Slug: %s
-Validation-Tier: deployed_services
-Validation-Date: 2025-01-01
-Evidence-Kind: compose_e2e
-Evidence-Source: scripts/%s
-Validation-Command: bash scripts/%s; echo $?
-Validation-Exit-Code: 0
-Capability-Assertion: %s returns a deployed result.
-B12-Assertion: %s -> mcp:example_query
-`, ref, ref, sourceName, sourceName, capability, capability)
+	body := fmt.Sprintf(`schema_version: 1
+proofs:
+  - slug: %s
+    tier: deployed_services
+    date: "2025-01-01"
+    kind: compose_e2e
+    source: scripts/%s
+    command: "bash scripts/%s; echo $?"
+    exit_code: 0
+    assertions:
+      - "%s returns a deployed result."
+    b12_assertions:
+      - "%s -> mcp:example_query"
+`, ref, sourceName, sourceName, capability, capability)
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
@@ -146,10 +147,8 @@ func TestRemoteValidationArtifactExistsRejectsPathTraversal(t *testing.T) {
 	t.Parallel()
 
 	repoRoot := t.TempDir()
-	// Plant a real file at the location a "../../evil" ref would resolve to:
-	// filepath.Join(repoRoot, "docs/internal/remote-validation", "../../evil.md")
-	// == repoRoot/docs/evil.md. Pre-guard, os.Stat finds it and the ref is
-	// falsely treated as backed by a committed artifact.
+	// Plant a decoy file under repoRoot/docs to verify non-slug refs never resolve
+	// outside the structured proof catalog specs/remote-validation-proofs.v1.yaml.
 	docsDir := filepath.Join(repoRoot, "docs")
 	if err := os.MkdirAll(docsDir, 0o755); err != nil {
 		t.Fatalf("mkdir %s: %v", docsDir, err)

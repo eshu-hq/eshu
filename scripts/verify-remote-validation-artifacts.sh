@@ -14,8 +14,8 @@
 # thin wrapper around `go run ./cmd/capability-inventory -mode
 # remote-validation`, mirroring verify-capability-budget-proof.sh's shape.
 #
-# A remote_validation ref resolves against
-# docs/internal/remote-validation/<ref>.md. Its content must record a deployed
+# A remote_validation ref resolves against an entry in
+# specs/remote-validation-proofs.v1.yaml. Its content must record a deployed
 # source, run date, exact command with direct exit capture, exit 0, and one
 # assertion per production capability. Invalid evidence passes only if its ref
 # is listed in specs/remote-validation-baseline.txt. The baseline carries a

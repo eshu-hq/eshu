@@ -51,10 +51,10 @@
 // FindingMissingAnsweringStore, which fails -mode verify.
 // CheckRemoteValidationArtifacts further requires every
 // production-supported remote_validation ref to resolve to a current-format,
-// deployed-tier docs/internal/remote-validation/<ref>.md artifact or appear in
+// deployed-tier entry in specs/remote-validation-proofs.v1.yaml or appear in
 // the burn-down baseline (specs/remote-validation-baseline.txt). The generated
-// inventory binds every slug to its production rows, while each evidence file
-// records the dated command, direct exit capture, committed deployed source,
+// inventory (specs/remote-validation-inventory.generated.json) binds every slug
+// to its production rows, while each proof entry records the dated command,
 // and capability-specific assertions. LoadRemoteValidationBaseline also parses the
 // baseline's mandatory FROZEN_MAX ceiling, and
 // RemoteValidationBaselineCeilingExceeded reports growth past it: the frozen

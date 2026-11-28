@@ -18,8 +18,7 @@ check — a row without one is a guess.
 - The domain table's union is `KnownDomains` plus `ProjectionDomains`
   plus `DomainSearchVectorBuild` (see the test comment for why the last
   one is explicit).
-- The Postgres dispositions mirror
-  `docs/internal/design/7766-repository-retirement-table-census.md`; the
+- The Postgres dispositions live in `census.go`; the
   live census test in `go/internal/storage/postgres` proves coverage
   against the migrated schema.
 - Keep files under 500 lines; split the table before it approaches the

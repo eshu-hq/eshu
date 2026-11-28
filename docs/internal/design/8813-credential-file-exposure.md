@@ -457,8 +457,7 @@ tfvars key denylist.
 ## Acceptance criteria
 
 The issue bodies are the binding acceptance lists. If this record and an issue
-body ever differ, the issue body wins. The lists that follow them are on
-[the acceptance page](8813-credential-file-exposure-acceptance.md): #8812 owns
+body ever differ, the issue body wins. Acceptance criteria are tracked on #8813: #8812 owns
 the enum, marker redactor, digest rule, fingerprint, `source_cache` rule, upgrade
 test, and policy docs; #8833 owns the bindings, the detector migration with its
 marker arm, the engine-parity test, the gap-table corpus, the differential, the
@@ -494,6 +493,5 @@ full-stream scan proves its parser output clean (arbiter A1, 2026-10-24).
 ## Evidence
 
 The measurements (local sample, gap table, the six-kind marker probe, census
-query, claim status, and NOT_CHECKED list) are in
-[the evidence page](8813-credential-file-exposure-evidence.md). Hosted figures
+query, claim status, and NOT_CHECKED list) are recorded on #8813. Hosted figures
 quoted above come from the #8813 issue body; deployment counts are NOT_CHECKED.

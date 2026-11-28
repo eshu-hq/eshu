@@ -6,8 +6,6 @@ Companion files:
 
 - [Advisory Intelligence Phases](advisory-intelligence-phases.md): the work
   items.
-- [Advisory Intelligence Evidence](advisory-intelligence-evidence.md): the
-  measurements and code facts.
 - [How Correlation Works](advisory-intelligence-correlation-flow.md): the
   pipeline, statuses, priority, and readiness for SecOps and DevSecOps.
 - [Engineering Flow](advisory-intelligence-engineering-flow.md): the component

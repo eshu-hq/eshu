@@ -65,10 +65,9 @@ reducer run spans, reducer execution counters, durable
 No-Regression Evidence: 21 non-test Go source files exceed the
 500-line cap. Each carries a per-file `//nolint:filelength` directive
 citing the reason (data registry, god file on hot path, AWS SDK
-adapter, single-purpose file, etc.). The 21 files match the audit's
-inventory at `docs/internal/audit/2026-06-09-repo-technical-audit.md`
-(§ Architecture & design, "[fact, High] The repo violates its own
-500-line rule on its most critical files"). The split work is
+adapter, single-purpose file, etc.). The 21 files match the 2026-06-09
+repository technical audit (§ Architecture & design, "[fact, High] The repo
+violates its own 500-line rule on its most critical files"). The split work is
 tracked separately under audit § T8; the lint annotations
 preserve the cap as a forward-looking rule without blocking the
 config adoption.
@@ -174,8 +173,5 @@ behavior, lease contract, Cypher shape, or graph schema.
   (Makefile, README, source, tests)
 - `.github/workflows/test.yml` — the CI step that builds the plugin
   and runs `golangci-lint run ./...`
-- `docs/internal/audit/2026-06-09-repo-technical-audit.md` — the
-  audit that identified the 500-line cap violation (§ Architecture
-  & design) and the god-file split work (§ T8)
 - `docs/internal/agent-guide.md` — the Pre-Ready Checklist that
   requires evidence markers on hot-path changes
