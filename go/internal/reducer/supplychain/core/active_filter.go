@@ -58,7 +58,9 @@ func supplyChainImpactFollowUpFilter(
 ) SupplyChainImpactFactFilter {
 	return SupplyChainImpactFactFilter{
 		PackageIDs:          missingStringValues(current.PackageIDs, requested.PackageIDs),
+		SeedPackageIDs:      missingStringValues(current.SeedPackageIDs, requested.SeedPackageIDs),
 		PURLs:               missingStringValues(current.PURLs, requested.PURLs),
+		SeedPURLs:           missingStringValues(current.SeedPURLs, requested.SeedPURLs),
 		CVEIDs:              missingStringValues(current.CVEIDs, requested.CVEIDs),
 		UpstreamCVEIDs:      missingStringValues(current.UpstreamCVEIDs, requested.UpstreamCVEIDs),
 		AliasIDs:            missingStringValues(current.AliasIDs, requested.AliasIDs),
@@ -77,7 +79,9 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 	var merged SupplyChainImpactFactFilter
 	for _, filter := range filters {
 		merged.PackageIDs = append(merged.PackageIDs, filter.PackageIDs...)
+		merged.SeedPackageIDs = append(merged.SeedPackageIDs, filter.SeedPackageIDs...)
 		merged.PURLs = append(merged.PURLs, filter.PURLs...)
+		merged.SeedPURLs = append(merged.SeedPURLs, filter.SeedPURLs...)
 		merged.CVEIDs = append(merged.CVEIDs, filter.CVEIDs...)
 		merged.UpstreamCVEIDs = append(merged.UpstreamCVEIDs, filter.UpstreamCVEIDs...)
 		merged.AliasIDs = append(merged.AliasIDs, filter.AliasIDs...)
@@ -92,7 +96,9 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 	}
 	return SupplyChainImpactFactFilter{
 		PackageIDs:          payloadcore.UniqueSortedStrings(merged.PackageIDs),
+		SeedPackageIDs:      payloadcore.UniqueSortedStrings(merged.SeedPackageIDs),
 		PURLs:               payloadcore.UniqueSortedStrings(merged.PURLs),
+		SeedPURLs:           payloadcore.UniqueSortedStrings(merged.SeedPURLs),
 		CVEIDs:              payloadcore.UniqueSortedStrings(merged.CVEIDs),
 		UpstreamCVEIDs:      payloadcore.UniqueSortedStrings(merged.UpstreamCVEIDs),
 		AliasIDs:            payloadcore.UniqueSortedStrings(merged.AliasIDs),
@@ -348,7 +354,8 @@ func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
 }
 
 func (f SupplyChainImpactFactFilter) empty() bool {
-	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.UpstreamCVEIDs) == 0 && len(f.AliasIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
+	return len(f.PackageIDs) == 0 && len(f.SeedPackageIDs) == 0 && len(f.PURLs) == 0 && len(f.SeedPURLs) == 0 &&
+		len(f.CVEIDs) == 0 && len(f.UpstreamCVEIDs) == 0 && len(f.AliasIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
 		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 && len(f.SeedProductCriteria) == 0 &&
 		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0
 }

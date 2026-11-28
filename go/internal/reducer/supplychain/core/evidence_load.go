@@ -106,7 +106,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 
 	activeEvidenceStartCount := len(envelopes)
 	phaseStarted = time.Now()
-	envelopes, truncation, criteriaBound, err := h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes, activeEvidenceFilter, budget, scoped, intent.ScopeID)
+	envelopes, truncation, bounds, err := h.loadActiveSupplyChainImpactFactsUntilStableBounded(ctx, envelopes, activeEvidenceFilter, budget, scoped, intent.ScopeID)
 	timing.loadActiveEvidenceDuration = time.Since(phaseStarted)
 	if err != nil {
 		return supplyChainImpactLoadedEvidence{}, timing, fmt.Errorf("load active supply chain impact facts: %w", err)
@@ -209,7 +209,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		crossScopeProducerDelta:     producerDelta,
 		scoped:                      scoped,
 		scopedFallbackOutOfStamp:    scopedFallback,
-		criteriaBound:               criteriaBound,
+		expansionBounds:             bounds,
 	}, timing, nil
 }
 

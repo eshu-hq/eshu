@@ -287,3 +287,67 @@ func supplyChainImpactLineDiff(want, got []string) string {
 	}
 	return b.String()
 }
+
+// TestSupplyChainImpactPackageBoundRebindsLive proves #11097 against real
+// PostgreSQL 18: when SeedPackageIDs, SeedPURLs, and SeedProductCriteria are
+// bound with empty owned lists, ListActiveSupplyChainImpactFactsWithStats loads
+// consumer/suppression rows while excluding vulnerability.affected_package,
+// vulnerability.affected_product, and foreign_key_guard matches (composing
+// #11087 and #11097 simultaneously on foreign_key_guard). Binding the same
+// package on owned PackageIDs/PURLs restores both the affected_package row and
+// the foreign_key_guard row.
+func TestSupplyChainImpactPackageBoundRebindsLive(t *testing.T) {
+	ctx, database := openSupplyChainImpactEvidenceProofDB(t)
+	seedSupplyChainImpactMatrix(t, ctx, database)
+	store := NewFactStore(SQLDB{DB: database})
+	all := supplyChainImpactMatrixAllFilter()
+
+	seedOnly := supplychaincore.SupplyChainImpactFactFilter{
+		SeedPackageIDs:      []string{scimPackage},
+		SeedPURLs:           []string{scimPURL},
+		SeedProductCriteria: all.ProductCriteria,
+	}
+	envelopes, stats, err := store.ListActiveSupplyChainImpactFactsWithStats(ctx, seedOnly)
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFactsWithStats(seedOnly): %v", err)
+	}
+	ids := make(map[string]bool, len(envelopes))
+	for _, env := range envelopes {
+		ids[env.FactID] = true
+		if env.FactKind == "vulnerability.affected_package" || env.FactKind == "vulnerability.affected_product" {
+			t.Fatalf("seedOnly filter must not load %s row %q", env.FactKind, env.FactID)
+		}
+	}
+	if ids["m:ap:two-keys"] {
+		t.Fatal("seedOnly loaded affected_package row m:ap:two-keys")
+	}
+	if ids["m:cve:foreign-package"] || stats.GuardRows != 0 {
+		t.Fatalf("seedOnly must exclude foreign_key_guard row m:cve:foreign-package, present=%v guard_rows=%d", ids["m:cve:foreign-package"], stats.GuardRows)
+	}
+	for _, want := range []string{"m:supp:pkg-unicode", "m:supp:purl-pad"} {
+		if !ids[want] {
+			t.Fatalf("seedOnly missing suppression row %q via union LowerPackageIDs/LowerPURLs", want)
+		}
+	}
+
+	owned := supplychaincore.SupplyChainImpactFactFilter{
+		PackageIDs: []string{scimPackage},
+		PURLs:      []string{scimPURL},
+	}
+	ownedEnvelopes, ownedStats, err := store.ListActiveSupplyChainImpactFactsWithStats(ctx, owned)
+	if err != nil {
+		t.Fatalf("ListActiveSupplyChainImpactFactsWithStats(owned): %v", err)
+	}
+	ownedIDs := make(map[string]bool, len(ownedEnvelopes))
+	for _, env := range ownedEnvelopes {
+		ownedIDs[env.FactID] = true
+	}
+	for _, want := range []string{"m:ap:two-keys", "m:cve:foreign-package", "m:supp:pkg-unicode", "m:supp:purl-pad"} {
+		if !ownedIDs[want] {
+			t.Fatalf("owned filter missing expected row %q", want)
+		}
+	}
+	if ownedStats.GuardRows == 0 {
+		t.Fatal("owned filter expected non-zero foreign_key_guard rows for m:cve:foreign-package")
+	}
+}

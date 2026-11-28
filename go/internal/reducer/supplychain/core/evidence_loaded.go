@@ -92,8 +92,8 @@ type supplyChainImpactLoadedEvidence struct {
 	// pinned-digest rows but a positive batch delta had its floor disarmed
 	// by another finding's evidence.
 	crossScopeProducerDelta int
-	// criteriaBound is the #11087 provenance-bound telemetry of the
-	// until-stable loop: suppressed transitive criteria and the size of
-	// each criteria class. Zero when the seam is off.
-	criteriaBound supplyChainImpactCriteriaBoundOutcome
+	// expansionBounds carries the #11087 criteria and #11097 package
+	// provenance-bound telemetry of the until-stable loop. Each side is zero
+	// when its switch is nil.
+	expansionBounds supplyChainImpactBoundsOutcome
 }

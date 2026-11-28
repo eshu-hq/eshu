@@ -215,51 +215,65 @@ func (s FactStore) resolveSupplyChainImpactFactIDs(
 }
 
 // supplyChainImpactBranchValues returns the bind map for one branch. Under the
-// #11087 provenance bound (seed-product criteria present) the
-// affected_product_criteria probe and the foreign_key_guard read the
-// component-origin criteria only: a transitive row's criteria can neither
-// pull another CVE's product rows nor re-enter through the guard's criteria
-// arm (the guard covers affected_product, kind class growth). Every other
-// branch keeps the union. Seam off (no seed list) returns the shared map
+// #11087 criteria bound, affected_product_criteria and foreign_key_guard read
+// component-origin criteria only. Under the #11097 package bound,
+// affected_package_package_id, affected_package_purl, and foreign_key_guard
+// read owned/exempt PackageIDs and PURLs (and their lowered twins) only, so a
+// seed vulnerability's package cannot pull unrelated vulnerabilities directly
+// or re-enter through the guard's package_id/purl arms. Both rebinds compose
+// cleanly on foreign_key_guard when active simultaneously. Every other branch
+// keeps the union, and seam-off (all seed lists empty) returns the shared map
 // unchanged. The copy keeps the shared map immutable for the other branches.
 func supplyChainImpactBranchValues(branch factimpact.Branch, values map[factimpact.Param]any, filter supplychaincore.SupplyChainImpactFactFilter) map[factimpact.Param]any {
-	if len(filter.SeedProductCriteria) == 0 {
-		return values
-	}
-	if branch.Name != factimpact.BranchAffectedProductCriteria && branch.Name != factimpact.BranchForeignKeyGuard {
+	rebindCriteria := len(filter.SeedProductCriteria) > 0 &&
+		(branch.Name == factimpact.BranchAffectedProductCriteria || branch.Name == factimpact.BranchForeignKeyGuard)
+	rebindPackages := (len(filter.SeedPackageIDs) > 0 || len(filter.SeedPURLs) > 0) &&
+		(branch.Name == factimpact.BranchAffectedPackagePackageID ||
+			branch.Name == factimpact.BranchAffectedPackagePURL ||
+			branch.Name == factimpact.BranchForeignKeyGuard)
+	if !rebindCriteria && !rebindPackages {
 		return values
 	}
 	rebound := make(map[factimpact.Param]any, len(values)+1)
 	for param, list := range values {
 		rebound[param] = list
 	}
-	rebound[factimpact.ProductCriteria] = filter.ProductCriteria
+	if rebindCriteria {
+		rebound[factimpact.ProductCriteria] = filter.ProductCriteria
+	}
+	if rebindPackages {
+		rebound[factimpact.PackageIDs] = filter.PackageIDs
+		rebound[factimpact.PURLs] = filter.PURLs
+		rebound[factimpact.LowerPackageIDs] = lowerCleanedStringFilterValues(filter.PackageIDs)
+		rebound[factimpact.LowerPURLs] = lowerCleanedStringFilterValues(filter.PURLs)
+	}
 	return rebound
 }
 
 // supplyChainImpactParamValues maps every catalog input to its bound list.
 //
-// The criteria entry binds the UNION of component-origin and seed-CVE
-// product-origin criteria (#11087): every branch that reads it keeps today's
-// row set, except the affected_product_criteria probe and the foreign_key_guard,
-// which the resolve loop rebinds to the component-origin list alone so a
-// transitive row's criteria never pull another CVE's product rows, directly or
-// through the guard's criteria arm. With the seam off
-// SeedProductCriteria is empty and the union is exactly ProductCriteria.
+// The criteria, package_id, and purl entries bind the UNION of owned and
+// seed-CVE lists (#11087, #11097): consumer, anchor, and suppression branches
+// keep the union, while the resolve loop rebinds affected_product_criteria,
+// affected_package_package_id, affected_package_purl, and foreign_key_guard to
+// the owned/exempt lists alone. With both seams off all seed lists are empty
+// and every union equals its base list.
 func supplyChainImpactParamValues(filter supplychaincore.SupplyChainImpactFactFilter) map[factimpact.Param]any {
+	packageIDs := unionSupplyChainImpactStrings(filter.PackageIDs, filter.SeedPackageIDs)
+	purls := unionSupplyChainImpactStrings(filter.PURLs, filter.SeedPURLs)
 	return map[factimpact.Param]any{
-		factimpact.PackageIDs:          filter.PackageIDs,
-		factimpact.PURLs:               filter.PURLs,
+		factimpact.PackageIDs:          packageIDs,
+		factimpact.PURLs:               purls,
 		factimpact.CVEIDs:              filter.CVEIDs,
 		factimpact.AdvisoryIDs:         filter.AdvisoryIDs,
 		factimpact.SubjectDigests:      filter.SubjectDigests,
-		factimpact.ProductCriteria:     unionSupplyChainImpactCriteria(filter.ProductCriteria, filter.SeedProductCriteria),
+		factimpact.ProductCriteria:     unionSupplyChainImpactStrings(filter.ProductCriteria, filter.SeedProductCriteria),
 		factimpact.DocumentIDs:         filter.DocumentIDs,
 		factimpact.RepositoryIDs:       filter.RepositoryIDs,
 		factimpact.ImageRefs:           filter.ImageRefs,
 		factimpact.FileRepositoryIDs:   filter.FileRepositoryIDs,
-		factimpact.LowerPackageIDs:     lowerCleanedStringFilterValues(filter.PackageIDs),
-		factimpact.LowerPURLs:          lowerCleanedStringFilterValues(filter.PURLs),
+		factimpact.LowerPackageIDs:     lowerCleanedStringFilterValues(packageIDs),
+		factimpact.LowerPURLs:          lowerCleanedStringFilterValues(purls),
 		factimpact.LowerCVEIDs:         lowerCleanedStringFilterValues(filter.CVEIDs),
 		factimpact.LowerSubjectDigests: lowerCleanedStringFilterValues(filter.SubjectDigests),
 		factimpact.LowerRepositoryIDs:  lowerCleanedStringFilterValues(filter.RepositoryIDs),
@@ -393,7 +407,9 @@ func (s FactStore) resolveSupplyChainImpactScopes(
 
 func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImpactFactFilter) {
 	filter.PackageIDs = cleanStringFilterValues(filter.PackageIDs)
+	filter.SeedPackageIDs = cleanStringFilterValues(filter.SeedPackageIDs)
 	filter.PURLs = cleanStringFilterValues(filter.PURLs)
+	filter.SeedPURLs = cleanStringFilterValues(filter.SeedPURLs)
 	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
 	filter.UpstreamCVEIDs = cleanStringFilterValues(filter.UpstreamCVEIDs)
 	filter.AliasIDs = cleanStringFilterValues(filter.AliasIDs)
@@ -408,19 +424,20 @@ func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImp
 }
 
 func supplyChainImpactFactFilterEmpty(filter supplychaincore.SupplyChainImpactFactFilter) bool {
-	return len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
+	return len(filter.PackageIDs) == 0 && len(filter.SeedPackageIDs) == 0 &&
+		len(filter.PURLs) == 0 && len(filter.SeedPURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.UpstreamCVEIDs) == 0 && len(filter.AliasIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
 		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 && len(filter.SeedProductCriteria) == 0 &&
 		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
 		len(filter.ImageRefs) == 0
 }
 
-// unionSupplyChainImpactCriteria returns the sorted, de-duplicated union of
-// the component-origin and seed-CVE product-origin criteria lists (#11087).
-// It never mutates either input.
-func unionSupplyChainImpactCriteria(component, seed []string) []string {
-	out := make([]string, 0, len(component)+len(seed))
-	out = append(out, component...)
+// unionSupplyChainImpactStrings returns the sorted, de-duplicated union of an
+// owned list and its seed-CVE twin (#11087, #11097). It never mutates either
+// input.
+func unionSupplyChainImpactStrings(owned, seed []string) []string {
+	out := make([]string, 0, len(owned)+len(seed))
+	out = append(out, owned...)
 	out = append(out, seed...)
 	slices.Sort(out)
 	return slices.Compact(out)

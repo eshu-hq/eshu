@@ -34,6 +34,14 @@ import (
 // component-origin criteria only when the pass owns it, by its scope or by a
 // document attached to a digest its own scope holds (the own-digest rule in
 // criteria_bound.go).
+// supplyChainImpactBoundsOutcome bundles the per-pass outcomes of both
+// provenance bounds (#11087 criteria and #11097 package) from the until-stable
+// loop. Each field stays zero when its own switch is nil.
+type supplyChainImpactBoundsOutcome struct {
+	criteria supplyChainImpactCriteriaBoundOutcome
+	pkg      supplyChainImpactPackageBoundOutcome
+}
+
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	ctx context.Context,
 	envelopes []facts.Envelope,
@@ -42,15 +50,40 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	scoped *scopedSupplyChainImpactScope,
 	ownScopeID string,
 ) ([]facts.Envelope, supplyChainImpactTruncation, supplyChainImpactCriteriaBoundOutcome, error) {
+	loaded, truncation, bounds, err := h.loadActiveSupplyChainImpactFactsUntilStableBounded(
+		ctx, envelopes, initialFilter, budget, scoped, ownScopeID,
+	)
+	return loaded, truncation, bounds.criteria, err
+}
+
+func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStableBounded(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+	initialFilter SupplyChainImpactFactFilter,
+	budget *supplyChainImpactEvidenceBudget,
+	scoped *scopedSupplyChainImpactScope,
+	ownScopeID string,
+) ([]facts.Envelope, supplyChainImpactTruncation, supplyChainImpactBoundsOutcome, error) {
 	requested := SupplyChainImpactFactFilter{}
 	next := initialFilter
 	var truncation supplyChainImpactTruncation
-	// The #11087 provenance bound is loop-local state (criteria_bound.go):
-	// nil keeps the loop byte-for-byte on the prior semantics.
-	var bound *criteriaExpansionBoundState
+	// The #11087 and #11097 provenance bounds are independent loop-local
+	// states: nil keeps each arm byte-for-byte on the prior semantics.
+	var criteriaBound *criteriaExpansionBoundState
 	if h.CriteriaExpansionBound != nil {
-		bound = newCriteriaExpansionBoundState(initialFilter, scoped, ownScopeID)
-		next, _ = bound.apply(next, envelopes, envelopes, requested)
+		criteriaBound = newCriteriaExpansionBoundState(initialFilter, scoped, ownScopeID)
+		next, _ = criteriaBound.apply(next, envelopes, envelopes, requested)
+	}
+	var packageBound *packageExpansionBoundState
+	if h.PackageExpansionBound != nil {
+		packageBound = newPackageExpansionBoundState(initialFilter, scoped, ownScopeID)
+		next, _ = packageBound.apply(next, envelopes, envelopes, requested)
+	}
+	outcome := func() supplyChainImpactBoundsOutcome {
+		return supplyChainImpactBoundsOutcome{
+			criteria: criteriaBound.outcome(),
+			pkg:      packageBound.outcome(),
+		}
 	}
 	// Parser file envelopes are folded, not kept (#9781): the one digest
 	// envelope goes where the files would have gone, after the pass's earlier
@@ -67,15 +100,18 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 			truncation.rounds = true
 			// next is what the round after the cap would have requested.
 			truncation.roundsCut = newRoundsCutFrontier(next, loads, len(envelopes))
-			return withDigest(envelopes), truncation, bound.outcome(), nil
+			return withDigest(envelopes), truncation, outcome(), nil
 		}
 		next.FileFold = fold
-		if bound != nil {
-			bound.loads = loads + 1
+		if criteriaBound != nil {
+			criteriaBound.loads = loads + 1
+		}
+		if packageBound != nil {
+			packageBound.loads = loads + 1
 		}
 		active, roundSuppressionTail, err := h.loadActiveSupplyChainImpactFacts(ctx, next, budget)
 		if err != nil {
-			return nil, supplyChainImpactTruncation{}, bound.outcome(), err
+			return nil, supplyChainImpactTruncation{}, outcome(), err
 		}
 		// A single round's own per-call suppression cap is independent of the
 		// round cap above (#5466 round-7 review P1-B).
@@ -86,15 +122,16 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 		if !budget.charge(len(envelopes) - before) {
 			// Keep what this round loaded, load nothing more.
 			truncation.budget = true
-			return withDigest(envelopes), truncation, bound.outcome(), nil
+			return withDigest(envelopes), truncation, outcome(), nil
 		}
 		next = supplyChainImpactFollowUpFilter(requested, supplyChainImpactFilter(envelopes))
-		// The provenance bound applies before the scoped restrict so the
+		// The provenance bounds apply before the scoped restrict so the
 		// restrict still sees the full derived arms.
-		next, _ = bound.apply(next, envelopes, active, requested)
+		next, _ = criteriaBound.apply(next, envelopes, active, requested)
+		next, _ = packageBound.apply(next, envelopes, active, requested)
 		if scoped != nil {
 			next = restrictSupplyChainImpactFilter(next, scoped)
 		}
 	}
-	return withDigest(envelopes), truncation, bound.outcome(), nil
+	return withDigest(envelopes), truncation, outcome(), nil
 }

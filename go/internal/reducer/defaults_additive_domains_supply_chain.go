@@ -61,7 +61,11 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 			// #11087: provenance bound on criteria-to-CVE transitive
 			// expansion. One-line rollback: delete this line; nil keeps the
 			// prior unbounded semantics.
-			CriteriaExpansionBound:          &supplychaincore.SupplyChainImpactCriteriaExpansionBound{},
+			CriteriaExpansionBound: &supplychaincore.SupplyChainImpactCriteriaExpansionBound{},
+			// #11097: provenance bound on package-to-CVE transitive expansion.
+			// Independent of CriteriaExpansionBound so each rollback stays a
+			// one-line delete; nil keeps the prior unbounded semantics.
+			PackageExpansionBound:           &supplychaincore.SupplyChainImpactPackageExpansionBound{},
 			FactLoader:                      handlers.FactLoader,
 			Writer:                          handlers.SupplyChainImpactWriter,
 			AuthorizedEvidenceLoader:        handlers.SupplyChainImpactAuthorizedEvidenceLoader,

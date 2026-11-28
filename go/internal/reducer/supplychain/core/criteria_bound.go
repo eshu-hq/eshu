@@ -208,7 +208,7 @@ func (s *criteriaExpansionBoundState) apply(filter SupplyChainImpactFactFilter, 
 // loads and pass-state conversion, never on the suppressed count: a
 // pure-seed scope correctly suppresses nothing.
 func mergeCriteriaBoundSubSignals(subSignals map[string]float64, loaded supplyChainImpactLoadedEvidence) {
-	bound := loaded.criteriaBound
+	bound := loaded.expansionBounds.criteria
 	subSignals["criteria_bound_suppressed_transitive"] = float64(bound.SuppressedTransitiveCriteria)
 	subSignals["criteria_bound_loads"] = float64(bound.Loads)
 	subSignals["criteria_bound_component_criteria"] = float64(bound.ComponentCriteria)

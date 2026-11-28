@@ -284,3 +284,43 @@ func TestBuildSupplyChainImpactReducerIntentSourceSystemPrefersSourceRef(t *test
 			intent.SourceSystem, "osv_scanner")
 	}
 }
+
+// TestBuildSupplyChainImpactReducerIntentSBOMDocumentOnlyRemovalNoIntent
+// characterizes #11097 acceptance criterion 5: sbom.document is not in
+// candidateFactKinds, so a generation that removes SBOM components and leaves
+// only an sbom.document (or an empty generation) enqueues no
+// supply_chain_impact intent on that scope. Tracked in #11689 so #11097 stays
+// focused on the package provenance bound.
+func TestBuildSupplyChainImpactReducerIntentSBOMDocumentOnlyRemovalNoIntent(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		envelopes []facts.Envelope
+	}{
+		{
+			name: "sbom.document only (components removed)",
+			envelopes: []facts.Envelope{
+				{
+					FactKind: chain.SBOMDocumentFactKind,
+					FactID:   "sbom-doc-1",
+					Payload: map[string]any{
+						"document_id": "doc-removed-1",
+					},
+				},
+			},
+		},
+		{
+			name:      "empty generation after SBOM document removal",
+			envelopes: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lookup := projectorintent.NewFactLookup(tc.envelopes)
+			if intent, ok := BuildSupplyChainImpactReducerIntent("sbom://example/image", "gen-2", lookup); ok {
+				t.Fatalf("expected no supply_chain_impact intent when %s, got %+v", tc.name, intent)
+			}
+		})
+	}
+}

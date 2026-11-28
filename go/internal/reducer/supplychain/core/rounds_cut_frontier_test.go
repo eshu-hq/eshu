@@ -223,7 +223,9 @@ func TestRoundsCutFrontierArmsCoverTheFilter(t *testing.T) {
 
 	armOf := map[string]string{
 		"PackageIDs":          "package_ids",
+		"SeedPackageIDs":      "seed_package_ids",
 		"PURLs":               "purls",
+		"SeedPURLs":           "seed_purls",
 		"CVEIDs":              "cve_ids",
 		"UpstreamCVEIDs":      "upstream_cve_ids",
 		"AliasIDs":            "alias_ids",
