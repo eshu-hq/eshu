@@ -419,7 +419,7 @@ import (
 // adds the covering btree for the triple-guarded keyed probe, built
 // CONCURRENTLY. Count 389 is 388 plus 363.
 const (
-	goldenBootstrapDefinitionsDigest = "RECOMPUTE"
+	goldenBootstrapDefinitionsDigest = "dde908892c1f7abe5d88f974642a3f856a0988fc72fbf2f7b5abd4bd23e8252d"
 	goldenBootstrapDefinitionsCount  = 389
 )
 
