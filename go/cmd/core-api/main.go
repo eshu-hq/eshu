@@ -316,6 +316,7 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 		Logger:                    logger,
 		NarrationPosture:          posture,
 		Auth:                      authWiring,
+		AdminProofExternal:        strings.TrimSpace(getenv("ESHU_CORE_ADMIN_PROOF_EXTERNAL")) == "1",
 		ExtraMounts: []func(*http.ServeMux, *query.APIRouter){
 			mountCoreCLISupport,
 			mountCoreServiceIntelligence(rawDB, logger,

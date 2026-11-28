@@ -9,52 +9,28 @@ import (
 	"strings"
 	"time"
 
+	apilibadmin "github.com/eshu-hq/eshu/go/apilib/admin"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // listWorkItems queries fact work items with optional filters.
 // POST /api/v0/admin/work-items/query
 func (h *Handler) listWorkItems(w http.ResponseWriter, r *http.Request) {
-	if h.readStore() == nil {
-		querycontract.WriteError(w, http.StatusServiceUnavailable, "admin store not configured")
-		return
-	}
-
-	var req struct {
-		Statuses     []string `json:"statuses"`
-		ScopeID      string   `json:"scope_id"`
-		Stage        string   `json:"stage"`
-		FailureClass string   `json:"failure_class"`
-		Limit        int      `json:"limit"`
-	}
-	if err := querycontract.ReadJSON(r, &req); err != nil {
-		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	limit := req.Limit
-	if limit <= 0 {
-		limit = 100
-	}
-
-	items, err := h.readStore().ListWorkItems(r.Context(), WorkItemFilter{
-		Statuses:     req.Statuses,
-		ScopeID:      strings.TrimSpace(req.ScopeID),
-		Stage:        strings.TrimSpace(req.Stage),
-		FailureClass: strings.TrimSpace(req.FailureClass),
-		Limit:        limit,
-	})
-	if err != nil {
-		writeInspectionFailure(w, r, err, workItemListCapability, workItemQueryFailedMessage)
-		return
-	}
-
-	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
-		"count": len(items),
-		"items": workItemsToSlice(items),
+	// The work-items query lives in the apilib proof-read extraction; the
+	// fence hook keeps the guarded-reader verdicts (retryable 503s under
+	// workItemListCapability) ahead of the fixed 500/499, and records the
+	// span exactly as writeInspectionFailure did (Error plus exception, or
+	// the client-cancel event). The extraction writes only the body.
+	apilibadmin.ServeWorkItemsQuery(w, r, h.readStore(), func(w http.ResponseWriter, r *http.Request, err error) bool {
+		if querycontract.WriteGraphReadError(w, r, err, workItemListCapability) {
+			return true
+		}
+		tracing.ServerFailureEnvelope(r.Context(), err, workItemQueryFailedMessage, workItemListCapability)
+		return false
 	})
 }
 
@@ -381,40 +357,9 @@ func evidenceRowsToSlice(rows []EvidenceRow) []map[string]any {
 	return items
 }
 
-// workItemsToSlice converts a slice of WorkItem to JSON-friendly maps.
+// workItemsToSlice converts a slice of WorkItem to JSON-friendly maps. It
+// delegates to the apilib proof-read extraction so the satellite and core
+// serialize rows identically.
 func workItemsToSlice(items []WorkItem) []map[string]any {
-	result := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		entry := map[string]any{
-			"work_item_id":  item.WorkItemID,
-			"scope_id":      item.ScopeID,
-			"generation_id": item.GenerationID,
-			"stage":         item.Stage,
-			"domain":        item.Domain,
-			"status":        item.Status,
-			"attempt_count": item.AttemptCount,
-			"created_at":    item.CreatedAt.Format(time.RFC3339),
-			"updated_at":    item.UpdatedAt.Format(time.RFC3339),
-		}
-		if item.LeaseOwner != nil {
-			entry["lease_owner"] = *item.LeaseOwner
-		}
-		if item.FailureClass != nil {
-			entry["failure_class"] = *item.FailureClass
-		}
-		if item.FailureMessage != nil {
-			entry["failure_message"] = *item.FailureMessage
-		}
-		if item.OperatorNote != nil {
-			entry["operator_note"] = *item.OperatorNote
-		}
-		if item.PriorFailure != nil {
-			entry["prior_failure"] = item.PriorFailure
-		}
-		if item.VisibleAt != nil {
-			entry["visible_at"] = item.VisibleAt.Format(time.RFC3339)
-		}
-		result = append(result, entry)
-	}
-	return result
+	return apilibadmin.WorkItemsToSlice(items)
 }

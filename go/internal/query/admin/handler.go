@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	apilibadmin "github.com/eshu-hq/eshu/go/apilib/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
@@ -28,29 +29,15 @@ type ReindexRequester interface {
 }
 
 // DecisionRow is a query-layer view of a projection decision row,
-// avoiding a direct dependency on the projector package.
-type DecisionRow struct {
-	DecisionID        string
-	DecisionType      string
-	RepositoryID      string
-	SourceRunID       string
-	WorkItemID        string
-	Subject           string
-	ConfidenceScore   float64
-	ConfidenceReason  string
-	ProvenanceSummary map[string]any
-	CreatedAt         time.Time
-}
+// avoiding a direct dependency on the projector package. Its home is the
+// apilib proof-read extraction; this alias keeps the core store and callers
+// compiling against one row type.
+type DecisionRow = apilibadmin.DecisionRow
 
 // EvidenceRow is a query-layer view of a projection decision evidence row.
-type EvidenceRow struct {
-	EvidenceID   string
-	DecisionID   string
-	FactID       *string
-	EvidenceKind string
-	Detail       map[string]any
-	CreatedAt    time.Time
-}
+// Its home is the apilib proof-read extraction; this alias keeps the core
+// store and callers compiling against one row type.
+type EvidenceRow = apilibadmin.EvidenceRow
 
 // ReadStore provides bounded inspection without admin mutation methods.
 type ReadStore interface {
@@ -88,73 +75,25 @@ type Store interface {
 	RequestBackfill(ctx context.Context, input BackfillInput) (*BackfillRequest, error)
 }
 
-// WorkItem is an admin-friendly view of a fact_work_items row.
-type WorkItem struct {
-	WorkItemID   string `json:"work_item_id"`
-	ScopeID      string `json:"scope_id"`
-	GenerationID string `json:"generation_id"`
-	Stage        string `json:"stage"`
-	Domain       string `json:"domain"`
-	Status       string `json:"status"`
-	AttemptCount int    `json:"attempt_count"`
-	// ReplayAttemptBaseline is the attempt_count a projector row had when an
-	// operator replay last moved it back to pending, or 0 when it was never
-	// replayed (#11182). The projection retry budget counts claims after it:
-	// attempt_count - admission_wait_attempts - replay_attempt_baseline.
-	ReplayAttemptBaseline int     `json:"replay_attempt_baseline"`
-	LeaseOwner            *string `json:"lease_owner"`
-	FailureClass          *string `json:"failure_class"`
-	FailureMessage        *string `json:"failure_message"`
-	OperatorNote          *string `json:"operator_note"`
-	// PriorFailure is the failure the row carried before a supersede, a
-	// stale-scope reclaim or an operator note rewrote its failure evidence
-	// (#7320, #7388, #7385). Nil when
-	// failure_details carries none. Its details text is not exposed.
-	PriorFailure *PriorFailure `json:"prior_failure,omitempty"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
-	VisibleAt    *time.Time    `json:"visible_at"`
-}
+// WorkItem is an admin-friendly view of a fact_work_items row. Its home is
+// the apilib proof-read extraction; this alias keeps the core store and
+// callers compiling against one row type.
+type WorkItem = apilibadmin.WorkItem
 
-// PriorFailure is the kept failure evidence of a work item: its status, class
-// and message before the overwrite, and when the row was last updated then.
-type PriorFailure struct {
-	Status         string `json:"status,omitempty"`
-	FailureClass   string `json:"failure_class,omitempty"`
-	FailureMessage string `json:"failure_message,omitempty"`
-	UpdatedAt      string `json:"updated_at,omitempty"`
-}
+// PriorFailure is the kept failure evidence of a work item: its status,
+// class and message before the overwrite, and when the row was last updated
+// then. Its home is the apilib proof-read extraction.
+type PriorFailure = apilibadmin.PriorFailure
 
 // DeadLetterWorkItem is a bounded operator-facing view of one durable
-// fact_work_items dead-letter row.
-type DeadLetterWorkItem struct {
-	WorkItemID    string     `json:"work_item_id"`
-	ScopeID       string     `json:"scope_id"`
-	GenerationID  string     `json:"generation_id"`
-	Stage         string     `json:"stage"`
-	Domain        string     `json:"domain"`
-	CollectorKind string     `json:"collector_kind"`
-	AttemptCount  int        `json:"attempt_count"`
-	FailureClass  *string    `json:"failure_class"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	VisibleAt     *time.Time `json:"visible_at"`
-}
+// fact_work_items dead-letter row. Its home is the apilib proof-read
+// extraction.
+type DeadLetterWorkItem = apilibadmin.DeadLetterWorkItem
 
-// InputInvalidFact is a bounded operator-facing view of one
-// durable reducer_input_invalid_facts row (issue #4630): a fact the reducer
-// quarantined during typed-payload decode because a required field was
-// missing or null.
-type InputInvalidFact struct {
-	FactID       string    `json:"fact_id"`
-	FactKind     string    `json:"fact_kind"`
-	MissingField string    `json:"missing_field"`
-	FailureClass string    `json:"failure_class"`
-	Domain       string    `json:"domain"`
-	ScopeID      string    `json:"scope_id"`
-	GenerationID string    `json:"generation_id"`
-	DecidedAt    time.Time `json:"decided_at"`
-}
+// InputInvalidFact is a bounded operator-facing view of one durable
+// reducer_input_invalid_facts row (issue #4630). Its home is the apilib
+// proof-read extraction.
+type InputInvalidFact = apilibadmin.InputInvalidFact
 
 // InputInvalidFactListFilter constrains bounded reducer_input_invalid_facts
 // read queries. ScopeID and GenerationID are required: the table is always
@@ -166,33 +105,11 @@ type InputInvalidFact struct {
 // token that grants a repository but not the raw ingestion scope_id must
 // still be authorized when the requested ScopeID belongs to that repository
 // (codex review on PR #5252, issue #4630).
-type InputInvalidFactListFilter struct {
-	ScopeID              string
-	GenerationID         string
-	Domain               string
-	FactKind             string
-	AllowedRepositoryIDs []string
-	AllowedScopeIDs      []string
-	Limit                int
-	Timeout              time.Duration
-}
+type InputInvalidFactListFilter = apilibadmin.InputInvalidFactListFilter
 
-// ReplayEvent is an admin-friendly view of a fact_replay_events row.
-type ReplayEvent struct {
-	ReplayEventID string    `json:"replay_event_id"`
-	WorkItemID    string    `json:"work_item_id"`
-	ScopeID       string    `json:"scope_id"`
-	GenerationID  string    `json:"generation_id"`
-	FailureClass  *string   `json:"failure_class"`
-	OperatorNote  *string   `json:"operator_note"`
-	CreatedAt     time.Time `json:"created_at"`
-	// ReplayAttemptBaseline is the baseline the replay set on a projector
-	// row, and PriorAdmissionWaitAttempts the admission waits the row had
-	// spent before the replay reset them (#11182). Both are nil for reducer
-	// rows and for events written before migration 334.
-	ReplayAttemptBaseline      *int64 `json:"replay_attempt_baseline"`
-	PriorAdmissionWaitAttempts *int64 `json:"prior_admission_wait_attempts"`
-}
+// ReplayEvent is an admin-friendly view of a fact_replay_events row. Its
+// home is the apilib proof-read extraction.
+type ReplayEvent = apilibadmin.ReplayEvent
 
 // BackfillRequest is an admin-friendly view of a fact_backfill_requests row.
 type BackfillRequest struct {
@@ -203,28 +120,13 @@ type BackfillRequest struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
-// WorkItemFilter constrains admin work-item queries.
-type WorkItemFilter struct {
-	Statuses     []string
-	ScopeID      string
-	Stage        string
-	FailureClass string
-	Limit        int
-}
+// WorkItemFilter constrains admin work-item queries. Its home is the apilib
+// proof-read extraction.
+type WorkItemFilter = apilibadmin.WorkItemFilter
 
-// DeadLetterListFilter constrains bounded dead-letter read queries.
-type DeadLetterListFilter struct {
-	FailureClass         string
-	Domain               string
-	ScopeID              string
-	CollectorKind        string
-	UpdatedAfter         *time.Time
-	UpdatedBefore        *time.Time
-	AllowedRepositoryIDs []string
-	AllowedScopeIDs      []string
-	Limit                int
-	Timeout              time.Duration
-}
+// DeadLetterListFilter constrains bounded dead-letter read queries. Its home
+// is the apilib proof-read extraction.
+type DeadLetterListFilter = apilibadmin.DeadLetterListFilter
 
 // DeadLetterFilter constrains admin dead-letter operations.
 type DeadLetterFilter struct {
@@ -291,22 +193,13 @@ type BackfillInput struct {
 	OperatorNote string
 }
 
-// ReplayEventFilter constrains replay-event audit queries.
-type ReplayEventFilter struct {
-	ScopeID      string
-	WorkItemID   string
-	FailureClass string
-	Limit        int
-}
+// ReplayEventFilter constrains replay-event audit queries. Its home is the
+// apilib proof-read extraction.
+type ReplayEventFilter = apilibadmin.ReplayEventFilter
 
-// DecisionQueryFilter constrains projection-decision queries.
-type DecisionQueryFilter struct {
-	RepositoryID    string
-	SourceRunID     string
-	DecisionType    *string
-	IncludeEvidence bool
-	Limit           int
-}
+// DecisionQueryFilter constrains projection-decision queries. Its home is the
+// apilib proof-read extraction.
+type DecisionQueryFilter = apilibadmin.DecisionQueryFilter
 
 // ReplayIdempotencyClaim is the outcome of attempting to claim a replay
 // idempotency key. Exactly one concurrent request observes Claimed=true and
@@ -362,6 +255,11 @@ type Handler struct {
 	// Completeness serves the read-only delta-union completeness report
 	// (#7797); nil makes the route 503.
 	Completeness *DeltaUnionCompletenessChecker
+	// OmitProofReads leaves the extracted proof-read routes unmounted: the
+	// tuning report and the work-items query. Set it when an external host
+	// (the eshu-api satellite) serves those two routes from apilib, so one
+	// mux never answers them twice. Every other admin route still mounts.
+	OmitProofReads bool
 }
 
 // readStore chooses the configured inspection port before any query runs.
@@ -381,18 +279,25 @@ func (h *Handler) now() time.Time {
 	return time.Now().UTC()
 }
 
-// Mount registers all admin routes on the given mux.
+// Mount registers all admin routes on the given mux. When OmitProofReads is
+// set, the two extracted proof-read routes (the tuning report and the
+// work-items query) stay unmounted for the external apilib host; every other
+// admin route still mounts.
 func (h *Handler) Mount(mux *http.ServeMux) {
 	// Core admin endpoints (from admin.py)
 	mux.HandleFunc("POST /api/v0/admin/refinalize", h.refinalize)
-	mux.HandleFunc("GET /api/v0/admin/shared-projection/tuning-report", h.tuningReport)
+	if !h.OmitProofReads {
+		mux.HandleFunc("GET /api/v0/admin/shared-projection/tuning-report", h.tuningReport)
+	}
 	mux.HandleFunc("POST /api/v0/admin/reindex", h.reindex)
 	mux.HandleFunc("GET /api/v0/admin/delta-union/completeness", h.deltaUnionCompleteness)
 	mux.HandleFunc("GET /api/v0/admin/reindex/progress", h.reindexProgress)
 	mux.HandleFunc("POST /api/v0/admin/recover-generations", h.recoverGenerations)
 
 	// Fact-inspection endpoints (from admin_facts.py)
-	mux.HandleFunc("POST /api/v0/admin/work-items/query", h.listWorkItems)
+	if !h.OmitProofReads {
+		mux.HandleFunc("POST /api/v0/admin/work-items/query", h.listWorkItems)
+	}
 	mux.HandleFunc("POST /api/v0/admin/dead-letters/query", h.listDeadLetters)
 	mux.HandleFunc("POST /api/v0/admin/input-invalid-facts/query", h.listInputInvalidFacts)
 	mux.HandleFunc("POST /api/v0/admin/changed-since/poisoned-links/query", h.listChangedSincePoisonedLinks)
@@ -461,13 +366,9 @@ func writeRefinalizeFailure(w http.ResponseWriter, r *http.Request, err error, f
 
 // tuningReport returns shared-projection tuning information.
 // GET /api/v0/admin/shared-projection/tuning-report
-func (h *Handler) tuningReport(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) tuningReport(w http.ResponseWriter, r *http.Request) {
 	// Shared-write tuning is managed by the projector pipeline internally.
-	// This endpoint returns the pinned static report
-	// (SharedProjectionTuningReportContractVersion): the constants are
-	// the contract, so the served body cannot drift from the pin.
-	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
-		"status": SharedProjectionTuningReportStatus,
-		"detail": SharedProjectionTuningReportDetail,
-	})
+	// The pinned static report lives in the apilib proof-read extraction;
+	// delegating keeps the served body byte-identical to the satellite's.
+	apilibadmin.WriteTuningReport(w, r)
 }
