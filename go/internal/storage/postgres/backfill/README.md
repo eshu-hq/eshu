@@ -269,6 +269,20 @@ Operator signals and alerts:
   parked=... miss_fraction=...` plus
   `eshu_dp_maintenance_reopen_parked_by_breaker_total{domain}`. ALERT on
   any nonzero count: the redundancy signal collapsed that pass.
+- Chronic parking (#11594). One parked pass is a bounded delay: parked rows
+  stay `succeeded` and the next pass re-lists them. If `parked > 0` repeats
+  on every pass, the breaker stops being a one-pass delay and becomes a
+  reopen drought: no row is dropped, but owed replays wait without bound,
+  and the only escalation is the repeated log line and counter. The cause
+  is a catalog that keeps changing between passes (fingerprint churn) or a
+  phase-two budget that keeps timing out (the
+  `deferred_backfill_completed_degraded` line below). Alert on consecutive
+  parked passes, not on a single one (rule and named parameters in the
+  [Hosted Ops Alert Pack](../../../../../docs/public/operate/hosted-ops-alert-pack.md#reopen-breaker-chronic-parking-alerts)),
+  then investigate catalog churn (which input arm moved in the
+  `deferred_backfill_catalog_fingerprint` line) and the phase-two budget
+  before raising any breaker bound. Do not widen the breaker to silence the
+  alert: that trades a visible drought for hidden reopen storms.
 - `deferred_backfill_completed_degraded ... parked_config_repos=...
   affected_partitions=...` plus memo `max(committed_at)` going stale:
   the fan-in is being withheld (phase-two budget or generation churn).
