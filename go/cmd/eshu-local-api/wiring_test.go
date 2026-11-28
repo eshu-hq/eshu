@@ -432,7 +432,7 @@ func TestNewRouter_MountsAdminRoutes(t *testing.T) {
 func TestNewSupplyChainEvidenceSourceIsWired(t *testing.T) {
 	t.Parallel()
 
-	if source := newSupplyChainEvidenceSource(nil, nil, false); source == nil {
+	if source := newSupplyChainEvidenceSource(nil, nil, false, nil); source == nil {
 		t.Fatal("newSupplyChainEvidenceSource() = nil, want durable supply-chain evidence source")
 	}
 }

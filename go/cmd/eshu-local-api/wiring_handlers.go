@@ -46,13 +46,16 @@ func newIncidentEvidenceSourceWithReadStore(reader db.Queryer, logger *slog.Logg
 // newSupplyChainEvidenceSource builds the durable supply-chain evidence source
 // for the service intelligence report's supply_chain section over the shared
 // Postgres aggregate read model. The logger surfaces load failures to operators.
-func newSupplyChainEvidenceSource(writer *sql.DB, logger *slog.Logger, readImpactFromWinners bool) serviceintelhttp.SupplyChainEvidenceSource {
-	return newSupplyChainEvidenceSourceWithReadStore(pgstatus.NewSQLReadStore(writer), logger, readImpactFromWinners)
+func newSupplyChainEvidenceSource(writer *sql.DB, logger *slog.Logger, readImpactFromWinners bool, instruments *telemetry.Instruments) serviceintelhttp.SupplyChainEvidenceSource {
+	return newSupplyChainEvidenceSourceWithReadStore(pgstatus.NewSQLReadStore(writer), logger, readImpactFromWinners, instruments)
 }
 
-func newSupplyChainEvidenceSourceWithReadStore(reader db.ReadStore, logger *slog.Logger, readImpactFromWinners bool) serviceintelhttp.SupplyChainEvidenceSource {
+func newSupplyChainEvidenceSourceWithReadStore(reader db.ReadStore, logger *slog.Logger, readImpactFromWinners bool, instruments *telemetry.Instruments) serviceintelhttp.SupplyChainEvidenceSource {
+	store := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
+	store.Logger = logger
+	store.Instruments = instruments
 	return serviceintelhttp.NewDurableSupplyChainEvidenceSource(
-		impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
+		store,
 		logger,
 	)
 }
@@ -76,6 +79,17 @@ func newSupplyChainHandler(
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
 ) *query.SupplyChainHandler {
+	// The probe-failure WARN names the deployment the 503 blames, so a
+	// lagging maintainer is distinguishable from an unwired route.
+	impactAggregates := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
+	impactAggregates.Logger = logger
+	impactAggregates.Instruments = instruments
+	impactFindings := impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners)
+	impactFindings.Instruments = instruments
+	impactExplanations := impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners)
+	impactExplanations.Instruments = instruments
+	impactGrouped := impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger)
+	impactGrouped.Instruments = instruments
 	return &query.SupplyChainHandler{
 		Neo4j:                        neo4jReader,
 		Logger:                       logger,
@@ -84,10 +98,10 @@ func newSupplyChainHandler(
 		SBOMAttachmentAggregates:     query.NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore(reader),
 		AdvisoryEvidence:             advisory.NewPostgresEvidenceStoreWithReadStore(reader),
 		AdvisoryCatalog:              advisory.NewPostgresCatalogStoreWithReadStore(reader),
-		ImpactFindings:               impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
-		ImpactAggregates:             impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
-		ImpactGroupedInventory:       impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
-		ImpactExplanations:           impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
+		ImpactFindings:               impactFindings,
+		ImpactAggregates:             impactAggregates,
+		ImpactGroupedInventory:       impactGrouped,
+		ImpactExplanations:           impactExplanations,
 		ContainerImageIdentities:     query.NewPostgresContainerImageIdentityStoreWithReadStore(reader),
 		ContainerImageAggregates:     query.NewPostgresContainerImageIdentityAggregateStoreWithReadStore(reader),
 		SecurityAlerts:               alerts.NewPostgresStoreWithReadStore(reader),
