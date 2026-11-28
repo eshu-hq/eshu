@@ -39,6 +39,11 @@ type DecisionRow = apilibadmin.DecisionRow
 // store and callers compiling against one row type.
 type EvidenceRow = apilibadmin.EvidenceRow
 
+// A core ReadStore satisfies the apilib proof-read ReadStore: every row and
+// filter type in the method set aliases its apilib definition, so the two
+// method sets are identical and a core store crosses the boundary directly.
+var _ apilibadmin.ReadStore = ReadStore(nil)
+
 // ReadStore provides bounded inspection without admin mutation methods.
 type ReadStore interface {
 	ListWorkItems(ctx context.Context, f WorkItemFilter) ([]WorkItem, error)

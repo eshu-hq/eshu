@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	apilibadmin "github.com/eshu-hq/eshu/go/apilib/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -33,42 +34,16 @@ const (
 )
 
 // ChangedSincePoisonedLink is a bounded operator-facing view of one durable
-// changed_since_scope_cursor row that is either poisoned (a link that hit its
-// counting-failure limit, BreakLinkPoisoned) or retrying (a counted failure is
-// pending on the scope's head activation, backing off toward its next
-// attempt). #7290 gives this state a read surface: the writer is a runner
-// over its own ledger, not a fact_work_items dead letter
-// (go/internal/storage/postgres/freshness/links, #7127 ruling 8.10 item 10),
-// so it never appears in list_dead_letter_work_items.
-type ChangedSincePoisonedLink struct {
-	ScopeID string `json:"scope_id"`
-	// Status is changedSinceLinkStatusPoisoned or changedSinceLinkStatusRetrying.
-	Status string `json:"status"`
-	// ActivationSeq is the head activation the scope is stuck on: the
-	// poisoned activation when Status is poisoned, otherwise the activation
-	// currently backing off.
-	ActivationSeq    int64      `json:"activation_seq"`
-	AttemptCount     int        `json:"attempt_count"`
-	LastFailureClass *string    `json:"last_failure_class,omitempty"`
-	NextAttemptAt    *time.Time `json:"next_attempt_at,omitempty"`
-	PoisonedAt       *time.Time `json:"poisoned_at,omitempty"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-}
+// changed_since_scope_cursor row that is either poisoned or retrying. Its
+// home is the apilib proof-read extraction; this alias keeps the core store
+// and callers compiling against one row type.
+type ChangedSincePoisonedLink = apilibadmin.ChangedSincePoisonedLink
 
 // ChangedSincePoisonedLinkFilter constrains the bounded, deterministic
-// changed-since poisoned/retrying link read (#7290). With no ScopeID or
-// Cursor it is a fleet-wide page ordered by scope_id; Cursor carries the
-// last scope_id of a prior page for forward keyset pagination.
-type ChangedSincePoisonedLinkFilter struct {
-	// Status narrows to "poisoned" or "retrying"; empty returns both.
-	Status               string
-	ScopeID              string
-	Cursor               string
-	AllowedRepositoryIDs []string
-	AllowedScopeIDs      []string
-	Limit                int
-	Timeout              time.Duration
-}
+// changed-since poisoned/retrying link read (#7290). Its home is the apilib
+// proof-read extraction; this alias keeps the core store and callers
+// compiling against one filter type.
+type ChangedSincePoisonedLinkFilter = apilibadmin.ChangedSincePoisonedLinkFilter
 
 // ChangedSincePoisonedLinksHandler mounts only the bounded changed-since
 // poisoned/retrying link read surface, mirroring DeadLetterListHandler and

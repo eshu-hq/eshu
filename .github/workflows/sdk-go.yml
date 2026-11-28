@@ -309,7 +309,7 @@ jobs:
 
       - name: Test
         working-directory: go/apilib
-        run: go test ./... -count=1
+        run: go test -race ./... -count=1
 
       - name: Vet
         working-directory: go/apilib

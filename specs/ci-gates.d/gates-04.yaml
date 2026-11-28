@@ -79,7 +79,7 @@ gates:
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
     local:
-      command: "cd go/apilib && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal'"
+      command: "cd go/apilib && go build ./... && go test -race ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal'"
       test_command: ""
     ci:
       workflow: sdk-go.yml

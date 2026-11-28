@@ -208,6 +208,15 @@ func coreRuntimeConfig(getenv func(string) string) (query.QueryProfile, query.Gr
 	return profile, backend, nil
 }
 
+// adminProofExternalFromEnv reports whether the core mux leaves the
+// apilib-owned proof-read routes (the shared-projection tuning report and
+// the work-items query) unmounted for an external apilib host to serve.
+// Only the exact value "1" opts out; every other value keeps every admin
+// route mounted in core.
+func adminProofExternalFromEnv(getenv func(string) string) bool {
+	return strings.TrimSpace(getenv("ESHU_CORE_ADMIN_PROOF_EXTERNAL")) == "1"
+}
+
 func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger, addr string) error {
 	profile, backend, err := coreRuntimeConfig(getenv)
 	if err != nil {
@@ -316,7 +325,7 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 		Logger:                    logger,
 		NarrationPosture:          posture,
 		Auth:                      authWiring,
-		AdminProofExternal:        strings.TrimSpace(getenv("ESHU_CORE_ADMIN_PROOF_EXTERNAL")) == "1",
+		AdminProofExternal:        adminProofExternalFromEnv(getenv),
 		ExtraMounts: []func(*http.ServeMux, *query.APIRouter){
 			mountCoreCLISupport,
 			mountCoreServiceIntelligence(rawDB, logger,
