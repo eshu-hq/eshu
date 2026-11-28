@@ -327,6 +327,7 @@ require_in "failure log dump" "${cleanup_lib}" "host binary logs (failure)"
 # Every Compose operation must carry the same explicit, uniquely overridable
 # project name. Host binaries connect over private ports, while `-p` prevents
 # containers and volumes from colliding with another worktree's gate.
+require "neo4j default backend (#11645: #7331 supported backend, nornicdb is explicit opt-in)" 'ESHU_GRAPH_BACKEND:=neo4j'
 require "unique Compose project default" 'GATE_COMPOSE_PROJECT:=eshu-golden-corpus-$$'
 require "shared Compose args" 'compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")'
 require "overridable query profile default" 'ESHU_QUERY_PROFILE:=local_full_stack'

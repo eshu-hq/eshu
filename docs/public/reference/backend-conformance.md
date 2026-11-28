@@ -100,7 +100,7 @@ per backend: `corpus-gate (nornicdb)` and `corpus-gate (neo4j)` in
 (nornicdb)` is off in CI by owner order (2026-11-05), matching Neo4j as the
 supported backend. Locally,
 `ESHU_GRAPH_BACKEND=neo4j` selects Neo4j; see
-[Golden Corpus Gate](local-testing/golden-corpus-gate.md#running-it-on-neo4j).
+[Golden Corpus Gate](local-testing/golden-corpus-gate.md#backend-selection).
 
 The snapshot was calibrated on NornicDB, so the first Neo4j run is a
 differential oracle, not a formality. A shape that passes on one backend and
