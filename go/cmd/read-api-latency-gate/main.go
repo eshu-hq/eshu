@@ -51,41 +51,45 @@ func main() {
 	concurrentRequests := flag.Int("concurrent-requests", 20, "requests per pilot operation in the optional concurrent stage")
 	concurrentReport := flag.String("concurrent-report", "", "optional JSON report for the concurrent pilot stage")
 	diagnosticReport := flag.String("diagnostic-client-report", "", "optional bounded status client correlation report; requires concurrent pilot and API diagnostic mode")
+	verifyWinnersOracle := flag.Bool("verify-winners-oracle", false, "prove a winners-leg findings snapshot against the supports-table oracle and exit without seeding or sweeping (issue #11644: post-C2 truth proof that reads no read-API code)")
+	oraclePagePath := flag.String("oracle-page", "", "winners-leg findings snapshot for -verify-winners-oracle")
 	flag.Parse()
 
 	if err := run(runOptions{
-		postgresDSN:        *postgresDSN,
-		graphURI:           *graphURI,
-		graphDatabase:      *graphDatabase,
-		graphUsername:      *graphUsername,
-		graphPassword:      *graphPassword,
-		apiBaseURL:         *apiBaseURL,
-		mcpBaseURL:         *mcpBaseURL,
-		apiKey:             *apiKey,
-		coverage:           coverage.settings(),
-		totalScopes:        *totalScopes,
-		nodesPerLabel:      *nodesPerLabel,
-		iacFactCount:       *iacFactCount,
-		winnersFactCount:   *winnersFactCount,
-		sharedIntents:      *sharedIntentCount,
-		iterations:         *iterations,
-		runs:               *runs,
-		budgetsPath:        *budgetsPath,
-		workBudgetsPath:    *workBudgetsPath,
-		workReportPath:     *workReportPath,
-		latencyReportPath:  *latencyReportPath,
-		eshuCommit:         *eshuCommit,
-		apiBinarySHA256:    *apiBinarySHA256,
-		coreBinarySHA256:   *coreBinarySHA256,
-		winnersRead:        *winnersRead,
-		backgroundIdle:     *backgroundIdle,
-		skipSeed:           *skipSeed,
-		seedOnly:           *seedOnly,
-		requestTimeout:     *requestTimeout,
-		concurrentWorkers:  *concurrentWorkers,
-		concurrentRequests: *concurrentRequests,
-		concurrentReport:   *concurrentReport,
-		diagnosticReport:   *diagnosticReport,
+		postgresDSN:         *postgresDSN,
+		graphURI:            *graphURI,
+		graphDatabase:       *graphDatabase,
+		graphUsername:       *graphUsername,
+		graphPassword:       *graphPassword,
+		apiBaseURL:          *apiBaseURL,
+		mcpBaseURL:          *mcpBaseURL,
+		apiKey:              *apiKey,
+		coverage:            coverage.settings(),
+		totalScopes:         *totalScopes,
+		nodesPerLabel:       *nodesPerLabel,
+		iacFactCount:        *iacFactCount,
+		winnersFactCount:    *winnersFactCount,
+		sharedIntents:       *sharedIntentCount,
+		iterations:          *iterations,
+		runs:                *runs,
+		budgetsPath:         *budgetsPath,
+		workBudgetsPath:     *workBudgetsPath,
+		workReportPath:      *workReportPath,
+		latencyReportPath:   *latencyReportPath,
+		eshuCommit:          *eshuCommit,
+		apiBinarySHA256:     *apiBinarySHA256,
+		coreBinarySHA256:    *coreBinarySHA256,
+		winnersRead:         *winnersRead,
+		backgroundIdle:      *backgroundIdle,
+		skipSeed:            *skipSeed,
+		seedOnly:            *seedOnly,
+		requestTimeout:      *requestTimeout,
+		concurrentWorkers:   *concurrentWorkers,
+		concurrentRequests:  *concurrentRequests,
+		concurrentReport:    *concurrentReport,
+		diagnosticReport:    *diagnosticReport,
+		verifyWinnersOracle: *verifyWinnersOracle,
+		oraclePagePath:      *oraclePagePath,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate:", err)
 		os.Exit(1)
@@ -93,40 +97,42 @@ func main() {
 }
 
 type runOptions struct {
-	postgresDSN        string
-	graphURI           string
-	graphDatabase      string
-	graphUsername      string
-	graphPassword      string
-	apiBaseURL         string
-	mcpBaseURL         string
-	apiKey             string
-	coverage           coverageSettings
-	totalScopes        int
-	nodesPerLabel      int
-	iacFactCount       int
-	winnersFactCount   int
-	sharedIntents      int
-	iterations         int
-	runs               int
-	budgetsPath        string
-	workBudgetsPath    string
-	workReportPath     string
-	latencyReportPath  string
-	eshuCommit         string
-	apiBinarySHA256    string
-	coreBinarySHA256   string
-	winnersRead        bool
-	backgroundIdle     time.Duration
-	skipSeed           bool
-	seedOnly           bool
-	requestTimeout     time.Duration
-	concurrentWorkers  int
-	concurrentRequests int
-	concurrentReport   string
-	diagnosticReport   string
-	diagnostics        *diagnosticClient
-	statementCapture   diagnosticStatementCapture
+	postgresDSN         string
+	graphURI            string
+	graphDatabase       string
+	graphUsername       string
+	graphPassword       string
+	apiBaseURL          string
+	mcpBaseURL          string
+	apiKey              string
+	coverage            coverageSettings
+	totalScopes         int
+	nodesPerLabel       int
+	iacFactCount        int
+	winnersFactCount    int
+	sharedIntents       int
+	iterations          int
+	runs                int
+	budgetsPath         string
+	workBudgetsPath     string
+	workReportPath      string
+	latencyReportPath   string
+	eshuCommit          string
+	apiBinarySHA256     string
+	coreBinarySHA256    string
+	winnersRead         bool
+	backgroundIdle      time.Duration
+	skipSeed            bool
+	seedOnly            bool
+	requestTimeout      time.Duration
+	concurrentWorkers   int
+	concurrentRequests  int
+	concurrentReport    string
+	diagnosticReport    string
+	verifyWinnersOracle bool
+	oraclePagePath      string
+	diagnostics         *diagnosticClient
+	statementCapture    diagnosticStatementCapture
 }
 
 func run(opts runOptions) (runErr error) {
@@ -134,6 +140,11 @@ func run(opts runOptions) (runErr error) {
 
 	if err := validateRunOptions(opts); err != nil {
 		return err
+	}
+	// The oracle proof runs between the sweep legs, long after the seed: it
+	// must not reseed or sweep, only read the oracle and the snapshot.
+	if opts.verifyWinnersOracle {
+		return verifyWinnersOracle(ctx, opts)
 	}
 	if !opts.skipSeed {
 		if err := seed(ctx, opts); err != nil {

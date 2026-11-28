@@ -6,8 +6,8 @@
 #
 # Requires (set by the orchestrator before any of these are called): bin_dir,
 # log_dir, work_dir, start_bg (golden-corpus-host-helpers.sh), the die()/log()
-# functions, GATE_CORE_PORT, GATE_API_PORT, GATE_API_KEY, and the exported
-# backend env (ESHU_GRAPH_BACKEND, NEO4J_*, ESHU_POSTGRES_DSN,
+# functions, GATE_CORE_PORT, GATE_API_PORT, GATE_API_KEY, GATE_WINNERS_FACT_COUNT,
+# and the exported backend env (ESHU_GRAPH_BACKEND, NEO4J_*, ESHU_POSTGRES_DSN,
 # ESHU_CONTENT_STORE_DSN, ESHU_API_KEY, ESHU_COMPONENT_HOME,
 # ESHU_AUTH_SECRET_ENC_KEY). Bodies resolve these lazily at call time, so
 # sourcing this file before those globals are set is safe as long as they
@@ -88,30 +88,50 @@ snapshot_findings_page() {
 		-o "${out}" || die "findings snapshot failed (see the curl error above)"
 }
 
-# require_findings_byte_identical <legacy> <winners> fails unless the two
-# legs served byte-identical findings pages: the winners read model promises
-# the same output as the legacy read-time dedup, and any drift means the
-# legs measured different truth.
-require_findings_byte_identical() {
-	local legacy="$1" winners="$2"
-	# Two identical empty pages pass cmp vacuously, so the proof is only worth
-	# anything when the page it compares holds findings.
-	require_findings_nonempty "${legacy}"
-	if cmp -s "${legacy}" "${winners}"; then
-		log "findings pages byte-identical across legacy/winners legs"
-		return 0
+# findings_page_status <leg> <file> labels one leg's findings snapshot as
+# measured (non-empty) or vacuous (empty) for the gate log (issue #11644: the
+# legacy leg reads fact_records, which holds no finding facts since the #10880
+# PR-C2 write-stop, so its page is vacuous by contract while its sweep
+# latencies still measure the legacy path). Labelling is measurement, not
+# verdict, so both states exit 0; a snapshot with no findings array is
+# unreadable and fails, since the gate cannot label what it cannot parse.
+findings_page_status() {
+	local leg="$1" file="$2" count
+	command -v jq >/dev/null 2>&1 || die "jq is required to label the ${leg} findings page as measured or vacuous"
+	count="$(jq -r 'if (.findings | type) == "array" then (.findings | length | tostring) else "unreadable" end' "${file}")" \
+		|| die "cannot read the ${leg} findings page ${file}"
+	if [[ "${count}" == "unreadable" ]]; then
+		die "cannot label the ${leg} findings page ${file}: it holds no findings array"
+	elif [[ "${count}" == "0" ]]; then
+		log "${leg} findings page: vacuous (0 findings)"
+	else
+		log "${leg} findings page: measured (${count} findings)"
 	fi
-	diff <(head -c 2000 "${legacy}") <(head -c 2000 "${winners}") >&2 || true
-	die "legacy and winners findings pages differ (first 2kB diffed above); the legs did not serve the same truth"
 }
 
-# require_findings_nonempty <file> fails unless the findings page holds at least
-# one finding (the envelope carries them in .findings), so a byte-identical
-# comparison cannot pass on two empty pages.
-require_findings_nonempty() {
-	command -v jq >/dev/null 2>&1 || die "jq is required to check that the findings page is not empty"
-	jq -e '(.findings | type == "array") and (.findings | length) > 0' "$1" >/dev/null 2>&1 \
-		|| die "findings page $1 holds no findings; a byte-identical comparison of empty pages proves nothing"
+# snapshot_and_label_findings_page <leg> <out> fetches one leg's findings
+# snapshot and labels it measured or vacuous for the gate log (issue #11644:
+# the gate output names the post-C2 scope each leg actually covers).
+snapshot_and_label_findings_page() {
+	snapshot_findings_page "$2"
+	findings_page_status "$1" "$2"
+}
+
+# require_winners_findings_oracle <winners-page> proves the winners leg served
+# the seeded truth from an oracle independent of the read API (issue #11644):
+# the gate binary counts supports rows and canonical groups straight from
+# supply_chain_impact_finding_supports and checks the relayed snapshot serves
+# that depth. The page is labelled measured first, so the gate log names the
+# scope even when the proof then fails. A failing proof fails the gate; see
+# the reason it prints.
+require_winners_findings_oracle() {
+	local page="$1"
+	findings_page_status winners "${page}"
+	"${bin_dir}/eshu-read-api-latency-gate" -verify-winners-oracle \
+		-postgres-dsn "${ESHU_POSTGRES_DSN}" \
+		-winners-fact-count "${GATE_WINNERS_FACT_COUNT}" \
+		-oracle-page "${page}" \
+		|| die "winners findings oracle proof failed (see the reason printed above)"
 }
 
 # require_grouped_inventory <want_code> <dimension> asserts the grouped

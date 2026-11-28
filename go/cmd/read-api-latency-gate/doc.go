@@ -45,9 +45,11 @@
 // then the satellite
 // against --core-base-url and the MCP server, runs this binary to sweep the
 // legacy leg, restarts the core with ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ
-// set, proves the two legs serve byte-identical findings, re-sweeps the
-// winners leg into separate reports, and tears the stack down (issue
-// #11170).
+// set, proves the winners leg serves the seeded supports truth through the
+// supports-table oracle (-verify-winners-oracle, issue #11644; the legacy
+// findings page is vacuous by contract since the PR-C2 write-stop),
+// re-sweeps the winners leg into separate reports, and tears the stack down
+// (issue #11170).
 //
 // -runs (default 1) repeats the counted sweep per route: run 1 follows the
 // warmup probes, and runs 2..-runs are later passes issued with no additional

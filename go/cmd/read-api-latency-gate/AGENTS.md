@@ -245,11 +245,13 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   statuses after one (that would hide the mutation).
 - **The gate measures two legs, legacy then winners, never merged.** The
   winners flag is read once at core mux build, so the legs are separate core
-  processes against one seed; the byte-identical findings proof and the
-  grouped-inventory 503/200 negative/positive controls gate the second leg;
-  each leg writes its own latency/work/concurrent reports (the winners paths
-  derive via `winners_report_path`), told apart by the `-winners-read`
-  identity marker.
+  processes against one seed; the winners findings oracle proof
+  (`-verify-winners-oracle`, supports-table counts checked against the relayed
+  snapshot) and the grouped-inventory 503/200 negative/positive controls gate
+  the second leg, while the legacy findings page is labelled measured/vacuous
+  (`findings_page_status`) instead of compared; each leg writes its own
+  latency/work/concurrent reports (the winners paths derive via
+  `winners_report_path`), told apart by the `-winners-read` identity marker.
 - **`-runs` defaults to 1 and preserves the single-pass sample selection.**
   `sweepRoute` (`sweep.go`) runs the warmup once, before run 1; run 1 alone
   backs `RouteLatency.P95`/`Samples` when there is no later pass. Do not move
