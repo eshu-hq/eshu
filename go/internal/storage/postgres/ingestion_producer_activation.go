@@ -13,6 +13,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Producer-activation dependency index (#7635). When a scope that produces
@@ -317,7 +318,7 @@ func (s IngestionStore) SettleClaimedProducerActivation(ctx context.Context, wor
 			return nil, "", err
 		}
 		for _, id := range ids {
-			reopened, err := queue.ReopenSucceeded(ctx, id)
+			reopened, err := queue.ReopenSucceeded(ctx, id, telemetry.RequeueReasonProducerActivationSettle)
 			if err != nil {
 				return nil, "", fmt.Errorf("reopen %s producer dependents: %w", dependent.domain, err)
 			}

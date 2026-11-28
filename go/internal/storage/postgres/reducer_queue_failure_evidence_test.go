@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
@@ -45,6 +46,8 @@ func TestScanReducerIntentCarriesPriorFailureEvidence(t *testing.T) {
 		"advisory_group_winners_watermark_not_ready",
 		"prior deferral message",
 		"prior deferral details\nwinners-watermark-deferral: first-deferred-at=2026-11-09T12:00:00Z cycle-started-at=2026-11-09T12:00:00Z",
+		// #11615: the last requeue reason rides the claim onto the intent.
+		sql.NullString{String: "waiting_wake", Valid: true},
 		rawPayload,
 	}}}
 	if !rows.Next() {
@@ -53,6 +56,9 @@ func TestScanReducerIntentCarriesPriorFailureEvidence(t *testing.T) {
 	intent, err := scanReducerIntent(rows)
 	if err != nil {
 		t.Fatalf("scanReducerIntent: %v", err)
+	}
+	if intent.RequeueReason != "waiting_wake" {
+		t.Fatalf("intent.RequeueReason = %q, want waiting_wake", intent.RequeueReason)
 	}
 	if intent.Failure == nil {
 		t.Fatal("intent.Failure is nil, want the prior verdict's failure evidence")
@@ -97,6 +103,9 @@ func TestScanReducerIntentOmitsFailureWithoutPriorEvidence(t *testing.T) {
 		"",
 		"",
 		"",
+		// #11615: NULL (never requeued) scans empty and reads as
+		// legacy_unclassified.
+		sql.NullString{},
 		rawPayload,
 	}}}
 	if !rows.Next() {
@@ -105,6 +114,9 @@ func TestScanReducerIntentOmitsFailureWithoutPriorEvidence(t *testing.T) {
 	intent, err := scanReducerIntent(rows)
 	if err != nil {
 		t.Fatalf("scanReducerIntent: %v", err)
+	}
+	if intent.RequeueReason != "" {
+		t.Fatalf("intent.RequeueReason = %q, want empty for a never-requeued row", intent.RequeueReason)
 	}
 	if intent.Failure != nil {
 		t.Fatalf("intent.Failure = %+v, want nil for a row with no prior failure", intent.Failure)

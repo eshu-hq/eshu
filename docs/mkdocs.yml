@@ -386,6 +386,7 @@ nav:
       - CI/CD Run Telemetry: reference/telemetry/metrics-cicd-run.md
       - Media Transcript Engine Telemetry: reference/telemetry/media-transcript-engine.md
       - Reducer And Storage Metrics: reference/telemetry/metrics-reducer-storage.md
+      - Requeue Reasons: reference/telemetry/metrics-reducer-requeue.md
       - Identity Fact Cache Metrics: reference/telemetry/metrics-identity-cache.md
       - Graph-read Safety: reference/telemetry/graph-read-safety.md
       - Graph-Backed Gauge Snapshots: reference/telemetry/graph-gauge-snapshots.md

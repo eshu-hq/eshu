@@ -95,7 +95,7 @@ func TestReopenBlockSpansReportReopenedAndSkippedCounts(t *testing.T) {
 		t.Parallel()
 		recorder, tracer := recordingTracer()
 		store := NewIngestionStore(&fakeTx{queryResponses: []queueFakeRows{items}})
-		if err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped); err != nil {
+		if _, err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped); err != nil {
 			t.Fatalf("reopen error = %v, want nil", err)
 		}
 		got := singleReopenSpan(t, recorder)
@@ -107,7 +107,7 @@ func TestReopenBlockSpansReportReopenedAndSkippedCounts(t *testing.T) {
 		t.Parallel()
 		recorder, tracer := recordingTracer()
 		store := NewIngestionStore(&fakeTx{queryResponses: []queueFakeRows{items}})
-		if err := store.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped); err != nil {
+		if _, err := store.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped); err != nil {
 			t.Fatalf("reopen error = %v, want nil", err)
 		}
 		got := singleReopenSpan(t, recorder)
@@ -123,7 +123,7 @@ func TestReopenBlockSpansReportReopenedAndSkippedCounts(t *testing.T) {
 		// re-opens every item, preserving the never-memo-gated contract.
 		ids := queueFakeRows{rows: [][]any{{"wi-1", true}, {"wi-2", true}, {"wi-3", true}}}
 		store := NewIngestionStore(&fakeTx{queryResponses: []queueFakeRows{ids}})
-		if err := store.ReopenSucceededReducerWorkItems(
+		if _, err := store.ReopenSucceededReducerWorkItems(
 			context.Background(), tracer, nil, []string{"container_image_identity"},
 		); err != nil {
 			t.Fatalf("reopen error = %v, want nil", err)
@@ -140,7 +140,7 @@ func TestReopenBlockSpansReportReopenedAndSkippedCounts(t *testing.T) {
 		// on the span (#10878): the gate's quiet-fleet convergence.
 		ids := queueFakeRows{rows: [][]any{{"wi-1", false}, {"wi-2", false}}}
 		store := NewIngestionStore(&fakeTx{queryResponses: []queueFakeRows{ids}})
-		if err := store.ReopenSucceededReducerWorkItems(
+		if _, err := store.ReopenSucceededReducerWorkItems(
 			context.Background(), tracer, nil, []string{"container_image_identity"},
 		); err != nil {
 			t.Fatalf("reopen error = %v, want nil", err)
@@ -168,7 +168,7 @@ func TestReopenBlockFailureEndsSpanWithErrorAndLogsFailedLine(t *testing.T) {
 		execErrors:     map[int]error{0: errors.New("boom reopen exec")},
 	}
 	store := NewIngestionStore(tx)
-	if err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, nil); err == nil {
+	if _, err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, nil); err == nil {
 		t.Fatal("reopen error = nil, want the injected exec failure")
 	}
 

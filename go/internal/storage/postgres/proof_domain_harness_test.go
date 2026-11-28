@@ -588,6 +588,9 @@ func (database *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string
 			"",
 			"",
 			"",
+			// #11615: the proof domain never requeues, so the reason stays
+			// NULL and reads as legacy_unclassified.
+			nil,
 			item.payload,
 		}}), nil
 	}

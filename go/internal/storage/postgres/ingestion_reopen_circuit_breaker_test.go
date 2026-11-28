@@ -56,9 +56,9 @@ func TestReopenCircuitBreakerParksMassMissPass(t *testing.T) {
 			store := NewIngestionStore(tx)
 			var err error
 			if domain == "deployment_mapping" {
-				err = store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped)
+				_, err = store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped)
 			} else {
-				err = store.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped)
+				_, err = store.reopenCodeImportRepoEdgeWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped)
 			}
 			if err != nil {
 				t.Fatalf("reopen error = %v, want nil", err)
@@ -99,7 +99,7 @@ func TestReopenCircuitBreakerLetsSmallPoolsThrough(t *testing.T) {
 	recorder, tracer := recordingTracer()
 	tx := &fakeTx{queryResponses: []queueFakeRows{items}}
 	store := NewIngestionStore(tx)
-	if err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped); err != nil {
+	if _, err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), tracer, nil, skipped); err != nil {
 		t.Fatalf("reopen error = %v, want nil", err)
 	}
 	if len(tx.execs) != 3 {
@@ -129,7 +129,7 @@ func TestReopenCircuitBreakerExemptsStandaloneNilSkipSet(t *testing.T) {
 
 	tx := &fakeTx{queryResponses: []queueFakeRows{reopenListingRows(items...)}}
 	store := NewIngestionStore(tx)
-	if err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), nil, nil, nil); err != nil {
+	if _, err := store.reopenDeploymentMappingWorkItemsWithSkipSet(context.Background(), nil, nil, nil); err != nil {
 		t.Fatalf("reopen error = %v, want nil", err)
 	}
 	if len(tx.execs) != 50 {

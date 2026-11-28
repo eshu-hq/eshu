@@ -115,7 +115,7 @@ func TestTargetedReopenEmitsOneTaggedBlockPerDomain(t *testing.T) {
 			return true, nil
 		},
 	}
-	reopened, err := store.ReopenTargetedMaintenanceWorkItems(context.Background(), provider.Tracer("proof"), affected, skipped)
+	reopened, err := store.ReopenTargetedMaintenanceWorkItems(context.Background(), provider.Tracer("proof"), nil, affected, skipped)
 	if err != nil {
 		t.Fatal(err)
 	}

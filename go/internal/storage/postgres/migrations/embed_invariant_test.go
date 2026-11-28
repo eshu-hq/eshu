@@ -418,9 +418,13 @@ import (
 // 363_supply_chain_impact_supports_keyed_triple_guard_idx.sql (#9975 round 6)
 // adds the covering btree for the triple-guarded keyed probe, built
 // CONCURRENTLY. Count 389 is 388 plus 363.
+// 364_fact_work_items_last_requeue_reason.sql (#11615) adds the nullable
+// last_requeue_reason label to fact_work_items. Count 390 is 389 plus 364.
+// 365_cross_scope_ack_trigger_requeue_reason.sql (#11615) converges the 093
+// ACK trigger to stamp cross_scope_replay. Count 391 is 390 plus 365.
 const (
-	goldenBootstrapDefinitionsDigest = "dde908892c1f7abe5d88f974642a3f856a0988fc72fbf2f7b5abd4bd23e8252d"
-	goldenBootstrapDefinitionsCount  = 389
+	goldenBootstrapDefinitionsDigest = "d8a669e0404b7603e143b42710631db3ad1e6242032034fe32d3837f0ee06976"
+	goldenBootstrapDefinitionsCount  = 391
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

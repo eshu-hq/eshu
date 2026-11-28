@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -40,6 +41,9 @@ func scanReducerIntent(rows db.Rows) (reducercontract.Intent, error) {
 	var failureClass string
 	var failureMessage string
 	var failureDetails string
+	// #11615: the last requeue reason rides the claim read-only. NULL means
+	// the row was never requeued and reads as legacy_unclassified.
+	var requeueReason sql.NullString
 	var rawPayload []byte
 
 	if err := rows.Scan(
@@ -56,6 +60,7 @@ func scanReducerIntent(rows db.Rows) (reducercontract.Intent, error) {
 		&failureClass,
 		&failureMessage,
 		&failureDetails,
+		&requeueReason,
 		&rawPayload,
 	); err != nil {
 		return reducercontract.Intent{}, err
@@ -112,6 +117,7 @@ func scanReducerIntent(rows db.Rows) (reducercontract.Intent, error) {
 		AvailableAt:     availableAt.UTC(),
 		CycleStartedAt:  cycleStartedAt.UTC(),
 		ClaimedAt:       &claimedAt,
+		RequeueReason:   requeueReason.String,
 	}
 	if entityKey != "" {
 		intent.EntityKeys = []string{entityKey}

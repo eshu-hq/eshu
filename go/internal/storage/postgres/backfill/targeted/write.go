@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // targetedMaintenanceSkipSet is the same-pass memo-hit set over every
@@ -123,10 +124,14 @@ func (s Store) writeTargetedMaintenanceEvidence(
 func (s Store) ReopenTargetedMaintenanceWorkItems(
 	ctx context.Context,
 	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
 	affected []backfill.ScopeGenerationPartition,
 	skipped map[backfill.ScopeGenerationPartition]struct{},
 ) (map[string]int, error) {
 	reopened := make(map[string]int)
+	// #11615: actually-transitioned rows for the per-reason counter, emitted
+	// after the commit below.
+	var transitioned int64
 	if len(affected) == 0 {
 		return reopened, nil
 	}
@@ -164,10 +169,14 @@ func (s Store) ReopenTargetedMaintenanceWorkItems(
 		}
 		toReopen, skippedCount := s.GateReopen(ctx, relationship.domain, items, skipped)
 		for _, workItemID := range toReopen {
-			if _, err := s.ReopenSucceeded(ctx, tx, workItemID); err != nil {
+			// The bool counts actual transitions for the #11615 per-reason
+			// counter, emitted after the commit below.
+			if ok, err := s.ReopenSucceeded(ctx, tx, workItemID); err != nil {
 				err = fmt.Errorf("reopen %s work items: %w", relationship.domain, err)
 				endTargetedReopenBlock(block, err, relationship.domain, 0, skippedCount)
 				return nil, err
+			} else if ok {
+				transitioned++
 			}
 		}
 		reopened[relationship.domain] = len(toReopen)
@@ -198,10 +207,12 @@ func (s Store) ReopenTargetedMaintenanceWorkItems(
 			return nil, err
 		}
 		for _, workItemID := range workItemIDs {
-			if _, err := s.ReopenSucceeded(ctx, tx, workItemID); err != nil {
+			if ok, err := s.ReopenSucceeded(ctx, tx, workItemID); err != nil {
 				err = fmt.Errorf("reopen %s work items: %w", domain, err)
 				endTargetedCorrelationReopenBlock(block, err, domain, 0, skippedUnchanged)
 				return nil, err
+			} else if ok {
+				transitioned++
 			}
 		}
 		reopened[domain] = len(workItemIDs)
@@ -211,6 +222,10 @@ func (s Store) ReopenTargetedMaintenanceWorkItems(
 		return nil, fmt.Errorf("commit partition-scoped reopen transaction: %w", err)
 	}
 	committed = true
+	// #11615: every targeted reopen runs on deferred maintenance; emit the
+	// per-reason counter after the commit so a rolled-back pass never
+	// counts. transitioned counts actual transitions, not listings.
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonMaintenanceReopen, transitioned)
 	return reopened, nil
 }
 

@@ -50,7 +50,8 @@ reopened AS (
         visible_at = $1,
         next_attempt_at = NULL,
         updated_at = $1,
-        reopened_at = $2::timestamptz
+        reopened_at = $2::timestamptz,
+        last_requeue_reason = 'waiting_wake'
     FROM due
     WHERE work.work_item_id = due.work_item_id
       AND work.stage = 'reducer'
@@ -131,6 +132,10 @@ func wakeWinnersWatermark(
 		outcome = telemetry.WaitingWakeOutcomeReopened
 	}
 	recordWaitingWake(ctx, instruments, site, outcome)
+	// #11615: same writer-level emission as wakeWaitingByKey (see its
+	// comment): the reopened count is the transitioned count, and the two
+	// sibling counters stay comparable.
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonWaitingWake, reopenedCount)
 	return reopenedCount, nil
 }
 

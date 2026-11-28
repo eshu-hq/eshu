@@ -16,6 +16,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // reopenSupplyChainImpactMatchedStatuses is the status set the reopen reads for
@@ -167,6 +168,11 @@ WITH target AS MATERIALIZED (
             ELSE work.updated_at
         END,
         reopened_at = CASE WHEN ` + reopenSupplyChainImpactToPending + ` THEN $2 ELSE work.reopened_at END,
+        last_requeue_reason = CASE
+            WHEN ` + reopenSupplyChainImpactToPending + ` THEN 'fanout_holder'
+            WHEN ` + reopenSupplyChainImpactSetsFlag + ` THEN 'fanout_holder'
+            ELSE work.last_requeue_reason
+        END,
         cross_scope_replay_required = CASE
             WHEN work.status IN ('claimed', 'running') THEN TRUE
             WHEN ` + reopenSupplyChainImpactDeadLetter + ` THEN FALSE
@@ -242,8 +248,9 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 		return supplychaincore.FanOutReopen{}, fmt.Errorf("reopen supply chain impact holder: %w", err)
 	}
 	var (
-		matched int
-		result  = supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutPendingNoop}
+		matched  int
+		requeues int64
+		result   = supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutPendingNoop}
 	)
 	for rows.Next() {
 		var (
@@ -256,7 +263,24 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 			return supplychaincore.FanOutReopen{}, fmt.Errorf("scan supply chain impact holder reopen: %w", err)
 		}
 		matched++
-		if next := classifyHolderReopen(prior, rewritten, priorFlag, priorClass, shadowed); reopenRank(next.Outcome) > reopenRank(result.Outcome) {
+		next := classifyHolderReopen(prior, rewritten, priorFlag, priorClass, shadowed)
+		switch next.Outcome {
+		case supplychaincore.FanOutReopened,
+			supplychaincore.FanOutShadowWouldSkip,
+			supplychaincore.FanOutDeadLetterReopened,
+			supplychaincore.FanOutReplayFlagged:
+			// Only rows that transitioned to pending or newly took
+			// replay debt count; widened and no-op rows keep their
+			// prior reason and are not counted (#11615). Shadowed rows
+			// still go pending (stamped fanout_holder), so they count.
+			requeues++
+		case supplychaincore.FanOutStampWidened,
+			supplychaincore.FanOutPendingNoop,
+			supplychaincore.FanOutDeadLetterSkipped,
+			supplychaincore.FanOutEnqueued,
+			supplychaincore.FanOutNoActiveGeneration:
+		}
+		if reopenRank(next.Outcome) > reopenRank(result.Outcome) {
 			result = next
 		}
 	}
@@ -268,6 +292,10 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 		return supplychaincore.FanOutReopen{}, fmt.Errorf("close supply chain impact holder reopen: %w", closeErr)
 	}
 	if matched > 0 {
+		// ReopenHolderDetailed runs autocommit on the store handle; the
+		// InTransaction entry point below intentionally does not flow
+		// through this emission (its caller owns the commit).
+		telemetry.RecordReducerRequeue(ctx, s.Instruments, telemetry.RequeueReasonFanoutHolder, requeues)
 		return result, nil
 	}
 	outcome, err := s.enqueueMissingHolder(ctx, holderScopeID, origin, now)

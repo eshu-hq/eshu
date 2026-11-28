@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 )
@@ -21,7 +22,10 @@ import (
 // recovery replay templates share (#11182): the projector baseline takes the
 // row's attempt_count, admission_wait_attempts goes back to 0, and
 // attempt_count itself is kept (never lowered) because it is the claim fence.
-const replayUpdateClause = `
+// Reducer rows take the admin_replay reason; projector rows keep NULL by
+// retaining their prior value, which no projector writer ever sets (#11615
+// decision 3).
+var replayUpdateClause = `
 SET status = 'pending',
     attempt_count = GREATEST(work.attempt_count, 1),
     container_image_identity_v2_authorized_status = CASE
@@ -39,6 +43,8 @@ SET status = 'pending',
     failure_details = NULL,
     updated_at = $1,
     reopened_at = $1,
+    last_requeue_reason = ` + queuestore.RequeueReasonStageGatedValue(
+	telemetry.RequeueReasonAdminReplay.SQLLiteral(), "work.") + `,
     ` + queuestore.ReplayRetryAllowanceAssignments + `
 `
 
@@ -62,6 +68,17 @@ func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.Repla
 	if err != nil {
 		return nil, err
 	}
+	// #11615: the replay UPDATE matched only dead_letter/failed rows, so
+	// every returned reducer row transitioned (admin_replay); projector
+	// rows keep NULL by the stage gate and are not counted. The UPDATE ran
+	// autocommit, so this emission is post-commit by construction.
+	var reducerRequeues int64
+	for _, item := range items {
+		if item.Stage == "reducer" {
+			reducerRequeues++
+		}
+	}
+	telemetry.RecordReducerRequeue(ctx, s.instruments, telemetry.RequeueReasonAdminReplay, reducerRequeues)
 	if err := s.insertReplayEvents(ctx, items, prior, strings.TrimSpace(f.OperatorNote), now); err != nil {
 		return nil, err
 	}

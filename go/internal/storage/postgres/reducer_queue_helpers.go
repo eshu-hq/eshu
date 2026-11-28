@@ -190,13 +190,21 @@ func (q ReducerQueue) failIntent(
 			intent.IntentID,
 			q.LeaseOwner,
 		}
+		// #11615: a counting retry consumes one attempt-budget retry
+		// (retry_backoff); a non-counting readiness class parks without
+		// consuming budget (readiness_wait). The detail stays in
+		// failure_class; the reason answers which path re-pended the row.
+		requeueReason := telemetry.RequeueReasonRetryBackoff
+		if isNonCountingReducerRetryFailureClass(retryFailureClass) {
+			requeueReason = telemetry.RequeueReasonReadinessWait
+		}
 		query := retryReducerWorkQuery
 		target := intent.Domain == reducer.DomainContainerImageIdentity
 		if target {
 			query = retryContainerImageIdentityReducerWorkQuery
 			args = append(args, intent.ClaimEpoch)
 		}
-		args = append(args, claimedAtValue(intent))
+		args = append(args, claimedAtValue(intent), string(requeueReason))
 		matched, err := queryTerminalMatchCount(ctx, q.database, "fail reducer work", query, args...)
 		if err != nil {
 			return err
@@ -204,6 +212,7 @@ func (q ReducerQueue) failIntent(
 		if matched != 1 {
 			return ErrReducerClaimRejected
 		}
+		telemetry.RecordReducerRequeue(ctx, q.Instruments, requeueReason, matched)
 		if q.Instruments != nil && q.Instruments.ReducerRetrySurge != nil {
 			q.Instruments.ReducerRetrySurge.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrFailureClass(retryFailureClass),

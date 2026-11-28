@@ -123,6 +123,7 @@ var reopenDeployableUnitCorrelationsForReposQuery = completionWakeReopenQueryFor
 func completionWakeFlagQueryForDomain(domain, table string, logicVersion int) string {
 	return backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
 SET cross_scope_replay_required = TRUE,
+    last_requeue_reason = 'cross_scope_replay',
     updated_at = $1
 WHERE work_item_id IN (` +
 		completionWakeCandidateIDsSQLForDomain(`work.status IN ('claimed', 'running')
@@ -132,10 +133,12 @@ WHERE work_item_id IN (` +
 `
 }
 
-// completionWakeReopenQueryForDomain builds one domain's succeeded arm.
+// completionWakeReopenQueryForDomain builds one domain's succeeded arm. The
+// reopened rows ran on completion evidence, so every domain's arm carries the
+// completion_wake reason through the shared clause.
 func completionWakeReopenQueryForDomain(domain, table string, logicVersion int) string {
 	return backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
-SET ` + ReopenSucceededReducerSetClause + `
+SET ` + ReopenSucceededReducerSetClause(telemetry.RequeueReasonCompletionWake) + `
 WHERE work_item_id IN (` +
 		completionWakeCandidateIDsSQLForDomain(`work.status = 'succeeded'`, domain, table, logicVersion) + `
 )
@@ -293,6 +296,12 @@ func (s *RelationshipStore) reopenCorpusCorrelationsForReposInTx(
 	s.recordCompletionWakeForDomain(ctx, domain, wakeOutcomeForCompletion(crossrepo.CompletionWakeResult{
 		ReplayFlagged: flagged, Reopened: reopened,
 	}), reopened)
+	// #11615: emit after commit, so a rolled-back wake never counts.
+	// Reopened rows ran on completion evidence; flagged rows took replay
+	// debt at schedule time (the trigger conversion later is not
+	// double-counted).
+	telemetry.RecordReducerRequeue(ctx, s.instruments, telemetry.RequeueReasonCompletionWake, reopened)
+	telemetry.RecordReducerRequeue(ctx, s.instruments, telemetry.RequeueReasonCrossScopeReplay, flagged)
 	return flagged, reopened, nil
 }
 

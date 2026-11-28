@@ -286,7 +286,7 @@ func (s Store) RunDeferredRelationshipMaintenanceForPartitions(
 	// (issue #7636). A nil skipped (gate failure) stays nil, preserving the
 	// reopen-all fallback and the SkipSetUnavailable flag set above.
 	skipped = backfill.ExcludePartitionsWithNewEvidence(skipped, insertedRows)
-	if result.Reopened, err = s.ReopenTargetedMaintenanceWorkItems(ctx, tracer, affectedList, skipped); err != nil {
+	if result.Reopened, err = s.ReopenTargetedMaintenanceWorkItems(ctx, tracer, instruments, affectedList, skipped); err != nil {
 		return result, err
 	}
 

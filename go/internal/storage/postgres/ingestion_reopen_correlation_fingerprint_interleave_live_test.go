@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestDeployableUnitReopenFingerprintInterleavePassVsClaimVsAckVsWriteLive
@@ -79,7 +80,7 @@ func TestDeployableUnitReopenFingerprintInterleavePassVsClaimVsAckVsWriteLive(t 
 	// Step 4: pass A resumes. Its reopen UPDATE must be a status-guard no-op:
 	// the item is claimed, not succeeded, so nothing is transitioned and the
 	// lease survives.
-	reopened, err := ReducerQueue{database: SQLTx{Tx: txA}, Now: time.Now}.ReopenSucceeded(ctx, "duc-a")
+	reopened, err := ReducerQueue{database: SQLTx{Tx: txA}, Now: time.Now}.ReopenSucceeded(ctx, "duc-a", telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("pass A reopen UPDATE: %v", err)
 	}

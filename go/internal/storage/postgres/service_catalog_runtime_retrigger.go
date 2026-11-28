@@ -133,6 +133,11 @@ const serviceCatalogRuntimeRetriggerCTEs = `, retrigger_repository AS MATERIALIZ
         next_attempt_at = CASE WHEN catalog.status = 'succeeded' THEN NULL ELSE catalog.next_attempt_at END,
         updated_at = CASE WHEN catalog.status = 'succeeded' THEN $1 ELSE catalog.updated_at END,
         reopened_at = CASE WHEN catalog.status = 'succeeded' THEN $1 ELSE catalog.reopened_at END,
+        last_requeue_reason = CASE
+            WHEN catalog.status = 'succeeded' THEN 'retouch_new_evidence'
+            WHEN catalog.status IN ('claimed', 'running') AND NOT catalog.cross_scope_replay_required THEN 'cross_scope_replay'
+            ELSE catalog.last_requeue_reason
+        END,
         failure_class = CASE WHEN catalog.status = 'succeeded' THEN NULL ELSE catalog.failure_class END,
         failure_message = CASE WHEN catalog.status = 'succeeded' THEN NULL ELSE catalog.failure_message END,
         failure_details = CASE WHEN catalog.status = 'succeeded' THEN NULL ELSE catalog.failure_details END,
@@ -272,6 +277,12 @@ func (q ReducerQueue) recordServiceCatalogRetrigger(
 			record(ServiceCatalogRetriggerNone, 1)
 		}
 	}
+	// #11615: reopened catalog rows ran on new evidence (retouch), flagged
+	// rows took replay debt at schedule time (cross-scope replay). The ACK
+	// statement is atomic and this records after it ran, so a rolled-back
+	// ACK never counts.
+	telemetry.RecordReducerRequeue(ctx, q.Instruments, telemetry.RequeueReasonRetouchNewEvidence, out.reopened)
+	telemetry.RecordReducerRequeue(ctx, q.Instruments, telemetry.RequeueReasonCrossScopeReplay, out.flagged)
 	if out.reopened == 0 && out.flagged == 0 {
 		return
 	}

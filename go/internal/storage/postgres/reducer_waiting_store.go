@@ -257,7 +257,8 @@ const waitingWakeReopenSetClause = `status = 'retrying',
         visible_at = $1,
         next_attempt_at = NULL,
         updated_at = $1,
-        reopened_at = $1`
+        reopened_at = $1,
+        last_requeue_reason = 'waiting_wake'`
 
 // reopenWaitingRowsQuery reopens parked queue rows for one wait key and
 // deletes their wait rows. $1 is the wake timestamp, $2 the kind, $3 the
@@ -342,6 +343,13 @@ func wakeWaitingByKey(
 		outcome = telemetry.WaitingWakeOutcomeReopened
 	}
 	recordWaitingWake(ctx, instruments, site, outcome)
+	// #11615: every woken row exited the set-aside (wait row deleted,
+	// visible_at advanced) and became claimable without a status change, so
+	// the reopened count is the transitioned count. This
+	// emits at the same level as the sibling waiting-wake outcome counter
+	// above: a caller-owned transaction that rolls back after the wake
+	// overcounts both counters equally, and the two stay comparable.
+	telemetry.RecordReducerRequeue(ctx, instruments, telemetry.RequeueReasonWaitingWake, reopenedCount)
 	return reopenedCount, clearedCount, nil
 }
 

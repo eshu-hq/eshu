@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Hermetic proof for eshu-hq/eshu#11392 rule (a): the CI corpus path drops
@@ -143,7 +144,7 @@ func driveDriftLegSettle(
 func reopenedDriftLegIDs(tx *fakeTx) []string {
 	var ids []string
 	for _, exec := range tx.execs {
-		if exec.query != reopenSucceededReducerWorkQuery {
+		if exec.query != reopenSucceededReducerWork(telemetry.RequeueReasonProducerActivationSettle) {
 			continue
 		}
 		if len(exec.args) != 2 {

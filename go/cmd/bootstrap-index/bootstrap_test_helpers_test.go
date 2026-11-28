@@ -243,12 +243,12 @@ func (f *fakeCommitter) ReopenSucceededReducerWorkItems(
 	_ trace.Tracer,
 	_ *telemetry.Instruments,
 	domains []string,
-) error {
+) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, "reopen_correlation")
 	f.reopenedDomains = append([]string(nil), domains...)
-	return nil
+	return 0, nil
 }
 
 func (f *fakeCommitter) EnqueueConfigStateDriftIntents(

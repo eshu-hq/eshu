@@ -86,12 +86,12 @@ run_ifa_fault_injection_workload_dependency_cases() {
 			|| fail "workload_dependency reopen is not fixture-scoped by ${fixture_filter}"
 	done
 	reopen_body="$(awk '/^ifa_workload_dependency_live_reopen_materialization\(\)/,/^}/' "${live_lib}")"
-	production_reopen_query="$(awk '/^const reopenSucceededReducerWorkQuery = `/,/^`/' "${replay_source}")"
-	printf '%s\n' "${production_reopen_query}" | rg --fixed-strings --quiet -- 'ReopenSucceededReducerSetClause' \
-		|| fail "reopenSucceededReducerWorkQuery no longer interpolates ReopenSucceededReducerSetClause"
-	shared_set_clause="$(awk '/^const ReopenSucceededReducerSetClause = `/,/`$/' "${replay_source}" | sed '1s/^const ReopenSucceededReducerSetClause = `//')"
-	[[ -n "${shared_set_clause}" ]] || fail "ReopenSucceededReducerSetClause const missing from ${replay_source}"
-	# The query composes SET + the shared clause (#7807); mirror the composed text.
+	production_reopen_query="$(awk '/^func reopenSucceededReducerWork\(/,/^}/' "${replay_source}")"
+	printf '%s\n' "${production_reopen_query}" | rg --fixed-strings --quiet -- 'ReopenSucceededReducerSetClause(reason)' \
+		|| fail "reopenSucceededReducerWork no longer interpolates ReopenSucceededReducerSetClause(reason)"
+	shared_set_clause="$(awk '/^func ReopenSucceededReducerSetClause\(/{p=1; next} p && /^\}/{exit} p' "${replay_source}" | sed '1s/^[[:space:]]*return `//')"
+	[[ -n "${shared_set_clause}" ]] || fail "ReopenSucceededReducerSetClause func missing from ${replay_source}"
+	# The reopen func composes SET + the shared clause (#7807); mirror the composed text.
 	production_reopen_body="SET ${shared_set_clause}"
 	local -a reopen_lifecycle=(
 		"SET status = 'pending'|SET status = 'pending'"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:filelength // 508 lines (base 485): merged #11614 fence-diff const + #11615 reason/RETURNING port must stay beside the schedule statement they describe; split deferred to #11624 hoist which reshapes these funcs.
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ackReducerWorkQuery marks one claimed reducer work item as succeeded.
@@ -342,7 +343,18 @@ SELECT 1 FROM acknowledged
 // CASE on the locked row version: no new lock, no ordering change, no lease
 // touch.
 const scheduleWorkloadMaterializationFencedReplayQuery = `
-UPDATE fact_work_items
+WITH target AS (
+    SELECT work_item_id,
+           status AS prior_status,
+           cross_scope_replay_required AS prior_flag,
+           COALESCE(payload->>'repo_dependency_readiness_fence', '') AS prior_fence
+    FROM fact_work_items
+    WHERE work_item_id = $2
+      AND stage = 'reducer'
+      AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
+    FOR NO KEY UPDATE
+)
+UPDATE fact_work_items AS work
 SET status = CASE
         WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN 'pending'
         ELSE status
@@ -361,6 +373,14 @@ SET status = CASE
         ELSE updated_at
     END,
     reopened_at = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN $1 ELSE reopened_at END,
+    last_requeue_reason = CASE
+        WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN 'cross_scope_replay'
+        WHEN status IN ('claimed', 'running')
+          AND NOT cross_scope_replay_required
+          AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3
+            THEN 'cross_scope_replay'
+        ELSE last_requeue_reason
+    END,
     cross_scope_replay_required = CASE
         WHEN status IN ('claimed', 'running')
           AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3
@@ -370,9 +390,12 @@ SET status = CASE
     failure_class = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE failure_class END,
     failure_message = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE failure_message END,
     failure_details = CASE WHEN status = 'succeeded' AND COALESCE(payload->>'repo_dependency_readiness_fence', '') <> $3 THEN NULL ELSE failure_details END
-WHERE work_item_id = $2
-  AND stage = 'reducer'
-  AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
+FROM target
+WHERE work.work_item_id = target.work_item_id
+RETURNING ((target.prior_status = 'succeeded' AND target.prior_fence <> $3)
+    OR (target.prior_status IN ('claimed', 'running')
+        AND NOT target.prior_flag
+        AND target.prior_fence <> $3)) AS requeued
 `
 
 // ReplayWorkloadMaterializationForFence schedules workload materialization
@@ -436,11 +459,14 @@ func (q ReducerQueue) ReplayWorkloadMaterializationForFenceOutcome(
 		},
 	}
 	workItemID := reducerWorkItemID(intent)
-	matched, err := q.scheduleWorkloadMaterializationFencedReplay(ctx, workItemID, fence, repoID)
+	scheduled, err := q.scheduleWorkloadMaterializationFencedReplay(ctx, workItemID, fence, repoID)
 	if err != nil {
 		return reducer.WorkloadMaterializationReplayNotScheduled, err
 	}
-	if matched {
+	if scheduled.matched {
+		// The statement always runs autocommit here, so writer-level
+		// emission is post-commit by construction.
+		telemetry.RecordReducerRequeue(ctx, q.Instruments, telemetry.RequeueReasonCrossScopeReplay, scheduled.requeues)
 		return reducer.WorkloadMaterializationReplayScheduled, nil
 	}
 	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
@@ -450,10 +476,11 @@ func (q ReducerQueue) ReplayWorkloadMaterializationForFenceOutcome(
 	if inserted > 0 {
 		return reducer.WorkloadMaterializationReplayScheduled, nil
 	}
-	if retryMatched, retryErr := q.scheduleWorkloadMaterializationFencedReplay(ctx, workItemID, fence, repoID); retryErr != nil || retryMatched {
+	if retryScheduled, retryErr := q.scheduleWorkloadMaterializationFencedReplay(ctx, workItemID, fence, repoID); retryErr != nil || retryScheduled.matched {
 		if retryErr != nil {
 			return reducer.WorkloadMaterializationReplayNotScheduled, retryErr
 		}
+		telemetry.RecordReducerRequeue(ctx, q.Instruments, telemetry.RequeueReasonCrossScopeReplay, retryScheduled.requeues)
 		return reducer.WorkloadMaterializationReplayScheduled, nil
 	}
 
@@ -465,8 +492,8 @@ func (q ReducerQueue) scheduleWorkloadMaterializationFencedReplay(
 	workItemID string,
 	fence string,
 	repoID string,
-) (bool, error) {
-	result, err := q.database.ExecContext(
+) (scheduledReplayCount, error) {
+	rows, err := q.database.QueryContext(
 		ctx,
 		scheduleWorkloadMaterializationFencedReplayQuery,
 		q.now(),
@@ -475,11 +502,7 @@ func (q ReducerQueue) scheduleWorkloadMaterializationFencedReplay(
 		repoID,
 	)
 	if err != nil {
-		return false, fmt.Errorf("schedule fenced workload materialization replay: %w", err)
+		return scheduledReplayCount{}, fmt.Errorf("schedule fenced workload materialization replay: %w", err)
 	}
-	matched, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("schedule fenced workload materialization replay: rows affected: %w", err)
-	}
-	return matched > 0, nil
+	return countScheduledReplay(rows, "schedule fenced workload materialization replay")
 }

@@ -7,22 +7,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ReopenSucceededReducerSetClause is the SET list every succeeded-to-pending
 // reducer reopen shares: status, attempt_count, the identity authorization
 // statuses, lease columns, visible_at, failure evidence, updated_at,
-// reopened_at -- every state column the reducer claim path reads. It is the
-// single source (#7731): reopenSucceededReducerWorkQuery,
-// replaySucceededReducerDomainQuery, and the admin reopen compose it, so the
-// lists cannot drift. $1 is the reopen timestamp, bound by every composer;
-// composers keep their own WHERE arg numbering after it.
-const ReopenSucceededReducerSetClause = `status = 'pending',
+// reopened_at, and the requeue reason -- every state column the reducer claim
+// path reads. It is the single source (#7731): reopenSucceededReducerWork,
+// replaySucceededReducerDomain, and the admin reopen compose it, so the lists
+// cannot drift.
+//
+// It is a function of the closed-vocabulary reason, not a constant, so the
+// compiler forces every composer to declare its own reason (#11615): a
+// shared constant could not hardcode one reason for all callers. The reason
+// is embedded as a validated literal (never a bind parameter) so composers
+// keep their own WHERE arg numbering after $1, the reopen timestamp.
+func ReopenSucceededReducerSetClause(reason telemetry.RequeueReason) string {
+	return `status = 'pending',
     attempt_count = 0,
     container_image_identity_v2_authorized_status = CASE
         WHEN container_image_identity_v2_required THEN 'pending'
@@ -38,374 +43,41 @@ const ReopenSucceededReducerSetClause = `status = 'pending',
     next_attempt_at = NULL,
     updated_at = $1,
     reopened_at = $1,
+    ` + queuestore.RequeueReasonSetAssignment(reason.SQLLiteral()) + `,
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL`
+}
 
-// reopenSucceededReducerWorkQuery resets a succeeded row to pending for
-// replay. It resets reopened_at to the reopen timestamp ($1) alongside
-// attempt_count -- both mark the start of a fresh repair cycle -- but never
-// touches created_at, which stays the row's original enqueue time for every
-// other consumer of Intent.EnqueuedAt (see migration 088's doc comment).
-const reopenSucceededReducerWorkQuery = `
+// reopenSucceededReducerWork builds the single-row succeeded-to-pending
+// reopen for one reason. It resets reopened_at to the reopen timestamp ($1)
+// alongside attempt_count -- both mark the start of a fresh repair cycle --
+// but never touches created_at, which stays the row's original enqueue time
+// for every other consumer of Intent.EnqueuedAt (see migration 088's doc
+// comment).
+func reopenSucceededReducerWork(reason telemetry.RequeueReason) string {
+	return `
 UPDATE fact_work_items
-SET ` + ReopenSucceededReducerSetClause + `
+SET ` + ReopenSucceededReducerSetClause(reason) + `
 WHERE work_item_id = $2
   AND stage = 'reducer'
   AND status = 'succeeded'
 `
+}
 
-// replaySucceededReducerDomainQuery is ReopenSucceeded's domain-wide sibling
-// (see that query's doc comment for why reopened_at resets here too).
-const replaySucceededReducerDomainQuery = `
+// replaySucceededReducerDomain builds ReopenSucceeded's domain-wide sibling
+// for one reason (see reopenSucceededReducerWork's doc comment for why
+// reopened_at resets here too).
+func replaySucceededReducerDomain(reason telemetry.RequeueReason) string {
+	return `
 UPDATE fact_work_items
-SET ` + ReopenSucceededReducerSetClause + `
+SET ` + ReopenSucceededReducerSetClause(reason) + `
 WHERE scope_id = $2
   AND generation_id = $3
   AND domain = $4
   AND stage = 'reducer'
   AND status = 'succeeded'
 `
-
-// scheduleCrossScopeMaterializationReplayQuery records replay debt without
-// stealing an active claim. Succeeded work reopens immediately; claimed or
-// running work keeps its exact lease and carries the existing durable
-// cross-scope replay bit so the database ACK trigger returns it to pending.
-const scheduleCrossScopeMaterializationReplayQuery = `
-UPDATE fact_work_items
-SET status = CASE
-        WHEN status = 'succeeded' THEN 'pending'
-        ELSE status
-    END,
-    attempt_count = CASE
-        WHEN status = 'succeeded' THEN 0
-        ELSE attempt_count
-    END,
-    container_image_identity_v2_authorized_status = CASE
-        WHEN status = 'succeeded' AND container_image_identity_v2_required THEN 'pending'
-        ELSE container_image_identity_v2_authorized_status
-    END,
-    container_image_identity_v3_authorized_status = CASE
-        WHEN status = 'succeeded' AND container_image_identity_v3_required THEN 'pending'
-        ELSE container_image_identity_v3_authorized_status
-    END,
-    lease_owner = CASE WHEN status = 'succeeded' THEN NULL ELSE lease_owner END,
-    claim_until = CASE WHEN status = 'succeeded' THEN NULL ELSE claim_until END,
-    visible_at = CASE WHEN status = 'succeeded' THEN $1 ELSE visible_at END,
-    next_attempt_at = CASE WHEN status = 'succeeded' THEN NULL ELSE next_attempt_at END,
-    updated_at = CASE
-        WHEN status = 'succeeded' OR status IN ('claimed', 'running') THEN $1
-        ELSE updated_at
-    END,
-    reopened_at = CASE WHEN status = 'succeeded' THEN $1 ELSE reopened_at END,
-    cross_scope_replay_required = CASE
-        WHEN status IN ('claimed', 'running') THEN TRUE
-        ELSE FALSE
-    END,
-    failure_class = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_class END,
-    failure_message = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_message END,
-    failure_details = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_details END
-WHERE work_item_id = $2
-  AND stage = 'reducer'
-  AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
-`
-
-// workloadMaterializationReplayScheduledQuery resolves the concurrent-insert
-// case after enqueue's ON CONFLICT DO NOTHING reports zero affected rows. The
-// follow-up statement runs with a fresh Read Committed snapshot, so it can see
-// the winner after PostgreSQL finishes conflict arbitration. It returns the
-// stable item's status so the caller can tell a superseded item (terminal,
-// never revived, #7670) from a dead-lettered one.
-const workloadMaterializationReplayScheduledQuery = `
-SELECT status
-FROM fact_work_items
-WHERE work_item_id = $1
-  AND stage = 'reducer'
-`
-
-const countInFlightReducerWorkByDomainQuery = `
-SELECT COUNT(*)
-FROM fact_work_items
-WHERE stage = 'reducer'
-  AND domain = $1
-  AND status NOT IN ('succeeded', 'dead_letter')
-`
-
-const (
-	workloadMaterializationReplayReason = "deployment mapping resolved stronger evidence"
-	// crossplaneSatisfiedByRedriveReplayReason tags a re-drive-triggered
-	// SATISFIED_BY replay (issue #5476) distinctly from the original
-	// projector-triggered enqueue, so a completion log or dead-letter can
-	// tell the two apart.
-	crossplaneSatisfiedByRedriveReplayReason = "cross-scope crossplane xrd redrive"
-)
-
-// ReopenSucceeded moves one succeeded reducer work item back to pending so it
-// can be replayed through the normal reducer claim path. The returned boolean
-// reports whether a succeeded row was actually transitioned.
-func (q ReducerQueue) ReopenSucceeded(
-	ctx context.Context,
-	workItemID string,
-) (bool, error) {
-	if err := q.validateDB(); err != nil {
-		return false, err
-	}
-	if strings.TrimSpace(workItemID) == "" {
-		return false, errors.New("reducer work item id is required")
-	}
-
-	result, err := q.database.ExecContext(ctx, reopenSucceededReducerWorkQuery, q.now(), workItemID)
-	if err != nil {
-		return false, fmt.Errorf("reopen succeeded reducer work: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("reopen succeeded reducer work: rows affected: %w", err)
-	}
-
-	return rowsAffected > 0, nil
-}
-
-// ReplayDomain moves succeeded reducer work items for one scope-generation
-// domain back to pending so they can be replayed through the normal claim path.
-func (q ReducerQueue) ReplayDomain(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-	domain reducercontract.Domain,
-) (bool, error) {
-	if err := q.validateDB(); err != nil {
-		return false, err
-	}
-	if strings.TrimSpace(scopeID) == "" {
-		return false, errors.New("reducer replay scope id is required")
-	}
-	if strings.TrimSpace(generationID) == "" {
-		return false, errors.New("reducer replay generation id is required")
-	}
-	if err := domain.Validate(); err != nil {
-		return false, fmt.Errorf("reducer replay domain: %w", err)
-	}
-
-	result, err := q.database.ExecContext(
-		ctx,
-		replaySucceededReducerDomainQuery,
-		q.now(),
-		scopeID,
-		generationID,
-		string(domain),
-	)
-	if err != nil {
-		return false, fmt.Errorf("replay succeeded reducer domain: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("replay succeeded reducer domain: rows affected: %w", err)
-	}
-
-	return rowsAffected > 0, nil
-}
-
-// ReplayWorkloadMaterialization replays the canonical workload materialization
-// intent(s) for one scope generation after stronger deployment evidence lands.
-// It returns false only when neither this caller nor a concurrent caller has
-// scheduled replayable work, including when the stable work-item identity
-// already names a dead-lettered or superseded row. Use
-// [ReducerQueue.ReplayWorkloadMaterializationOutcome] to tell those apart.
-func (q ReducerQueue) ReplayWorkloadMaterialization(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-	entityKey string,
-) (bool, error) {
-	outcome, err := q.ReplayWorkloadMaterializationOutcome(ctx, scopeID, generationID, entityKey)
-	if err != nil {
-		return false, err
-	}
-	return outcome == reducer.WorkloadMaterializationReplayScheduled, nil
-}
-
-// ReplayWorkloadMaterializationOutcome schedules the same replay as
-// [ReducerQueue.ReplayWorkloadMaterialization] and reports the closed outcome.
-// A terminally superseded stable item reports
-// [reducer.WorkloadMaterializationReplaySuperseded]: no UPDATE matches it and
-// the enqueue conflicts on the stable identity, so the queue will never run it.
-// The store does not say whether that is owed. The repo-dependency runner
-// decides: it skips only a retired generation and fails closed on the active
-// one (#7670). Every other unscheduled state, including a dead-lettered item or
-// a missing row after an enqueue conflict, reports
-// [reducer.WorkloadMaterializationReplayNotScheduled].
-func (q ReducerQueue) ReplayWorkloadMaterializationOutcome(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-	entityKey string,
-) (reducer.WorkloadMaterializationReplayOutcome, error) {
-	// Replay records durable scheduling: it reopens succeeded work, marks an
-	// active claim for replay after ACK, accepts already-pending work, or
-	// enqueues a missing intent. It never steals or rewrites an active lease.
-	if err := q.validateEnqueue(); err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled, err
-	}
-	if strings.TrimSpace(entityKey) == "" {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			errors.New("workload materialization replay entity key is required")
-	}
-
-	intent := runtime.ReducerIntent{
-		ScopeID:      scopeID,
-		GenerationID: generationID,
-		Domain:       reducer.DomainWorkloadMaterialization,
-		EntityKey:    entityKey,
-		Reason:       workloadMaterializationReplayReason,
-		SourceSystem: "reducer",
-	}
-	workItemID := reducerWorkItemID(intent)
-
-	result, err := q.database.ExecContext(ctx, scheduleCrossScopeMaterializationReplayQuery, q.now(), workItemID)
-	if err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			fmt.Errorf("schedule workload materialization replay: %w", err)
-	}
-	matched, err := result.RowsAffected()
-	if err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			fmt.Errorf("schedule workload materialization replay: rows affected: %w", err)
-	}
-	if matched > 0 {
-		return reducer.WorkloadMaterializationReplayScheduled, nil
-	}
-	return q.enqueueWorkloadMaterializationReplayTail(ctx, intent, workItemID)
-}
-
-// enqueueWorkloadMaterializationReplayTail enqueues a missing replay intent
-// and maps the post-conflict stable status to the closed replay outcome. It
-// is shared by the unfenced and the digest-fenced replay so both agree on
-// what an absent or terminal row means.
-func (q ReducerQueue) enqueueWorkloadMaterializationReplayTail(
-	ctx context.Context,
-	intent runtime.ReducerIntent,
-	workItemID string,
-) (reducer.WorkloadMaterializationReplayOutcome, error) {
-	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
-	if err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			fmt.Errorf("schedule workload materialization replay: %w", err)
-	}
-	if inserted > 0 {
-		return reducer.WorkloadMaterializationReplayScheduled, nil
-	}
-
-	return q.workloadMaterializationReplayOutcome(ctx, workItemID)
-}
-
-// workloadMaterializationReplayOutcome maps the stable work item's status after
-// an enqueue conflict to the closed replay outcome.
-func (q ReducerQueue) workloadMaterializationReplayOutcome(
-	ctx context.Context,
-	workItemID string,
-) (reducer.WorkloadMaterializationReplayOutcome, error) {
-	rows, err := q.database.QueryContext(ctx, workloadMaterializationReplayScheduledQuery, workItemID)
-	if err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			fmt.Errorf("check workload materialization replay after enqueue conflict: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return reducer.WorkloadMaterializationReplayNotScheduled,
-				fmt.Errorf("iterate workload materialization replay after enqueue conflict: %w", err)
-		}
-		return reducer.WorkloadMaterializationReplayNotScheduled, nil
-	}
-	var status string
-	if err := rows.Scan(&status); err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			fmt.Errorf("scan workload materialization replay after enqueue conflict: %w", err)
-	}
-	if err := rows.Err(); err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			fmt.Errorf("iterate workload materialization replay after enqueue conflict: %w", err)
-	}
-	switch status {
-	case "pending", "claimed", "running", "retrying", "succeeded":
-		return reducer.WorkloadMaterializationReplayScheduled, nil
-	case "superseded":
-		return reducer.WorkloadMaterializationReplaySuperseded, nil
-	default:
-		return reducer.WorkloadMaterializationReplayNotScheduled, nil
-	}
-}
-
-// ReplayCrossplaneSatisfiedByMaterialization schedules one target Claim
-// scope's SATISFIED_BY materialization after cross-scope XRD activation.
-// It uses the same stable identity as the projector trigger. An active claim
-// keeps its lease and receives durable replay debt, which the ACK trigger
-// returns to pending. False means a terminal or missing identity could not be
-// scheduled; the caller must leave its sweep incomplete for recovery.
-func (q ReducerQueue) ReplayCrossplaneSatisfiedByMaterialization(
-	ctx context.Context,
-	targetScopeID string,
-	targetGenerationID string,
-) (bool, error) {
-	if err := q.validateEnqueue(); err != nil {
-		return false, err
-	}
-	if strings.TrimSpace(targetScopeID) == "" {
-		return false, errors.New("crossplane satisfied-by redrive target scope id is required")
-	}
-	if strings.TrimSpace(targetGenerationID) == "" {
-		return false, errors.New("crossplane satisfied-by redrive target generation id is required")
-	}
-
-	intent := runtime.ReducerIntent{
-		ScopeID:      targetScopeID,
-		GenerationID: targetGenerationID,
-		Domain:       reducer.DomainCrossplaneSatisfiedByMaterialization,
-		EntityKey:    "crossplane_satisfied_by_materialization:" + targetScopeID,
-		Reason:       crossplaneSatisfiedByRedriveReplayReason,
-		SourceSystem: "reducer",
-	}
-	workItemID := reducerWorkItemID(intent)
-
-	scheduled, err := q.scheduleCrossScopeMaterializationReplay(ctx, workItemID)
-	if err != nil {
-		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
-	}
-	if scheduled {
-		return true, nil
-	}
-	inserted, err := q.enqueueReducerBatch(ctx, []runtime.ReducerIntent{intent}, q.now())
-	if err != nil {
-		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay: %w", err)
-	}
-	if inserted > 0 {
-		return true, nil
-	}
-
-	// ON CONFLICT DO NOTHING can lose to a concurrent insert that was not
-	// visible to the first UPDATE. A fresh statement must record replay debt
-	// on the winning row, not merely read its status and assume it is owed.
-	scheduled, err = q.scheduleCrossScopeMaterializationReplay(ctx, workItemID)
-	if err != nil {
-		return false, fmt.Errorf("schedule crossplane satisfied-by redrive replay after conflict: %w", err)
-	}
-	return scheduled, nil
-}
-
-func (q ReducerQueue) scheduleCrossScopeMaterializationReplay(ctx context.Context, workItemID string) (bool, error) {
-	result, err := q.database.ExecContext(ctx, scheduleCrossScopeMaterializationReplayQuery, q.now(), workItemID)
-	if err != nil {
-		return false, err
-	}
-	matched, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("rows affected: %w", err)
-	}
-	return matched > 0, nil
 }
 
 // CountInFlightByDomain returns the number of reducer work items for one domain

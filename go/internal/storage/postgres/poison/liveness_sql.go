@@ -3,7 +3,10 @@
 
 package poison
 
-import queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+import (
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
 
 // CountDeadLettersQuery detects the dead-letter/poison class the #4727
 // projector-claimer fix and the generation-liveness sweep do not reach: a
@@ -120,8 +123,10 @@ WHERE dead.status = 'dead_letter'
 // RecoverDeadLettersQuery is exported because the parent postgres package
 // pins this statement in its container-image capability latch
 // (TestContainerImageIdentityV3CapabilityLatchCoversQueueLifecycle): the
-// latch asserts the recovery UPDATE advances digest-v3 authorization.
-const RecoverDeadLettersQuery = `
+// latch asserts the recovery UPDATE advances digest-v3 authorization. It is
+// a var, not a const, because the stage-gated requeue reason arrives through
+// the queuestore helper (#11615).
+var RecoverDeadLettersQuery = `
 WITH poison AS (
     SELECT dead.work_item_id
     FROM fact_work_items AS dead
@@ -183,6 +188,8 @@ SET status = 'pending',
     ),
     updated_at = $1,
     reopened_at = $1,
+    last_requeue_reason = ` + queuestore.RequeueReasonStageGatedValue(
+	telemetry.RequeueReasonRecoveryRedrive.SQLLiteral(), "target.") + `,
     ` + queuestore.ReplayRetryAllowanceAssignments + `
 WHERE target.work_item_id = ANY(ARRAY(SELECT work_item_id FROM poison_locked))
   -- Write-time re-verify (#4464-grade guard): only a row still genuinely
@@ -190,5 +197,9 @@ WHERE target.work_item_id = ANY(ARRAY(SELECT work_item_id FROM poison_locked))
   -- the row to claimed/running/pending/succeeded/etc. between the poison CTE's
   -- snapshot and this UPDATE's row lock must not be clobbered back to pending.
   AND target.status = 'dead_letter'
-RETURNING target.work_item_id, target.scope_id, target.generation_id
+RETURNING target.work_item_id, target.scope_id, target.generation_id,
+    -- The stage rides RETURNING so the caller counts reducer requeues
+    -- separately: projector rows keep NULL by the stage gate and are not
+    -- counted (#11615).
+    target.stage
 `

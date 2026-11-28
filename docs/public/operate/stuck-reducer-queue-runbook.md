@@ -32,6 +32,14 @@ FROM fact_work_items WHERE status = 'retrying';
 -- 5. How old is the pending pile?
 SELECT count(*) FILTER (WHERE now() - created_at > interval '1 hour'),
        min(created_at) FROM fact_work_items WHERE status = 'pending';
+
+-- 6. Who keeps re-pending the rows? Per-reason breakdown (#11615); the
+-- counter and gauges below stay consistent with this query.
+SELECT COALESCE(last_requeue_reason, 'legacy_unclassified') AS reason,
+       status, count(*)
+FROM fact_work_items
+WHERE status IN ('pending', 'claimed', 'running', 'retrying')
+GROUP BY 1, 2 ORDER BY 1, 2;
 ```
 
 ## Reading the results
@@ -43,6 +51,7 @@ SELECT count(*) FILTER (WHERE now() - created_at > interval '1 hour'),
 | `retrying` large, attempts climbing on the same timeout error | A read path dies at scale — the data is usually fine, the query is too heavy | Timeout table below |
 | Failures name a watermark or stamp that never advances | A maintainer runs but cannot keep pace — throughput starvation | Maintainer section below |
 | One `failure_message` repeats verbatim across attempts | Deterministic failure on those rows, not flakes | Fix the path; do not wait for self-recovery |
+| Query 6 shows one reason dominating the pile | That path re-pends faster than workers drain — the labels must first prove which class starves which; there are no separate queues to tune | `retry_backoff` with climbing attempts: poison or hot error, fix the handler. `readiness_wait`: dead precondition, find the producer. `waiting_wake` storm: a waiter flaps, read `eshu_dp_reducer_waiting_wake_total{site,outcome}` by site. `cross_scope_replay`/`fanout_holder` climbing: replay debt outruns the rerun, check the producer ACK path. `maintenance_reopen`/`admin_replay`/`admin_reopen` climbing without an operator action: an unexpected loop is reopening rows, find its caller. `legacy_unclassified` large on reducer rows: writers are missing their stamp, a rollout or a missed writer — plateau is the signal. |
 
 ## Rules before you touch anything
 

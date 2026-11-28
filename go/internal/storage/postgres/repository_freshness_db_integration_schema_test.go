@@ -60,6 +60,7 @@ func openRepositoryFreshnessDBIntegrationSchema(t *testing.T, ctx context.Contex
 		// applies the base table without this ALTER makes every Claim() fail
 		// with `column work.reopened_at does not exist`.
 		MigrationSQL("reducer_work_item_reopened_at"),
+		MigrationSQL("fact_work_items_last_requeue_reason"), // #11615: claim reads last_requeue_reason.
 		MigrationSQL("shared_projection_intents"),
 		MigrationSQL("webhook_refresh_triggers"),
 		// migration 168 (#7777): claim_fencing_token, written by StoreTrigger.

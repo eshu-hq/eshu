@@ -11,13 +11,18 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // deploymentEvidenceDigestPayloadKey records the resolved-set digest of the
 // deployment-evidence pass that last replayed a workload materialization
 // item. A rerun carrying the same digest leaves a finished item alone; a
 // changed digest reopens it. It mirrors the repo_dependency_readiness_fence
-// payload key on the RUNS_ON path.
+// payload key on the RUNS_ON path. The schedule statement below spells the
+// key literally (like the fenced twin) so the #11615 writer guard sees the
+// UPDATE head and the reason arm in one fragment; the quiet probe here keeps
+// the constant, and the live tests pin both sides to the same key.
 const deploymentEvidenceDigestPayloadKey = "deployment_evidence_digest"
 
 // scheduleWorkloadMaterializationDigestReplayQuery is the digest-fenced twin
@@ -31,52 +36,70 @@ const deploymentEvidenceDigestPayloadKey = "deployment_evidence_digest"
 // (fail open: the first fenced pass still replays, and nothing owed is
 // skipped). The claimed/running arm is unchanged: an in-flight row keeps its
 // lease and carries replay debt for its ACK, because it may not have consumed
-// the evidence yet. Same single-row primary-key update as the unfenced
+// the evidence yet. The target CTE locks the row and captures its prior
+// status and replay flag, applying the digest gate in the CTE WHERE so a
+// quiet rerun selects nothing, locks nothing, and stamps nothing; the
+// UPDATE joins the target and the RETURNING boolean counts exactly the
+// transitions. Same single-row primary-key update as the unfenced
 // statement: no new lock order, and concurrent reruns converge on the same
-// end state.
-const scheduleWorkloadMaterializationDigestReplayQuery = `
-UPDATE fact_work_items
+// end state (#11615).
+var scheduleWorkloadMaterializationDigestReplayQuery = `
+WITH target AS (
+    SELECT work_item_id,
+           status AS prior_status,
+           cross_scope_replay_required AS prior_flag
+    FROM fact_work_items
+    WHERE work_item_id = $2
+      AND stage = 'reducer'
+      AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
+      AND (
+        status <> 'succeeded'
+        OR COALESCE(payload->>'deployment_evidence_digest', '') <> $3
+        OR $3 = ''
+      )
+    FOR NO KEY UPDATE
+)
+UPDATE fact_work_items AS work
 SET status = CASE
-        WHEN status = 'succeeded' THEN 'pending'
-        ELSE status
+        WHEN work.status = 'succeeded' THEN 'pending'
+        ELSE work.status
     END,
     attempt_count = CASE
-        WHEN status = 'succeeded' THEN 0
-        ELSE attempt_count
+        WHEN work.status = 'succeeded' THEN 0
+        ELSE work.attempt_count
     END,
     container_image_identity_v2_authorized_status = CASE
-        WHEN status = 'succeeded' AND container_image_identity_v2_required THEN 'pending'
-        ELSE container_image_identity_v2_authorized_status
+        WHEN work.status = 'succeeded' AND work.container_image_identity_v2_required THEN 'pending'
+        ELSE work.container_image_identity_v2_authorized_status
     END,
     container_image_identity_v3_authorized_status = CASE
-        WHEN status = 'succeeded' AND container_image_identity_v3_required THEN 'pending'
-        ELSE container_image_identity_v3_authorized_status
+        WHEN work.status = 'succeeded' AND work.container_image_identity_v3_required THEN 'pending'
+        ELSE work.container_image_identity_v3_authorized_status
     END,
-    payload = jsonb_set(payload, '{` + deploymentEvidenceDigestPayloadKey + `}', to_jsonb($3::text), TRUE),
-    lease_owner = CASE WHEN status = 'succeeded' THEN NULL ELSE lease_owner END,
-    claim_until = CASE WHEN status = 'succeeded' THEN NULL ELSE claim_until END,
-    visible_at = CASE WHEN status = 'succeeded' THEN $1 ELSE visible_at END,
-    next_attempt_at = CASE WHEN status = 'succeeded' THEN NULL ELSE next_attempt_at END,
+    payload = jsonb_set(work.payload, '{deployment_evidence_digest}', to_jsonb($3::text), TRUE),
+    lease_owner = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.lease_owner END,
+    claim_until = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.claim_until END,
+    visible_at = CASE WHEN work.status = 'succeeded' THEN $1 ELSE work.visible_at END,
+    next_attempt_at = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.next_attempt_at END,
     updated_at = CASE
-        WHEN status = 'succeeded' OR status IN ('claimed', 'running') THEN $1
-        ELSE updated_at
+        WHEN work.status = 'succeeded' OR work.status IN ('claimed', 'running') THEN $1
+        ELSE work.updated_at
     END,
-    reopened_at = CASE WHEN status = 'succeeded' THEN $1 ELSE reopened_at END,
+    reopened_at = CASE WHEN work.status = 'succeeded' THEN $1 ELSE work.reopened_at END,
+    last_requeue_reason = ` + queuestore.RequeueReasonScheduleValue(
+	telemetry.RequeueReasonCrossScopeReplay.SQLLiteral(), "work", "('succeeded')") + `,
     cross_scope_replay_required = CASE
-        WHEN status IN ('claimed', 'running') THEN TRUE
+        WHEN work.status IN ('claimed', 'running') THEN TRUE
         ELSE FALSE
     END,
-    failure_class = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_class END,
-    failure_message = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_message END,
-    failure_details = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_details END
-WHERE work_item_id = $2
-  AND stage = 'reducer'
-  AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
-  AND (
-    status <> 'succeeded'
-    OR COALESCE(payload->>'` + deploymentEvidenceDigestPayloadKey + `', '') <> $3
-    OR $3 = ''
-  )
+    failure_class = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.failure_class END,
+    failure_message = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.failure_message END,
+    failure_details = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.failure_details END
+FROM target
+WHERE work.work_item_id = target.work_item_id
+RETURNING (target.prior_status = 'succeeded'
+    OR (target.prior_status IN ('claimed', 'running')
+        AND NOT target.prior_flag)) AS requeued
 `
 
 // ReplayWorkloadMaterializationForDigest replays the canonical workload
@@ -141,17 +164,19 @@ func (q ReducerQueue) ReplayWorkloadMaterializationForDigestOutcome(
 	}
 	workItemID := reducerWorkItemID(intent)
 
-	result, err := q.database.ExecContext(ctx, scheduleWorkloadMaterializationDigestReplayQuery, q.now(), workItemID, digest)
+	rows, err := q.database.QueryContext(ctx, scheduleWorkloadMaterializationDigestReplayQuery, q.now(), workItemID, digest)
 	if err != nil {
 		return reducer.WorkloadMaterializationReplayNotScheduled,
 			fmt.Errorf("schedule workload materialization digest replay: %w", err)
 	}
-	matched, err := result.RowsAffected()
+	transitioned, err := countScheduledReplay(rows, "schedule workload materialization digest replay")
 	if err != nil {
-		return reducer.WorkloadMaterializationReplayNotScheduled,
-			fmt.Errorf("schedule workload materialization digest replay: rows affected: %w", err)
+		return reducer.WorkloadMaterializationReplayNotScheduled, err
 	}
-	if matched > 0 {
+	if transitioned.matched {
+		// The statement always runs autocommit here, so writer-level
+		// emission is post-commit by construction.
+		telemetry.RecordReducerRequeue(ctx, q.Instruments, telemetry.RequeueReasonCrossScopeReplay, transitioned.requeues)
 		return reducer.WorkloadMaterializationReplayScheduled, nil
 	}
 	// No row moved: the item is missing (or terminal) or a finished item

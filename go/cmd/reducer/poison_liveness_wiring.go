@@ -52,7 +52,8 @@ func (r postgresPoisonLivenessRecoverer) RecoverPoisonDeadLetters(
 		return poison.Result{}, err
 	}
 	return poison.Result{
-		Recovered: result.Recovered,
+		Recovered:        result.Recovered,
+		ReducerRecovered: result.ReducerRecovered,
 	}, nil
 }
 

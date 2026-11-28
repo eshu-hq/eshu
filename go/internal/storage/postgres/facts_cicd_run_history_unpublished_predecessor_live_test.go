@@ -155,6 +155,7 @@ func openUnpublishedCICDRunPredecessorSchema(
 		MigrationSQL("fact_work_item_leases"),
 		reducerClaimCapabilityColumnsSchemaSQL,
 		MigrationSQL("reducer_work_item_reopened_at"),
+		MigrationSQL("fact_work_items_last_requeue_reason"), // #11615: claim reads last_requeue_reason.
 		graphProjectionPhaseStateSchemaSQL,
 	} {
 		if _, err := db.ExecContext(ctx, statement); err != nil {

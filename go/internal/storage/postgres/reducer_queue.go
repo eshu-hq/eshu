@@ -103,6 +103,11 @@ WHERE lease.work_item_id = done.work_item_id
 SELECT (SELECT count(*) FROM done) AS matched
 `
 
+// retryReasonArg documents the trailing last_requeue_reason bind parameter
+// both retry queries carry: $9 for retryReducerWorkQuery, $10 for the
+// container-identity twin. It is a parameter (not an embedded literal) so
+// failIntent can choose retry_backoff for a counting retry and
+// readiness_wait for a non-counting park without rebuilding the statement.
 const retryReducerWorkQuery = `
 WITH done AS (
 UPDATE fact_work_items
@@ -113,6 +118,7 @@ SET status = 'retrying',
     visible_at = $5,
     next_attempt_at = $5,
     updated_at = $1,
+    last_requeue_reason = $9,
     failure_class = $2,
     failure_message = $3,
     failure_details = $4
@@ -150,6 +156,7 @@ SET status = 'retrying',
     visible_at = $5,
     next_attempt_at = $5,
     updated_at = $1,
+    last_requeue_reason = $10,
     failure_class = $2,
     failure_message = $3,
     failure_details = $4

@@ -153,6 +153,18 @@ type Intent struct {
 	// awsCloudRuntimeDriftStatePendingMaxWait) should compare elapsed time
 	// against CycleStartedAt, not EnqueuedAt.
 	CycleStartedAt time.Time
+
+	// RequeueReason names why the row last returned to an outstanding
+	// state, from the closed #11615 vocabulary (retry_backoff,
+	// readiness_wait, waiting_wake, maintenance_reopen,
+	// producer_activation_settle, completion_wake, cross_scope_replay,
+	// fanout_holder, retouch_new_evidence, admin_replay, admin_reopen,
+	// recovery_redrive). Empty means the row was never requeued (or
+	// predates the column) and reads as legacy_unclassified. Writers
+	// validate the vocabulary at the queue boundary; this field carries
+	// the stored value through without re-validating so rolling upgrades
+	// keep reading rows stamped by newer writers.
+	RequeueReason string
 }
 
 // ScopeGenerationKey returns the durable scope-generation boundary for the intent.

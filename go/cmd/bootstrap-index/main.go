@@ -59,8 +59,10 @@ type bootstrapCommitter interface {
 	// given additive correlation domains (e.g. deployable_unit_correlation) so they
 	// re-run once the resolved relationships they consume — produced by the
 	// deployment_mapping reopen + cross-repo resolution in an earlier drain — exist.
-	// Idempotent.
-	ReopenSucceededReducerWorkItems(context.Context, trace.Tracer, *telemetry.Instruments, []string) error
+	// Idempotent. It reports the actually-transitioned row count; the caller
+	// emits the #11615 per-reason counter (maintenance_reopen for every
+	// correlation domain) after its own commit point.
+	ReopenSucceededReducerWorkItems(context.Context, trace.Tracer, *telemetry.Instruments, []string) (int64, error)
 	// EnqueueConfigStateDriftIntents enqueues one config_state_drift reducer
 	// intent per state_snapshot:* scope with an active generation. Phase 3.5
 	// trigger required by the facts-first bootstrap ordering: drift consumes

@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestCompletionWakeLockTimeoutClassifiedLive is the F2 bound proof: behind
@@ -114,7 +115,7 @@ func TestCompletionWakeEvalPlanQualDropsReopenedRowLive(t *testing.T) {
 	// per-row reopen statement) with a sentinel timestamp, then commits:
 	// the blocked wake must recheck and drop the now-pending row.
 	sentinel := w.at.Add(42 * time.Minute)
-	if _, err := holderTx.ExecContext(ctx, reopenSucceededReducerWorkQuery, sentinel, "duc-a"); err != nil {
+	if _, err := holderTx.ExecContext(ctx, reopenSucceededReducerWork(telemetry.RequeueReasonMaintenanceReopen), sentinel, "duc-a"); err != nil {
 		t.Fatalf("holder maintenance reopen: %v", err)
 	}
 	if err := holderTx.Commit(); err != nil {
@@ -192,7 +193,7 @@ func TestCompletionWakeConcurrentWithMaintenanceAndClaimLive(t *testing.T) {
 		<-start
 		queue := NewReducerQueue(SQLDB{DB: maintDB}, "completion-wake-maintenance-proof", time.Minute)
 		for _, id := range itemIDs {
-			if _, err := queue.ReopenSucceeded(ctx, id); err != nil {
+			if _, err := queue.ReopenSucceeded(ctx, id, telemetry.RequeueReasonMaintenanceReopen); err != nil {
 				errs <- fmt.Errorf("maintenance reopen %s: %w", id, err)
 			}
 		}

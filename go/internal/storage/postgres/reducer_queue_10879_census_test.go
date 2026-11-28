@@ -12,6 +12,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestReducerQueue10879UpdateCensusByCause splits fact_work_items updates by
@@ -153,7 +154,7 @@ func TestReducerQueue10879UpdateCensusByCause(t *testing.T) {
 
 	bu, bh = snap()
 	for _, intent := range intents[:nReopen] {
-		ok, err := queue.ReopenSucceeded(ctx, intent.IntentID)
+		ok, err := queue.ReopenSucceeded(ctx, intent.IntentID, telemetry.RequeueReasonMaintenanceReopen)
 		if err != nil {
 			t.Fatalf("census reopen %s: %v", intent.IntentID, err)
 		}

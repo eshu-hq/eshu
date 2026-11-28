@@ -194,12 +194,15 @@ func TestActivationWriterGuardBitesOnAPlantedWriter(t *testing.T) {
 // TestActivationWakeSetClauseMatchesReplayReset keeps the wake's SET list in
 // lockstep with the recovery replay reset list it mirrors: the same
 // assignments, reopened_at included (the replay stamps it too since #9320).
-// The replay list is derived from the shipped template, not copied. The one
-// difference is queuestore.ReplayRetryAllowanceAssignments (#11182): the
-// replay's projector retry allowance, which an operator replay grants and the
-// reducer consumer wake does not (the reducer budget does not read the
-// baseline until #11184). The test removes exactly that fragment from the
-// replay list and fails if the template stops carrying it.
+// The replay list is derived from the shipped template, not copied. Two
+// differences are pinned, not drifted: queuestore.ReplayRetryAllowanceAssignments
+// (#11182), the replay's projector retry allowance, which an operator replay
+// grants and the reducer consumer wake does not (the reducer budget does not
+// read the baseline until #11184); and the #11615 requeue reason, which is
+// producer_activation_settle on the activation wake and the stage-gated
+// recovery_redrive on the shared template (each writer's own vocabulary
+// value). The test removes exactly those fragments from each side and fails
+// if either side stops carrying its own.
 func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 	t.Parallel()
 	normalize := func(s string) string { return strings.Join(strings.Fields(s), " ") }
@@ -220,9 +223,17 @@ func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 	if !strings.Contains(setList, queuestore.ReplayRetryAllowanceAssignments) {
 		t.Fatal("replayFailedWorkItemsTemplate lost queuestore.ReplayRetryAllowanceAssignments (#11182)")
 	}
+	if !strings.Contains(setList, "last_requeue_reason") || !strings.Contains(setList, "'recovery_redrive'") {
+		t.Fatal("replayFailedWorkItemsTemplate lost the stage-gated recovery_redrive reason (#11615)")
+	}
+	reasonLine := regexp.MustCompile(`(?s),?\s*last_requeue_reason = (CASE.*?END|'[^']*'),?`)
+	stripped := reasonLine.ReplaceAllString(setList, "")
 	// The fragment is the last assignment, so drop it with its leading comma.
-	replay := strings.TrimSuffix(normalize(strings.Replace(setList, queuestore.ReplayRetryAllowanceAssignments, "", 1)), ",")
-	wake := normalize(activationWakeSetClause)
+	replay := strings.TrimSuffix(normalize(strings.Replace(stripped, queuestore.ReplayRetryAllowanceAssignments, "", 1)), ",")
+	if !strings.Contains(activationWakeSetClause, "last_requeue_reason = 'producer_activation_settle'") {
+		t.Fatal("activation wake lost the producer_activation_settle reason (#11615)")
+	}
+	wake := normalize(reasonLine.ReplaceAllString(activationWakeSetClause, ""))
 	if want := replay; wake != want {
 		t.Fatalf("activation wake SET list drifted from the replay reset list:\n got: %s\nwant: %s", wake, want)
 	}

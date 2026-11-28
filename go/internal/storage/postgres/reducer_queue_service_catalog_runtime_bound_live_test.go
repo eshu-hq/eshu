@@ -18,6 +18,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Real-queue elapsed-bound proofs for the #7816 runtime fence (amendments A1,
@@ -366,7 +367,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceReopenedProducerWaits(t 
 	setRuntimeFenceProducerCreated(t, ctx, p, 2*time.Hour, "succeeded")
 	oneMinuteAgo := func() time.Time { return time.Now().UTC().Add(-time.Minute) }
 	producerQueue := runtimeFenceQueue(p.db, "workload-reopen", reducer.DomainWorkloadMaterialization, oneMinuteAgo)
-	reopened, err := producerQueue.ReopenSucceeded(ctx, runtimeFenceProducerItem)
+	reopened, err := producerQueue.ReopenSucceeded(ctx, runtimeFenceProducerItem, telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil || !reopened {
 		t.Fatalf("ReopenSucceeded() = %v, %v, want the succeeded producer row reopened", reopened, err)
 	}

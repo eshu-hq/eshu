@@ -3,6 +3,8 @@
 
 package fixtures
 
+import "database/sql"
+
 // ConfigParserRow mirrors the parser's
 // parsed_file_data.terraform_resources row shape from hclBasePayload in
 // go/internal/parser/hcl/parser.go: the loader reconstructs the canonical
@@ -66,6 +68,23 @@ func PadQueueFakeRow(row []any, columns int) []any {
 	}
 	if columns == 14 && len(row) == 11 {
 		row = append(row[:11:11], append([]any{"", "", ""}, row[11:]...)...)
+	}
+	// Reducer claim rows now also return the last requeue reason between
+	// the failure evidence and the payload (#11615). Older fixtures predate
+	// that output; an invalid NullString keeps them exercising the
+	// never-requeued behavior they were written for (it reads as
+	// legacy_unclassified). Dedicated reason tests stage explicit values
+	// and assert them exactly. The insertions mirror the 11- and 14-column
+	// rules above, with the reason landing before the payload in every
+	// shape.
+	if columns == 15 && len(row) == 10 {
+		row = append(row[:9:9], append([]any{row[8], "", "", "", sql.NullString{}}, row[9:]...)...)
+	}
+	if columns == 15 && len(row) == 11 {
+		row = append(row[:11:11], append([]any{"", "", "", sql.NullString{}}, row[11:]...)...)
+	}
+	if columns == 15 && len(row) == 14 {
+		row = append(row[:13:13], append([]any{sql.NullString{}}, row[13:]...)...)
 	}
 	// Retention candidate rows carry ten columns: the #7981 identity triple
 	// then the #7802 delta_protected flag. Six-column fixtures zero-fill the

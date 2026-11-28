@@ -31,3 +31,67 @@ const ReopenedAtUpsertValue = `CASE
                 THEN fact_work_items.reopened_at
             ELSE EXCLUDED.updated_at
         END`
+
+// RequeueReasonSetAssignment returns the last_requeue_reason SET assignment
+// for an unconditional requeue: the writer transitions the row to outstanding
+// by predicate (succeeded to pending, claimed to retrying, wake of a
+// retrying row), so the reason is written outright. reasonLiteral is a
+// validated telemetry.RequeueReason.SQLLiteral such as 'retry_backoff'; the
+// #11615 source guard (TestEveryRequeueWriterSetsReason) sees the column in
+// each writer.
+func RequeueReasonSetAssignment(reasonLiteral string) string {
+	return `last_requeue_reason = ` + reasonLiteral
+}
+
+// RequeueReasonUpsertValue mirrors ReopenedAtUpsertValue for ON CONFLICT
+// re-drives: the conflicting row keeps its prior reason while it is still
+// outstanding (pending, retrying, claimed, running) and takes the new reason
+// only when the upsert returns it to outstanding from a finished state.
+// qualifier is the conflicting-row qualifier ('fact_work_items' or the
+// query's table alias).
+func RequeueReasonUpsertValue(reasonLiteral, qualifier string) string {
+	return `CASE
+            WHEN ` + qualifier + `.status IN ('pending', 'retrying', 'claimed', 'running')
+                THEN ` + qualifier + `.last_requeue_reason
+            ELSE ` + reasonLiteral + `
+        END`
+}
+
+// RequeueReasonScheduleValue is the last_requeue_reason value for CASE
+// replay-debt schedulers (the cross-scope materialization replay, the
+// retouch, the holder fanout, the service-catalog re-trigger): a row that
+// transitions to pending from a finished state takes the reason, a claimed
+// or running row newly flagged for one rerun takes it at schedule time, and
+// a row that sees no transition keeps its prior reason (and is not counted).
+// The claimed/running arm is gated on the row not already carrying replay
+// debt, so the reason write and the counted transition correspond exactly:
+// written ⟺ counted. qualifier is the locked-row qualifier ('work',
+// 'catalog', or empty for an unqualified single-table UPDATE); terminal
+// lists the prior statuses that transition (for example
+// "('succeeded', 'failed', 'dead_letter')").
+func RequeueReasonScheduleValue(reasonLiteral, qualifier, terminal string) string {
+	row := qualifier
+	if row != "" {
+		row += "."
+	}
+	return `CASE WHEN ` + row + `status IN ` + terminal + ` THEN ` + reasonLiteral + `
+        WHEN ` + row + `status IN ('claimed', 'running') AND NOT ` + row + `cross_scope_replay_required THEN ` + reasonLiteral + `
+        ELSE ` + row + `last_requeue_reason
+    END`
+}
+
+// RequeueReasonStageGatedValue is the last_requeue_reason value for replay
+// statements shared by both stages (the recovery replay templates, the admin
+// replay): reducer rows take the reason, projector rows keep NULL by retaining
+// their prior value, which no projector writer ever sets (#11615 decision
+// 3). qualifier is the locked-row qualifier including the trailing dot, or
+// empty for an unqualified UPDATE.
+func RequeueReasonStageGatedValue(reasonLiteral, qualifier string) string {
+	row := qualifier
+	if row != "" && row[len(row)-1] != '.' {
+		row += "."
+	}
+	return `CASE WHEN ` + row + `stage = 'reducer' THEN ` + reasonLiteral + `
+        ELSE ` + row + `last_requeue_reason
+    END`
+}

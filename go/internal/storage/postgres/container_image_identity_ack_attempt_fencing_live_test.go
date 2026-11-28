@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayLive(
@@ -131,7 +132,7 @@ WHERE work_item_id = $2
 `, now.Add(time.Minute), workItemID)
 	assertContainerImageIdentityRawReopenRejected(t, legacyResult, legacyErr)
 
-	reopened, err := queue.ReopenSucceeded(ctx, workItemID)
+	reopened, err := queue.ReopenSucceeded(ctx, workItemID, telemetry.RequeueReasonMaintenanceReopen)
 	if err != nil {
 		t.Fatalf("attempt-safe reopen: %v", err)
 	}

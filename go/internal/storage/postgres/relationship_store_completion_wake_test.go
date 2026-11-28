@@ -266,8 +266,8 @@ func TestCompletionWakeFlagArmRequiresRecordedFingerprint(t *testing.T) {
 func TestCompletionWakeQueryComposesSharedReopenClause(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(reopenDeployableUnitCorrelationsForReposQuery, ReopenSucceededReducerSetClause) {
-		t.Fatal("completion wake query does not compose ReopenSucceededReducerSetClause")
+	if !strings.Contains(reopenDeployableUnitCorrelationsForReposQuery, "last_requeue_reason = 'completion_wake'") {
+		t.Fatal("completion wake query does not stamp the completion_wake reason through the shared clause")
 	}
 }
 

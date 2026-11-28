@@ -16,14 +16,16 @@ import (
 )
 
 // reservedSlotClaimRow renders one batch-claim intent row for the
-// reserved-slot hermetic fake: the fourteen columns scanReducerIntent reads
-// (eleven claim columns plus the #11075 prior-verdict failure evidence
-// triple, empty here), with a caller-chosen domain.
+// reserved-slot hermetic fake: the fifteen columns scanReducerIntent reads
+// (eleven claim columns, the #11075 prior-verdict failure evidence triple,
+// empty here, and the #11615 requeue reason, NULL here for a
+// never-requeued row), with a caller-chosen domain.
 func reservedSlotClaimRow(id, domain string, now time.Time) []any {
 	return []any{
 		id, "scope-reserved", "gen-reserved", domain,
 		int64(1), int64(0), now, now, now, now,
 		"", "", "",
+		nil,
 		[]byte(`{"entity_key":"` + id + `","reason":"reserved-proof","fact_id":"f1","source_system":"git"}`),
 	}
 }

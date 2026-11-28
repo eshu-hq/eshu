@@ -301,6 +301,11 @@ func createReducerClaimBenchmarkSchema(ctx context.Context, database db.Executor
 		// applies the base table without this ALTER makes every Claim() fail
 		// with `column work.reopened_at does not exist`.
 		MigrationSQL("reducer_work_item_reopened_at"),
+		// migration 364 (#11615): fact_work_items.last_requeue_reason, read
+		// by the claim query. A fixture that applies the base table without
+		// this ALTER makes every Claim() fail with `column
+		// work.last_requeue_reason does not exist`.
+		MigrationSQL("fact_work_items_last_requeue_reason"),
 		// post-#10876 (#11013): Ack() wakes producer-terminal waits, which
 		// reads reducer_waiting_items. A fixture without this table makes
 		// every Ack fail with `relation "reducer_waiting_items" does not

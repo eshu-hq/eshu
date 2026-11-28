@@ -280,7 +280,8 @@ const activationWakeSetClause = `status = 'pending',
         failure_message = NULL,
         failure_details = NULL,
         updated_at = $1,
-        reopened_at = $1`
+        reopened_at = $1,
+        last_requeue_reason = 'producer_activation_settle'`
 
 // lockInflightOwnGateConsumersSQL waits for, then holds, every in-flight
 // own-gate consumer row of the activated scope generation (#7597), in the

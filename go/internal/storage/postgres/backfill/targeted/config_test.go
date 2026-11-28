@@ -175,12 +175,12 @@ func reopenConfigError(s Store) (err error) {
 			err = fmt.Errorf("panic: %v", value)
 		}
 	}()
-	_, err = s.ReopenTargetedMaintenanceWorkItems(context.Background(), nil, configAffected, nil)
+	_, err = s.ReopenTargetedMaintenanceWorkItems(context.Background(), nil, nil, configAffected, nil)
 	return err
 }
 
 func TestTargetedReopenEmptyAffectedIsNoOpBeforeValidation(t *testing.T) {
-	result, err := (Store{}).ReopenTargetedMaintenanceWorkItems(context.Background(), nil, nil, nil)
+	result, err := (Store{}).ReopenTargetedMaintenanceWorkItems(context.Background(), nil, nil, nil, nil)
 	if err != nil || result == nil || len(result) != 0 {
 		t.Fatalf("empty reopen result=%v error=%v", result, err)
 	}
