@@ -96,6 +96,25 @@ require "exported Postgres port override" 'export ESHU_POSTGRES_PORT='
 require "exported Neo4j bolt port override" 'export NEO4J_BOLT_PORT='
 require "exported Neo4j http port override" 'export NEO4J_HTTP_PORT='
 
+# Stack resolution (#11646): the root docker-compose.yaml left with #8871, so
+# the compose file must resolve from the eshu-deploy checkout like the sibling
+# gates (golden-corpus-gate.sh, read-api-latency-gate.sh). Pin the live
+# resolution line, not the variable name alone.
+require "compose file from deploy checkout" 'compose_file="${ESHU_DEPLOY_CHECKOUT'
+# RED/GREEN: without ESHU_DEPLOY_CHECKOUT the gate must fail loudly before
+# touching docker; with a checkout carrying compose/docker-compose.yaml it
+# must resolve (proven via --help, which exits after resolution).
+if env -u ESHU_DEPLOY_CHECKOUT bash "${script}" --help >/dev/null 2>&1; then
+	fail "must fail loudly without ESHU_DEPLOY_CHECKOUT"
+fi
+deploy_probe="$(mktemp -d -t ifa-compose-probe.XXXXXX)"
+mkdir -p "${deploy_probe}/compose"
+: > "${deploy_probe}/compose/docker-compose.yaml"
+probe_rc=0
+ESHU_DEPLOY_CHECKOUT="${deploy_probe}" bash "${script}" --help >/dev/null 2>&1 || probe_rc=$?
+rm -rf "${deploy_probe}"
+[[ "${probe_rc}" -eq 0 ]] || fail "must resolve compose from ESHU_DEPLOY_CHECKOUT"
+
 # Drives every pipeline stage end to end.
 # Bind the INVOCATION: the log() line above names the binary too, so replacing
 # the real call with `true` left this pin green with the schema never applied.
