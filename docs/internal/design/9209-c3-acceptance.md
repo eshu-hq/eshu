@@ -90,9 +90,10 @@ corpus movement, not a definition change:
 
 ## The 4 FIRST catalog-miss CVEs
 
-184 rows, 0 present, 0 active `epss_score` facts (FIRST never scored
-them, not unfetched — distinct arithmetic: 1,986 winner CVEs minus
-1,982 fact-join CVEs is exactly these 4):
+184 rows, 0 present, 0 active `epss_score` facts (no active fact found
+for them in Q2 — distinct arithmetic: 1,986 winner CVEs minus 1,982
+fact-join CVEs is exactly these 4; a tombstoned fact would look identical,
+so the tombstone-inclusive scan stays owed for the P4 re-measure):
 
 | CVE | Rows | Winners by ecosystem |
 |---|---|---|
