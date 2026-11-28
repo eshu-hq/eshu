@@ -60,5 +60,5 @@ The `refresh-cassettes.yml` workflow is triggered by applying the
   invokes via `-mode=record`.
 - `go/internal/replay/canonical.go` — `Canonicalize` and `DefaultCanonicalOptions`.
 - `.github/workflows/refresh-cassettes.yml` — the label-gated CI workflow.
-- `docs/internal/design/4102-deterministic-replay-framework.md` §6 — R-6
+- #4102 §6 — R-6
   scope and design rationale.

@@ -23,7 +23,7 @@ The `metadata` content-store policy (#8812) stores an empty-body `content_files`
 row, so no body, search copy, or entity `source_cache` carries a credential. It
 governs raw-text copies only. Values a parser extracts are parser output and are
 outside the policy (`TestParserOutputIsNotGovernedKnownLeak`,
-`docs/internal/design/8813-credential-file-exposure.md`). A parser that echoed a
+#8813). A parser that echoed a
 credential would leak it into facts regardless of the policy. This parser reads
 only the registry key shapes, strips userinfo, query, and fragment, and drops a
 line it cannot prove clean.

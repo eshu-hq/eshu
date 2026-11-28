@@ -3,7 +3,7 @@
 ## Read first
 
 1. `go/internal/reduceradmission/README.md`
-2. `docs/internal/design/10882-source-backpressure.md`
+2. #10882
 3. `go/internal/workflow/source_backpressure.go` (verdict semantics)
 4. `docs/internal/agent-guide.md` "Prove-The-Theory-First" for signal changes
 

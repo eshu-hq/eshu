@@ -38,7 +38,7 @@ adapter-free, queue-free, and runtime-free.
 5. `queue_substrate.go` before changing the #1289 decision gate.
 6. `backup_restore.go` before changing the #1290 proof gate.
 7. `postgres_growth.go` before changing the #2749 hosted-growth Postgres gate.
-8. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
+8. #431 before
    changing storage migration evidence semantics.
 
 ## Verification

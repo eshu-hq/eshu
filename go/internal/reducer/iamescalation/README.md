@@ -6,7 +6,7 @@ Projects merged `aws_iam_permission` facts into conservative IAM
 `CAN_ESCALATE_TO` privilege-escalation edges: an edge asserts that a scanned
 principal holds a curated escalation primitive against exactly one scanned
 target. This is the `CAN_ESCALATE_TO` slice of #1134; the design of record is
-`docs/internal/design/1134-iam-privilege-escalation-catalog.md`. This package
+#1134. This package
 moved out of the flat `internal/reducer` root under issue #6061.
 
 ## Ownership boundary
@@ -97,8 +97,7 @@ six tests in the three files whose `payloadStringSlice` call was repointed
 
 ## Related docs
 
-- `docs/internal/design/1134-iam-privilege-escalation-catalog.md`
-- `docs/internal/design/1134-iam-can-perform.md`
+- #1134
 - `go/internal/reducer/README.md`
 - `go/internal/reducer/iampolicy/README.md`
 - `go/internal/reducer/iamcan/README.md`

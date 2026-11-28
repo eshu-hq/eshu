@@ -8,7 +8,7 @@
 4. `../../../../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after the EC2 USES_PROFILE probe and before the EC2 internet-exposure
    probe.
-5. `docs/internal/design/1299-iam-instance-profile-role-edge.md` for the
+5. #1299 for the
    HAS_ROLE edge design, the no-role retraction rationale, and the readiness
    contract this intent encodes.
 6. `go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go` for what

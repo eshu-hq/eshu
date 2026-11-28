@@ -93,7 +93,7 @@ output itself.
 
 ## Related docs
 
-- `docs/internal/design/license-headers.md` (scaffold templates carry
+- the repository license-header policy (scaffold templates carry
   publisher-owned headers)
 - `specs/remote-validation-proofs.v1.yaml` (`prod-component-extension-inventory`,
   deployed proof of the inventory readback)

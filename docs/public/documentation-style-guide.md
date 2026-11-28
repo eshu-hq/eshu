@@ -14,7 +14,7 @@ writing or editing, load the **`publish`** skill for the plain-English,
 anti-slop writing standard in `docs/internal/writing-for-agents.md`, and load
 **`explain`** or **`show-me`** for architecture walkthroughs or diagrams. It
 turns the architecture decision in
-`docs/internal/design/4593-docs-restructure-diataxis.md` into writing rules.
+#4593 into writing rules.
 That decision owns the site structure and the basic page templates. This guide
 owns voice, page boundaries, diagrams, headings, and code examples.
 

@@ -65,7 +65,7 @@ came to exist.
   multi-citation table row invalidates all of them, not just the one being
   fixed, and the gate refuses even `-update` on such a row. This package's
   move therefore converted EVERY `go/internal/**/*.go:NNN` citation on its
-  row in `docs/internal/design/4786-contract-integration-matrix.md` to the
+  row in #4786 to the
   anchor form the gate's own header prefers (no line number): the reducer
   cell now names `rdsposture.RDSPostureMaterializationHandler` plus the new
   file path, and the sibling posture-envelope collector cell dropped its

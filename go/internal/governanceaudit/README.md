@@ -105,6 +105,6 @@ metrics, spans, and structured logs.
 
 ## Related docs
 
-- `docs/internal/design/1900-hosted-governance-policy-model.md`
+- #1900
 - `docs/public/operate/hosted-governance.md`
 - `docs/public/reference/http-api/status-admin.md`

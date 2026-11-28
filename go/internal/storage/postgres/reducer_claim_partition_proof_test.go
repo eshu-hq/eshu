@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-// Hermetic design proof for docs/internal/design/11430-conflict-key-partitioned-parallelism.md.
+// Hermetic design proof for #11430.
 // No database, no build tags: every test runs in the default `go test`.
 // The election and watermark models below are shim-grade replicas of the
 // ORDER BY / GREATEST rules named in comments; the structural test at the

@@ -3,7 +3,7 @@
 ## Read first
 
 1. `go/internal/collector/repo/gitlab/README.md` — listing contract
-2. `docs/internal/design/7765-gitlab-group-discovery.md` — the decision,
+2. #7765 — the decision,
    especially "GitLab listing client" and "Rejected alternatives"
 3. `go/internal/collector/repo/git/AGENTS.md` — the `git -> leaf -> model`
    import direction

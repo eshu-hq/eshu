@@ -120,7 +120,7 @@ parameters enumerate removes the same set on a second run. Anything else keeps
 the group terminal: re-executing a `CREATE` duplicates, an accumulating `SET`
 double-applies, and a row-driven `UNWIND ... MATCH ... DELETE` is the shape
 that can no-op inside a managed transaction. The #6634 RUNS_ON exception admits
-only the exact atomic groups in `docs/internal/design/6634-runs-on-atomic-replay.md`.
+only the exact atomic groups in #6634.
 
 An open-ended predicate keeps the group terminal for a different reason. A
 retract selecting the complement of a parameter — `n.generation_id <>

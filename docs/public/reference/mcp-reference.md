@@ -326,7 +326,7 @@ where it ran:
 - The two-client token re-measurement at three sizes, within 1.1 times the
   one-copy rate, and a scoring run on the same prompts that is not worse, both
   named in the design record
-  `docs/internal/design/7206-mcp-response-budget-fallback.md`.
+  #7206.
 - A manual run on the other documented clients.
 - One week with no over-budget increase on a hosted deployment.
 - The structured result-contract proof (#8800)

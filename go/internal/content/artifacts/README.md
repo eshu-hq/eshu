@@ -378,5 +378,5 @@ that changes no extractor:
 ## Related docs
 
 - `docs/internal/design/7126-ingest-time-config-artifacts.md`
-- `docs/internal/design/7126-ingest-time-config-artifacts-protocol.md`
+- #7126
 - `go/internal/query/repositoryartifacts/README.md`

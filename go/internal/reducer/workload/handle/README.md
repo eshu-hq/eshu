@@ -45,7 +45,7 @@ matching WARN line with `scope_id`, `handle`, `candidate_repo_ids`, and
 
 ## Related
 
-- `docs/internal/design/5385-workload-identity-compatibility.md` (sections
+- #5385 (sections
   1.4 and 2.3: the ladder and the skip reason)
 - `docs/internal/design/5385-workload-identity-migration.md` (section 8:
   the telemetry table; T3: the per-consumer matching contract)

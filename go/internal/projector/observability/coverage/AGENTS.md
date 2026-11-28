@@ -62,7 +62,7 @@
   `go/internal/query/*` files only — no registry, factschema, or design-doc
   entry cites this projector family's file path (verified against the
   registry with a positive control on the sibling materialization file,
-  which IS cited by `docs/internal/design/4786-contract-integration-matrix.md`).
+  which IS cited by #4786).
   A rename inside this package still deserves a fresh
   `rg -n 'observability_coverage'` over `go/internal/mcp`,
   `sdk/go/factschema`, and `docs/internal/design` before committing.

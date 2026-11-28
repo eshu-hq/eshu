@@ -11,7 +11,7 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   functions and the `Snapshot` contract live there; this suite imports them.
 - `../internal/replay/cassette/` — the credential-free replay `Source` this suite
   drives, and the cassette file format.
-- `docs/internal/design/4102-deterministic-replay-framework.md` §8 — the R-10
+- #4102 §8 — the R-10
   packaging design.
 
 ## Invariants

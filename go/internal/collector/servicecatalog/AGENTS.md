@@ -15,7 +15,7 @@
 7. `envelope.go` — fact identity, redaction, and URL safety.
 8. `go/internal/reducer/servicecatalog/service_catalog_correlation_index.go`
    — the reducer index whose payload keys this package MUST honor exactly.
-9. `docs/internal/design/563-service-catalog-manifest-fact-emitter.md` — the
+9. #563 — the
    design memo and phased PR plan.
 10. `docs/public/reference/collector-reducer-readiness.md` — source-truth
    boundary for `service_catalog_correlation`.

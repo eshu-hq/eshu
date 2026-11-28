@@ -1,7 +1,7 @@
 # Workload And WorkloadInstance Identity Keys
 
 Status: accepted Option C (#6179); reconciliation decided 2026-09-25 in
-[5385-workload-identity-compatibility.md](5385-workload-identity-compatibility.md)
+the #5385 workload-identity compatibility spec
 and [5385-workload-identity-migration.md](5385-workload-identity-migration.md),
 which supersede this document's counts. Measurements: read-only probes only.
 

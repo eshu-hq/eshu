@@ -84,7 +84,7 @@ standalone projector) defers the enqueue while either signal below is
 hot. Both signals are totals across **all sources**: one source can use
 the whole allowance while another source starves. The per-source leg from
 issue #10882 (design record
-`docs/internal/design/10882-source-backpressure.md`) layers on top: when
+#10882) layers on top: when
 the `ESHU_SOURCE_BACKPRESSURE_*` thresholds are all set, intents whose
 source is latched slowed — at least the floor's worth of its claimable
 reducer rows older than the engage age — defer under

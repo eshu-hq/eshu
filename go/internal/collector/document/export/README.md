@@ -61,5 +61,5 @@ policy observes no posture so the field is omitted (no default-when-unknown
 guess; that disclosure decision is reserved for security review).
 
 ## Related docs
-- `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`
+- #1741
 - `go/internal/collector/preflight/manifest`

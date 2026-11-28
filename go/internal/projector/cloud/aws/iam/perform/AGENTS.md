@@ -9,7 +9,7 @@
 5. `../trust/AGENTS.md` for the sibling CAN_ASSUME builder this family sits
    beside (same entity key, same trigger fact kind, disjoint `policy_source`
    predicate).
-6. `docs/internal/design/1134-iam-can-perform.md` for the CAN_PERFORM MVP
+6. #1134 for the CAN_PERFORM MVP
    design and the node-before-edge readiness gate this intent participates in.
 
 ## Invariants

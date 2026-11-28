@@ -5,7 +5,7 @@
 Projects metadata-only `s3_external_principal_grant` facts into canonical
 `GRANTS_ACCESS_TO` edges from S3 `:CloudResource` nodes to bounded
 `:ExternalPrincipal` identities. This is issue #1231 (design doc
-`docs/internal/design/1231-s3-external-principal-grant-projection.md`). This
+#1231). This
 package moved out of the flat `internal/reducer` root under issue #6061.
 
 ## Ownership boundary

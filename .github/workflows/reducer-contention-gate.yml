@@ -6,8 +6,7 @@ name: Reducer Contention Gate
 # by construction it cannot exercise the real `FOR UPDATE SKIP LOCKED` claim
 # path, wall-clock lease expiry, or the per-claim attempt counter. This job
 # keeps a small real-Postgres contention check for exactly those guarantees —
-# the irreducible remainder replay does not subsume
-# (docs/internal/design/4102-deterministic-replay-framework.md §10).
+# the irreducible remainder replay does not subsume (#4102).
 #
 # It runs ONLY the TestReducerContentionGate* tests, not the whole
 # storage/postgres package, so it asserts the deterministic guarantees and does

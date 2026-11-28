@@ -4,7 +4,7 @@
 
 - `README.md`
 - `doc.go`
-- `docs/internal/design/2462-governed-answer-narration.md`
+- #2462
 - `docs/public/reference/answer-packets.md`
 - `docs/public/reference/truth-label-protocol.md`
 

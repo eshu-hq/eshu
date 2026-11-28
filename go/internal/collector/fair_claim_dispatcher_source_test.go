@@ -245,7 +245,7 @@ func (s *sourceStubClaimStore) CheckSourceBackpressure(
 // leg enabled instead of claiming unpaced (entrypoints/service_template.go,
 // cmd/collector-component-extension/service.go). If the client ever gains
 // the consult, this test fails and the AC3 scope note in
-// docs/internal/design/10882-source-backpressure.md must be revisited.
+// #10882 must be revisited.
 func TestClaimPlaneClientDoesNotServeSourceBackpressure(t *testing.T) {
 	t.Parallel()
 

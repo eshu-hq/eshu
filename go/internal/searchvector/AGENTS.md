@@ -10,7 +10,7 @@
    `Embedder` port contract.
 4. `go/internal/storage/postgres/README.md` - vector metadata/value store
    ownership and active-generation read semantics.
-5. `docs/internal/design/2578-ann-vector-index-production-hybrid-search-contract.md`
+5. #2578
    - production vector-lane storage contract.
 
 ## Invariants this package enforces

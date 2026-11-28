@@ -72,7 +72,7 @@ semantic extraction.
 
 ## Related docs
 
-- `docs/internal/design/1758-documentation-semantic-observations.md`
+- #1758
 - `docs/public/reference/fact-envelope-reference.md`
 - `go/internal/doctruth/README.md`
 - `go/internal/facts/README.md`

@@ -241,7 +241,7 @@ const AssetTypeDNSResourceRecordSet = "dns.googleapis.com/ResourceRecordSet"
 // the current keyspace. A key rotation without a version bump is unsupported:
 // it would silently produce mismatched fingerprints for the same underlying
 // identity across the rotation boundary. See
-// docs/internal/design/multicloud-live-collector-security-review.md (section
+// the multi-cloud collector security review (section
 // 2, Redaction-key handling) for the full rotation procedure.
 const RedactionPolicyVersion = "gcp-cloud-2026-06-09"
 

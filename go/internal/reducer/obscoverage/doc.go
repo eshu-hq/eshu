@@ -25,7 +25,7 @@
 // whether what it is watched by is healthy: no metric value, alert state, or
 // dashboard body is ever read as graph truth, only the identity link between
 // the observability object and its target. See
-// docs/internal/design/391-observability-coverage-correlation.md.
+// #391.
 //
 // # Package boundary
 //

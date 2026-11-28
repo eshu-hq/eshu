@@ -6,7 +6,7 @@
 2. `../../../../AGENTS.md` and `../../../../README.md` for projector-wide invariants.
 3. `../../../../intent/AGENTS.md` for the neutral builder contract.
 4. `../../../../scope_generation_intents.go` for root-owned assembly order.
-5. `docs/internal/design/1134-iam-can-assume-trust-graph.md` for the trust
+5. #1134 for the trust
    graph design and the node-before-edge readiness gate this intent
    participates in.
 

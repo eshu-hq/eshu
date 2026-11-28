@@ -132,7 +132,7 @@ The queue cycle is part of the commit marker so a reopened or rebuilt row
 re-commits rather than trusting a commit whose edges may be gone. The
 supersession proof is `TestReadinessWaitSurvivesSupersessionLive` in
 `internal/storage/postgres`. See
-`docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
+#6785.
 
 ## The #6923 value-flow-inputs fence
 

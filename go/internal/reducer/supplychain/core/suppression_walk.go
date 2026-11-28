@@ -16,7 +16,7 @@ import (
 // per generation) timed one pair at p50 143 ms with a 145 ms max over seven
 // rounds, so K=4 walks at most five statements in about 0.7 s, inside the 5 s
 // headroom the 10 s statement bound needs. See
-// docs/internal/design/10019-suppression-fanout.md.
+// #10019.
 const suppressionWalkMaxPairs = 4
 
 // suppressionWalkStep is one diff statement of a walk: the suppressions whose

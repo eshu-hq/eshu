@@ -133,7 +133,7 @@ carrying `response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name,
 and narrowing guidance. Per-route token budgets such as the relationship-story
 `token_budget` still apply first; this is the outer, tool-agnostic guard, the
 response-size sibling of the dispatch deadline guard. See the
-[response fallback decision](../../../docs/internal/design/7206-mcp-response-budget-fallback.md)
+response fallback decision (#7206)
 and [source_cache clip](../../../docs/public/reference/http-api/source-cache-clip.md).
 
 ## Tool groups

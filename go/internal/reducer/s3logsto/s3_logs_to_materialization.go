@@ -31,7 +31,7 @@ import (
 // S3LogsToEdgeWriter and FactLoader; registering it without them would silently
 // drop every intent. It mirrors iamcan.AssumeMaterializationDomainDefinition
 // (#1134 PR2). See issue #1144 PR2 and
-// docs/internal/design/1144-s3-logs-to-edge.md.
+// #1144.
 func MaterializationDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{
 		Domain:  reducercontract.DomainS3LogsToMaterialization,
@@ -78,7 +78,7 @@ type S3LogsToEdgeWriter interface {
 // batch to the edge writer. Cross-account, out-of-scope, and unscanned log
 // targets are counted and logged, never written and never dropped silently.
 //
-// See issue #1144 PR2 and docs/internal/design/1144-s3-logs-to-edge.md.
+// See issue #1144 PR2.
 type S3LogsToMaterializationHandler struct {
 	FactLoader factload.FactLoader
 	EdgeWriter S3LogsToEdgeWriter

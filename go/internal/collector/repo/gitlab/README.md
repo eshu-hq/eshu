@@ -1,7 +1,7 @@
 # gitlab
 
 Leaf client that lists one GitLab group's projects for the git collector's
-`gitlabGroup` source mode ([#7765](../../../docs/internal/design/7765-gitlab-group-discovery.md)).
+`gitlabGroup` source mode (#7765).
 Package `git` owns discovery, selection, and observation; this package only
 talks to the Groups API and classifies the result.
 

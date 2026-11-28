@@ -31,7 +31,7 @@ import (
 // ObservabilityCoverageEdgeWriter and FactLoader; registering it without them
 // would silently drop every intent. It mirrors
 // awsRelationshipMaterializationDomainDefinition (#805 PR2). See issue #391 PR3
-// and docs/internal/design/391-observability-coverage-correlation.md §6.
+// and #391 §6.
 func MaterializationDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{
 		Domain:  reducercontract.DomainObservabilityCoverageMaterialization,
@@ -92,7 +92,7 @@ type ObservabilityCoverageEdgeWriter interface {
 // silently.
 //
 // See issue #391 PR3 and
-// docs/internal/design/391-observability-coverage-correlation.md §6.
+// #391 §6.
 type ObservabilityCoverageMaterializationHandler struct {
 	FactLoader factload.FactLoader
 	EdgeWriter ObservabilityCoverageEdgeWriter

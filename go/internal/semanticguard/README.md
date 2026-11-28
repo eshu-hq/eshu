@@ -58,6 +58,6 @@ credential handles, and source identifiers must not become metric labels.
 
 ## Related docs
 
-- `docs/internal/design/1755-semantic-extraction-security-gates.md`
-- `docs/internal/design/1758-documentation-semantic-observations.md`
+- #1755
+- #1758
 - `docs/public/reference/telemetry/index.md`

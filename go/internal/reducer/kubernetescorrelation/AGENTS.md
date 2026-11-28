@@ -14,7 +14,7 @@ See `README.md` Purpose for the six-outcome contract and the PR1/PR3 split.
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/kubernetescorrelation/README.md`
-- `docs/internal/design/388-kubernetes-correlation-readmodel.md`
+- #388
 
 ## Invariants
 

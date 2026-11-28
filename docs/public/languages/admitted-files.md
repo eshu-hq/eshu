@@ -240,7 +240,7 @@ they are. A registry that binds no non-store policy keeps today's fingerprint.
 ### Which files use each policy
 
 Seven definitions bind a policy other than `store`. The first four are recorded
-in the [credential-file design record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8813-credential-file-exposure.md);
+in the credential-file design record (#8813);
 `runtime.txt` was added for Python runtime declarations (#9308), `php.ini` and
 its companions for PHP configuration evidence (#9304), and
 `project/build.properties` for sbt launcher pins (#9308). Each file has

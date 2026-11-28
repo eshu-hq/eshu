@@ -137,7 +137,7 @@ func BrowserSessionRouteDenialReason(
 //
 // This is not hosted multi-tenant graph isolation. Such deployments still
 // require handler-level scope predicates before enabling a shared graph across
-// tenants; see docs/internal/design/1902-tenant-workspace-isolation.md.
+// tenants; see #1902.
 func tenantBoundAllScopesBrowserSession(auth AuthContext) bool {
 	return auth.Mode == AuthModeBrowserSession && tenantBoundAllScopes(auth)
 }

@@ -85,6 +85,6 @@ browser-session layer.
 
 ## Related docs
 
-- `docs/internal/design/3452-user-management-identity-federation.md`
+- #3452
 - `docs/public/reference/http-api.md`
 - `docs/public/reference/authorization-catalog.md`

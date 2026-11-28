@@ -10,7 +10,7 @@ prove that reducer truth, graph truth, and the API/MCP readback all agree.
 For the route-level request and response reference, see
 [Evidence and supply-chain routes](../reference/http-api/evidence-and-supply-chain.md#admission-decisions).
 For the standardized payload contract, see the design gate
-[Correlation Admission Decision Payload](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/2693-correlation-admission-decision-payload.md).
+Correlation Admission Decision Payload (#2693).
 
 ## Decision explanations are not canonical graph edges
 
@@ -160,4 +160,4 @@ public-safe intent it proves.
 - [Evidence and supply-chain routes](../reference/http-api/evidence-and-supply-chain.md#admission-decisions)
 - [MCP Tool Contract Matrix](../reference/mcp-tool-contract-matrix.md)
 - [Freshness and Convergence](freshness-convergence.md)
-- [Correlation Admission Decision Payload (design gate)](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/2693-correlation-admission-decision-payload.md)
+- Correlation Admission Decision Payload (design gate) (#2693)

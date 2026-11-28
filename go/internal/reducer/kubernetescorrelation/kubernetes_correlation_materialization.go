@@ -31,7 +31,7 @@ import (
 // without them would silently drop every intent. It mirrors
 // awsRelationshipMaterializationDomainDefinition (#805 PR2) and
 // obscoverage.MaterializationDomainDefinition (#391 PR3). See issue #388
-// PR3 and docs/internal/design/388-kubernetes-correlation-readmodel.md.
+// PR3 and #388.
 func KubernetesCorrelationMaterializationDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{
 		Domain:  reducercontract.DomainKubernetesCorrelationMaterialization,
@@ -94,7 +94,7 @@ type KubernetesCorrelationEdgeWriter interface {
 // dropped silently and never written as a dangling edge.
 //
 // See issue #388 PR3 and
-// docs/internal/design/388-kubernetes-correlation-readmodel.md.
+// #388.
 type KubernetesCorrelationMaterializationHandler struct {
 	FactLoader factload.FactLoader
 	EdgeWriter KubernetesCorrelationEdgeWriter

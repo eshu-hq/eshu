@@ -189,11 +189,11 @@ git diff --check
 
 ## Related docs
 
-- `docs/internal/design/431-nornicdb-primary-store-evaluation.md`
-- `docs/internal/design/1286-postgres-ownership-inventory.md`
-- `docs/internal/design/1287-shadow-read-comparison-gate.md`
-- `docs/internal/design/1288-shadow-write-comparison-gate.md`
-- `docs/internal/design/1289-queue-substrate-evaluation-gate.md`
-- `docs/internal/design/1290-backup-restore-proof-gate.md`
+- #431
+- #1286
+- #1287
+- #1288
+- #1289
+- #1290
 - `docs/public/reference/truth-label-protocol.md`
 - `docs/public/reference/search-document-projection.md`

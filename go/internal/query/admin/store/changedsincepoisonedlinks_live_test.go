@@ -19,7 +19,7 @@ import (
 )
 
 // TestListChangedSincePoisonedLinksQueryPlanUsesPrimaryKeyAtScale is the
-// plan-shape proof for #7290 (#7290):
+// plan-shape proof for #7290:
 // seeds 5,000 ingestion_scopes/changed_since_scope_cursor rows, sparsely
 // poisoned and retrying (about 1.7% of rows), and proves the shipped query
 // (buildListChangedSincePoisonedLinksQuery itself, not a hand copy, per

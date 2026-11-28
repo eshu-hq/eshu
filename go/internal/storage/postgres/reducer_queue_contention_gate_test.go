@@ -22,7 +22,7 @@ import (
 // expiry, and the per-claim attempt counter. This gate keeps a small,
 // nondeterministic, real-Postgres contention check for exactly those
 // guarantees — it is the irreducible remainder the golden replay gate does not
-// subsume (documented in docs/internal/design/4102-deterministic-replay-framework.md §10).
+// subsume (documented in #4102 §10).
 //
 // What this gate asserts (all deterministic or convergent, so it is CI-safe):
 //   - no double-claim: distinct work items drained by concurrent workers are

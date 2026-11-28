@@ -23,7 +23,7 @@ import (
 // 'active', whether aws_resource_materialization committed CloudResource nodes
 // for it, and whether any generation is still 'pending'.
 //
-// Measured before landing (docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md
+// Measured before landing (#6785
 // §3.2): 105 000 scopes (85 000 AWS across 50 accounts x 17 regions x 100
 // services, plus 20 000 git) and 525 000 generations, Postgres 16, three runs
 // at 10.9-13.1 ms. The ingestion_scopes filter is a parallel seq scan

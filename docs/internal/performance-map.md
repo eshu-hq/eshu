@@ -78,7 +78,7 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
   queue/table/index diagnostics, autovacuum signals, and proof evidence for
   `storage/postgres`. Owning package: `go/internal/storage/postgres` (+ its
   `README.md`); design inventory:
-  `docs/internal/design/1286-postgres-ownership-inventory.md`.
+  #1286.
 - **Performance doctrine** → skill `eshu-performance-rigor`: theory-first proof,
   exactness/concurrency, built-binary and corpus ladder, remote preflight,
   comparable operator-local manifests, metric boundaries, and honest target

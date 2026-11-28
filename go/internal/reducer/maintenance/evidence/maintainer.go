@@ -11,7 +11,7 @@ import (
 )
 
 // Maintainer for the #3466 collector-readiness evidence summary read model. See
-// docs/internal/design/collector-readiness-evidence-summary-materialization-design.md.
+// the collector readiness evidence summary design.
 //
 // Correctness-first design choice (mirrors the #3389 winners maintainer): the
 // maintainer reconciles collector_evidence_summary with the current active fact

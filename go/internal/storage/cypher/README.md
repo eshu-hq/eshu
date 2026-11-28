@@ -245,7 +245,7 @@ backing index serves the lookup), so the upsert is a schema-backed uid lookup,
 not a label scan. The #388 edge slice (PR3) resolves its workload endpoint
 against these nodes exactly as the AWS relationship edge resolves against
 `CloudResource` nodes. Design and decision record:
-`docs/internal/design/388-kubernetes-workload-node.md`.
+#388.
 
 ## Extension points
 

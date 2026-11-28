@@ -3,7 +3,7 @@
 
 // Criteria-expansion parity shim for #11087 (acceptance criterion 2): the
 // differential the design record
-// (docs/internal/design/11087-criteria-expansion-bound.md) requires before
+// (#11087) requires before
 // production wiring. Oracle = Build over the full synthetic universe
 // envelopes (complete evidence, no loader); the bounded arm runs the
 // until-stable load through the production-shaped stub, then Build over the

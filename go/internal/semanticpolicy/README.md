@@ -75,6 +75,6 @@ handles.
 
 ## Related docs
 
-- `docs/internal/design/1758-documentation-semantic-observations.md`
+- #1758
 - `docs/public/reference/environment-runtime-storage.md`
 - `docs/public/reference/telemetry/index.md`

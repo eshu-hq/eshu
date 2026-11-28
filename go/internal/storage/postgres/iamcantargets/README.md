@@ -45,4 +45,4 @@ The store registers no metric. The CAN_PERFORM handler reports every lookup outc
 ## Related
 
 - `go/internal/reducer/iamcan` (the consumer)
-- `docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`
+- #6785

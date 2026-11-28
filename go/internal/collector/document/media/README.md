@@ -353,7 +353,7 @@ Known limits:
 
 ## Related docs
 
-- `docs/internal/design/1737-visual-media-documentation-ingestion.md`
+- #1737
 - `docs/public/reference/incident-media-evidence.md`
 - `go/internal/collector/preflight/media/README.md`
 - `docs/public/reference/local-testing.md`

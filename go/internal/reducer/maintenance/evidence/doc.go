@@ -11,5 +11,5 @@
 // cadence regardless of replica count. The lease is always released before
 // RunOnce returns, so a crashed instance never blocks takeover beyond the
 // lease TTL. See
-// docs/internal/design/collector-readiness-evidence-summary-materialization-design.md.
+// the collector readiness evidence summary design.
 package evidence

@@ -6,7 +6,7 @@
 governance-audit store. It exists specifically for the F-9 (#5170) allowed-read
 audit emission: adding a synchronous Postgres round trip to every successful
 MCP read would couple read latency to Postgres health (see
-`docs/internal/design/1900-hosted-governance-policy-model.md` and the F-9
+#1900 and the F-9
 design addendum). `AsyncAppender` buffers events in a bounded channel and
 flushes them from one background worker, trading a bounded, observable amount
 of best-effort data loss for a sub-microsecond enqueue cost on the caller's
@@ -113,5 +113,5 @@ assert on).
 
 ## Related docs
 
-- `docs/internal/design/1900-hosted-governance-policy-model.md`
+- #1900
 - `go/internal/governanceaudit/README.md`

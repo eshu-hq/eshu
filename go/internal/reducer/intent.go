@@ -223,7 +223,7 @@ const (
 	// USES_PROFILE edge slice (#1146 PR-B) gates on instance-node readiness
 	// independently of the aws_resource node phase, exactly like the security-group
 	// reachability edge gates on multiple node phases (#1135). See issue #1146 and
-	// docs/internal/design/1146-ec2-instance-node.md.
+	// #1146.
 	DomainEC2InstanceNodeMaterialization = reducercontract.DomainEC2InstanceNodeMaterialization
 	// DomainAWSRelationshipMaterialization projects aws_relationship facts into
 	// canonical AWS relationship edges between the CloudResource nodes that
@@ -295,7 +295,7 @@ const (
 	// GraphProjectionKeyspaceKubernetesWorkloadUID /
 	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so the later edge
 	// slice gates exactly like DomainAWSRelationshipMaterialization (#805). See
-	// issue #388 and docs/internal/design/388-kubernetes-correlation-readmodel.md.
+	// issue #388.
 	DomainKubernetesWorkloadMaterialization = reducercontract.DomainKubernetesWorkloadMaterialization
 	// DomainKubernetesCorrelationMaterialization projects the exact-outcome live
 	// Kubernetes correlation decisions into canonical RUNS_IMAGE edges between a
@@ -311,7 +311,7 @@ const (
 	// outcomes — and the structural owner_reference identity decision, which is a
 	// workload->workload edge rather than a workload->image edge — stay
 	// provenance-only and fabricate no edge. See issue #388 and
-	// docs/internal/design/388-kubernetes-correlation-readmodel.md.
+	// #388.
 	DomainKubernetesCorrelationMaterialization = reducercontract.DomainKubernetesCorrelationMaterialization
 	// DomainKubernetesNamespaceMaterialization materializes
 	// kubernetes_live.namespace facts into canonical KubernetesNamespace graph

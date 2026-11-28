@@ -113,4 +113,4 @@ and `go vet` clean.
 - [Projector architecture](../../../../README.md)
 - [Intent contract](../../../../intent/README.md)
 - [IAM CAN_ASSUME projector intents](../trust/README.md)
-- [IAM CAN_PERFORM design](../../../../../../../docs/internal/design/1134-iam-can-perform.md)
+- IAM CAN_PERFORM design (#1134)

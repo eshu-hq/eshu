@@ -70,7 +70,7 @@ operator-facing signals described in the telemetry docs.
 
 ## Related docs
 
-- `docs/internal/design/2578-ann-vector-index-production-hybrid-search-contract.md`
+- #2578
 - `docs/public/reference/search-retrieval-contract.md`
 - `docs/public/reference/semantic-hybrid-search-admission.md`
 - `go/internal/storage/postgres/README.md`

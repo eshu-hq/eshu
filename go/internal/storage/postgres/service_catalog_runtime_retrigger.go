@@ -69,7 +69,7 @@ const (
 // fact_work_items_scope_generation_idx; the in-flight lookup reads only
 // fact_work_items_stage_domain_status_idx and the active-generation join, so
 // it touches at most the rows running concurrently with the ACK. See
-// docs/internal/design/8169-service-catalog-runtime-retrigger.md for the plan
+// #8169 for the plan
 // and pgbench evidence.
 const serviceCatalogRuntimeRetriggerCTEs = `, retrigger_repository AS MATERIALIZED (
     SELECT DISTINCT substr(acknowledged.scope_id, ` + "length('" + scope.GitRepositoryScopePrefix + "')" + ` + 1) AS repository_id

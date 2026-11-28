@@ -12,7 +12,7 @@ package owns versus the producer handlers and ACK SQL.
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/value/affected/README.md`
-- `docs/internal/design/6785-value-flow-cloud-sink-refresh.md`
+- #6785
 
 ## Invariants
 

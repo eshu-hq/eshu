@@ -81,7 +81,7 @@ Key metrics (all prefixed `eshu_dp_`):
   uses) so edges never resolve against uncommitted nodes. Derived, ambiguous,
   unresolved, stale, and rejected coverage stays provenance-only in the read
   model and fabricates no edge. See issue #391 and
-  `docs/internal/design/391-observability-coverage-correlation.md` §6/§12.
+  #391 §6/§12.
 - `incident_routing_evidence_total` — PagerDuty incident-routing graph evidence
   outcomes by reducer domain, bounded outcome, source class, and slot kind.
   The `DomainIncidentRoutingMaterialization` domain writes exact
@@ -105,7 +105,7 @@ Key metrics (all prefixed `eshu_dp_`):
   `skip_reason`: `missing_identity` / `tombstone`), and logs an `ec2 instance node
   materialization completed` structured log with per-stage durations, node count,
   and the skip tally. See issue #1146 PR-A and
-  `docs/internal/design/1146-ec2-instance-node.md`.
+  #1146.
 - `kubernetes_workload_nodes_total` — canonical `KubernetesWorkload` graph nodes
   committed by `DomainKubernetesWorkloadMaterialization`, dimensioned by `domain`.
   The handler also publishes the `kubernetes_workload_uid` /
@@ -113,7 +113,7 @@ Key metrics (all prefixed `eshu_dp_`):
   (or is a legitimate no-op for an empty generation), and emits a `kubernetes
   workload materialization completed` structured log with per-stage durations and
   the node count. See issue #388 and
-  `docs/internal/design/388-kubernetes-workload-node.md`.
+  #388.
 - `DomainKubernetesNamespaceMaterialization` emits NO new metric instrument
   (issue #5434). A malformed `kubernetes_live.namespace` fact still increments
   the existing `instruments.ReducerInputInvalidFacts` counter (new

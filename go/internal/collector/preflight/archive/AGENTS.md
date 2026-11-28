@@ -5,7 +5,7 @@
 1. `go/internal/collector/preflight/archive/README.md`
 2. `go/internal/collector/preflight/archive/doc.go`
 3. `go/internal/collector/preflight/archive/preflight.go`
-4. `docs/internal/design/1738-office-spreadsheet-deck-archive-ingestion.md`
+4. #1738
 5. `go/internal/collector/README.md`
 
 ## Invariants

@@ -28,7 +28,7 @@ func normalizeCriteriaValue(value string) string {
 // keeps the prior unbounded semantics, which is also the one-line rollback.
 // The struct carries no options: its presence is the switch, so the bound is
 // never reinterpreted through a knob. The ruled design is
-// docs/internal/design/11087-criteria-expansion-bound.md.
+// #11087.
 type SupplyChainImpactCriteriaExpansionBound struct{}
 
 // supplyChainImpactCriteriaBoundOutcome is the per-pass telemetry of the

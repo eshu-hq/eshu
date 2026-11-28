@@ -15,7 +15,7 @@ COPY --from=xx /usr/bin/xx-* /usr/bin/
 ARG TARGETPLATFORM
 ARG ESHU_VERSION=dev
 # SOURCE_DATE_EPOCH feeds the cgo toolchain (clang/lld) for reproducible
-# builds (docs/internal/design/build-reproducibility.md §3.2). It is a plain
+# builds. It is a plain
 # ARG, never an unconditional ENV: BuildKit injects a *provided* ARG into this
 # stage's RUN environment automatically, while `ENV SOURCE_DATE_EPOCH=${...}`
 # materializes an EMPTY string when the arg is not passed (any local
