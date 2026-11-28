@@ -14,8 +14,9 @@ observations into an evidence-backed graph. This page explains which runtime
 owns each stage and where correctness boundaries sit.
 
 Start with [Understand Eshu](understand/index.md) for the shorter concept path.
-Use [Service runtimes](deployment/service-runtimes.md) for commands, ports, and
-deployment shapes.
+Use [Flow Atlas](concepts/flows/index.md) for every end-to-end diagram,
+[Deploy Eshu](deployment/index.md) for deployment topologies and service
+ownership, and [Decisions](decisions/index.md) for architecture decision records.
 
 ## Follow the facts-first model
 
@@ -38,7 +39,7 @@ flowchart LR
   Intake["Ingester, webhook listener, and hosted collectors"]
   Pg[("Postgres\nfacts, queues, status, content")]
   Reducer["Resolution engine"]
-  Graph[("Graph backend\nNornicDB or Neo4j")]
+  Graph[("Graph backend\nNeo4j primary (NornicDB local)")]
   API["HTTP API"]
   MCP["MCP server"]
   CLI["CLI"]
@@ -115,11 +116,16 @@ Query handlers depend on capability ports rather than database drivers.
 `GraphQuery` serves read-only traversal, `ContentStore` serves relational reads,
 and graph writes use the backend-neutral Cypher storage layer.
 
-`ESHU_GRAPH_BACKEND` selects the backend. An empty value defaults to NornicDB;
-an invalid value fails startup. Neo4j is supported when it passes the shared
-Cypher, Bolt, and conformance contract. Backend-specific DDL, runtime settings,
-retry classification, and measured adapter differences stay in narrow seams;
-handler and reducer logic do not branch on graph brand.
+**Neo4j** is the supported canonical graph backend for shared deployments,
+correctness proofs, and performance budgets. **NornicDB** remains available as a
+secondary local/embedded backend (for example via `eshu graph start`) and is not
+supported for production deployment.
+
+`ESHU_GRAPH_BACKEND` selects the active adapter (`neo4j` or `nornicdb`; an empty
+value falls back to the local default, and an invalid value fails startup).
+Backend-specific DDL, runtime settings, retry classification, and adapter
+differences stay inside narrow storage seams so query handlers and reducer
+domains never branch on graph brand.
 
 The same contracts run locally and in deployed Kubernetes services. A profile
 that lacks graph-authoritative data refuses graph-authoritative questions
@@ -129,6 +135,8 @@ instead of returning a lower-authority answer without saying so.
 
 | Concern | Authoritative page |
 | --- | --- |
+| End-to-end diagrams and flows | [Flow Atlas](concepts/flows/index.md) |
+| Deployment topologies and runtimes | [Deploy Eshu](deployment/index.md) and [Service Runtimes](deployment/service-runtimes.md) |
 | Service workflows and operator checkpoints | [Service workflows](reference/service-workflows.md) |
 | Status, readiness, and failure surfaces | [Runtime admin API](reference/runtime-admin-api.md) |
 | Metrics, traces, logs, and correlation | [Telemetry](reference/telemetry/index.md) |

@@ -149,23 +149,19 @@ data again in `structuredContent` — the payload is on the wire twice.
 `structured` sends it once: the summary plus `structuredContent`, with no
 embedded resource.
 
-Wire bytes measured on the repo fixtures, the same payload rendered through the
-production `callTool` path in each shape
-(`go/internal/mcp/result_shape_render_test.go`, same `list_indexed_repositories` payload):
+Wire bytes measured on the same `list_indexed_repositories` response rendered
+in each shape:
 
 | Payload | `dual` | `structured` | Ratio |
 | --- | --- | --- | --- |
 | Canonical envelope | 754 B | 344 B | 0.46x |
 | Plain JSON payload | 233 B | 100 B | 0.43x |
 
-The equality behind those numbers is asserted, not assumed:
-`TestStructuredShapeSuccessSendsOneTextAndStructuredContent` proves the
-structured copy is byte-identical to the envelope the dual shape embeds, and
-`TestDualShapeIsByteForByteUnchanged` pins dual to
-`go/internal/mcp/testdata/result_shape_dual_success.json`. These are serialized wire
-bytes, not model-context token counts; the token re-measurement is still
-pending. See [MCP Result Shape](../reference/mcp-reference.md#mcp-result-shape)
-for the full contract.
+`structured` carries the exact same JSON envelope as `dual` without repeating it
+as an embedded resource. These figures measure serialized wire bytes rather than
+model-specific token counts. See
+[MCP Result Shape](../reference/mcp-reference.md#mcp-result-shape) for the full
+contract.
 
 ### Opting in
 
@@ -203,13 +199,10 @@ resource fits, the server drops `structuredContent` and returns the resource
 only; `structured` needs no such fallback because its single copy already is
 the whole result.
 
-The default stays `dual` because a client that reads the embedded resource
-instead of `structuredContent` sees strictly less under `structured` (text
-summaries are identical across shapes). Flipping any platform default needs
-the per-client transcript
-matrix recorded in [#10610](https://github.com/eshu-hq/eshu/issues/10610).
-Budget metrics carry a shape label, so adoption and per-shape over-budget rates
-are observable without new instrumentation.
+The default stays `dual` because clients that read the embedded resource instead
+of `structuredContent` see strictly less under `structured` (text summaries are
+identical across shapes). Budget metrics carry a `shape` label so operators can
+track adoption and over-budget rates per shape.
 
 ## Ask a first question
 

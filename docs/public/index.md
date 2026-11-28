@@ -69,18 +69,18 @@ at every hop.
 <p><strong>Deploying Eshu</strong></p>
 <p>Move from a local run to a shared Kubernetes service.</p>
 <ul>
-<li><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/index.md">Deployment options</a></li>
-<li><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-quickstart.md">Helm quickstart</a></li>
-<li><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/manifests.md">Kubernetes manifests</a></li>
+<li><a href="deployment/">Deployment overview</a></li>
+<li><a href="concepts/flows/deployment-topology/">Deployment topology diagram</a></li>
+<li><a href="https://github.com/eshu-hq/eshu-deploy/blob/main/docs/kubernetes/helm-quickstart.md">Helm quickstart (eshu-deploy)</a></li>
 </ul>
 </li>
 <li>
 <p><strong>Operating Eshu</strong></p>
 <p>Check health, watch freshness, tune slow paths, and troubleshoot stale answers.</p>
 <ul>
+<li><a href="operate/troubleshooting/">Troubleshooting and support</a></li>
 <li><a href="operate/health-checks/">Monitor health</a></li>
-<li><a href="operate/freshness-convergence/">Manage data and indexes</a></li>
-<li><a href="operate/troubleshooting/">Troubleshoot issues</a></li>
+<li><a href="concepts/flows/">Diagrams and Flow Atlas</a></li>
 </ul>
 </li>
 </ul>

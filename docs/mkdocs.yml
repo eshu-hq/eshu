@@ -94,8 +94,10 @@ nav:
       - Cloud Collectors: concepts/flows/cloud-collectors.md
       - Projector: concepts/flows/projector.md
       - Reducer Queues: concepts/flows/reducer-queues.md
+      - Cross-Source Correlations: concepts/flows/correlations.md
       - Supply-Chain Impact: concepts/flows/supply-chain-impact.md
       - Read Path: concepts/flows/read-path.md
+      - Deployment Topology: concepts/flows/deployment-topology.md
     - Why Eshu: why-eshu.md
     - Use Cases: use-cases.md
     - Testing & Conformance:
@@ -478,17 +480,36 @@ nav:
       - Kustomize: languages/kustomize.md
       - Terraform: languages/terraform.md
       - Terragrunt: languages/terragrunt.md
+  - Deployment:
+    - Overview: deployment/index.md
+    - Service Runtimes:
+      - Overview: deployment/service-runtimes.md
+      - Core Services: deployment/service-runtimes-core.md
+      - Collector Services: deployment/service-runtimes-collectors.md
+      - Bootstrap Services: deployment/service-runtimes-bootstrap.md
+    - Postgres Read Routing: deployment/postgres-read-routing.md
+    - Hosted Project Onboarding: deployment/hosted-onboarding.md
+    - Credential File Cleanup: deployment/credential-file-cleanup.md
+    - Deploy and Compose Assets (eshu-deploy repo): https://github.com/eshu-hq/eshu-deploy
   - Operate:
     - Overview: operate/index.md
+    - Troubleshooting: operate/troubleshooting.md
     - Health Checks: operate/health-checks.md
+    - Telemetry: operate/telemetry.md
+    - Freshness and Convergence: operate/freshness-convergence.md
+    - Tuning Playbook: operate/tuning-playbook.md
+    - "3 AM Operator Runbook": operate/3am-operator-runbook.md
+    - Stuck Reducer Queue Runbook: operate/stuck-reducer-queue-runbook.md
+    - Hosted Operations Runbook: operate/hosted-operations-runbook.md
+    - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
+    - Correlation Admission Decisions: operate/correlation-admission-decisions.md
     - MCP OAuth 2.1 Discovery: operate/mcp-oauth-discovery.md
     - MCP Client Authentication: operate/mcp-client-auth.md
     - SAML Library Advisory: operate/saml-library-advisory.md
-    - Telemetry: operate/telemetry.md
-    - Freshness and Convergence: operate/freshness-convergence.md
-    - Correlation Admission Decisions: operate/correlation-admission-decisions.md
-    - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
-    - Tuning Playbook: operate/tuning-playbook.md
+    - Hosted Governance Posture: operate/hosted-governance.md
+    - User Management Runbook: operate/user-management-runbook.md
+    - Hosted Security Posture Gate: operate/hosted-security-posture.md
+    - Hosted Extension Policy: operate/hosted-extension-policy.md
     - Rebuild the Graph From Facts: operate/graph-rebuild-from-facts.md
     - Timed Graph Rebuild on QA: operate/graph-rebuild-qa-timed.md
     - Workload Identity Cutover: operate/workload-identity-cutover-runbook.md
@@ -499,27 +520,10 @@ nav:
     - Collector Cutover Truth Checks: operate/collector-cutover-truth-checks.md
     - QA Drill Window: operate/qa-drill-window.md
     - Delta-Base Union: operate/graph-delta-union.md
-    - Troubleshooting: operate/troubleshooting.md
     - Park-Holder Runbook: operate/park-holder-runbook.md
     - Vulnerability Source Held Stale: operate/vulnerability-source-held-stale.md
     - NVD Feed Transport Govern and Trip: operate/nvd-feed-transport.md
-    - "3 AM Operator Runbook": operate/3am-operator-runbook.md
-    - Stuck Reducer Queue Runbook: operate/stuck-reducer-queue-runbook.md
     - Go Reachability Operator Plan: operate/go-reachability-operator-plan.md
-    - Hosted Operations Runbook: operate/hosted-operations-runbook.md
-    - Hosted Project Onboarding: deployment/hosted-onboarding.md
-    - Hosted Governance Posture: operate/hosted-governance.md
-    - User Management Runbook: operate/user-management-runbook.md
-    - Hosted Security Posture Gate: operate/hosted-security-posture.md
-    - Hosted Extension Policy: operate/hosted-extension-policy.md
-    - Deploy and Compose Assets (eshu-deploy repo): https://github.com/eshu-hq/eshu-deploy
-    - Service Runtimes:
-      - Overview: deployment/service-runtimes.md
-      - Core Services: deployment/service-runtimes-core.md
-      - Collector Services: deployment/service-runtimes-collectors.md
-      - Bootstrap Services: deployment/service-runtimes-bootstrap.md
-    - Credential File Cleanup: deployment/credential-file-cleanup.md
-    - Postgres Read Routing: deployment/postgres-read-routing.md
   - Project:
     - Extend Eshu:
       - Overview: extend/index.md
