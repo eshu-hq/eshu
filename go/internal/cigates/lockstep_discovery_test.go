@@ -4,9 +4,13 @@
 package cigates
 
 import (
+	"fmt"
 	"io/fs"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,6 +53,99 @@ func dsScan(t *testing.T, root, goRoot string) (map[string]bool, map[string]bool
 	return read, probe, unresolved
 }
 
+// dsGitUniverse builds the doc basename index and the Go file list from a
+// single `git ls-files --cached` snapshot when root lives inside a git work
+// tree, reporting gitRoot=false for scratch roots (such as t.TempDir
+// fixtures) so the caller falls back to the filesystem walk. Tracked-only is
+// the correctness property behind the lockstep guards: the manifest and the
+// CI path classification only ever see committed files, so untracked scratch
+// copies, ignored kit materializations, and nested checkout roots must not
+// move any verdict (#11634).
+//
+// The snapshot keeps doc-set suffixes for the basename index, skipping
+// entries missing from disk so a deleted-but-unstaged file cannot
+// phantom-poison basename uniqueness, and Go files under goRoot, skipping
+// entries missing from disk for the same reason. When root is a git work tree
+// but the snapshot fails or lists no Go files, dsGitUniverse returns an
+// error: silently scanning an empty or unreadable tree would disable every
+// guard this package exists to enforce.
+// dsGitUniverse takes skipGo to keep the scanner's own allowlist data file
+// (lockstep_paths_test.go, which names every entry by construction) out of
+// the file list, mirroring the filesystem walk it replaces. It also returns
+// the tracked set: every index entry root-relative, the universe every
+// existence check below must consult instead of the bare disk. The set mirrors the index exactly (no
+// existence filter): the index is what CI checks out, so index membership is
+// the committable-input truth even for entries missing from this disk.
+func dsGitUniverse(root, goRoot string, skipGo func(string) bool) (baseIndex map[string][]string, goFiles []string, tracked map[string]bool, gitRoot bool, err error) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("resolve scan root %q: %w", root, err)
+	}
+	absGoRoot, err := filepath.Abs(goRoot)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("resolve go root %q: %w", goRoot, err)
+	}
+	run := func(args ...string) (string, error) {
+		out, err := exec.Command("git", append([]string{"-C", absRoot}, args...)...).CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		}
+		return string(out), nil
+	}
+	inside := true
+	if out, err := run("rev-parse", "--is-inside-work-tree"); err != nil || strings.TrimSpace(out) != "true" {
+		inside = false
+	}
+	if _, statErr := os.Lstat(filepath.Join(absRoot, ".git")); statErr != nil && !inside {
+		return nil, nil, nil, false, nil
+	}
+	if !inside {
+		return nil, nil, nil, false, fmt.Errorf("scan root %q has a .git entry but is not inside a git work tree", root)
+	}
+	// Without --full-name, ls-files prints paths relative to the -C
+	// directory, so joining with root stays correct even when root is a
+	// subdirectory of the work tree or reached through a symlink.
+	raw, err := run("ls-files", "--cached", "-z")
+	if err != nil {
+		return nil, nil, nil, false, err
+	}
+	baseIndex = map[string][]string{}
+	tracked = map[string]bool{}
+	for _, f := range strings.Split(raw, "\x00") {
+		if f == "" {
+			continue
+		}
+		full := filepath.Join(absRoot, filepath.FromSlash(f))
+		rel := filepath.ToSlash(f)
+		tracked[rel] = true
+		switch {
+		case strings.HasSuffix(f, ".md") || strings.HasSuffix(f, ".json") || strings.HasSuffix(f, ".mdc"):
+			if st, err := os.Stat(full); err != nil || st.IsDir() {
+				continue
+			}
+			baseIndex[filepath.Base(f)] = append(baseIndex[filepath.Base(f)], rel)
+		case strings.HasSuffix(f, ".go"):
+			goRel, err := filepath.Rel(absGoRoot, full)
+			if err != nil || goRel == ".." || strings.HasPrefix(goRel, ".."+string(filepath.Separator)) {
+				continue
+			}
+			cand := filepath.Join(goRoot, goRel)
+			if skipGo != nil && skipGo(cand) {
+				continue
+			}
+			if st, err := os.Stat(full); err != nil || st.IsDir() {
+				continue
+			}
+			goFiles = append(goFiles, cand)
+		}
+	}
+	if len(goFiles) == 0 {
+		return nil, nil, nil, false, fmt.Errorf("tracked snapshot for %q lists no Go files under %q", root, goRoot)
+	}
+	sort.Strings(goFiles)
+	return baseIndex, goFiles, tracked, true, nil
+}
+
 func dsScanErr(root, goRoot string) (map[string]bool, map[string]bool, []string, error) {
 	read := map[string]bool{}
 	probe := map[string]bool{}
@@ -70,38 +167,58 @@ func dsScanErr(root, goRoot string) (map[string]bool, map[string]bool, []string,
 		}
 	}
 	baseIndex := map[string][]string{}
-	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			switch d.Name() {
-			case ".git", "node_modules", ".venv", "vendor":
-				return filepath.SkipDir
+	var goFiles []string
+	// tracked is nil outside a git work tree: scratch roots keep the legacy
+	// disk behavior, and every existence check below treats a nil universe
+	// as no constraint.
+	var tracked map[string]bool
+	if indexed, files, universe, gitRoot, err := dsGitUniverse(root, goRoot, dsAllowlistData); err != nil {
+		return nil, nil, nil, err
+	} else if gitRoot {
+		baseIndex, goFiles, tracked = indexed, files, universe
+	} else {
+		cleanRoot := filepath.Clean(root)
+		_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				switch d.Name() {
+				case ".git", "node_modules", ".venv", "vendor":
+					return filepath.SkipDir
+				}
+				// A directory carrying its own .git entry is a nested
+				// checkout root (a linked worktree or submodule), not part
+				// of this tree; descending into it lets another checkout's
+				// files poison basename uniqueness.
+				if filepath.Clean(p) != cleanRoot {
+					if _, err := os.Lstat(filepath.Join(p, ".git")); err == nil {
+						return filepath.SkipDir
+					}
+				}
+				return nil
+			}
+			if strings.HasSuffix(p, ".md") || strings.HasSuffix(p, ".json") || strings.HasSuffix(p, ".mdc") {
+				rel, _ := filepath.Rel(root, p)
+				rel = filepath.ToSlash(rel)
+				base := filepath.Base(p)
+				baseIndex[base] = append(baseIndex[base], rel)
 			}
 			return nil
-		}
-		if strings.HasSuffix(p, ".md") || strings.HasSuffix(p, ".json") || strings.HasSuffix(p, ".mdc") {
-			rel, _ := filepath.Rel(root, p)
-			rel = filepath.ToSlash(rel)
-			base := filepath.Base(p)
-			baseIndex[base] = append(baseIndex[base], rel)
-		}
-		return nil
-	})
-	var goFiles []string
-	walkErr := filepath.WalkDir(goRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || dsAllowlistData(path) {
+		})
+		walkErr := filepath.WalkDir(goRoot, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || dsAllowlistData(path) {
+				return nil
+			}
+			goFiles = append(goFiles, path)
 			return nil
+		})
+		if walkErr != nil {
+			return nil, nil, nil, walkErr
 		}
-		goFiles = append(goFiles, path)
-		return nil
-	})
-	if walkErr != nil {
-		return nil, nil, nil, walkErr
 	}
 
 	results := make([]dsFileScanResult, len(goFiles))
@@ -117,7 +234,7 @@ func dsScanErr(root, goRoot string) (map[string]bool, map[string]bool, []string,
 				if i >= len(goFiles) {
 					return
 				}
-				results[i] = dsScanOneFile(root, goFiles[i], baseIndex)
+				results[i] = dsScanOneFile(root, goFiles[i], baseIndex, tracked)
 			}
 		}()
 	}

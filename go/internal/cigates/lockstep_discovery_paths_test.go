@@ -194,10 +194,14 @@ type dsJoinSite struct {
 // count as inputs even when they sit in tables, everything else is a probe.
 // Bare names fall back to the repo root, which is harmless for probes: a
 // probe never forces a test run, while a filedir guess would pin the wrong
-// package README for every glob vector and fixture name.
-func dsMarkNamed(root, path, raw string, mark func(string, string)) bool {
-	rel := dsResolve(root, path, raw, false)
-	if rel == "" && !strings.Contains(raw, "/") {
+// package README for every glob vector and fixture name. The fallback
+// consults the tracked basename universe rather than the bare disk, so an
+// on-disk-only copy at the root (untracked scratch or ignored
+// materialization) names nothing committable and cannot move any verdict
+// (#11634).
+func dsMarkNamed(root, path, raw string, tracked map[string]bool, mark func(string, string)) bool {
+	rel := dsResolve(root, path, raw, false, tracked)
+	if rel == "" && !strings.Contains(raw, "/") && tracked != nil && tracked[raw] {
 		if st, err := os.Stat(filepath.Join(root, raw)); err == nil && !st.IsDir() {
 			rel = dsExactRel(root, filepath.Join(root, raw))
 		}
@@ -217,8 +221,14 @@ func dsMarkNamed(root, path, raw string, mark func(string, string)) bool {
 // paths try the repo root first, then the referring file's directory.
 // Bare filenames resolve only through the file's own directory when
 // fileDirOK holds; otherwise they are caller-relative guesses and the caller
-// must route them to the R7 triage list instead.
-func dsResolve(root, file, raw string, fileDirOK bool) string {
+// must route them to the R7 triage list instead. When tracked is non-nil (a
+// git checkout), in-root candidates resolve only for index members: an
+// on-disk-only copy (untracked scratch or ignored materialization) names
+// nothing committable and must not pin a read or a probe (#11634). A nil
+// universe keeps the legacy disk behavior for scratch roots. Outside-root
+// candidates keep the legacy behavior in both modes: they can never name a
+// manifest entry.
+func dsResolve(root, file, raw string, fileDirOK bool, tracked map[string]bool) string {
 	var cands []string
 	if strings.Contains(raw, "/") {
 		cands = []string{filepath.Join(root, raw), filepath.Join(filepath.Dir(file), raw)}
@@ -229,7 +239,9 @@ func dsResolve(root, file, raw string, fileDirOK bool) string {
 		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
 			// A case alias is not a match; a later candidate may still be exact.
 			if rel := dsExactRel(root, cand); rel != "" {
-				return rel
+				if tracked == nil || rel == ".." || strings.HasPrefix(rel, "../") || tracked[rel] {
+					return rel
+				}
 			}
 		}
 	}
@@ -260,13 +272,16 @@ func dsChainBases(root, file string, chain []string, literalFirst bool) []string
 }
 
 // dsChainResolve resolves a filepath.Join trailing literal chain to a file.
-// Callers exclude TempDir lines entirely.
-func dsChainResolve(root, file string, chain []string, literalFirst bool) string {
+// Callers exclude TempDir lines entirely. The tracked universe gates
+// in-root candidates exactly as in dsResolve (#11634).
+func dsChainResolve(root, file string, chain []string, literalFirst bool, tracked map[string]bool) string {
 	for _, base := range dsChainBases(root, file, chain, literalFirst) {
 		cand := filepath.Join(append([]string{base}, chain...)...)
 		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
 			if rel := dsExactRel(root, cand); rel != "" {
-				return rel
+				if tracked == nil || rel == ".." || strings.HasPrefix(rel, "../") || tracked[rel] {
+					return rel
+				}
 			}
 		}
 	}
@@ -276,13 +291,19 @@ func dsChainResolve(root, file string, chain []string, literalFirst bool) string
 // dsChainDir resolves a Join trailing chain to a directory, for classifying
 // the tree a dynamically-named read targets. A chain that lands outside the
 // docs-set trees (testdata, tests, specs fixtures) needs no R7: no docs-set
-// input can hide under a code-tree directory.
-func dsChainDir(root, file string, chain []string, literalFirst bool) string {
+// input can hide under a code-tree directory. In a git checkout the
+// directory must hold a tracked file: an untracked directory must neither
+// classify a read nor suppress its fail-closed R7 (#11634). A nil universe
+// keeps the legacy disk behavior for scratch roots.
+func dsChainDir(root, file string, chain []string, literalFirst bool, tracked map[string]bool) string {
 	for _, base := range dsChainBases(root, file, chain, literalFirst) {
 		cand := filepath.Join(append([]string{base}, chain...)...)
 		if st, err := os.Stat(cand); err == nil && st.IsDir() {
 			rel := dsExactRel(root, cand)
 			if rel == "" {
+				continue
+			}
+			if tracked != nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, "../") && !dsTrackedUnder(tracked, rel) {
 				continue
 			}
 			if strings.HasPrefix(rel, "docs/") || strings.HasPrefix(rel, ".agents/") || strings.HasPrefix(rel, "skill-fragments/") || strings.HasPrefix(rel, "expected/") {
@@ -292,6 +313,19 @@ func dsChainDir(root, file string, chain []string, literalFirst bool) string {
 		}
 	}
 	return ""
+}
+
+// dsTrackedUnder reports whether the tracked universe holds a file at or
+// under the root-relative directory rel.
+func dsTrackedUnder(tracked map[string]bool, rel string) bool {
+	rel = filepath.ToSlash(rel)
+	prefix := strings.TrimSuffix(rel, "/") + "/"
+	for k := range tracked {
+		if k == rel || strings.HasPrefix(k, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // dsCallText joins a call's continued lines (up to 19 more) so chains and
@@ -314,8 +348,8 @@ func dsCallText(lines []string, idx int) string {
 // the root then the file directory, bare names against the file directory
 // then by unique repo-wide basename. Constants name repo files; unlike reads
 // they are not CWD-relative, so a unique basename is a sound fallback.
-func dsDefResolve(root, file, raw string, baseIndex map[string][]string) string {
-	if rel := dsResolve(root, file, raw, true); rel != "" {
+func dsDefResolve(root, file, raw string, baseIndex map[string][]string, tracked map[string]bool) string {
+	if rel := dsResolve(root, file, raw, true, tracked); rel != "" {
 		return rel
 	}
 	if !strings.Contains(raw, "/") {
