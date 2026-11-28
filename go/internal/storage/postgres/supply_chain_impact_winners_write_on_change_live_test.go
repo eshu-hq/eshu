@@ -26,11 +26,15 @@ const (
 
 // winnersLiveFinding is the payload of one impact finding fact. Two facts with
 // the same cve, package, repository and impact status share a canonical key.
+// It carries subject_digest like the production writer always does (possibly
+// empty): the shipped identifier probe equates the payload field to the
+// identifier component, so a seed without the key reads NULL and never
+// matches its own identifier on the fact_records probe.
 func winnersLiveFinding(cve, pkg string, priority int, extra map[string]any) map[string]any {
 	payload := map[string]any{
 		"finding_id": "finding:" + cve + ":" + pkg, "cve_id": cve, "package_id": pkg,
 		"impact_status": "affected_exact", "repository_id": "repo-9774", "ecosystem": "npm",
-		"priority_score": priority, "observed_version": "1.0.0",
+		"priority_score": priority, "observed_version": "1.0.0", "subject_digest": "",
 		"service_ids": []string{"svc-a"}, "workload_ids": []string{"wl-a"}, "environments": []string{"prod"},
 	}
 	for k, v := range extra {
