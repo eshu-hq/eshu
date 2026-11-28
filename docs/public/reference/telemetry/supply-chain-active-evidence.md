@@ -217,6 +217,43 @@ written even when zero so bound-on and bound-off passes stay comparable:
 - `criteria_bound_seed_criteria` — seed-CVE criteria on the component-only arm.
 - `criteria_bound_seed_cves` — seed CVE count after alias/upstream closure.
 
+## Package expansion bound
+
+Following a package identifier from a vulnerability advisory to every other
+advisory that names that package causes each impact pass to store copies of
+findings belonging to other scopes and amplifies holder fan-out (#11097). The
+package provenance bound partitions `PackageIDs` and `PURLs` by direction:
+
+- Owned consumer, anchor, and suppression sources (the pass's own scope, plus
+  SBOM components in documents attached to digests the pass owns) and own-scope
+  OS-class `vulnerability.affected_package` facts (1-hop distro sibling bridge)
+  stay on `PackageIDs` / `PURLs` and drive all probes.
+- Seeded non-exempt `vulnerability.affected_package` facts move to
+  `SeedPackageIDs` / `SeedPURLs`, which drive consumer, SBOM, version, and
+  suppression probes without querying `affected_package_package_id`,
+  `affected_package_purl`, or `foreign_key_guard`.
+- Transitive and foreign-consumer package identifiers are suppressed at
+  derivation and counted.
+
+The success line carries the pass accounting as sub-signals, written even when
+zero so bound-on and bound-off passes stay comparable:
+
+- `package_bound_suppressed_transitive` — distinct transitive package
+  identifiers and PURLs suppressed, summed over rounds.
+- `package_bound_loads` — until-stable loads the pass ran.
+- `package_bound_owned_package_ids` — owned package identifiers remaining in
+  the final follow-up filter (0 on every converged pass; non-zero only on a
+  round or budget cut; read `package_bound_loads` and `package_bound_seed_cves`
+  for pass activity).
+- `package_bound_seed_package_ids` — seed-CVE package identifiers remaining in
+  the final follow-up filter (0 on every converged pass).
+- `package_bound_owned_purls` — owned PURLs remaining in the final follow-up
+  filter (0 on every converged pass).
+- `package_bound_seed_purls` — seed-CVE PURLs remaining in the final follow-up
+  filter (0 on every converged pass).
+- `package_bound_seed_cves` — seed vulnerability count (CVEs and advisories)
+  after alias/upstream closure.
+
 ## Round-cap frontier
 
 The until-stable load stops after 8 rounds. A pass the cap stopped is
@@ -237,11 +274,11 @@ converged pass):
   the later expansion stages. This is not the budget charge: read
   `evidence_budget_ratio` for that.
 - `rounds_cut_frontier_<arm>` — values the arm still held, zero included. The
-  arm set is closed and equals the follow-up filter: `package_ids`, `purls`,
-  `cve_ids`, `upstream_cve_ids`, `alias_ids`, `advisory_ids`,
-  `subject_digests`, `document_ids`, `product_criteria`,
-  `seed_product_criteria`, `repository_ids`, `file_repository_ids`,
-  `image_refs`.
+  arm set is closed and equals the follow-up filter: `package_ids`,
+  `seed_package_ids`, `purls`, `seed_purls`, `cve_ids`, `upstream_cve_ids`,
+  `alias_ids`, `advisory_ids`, `subject_digests`, `document_ids`,
+  `product_criteria`, `seed_product_criteria`, `repository_ids`,
+  `file_repository_ids`, `image_refs`.
 
 The same pass writes one INFO line, `supply chain impact evidence expansion
 cut at the round cap`, after the `evidence truncated; findings not retracted`

@@ -314,7 +314,9 @@ func restrictSupplyChainImpactFilter(filter SupplyChainImpactFactFilter, scope *
 	filter.CVEIDs = intersect(filter.CVEIDs, stampSet)
 	filter.UpstreamCVEIDs = intersect(filter.UpstreamCVEIDs, scope.upstream)
 	filter.PackageIDs = intersect(filter.PackageIDs, scope.packages)
+	filter.SeedPackageIDs = intersect(filter.SeedPackageIDs, scope.packages)
 	filter.PURLs = intersect(filter.PURLs, scope.purls)
+	filter.SeedPURLs = intersect(filter.SeedPURLs, scope.purls)
 	filter.AdvisoryIDs = intersect(filter.AdvisoryIDs, scope.advisoryIDs)
 	return filter
 }

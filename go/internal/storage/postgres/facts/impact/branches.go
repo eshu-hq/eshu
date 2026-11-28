@@ -22,6 +22,18 @@ const (
 // signal kinds for the CVE ids distro records name in their upstream lists.
 const BranchVulnerabilityUpstreamCVEID = "vulnerability_upstream_cve_id"
 
+// BranchAffectedPackagePackageID names the key probe that loads
+// vulnerability.affected_package rows over the package_id list. Under the
+// #11097 provenance bound the loader binds it to owned/exempt package_ids only,
+// so a seed vulnerability's package_id never pulls unrelated vulnerabilities
+// sharing that package.
+const BranchAffectedPackagePackageID = "affected_package_package_id"
+
+// BranchAffectedPackagePURL names the key probe that loads
+// vulnerability.affected_package rows over the purl list. Under the #11097
+// provenance bound the loader binds it to owned/exempt PURLs only.
+const BranchAffectedPackagePURL = "affected_package_purl"
+
 // BranchAffectedProductCriteria names the key probe that loads
 // vulnerability.affected_product rows over the criteria list. Under the
 // #11087 provenance bound the loader binds it to the component-origin
@@ -30,10 +42,11 @@ const BranchVulnerabilityUpstreamCVEID = "vulnerability_upstream_cve_id"
 const BranchAffectedProductCriteria = "affected_product_criteria"
 
 // BranchForeignKeyGuard names the foreign-key guard statement. Under the
-// #11087 provenance bound the loader binds its criteria arm to the
-// component-origin criteria too: the guard covers affected_product (kind
-// class growth), so its criteria arm would otherwise re-admit exactly the
-// rows the product probe excludes.
+// #11087 and #11097 provenance bounds the loader rebinds its criteria arm to
+// component-origin criteria and its package_id/purl arms to owned/exempt
+// packages and PURLs: the guard covers affected_product and affected_package
+// (kind class growth), so those arms would otherwise re-admit rows the probes
+// exclude.
 const BranchForeignKeyGuard = "foreign_key_guard"
 
 // BranchSBOMComponentCPE names the key probe that loads sbom.component rows
@@ -204,8 +217,8 @@ func probeBranches() []Branch {
 			keyProbe("vulnerability_alias_advisory_id", IndexVulnerabilityAdvisoryV2, "advisory_id", AliasIDs, KindCVE),
 			MaxCVEIDsPerStatement),
 		keyProbe("vulnerability_advisory_id", IndexVulnerabilityAdvisoryV2, "advisory_id", AdvisoryIDs, vulnerability...),
-		keyProbe("affected_package_package_id", IndexAffectedPackagePackageID, "package_id", PackageIDs, KindAffectedPackage),
-		keyProbe("affected_package_purl", IndexAffectedPackagePURL, "purl", PURLs, KindAffectedPackage),
+		keyProbe(BranchAffectedPackagePackageID, IndexAffectedPackagePackageID, "package_id", PackageIDs, KindAffectedPackage),
+		keyProbe(BranchAffectedPackagePURL, IndexAffectedPackagePURL, "purl", PURLs, KindAffectedPackage),
 		keyProbe(BranchAffectedProductCriteria, IndexAffectedProductCriteria, "criteria", ProductCriteria, KindAffectedProduct),
 		keyProbe("sbom_component_purl", IndexSBOMComponentPURL, "purl", PURLs, KindSBOMComponent),
 		keyProbe(BranchSBOMComponentCPE, IndexSBOMComponentCPE, "cpe", ProductCriteria, KindSBOMComponent),

@@ -45,6 +45,8 @@ type scopedSupplyChainImpactScope struct {
 	cves        []string
 	packages    map[string]struct{}
 	purls       map[string]struct{}
+	osPackages  map[string]struct{}
+	osPURLs     map[string]struct{}
 	names       map[string]struct{}
 	ecosystems  map[string]struct{}
 	advisoryIDs map[string]struct{}
@@ -76,6 +78,8 @@ func seedScopedSupplyChainImpactScope(
 		cves:        append([]string(nil), stamp...),
 		packages:    map[string]struct{}{},
 		purls:       map[string]struct{}{},
+		osPackages:  map[string]struct{}{},
+		osPURLs:     map[string]struct{}{},
 		names:       map[string]struct{}{},
 		ecosystems:  map[string]struct{}{},
 		advisoryIDs: map[string]struct{}{},
@@ -101,11 +105,18 @@ func seedScopedSupplyChainImpactScope(
 		if row.AdvisoryID != "" {
 			scope.advisoryIDs[row.AdvisoryID] = struct{}{}
 		}
+		isOSRow := osPackageClassEcosystem(row.Ecosystem) || osPackageFamilyFromPURL(row.PURL) != ""
 		if id := canonicalSupplyChainAffectedPackageID(row.PackageID, row.PURL); id != "" {
 			scope.packages[id] = struct{}{}
+			if isOSRow {
+				scope.osPackages[id] = struct{}{}
+			}
 		}
 		if row.PURL != "" {
 			scope.purls[row.PURL] = struct{}{}
+			if isOSRow {
+				scope.osPURLs[row.PURL] = struct{}{}
+			}
 		}
 		eco := string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(row.Ecosystem)))
 		if eco != "" {

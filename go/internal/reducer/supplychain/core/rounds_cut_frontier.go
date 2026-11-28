@@ -18,7 +18,9 @@ import (
 // until it has one).
 var roundsCutFrontierArms = [...]string{
 	"package_ids",
+	"seed_package_ids",
 	"purls",
+	"seed_purls",
 	"cve_ids",
 	"upstream_cve_ids",
 	"alias_ids",
@@ -37,7 +39,9 @@ var roundsCutFrontierArms = [...]string{
 func frontierArmSizes(f SupplyChainImpactFactFilter) [len(roundsCutFrontierArms)]int {
 	return [len(roundsCutFrontierArms)]int{
 		len(f.PackageIDs),
+		len(f.SeedPackageIDs),
 		len(f.PURLs),
+		len(f.SeedPURLs),
 		len(f.CVEIDs),
 		len(f.UpstreamCVEIDs),
 		len(f.AliasIDs),

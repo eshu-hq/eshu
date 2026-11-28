@@ -24,8 +24,20 @@ import (
 // reducer intent.
 type SupplyChainImpactFactFilter struct {
 	PackageIDs []string
-	PURLs      []string
-	CVEIDs     []string
+	// SeedPackageIDs carries the affected_package package_ids of seed
+	// vulnerabilities only (#11097). The storage reader binds it to consumer,
+	// anchor, and suppression probes alongside PackageIDs, while
+	// affected_package_package_id and foreign_key_guard bind PackageIDs alone,
+	// so a seeded vulnerability discovers its consumers without pulling
+	// unrelated vulnerabilities sharing the package. Nil/empty keeps the prior
+	// semantics.
+	SeedPackageIDs []string
+	PURLs          []string
+	// SeedPURLs is the PURL twin of SeedPackageIDs (#11097): bound alongside
+	// PURLs for consumer, SBOM, version, and suppression probes, excluded from
+	// affected_package_purl and foreign_key_guard.
+	SeedPURLs []string
+	CVEIDs    []string
 	// UpstreamCVEIDs is the CVE ids loaded distro records name in their upstream
 	// lists (#9914). They load only the KEV and EPSS facts and the suppressions for
 	// those CVEs, never their cve, affected_package or affected_product facts, so
@@ -150,6 +162,16 @@ type SupplyChainImpactHandler struct {
 	// rollback. The parity shim
 	// (criteria_expansion_parity_test.go) is the gate that approved it.
 	CriteriaExpansionBound *SupplyChainImpactCriteriaExpansionBound
+	// PackageExpansionBound enables the #11097 provenance bound on
+	// package->CVE transitive expansion. Nil keeps the prior unbounded
+	// semantics: every affected_package row's package_id and purl drives
+	// affected_package_package_id, affected_package_purl, and consumer probes.
+	// Non-nil partitions PackageIDs/PURLs by direction (owned sources and
+	// own-scope 1-hop OS sibling records stay on PackageIDs/PURLs; seeded
+	// non-exempt advisories move to SeedPackageIDs/SeedPURLs; transitive rows
+	// are suppressed and counted). Production wiring sets it separately from
+	// CriteriaExpansionBound; nil is the one-line rollback.
+	PackageExpansionBound *SupplyChainImpactPackageExpansionBound
 	// FencingTokenIssuer supplies the per-pass fencing token (#7142). Required:
 	// Handle fails closed without it, because a pass with no ordering value
 	// cannot be fenced against a fresher pass.
@@ -347,7 +369,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
 	subSignals["python_reachability_files_folded"] = float64(loaded.pythonReachabilityFacts)
 	mergeScopedPassSubSignals(subSignals, loaded)
-	mergeCriteriaBoundSubSignals(subSignals, loaded)
+	mergeExpansionBoundSubSignals(subSignals, loaded)
 	subSignals["python_reachability_payload_bytes_folded"] = float64(loaded.pythonReachabilityPayloadBytes)
 	subSignals["evidence_envelopes"] = float64(loaded.evidenceEnvelopeCount())
 	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)
