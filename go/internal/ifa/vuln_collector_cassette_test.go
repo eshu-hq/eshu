@@ -127,7 +127,9 @@ func vulnStableIdentity(kind string, payload map[string]any) (map[string]any, bo
 	case "vulnerability.reference":
 		return map[string]any{"cve_id": str("cve_id"), "source": str("source"), "url": str("url")}, true
 	case "vulnerability.epss_score":
-		return map[string]any{"cve_id": str("cve_id"), "score_date": str("score_date"), "source": str("source")}, true
+		// #11598 Option C Decision 1.4: drop score_date from the stable key so
+		// daily FIRST EPSS rescans reuse the same stable_fact_key per (cve_id, source).
+		return map[string]any{"cve_id": str("cve_id"), "source": str("source")}, true
 	case "vulnerability.source_snapshot":
 		identity := map[string]any{"source": str("source")}
 		if ecosystem := str("ecosystem"); ecosystem != "" {
