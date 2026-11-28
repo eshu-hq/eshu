@@ -239,6 +239,24 @@ belongs in the API/MCP/Ask/search implementation slices, but every capability
 must have cataloged role, action, scope, and data-class metadata before it ships
 as part of the v1 user-management model.
 
+## Supply-chain impact reads (#10880)
+
+The three impact capabilities still read from mixed stores — none is
+winners-only. Measured at `origin/main` `8b7156f110` from
+`catalog.generated.json`: `supply_chain.impact_findings.list` answers from
+`read_table:supply_chain_impact_finding_supports`,
+`read_table:supply_chain_impact_canonical_winners`, `fact_records_reducer`,
+and `fact_records_collector` (plus readiness tables);
+`supply_chain.impact_findings.aggregate` answers from the supports table, the
+winners table, and `fact_records_reducer`;
+`supply_chain.impact_explanation.read` answers from the supports table,
+`fact_records_reducer`, and `fact_records_collector` (plus readiness tables).
+Store-honesty enforcement is partial: the layer-2 audit is live (#11251),
+the waiver burn-down is still open (#11212), and graph/content reads are not
+recorded — so this catalog does not claim every capability is fully
+enforced. Full before/after numbers live in
+`docs/internal/evidence/10880-ac5-ac6-closeout.md`.
+
 ## Related
 
 - [Capability Conformance Spec](capability-conformance-spec.md)

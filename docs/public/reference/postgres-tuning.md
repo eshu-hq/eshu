@@ -20,7 +20,7 @@ The main hot tables are:
 
 | Table | Why it matters |
 | --- | --- |
-| `fact_records` | Durable fact envelope store. Full-corpus runs load rows by `scope_id`, `generation_id`, and `fact_kind`; the table has 63 fact-specific indexes, so write amplification and stale plans are visible here first. |
+| `fact_records` | Durable fact envelope store. Full-corpus runs load rows by `scope_id`, `generation_id`, and `fact_kind`; the 2026-11-17 census on #10880 counted 152 indexes on this table (149 partial, 115 on expressions), so write amplification and stale plans are visible here first. Re-read the count on the read replica before acting on it: the #10880 slice-4 index drop has not landed, so every impact-dedicated index is still retained. |
 | `fact_work_items` | Reducer/projector queue table. Claim queries use `FOR UPDATE SKIP LOCKED`, status/visibility predicates, and reducer conflict fences. |
 | `workflow_work_items` / `workflow_claims` | Collector workflow queue and lease state. The family queue-depth index backs per-family queue-depth gauges. |
 | `content_files` / `content_entities` | Content projection and query rows. Trigram indexes make search useful but can be expensive during bulk local loads. |
