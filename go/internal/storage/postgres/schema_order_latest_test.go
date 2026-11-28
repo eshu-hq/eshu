@@ -244,4 +244,11 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// triple-guarded keyed probe on the plain supports columns, built
 	// CONCURRENTLY (migration 354 stays for the pre-marker fallback probe).
 	"supply_chain_impact_supports_keyed_triple_guard_idx",
+	// Migration 364 (#11615) adds the nullable last_requeue_reason label on
+	// the shared fact_work_items row, written inside every existing guarded
+	// requeue UPDATE.
+	"fact_work_items_last_requeue_reason",
+	// Migration 365 (#11615) converges the 093 cross-scope ACK trigger to
+	// stamp cross_scope_replay on the conversion it performs.
+	"cross_scope_ack_trigger_requeue_reason",
 }
