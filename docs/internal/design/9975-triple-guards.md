@@ -150,3 +150,9 @@ tell which probe text a tick ran from the marker row and `pg_stat_statements`
 its marker row (`completed_at`, `sweeps`) and step reports and the index via
 `pg_index.indisvalid`. No-observability-change beyond that: no new workers,
 knobs, or routes.
+
+## 9. Promotion evidence markers
+
+No-Regression Evidence (9975): the guarded probe returns byte-identical winner rows to the shipped probe (EXCEPT 0/0 both ways on the 12k-row fixture including noadv/nulladv/nocveadv advisory classes and all triple edge shapes); Index Only Scan with Heap Fetches 0; 456 whole-chunk buffers and 5 single-ident buffers vs 3577 shipped; winners contract pinned 2->3 with full restamp; keyed parity suites (63 tests) green.
+Benchmark Evidence (9975): scratch-PG18 falsifier wall time per CTAS build on the QA-shaped corpus (see section 2 table); QA-replica keyed-tick p95 vs the 15 s bar stays as the post-roll re-read, owned by the coordinator.
+No-Observability-Change (9975): no new metric names, spans, logs, or phase labels in this diff; the flip decision is recorded on winnersChunkOutcome.keyPresenceProbe for future wiring and tests; operators tell which probe text a tick ran from the marker row (`completed_at`, `sweeps`) and pg_stat_statements (distinct statements); the index is visible via pg_index.indisvalid; fill instruments belong to the #11626 runner follow-up.
