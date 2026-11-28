@@ -57,10 +57,10 @@ cd "${repo_root}"
 # can run at the same time on one machine without colliding.
 # ----------------------------------------------------------------------------
 : "${REPLAY_DRIVE_COMPOSE_PROJECT:=eshu-replay-drive-$$}"
-# These three MUST be exported (not just set): docker-compose.yaml's "ports"
+# These three MUST be exported (not just set): the Compose file's "ports"
 # mapping interpolates them from the child process environment it hands to
 # `docker compose`, not from this script's own shell variables. An unexported
-# override here would silently fall back to docker-compose.yaml's own hardcoded
+# override here would silently fall back to the Compose file's own hardcoded
 # defaults (15432/7687/7474) instead of this script's isolated ports.
 export ESHU_POSTGRES_PORT="${ESHU_POSTGRES_PORT:-15532}"
 export NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-7788}"
@@ -70,7 +70,12 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7575}"
 : "${REPLAY_DRIVE_WORKERS:=1}"
 : "${GATE_DRAIN_TIMEOUT:=3m}"
 
-compose_file="docker-compose.yaml"
+# Deploy lanes moved to eshu-deploy (#8871): the Compose file comes from the
+# checkout (extraction pin in the gate workflow), mirroring
+# verify-golden-corpus-gate.sh. This script only ever starts the
+# nornicdb + postgres services, both of which that file provides.
+compose_file="${ESHU_DEPLOY_CHECKOUT:?set ESHU_DEPLOY_CHECKOUT to an eshu-deploy checkout}/compose/docker-compose.yaml"
+[[ -f "${compose_file}" ]] || { printf 'verify-ifa-replay-drive: compose file not found: %s\n' "${compose_file}" >&2; exit 1; }
 cassette="${repo_root}/testdata/cassettes/gcpcloud/supply-chain-demo.json"
 
 use_compose=1
@@ -125,7 +130,7 @@ trap cleanup EXIT
 # ----------------------------------------------------------------------------
 # Shared runtime environment for every host binary. Every URL/DSN below points
 # at localhost on this script's own ports — never the in-Compose-network
-# hostnames docker-compose.yaml's own db-migrate service uses.
+# hostnames the Compose file's own db-migrate service uses.
 # ----------------------------------------------------------------------------
 export ESHU_GRAPH_BACKEND=nornicdb
 # shellcheck source=scripts/lib/ci-image-compose.sh
