@@ -10,7 +10,7 @@ given auth family.
 - No copied query tree, no conversion layer, no per-leaf handler forks.
 - `NewCoreServeMux` delegates to `query.NewCoreServeMux` (pure
   delegation, no new runtime path — see the no-observability-change note
-  in `coreserve.go`).
+  in `doc.go`).
 - The serving binary still builds `CoreAuthWiring` itself: secret-sealed
   material must never cross package `query` (or this package, which
   never imports `internal/secretcrypto`).
