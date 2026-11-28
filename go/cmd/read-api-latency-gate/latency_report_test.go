@@ -250,3 +250,27 @@ func TestLatencyReportIdentityRecordsInfraBackfillStandIn(t *testing.T) {
 		}
 	}
 }
+
+// TestLatencyReportIdentityRecordsSupportsBackfillStandIn pins that both legs'
+// reports say the supports read model marker came from the gate's own backfill
+// (no reducer runs beside the gate; #11658), so a reader cannot mistake the
+// findings route numbers for those of an install whose product wiring
+// recorded it.
+func TestLatencyReportIdentityRecordsSupportsBackfillStandIn(t *testing.T) {
+	for name, opts := range map[string]runOptions{
+		"legacy leg":  {},
+		"winners leg": {winnersRead: true},
+	} {
+		id := latencyReportIdentityFrom(opts)
+		if id.SupportsBackfill != "gate_stand_in" {
+			t.Fatalf("%s: SupportsBackfill = %q, want gate_stand_in", name, id.SupportsBackfill)
+		}
+		raw, err := json.Marshal(id)
+		if err != nil {
+			t.Fatalf("%s: marshal identity: %v", name, err)
+		}
+		if !strings.Contains(string(raw), `"supports_backfill":"gate_stand_in"`) {
+			t.Fatalf("%s: identity JSON %s lacks supports_backfill gate_stand_in", name, raw)
+		}
+	}
+}

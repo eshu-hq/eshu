@@ -43,7 +43,11 @@ type LatencyReportSeedOptions struct {
 // names who recorded the infra read model marker the infra routes were
 // measured behind: always "gate_stand_in", a permanent stand-in (#11226): a real
 // reducer cannot run on the seeded corpus, so the seed runs the same product
-// Backfiller the reducer's RunBackground wraps.
+// Backfiller the reducer's RunBackground wraps. SupportsBackfill names who
+// recorded the supports read model marker the findings routes were measured
+// behind: always "gate_stand_in", a permanent stand-in (#11658): no reducer
+// runs beside the gate, so the seed runs the same product
+// pgstore.SupplyChainImpactSupportsBackfill the reducer drives.
 type LatencyReportIdentity struct {
 	Backend                 string                   `json:"backend"`
 	EshuCommit              string                   `json:"eshu_commit,omitempty"`
@@ -51,6 +55,7 @@ type LatencyReportIdentity struct {
 	CoreBinarySHA256        string                   `json:"core_binary_sha256,omitempty"`
 	WinnersRead             bool                     `json:"winners_read,omitempty"`
 	InfraBackfill           string                   `json:"infra_backfill,omitempty"`
+	SupportsBackfill        string                   `json:"supports_backfill,omitempty"`
 	SeedOptions             LatencyReportSeedOptions `json:"seed_options"`
 	Runs                    int                      `json:"runs"`
 	Iterations              int                      `json:"iterations"`
@@ -254,6 +259,7 @@ func latencyReportIdentityFrom(opts runOptions) LatencyReportIdentity {
 		CoreBinarySHA256: opts.coreBinarySHA256,
 		WinnersRead:      opts.winnersRead,
 		InfraBackfill:    infraBackfillStandIn,
+		SupportsBackfill: supportsBackfillStandIn,
 		SeedOptions: LatencyReportSeedOptions{
 			TotalScopes:       opts.totalScopes,
 			NodesPerLabel:     opts.nodesPerLabel,

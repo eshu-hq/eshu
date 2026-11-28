@@ -9,6 +9,11 @@ tests:
     class: postgres_ci
     reason: "#11201 advisory-group cell admission on real PostgreSQL: the committed advisory-group cassette's finding facts are admitted through the production impact writer's transaction shape, every live finding fact gets its support in the same transaction, a tombstoned fact gets none, the old-writer fence stays empty so the supports table can read ready, and the previous admission path (facts only) is shown to mark its scope dirty"
     runner: live-postgres-readiness
+  - file: go/cmd/read-api-latency-gate/seed_supports_backfill_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11658 seeded supports-backfill stand-in on real PostgreSQL: the gate's seeded corpus (maintainer-written supports, zero finding facts in fact_records under the reject trigger) must read not-ready before the stand-in and ready after backfillSeededSupportsReadModel, through the same sql.Open/pgx DSN path the seed uses"
+    runner: live-postgres-readiness
   - file: go/cmd/reducer/config_artifact_walker_live_test.go
     tag: ~
     class: postgres_ci

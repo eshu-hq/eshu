@@ -243,6 +243,19 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   `TestInfraInventoryBackfillRunnerRecordsTheMarkerLive` in `go/cmd/reducer`; do
   not try to start the reducer in the gate, and never restore the seeded work-item
   statuses after one (that would hide the mutation).
+- **The seed runs the product supports read model backfill, labelled a permanent
+  stand-in (`seed_supports_backfill.go`).** The reducer owns the backfill in
+  production, but no reducer runs beside this gate, so the seed drives
+  `pgstore.SupplyChainImpactSupportsBackfill.RunStep` to Complete after the
+  relational count proofs and before the winners rebuild (marker completed_at
+  precedes the winners watermark, matching the production order), then proves
+  `SupplyChainImpactSupportsReady` reads true. The step budget is
+  `supportsBackfillMaxSteps`; exceeding it fails naming DirtyScopes/Missing.
+  Never hand-write the marker row: a stamp is not proof, and only the
+  readiness predicate decides. Both legs' reports carry
+  `supports_backfill: gate_stand_in`; the findings route numbers describe an
+  install that holds the marker. If a later winners-leg route 503s on state
+  beyond this marker, that is a new finding, not license to stamp more markers.
 - **The gate measures two legs, legacy then winners, never merged.** The
   winners flag is read once at core mux build, so the legs are separate core
   processes against one seed; the winners findings oracle proof
