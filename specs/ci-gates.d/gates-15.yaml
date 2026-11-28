@@ -189,65 +189,43 @@ gates:
       - go
     ci_only_reason: "requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~30 macOS-min/day for the single nightly run)"
   # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
-  - id: evidence-hygiene
-    name: Internal evidence folder hygiene (Markdown-only, concise, no local links)
+  - id: no-ephemeral-docs
+    name: Block new ephemeral docs and go/**/*.md PR evidence markers
     category: exactness
     layer: hygiene
-    purpose: "Keeps docs/internal/evidence/ free of raw dumps and enforces a plain-English summary and 150-line cap on new notes."
+    purpose: "Prevents new ephemeral evidence, arbiter, plan, or go/**/evidence-*.md files and rejects newly added PR evidence markers in go/**/*.md."
     tier: pre-commit
     blocking: true
     triggers:
       - "docs/internal/evidence/**"
-      - "scripts/verify-evidence-hygiene.sh"
-      - "scripts/test-verify-evidence-hygiene.sh"
+      - "docs/internal/arbiter/**"
+      - "docs/superpowers/**"
+      - "docs/plans/**"
+      - "go/**/*.md"
+      - "scripts/verify-no-ephemeral-docs.sh"
+      - "scripts/test-verify-no-ephemeral-docs.sh"
       - "scripts/lib/gate-diff-base.sh"
     self_test_triggers:
-      - "scripts/verify-evidence-hygiene.sh"
-      - "scripts/test-verify-evidence-hygiene.sh"
+      - "scripts/verify-no-ephemeral-docs.sh"
+      - "scripts/test-verify-no-ephemeral-docs.sh"
       - "scripts/lib/gate-diff-base.sh"
     local:
-      command: "bash scripts/verify-evidence-hygiene.sh"
+      command: "bash scripts/verify-no-ephemeral-docs.sh"
       pre_push: floor
-      test_command: "bash scripts/test-verify-evidence-hygiene.sh"
+      test_command: "bash scripts/test-verify-no-ephemeral-docs.sh"
     ci:
       workflow: test.yml
       job: "docs-helm-hygiene"
     requirements: []
     ci_only_reason: ""
-    hook_id: evidence-hygiene
-
-  - id: root-cause-evidence
-    name: Root-cause claims carry observed evidence
-    category: exactness
-    layer: hygiene
-    purpose: "Advisory local scan checking that any documented root-cause claim also records the observation that established it."
-    tier: pre-pr
-    blocking: false
-    triggers:
-      - "docs/internal/evidence/**"
-      - "scripts/verify-root-cause-evidence.sh"
-      - "scripts/test-verify-root-cause-evidence.sh"
-      - "scripts/lib/test-merge-ref-fixture.sh"
-      - "scripts/lib/gate-diff-base.sh"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-    local:
-      command: "bash scripts/verify-root-cause-evidence.sh"
-      test_command: "bash scripts/test-verify-root-cause-evidence.sh"
-    ci:
-      workflow: ""
-      job: ""
-    requirements: []
-    ci_only_reason: ""
-    local_only_reason: "Advisory scan that exits 0 unconditionally while the false-positive rate is being evaluated; runs locally via pre-pr's exactness lane (matching docs-contradiction) instead of burning a non-blocking PR CI job. Re-wire into static-contract-gates.yml with blocking: true once verify-root-cause-evidence.sh exits non-zero."
-    hook_id: ""
+    hook_id: no-ephemeral-docs
 
   - id: perf-evidence
-    name: Hot-path performance evidence
+    name: Hot-path performance evidence (PR body)
     category: telemetry
     layer: performance
-    purpose: "Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds."
-    tier: pre-push
+    purpose: "Requires hot-path PRs to record performance and observability markers in the GitHub PR description rather than committed Markdown files."
+    tier: pre-pr
     blocking: true
     triggers:
       - "go/cmd/reducer/**"
@@ -256,54 +234,26 @@ gates:
       - "go/internal/collector/**"
       - "go/internal/query/**"
       - "go/internal/runtime/**"
-      - "scripts/dev/precommit-go.sh"
-      - "scripts/lib/go-toolchain.sh"
-      - "scripts/lib/precommit-go-filecap.sh"
-      - "scripts/lib/cgo-cflags.sh"
-      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/verify-performance-evidence.sh"
       - "scripts/lib/gate-diff-base.sh"
-      - "scripts/lib/performance-evidence-artifact.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-keep-marker.sh"
       - "scripts/test-verify-performance-evidence.sh"
-      - "scripts/test-verify-performance-evidence-ci-base.sh"
-      - "scripts/test-verify-performance-evidence-inherited-marker.sh"
-      - "scripts/test-verify-performance-evidence-large-marker.sh"
-      - "scripts/test-verify-performance-evidence-merge-base.sh"
-      - "scripts/test-verify-performance-evidence-missing-base.sh"
-      - "scripts/test-verify-performance-evidence-shared-shallow.sh"
-      - "scripts/test-verify-performance-evidence-workflow-artifact.sh"
     self_test_triggers:
-      - "scripts/dev/precommit-go.sh"
-      - "scripts/lib/go-toolchain.sh"
-      - "scripts/lib/precommit-go-filecap.sh"
-      - "scripts/lib/cgo-cflags.sh"
-      - "scripts/lib/precommit-go-gosec.sh"
       - "scripts/verify-performance-evidence.sh"
       - "scripts/lib/gate-diff-base.sh"
-      - "scripts/lib/performance-evidence-artifact.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-keep-marker.sh"
       - "scripts/test-verify-performance-evidence.sh"
-      - "scripts/test-verify-performance-evidence-ci-base.sh"
-      - "scripts/test-verify-performance-evidence-inherited-marker.sh"
-      - "scripts/test-verify-performance-evidence-large-marker.sh"
-      - "scripts/test-verify-performance-evidence-merge-base.sh"
-      - "scripts/test-verify-performance-evidence-missing-base.sh"
-      - "scripts/test-verify-performance-evidence-shared-shallow.sh"
-      - "scripts/test-verify-performance-evidence-workflow-artifact.sh"
     local:
-      command: "bash scripts/dev/precommit-go.sh perf-evidence"
-      pre_push: floor
+      command: "bash scripts/verify-performance-evidence.sh"
       test_command: "bash scripts/test-verify-performance-evidence.sh"
     ci:
       workflow: test.yml
       job: "verify-contracts"
-    requirements:
-      - go
+    requirements: []
     ci_only_reason: ""
-    hook_id: go-perf-evidence
+    hook_id: ""
 
   - id: product-claim-ledger
     name: Product Claim Ledger (deterministic verify)

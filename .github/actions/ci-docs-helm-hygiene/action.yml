@@ -10,12 +10,12 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Verify evidence folder hygiene
-      if: ${{ inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'evidence-hygiene') }}
+    - name: Verify no ephemeral docs
+      if: ${{ inputs.mode != 'smoke' || contains(fromJSON(inputs.gates), 'no-ephemeral-docs') }}
       shell: bash
       run: |
-        scripts/test-verify-evidence-hygiene.sh
-        scripts/verify-evidence-hygiene.sh
+        scripts/test-verify-no-ephemeral-docs.sh
+        scripts/verify-no-ephemeral-docs.sh
     - name: Verify docs-only CI carve-out wiring
       if: ${{ inputs.mode != 'smoke' }}
       shell: bash

@@ -20,7 +20,7 @@ worktree. Equivalent manual form:
 
 ```bash
 pre-commit install --install-hooks         # commit-stage hooks
-pre-commit install --hook-type pre-push    # gosec / perf / e2e run at push time
+pre-commit install --hook-type pre-push    # gosec / telemetry / e2e run at push time
 pre-commit install --hook-type commit-msg  # AI-attribution check on the message
 ```
 
@@ -47,15 +47,14 @@ build as the host binary, and a mismatched toolchain fails `plugin.Open`.
 | `go-fmt` (`golangci-lint fmt --diff`) | commit | the gofumpt formatting gate |
 | `go-lint` (`golangci-lint run`) | commit | the `Lint Go` gate (errcheck, staticcheck, …) |
 | `go-file-cap` | commit | the 500-line file cap (the `filelength` plugin) |
+| `no-ephemeral-docs` | commit | `verify-no-ephemeral-docs.sh` — blocks new files under `docs/internal/evidence/`, `docs/internal/arbiter/`, `docs/superpowers/`, `docs/plans/`, `go/**/evidence-*.md`, and newly added PR evidence markers in `go/**/*.md` |
 | `go-package-docs` | commit | `verify-package-docs.sh` (new packages need doc.go/README.md/AGENTS.md) |
 | `capability-surface-inventory` | commit | the `surface_stale` drift gate (run the generator after catalog/command changes) |
 | `go-gosec` | **push** | the gosec security gate on the changed packages. Also in `make pre-push` as `gosec-changed` (#8326), so it runs twice per push (0.3-8 s for changed packages; a change to a trigger file such as `go/go.mod` scans the whole module, 40-85 s). Fails closed (#8335): a non-zero gosec exit (143 is SIGTERM), a missing, empty or unparsable result, zero files scanned, a scanned file count that differs from `go list`, or a package with Go errors fails the run. |
-| `go-perf-evidence` | **push** | the hot-path performance-evidence gate (a change under storage/cypher, storage/postgres, collector, reducer, query, runtime, workers, or queues needs a tracked No-Regression / No-Observability marker in an `evidence-*.md` / README / AGENTS file). Diffs the branch against origin/main, so it runs at push time; needs bash ≥ 4. |
 | `go-telemetry-coverage` | **push** | the telemetry-coverage gate (a new metric or pipeline stage must be reflected in `docs/public/observability/telemetry-coverage.md`, and the doc must not drift from `instruments.go`). Diffs the branch against origin/main. |
 | `console-e2e` | **push** | the `Console (apps/console)` per-page e2e gate (`console:e2e:mock`): boots a Vite dev server + headless Chromium and renders all 84 console routes. Catches blank-rendering pages and stale e2e selectors that the unit suite (`console:test`) cannot. Runs only when a file under `apps/console/` changed; installs Chromium idempotently. Bypass with `ESHU_SKIP_CONSOLE_E2E=1` (logged, not silent). |
 | `docs-build-changed` | **push** | the docs build (`mkdocs build --strict` on changed docs/navigation/project-guidance files). Bounded by `ESHU_DOCS_BUILD_TIMEOUT_SECONDS` (default 600); fails closed past the bound (#7983). |
 | `frontend-format-changed` | **push** | the changed-file Prettier check (frontend.yml mirror). Advisory (`--advisory`): drift and a missing `node_modules/prettier` print `format: advisory:` and never fail the push; the script runs strict in CI, but that CI job is advisory (#8355). |
-| `go-measurement-citations` | **push** | the measurement-ledger citation gate (new `<N>/<M> trials` or `Measurement:` claims must cite `docs/internal/measurements.jsonl`). |
 
 The lint/format/gosec hooks run only on the **changed packages**, so a normal
 commit is fast. `golangci-lint` runs against a config copy with the custom
@@ -65,7 +64,7 @@ the hooks never depend on the plugin's exact-toolchain build.
 ## Notes
 
 - The commit-stage gates are fast — do **not** `git commit --no-verify`. The
-  slow gates (gosec, perf-evidence, telemetry, console-e2e) run at **push**, so
+  slow gates (gosec, telemetry, console-e2e) run at **push**, so
   `git push --no-verify` is the intended bypass. Either way CI re-checks every
   gate and is the non-bypassable source of truth.
 - Versions track CI automatically: the wrapper reads the `golangci-lint` and
@@ -86,10 +85,10 @@ diffs the committed HEAD against the base, while the hook evaluates the pushed
 refs, so a green floor never implies a passing push. Keep both; the
 non-bypassable enforcement stays CI.
 
-Three checks run in both. Changed-package gosec (0.3-8 s wall; 40-85 s when a trigger file forces the whole module), measurement
-citations (0.7 s) and the docs build (0-18 s) are in the floor so a finding
-fails before the review receipt, and they run again here on the push. The
-repeat is the price of keeping no stamp. `gosec-changed` diffs against the
+Two checks run in both. Changed-package gosec (0.3-8 s wall; 40-85 s when a
+trigger file forces the whole module) and the docs build (0-18 s) are in the
+floor so a finding fails before the review receipt, and they run again here on
+the push. The repeat is the price of keeping no stamp. `gosec-changed` diffs against the
 merge-base with `origin/main` (the same base override the floor honors), also scans staged
 and unstaged work, and scans the whole module when `go.mod`, `go.sum`, the
 gosec scripts or `security-scan.yml` change. An unresolvable base exits 2.

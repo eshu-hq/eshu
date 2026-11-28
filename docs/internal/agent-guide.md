@@ -155,8 +155,11 @@ report these separately:
 
 Hot-path changes touching Cypher, graph writes, reducers, projectors, queues,
 workers, leases, batching, runtime stages, collectors, Compose, Helm, pprof, or
-NornicDB knobs must update a tracked repo file with one benchmark marker and
-one observability marker:
+NornicDB knobs must include one benchmark marker and one observability marker
+in the **GitHub PR description** (enforced in CI by
+`scripts/verify-performance-evidence.sh`; never commit ephemeral evidence files
+or append PR markers to `go/**/README.md`, enforced by
+`scripts/verify-no-ephemeral-docs.sh`):
 
 - `Performance Evidence:`
 - `Benchmark Evidence:`
@@ -164,10 +167,10 @@ one observability marker:
 - `Observability Evidence:`
 - `No-Observability-Change:`
 
-PR text alone is not proof; review requires the exact command or measurement.
-Prefer updating the owning package doc, an ADR, or a `workflow-artifact:` ref
-over creating new files in `docs/internal/evidence/` (see
-`docs/internal/evidence/README.md`; never commit raw `.txt`/`.sql` dumps).
+Claims without commands or measurements are not proof; review requires the
+exact command or measurement in the PR body (with raw `EXPLAIN` plans and
+timing logs in CI workflow artifacts, not git). Durable architecture invariants
+belong in `go/<pkg>/README.md` or `docs/public/decisions/`.
 
 The five evidence markers above are the per-PR audit trail. Telemetry discipline
 (X1 doc, X2 verifier, X3 CI gate, X4 dashboard) links markers to runnable
@@ -238,11 +241,10 @@ Where a result could be intermittent, sample until the rate is known and report
 the rate. A feature reported as working on one green run turned out to work in
 one run of four (#5717); the green run was the outlier.
 
-Evidence docs that assert a cause carry a `Root-Cause Evidence:` marker naming
-the observation, checked by `scripts/verify-root-cause-evidence.sh`. That gate
-verifies the evidence was written down, never that it is sound, and it cannot
-see a cause asserted in a PR description or a chat message. The rules above are
-the substance; the gate is the part a script can reach.
+State the cause and the observation behind it in the PR description or GitHub
+issue comment rather than committing an ephemeral evidence file. The rules above
+are the substance: write down the observed failing state so a reviewer can check
+the reasoning directly.
 
 ### Evidence Must Come From The Failing Run
 
@@ -291,12 +293,11 @@ nothing, and "tests pass" was reported on an empty run). Count tests that ran.
 
 ### Diff-Scoped Gates Default To HEAD~1
 
-Gates scoped to "the diff" compute it against `HEAD~1` unless given a base, so
-a multi-commit branch shows only its last commit. Export
-`ESHU_{PARSER_RELATIONSHIP_KIT,PERFORMANCE_EVIDENCE,MEASUREMENT_CITATIONS}_BASE=origin/main` before running those gates.
-
-These fail in different directions: `parser-relationship-kit` false-FAILS
-loudly; the other two false-PASS silently, examining nothing.
+Diff-scoped gates default to `HEAD~1` unless given a base, so a multi-commit
+branch shows only its last commit. Export
+`ESHU_PARSER_RELATIONSHIP_KIT_BASE=origin/main` before running that gate, and
+pass `--pr-body <file>` to check `scripts/verify-performance-evidence.sh`
+locally (`parser-relationship-kit` fails loudly; missing bases can under-scan).
 
 ### Evidence Capture Pitfalls
 
@@ -364,11 +365,11 @@ NOT reformat the whole changed set in one commit; commit the pure reformat
 first (formatting-only, verifiable with `--list-different`), then the real
 change on top. Never `--no-verify` past a format hook.
 
-## Measurement Ledger
+## Measurement Provenance
 
-Cite a `docs/internal/measurements.jsonl` row id (`ledger:<id>`) instead of
-restating a number; `scripts/verify-measurement-citations.sh` enforces it.
-See [Measurement Ledger](measurement-ledger.md) for schema and gate details.
+Record numeric measurements (benchmark timings, trial counts, before/after
+tables) in the PR body or CI workflow artifacts with the exact command and
+commit SHA. Do not commit ephemeral measurement notes or ledgers to git.
 
 ## API, MCP, And Query Reads
 

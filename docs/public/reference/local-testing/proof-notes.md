@@ -2,15 +2,14 @@
 
 ## Performance Evidence Gate
 
-`scripts/verify-performance-evidence.sh` blocks a PR that touches hot Cypher,
+`scripts/verify-performance-evidence.sh` blocks a PR in CI that touches hot Cypher,
 graph writes, queues, workers, leases, batching, or runtime knobs unless the
-same PR carries its own tracked evidence in a fresh `Performance Evidence:`
-(or `Benchmark Evidence:`/`No-Regression Evidence:`) line plus a fresh
-`Observability Evidence:`/`No-Observability-Change:` line, in one of the
-gate's recognized evidence-file locations. See
-[Performance Evidence Gate](performance-evidence-gate.md) for
-the added-lines requirement, the full list of recognized locations, and the
-fixture/vendor/generated exclusions.
+PR description carries a `Performance Evidence:` (or `Benchmark Evidence:`/
+`No-Regression Evidence:`) line plus an `Observability Evidence:`/
+`No-Observability-Change:` line. See
+[Performance Evidence Gate](performance-evidence-gate.md) for the exact PR-body
+contract. Do not commit ephemeral evidence files or append PR markers to
+`go/**/*.md` (`scripts/verify-no-ephemeral-docs.sh`).
 
 ## Tagged Build Sweep
 

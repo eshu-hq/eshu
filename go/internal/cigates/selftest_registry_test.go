@@ -72,9 +72,9 @@ func TestCommittedRegistrySelfTestHarnessInputsAreCovered(t *testing.T) {
 		"fips-md5-sql-sweep": {
 			"go/internal/storage/postgres/md5_sql_sweep_test.go",
 		},
-		"evidence-hygiene": {
-			"scripts/verify-evidence-hygiene.sh",
-			"scripts/test-verify-evidence-hygiene.sh",
+		"no-ephemeral-docs": {
+			"scripts/verify-no-ephemeral-docs.sh",
+			"scripts/test-verify-no-ephemeral-docs.sh",
 			"scripts/lib/gate-diff-base.sh",
 		},
 		"perf-evidence": {
@@ -152,7 +152,7 @@ func TestCommittedRegistryProductInputsSkipDistinctSelfTests(t *testing.T) {
 		"hot-cypher-source-coverage": {
 			"go/internal/query/service.go",
 		},
-		"evidence-hygiene": {
+		"no-ephemeral-docs": {
 			"docs/internal/evidence/note.md",
 		},
 		"perf-evidence": {

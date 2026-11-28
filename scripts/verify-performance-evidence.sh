@@ -1,116 +1,80 @@
 #!/usr/bin/env bash
+# verify-performance-evidence: require hot-path runtime PRs to carry
+# Performance/Benchmark/No-Regression and Observability markers in the GitHub
+# PR description — never in committed ephemeral Markdown files.
+#
+# Usage:
+#   scripts/verify-performance-evidence.sh [--pr-body <file>]
+#
+# In CI (GITHUB_EVENT_NAME=pull_request), pass the PR description via
+# ESHU_PERFORMANCE_EVIDENCE_PR_BODY or --pr-body. On non-PR events (push to
+# main, schedule, workflow_dispatch) or local runs without --pr-body, the gate
+# verifies hot-path detection and exits 0 once no PR body is in scope.
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/lib/gate-diff-base.sh
-. "$(cd "$(dirname "$0")" && pwd)/lib/gate-diff-base.sh"
-# shellcheck source=scripts/lib/performance-evidence-artifact.sh
-. "$(cd "$(dirname "$0")" && pwd)/lib/performance-evidence-artifact.sh"
+. "${script_dir}/lib/gate-diff-base.sh"
+
+pr_body_file="${ESHU_PERFORMANCE_EVIDENCE_PR_BODY_FILE:-}"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --pr-body)
+      pr_body_file="${2:-}"
+      [ -n "$pr_body_file" ] || { printf 'verify-performance-evidence: --pr-body requires a file path\n' >&2; exit 2; }
+      shift 2
+      ;;
+    --help|-h)
+      printf 'usage: %s [--pr-body <file>]\n' "${0##*/}"
+      exit 0
+      ;;
+    *)
+      printf 'verify-performance-evidence: unknown argument: %s\n' "$1" >&2
+      exit 2
+      ;;
+  esac
+done
 
 repo_root="${ESHU_PERFORMANCE_EVIDENCE_REPO_ROOT:-}"
 if [ -z "$repo_root" ]; then
-  repo_root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null \
-    || (cd "$(dirname "$0")/.." && pwd))"
+  repo_root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null \
+    || (cd "${script_dir}/.." && pwd))"
 fi
 
-# fetch_missing_base fetches one missing base object without changing the
-# depth of a complete checkout: every worktree shares one .git/shallow, so a
-# --depth fetch here shallows all of them and fails unrelated lanes'
-# methodology identity check (#8048). On an already shallow checkout (CI
-# fetch-depth) it keeps the bounded fetch, which cannot make a shallow
-# checkout fail anything that does not already fail.
-fetch_missing_base() {
-  eshu_gate_fetch_base "$repo_root" "$1"
-}
-
 base="${ESHU_PERFORMANCE_EVIDENCE_BASE:-}"
-# An explicit base must exist in this checkout before anything diffs against
-# it (eshu-hq/eshu#7134). test.yml pins github.event.pull_request.base.sha and
-# checks out the PR merge ref at fetch-depth 2. When main moves before the job
-# starts, GitHub rebuilds the merge ref on the newer main, so the event base
-# SHA is no longer in the clone and every later `git diff "$base"...HEAD` died
-# with `fatal: bad object <sha>` (exit 128). Resolve it explicitly, in this
-# order, and never widen the diff or pass silently:
-#
-#  1. The object is present: use it as pinned.
-#  2. pull_request event and HEAD is a merge commit: use HEAD^1. GitHub builds
-#     refs/pull/N/merge as a merge of the base branch tip (parent 1) and the PR
-#     head (parent 2), so HEAD^1 is exactly the tree the PR was merged onto and
-#     is always inside a depth-2 checkout. It is more accurate than fetching
-#     the stale event SHA: a depth-1 fetch of that SHA shares no visible merge
-#     base with HEAD, forcing the two-dot fallback, which attributes every
-#     commit that landed on main since the event SHA to this PR. When main did
-#     not move, HEAD^1 == the event base SHA, so the pin's original purpose is
-#     preserved. The substitution is announced on stderr.
-#  3. Otherwise fetch the object from origin.
-#  4. If that also fails, fail with an actionable message.
+merge_parent="$(eshu_gate_merge_ref_parent "$repo_root")"
+if [ -n "$merge_parent" ]; then
+  # On a GitHub pull_request merge ref (2-parent HEAD), parent 1 is the exact
+  # base tip combined with the PR. github.event.pull_request.base.sha can lag
+  # behind main when main advances, which would attribute main's hot-path
+  # commits to an unrelated PR.
+  base="$merge_parent"
+fi
 if [ -n "$base" ] && ! git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev/null; then
-  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
-    git -C "$repo_root" rev-parse --verify --quiet "HEAD^2^{commit}" >/dev/null 2>&1 &&
-    parent_base="$(git -C "$repo_root" rev-parse --verify --quiet "HEAD^1^{commit}" 2>/dev/null)"; then
-    printf 'verify-performance-evidence: base %s is not in this checkout (main moved after the event); using HEAD^1 %s, the tree the PR merge commit was built on\n' \
-      "$base" "$parent_base" >&2
-    base="$parent_base"
-  elif fetch_missing_base "$base" &&
+  if eshu_gate_fetch_base "$repo_root" "$base" &&
     git -C "$repo_root" cat-file -e "${base}^{commit}" 2>/dev/null; then
     :
   else
-    {
-      printf 'verify-performance-evidence: ESHU_PERFORMANCE_EVIDENCE_BASE=%s is not a commit in this checkout and could not be fetched from origin.\n' "$base"
-      printf 'The gate refuses to guess a base: a wider or narrower diff would change which hot-path files it checks.\n'
-      printf 'Fix: fetch the object (git fetch --no-tags origin %s), check out with a deeper fetch-depth,\n' "$base"
-      printf 'or unset ESHU_PERFORMANCE_EVIDENCE_BASE to use the merge base with origin/main.\n'
-    } >&2
+    printf 'verify-performance-evidence: base %s is not in this checkout and could not be fetched.\n' "$base" >&2
     exit 1
   fi
 fi
 if [ -z "$base" ] && [ -n "${GITHUB_BASE_REF:-}" ]; then
-  # An explicit destination refspec is required: `git fetch origin <branch>`
-  # with no `:<dst>` only ever updates FETCH_HEAD, never
-  # refs/remotes/origin/<branch> -- this is real git behavior independent of
-  # any configured remote.origin.fetch, so under actions/checkout@v5's actual
-  # narrow/shallow setup `origin/$GITHUB_BASE_REF` never resolved and `base`
-  # silently fell through to HEAD~1 (last commit only) in every real CI run
-  # (eshu-hq/eshu#5542 follow-up).
-  #
-  # When the ref already resolves locally there is nothing to fetch at all,
-  # and on a complete checkout the fetch is never depth-limited: every
-  # worktree shares one .git/shallow, so a --depth fetch here shallows all of
-  # them and fails unrelated lanes' methodology identity check (#8048). The
-  # fetch itself stays behind the shared eshu_gate_fetch_base helper (#8078).
   if ! git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
-    eshu_gate_fetch_base "$repo_root" \
-      "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" || true
+    eshu_gate_fetch_base "$repo_root" "$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF" || true
   fi
   if git -C "$repo_root" rev-parse --verify "origin/$GITHUB_BASE_REF" >/dev/null 2>&1; then
     base="origin/$GITHUB_BASE_REF"
   fi
 fi
-# Fall back to the merge base with origin/main, NOT HEAD~1. `make pre-pr` runs
-# this gate with neither GITHUB_BASE_REF nor an explicit override set, and a
-# HEAD~1 default narrows the window to the last commit alone. A branch that
-# changes hot-path Cypher, graph writes, queues, or leases in an earlier commit
-# and ends on an innocuous docs or generated-file commit then reports "no hot
-# Cypher/concurrency/runtime files changed" and exits 0 -- the gate passes
-# without checking what it claims to check. Observed on a real branch: HEAD~1
-# saw 1 file and passed; merge-base with origin/main saw 26 and found the
-# hot-path changes. verify-root-cause-evidence.sh already names this exact
-# false pass as the reason it does not default to HEAD~1.
 if [ -z "$base" ]; then
   if git -C "$repo_root" rev-parse --verify origin/main >/dev/null 2>&1; then
     merge_base="$(git -C "$repo_root" merge-base origin/main HEAD 2>/dev/null || true)"
-    # A merge base equal to HEAD means HEAD is already an ancestor of
-    # origin/main, so the branch contributes no commits of its own and the
-    # merge-base window would be empty -- strictly narrower than HEAD~1, which
-    # would make this gate weaker than before. Leave `base` unset so the HEAD~1
-    # fallback below still gives a non-empty window.
-    if [ -n "$merge_base" ] &&
-      [ "$merge_base" != "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ]; then
+    if [ -n "$merge_base" ] && [ "$merge_base" != "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" ]; then
       base="$merge_base"
     fi
   fi
 fi
-# Last resort only: a shallow clone whose merge base is unreachable, a checkout
-# with no origin remote, or a fresh fixture repo in a test harness.
 if [ -z "$base" ]; then
   if git -C "$repo_root" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
     base="HEAD~1"
@@ -120,386 +84,142 @@ if [ -z "$base" ]; then
   fi
 fi
 
-changed_files=()
-changed_files_path="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-files.XXXXXX")"
-if git -C "$repo_root" diff --name-only "$base"...HEAD >"$changed_files_path" 2>/dev/null; then
-  :
-else
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/eshu-performance-evidence.XXXXXX")"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+changed_files_path="${tmp_dir}/changed-files.txt"
+if ! git -C "$repo_root" diff --name-only "$base"...HEAD >"$changed_files_path" 2>/dev/null; then
   git -C "$repo_root" diff --name-only "$base" HEAD >"$changed_files_path"
 fi
+
+changed_files=()
 while IFS= read -r file; do
   [ -n "$file" ] && changed_files+=("$file")
 done <"$changed_files_path"
-rm -f "$changed_files_path"
 
 is_go_runtime_file() {
-  local path="$1"
-  case "$path" in
-    *.go) ;;
-    *) return 1 ;;
-  esac
-  case "$path" in
+  case "$1" in
     *_test.go|*_bench_test.go|*/testdata/*|*/vendor/*|*/doc.go) return 1 ;;
-  esac
-  case "$path" in
-    go/internal/*|go/cmd/*) return 0 ;;
+    go/internal/*.go|go/cmd/*.go) return 0 ;;
     *) return 1 ;;
   esac
 }
 
 is_hot_path_by_location() {
-  local path="$1"
-  case "$path" in
-    go/internal/storage/cypher/*.go) return 0 ;;
-    go/internal/storage/neo4j/*.go) return 0 ;;
-    go/internal/storage/postgres/*.go) return 0 ;;
-    go/internal/collector/*.go) return 0 ;;
-    go/internal/collector/*/*.go) return 0 ;;
-    go/internal/graph/*.go) return 0 ;;
-    go/internal/projector/*.go) return 0 ;;
-    go/internal/reducer/*.go) return 0 ;;
-    go/internal/reducer/*/*.go) return 0 ;;
-    go/internal/queue/*.go) return 0 ;;
-    go/internal/runtime/*.go) return 0 ;;
-    go/internal/workflow/*.go) return 0 ;;
-    go/cmd/bootstrap-index/*.go) return 0 ;;
-    go/cmd/ingester/*.go) return 0 ;;
-    go/cmd/reducer/*.go) return 0 ;;
-    go/cmd/collector-*/*.go) return 0 ;;
+  case "$1" in
+    go/internal/storage/cypher/*.go|go/internal/storage/neo4j/*.go|go/internal/storage/postgres/*.go) return 0 ;;
+    go/internal/collector/*.go|go/internal/collector/*/*.go|go/internal/graph/*.go|go/internal/projector/*.go) return 0 ;;
+    go/internal/reducer/*.go|go/internal/reducer/*/*.go|go/internal/queue/*.go|go/internal/runtime/*.go|go/internal/workflow/*.go) return 0 ;;
+    go/cmd/bootstrap-index/*.go|go/cmd/ingester/*.go|go/cmd/reducer/*.go|go/cmd/collector-*/*.go) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-# Absolute paths of changed Go files matching the hot-content patterns below,
-# built once (single rg pass) instead of one rg spawn per changed file. The
-# per-file loop below queries this set with grep, so a 3489-file diff pays
-# one content scan instead of thousands. Membership is equivalent to running
-# the four patterns below against each file: rg -l reports exactly the files
-# any pattern matches, and files absent from the set (missing on disk,
-# unreadable, or pattern-free) fail the grep exactly as the old per-file
-# `rg -q` failed them.
-_perf_content_hot_file=""
-_perf_build_content_hot_set() {
-  local list_path="$1"
-  _perf_content_hot_file="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-content-hot.XXXXXX")"
-  # Scan in bounded chunks instead of one rg spawn per file. Chunking keeps
-  # argv small no matter how many files changed; each chunk appends its
-  # matches. rg exits 1 when a chunk matches nothing, which is a normal empty
-  # result, not an error -- only exit codes above 1 fail. (xargs cannot be
-  # used here: it collapses a chunk's exit-1 no-match and exit-2 hard error
-  # into one status.) Deleted files are excluded up front: rg errors on a
-  # missing operand, and the old per-file check returned false for files
-  # missing on disk.
-  local chunk=()
-  local chunk_status
-  while IFS= read -r scan_file || [ -n "$scan_file" ]; do
-    chunk+=("$scan_file")
-    if [ "${#chunk[@]}" -ge 200 ]; then
-      rg -l \
-        -e '(^|[^A-Za-z])(MATCH|MERGE|UNWIND|DETACH DELETE|CREATE)([^A-Za-z]|$)' \
-        -e '\b(ClaimBatch|ClaimLease|LeaseTTL|Heartbeat|MaxConcurrent|Worker|Workers|BatchSize|ExecuteGroup|ExecuteWrite|SKIP LOCKED|ON CONFLICT)\b' \
-        -e '\b(errgroup|semaphore|WaitGroup|Mutex|RWMutex|chan|goroutine)\b' \
-        -e 'go[[:space:]]+func[[:space:]]*\(' \
-        "${chunk[@]}" >>"$_perf_content_hot_file" 2>/dev/null
-      chunk_status=$?
-      if [ "$chunk_status" -gt 1 ]; then
-        printf 'verify-performance-evidence: hot-content scan failed\n' >&2
-        _perf_drop_content_hot_set
-        return 1
-      fi
-      chunk=()
-    fi
-  done <"$list_path"
-  if [ "${#chunk[@]}" -gt 0 ]; then
-    rg -l \
+is_runtime_config_file() {
+  case "$1" in
+    docker-compose*.yml|docker-compose*.yaml|deploy/helm/eshu/*.yaml|deploy/helm/eshu/*.yml|deploy/helm/eshu/**/*.yaml|deploy/helm/eshu/**/*.yml) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_live_gate_coordination_file() {
+  case "$1" in
+    scripts/lib/live-gate-lock.sh|scripts/lib/golden-corpus-keep-marker.sh) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Build comment-only set in one awk pass over the diff.
+diff_file="${tmp_dir}/diff.txt"
+if ! git -C "$repo_root" diff --unified=0 "$base"...HEAD >"$diff_file" 2>/dev/null; then
+  git -C "$repo_root" diff --unified=0 "$base" HEAD >"$diff_file" 2>/dev/null || : >"$diff_file"
+fi
+
+comment_only_file="${tmp_dir}/comment-only.txt"
+awk '
+  substr($0, 1, 6) == "+++ b/" {
+    cur = substr($0, 7)
+    if (cur != "/dev/null" && cur != "b/dev/null") seen0[cur] = 1
+    else cur = ""
+    next
+  }
+  $0 == "+++ /dev/null" { cur = ""; next }
+  substr($0, 1, 6) == "--- a/" || $0 == "--- /dev/null" { next }
+  substr($0, 1, 1) == "+" || substr($0, 1, 1) == "-" {
+    if (cur == "") next
+    payload = substr($0, 2)
+    first = substr(payload, 1, 1)
+    if (payload == "" || substr(payload, 1, 2) == "//" || substr(payload, 1, 2) == "/*" || first == "#") next
+    has1[cur] = 1
+  }
+  END { for (f in seen0) if (!(f in has1)) print f }
+' "$diff_file" | LC_ALL=C sort -u >"$comment_only_file"
+
+is_comment_only_change() {
+  rg --no-config -Fxq -- "$1" "$comment_only_file"
+}
+
+content_hot_file="${tmp_dir}/content-hot.txt"
+: >"$content_hot_file"
+go_scan_list=()
+if [ "${#changed_files[@]}" -gt 0 ]; then
+  for f in "${changed_files[@]}"; do
+    case "$f" in *.go) ;; *) continue ;; esac
+    [ -f "$repo_root/$f" ] && go_scan_list+=("$repo_root/$f")
+  done
+fi
+if [ "${#go_scan_list[@]}" -gt 0 ]; then
+  idx=0
+  total="${#go_scan_list[@]}"
+  while [ "$idx" -lt "$total" ]; do
+    chunk=("${go_scan_list[@]:idx:200}")
+    rg_rc=0
+    rg --no-config -l \
       -e '(^|[^A-Za-z])(MATCH|MERGE|UNWIND|DETACH DELETE|CREATE)([^A-Za-z]|$)' \
       -e '\b(ClaimBatch|ClaimLease|LeaseTTL|Heartbeat|MaxConcurrent|Worker|Workers|BatchSize|ExecuteGroup|ExecuteWrite|SKIP LOCKED|ON CONFLICT)\b' \
       -e '\b(errgroup|semaphore|WaitGroup|Mutex|RWMutex|chan|goroutine)\b' \
       -e 'go[[:space:]]+func[[:space:]]*\(' \
-      "${chunk[@]}" >>"$_perf_content_hot_file" 2>/dev/null
-    chunk_status=$?
-    if [ "$chunk_status" -gt 1 ]; then
-      printf 'verify-performance-evidence: hot-content scan failed\n' >&2
-      _perf_drop_content_hot_set
-      return 1
+      "${chunk[@]}" >>"$content_hot_file" 2>/dev/null || rg_rc=$?
+    if [ "$rg_rc" -gt 1 ]; then
+      printf 'verify-performance-evidence: hot-content scan failed (exit %s)\n' "$rg_rc" >&2
+      exit 1
     fi
-  fi
-  return 0
-}
-# Drops a partially-filled content-hot set so the next query rebuilds it
-# from scratch instead of grepping partial data. Without this, one bad chunk
-# would poison every later lookup: the set variable stays set, the rebuild
-# is skipped, and files missing from the partial set read as pattern-free.
-_perf_drop_content_hot_set() {
-  rm -f "$_perf_content_hot_file"
-  _perf_content_hot_file=""
-}
+    idx=$((idx + 200))
+  done
+fi
+
 is_hot_path_by_content() {
-  local path="$1"
-  local absolute="$repo_root/$path"
-  [ -f "$absolute" ] || return 1
-
-  if [ -z "$_perf_content_hot_file" ]; then
-    local scan_list="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-content-scan.XXXXXX")"
-    local changed_path
-    for changed_path in "${changed_files[@]}"; do
-      case "$changed_path" in
-        *.go) ;;
-        *) continue ;;
-      esac
-      [ -f "$repo_root/$changed_path" ] && printf '%s\n' "$repo_root/$changed_path" >>"$scan_list"
-    done
-    # The caller guarantees this file exists on disk and is a changed *.go,
-    # so it is always added above: the list cannot be empty here. An empty
-    # rg result still builds an empty set file, and the grep below misses,
-    # exactly like a per-file `rg -q` miss.
-    _perf_build_content_hot_set "$scan_list" || { rm -f "$scan_list"; return 1; }
-    rm -f "$scan_list"
-  fi
-  grep -Fxq "$absolute" "$_perf_content_hot_file"
-}
-
-is_runtime_config_file() {
-  local path="$1"
-  case "$path" in
-    docker-compose*.yml|docker-compose*.yaml) return 0 ;;
-    deploy/helm/eshu/**/*.yaml|deploy/helm/eshu/**/*.yml) return 0 ;;
-    deploy/helm/eshu/*.yaml|deploy/helm/eshu/*.yml) return 0 ;;
-    *) return 1 ;;
-  esac
+  rg --no-config -Fxq -- "$repo_root/$1" "$content_hot_file"
 }
 
 is_runtime_config_by_content() {
   local path="$1"
-  local absolute="$repo_root/$path"
+  local abs="$repo_root/$path"
   local pattern='\b(ESHU_GRAPH_BACKEND|ESHU_[A-Z0-9_]*(WORKER|WORKERS|BATCH|TIMEOUT|PPROF|NORNICDB)[A-Z0-9_]*|NORNICDB_[A-Z0-9_]*(EMBEDDING|PPROF|BATCH|TIMEOUT|WORKER|WORKERS)[A-Z0-9_]*)\b'
-
-  if [ -f "$absolute" ] && rg -q -e "$pattern" "$absolute"; then
+  if [ -f "$abs" ] && rg --no-config -q -e "$pattern" "$abs"; then
     return 0
   fi
-  if git -C "$repo_root" diff --unified=0 "$base"...HEAD -- "$path" 2>/dev/null | rg -q -e "$pattern"; then
-    return 0
-  fi
-  if git -C "$repo_root" diff --unified=0 "$base" HEAD -- "$path" 2>/dev/null | rg -q -e "$pattern"; then
+  if git -C "$repo_root" diff --unified=0 "$base"...HEAD -- "$path" 2>/dev/null | rg --no-config -q -e "$pattern"; then
     return 0
   fi
   return 1
 }
 
-is_live_gate_coordination_file() {
-  local path="$1"
-  case "$path" in
-    scripts/lib/live-gate-lock.sh) return 0 ;;
-    scripts/lib/golden-corpus-keep-marker.sh) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# Pre-fetch the full diff once so comment-only and marker-added-lines checks
-# are O(1) lookups against this cache instead of one git invocation per file.
-# Falls back to the two-dot form on failure -- the three-dot (merge-base)
-# form fails outright ("no merge base") when the fetched base tip and the
-# local commit graph share no common ancestor object, which is the normal
-# shape of a shallow CI checkout (eshu-hq/eshu#5542 follow-up). Mirrors the
-# same fallback already used by changed_files above and
-# is_runtime_config_by_content below. Empty if both forms are unavailable.
-if _perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base"...HEAD 2>/dev/null)"; then
-  :
-else
-  _perf_diff_cache="$(git -C "$repo_root" diff --unified=0 "$base" HEAD 2>/dev/null || true)"
-fi
-
-# Newline-delimited map of changed files whose diff contains at least one
-# non-comment, non-whitespace added/removed line. Files absent from the map had
-# no diff at all; files mapped to 0 had only comments/blanks; files mapped to 1
-# had real code changes. Keep this Bash-3 compatible for macOS hook runners.
-#
-# Built with a single awk pass, not a bash while-read loop: the loop version
-# is O(n^2) (string-append per diff line) and takes ~6 minutes on a 108k-line
-# diff, which trips the 20-minute CI step timeout on large rename PRs. The awk
-# pass handles the same diff in under a second with output identical to the
-# old loop (proven by diffing the byte-verbatim old loop against this pass on
-# a real 108k-line PR diff plus a crafted six-class diff; the only
-# differences are the stripped trailing newline, which the awk-based lookup
-# in is_comment_only_change below does not read, and /* openers, which the
-# old misquoted middle arms misread as code -- see the +/- arm comment).
-# Do not revert to a per-line shell loop; see
-# scripts/test-verify-performance-evidence.sh (large-diff case) and
-# scripts/test-verify-performance-evidence-large-marker.sh.
-_perf_code_change_map=""
-if [ -n "${_perf_diff_cache}" ]; then
-  _perf_code_change_map="$(printf '%s\n' "${_perf_diff_cache}" | awk '
-    substr($0, 1, 6) == "+++ b/" {
-      cur = substr($0, 7)
-      # Deleted files show /dev/null; rename targets show new path.
-      if (cur != "/dev/null" && cur != "b/dev/null") {
-        print cur "\t0"
-      } else {
-        cur = ""
-      }
-      next
-    }
-    $0 == "+++ /dev/null" {
-      # Deleted-file new-path header (git writes "+++ /dev/null", no b/
-      # prefix). Reset the current file: otherwise this header matches the
-      # +/- arm below and, together with the deleted file'"'"'s removed lines,
-      # would be attributed to the PREVIOUS file'"'"'s map entry and wrongly
-      # flip a comment-only prior change to a code change.
-      cur = ""
-      next
-    }
-    substr($0, 1, 6) == "--- a/" || $0 == "--- /dev/null" {
-      # Old-path diff header (--- a/foo, or --- /dev/null for a new file).
-      # It starts with "-", so it must be excluded before the removed-line
-      # arm below, or it would be misread as removed content and wrongly
-      # flip the current file to a code change.
-      next
-    }
-    substr($0, 1, 1) == "+" || substr($0, 1, 1) == "-" {
-      if (cur == "") next
-      payload = substr($0, 2)
-      # Comment or blank: Go line (//), block-open (/*), shell/YAML (#),
-      # or empty. Anything else flips the file to code-change. This
-      # matches the old bash classifier byte-for-byte except for /*
-      # (the old misquoted middle arms were dead, so /* used to read as
-      # code; treating the opener as a comment honors the documented
-      # block-marker intent). Single-/-led lines (/usr/bin/foo), */
-      # closers, and bare-*-led lines stay code: fail-safe, matching old
-      # behavior (eshu-hq/eshu#6969 review).
-      first = substr(payload, 1, 1)
-      if (payload == "" || substr(payload, 1, 2) == "//" || substr(payload, 1, 2) == "/*" || first == "#") next
-      print cur "\t1"
-    }
-  ')"
-fi
-
-# True when every added/removed line in the diff for `path` is a comment
-# or whitespace-only line. Used to suppress false positives when a hot-path
-# file gets touched by a comment-only rollout (for example, adding an SPDX
-# header to every .go file) where there is no actual runtime change. A
-# file with any non-comment code change returns false so the gate still
-# fires.
-#
-# Recognises Go line comments (//), block-comment markers (/* * */), shell
-# and YAML comments (#), and blank lines. New/deleted/renamed files
-# default to false (gate fires) — we cannot tell comment-only intent from
-# those cheaply, and defaulting to "gate fires" is the safe side.
-# Sorted set of changed files whose diff holds only comment/blank lines,
-# built once instead of one awk scan of the whole change map per candidate
-# file. A file lands in the set exactly when the old per-file lookup exited
-# 0 for it: the map emits a 0-row at each file header before any 1-row, so
-# the last row for a path is 0 if and only if no 1-row exists. Files absent
-# from the map (no diff at all) miss the set, and the grep below fails them
-# exactly as the old lookup did.
-_perf_comment_only_file=""
-is_comment_only_change() {
-  local path="$1"
-  [ -n "${_perf_code_change_map}" ] || return 1
-  if [ -z "$_perf_comment_only_file" ]; then
-    _perf_comment_only_file="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-comment-only.XXXXXX")"
-    printf '%s' "${_perf_code_change_map}" | awk -F '\t' '
-      $2 == "0" { seen0[$1] = 1 }
-      $2 == "1" { has1[$1] = 1 }
-      END { for (f in seen0) if (!(f in has1)) print f }
-    ' | LC_ALL=C sort -u >"$_perf_comment_only_file"
-  fi
-  grep -Fxq "$path" "$_perf_comment_only_file"
-}
-
-is_evidence_file() {
-  local path="$1"
-  # Exclude fixture/vendor/generated .md files before the whitelist below
-  # runs. This must come first because bash `case` has no negation: `*`
-  # inside a `case` pattern matches `/` too (unlike `compgen -G`'s glob
-  # engine, which an earlier review used to verify this same ladder and
-  # which does NOT cross `/` -- that mismatch is exactly how the bug below
-  # slipped past review). That means a single `go/*.md` pattern already
-  # matches every path under go/** at any depth, INCLUDING
-  # go/cmd/audit-preflight/testdata/*.md -- four checked-in test fixtures
-  # that are not documentation and must never satisfy the evidence gate
-  # (eshu-hq/eshu#5542 follow-up). testdata/ is the confirmed, currently
-  # present offender; vendor/ and generated/ are excluded defensively for
-  # the same "not hand-authored documentation" reason even though no .md
-  # files live there today, so the gate does not quietly reopen the same
-  # hole the moment one appears. Matches both a leading path segment
-  # (e.g. testdata/foo.md under the repo-root testdata/ tree) and a nested
-  # one (e.g. go/cmd/audit-preflight/testdata/foo.md).
-  case "$path" in
-    testdata/*|*/testdata/*|vendor/*|*/vendor/*|generated/*|*/generated/*) return 1 ;;
-  esac
-  case "$path" in
-    docs/public/adrs/*.md) return 0 ;;
-    docs/public/reference/*.md) return 0 ;;
-    docs/public/reference/**/*.md) return 0 ;;
-    docs/internal/evidence/*.md) return 0 ;;
-    docs/internal/evidence/**/*.md) return 0 ;;
-    docs/internal/design/*.md) return 0 ;;
-    docs/internal/design/**/*.md) return 0 ;;
-    # Any .md directly under a go/** package directory is a recognized
-    # evidence location, not just README.md/AGENTS.md/evidence-*.md. The
-    # repo's real, actively-used convention has topic-named package docs
-    # carrying genuine markers well beyond those three filenames (e.g.
-    # go/internal/query/read-models.md, go/internal/storage/postgres/
-    # gotchas-and-invariants.md, go/internal/reducer/shared-projection.md,
-    # and the #5786 reducer README split's sibling docs). A narrower
-    # whitelist recognized only 584 of 679 real .md files repo-wide that
-    # carry a genuine marker and false-blocked legitimate PRs whose only
-    # evidence lived in one of the other 95, including real merged commit
-    # 7be40a0842 (#5747) which recorded evidence in
-    # go/internal/query/read-models.md (eshu-hq/eshu#5542 follow-up).
-    # Subsumes the earlier go/*/README.md, go/*/AGENTS.md,
-    # go/*/evidence-*.md, and go/internal/reducer/*.md patterns, and the
-    # previous go/*/*.md|go/*/*/*.md|... "depth ladder": under `case`
-    # semantics `*` already crosses `/`, so `go/*.md` alone matches every
-    # depth and the extra ladder rungs were unreachable dead weight
-    # (eshu-hq/eshu#5542 follow-up).
-    go/*.md) return 0 ;;
-    # sdk/go/ is a sibling Go-module tree the go/*.md pattern above does not
-    # reach (e.g. sdk/go/collector/README.md, sdk/go/factschema/README.md),
-    # same gap class as go/** (eshu-hq/eshu#5542 follow-up). Collapsed for
-    # the same dead-weight-ladder reason as go/*.md above.
-    sdk/go/*.md) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 hot_files=()
-evidence_files=()
-
 if [ "${#changed_files[@]}" -gt 0 ]; then
   for file in "${changed_files[@]}"; do
-    if is_evidence_file "$file" && [ -f "$repo_root/$file" ]; then
-      evidence_files+=("$repo_root/$file")
-    fi
-
-    if is_go_runtime_file "$file" \
-      && { is_hot_path_by_location "$file" || is_hot_path_by_content "$file"; }; then
-      # Hot-path file. If the only changes are comments or whitespace
-      # (e.g. an SPDX-header rollout), the gate does not apply because
-      # no runtime behaviour changed.
-      if is_comment_only_change "$file"; then
-        continue
-      fi
+    if is_go_runtime_file "$file" && { is_hot_path_by_location "$file" || is_hot_path_by_content "$file"; }; then
+      is_comment_only_change "$file" && continue
       hot_files+=("$file")
       continue
     fi
-
     if is_runtime_config_file "$file" && is_runtime_config_by_content "$file"; then
-      if is_comment_only_change "$file"; then
-        continue
-      fi
+      is_comment_only_change "$file" && continue
       hot_files+=("$file")
       continue
     fi
-
-    # These shell helpers own cross-worktree exclusion and the one Docker
-    # liveness query used to reclaim retained stacks. Changes can alter runner
-    # wait/refusal behavior or add external calls even though no Go/runtime
-    # configuration file changed.
     if is_live_gate_coordination_file "$file"; then
-      if is_comment_only_change "$file"; then
-        continue
-      fi
+      is_comment_only_change "$file" && continue
       hot_files+=("$file")
     fi
   done
@@ -507,101 +227,56 @@ fi
 
 if [ "${#hot_files[@]}" -eq 0 ]; then
   printf 'verify-performance-evidence: no hot Cypher/concurrency/runtime files changed\n'
-  [ -n "$_perf_content_hot_file" ] && rm -f "$_perf_content_hot_file"
-  [ -n "$_perf_comment_only_file" ] && rm -f "$_perf_comment_only_file"
   exit 0
 fi
 
-# Marker presence is decided from the PR's own ADDED lines, not whole-file
-# content. Whole-file search lets a PR inherit a passing gate from an
-# unrelated marker left behind by an earlier PR in a file it merely touches
-# (eshu-hq/eshu#5542): the marker sits in the file as unchanged context, not
-# as something this diff contributed, so it must not satisfy the gate.
-#
-# Added-line unions (evidence files here, workflow-artifact pointers in the
-# lib module) are built by evidence_added_union in
-# scripts/lib/performance-evidence-artifact.sh.
-has_performance_evidence=1
-has_observability_evidence=1
-if [ "${#evidence_files[@]}" -gt 0 ]; then
-  _perf_evidence_list="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-list.XXXXXX")"
-  for evidence_file in "${evidence_files[@]}"; do
-    printf '%s\n' "${evidence_file#"$repo_root"/}" >>"$_perf_evidence_list"
-  done
-  _perf_evidence_added_path="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-added.XXXXXX")"
-  evidence_added_union "$_perf_evidence_list" >"$_perf_evidence_added_path"
-  rm -f "$_perf_evidence_list"
-  if [ -s "$_perf_evidence_added_path" ]; then
-    # Tolerates an optional single parenthetical/bracketed qualifier between
-    # the marker phrase and the colon (e.g. "No-Regression Evidence (#5369):"),
-    # an established, already-merged convention on main (docs/public/
-    # reference/cypher-performance.md, go/internal/ask/engine/README.md, and
-    # 36 other files -- 116 such markers repo-wide) that the original
-    # phrase-then-colon-only regex made invisible to the gate. The colon
-    # remains mandatory either way, so a bare mention of the phrase with no
-    # colon at all -- "No-Regression Evidence (as discussed above) helps
-    # operators..." -- still does not match (eshu-hq/eshu#5542 follow-up).
-    # Match against a file, never a pipe. `printf ... | rg -q` is a race under
-    # `set -o pipefail`: rg exits the instant it matches, closing the read end
-    # while printf is still writing, so printf takes SIGPIPE (141). pipefail
-    # then reports 141 for the pipeline and discards rg's own 0, and the `if`
-    # reads a marker that IS present as missing -- failing the gate on a PR
-    # whose evidence is right there in the diff. Reproduced deterministically
-    # on bash 3.2.57, 5.2.21, and 5.3.15, so CI runners are affected too; it
-    # only shows when the marker is early and the block exceeds a pipe buffer,
-    # which is why the small-evidence cases never caught it. Do not reintroduce
-    # a pipe here, with or without -q; see
-    # scripts/test-verify-performance-evidence-large-marker.sh.
-    if rg -q -e '(^|[[:space:]])(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$_perf_evidence_added_path"; then
-      has_performance_evidence=0
-    fi
-    if rg -q -e '(^|[[:space:]])(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[[:space:]]*:' "$_perf_evidence_added_path"; then
-      has_observability_evidence=0
-    fi
+body_check_path="${tmp_dir}/pr-body.txt"
+has_body_input=0
+if [ -n "$pr_body_file" ]; then
+  if [ ! -f "$pr_body_file" ]; then
+    printf 'verify-performance-evidence: PR body file not found: %s\n' "$pr_body_file" >&2
+    exit 2
   fi
-  rm -f "$_perf_evidence_added_path"
+  cp "$pr_body_file" "$body_check_path"
+  has_body_input=1
+elif [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME:-}" = "pull_request_target" ]; then
+  printf '%s\n' "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY:-}" >"$body_check_path"
+  has_body_input=1
+elif [ -z "${GITHUB_EVENT_NAME:-}" ] && [ -n "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY:-}" ]; then
+  printf '%s\n' "${ESHU_PERFORMANCE_EVIDENCE_PR_BODY}" >"$body_check_path"
+  has_body_input=1
 fi
 
-# Workflow-artifact pointers satisfy the same two flags without a committed
-# record; the committed-file verdict above stays untouched.
-perf_apply_workflow_artifact_evidence
-# shellcheck disable=SC2154  # set by scripts/lib/performance-evidence-artifact.sh.
-if [ "$perf_artifact_has_performance" -eq 0 ]; then has_performance_evidence=0; fi
-# shellcheck disable=SC2154  # set by scripts/lib/performance-evidence-artifact.sh.
-if [ "$perf_artifact_has_observability" -eq 0 ]; then has_observability_evidence=0; fi
+if [ "$has_body_input" -eq 0 ]; then
+  printf 'verify-performance-evidence: %d hot-path file(s) changed; PR body markers are enforced on pull_request (pass --pr-body <file> to check a draft locally)\n' "${#hot_files[@]}"
+  exit 0
+fi
 
-if [ "$has_performance_evidence" -eq 0 ] && [ "$has_observability_evidence" -eq 0 ]; then
-  printf 'verify-performance-evidence: benchmark and observability markers found for hot-path changes\n'
-  # Guarded: rm -f with an empty operand still exits nonzero, which under
-  # set -e would flip this passing exit into a failure when a set was never
-  # built (e.g. no content check ran).
-  [ -n "$_perf_content_hot_file" ] && rm -f "$_perf_content_hot_file"
-  [ -n "$_perf_comment_only_file" ] && rm -f "$_perf_comment_only_file"
+has_perf=1
+has_obs=1
+if [ -s "$body_check_path" ]; then
+  rg --no-config -q -e '(^|[[:space:]])[*_]*(Performance Evidence|Benchmark Evidence|No-Regression Evidence)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[*_]*[[:space:]]*:' "$body_check_path" && has_perf=0 || true
+  rg --no-config -q -e '(^|[[:space:]])[*_]*(Observability Evidence|No-Observability-Change)([[:space:]]*(\([^()]*\)|\[[^\[\]]*\]))?[*_]*[[:space:]]*:' "$body_check_path" && has_obs=0 || true
+fi
+
+if [ "$has_perf" -eq 0 ] && [ "$has_obs" -eq 0 ]; then
+  printf 'verify-performance-evidence: benchmark and observability markers found in PR body for hot-path changes\n'
   exit 0
 fi
 
 {
-  printf 'verify-performance-evidence: hot Cypher/concurrency/runtime changes need tracked evidence.\n'
+  printf 'verify-performance-evidence: hot Cypher/concurrency/runtime changes need markers in the GitHub PR description.\n'
   printf '\nChanged hot files:\n'
   for file in "${hot_files[@]}"; do
     printf '  - %s\n' "$file"
   done
-  printf '\nUpdate the owning package doc (go/internal/<pkg>/README.md), an ADR, or a workflow-artifact ref\n'
-  printf 'with a benchmark marker (do not dump raw logs into docs/internal/evidence/):\n'
+  printf '\nAdd one performance marker to the PR description (do NOT commit ephemeral files or append markers to go/**/*.md):\n'
   printf '  - Performance Evidence:\n'
   printf '  - Benchmark Evidence:\n'
   printf '  - No-Regression Evidence:\n'
-  printf '\nAlso include an observability marker:\n'
+  printf '\nAnd one observability marker to the PR description:\n'
   printf '  - Observability Evidence:\n'
   printf '  - No-Observability-Change:\n'
-  printf '\nState the baseline, after measurement, backend/version, input shape, and why\n'
-  printf 'the change is safe. See docs/internal/evidence/README.md for evidence hygiene.\n'
-  perf_print_artifact_hint
-  printf '\nThis gate is content-based as well as path-based, so new collectors that add\n'
-  printf 'Cypher, worker claims, leases, batching, concurrency knobs, or runtime\n'
-  printf 'Compose/Helm settings are covered.\n'
+  printf '\nState the baseline, after measurement, backend/version, input shape, and operator signal.\n'
 } >&2
-
-[ -n "$_perf_content_hot_file" ] && rm -f "$_perf_content_hot_file"
-[ -n "$_perf_comment_only_file" ] && rm -f "$_perf_comment_only_file"
 exit 1

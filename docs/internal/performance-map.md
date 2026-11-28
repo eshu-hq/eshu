@@ -92,7 +92,7 @@ NornicDB is the **default** canonical backend; Neo4j is compatibility only.
 
 | Harness | Asserts | Run |
 | --- | --- | --- |
-| `scripts/verify-performance-evidence.sh` | Hot-path file changes carry a `Performance`/`Benchmark`/`No-Regression Evidence:` marker + an observability marker (CI gate). | `ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash scripts/verify-performance-evidence.sh` |
+| `scripts/verify-performance-evidence.sh` | Hot-path file changes carry a `Performance`/`Benchmark`/`No-Regression Evidence:` marker + an observability marker in the PR description (CI gate). | `ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main bash scripts/verify-performance-evidence.sh --pr-body <pr-body-file>` |
 | `scripts/verify-query-plan-regression.sh` | Hot Cypher fixture obeys the NornicDB schema contract (no unbounded traversals, unlabeled anchors, unordered pagination). | `cd go && go test ./internal/queryplan -count=1` |
 | `scripts/verify-scale-corpus-suite.sh` | The scale-lab corpus contract (`specs/scale-lab-corpus.v1.yaml`): slots, domains, and the metric set. | `bash scripts/verify-scale-corpus-suite.sh --spec specs/scale-lab-corpus.v1.yaml` |
 | `scripts/verify-scale-benchmark-artifact.sh` | A benchmark result JSON (`specs/scale-benchmark-artifact.v1.yaml`): schema, before/after, backend matrix, privacy. | `bash scripts/verify-scale-benchmark-artifact.sh --spec specs/scale-benchmark-artifact.v1.yaml --artifact <file>` |

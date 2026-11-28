@@ -60,8 +60,6 @@ merge_group_slim_gates:
   - go-dir-gate
 
 hygiene_hooks:
-  - id: go-measurement-citations
-    reason: "local pre-commit measurement-citation hygiene hook; retired from automatic CI static-contract-gates"
   - id: codex-spawn-guard
     reason: "pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI"
   - id: goal-role-routing

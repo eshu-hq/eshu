@@ -18,6 +18,12 @@ and be wired into `docs/mkdocs.yml` when they are part of the site.
 
 ## Editing Flow
 
+0. Load the required documentation skills before editing: **`publish`** (for
+   all `docs/public/` and `docs/internal/` pages, following
+   [Documentation Style Guide](../public/documentation-style-guide.md) and
+   [Writing For Agents](writing-for-agents.md)) and **`folder-doc-keeper`**
+   (for `go/**/{doc.go,README.md,AGENTS.md}`). Use **`explain`** or
+   **`show-me`** when adding architecture walkthroughs or diagrams.
 1. Read the local docs that own the surface before editing.
 2. Compare claims against code, manifests, scripts, tests, or generated specs.
 3. Remove duplicated or stale prose instead of adding another layer.
