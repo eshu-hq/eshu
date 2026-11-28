@@ -109,12 +109,12 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'vulnerability_intelligence', $1, $5, $5, f
 	}
 }
 
-// TestSupplyChainImpactWinnersMissingKeyCopyOutranksExplicitLive is the mixed
+// TestSupplyChainImpactWinnersNarrowMissingKeyCopyOutranksExplicitLive is the mixed
 // leg: one identifier, two copies, the missing-key copy scores higher. The
 // supports oracle (the full select the chunked full converges to) already
 // crowns the missing-key copy; the keyed narrow probes must reach that same
 // copy, on both probe shapes.
-func TestSupplyChainImpactWinnersMissingKeyCopyOutranksExplicitLive(t *testing.T) {
+func TestSupplyChainImpactWinnersNarrowMissingKeyCopyOutranksExplicitLive(t *testing.T) {
 	h := newKeyedHarness(t, "11691 mixed identifier outrank probe leg")
 
 	const scope = "scope-probe-mx"
