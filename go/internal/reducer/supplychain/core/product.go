@@ -5,7 +5,10 @@ package core
 
 import (
 	"fmt"
+	"math"
+	"math/big"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -188,9 +191,58 @@ func provenanceAdvisoryID(provenance advisoryProvenanceSelection, cves supplyCha
 	return payloadcore.FirstNonBlank(rep.AdvisoryID, rep.CVEID)
 }
 
+var (
+	epssPercentileScale = big.NewInt(100)
+	epssPercentileMax   = big.NewRat(1, 1)
+)
+
+const (
+	maxEPSSPercentileLen      = 64
+	maxEPSSPercentileExponent = 30
+)
+
+// isSafeBoundedDecimal rejects non-decimal forms accepted by big.Rat.SetString
+// (rationals like "1/2", hex floats like "0x1p-1", underscores like "0.1_2"),
+// non-finite values, overly long strings, and huge scientific exponents like
+// "1e-100000000" that would allocate unbounded math/big denominators.
+func isSafeBoundedDecimal(s string) bool {
+	if len(s) == 0 || len(s) > maxEPSSPercentileLen || strings.ContainsAny(s, "/xXpP_") {
+		return false
+	}
+	if idx := strings.IndexAny(s, "eE"); idx >= 0 {
+		exp, err := strconv.Atoi(s[idx+1:])
+		if err != nil || exp < -maxEPSSPercentileExponent || exp > maxEPSSPercentileExponent {
+			return false
+		}
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	return err == nil && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+// quantizeEPSSPercentileFloor floors a valid [0, 1] EPSS percentile string to
+// two decimal places using exact rational arithmetic (#11598 Option C). Raw
+// 9-decimal percentiles drift by ~0.00005 on daily FIRST EPSS refreshes without
+// crossing any priority threshold (0.80 / 0.95); flooring preserves exact
+// threshold invariance (0.799999 -> "0.79", 0.800000 -> "0.80",
+// 0.949999 -> "0.94", 0.950000 -> "0.95") while keeping raw 9-decimal values on
+// vulnerability.epss_score source facts and in preferEPSSObservation tie-breaks.
+func quantizeEPSSPercentileFloor(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if !isSafeBoundedDecimal(trimmed) {
+		return trimmed
+	}
+	r, ok := new(big.Rat).SetString(trimmed)
+	if !ok || r.Sign() < 0 || r.Cmp(epssPercentileMax) > 0 {
+		return trimmed
+	}
+	scaledNum := new(big.Int).Mul(r.Num(), epssPercentileScale)
+	q := new(big.Int).Quo(scaledNum, r.Denom()).Int64()
+	return fmt.Sprintf("%d.%02d", q/100, q%100)
+}
+
 func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplychainmodel.RiskSignals) {
 	finding.EPSSProbability = signals.EPSSProbability
-	finding.EPSSPercentile = signals.EPSSPercentile
+	finding.EPSSPercentile = quantizeEPSSPercentileFloor(signals.EPSSPercentile)
 	finding.EPSSScoreDate = signals.EPSSScoreDate
 	finding.EPSSModelVersion = signals.EPSSModelVersion
 	finding.KnownExploited = signals.KnownExploited

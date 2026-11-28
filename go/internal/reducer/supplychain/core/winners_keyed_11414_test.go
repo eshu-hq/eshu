@@ -37,8 +37,9 @@ func TestFirstPassOverUnchangedPriorGenerationStagesNothing(t *testing.T) {
 // TestDirtyIdentifiersToCaptureConsultsPriorGeneration pins the capture
 // contract behind #11414 at the function seam: a first pass (no rows of its
 // own generation stored yet) is judged against the previous generation by
-// stable key. Identical content stages nothing; a digest move, an evidence
-// move, an unknown stable key, and a digest-less prior row each stage.
+// stable key. Identical content and evidence-only moves (#11598 Option C)
+// stage nothing; a digest move, an unknown stable key, and a digest-less
+// prior row each stage.
 func TestDirtyIdentifiersToCaptureConsultsPriorGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +59,7 @@ func TestDirtyIdentifiersToCaptureConsultsPriorGeneration(t *testing.T) {
 	}{
 		{name: "identical prior content stages nothing", rows: []changedRow{row("k1", "ev-a")}, stored: []storedFinding{prior("k1", "digest-1", "ev-a")}, wantLen: 0},
 		{name: "digest move stages", rows: []changedRow{row("k1", "ev-a")}, stored: []storedFinding{prior("k1", "digest-2", "ev-a")}, wantLen: 1},
-		{name: "evidence move stages", rows: []changedRow{row("k1", "ev-b")}, stored: []storedFinding{prior("k1", "digest-1", "ev-a")}, wantLen: 1},
+		{name: "evidence-only move skips when digest equal (#11598)", rows: []changedRow{row("k1", "ev-b")}, stored: []storedFinding{prior("k1", "digest-1", "ev-a")}, wantLen: 0},
 		{name: "unknown stable key stages", rows: []changedRow{row("k9", "ev-a")}, stored: []storedFinding{prior("k1", "digest-1", "ev-a")}, wantLen: 1},
 		{name: "digest-less prior row stages", rows: []changedRow{row("k1", "ev-a")}, stored: []storedFinding{prior("k1", "", "ev-a")}, wantLen: 1},
 		{name: "no prior baseline stages", rows: []changedRow{row("k1", "ev-a")}, stored: nil, wantLen: 1},

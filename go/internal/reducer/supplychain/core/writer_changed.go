@@ -88,8 +88,9 @@ type changedRow struct {
 	ident                            WinnersDirtyIdentifier
 	suppressionState, identityDigest string // the written state (#10765); the D7 identity digest
 	// evidenceFactIDs is the sorted evidence fact id set the row is written
-	// with: digest-excluded but served from the stored winner payload, so
-	// the capture secondary-compares it (#10880 ruling decision 4).
+	// with. Under the #11598 Option C amendment to #10880 Decision 4 it is no
+	// longer secondary-compared in dirtyIdentifiersToCapture (daily EPSS
+	// fact_id churn must not restage unchanged winners).
 	evidenceFactIDs []string
 }
 
@@ -139,8 +140,10 @@ type storedFinding struct {
 	members []string
 	// suppressionState is the stored suppression_state, active if absent (#10765); identityDigest is provenance.identity_digest (D7), empty before it existed.
 	suppressionState, identityDigest string
-	// evidenceFactIDs is the stored row's evidence fact id set, read for
-	// the capture secondary comparison (#10880 ruling decision 4).
+	// evidenceFactIDs is the stored row's evidence fact id set, kept in the
+	// stored-findings scan for parity with the frozen #10880 PR-C1b column
+	// contract; #11598 Option C dropped its secondary comparison in
+	// dirtyIdentifiersToCapture.
 	evidenceFactIDs []string
 	// packageID, repositoryID and subjectDigest are the stored row's
 	// canonical winners-key components: the pass's retraction stages the

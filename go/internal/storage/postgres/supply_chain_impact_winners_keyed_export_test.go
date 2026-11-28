@@ -7,6 +7,17 @@ package postgres
 // test package, so a guard can read the payload fields it depends on.
 var WinnerSelectSQLForTest = supplyChainImpactWinnerSelectSQL
 
+// WinnersAuditDiffSelectForTest and the range audit SQL exports expose every
+// shipped audit diff statement so tests can pin the #11598 audit payload mask
+// without altering the winners contract v3 select.
+var (
+	WinnersAuditDiffSelectForTest         = winnersAuditDiffSelect("winners_now", "supply_chain_impact_canonical_winners")
+	WinnersAuditRangeFirstSQLForTest      = selectWinnersAuditFirstRangeSQL
+	WinnersAuditRangeNextSQLForTest       = selectWinnersAuditNextRangeSQL
+	WinnersAuditSingleScanFirstSQLForTest = selectWinnersAuditSingleScanFirstRangeSQL
+	WinnersAuditSingleScanNextSQLForTest  = selectWinnersAuditSingleScanNextRangeSQL
+)
+
 // WinnerBodySQLForTest exposes the shipped winner select body to the
 // external test package, so the M6 narrow-store proof can compose it over a
 // shape-built active-facts table. The body is byte-identical to the shipped

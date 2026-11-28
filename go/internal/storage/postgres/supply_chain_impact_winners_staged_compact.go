@@ -395,14 +395,14 @@ func FetchStoredWinners(ctx context.Context, reader db.Queryer) (map[string]Stor
 //     full recompute would project, so any wide-field change arrives with a
 //     new winner_fact_id and is emitted. Go never reimplements the severity
 //     CASE for the same reason.
-//   - The pin has a limit: an evidence-only rewrite keeps the content
-//     digest and the winner_fact_id while the upsert rewrites
-//     fact_records.payload, so the baked winner payload can drift under an
-//     unchanged winner_fact_id and this diff cannot see it. In staged mode
-//     only the writer's dirty-fact capture (evidence-set secondary compare,
-//     #10880 ruling decision 4) guards that case; the writer-backed
-//     AuditWinners ROW compare does cover it. See
-//     docs/internal/design/10880-pr-a-review-limits.md.
+//   - The pin has a limit: an evidence-only or score-date-only rewrite keeps
+//     the content digest and the winner_fact_id while the upsert rewrites
+//     supports.payload, so the baked winner payload can carry older provenance
+//     metadata under an unchanged winner_fact_id. Under the #11598 Option C
+//     arbiter amendment to #10880 Decision 4, that staleness is accepted on
+//     canonical_winners until the next semantic change (supports.payload stays
+//     fresh for Explain, and AuditWinners masks both fields). See
+//     docs/internal/arbiter/11598-epss-remark-storm-ruling-2026-11-28.md.
 func DiffCandidates(sourceWinners map[string]StagedWinner, overrides map[string]StagedOverride, stored map[string]StoredWinner) []string {
 	var candidates []string
 	for key, winner := range sourceWinners {

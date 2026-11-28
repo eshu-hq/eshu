@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
@@ -32,6 +33,25 @@ CREATE TEMP TABLE winners_audit_candidates ON COMMIT DROP AS
 WITH winners_now AS (` + supplyChainImpactWinnerSelectFromSupportsSQL + `)
 ` + winnersAuditDiffSelect("winners_now", "supply_chain_impact_canonical_winners")
 
+// supplyChainImpactWinnerAuditRowExpr renders the audit ROW comparison over
+// supplyChainImpactWinnerDataColumns while masking evidence_fact_ids and nested
+// provenance.selected_epss_score_date out of payload (#11598 Option C arbiter
+// ruling). Both fields are intentionally excluded from dirty-log capture so
+// content-identical enrichment rescans do not re-mark canonical winners;
+// masking them here keeps AuditWinners and staged-audit Repairs=0 without
+// altering supplyChainImpactWinnerBodySQL or bumping winners contract v3.
+func supplyChainImpactWinnerAuditRowExpr(prefix string) string {
+	cols := make([]string, len(supplyChainImpactWinnerDataColumns))
+	for i, c := range supplyChainImpactWinnerDataColumns {
+		if c == "payload" {
+			cols[i] = "((" + prefix + ".payload - 'evidence_fact_ids') #- '{provenance,selected_epss_score_date}')"
+			continue
+		}
+		cols[i] = prefix + "." + c
+	}
+	return "ROW(" + strings.Join(cols, ", ") + ")"
+}
+
 // winnersAuditDiffSelect renders the full-join diff of a recomputed set against
 // a stored set and projects the identifier of each differing key.
 func winnersAuditDiffSelect(now, stored string) string {
@@ -46,7 +66,7 @@ FULL JOIN ` + stored + ` AS w
   ON w.canonical_key = n.canonical_key
 WHERE n.canonical_key IS NULL
    OR w.canonical_key IS NULL
-   OR ` + supplyChainImpactWinnerRowExpr("n") + ` IS DISTINCT FROM ` + supplyChainImpactWinnerRowExpr("w")
+   OR ` + supplyChainImpactWinnerAuditRowExpr("n") + ` IS DISTINCT FROM ` + supplyChainImpactWinnerAuditRowExpr("w")
 }
 
 // seedWinnersAuditIdentsSQL copies the candidates into the identifier table the
