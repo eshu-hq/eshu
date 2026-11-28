@@ -114,6 +114,69 @@ counter (closed outcomes `clean|correcting|failed`, bounded labels) plus this
 alert rule and runbook; reducer telemetry coverage row updated in
 `telemetry-coverage-reducer-core.md`.
 
+## Reopen Breaker Chronic Parking Alerts
+
+The periodic maintenance reopen has a circuit breaker (#10880). When a pass's
+miss fraction trips it, the pass parks its owed reopens instead of replaying
+them and increments
+`eshu_dp_maintenance_reopen_parked_by_breaker_total{domain}`. One parked pass
+is a bounded delay: parked rows stay `succeeded` and the next pass lists them
+again. A pass that parks every time is different. Nothing is dropped, but owed
+replays wait without bound (#11594). A single-pass alert cannot tell the two
+apart, so alert on consecutive windows that each saw parking.
+
+Tune two named parameters:
+
+| Parameter | Meaning | Example |
+| --- | --- | --- |
+| `K` | Consecutive windows that must each show parking before the alert fires. | `3` |
+| `W` | Window length. It must be longer than the gap between two maintenance passes in your deployment, or a window can hold no pass and the alert never fires. | `1h` |
+
+Recommended rule (substitute `K*W` for the subquery range). The inner `bool`
+comparison matters: a plain `> 0` filter drops the windows without parking, and
+`min_over_time` would then fire on one window.
+
+```promql
+min_over_time(
+  (sum by (domain) (increase(eshu_dp_maintenance_reopen_parked_by_breaker_total[1h])) > bool 0)[3h:1h]
+) == 1
+```
+
+With `K=3` and `W=1h` this reads: parking in each of the last three hourly
+windows, per `domain` (`deployment_mapping` or `code_import_repo_edge`).
+Give the rule a `for:` of at most `W` and a `warning` severity. Treat it as a
+ticket, not a page: nothing is lost while it fires, and the signal says the
+reopen path is delayed, not broken.
+
+Status: this is a recipe. It is not a shipped alert, and neither this repo nor
+the eshu-deploy checkout carries it today. No `promtool` run, rule-file test, or
+verifier entry covers it, so the expression has not been exercised against a
+live Prometheus. The rule files and their verifier live only in eshu-deploy, so
+shipping it is owed there (#11594), with a test that pins the
+`> bool 0` and `min_over_time` shape. Until then, if permanent catalog churn
+leaves the breaker parking every pass, nobody is watching the reopen drought.
+
+Behavior to expect:
+
+- A quiet fleet runs no passes, so the counter stays flat and the alert clears.
+  It does not mean the catalog is healthy.
+- A series that did not exist before its first park has no point for the
+  earlier windows, and the inner `> bool 0` drops absent series. The subquery
+  can then hold only the windows after the first park, so the rule can fire
+  after fewer than `K` windows. A restart that resets the counter can also
+  undercount its first window. Treat a first firing right after a restart or
+  first deploy as unconfirmed until the next window.
+- Magnitude comes from the `parked=` field of the
+  `maintenance_reopen_circuit_breaker_open` log line, not from the counter
+  alone.
+
+When it fires, do not widen the breaker bound. Compare the
+`deferred_backfill_catalog_fingerprint` lines across passes to see which input
+(repositories, anchor terms, remote URLs) keeps moving, and check for
+`deferred_backfill_completed_degraded` lines that show the phase-two budget
+timing out. The runtime-side reasoning is in the
+[backfill package README](https://github.com/eshu-hq/eshu/blob/main/go/internal/storage/postgres/backfill/README.md#reopen-storm-loop-and-circuit-breaker).
+
 ## Health Versus Completeness
 
 Process health is not answer readiness. `/healthz`, `/readyz`, and Kubernetes
