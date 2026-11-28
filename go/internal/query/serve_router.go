@@ -448,10 +448,11 @@ func completeCoreStatusRouter(deps CoreServeDeps, stores *coreRouterStores, rout
 		Profile: profile,
 	}
 	router.Admin = &AdminHandler{
-		Store:       NewPostgresAdminStore(writer, instruments),
-		ReadStore:   newCoreAdminReadStore(reader),
-		Audit:       coreRecoveryAuditAppender(governanceAudit),
-		Instruments: instruments,
+		Store:          NewPostgresAdminStore(writer, instruments),
+		ReadStore:      newCoreAdminReadStore(reader),
+		Audit:          coreRecoveryAuditAppender(governanceAudit),
+		Instruments:    instruments,
+		OmitProofReads: deps.AdminProofExternal,
 		Completeness: &admin.DeltaUnionCompletenessChecker{
 			Active: pgstatus.NewFactStore(pgstatus.SQLDB{DB: writer}),
 			Graph:  graphReader,

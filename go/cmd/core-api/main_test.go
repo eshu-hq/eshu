@@ -164,6 +164,38 @@ func TestIsKeyNotConfiguredMatchesMissingKey(t *testing.T) {
 	}
 }
 
+func TestAdminProofExternalFromEnv(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{"one enables", "1", true},
+		{"padded one enables", " 1 ", true},
+		{"empty disables", "", false},
+		{"zero disables", "0", false},
+		{"true word disables", "true", false},
+		{"other value disables", "yes", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var gotKey string
+			getenv := func(key string) string {
+				gotKey = key
+				return tc.value
+			}
+			if got := adminProofExternalFromEnv(getenv); got != tc.want {
+				t.Fatalf("adminProofExternalFromEnv(%q) = %v, want %v", tc.value, got, tc.want)
+			}
+			if gotKey != "ESHU_CORE_ADMIN_PROOF_EXTERNAL" {
+				t.Fatalf("read key = %q, want ESHU_CORE_ADMIN_PROOF_EXTERNAL", gotKey)
+			}
+		})
+	}
+}
+
 func TestCoreEnvOrEmptyReadsTrimmed(t *testing.T) {
 	t.Parallel()
 	getenv := func(key string) string {

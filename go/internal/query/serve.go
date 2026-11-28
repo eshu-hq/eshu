@@ -104,6 +104,11 @@ type CoreServeDeps struct {
 	// NarrationPosture resolves the governed answer-narration posture for
 	// the status endpoint. Nil leaves the endpoint's static posture.
 	NarrationPosture func() status.AnswerNarrationStatus
+	// AdminProofExternal marks the two extracted proof-read routes (the
+	// tuning report and the work-items query) as served by an external
+	// apilib host: the core mux leaves them unmounted so one mux never
+	// answers them twice. Default false (core serves everything).
+	AdminProofExternal bool
 	// Auth carries the binary-built auth-family handlers. The binary builds
 	// them in cmd/core-api because secret-sealed material must never cross
 	// package query (see secretcrypto_open_boundary_test.go). Nil mounts

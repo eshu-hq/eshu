@@ -20,6 +20,12 @@
 #   red:   query output with no recognized envelope (schema drift,
 #          empty, or not JSON) must never read as "no advisory"  -> exit 1
 #   green: the real no-advisory shape (config + progress, no osv) -> exit 0
+#   green: a nested tracked in-repo module with a clean scan       -> exit 0
+#   red:   a nested replace with a module-line mismatch            -> exit 1
+#   red:   a nested replace outside the repo                       -> exit 1
+#   red:   a nested replace with an untracked go.mod                -> exit 1
+#   red:   an in-repo local replace NOT under the main module      -> exit 1
+#   red:   a nested replace whose scan fails                       -> exit 1
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -58,6 +64,20 @@ exit 2
 STUB
 cat >"${bin}/govulncheck" <<'STUB'
 #!/usr/bin/env bash
+# A `-scan` invocation is the nested-module exemption path: it runs inside
+# the replacement directory and its exit status decides the case.
+for arg in "$@"; do
+	case "${arg}" in
+	-scan)
+		if [ "${STUB_SCAN_TEST:-pass}" = "pass" ]; then
+			echo "No vulnerabilities found."
+			exit 0
+		fi
+		echo "found 1 vulnerability in the nested replacement" >&2
+		exit 1
+		;;
+	esac
+done
 cat "${STUB_QUERY}"
 STUB
 chmod +x "${bin}/go" "${bin}/govulncheck"
@@ -78,6 +98,27 @@ EOF
 
 replaced_module='{"Path":"example.com/up","Version":"v1.0.0","Replace":{"Path":"example.com/fork","Version":"v1.0.0-fork.1"}}'
 local_module='{"Path":"example.com/up","Version":"v1.0.0","Replace":{"Path":"../fork"}}'
+main_module='{"Path":"example.com","Main":true}'
+# Nested-module fixtures: a tracked in-repo replacement whose go.mod names
+# the replaced module. ${module} is <repo>/mod, so ./sub resolves under it.
+mkdir -p "${module}/sub" "${module}/mismatch" "${module}/untracked" "${module}/vendor-copy"
+printf 'module example.com/sub\n\ngo 1.26\n' >"${module}/sub/go.mod"
+printf 'module example.com/other\n\ngo 1.26\n' >"${module}/mismatch/go.mod"
+printf 'module example.com/untracked\n\ngo 1.26\n' >"${module}/untracked/go.mod"
+printf 'module other.com/vcopy\n\ngo 1.26\n' >"${module}/vendor-copy/go.mod"
+git -C "${tmp_root}/repo" add mod/sub/go.mod mod/mismatch/go.mod mod/vendor-copy/go.mod
+nested_green="${main_module}
+{\"Path\":\"example.com/sub\",\"Version\":\"v1.0.0\",\"Replace\":{\"Path\":\"./sub\",\"Dir\":\"${module}/sub\"}}"
+nested_mismatch="${main_module}
+{\"Path\":\"example.com/mismatch\",\"Version\":\"v1.0.0\",\"Replace\":{\"Path\":\"./mismatch\",\"Dir\":\"${module}/mismatch\"}}"
+nested_untracked="${main_module}
+{\"Path\":\"example.com/untracked\",\"Version\":\"v1.0.0\",\"Replace\":{\"Path\":\"./untracked\",\"Dir\":\"${module}/untracked\"}}"
+nested_vendored="${main_module}
+{\"Path\":\"other.com/vcopy\",\"Version\":\"v1.0.0\",\"Replace\":{\"Path\":\"./vendor-copy\",\"Dir\":\"${module}/vendor-copy\"}}"
+mkdir -p "${tmp_root}/outside/mod"
+printf 'module example.com/out\n\ngo 1.26\n' >"${tmp_root}/outside/mod/go.mod"
+nested_outside="${main_module}
+{\"Path\":\"example.com/out\",\"Version\":\"v1.0.0\",\"Replace\":{\"Path\":\"../../outside/mod\",\"Dir\":\"${tmp_root}/outside/mod\"}}"
 osv_open='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
 osv_fixed='{"osv":{"id":"GO-2026-6909","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"1.1.0"}]}]}]}}'
 osv_badid='{"osv":{"id":"GO-2026-6909.*","affected":[{"package":{"name":"example.com/up"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"}]}]}]}}'
@@ -121,7 +162,7 @@ run_case() {
 	out="${tmp_root}/out.txt"
 	set +e
 	PATH="${CASE_PATH:-${bin}:${PATH}}" STUB_MODULES="${tmp_root}/modules.json" STUB_QUERY="${tmp_root}/query.json" \
-		STUB_REPLACED_TEST="${replaced}" STUB_UPSTREAM_TEST="${upstream}" \
+		STUB_REPLACED_TEST="${replaced}" STUB_UPSTREAM_TEST="${upstream}" STUB_SCAN_TEST="${SCAN_TEST:-pass}" \
 		bash "${script}" "${module}" >"${out}" 2>&1
 	got=$?
 	set -e
@@ -167,6 +208,17 @@ RAW_QUERY="${unknown_key_json}" run_case "an unknown message type is red" 1 "${r
 RAW_QUERY="" run_case "empty query output is red" 1 "${replaced_module}" "" pass pass "produced no output"
 RAW_QUERY="govulncheck: something went wrong" run_case "non-JSON query output is red" 1 "${replaced_module}" "" pass pass "is not valid JSON"
 RAW_QUERY='[1,2]' run_case "a non-object JSON value is red" 1 "${replaced_module}" "" pass pass "unrecognized govulncheck query output"
+
+# Nested-module exemption: a version-less replace that points at a tracked
+# in-repo module nested under the main module skips the upstream
+# query/differential and gets `govulncheck -scan package ./...` inside the
+# replacement instead. Every other local replace stays red.
+SCAN_TEST=pass run_case "nested tracked module with a clean scan is green" 0 "${nested_green}" "" pass pass "nested-module replacement"
+SCAN_TEST=pass run_case "nested module-line mismatch is red" 1 "${nested_mismatch}" "" pass pass "replaced by a local path"
+SCAN_TEST=pass run_case "nested replacement outside the repo is red" 1 "${nested_outside}" "" pass pass "replaced by a local path"
+SCAN_TEST=pass run_case "untracked nested go.mod is red" 1 "${nested_untracked}" "" pass pass "replaced by a local path"
+SCAN_TEST=pass run_case "in-repo replace not under the main module is red" 1 "${nested_vendored}" "" pass pass "replaced by a local path"
+SCAN_TEST=fail run_case "nested scan failure is red" 1 "${nested_green}" "" pass pass "failed inside the nested-module replacement"
 
 if [ "${failures}" -gt 0 ]; then
 	printf 'test-govulncheck-replace-recheck: %d failure(s)\n' "${failures}" >&2

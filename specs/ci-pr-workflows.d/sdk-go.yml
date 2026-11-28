@@ -6,6 +6,7 @@ workflows:
   synchronize: true
   paths:
   - sdk/go/**
+  - go/apilib/**
   - .github/workflows/sdk-go.yml
   - scripts/ci/install-apt-packages.sh
   - scripts/ci/go-mod-download-retry.sh
@@ -18,7 +19,9 @@ workflows:
   - sdk-go-collector
   - sdk-go-factschema
   - sdk-go-apicontract
+  - go-apilib
   job_names:
     sdk-go-collector: 'SDK Go: collector'
     sdk-go-factschema: 'SDK Go: factschema'
     sdk-go-apicontract: 'SDK Go: apicontract'
+    go-apilib: 'Go: apilib'

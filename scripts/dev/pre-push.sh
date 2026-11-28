@@ -54,6 +54,7 @@
 #       list, and an added module a gate imports matches none of them, so a
 #       trigger-gated run missed #9604's drift; about 1.5 s warm. It is not run
 #       twice when the selected-gates step already ran ci-gate-registry.
+#   Nested Go modules (a go.mod under go/ besides go/go.mod itself) run each of the above from their own module root, partitioned at execution time by nearest go.mod.
 #
 # What it deliberately does NOT run: whole-module go-build, the whole-module
 # race lane and the registry race gates, and
@@ -162,6 +163,7 @@ check_diff_state() {
 # selected package the race run does not cover keep their plain run.
 step_test() {
 	local selected=() dirs=() d race_list="${pre_pr_state_dir}/race-dirs.txt"
+	local status=0 root sub pkgs=()
 	while IFS= read -r d; do
 		[[ -n "${d}" ]] && selected+=("${d}")
 	done < <({ changed_go_dirs; fixture_consumer_dirs; } | pre_pr_select_test_dirs)
@@ -178,8 +180,23 @@ step_test() {
 		return 0
 	fi
 	printf 'testing %d of %d package target(s) with plain go test; changed packages without a //go:build !race file run only in the race step\n' "${#dirs[@]}" "${#selected[@]}"
-	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
-	return "${PIPESTATUS[0]}"
+	# Nested Go modules run from their own roots: the parent go tool resolves
+	# a nested package to zero files, so each module group runs where its
+	# go.mod lives (partitioned at execution time by nearest go.mod).
+	pre_pr_partition_go_dirs <<<"$(printf '%s\n' ${dirs[@]+"${dirs[@]}"})"
+	if [[ ${#main_go_dirs[@]} -gt 0 ]]; then
+		( cd "${go_dir}" && go test -count=1 "${main_go_dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
+		[[ "${PIPESTATUS[0]}" -eq 0 ]] || status=1
+	fi
+	for root in ${nested_go_roots[@]+"${nested_go_roots[@]}"}; do
+		pkgs=()
+		while IFS= read -r sub; do
+			[[ -n "${sub}" ]] && pkgs+=("${sub}")
+		done < <(pre_pr_nested_group_pkgs "${root}")
+		( cd "${repo_root}/${root}" && go test -count=1 "${pkgs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
+		[[ "${PIPESTATUS[0]}" -eq 0 ]] || status=1
+	done
+	return "${status}"
 }
 
 # step_race runs `go test -race` on the changed Go packages only (#7111 F5).
@@ -190,6 +207,7 @@ step_test() {
 # consumers get the plain `go test` above, not a race run.
 step_race() {
 	local dirs=() d
+	local status=0 root sub pkgs=()
 	while IFS= read -r d; do
 		[[ -n "${d}" ]] && dirs+=("${d}")
 	done < <(changed_go_dirs)
@@ -208,8 +226,22 @@ step_race() {
 	fi
 	# -timeout is per test binary, the same 900s budget test.yml's go-race
 	# shards use, so a hang fails in minutes instead of Go's default 10m.
-	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
-	return "${PIPESTATUS[0]}"
+	# The warn threshold above counts total dirs pre-partition; the runs below
+	# are one invocation per module root.
+	pre_pr_partition_go_dirs <<<"$(printf '%s\n' ${dirs[@]+"${dirs[@]}"})"
+	if [[ ${#main_go_dirs[@]} -gt 0 ]]; then
+		( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${main_go_dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
+		[[ "${PIPESTATUS[0]}" -eq 0 ]] || status=1
+	fi
+	for root in ${nested_go_roots[@]+"${nested_go_roots[@]}"}; do
+		pkgs=()
+		while IFS= read -r sub; do
+			[[ -n "${sub}" ]] && pkgs+=("${sub}")
+		done < <(pre_pr_nested_group_pkgs "${root}")
+		( cd "${repo_root}/${root}" && go test -race -count=1 -timeout 900s "${pkgs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
+		[[ "${PIPESTATUS[0]}" -eq 0 ]] || status=1
+	done
+	return "${status}"
 }
 
 step_filecap() {
@@ -238,6 +270,7 @@ step_filecap() {
 # having nothing left to format or lint in a deleted package.
 step_fmt_lint_build_vet() {
 	local files=() dirs=() f d status=0
+	local root sub pkgs=()
 	while IFS= read -r f; do
 		[[ -n "${f}" ]] || continue
 		[[ -f "${repo_root}/${f}" ]] || continue
@@ -252,16 +285,33 @@ step_fmt_lint_build_vet() {
 	"${precommit}" lint "${files[@]}" || status=1
 	if [[ ${#dirs[@]} -gt 0 ]]; then
 		printf 'build+vet: %d changed package(s)\n' "${#dirs[@]}"
-		# A single main package otherwise leaves an executable in go/, which
-		# the source-identity gate correctly rejects as untracked input.
-		# Multiple-package builds already discard output; /dev/null cannot
-		# be used as one output file for multiple packages.
-		if [[ ${#dirs[@]} -eq 1 ]]; then
-			( cd "${go_dir}" && go build -o /dev/null "${dirs[@]}" ) || status=1
-		else
-			( cd "${go_dir}" && go build "${dirs[@]}" ) || status=1
+		# One build+vet per module group: nested packages do not resolve from
+		# go/, so each group builds where its go.mod lives.
+		pre_pr_partition_go_dirs <<<"$(printf '%s\n' ${dirs[@]+"${dirs[@]}"})"
+		if [[ ${#main_go_dirs[@]} -gt 0 ]]; then
+			# A single main package otherwise leaves an executable in go/, which
+			# the source-identity gate correctly rejects as untracked input.
+			# Multiple-package builds already discard output; /dev/null cannot
+			# be used as one output file for multiple packages.
+			if [[ ${#main_go_dirs[@]} -eq 1 ]]; then
+				( cd "${go_dir}" && go build -o /dev/null "${main_go_dirs[@]}" ) || status=1
+			else
+				( cd "${go_dir}" && go build "${main_go_dirs[@]}" ) || status=1
+			fi
+			( cd "${go_dir}" && go vet "${main_go_dirs[@]}" ) || status=1
 		fi
-		( cd "${go_dir}" && go vet "${dirs[@]}" ) || status=1
+		for root in ${nested_go_roots[@]+"${nested_go_roots[@]}"}; do
+			pkgs=()
+			while IFS= read -r sub; do
+				[[ -n "${sub}" ]] && pkgs+=("${sub}")
+			done < <(pre_pr_nested_group_pkgs "${root}")
+			if [[ ${#pkgs[@]} -eq 1 ]]; then
+				( cd "${repo_root}/${root}" && go build -o /dev/null "${pkgs[@]}" ) || status=1
+			else
+				( cd "${repo_root}/${root}" && go build "${pkgs[@]}" ) || status=1
+			fi
+			( cd "${repo_root}/${root}" && go vet "${pkgs[@]}" ) || status=1
+		done
 	fi
 	return "${status}"
 }

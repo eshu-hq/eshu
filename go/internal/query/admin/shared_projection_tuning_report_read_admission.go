@@ -3,6 +3,10 @@
 
 package admin
 
+import (
+	apilibadmin "github.com/eshu-hq/eshu/go/apilib/admin"
+)
+
 // SharedProjectionTuningReportContractVersion versions the #9669 Gap
 // 02 admission-contract shape for the static shared-projection tuning
 // report (GET /api/v0/admin/shared-projection/tuning-report).
@@ -13,17 +17,20 @@ package admin
 // shape is deliberately updated; bump this version alongside
 // (manually — the bump is convention, the frozen shape is the
 // enforcement) so dest consumers can pin the shape.
-const SharedProjectionTuningReportContractVersion = "v0"
+//
+// The values live in the apilib proof-read extraction; these aliases keep
+// the frozen contract test and the OpenAPI owners spelling the core names.
+const SharedProjectionTuningReportContractVersion = apilibadmin.TuningReportContractVersion
 
 // SharedProjectionTuningReportStatus is the pinned status value of the
 // static tuning report: shared-write tuning is not an operator
 // surface, so the report is always not_applicable, never an error.
-const SharedProjectionTuningReportStatus = "not_applicable"
+const SharedProjectionTuningReportStatus = apilibadmin.TuningReportStatus
 
 // SharedProjectionTuningReportDetail is the pinned detail text of the
 // static tuning report: tuning is managed internally by the Go
 // projector pipeline.
-const SharedProjectionTuningReportDetail = "Shared-projection tuning is managed internally by the Go projector pipeline."
+const SharedProjectionTuningReportDetail = apilibadmin.TuningReportDetail
 
 // D-wave consumer: D3 (admin reads, per the arbiter D-wave ruling on
 // #9669: Decision 3 / census Q4 — admin reads go native only after the

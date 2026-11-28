@@ -133,3 +133,14 @@ client cancel as an exception (`TestPoisonedLinkChildSpanSkipsClientCancel`).
 A finalize that recorded the outcome after the client left logs one INFO
 `admin_recovery.finalize_after_client_cancel` event (`operation`, `route`,
 `correlation_id`), pinned by `TestAdminMutationFinalizeOutlivesClientCancel`.
+
+## W1 apilib delegation (eshu-hq/eshu-api#456)
+
+The proof-scope handlers (`tuningReport`, `listWorkItems`) delegate to the
+slim `go/apilib` module; `Handler.OmitProofReads` (wired from
+`CoreServeDeps.AdminProofExternal`, env `ESHU_CORE_ADMIN_PROOF_EXTERNAL=1`,
+default false) unmounts exactly those two routes. The delegation adds no
+store, SQL, Cypher, lock, or goroutine path: same decode/default/trim/encode
+ops, same fixed error texts, same fence-hook ordering. Performance and
+observability evidence for this change lives in the PR body, per repo rule
+(no ephemeral evidence markers in package docs).

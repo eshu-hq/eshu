@@ -25,7 +25,20 @@
 #      (see check_query_envelope): empty, non-JSON or reshaped output is a
 #      FAIL, never "no advisory".
 #   3. FAIL on a replace with no replacement version (a local path): nothing
-#      reviewable pins it.
+#      reviewable pins it -- except a nested module of the main module that
+#      lives in this repo. When ALL of the following hold, the replace skips
+#      the upstream query/differential above and instead gets
+#      `govulncheck -scan package ./...` inside the replacement directory
+#      (a failure there is a FAIL); otherwise the local-path FAIL stands:
+#        - the replacement has no version and its path is relative (./ or ../);
+#        - the replacement directory (absolutized by `go list`) lies under
+#          `git rev-parse --show-toplevel`;
+#        - <dir>/go.mod is git-tracked (absolute path: a cwd-relative
+#          pathspec fails from the module directory);
+#        - that go.mod's module line equals the replaced module path exactly;
+#        - the replaced path is strictly under the main-module path: nested
+#          only, so an in-repo-but-not-nested copy still fails closed;
+#        - go.mod requires a version of the replaced module to look up.
 # Nothing here is a hand-kept list: the modules come from `go list -m -json
 # all` and the advisories from the database. A replaced module with no
 # advisory passes with no tests required.
@@ -178,24 +191,74 @@ recheck_advisory() {
 modules_json="${tmp_root}/modules.json"
 go list -m -json all >"${modules_json}"
 
+# is_nested_module_replace reports whether a version-less (local) replace
+# points at a nested module of the main module that lives in this repo.
+# Every condition must hold; a missing main path, a non-relative replacement,
+# a directory outside the repo, an untracked go.mod, a module line that does
+# not name the replaced module exactly, or a replaced path that is not
+# strictly under the main module all report false and keep the local-path
+# FAIL. Needs: git, awk on PATH (git is checked up front; awk is POSIX).
+is_nested_module_replace() {
+	local path="$1" repl_path="$2" repl_dir="$3" top nested_go_mod nested_mod
+	[ -n "${main_path}" ] || return 1
+	case "${repl_path}" in
+	./* | ../*) ;;
+	*) return 1 ;;
+	esac
+	[ -n "${repl_dir}" ] || return 1
+	top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+	case "${repl_dir}/" in
+	"${top}/"*) ;;
+	*) return 1 ;;
+	esac
+	nested_go_mod="${repl_dir}/go.mod"
+	git ls-files --error-unmatch "${nested_go_mod}" >/dev/null 2>&1 || return 1
+	nested_mod="$(awk '$1 == "module" { print $2; exit }' "${nested_go_mod}")" || return 1
+	[ "${nested_mod}" = "${path}" ] || return 1
+	case "${path}" in
+	"${main_path}/"*) ;;
+	*) return 1 ;;
+	esac
+	return 0
+}
+
 # Write the replaced-module list to a file instead of feeding the loop through a
 # process substitution: set -e cannot see a failed `< <(jq ...)`, which would
 # read as zero replaced modules and pass.
 replaced_tsv="${tmp_root}/replaced.tsv"
-if ! jq -r 'select(.Replace != null) | [.Path, (.Version // "-"), .Replace.Path, (.Replace.Version // "-")] | @tsv' \
+if ! jq -r 'select(.Replace != null) | [.Path, (.Version // "-"), .Replace.Path, (.Replace.Version // "-"), (.Replace.Dir // "-")] | @tsv' \
 	"${modules_json}" >"${replaced_tsv}"; then
 	fail "jq failed while listing replaced modules from go list -m -json all"
 	exit 1
 fi
 
+# The main-module path bounds the nested-module exemption below: only a
+# replaced path strictly under it may take the nested branch. This runs after
+# the replaced-listing gate so a broken jq still reports that first failure.
+if ! main_path="$(jq -r '[select(.Main == true) | .Path][0] // empty' "${modules_json}")"; then
+	fail "jq failed while reading the main module path from go list -m -json all"
+	exit 1
+fi
+
 replaced_count=0
-while IFS=$'\t' read -r path version repl_path repl_version; do
+while IFS=$'\t' read -r path version repl_path repl_version repl_dir; do
 	[ -n "${path}" ] || continue
 	# jq emits "-" for an empty field: a tab-separated read collapses empty ones.
 	[ "${version}" != "-" ] || version=""
 	[ "${repl_version}" != "-" ] || repl_version=""
+	[ "${repl_dir}" != "-" ] || repl_dir=""
 	replaced_count=$((replaced_count + 1))
 	if [ -z "${repl_version}" ]; then
+		if [ -n "${version}" ] && is_nested_module_replace "${path}" "${repl_path}" "${repl_dir}"; then
+			scan_out="${tmp_root}/nested-${replaced_count}.out"
+			if ! (cd "${repl_dir}" && govulncheck -scan package ./...) >"${scan_out}" 2>&1; then
+				cat "${scan_out}" >&2
+				fail "${path}: govulncheck -scan package ./... failed inside the nested-module replacement (${repl_dir}); the replacement is not clean"
+				continue
+			fi
+			note "OK ${path}@${version} (nested-module replacement at ${repl_path}): govulncheck -scan package ./... is clean"
+			continue
+		fi
 		fail "${path} is replaced by a local path (${repl_path}); pin a versioned fork so the replacement is reviewable"
 		continue
 	fi

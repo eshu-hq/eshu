@@ -3,6 +3,7 @@ module github.com/eshu-hq/eshu/go
 go 1.26.11
 
 require (
+	github.com/eshu-hq/eshu/go/apilib v0.1.0
 	github.com/UserNobody14/tree-sitter-dart v0.0.0-20260520003023-a9bdfa3db2fb
 	github.com/alexaandru/go-sitter-forest/perl v1.9.9
 	github.com/alexaandru/go-sitter-forest/sql v1.9.9
@@ -381,5 +382,7 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
+
+replace github.com/eshu-hq/eshu/go/apilib => ./apilib
 
 replace github.com/fergusstrange/embedded-postgres => github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1

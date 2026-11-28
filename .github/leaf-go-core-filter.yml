@@ -16,6 +16,7 @@ go_core:
   - 'scripts/lib/cgo-cflags.sh'
   - 'scripts/lib/precommit-go-gosec.sh'
   - 'scripts/test-precommit-go-cgo-cflags.sh'
+  - 'scripts/test-precommit-go-nested-module.sh'
   - 'scripts/test-precommit-go-filecap.sh'
   - 'scripts/lib/test-precommit-go-filecap-cases.sh'
   - 'scripts/ci/install-apt-packages.sh'
